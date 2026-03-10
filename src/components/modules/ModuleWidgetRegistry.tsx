@@ -7,8 +7,13 @@ const HealthWidget = dynamic(() => import('@/modules/health/ui/HealthWidget'), {
     loading: () => <div className="animate-pulse h-24 bg-gray-200 rounded-xl" />,
 });
 
+const ProcessWidget = dynamic(() => import('@/modules/processes/ui/ProcessWidget'), {
+    loading: () => <div className="animate-pulse h-64 bg-gray-200 rounded-xl opacity-20" />,
+});
+
 const widgetMap: Record<string, React.ComponentType<any>> = {
     HealthWidget,
+    ProcessWidget,
 };
 
 export function renderWidget(componentName: string, props: any = {}) {
