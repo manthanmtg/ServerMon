@@ -1,14 +1,17 @@
-'use client';
-
+import React from 'react';
 import { useTheme } from '@/lib/ThemeContext';
 import { Shield, LayoutDashboard, Monitor, Terminal, Settings, LogOut, Moon, Sun, Palette } from 'lucide-react';
 import Link from 'next/link';
+import { renderWidget } from '@/components/modules/ModuleWidgetRegistry';
 
 export default function DashboardPage() {
     const { theme, setTheme, availableThemes } = useTheme();
 
-    // Note: We can't use getSession directly in 'use client' easily without a wrapper or extra fetch
-    // For now, let's assume session is handled by the initial page load or a future context
+    // Simulated registered module widgets
+    const registeredWidgets = [
+        { id: 'h1', component: 'HealthWidget' }
+    ];
+
     const username = "Admin";
 
     const handleLogout = () => {
@@ -122,6 +125,17 @@ export default function DashboardPage() {
                                 </div>
                             </div>
                         ))}
+                    </div>
+
+                    <div className="mt-8">
+                        <h3 className="text-xl font-bold mb-4 opacity-70">Module Diagnostics</h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                            {registeredWidgets.map(w => (
+                                <React.Fragment key={w.id}>
+                                    {renderWidget(w.component)}
+                                </React.Fragment>
+                            ))}
+                        </div>
                     </div>
 
                     <div className="mt-8 border p-8 rounded-3xl text-center"

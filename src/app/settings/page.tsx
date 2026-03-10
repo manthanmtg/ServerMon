@@ -1,11 +1,18 @@
-'use client';
-
+import React, { useEffect, useState } from 'react';
 import { useTheme } from '@/lib/ThemeContext';
-import { Shield, Settings, Palette, Check, Save } from 'lucide-react';
+import { Shield, Settings, Palette, Check, Save, Box, Activity } from 'lucide-react';
 import Link from 'next/link';
 
 export default function SettingsPage() {
     const { theme, setTheme, availableThemes } = useTheme();
+    const [modules, setModules] = useState<any[]>([]);
+
+    useEffect(() => {
+        fetch('/api/modules')
+            .then(res => res.json())
+            .then(data => setModules(data.modules || []))
+            .catch(err => console.error(err));
+    }, []);
 
     return (
         <div className="min-h-screen flex" style={{ backgroundColor: 'var(--background)', color: 'var(--foreground)' }}>
@@ -86,6 +93,42 @@ export default function SettingsPage() {
                                             </div>
                                         </div>
                                     </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div className="border rounded-3xl p-8" style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)' }}>
+                            <div className="flex items-center gap-4 mb-8">
+                                <div className="p-3 rounded-2xl" style={{ backgroundColor: 'var(--primary)', opacity: 0.1 }}>
+                                    <Box className="w-6 h-6" style={{ color: 'var(--primary)' }} />
+                                </div>
+                                <div>
+                                    <h3 className="text-xl font-bold">Module Management</h3>
+                                    <p className="text-sm opacity-50">Manage installed modules and their system integration.</p>
+                                </div>
+                            </div>
+
+                            <div className="space-y-4">
+                                {modules.map(mod => (
+                                    <div key={mod.id} className="flex items-center justify-between p-4 rounded-2xl border" style={{ borderColor: 'var(--border)' }}>
+                                        <div className="flex items-center gap-4">
+                                            <div className="p-2 rounded-xl" style={{ backgroundColor: 'var(--secondary)' }}>
+                                                <Activity className="w-5 h-5 opacity-70" />
+                                            </div>
+                                            <div>
+                                                <h4 className="font-bold">{mod.name}</h4>
+                                                <p className="text-xs opacity-50">{mod.description || 'No description provided.'}</p>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-3">
+                                            <span className="text-[10px] font-mono px-2 py-1 rounded bg-green-500 bg-opacity-10 text-green-500 uppercase font-bold">
+                                                Running
+                                            </span>
+                                            <button className="px-4 py-1.5 rounded-xl text-xs font-bold border hover:bg-red-50 hover:bg-opacity-10 hover:text-red-500 transition-all" style={{ borderColor: 'var(--border)' }}>
+                                                Disable
+                                            </button>
+                                        </div>
+                                    </div>
                                 ))}
                             </div>
                         </div>
