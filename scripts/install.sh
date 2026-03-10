@@ -24,13 +24,29 @@ fi
 echo -e "${GREEN}[1/5] Updating system and installing base dependencies...${NC}"
 apt-get update -y && apt-get install -y curl git build-essential
 
-# 2. Install Node.js (v20 LTS)
+# 2. Install Node.js (v20 LTS) & PNPM
 if ! command -v node &> /dev/null; then
   echo -e "${GREEN}[2/5] Installing Node.js v20...${NC}"
   curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
   apt-get install -y nodejs
 else
   echo -e "${GREEN}[2/5] Node.js already installed: $(node -v)${NC}"
+fi
+
+if ! command -v pnpm &> /dev/null; then
+  echo -e "${GREEN}[2/5] Installing pnpm...${NC}"
+  npm install -g pnpm
+else
+  echo -e "${GREEN}[2/5] pnpm already installed: $(pnpm -v)${NC}"
+fi
+
+# Stop existing service if it exists (Re-installation logic)
+if systemctl list-unit-files | grep -q 'servermon.service'; then
+  echo -e "${RED}Existing ServerMon service detected. Stopping and removing old service...${NC}"
+  systemctl stop servermon || true
+  systemctl disable servermon || true
+  # Kill any stray processes just in case
+  pkill -f "next-server" || true
 fi
 
 # 3. Install MongoDB
@@ -50,20 +66,30 @@ fi
 echo -e "${GREEN}[4/5] Setting up ServerMon Application...${NC}"
 INSTALL_DIR="/opt/servermon"
 
-if [ ! -d "$INSTALL_DIR" ]; then
+if [ -d "$INSTALL_DIR" ]; then
+  echo -e "${BLUE}Updating existing installation in $INSTALL_DIR...${NC}"
+  # Backup old env if exists
+  if [ -f /etc/servermon/env ]; then
+    cp /etc/servermon/env /tmp/servermon_env_backup
+  fi
+  # Simple way to "reinstall" is to clear and copy fresh, or just sync.
+  # Let's clear node_modules to ensure a clean pnpm install
+  rm -rf "$INSTALL_DIR/node_modules"
+  cp -r . "$INSTALL_DIR"
+else
   mkdir -p "$INSTALL_DIR"
   cp -r . "$INSTALL_DIR"
 fi
 
 cd "$INSTALL_DIR"
 
-# Install NPM dependencies
-echo "Installing dependencies (this may take a minute)..."
-npm install --production=false # We need dev deps to build
+# Install dependencies using pnpm
+echo "Installing dependencies with pnpm..."
+pnpm install
 
 # Build the app
 echo "Building ServerMon..."
-npm run build
+pnpm run build
 
 # Setup Environment
 mkdir -p /etc/servermon
@@ -77,6 +103,9 @@ PORT=8912
 NODE_ENV=production
 EOF
   chmod 600 /etc/servermon/env
+elif [ -f /tmp/servermon_env_backup ]; then
+  echo "Restoring previous environment config..."
+  mv /tmp/servermon_env_backup /etc/servermon/env
 fi
 
 # Create system user

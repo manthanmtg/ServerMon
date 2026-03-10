@@ -11,7 +11,7 @@ Environment=NODE_ENV=production
 Environment=PORT=8912
 # Ensure you set MONGO_URI and JWT_SECRET in /etc/servermon/env
 EnvironmentFile=/etc/servermon/env
-ExecStart=/usr/bin/npm run start
+ExecStart=/usr/local/bin/pnpm start
 Restart=always
 RestartSec=10
 

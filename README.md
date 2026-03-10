@@ -44,9 +44,9 @@ sudo journalctl -u servermon -f   # View live logs
 ## 👩‍💻 Development
 
 1. **Clone the repo**: `git clone...`
-2. **Install dependencies**: `npm install`
+2. **Install dependencies**: `pnpm install`
 3. **Environment**: Create a `.env.local` with `MONGO_URI` and `JWT_SECRET`.
-4. **Run Dev server**: `npm run dev`
+4. **Run Dev server**: `pnpm run dev`
 
 ---
 
