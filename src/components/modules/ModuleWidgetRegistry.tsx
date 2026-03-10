@@ -11,9 +11,14 @@ const ProcessWidget = dynamic(() => import('@/modules/processes/ui/ProcessWidget
     loading: () => <div className="animate-pulse h-64 bg-gray-200 rounded-xl opacity-20" />,
 });
 
+const LogsWidget = dynamic(() => import('@/modules/logs/ui/LogsWidget'), {
+    loading: () => <div className="animate-pulse h-48 bg-gray-200 rounded-xl opacity-20" />,
+});
+
 const widgetMap: Record<string, React.ComponentType<any>> = {
     HealthWidget,
     ProcessWidget,
+    LogsWidget,
 };
 
 export function renderWidget(componentName: string, props: any = {}) {

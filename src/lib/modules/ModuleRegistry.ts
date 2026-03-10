@@ -1,5 +1,6 @@
 import { Module, ModuleContext } from '@/types/module';
 import { eventBus } from './EventBus';
+import { analyticsService } from '../analytics';
 import os from 'os';
 
 class ModuleRegistry {
@@ -35,6 +36,14 @@ class ModuleRegistry {
 
         console.log(`Module loaded: ${module.name} (v${module.version})`);
         eventBus.emit('module:loaded', { id: module.id, name: module.name });
+
+        // Log registration
+        await analyticsService.track({
+            moduleId: 'core',
+            event: 'module:registered',
+            metadata: { id: module.id, name: module.name, version: module.version },
+            severity: 'info'
+        });
     }
 
     /**
@@ -46,6 +55,13 @@ class ModuleRegistry {
         if (module && ctx && module.start) {
             await module.start(ctx);
             eventBus.emit('module:started', { id });
+
+            await analyticsService.track({
+                moduleId: 'core',
+                event: 'module:started',
+                metadata: { id },
+                severity: 'info'
+            });
         }
     }
 
@@ -58,6 +74,13 @@ class ModuleRegistry {
         if (module && ctx && module.stop) {
             await module.stop(ctx);
             eventBus.emit('module:stopped', { id });
+
+            await analyticsService.track({
+                moduleId: 'core',
+                event: 'module:stopped',
+                metadata: { id },
+                severity: 'info'
+            });
         }
     }
 
@@ -73,8 +96,13 @@ class ModuleRegistry {
         return {
             analytics: {
                 track: (event, metadata) => {
-                    console.log(`[Analytics] ${module.id}: ${event}`, metadata);
                     eventBus.emit('analytics:event', { moduleId: module.id, event, metadata });
+                    analyticsService.track({
+                        moduleId: module.id,
+                        event,
+                        metadata,
+                        severity: 'info'
+                    });
                 },
             },
             events: {
@@ -83,14 +111,19 @@ class ModuleRegistry {
             },
             db: {
                 getCollection: (name) => {
-                    // Placeholder for MongoDB collection access
                     return null;
                 },
             },
             logger: {
-                info: (msg, ...args) => console.log(`[INFO] [${module.name}] ${msg}`, ...args),
-                warn: (msg, ...args) => console.warn(`[WARN] [${module.name}] ${msg}`, ...args),
-                error: (msg, ...args) => console.error(`[ERROR] [${module.name}] ${msg}`, ...args),
+                info: (msg, ...args) => {
+                    analyticsService.track({ moduleId: module.id, event: 'log:info', metadata: { msg, args }, severity: 'info' });
+                },
+                warn: (msg, ...args) => {
+                    analyticsService.track({ moduleId: module.id, event: 'log:warn', metadata: { msg, args }, severity: 'warn' });
+                },
+                error: (msg, ...args) => {
+                    analyticsService.track({ moduleId: module.id, event: 'log:error', metadata: { msg, args }, severity: 'error' });
+                },
             },
             system: {
                 capabilities: {
@@ -102,16 +135,14 @@ class ModuleRegistry {
             },
             settings: {
                 get: async (key) => {
-                    // Placeholder for settings retrieval
                     return null;
                 },
                 set: async (key, value) => {
-                    // Placeholder for settings persistence
                 },
             },
             ui: {
                 theme: {
-                    id: 'dark-default', // Initial default
+                    id: 'dark-default',
                     mode: 'dark',
                 },
             },

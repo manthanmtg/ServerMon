@@ -10,7 +10,8 @@ export default function DashboardPage() {
     // Simulated registered module widgets
     const registeredWidgets = [
         { id: 'h1', component: 'HealthWidget' },
-        { id: 'p1', component: 'ProcessWidget' }
+        { id: 'p1', component: 'ProcessWidget' },
+        { id: 'l1', component: 'LogsWidget' }
     ];
 
     const username = "Admin";
