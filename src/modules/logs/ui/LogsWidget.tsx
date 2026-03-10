@@ -3,8 +3,16 @@
 import React, { useEffect, useState } from 'react';
 import { History, Clock, Info, AlertTriangle, XCircle } from 'lucide-react';
 
+interface LogEntry {
+    _id: string;
+    moduleId: string;
+    event: string;
+    timestamp: string;
+    severity: 'info' | 'warn' | 'error';
+}
+
 export default function LogsWidget() {
-    const [logs, setLogs] = useState<any[]>([]);
+    const [logs, setLogs] = useState<LogEntry[]>([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {

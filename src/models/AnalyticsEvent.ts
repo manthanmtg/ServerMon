@@ -3,7 +3,7 @@ import mongoose, { Schema, Document } from 'mongoose';
 export interface IAnalyticsEvent extends Document {
     moduleId: string;
     event: string;
-    metadata: Record<string, any>;
+    metadata: Record<string, unknown>;
     timestamp: Date;
     severity: 'info' | 'warn' | 'error';
 }

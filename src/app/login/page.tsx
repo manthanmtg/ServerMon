@@ -34,8 +34,8 @@ export default function LoginPage() {
             if (!res.ok) throw new Error(data.error);
 
             setStep(2);
-        } catch (err: any) {
-            setError(err.message);
+        } catch (err: unknown) {
+            setError(err instanceof Error ? err.message : 'Unknown error');
         } finally {
             setLoading(false);
         }

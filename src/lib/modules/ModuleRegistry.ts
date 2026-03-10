@@ -20,28 +20,28 @@ class ModuleRegistry {
     /**
      * Register and initialize a module
      */
-    public async register(module: Module): Promise<void> {
-        if (this.modules.has(module.id)) {
-            console.warn(`Module with id ${module.id} is already registered.`);
+    public async register(mod: Module): Promise<void> {
+        if (this.modules.has(mod.id)) {
+            console.warn(`Module with id ${mod.id} is already registered.`);
             return;
         }
 
-        const ctx = this.createContext(module);
-        this.modules.set(module.id, module);
-        this.contexts.set(module.id, ctx);
+        const ctx = this.createContext(mod);
+        this.modules.set(mod.id, mod);
+        this.contexts.set(mod.id, ctx);
 
-        if (module.init) {
-            await module.init(ctx);
+        if (mod.init) {
+            await mod.init(ctx);
         }
 
-        console.log(`Module loaded: ${module.name} (v${module.version})`);
-        eventBus.emit('module:loaded', { id: module.id, name: module.name });
+        console.log(`Module loaded: ${mod.name} (v${mod.version})`);
+        eventBus.emit('module:loaded', { id: mod.id, name: mod.name });
 
         // Log registration
         await analyticsService.track({
             moduleId: 'core',
             event: 'module:registered',
-            metadata: { id: module.id, name: module.name, version: module.version },
+            metadata: { id: mod.id, name: mod.name, version: mod.version },
             severity: 'info'
         });
     }
@@ -50,10 +50,10 @@ class ModuleRegistry {
      * Start a module
      */
     public async start(id: string): Promise<void> {
-        const module = this.modules.get(id);
+        const mod = this.modules.get(id);
         const ctx = this.contexts.get(id);
-        if (module && ctx && module.start) {
-            await module.start(ctx);
+        if (mod && ctx && mod.start) {
+            await mod.start(ctx);
             eventBus.emit('module:started', { id });
 
             await analyticsService.track({
@@ -69,10 +69,10 @@ class ModuleRegistry {
      * Stop a module
      */
     public async stop(id: string): Promise<void> {
-        const module = this.modules.get(id);
+        const mod = this.modules.get(id);
         const ctx = this.contexts.get(id);
-        if (module && ctx && module.stop) {
-            await module.stop(ctx);
+        if (mod && ctx && mod.stop) {
+            await mod.stop(ctx);
             eventBus.emit('module:stopped', { id });
 
             await analyticsService.track({
@@ -92,15 +92,15 @@ class ModuleRegistry {
         return Array.from(this.modules.values());
     }
 
-    private createContext(module: Module): ModuleContext {
+    private createContext(mod: Module): ModuleContext {
         return {
             analytics: {
                 track: (event, metadata) => {
-                    eventBus.emit('analytics:event', { moduleId: module.id, event, metadata });
+                    eventBus.emit('analytics:event', { moduleId: mod.id, event, metadata });
                     analyticsService.track({
-                        moduleId: module.id,
+                        moduleId: mod.id,
                         event,
-                        metadata,
+                        metadata: metadata as Record<string, unknown>,
                         severity: 'info'
                     });
                 },
@@ -110,19 +110,19 @@ class ModuleRegistry {
                 on: (event, callback) => eventBus.on(event, callback),
             },
             db: {
-                getCollection: (name) => {
+                getCollection: (_name) => {
                     return null;
                 },
             },
             logger: {
                 info: (msg, ...args) => {
-                    analyticsService.track({ moduleId: module.id, event: 'log:info', metadata: { msg, args }, severity: 'info' });
+                    analyticsService.track({ moduleId: mod.id, event: 'log:info', metadata: { msg, args }, severity: 'info' });
                 },
                 warn: (msg, ...args) => {
-                    analyticsService.track({ moduleId: module.id, event: 'log:warn', metadata: { msg, args }, severity: 'warn' });
+                    analyticsService.track({ moduleId: mod.id, event: 'log:warn', metadata: { msg, args }, severity: 'warn' });
                 },
                 error: (msg, ...args) => {
-                    analyticsService.track({ moduleId: module.id, event: 'log:error', metadata: { msg, args }, severity: 'error' });
+                    analyticsService.track({ moduleId: mod.id, event: 'log:error', metadata: { msg, args }, severity: 'error' });
                 },
             },
             system: {
@@ -134,10 +134,10 @@ class ModuleRegistry {
                 },
             },
             settings: {
-                get: async (key) => {
+                get: async (_key) => {
                     return null;
                 },
-                set: async (key, value) => {
+                set: async (_key, _value) => {
                 },
             },
             ui: {

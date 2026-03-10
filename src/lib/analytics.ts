@@ -19,7 +19,7 @@ export class AnalyticsService {
     public async track(data: {
         moduleId: string;
         event: string;
-        metadata?: any;
+        metadata?: Record<string, unknown>;
         severity?: 'info' | 'warn' | 'error';
     }) {
         try {
@@ -37,7 +37,7 @@ export class AnalyticsService {
     /**
      * Get recent events with filtering
      */
-    public async getRecentEvents(limit: number = 50, filter: any = {}) {
+    public async getRecentEvents(limit: number = 50, filter: Record<string, unknown> = {}) {
         try {
             await connectDB();
             return await AnalyticsEvent.find(filter)

@@ -4,12 +4,15 @@ import React, { useEffect, useState } from 'react';
 import {
     AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
 } from 'recharts';
-import { Cpu, Activity } from 'lucide-react';
-import { useTheme } from '@/lib/ThemeContext';
+import { Cpu } from 'lucide-react';
+
+interface CPUMetric {
+    cpu: number;
+    timestamp: string;
+}
 
 export default function CPUHistoryWidget() {
-    const [data, setData] = useState<any[]>([]);
-    const { theme } = useTheme();
+    const [data, setData] = useState<CPUMetric[]>([]);
 
     useEffect(() => {
         const eventSource = new EventSource('/api/metrics/stream');

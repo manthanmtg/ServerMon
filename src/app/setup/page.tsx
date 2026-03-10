@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import { Shield, Key, CheckCircle, Smartphone } from 'lucide-react';
 
 export default function SetupPage() {
@@ -45,8 +46,8 @@ export default function SetupPage() {
             setTotpSecret(data.secret);
             setQrCode(data.qrCode);
             setStep(2);
-        } catch (err: any) {
-            setError(err.message);
+        } catch (err: unknown) {
+            setError(err instanceof Error ? err.message : 'Unknown error');
         } finally {
             setLoading(false);
         }
@@ -179,7 +180,7 @@ export default function SetupPage() {
 
                             {qrCode && (
                                 <div className="bg-white p-4 border rounded-2xl flex justify-center shadow-inner">
-                                    <img src={qrCode} alt="TOTP QR Code" className="w-48 h-48" />
+                                    <Image src={qrCode} alt="TOTP QR Code" width={192} height={192} className="w-48 h-48" />
                                 </div>
                             )}
 

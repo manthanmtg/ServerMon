@@ -1,10 +1,17 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { List, Cpu, Activity } from 'lucide-react';
+import { List, Activity } from 'lucide-react';
+
+interface ProcessInfo {
+    pid: number;
+    name: string;
+    cpu: number;
+    mem: number;
+}
 
 export default function ProcessWidget() {
-    const [processes, setProcesses] = useState<any[]>([]);
+    const [processes, setProcesses] = useState<ProcessInfo[]>([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -40,7 +47,7 @@ export default function ProcessWidget() {
                         {[1, 2, 3].map(i => <div key={i} className="h-10 bg-gray-200 rounded-lg opacity-20" />)}
                     </div>
                 ) : (
-                    processes.map((p, i) => (
+                    processes.map((p) => (
                         <div key={p.pid} className="flex items-center justify-between p-2 rounded-xl border" style={{ borderColor: 'var(--border)', backgroundColor: 'var(--background)' }}>
                             <div className="flex items-center gap-3">
                                 <div className="w-8 h-8 rounded-lg flex items-center justify-center text-[10px] font-bold" style={{ backgroundColor: 'var(--secondary)', color: 'var(--foreground)' }}>

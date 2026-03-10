@@ -31,12 +31,12 @@ const widgetMap: Record<string, React.ComponentType<any>> = {
     MemoryChartWidget,
 };
 
-export function renderWidget(componentName: string, props: any = {}) {
+export function renderWidget(componentName: string, props: Record<string, unknown> = {}) {
     const Component = widgetMap[componentName];
     if (!Component) {
         return (
             <div className="p-6 rounded-2xl border border-dashed border-red-300 bg-red-50 text-red-500 text-xs italic">
-                Widget "{componentName}" not found.
+                Widget &quot;{componentName}&quot; not found.
             </div>
         );
     }

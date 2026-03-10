@@ -3,8 +3,8 @@ import { coreModules } from '@/modules';
 
 export async function initializeModules() {
     console.log('--- Initializing Modules ---');
-    for (const module of coreModules) {
-        await moduleRegistry.register(module);
+    for (const mod of coreModules) {
+        await moduleRegistry.register(mod);
     }
 
     // Start all enabled modules

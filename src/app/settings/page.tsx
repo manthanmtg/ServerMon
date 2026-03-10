@@ -3,9 +3,15 @@ import { useTheme } from '@/lib/ThemeContext';
 import { Shield, Settings, Palette, Check, Save, Box, Activity } from 'lucide-react';
 import Link from 'next/link';
 
+interface ModuleInfo {
+    id: string;
+    name: string;
+    description?: string;
+}
+
 export default function SettingsPage() {
     const { theme, setTheme, availableThemes } = useTheme();
-    const [modules, setModules] = useState<any[]>([]);
+    const [modules, setModules] = useState<ModuleInfo[]>([]);
 
     useEffect(() => {
         fetch('/api/modules')

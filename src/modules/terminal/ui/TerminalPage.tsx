@@ -1,14 +1,11 @@
 'use client';
 
-import React, { useState } from 'react';
+import React from 'react';
 import TerminalUI from './TerminalUI';
-import { useTheme } from '@/lib/ThemeContext';
 import { Shield, Terminal as TerminalIcon, Home, Settings } from 'lucide-react';
 import Link from 'next/link';
 
 export default function TerminalPage() {
-    const { theme } = useTheme();
-    const [currentCommand, setCurrentCommand] = useState('');
 
     const handleTerminalData = (data: string) => {
         // Basic terminal feedback for demonstration

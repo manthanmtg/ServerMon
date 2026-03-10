@@ -1,13 +1,20 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { useTheme } from '@/lib/ThemeContext';
-import { Shield, ClipboardList, Home, Settings, Info, AlertTriangle, XCircle, ChevronLeft, Search, Filter, Clock } from 'lucide-react';
+import { Shield, ClipboardList, Home, Settings, Info, AlertTriangle, XCircle, Search, Filter, Clock } from 'lucide-react';
 import Link from 'next/link';
 
+interface LogEntry {
+    _id: string;
+    moduleId: string;
+    event: string;
+    metadata: Record<string, unknown>;
+    severity: 'info' | 'warn' | 'error';
+    timestamp: string;
+}
+
 export default function LogsPage() {
-    const { theme } = useTheme();
-    const [logs, setLogs] = useState<any[]>([]);
+    const [logs, setLogs] = useState<LogEntry[]>([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {

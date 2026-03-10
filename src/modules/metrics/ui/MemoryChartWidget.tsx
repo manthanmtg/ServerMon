@@ -4,12 +4,15 @@ import React, { useEffect, useState } from 'react';
 import {
     AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
 } from 'recharts';
-import { Activity, Database } from 'lucide-react';
-import { useTheme } from '@/lib/ThemeContext';
+import { Database } from 'lucide-react';
+
+interface MemoryMetric {
+    memory: number;
+    timestamp: string;
+}
 
 export default function MemoryHistoryWidget() {
-    const [data, setData] = useState<any[]>([]);
-    const { theme } = useTheme();
+    const [data, setData] = useState<MemoryMetric[]>([]);
 
     useEffect(() => {
         const eventSource = new EventSource('/api/metrics/stream');

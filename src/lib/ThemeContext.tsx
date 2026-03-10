@@ -12,16 +12,16 @@ interface ThemeContextType {
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-    const [currentTheme, setCurrentTheme] = useState<Theme>(themes[0]); // Light default
-
-    useEffect(() => {
-        // Load saved theme from localStorage
-        const savedThemeId = localStorage.getItem('servermon-theme');
-        if (savedThemeId) {
-            const found = themes.find((t) => t.id === savedThemeId);
-            if (found) setCurrentTheme(found);
+    const [currentTheme, setCurrentTheme] = useState<Theme>(() => {
+        if (typeof window !== 'undefined') {
+            const savedThemeId = localStorage.getItem('servermon-theme');
+            if (savedThemeId) {
+                const found = themes.find((t) => t.id === savedThemeId);
+                if (found) return found;
+            }
         }
-    }, []);
+        return themes[1]; // Dark default
+    });
 
     useEffect(() => {
         // Apply theme colors to CSS variables

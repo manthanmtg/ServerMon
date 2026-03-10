@@ -1,6 +1,6 @@
 import React from 'react';
 import { useTheme } from '@/lib/ThemeContext';
-import { Shield, LayoutDashboard, Monitor, Terminal, Settings, LogOut, Moon, Sun, Palette } from 'lucide-react';
+import { Shield, LayoutDashboard, Monitor, Terminal, Settings, LogOut, Palette } from 'lucide-react';
 import Link from 'next/link';
 import { renderWidget } from '@/components/modules/ModuleWidgetRegistry';
 

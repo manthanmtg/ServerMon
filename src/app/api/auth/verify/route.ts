@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
         // Step 1 successful: Credentials verified
         // In a real app, you might want to issue a temporary "pre-auth" token here
         return NextResponse.json({ success: true, requiresTOTP: user.totpEnabled });
-    } catch (error: any) {
-        return NextResponse.json({ error: error.message }, { status: 500 });
+    } catch (error: unknown) {
+        return NextResponse.json({ error: error instanceof Error ? error.message : 'Unknown error' }, { status: 500 });
     }
 }

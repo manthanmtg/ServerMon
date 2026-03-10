@@ -66,6 +66,7 @@ export default function TerminalUI({ onData }: TerminalUIProps) {
             window.removeEventListener('resize', handleResize);
             term.dispose();
         };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     // Update theme dynamically
@@ -85,12 +86,7 @@ export default function TerminalUI({ onData }: TerminalUIProps) {
                 white: theme.colors.foreground,
             };
         }
-    }, [theme]);
-
-    // Method to write to terminal
-    const write = (data: string) => {
-        xtermRef.current?.write(data);
-    };
+    }, [theme.colors]);
 
     return (
         <div

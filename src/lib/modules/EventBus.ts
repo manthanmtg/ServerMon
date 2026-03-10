@@ -15,7 +15,7 @@ class EventBus extends EventEmitter {
         return EventBus.instance;
     }
 
-    public emitSystemEvent(event: string, data?: any) {
+    public emitSystemEvent(event: string, data?: unknown) {
         this.emit(event, data);
     }
 }

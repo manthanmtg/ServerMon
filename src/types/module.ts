@@ -1,18 +1,18 @@
 export interface ModuleContext {
     analytics: {
-        track: (event: string, metadata?: any) => void;
+        track: (event: string, metadata?: Record<string, unknown>) => void;
     };
     events: {
-        emit: (event: string, data?: any) => void;
-        on: (event: string, callback: (data: any) => void) => void;
+        emit: (event: string, data?: unknown) => void;
+        on: (event: string, callback: (data: unknown) => void) => void;
     };
     db: {
-        getCollection: (name: string) => any;
+        getCollection: (name: string) => unknown;
     };
     logger: {
-        info: (message: string, ...args: any[]) => void;
-        warn: (message: string, ...args: any[]) => void;
-        error: (message: string, ...args: any[]) => void;
+        info: (message: string, ...args: unknown[]) => void;
+        warn: (message: string, ...args: unknown[]) => void;
+        error: (message: string, ...args: unknown[]) => void;
     };
     system: {
         capabilities: {
@@ -23,8 +23,8 @@ export interface ModuleContext {
         };
     };
     settings: {
-        get: (key: string) => Promise<any>;
-        set: (key: string, value: any) => Promise<void>;
+        get: (key: string) => Promise<unknown>;
+        set: (key: string, value: unknown) => Promise<void>;
     };
     ui: {
         theme: {
