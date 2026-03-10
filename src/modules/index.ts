@@ -3,6 +3,7 @@ import { healthModule } from './health/module';
 import { processModule } from './processes/module';
 import { terminalModule } from './terminal/module';
 import { logsModule } from './logs/module';
+import { metricsModule } from './metrics/module';
 
 // For now, we will manually register modules here.
 // In the future, this could be a dynamic scan of the modules directory.
@@ -11,4 +12,5 @@ export const coreModules: Module[] = [
     processModule,
     terminalModule,
     logsModule,
+    metricsModule,
 ];

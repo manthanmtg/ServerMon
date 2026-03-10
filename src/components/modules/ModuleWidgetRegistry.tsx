@@ -15,10 +15,20 @@ const LogsWidget = dynamic(() => import('@/modules/logs/ui/LogsWidget'), {
     loading: () => <div className="animate-pulse h-48 bg-gray-200 rounded-xl opacity-20" />,
 });
 
+const CPUChartWidget = dynamic(() => import('@/modules/metrics/ui/CPUChartWidget'), {
+    loading: () => <div className="animate-pulse h-[300px] bg-gray-200 rounded-xl opacity-20" />,
+});
+
+const MemoryChartWidget = dynamic(() => import('@/modules/metrics/ui/MemoryChartWidget'), {
+    loading: () => <div className="animate-pulse h-[300px] bg-gray-200 rounded-xl opacity-20" />,
+});
+
 const widgetMap: Record<string, React.ComponentType<any>> = {
     HealthWidget,
     ProcessWidget,
     LogsWidget,
+    CPUChartWidget,
+    MemoryChartWidget,
 };
 
 export function renderWidget(componentName: string, props: any = {}) {

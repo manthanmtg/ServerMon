@@ -11,7 +11,9 @@ export default function DashboardPage() {
     const registeredWidgets = [
         { id: 'h1', component: 'HealthWidget' },
         { id: 'p1', component: 'ProcessWidget' },
-        { id: 'l1', component: 'LogsWidget' }
+        { id: 'l1', component: 'LogsWidget' },
+        { id: 'c1', component: 'CPUChartWidget' },
+        { id: 'm1', component: 'MemoryChartWidget' }
     ];
 
     const username = "Admin";
@@ -130,9 +132,17 @@ export default function DashboardPage() {
                     </div>
 
                     <div className="mt-8">
+                        <h2 className="text-xl font-bold mb-4 opacity-70">Real-time Analytics</h2>
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                            {renderWidget('CPUChartWidget')}
+                            {renderWidget('MemoryChartWidget')}
+                        </div>
+                    </div>
+
+                    <div className="mt-8">
                         <h3 className="text-xl font-bold mb-4 opacity-70">Module Diagnostics</h3>
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                            {registeredWidgets.map(w => (
+                            {registeredWidgets.filter(w => !['CPUChartWidget', 'MemoryChartWidget'].includes(w.component)).map(w => (
                                 <React.Fragment key={w.id}>
                                     {renderWidget(w.component)}
                                 </React.Fragment>
