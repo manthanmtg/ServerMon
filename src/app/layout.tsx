@@ -17,6 +17,8 @@ export const metadata: Metadata = {
   description: "A secure, modular, self-hosted server monitoring platform.",
 };
 
+import { ThemeProvider } from "@/lib/ThemeContext";
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -25,7 +27,9 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${geistSans.variable} ${geistMono.variable}`}>
-        {children}
+        <ThemeProvider>
+          {children}
+        </ThemeProvider>
       </body>
     </html>
   );
