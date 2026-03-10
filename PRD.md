@@ -232,6 +232,7 @@ Capabilities:
 
 * Change Basic Auth credentials
 * Configure TOTP
+* **Appearance: Extensible Theme System (Supports wide variety of presets like Light, Dark, Solarized, Monokai, Synthwave, etc., mimicking VS Code's variety)**
 * Manage modules
 * View system status
 
@@ -611,7 +612,7 @@ Design goals:
 * real‑time updates
 * minimal latency
 * keyboard friendly
-* dark mode friendly
+* **Extensible Color Theme System: Support for a wide variety of interactive color themes (Light, Dark, High Contrast, and community-style presets like Monokai, Nord, etc.) to allow deep personalization of the monitoring workspace, similar to VS Code.**
 
 The interface should prioritize **clarity of system information** and **ease of control**.
 
@@ -713,6 +714,7 @@ All modules must follow a **consistent UI standard** provided by the core system
 
 Modules should:
 
+* **Full Theme Compliance: All modules must honor the active color theme across all UI components and pages using core system variables.**
 * use shared UI components
 * follow the same layout conventions
 * maintain consistent styling
@@ -1003,6 +1005,7 @@ ctx.db.collection()
 ctx.logger.info()
 ctx.system.capabilities
 ctx.settings.get()
+ctx.ui.theme             // Active theme name and color tokens
 ```
 
 This SDK provides a consistent interface for module developers and ensures safe interaction with core systems.
