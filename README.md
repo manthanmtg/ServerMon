@@ -1,36 +1,59 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# ServerMon
 
-## Getting Started
+**ServerMon** is a modular, high-performance, and secure server management platform designed for administrators who value simplicity and extensibility. It provides a real-time command center for your infrastructure with a beautiful, theme-aware interface.
 
-First, run the development server:
+## ✨ Features
+
+- **🛡️ Secure by Design**: Built with Multi-Factor Authentication (TOTP), Argon2 password hashing, and encrypted JWT sessions.
+- **🧩 Modular Architecture**: Add or remove capabilities as independent modules.
+- **🖥️ Integrated Terminal**: High-performance, theme-aware terminal access directly in your browser (Xterm.js).
+- **📈 Real-time Analytics**: Sub-second metrics streaming (SSE) with high-fidelity charts for CPU and Memory history.
+- **🔍 Active Auditing**: Comprehensive system logs and module-level event tracking.
+- **🎨 Designer Themes**: Beautiful, VS Code-inspired themes (Nord, Monokai, Synthwave, Solarized, and more).
+
+---
+
+## 🚀 One-Click Installation
+
+To deploy ServerMon on a fresh Ubuntu or Debian server, run:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+curl -fsSL https://raw.githubusercontent.com/manthanmtg/ServerMon/main/scripts/install.sh | sudo bash
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+This script automates:
+1.  System updates and dependency installation (Node.js 20, MongoDB).
+2.  Application compilation and setup in `/opt/servermon`.
+3.  Environment configuration with secure secrets in `/etc/servermon/env`.
+4.  Background service registration via **Systemd**.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+---
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## 🛠️ Management
 
-## Learn More
+Once installed, managed the service using standard system tools:
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+sudo systemctl status servermon   # Check status
+sudo systemctl restart servermon  # Restart
+sudo journalctl -u servermon -f   # View live logs
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+---
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## 👩‍💻 Development
 
-## Deploy on Vercel
+1. **Clone the repo**: `git clone...`
+2. **Install dependencies**: `npm install`
+3. **Environment**: Create a `.env.local` with `MONGO_URI` and `JWT_SECRET`.
+4. **Run Dev server**: `npm run dev`
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+---
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## 🎨 Theme Compliance
+All modules and widgets in ServerMon honor the global theme system. To switch themes, visit **Settings > Appearance** in the web interface.
+
+---
+
+## 📄 License
+MIT

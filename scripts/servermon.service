@@ -1,0 +1,19 @@
+[Unit]
+Description=ServerMon Background Service
+After=network.target mongodb.service
+
+[Service]
+Type=simple
+User=servermon
+Group=servermon
+WorkingDirectory=/opt/servermon
+Environment=NODE_ENV=production
+Environment=PORT=8912
+# Ensure you set MONGO_URI and JWT_SECRET in /etc/servermon/env
+EnvironmentFile=/etc/servermon/env
+ExecStart=/usr/bin/npm run start
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
