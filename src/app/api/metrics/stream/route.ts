@@ -1,4 +1,4 @@
-import { metricsService } from '@/lib/metrics';
+import { metricsService, SystemMetric } from '@/lib/metrics';
 import { createLogger } from '@/lib/logger';
 
 const log = createLogger('sse');
@@ -14,23 +14,23 @@ export async function GET() {
     metricsService.registerConnection();
 
     const encoder = new TextEncoder();
-    let interval: ReturnType<typeof setInterval> | null = null;
+    let onMetric: ((metric: SystemMetric) => void) | null = null;
 
     const stream = new ReadableStream({
         start(controller) {
-            const send = () => {
+            onMetric = (metric: SystemMetric) => {
                 try {
-                    const metric = metricsService.getCurrent();
-                    if (metric) {
-                        controller.enqueue(encoder.encode(`data: ${JSON.stringify(metric)}\n\n`));
-                    }
+                    controller.enqueue(encoder.encode(`data: ${JSON.stringify(metric)}\n\n`));
                 } catch {
                     cleanup();
                 }
             };
 
-            interval = setInterval(send, 2000);
-            send();
+            metricsService.on('metric', onMetric);
+            
+            // Send latest immediately on connect
+            const latest = metricsService.getCurrent();
+            if (latest) onMetric(latest);
         },
         cancel() {
             cleanup();
@@ -38,9 +38,9 @@ export async function GET() {
     });
 
     function cleanup() {
-        if (interval) {
-            clearInterval(interval);
-            interval = null;
+        if (onMetric) {
+            metricsService.off('metric', onMetric);
+            onMetric = null;
         }
         metricsService.unregisterConnection();
     }

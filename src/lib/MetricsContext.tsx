@@ -4,8 +4,13 @@ import React, { createContext, useContext, useEffect, useState, useRef } from 'r
 
 export interface SystemMetric {
     timestamp: string;
+    serverTimestamp: string;
     cpu: number;
     memory: number;
+    cpuCores: number;
+    memTotal: number;
+    memUsed: number;
+    uptime: number;
 }
 
 interface MetricsContextType {
