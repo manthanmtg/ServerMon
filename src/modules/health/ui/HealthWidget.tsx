@@ -24,14 +24,17 @@ export default function HealthWidget() {
     const [health, setHealth] = useState<HealthData>({ cpu: 0, memory: 0, disk: 0 });
 
     useEffect(() => {
+        // Try to read from MetricsContext if available, otherwise use own SSE
         const es = new EventSource('/api/metrics/stream');
         es.onmessage = (event) => {
-            const data = JSON.parse(event.data);
-            setHealth((prev) => ({
-                cpu: data.cpu ?? prev.cpu,
-                memory: data.memory ?? prev.memory,
-                disk: prev.disk || 42,
-            }));
+            try {
+                const data = JSON.parse(event.data);
+                setHealth((prev) => ({
+                    cpu: data.cpu ?? prev.cpu,
+                    memory: data.memory ?? prev.memory,
+                    disk: prev.disk || 42,
+                }));
+            } catch { /* ignore */ }
         };
         es.onerror = () => es.close();
         return () => es.close();
@@ -52,7 +55,7 @@ export default function HealthWidget() {
                             <item.icon className="w-3.5 h-3.5" />
                             <span className="text-xs font-medium">{item.label}</span>
                         </div>
-                        <span className="text-xs font-semibold text-foreground">
+                        <span className="text-xs font-semibold text-foreground tabular-nums">
                             {item.value.toFixed(1)}%
                         </span>
                     </div>

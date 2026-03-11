@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useTheme } from '@/lib/ThemeContext';
@@ -14,6 +14,7 @@ import {
     Menu,
     X,
 } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 interface ProShellProps {
     children: React.ReactNode;
@@ -66,11 +67,12 @@ function SidebarNav({ pathname, onNavigate, onLogout }: {
                                         key={item.href}
                                         href={item.href}
                                         onClick={onNavigate}
-                                        className={`flex items-center gap-3 px-3 py-2 rounded-lg text-[13px] font-medium transition-colors ${
+                                        className={cn(
+                                            'flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] font-medium transition-colors min-h-[44px]',
                                             isActive
                                                 ? 'bg-primary text-primary-foreground'
-                                                : 'text-sidebar-foreground hover:bg-accent hover:text-foreground'
-                                        }`}
+                                                : 'text-sidebar-foreground hover:bg-accent hover:text-foreground active:bg-accent',
+                                        )}
                                     >
                                         <item.icon className="w-4 h-4 shrink-0" />
                                         {item.label}
@@ -82,22 +84,23 @@ function SidebarNav({ pathname, onNavigate, onLogout }: {
                 ))}
             </nav>
 
-            <div className="p-3 border-t border-sidebar-border space-y-0.5">
+            <div className="p-3 border-t border-sidebar-border space-y-0.5 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
                 <Link
                     href="/settings"
                     onClick={onNavigate}
-                    className={`flex items-center gap-3 px-3 py-2 rounded-lg text-[13px] font-medium transition-colors ${
+                    className={cn(
+                        'flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] font-medium transition-colors min-h-[44px]',
                         pathname === '/settings'
                             ? 'bg-primary text-primary-foreground'
-                            : 'text-sidebar-foreground hover:bg-accent hover:text-foreground'
-                    }`}
+                            : 'text-sidebar-foreground hover:bg-accent hover:text-foreground active:bg-accent',
+                    )}
                 >
                     <Settings className="w-4 h-4 shrink-0" />
                     Settings
                 </Link>
                 <button
                     onClick={onLogout}
-                    className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-[13px] font-medium text-sidebar-foreground hover:bg-destructive/10 hover:text-destructive transition-colors cursor-pointer"
+                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] font-medium text-sidebar-foreground hover:bg-destructive/10 hover:text-destructive active:bg-destructive/10 transition-colors cursor-pointer min-h-[44px]"
                 >
                     <LogOut className="w-4 h-4 shrink-0" />
                     Log out
@@ -113,6 +116,20 @@ export default function ProShell({ children, title, subtitle }: ProShellProps) {
     const router = useRouter();
     const [sidebarOpen, setSidebarOpen] = useState(false);
 
+    // Close sidebar on route change and lock body scroll when open
+    useEffect(() => {
+        setSidebarOpen(false);
+    }, [pathname]);
+
+    useEffect(() => {
+        if (sidebarOpen) {
+            document.body.style.overflow = 'hidden';
+        } else {
+            document.body.style.overflow = '';
+        }
+        return () => { document.body.style.overflow = ''; };
+    }, [sidebarOpen]);
+
     const handleLogout = async () => {
         try {
             await fetch('/api/auth/logout', { method: 'POST' });
@@ -122,7 +139,7 @@ export default function ProShell({ children, title, subtitle }: ProShellProps) {
     };
 
     return (
-        <div className="min-h-screen flex bg-background text-foreground">
+        <div className="min-h-[100dvh] flex bg-background text-foreground">
             {/* Desktop Sidebar */}
             <aside className="hidden lg:flex flex-col w-[232px] border-r border-sidebar-border bg-sidebar shrink-0 sticky top-0 h-screen">
                 <SidebarNav pathname={pathname} onLogout={handleLogout} />
@@ -135,7 +152,7 @@ export default function ProShell({ children, title, subtitle }: ProShellProps) {
                         className="absolute inset-0 bg-background/80 backdrop-blur-sm"
                         onClick={() => setSidebarOpen(false)}
                     />
-                    <aside className="absolute left-0 top-0 bottom-0 w-[232px] bg-sidebar border-r border-sidebar-border shadow-xl animate-fade-in">
+                    <aside className="absolute left-0 top-0 bottom-0 w-[260px] bg-sidebar border-r border-sidebar-border shadow-xl animate-fade-in">
                         <SidebarNav
                             pathname={pathname}
                             onNavigate={() => setSidebarOpen(false)}
@@ -151,24 +168,24 @@ export default function ProShell({ children, title, subtitle }: ProShellProps) {
                 <header className="h-14 flex items-center justify-between px-4 lg:px-6 border-b border-border bg-background sticky top-0 z-40">
                     <div className="flex items-center gap-3">
                         <button
-                            className="lg:hidden p-1.5 -ml-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                            className="lg:hidden p-2 -ml-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent active:bg-accent transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center"
                             onClick={() => setSidebarOpen(!sidebarOpen)}
                             aria-label="Toggle sidebar"
                         >
                             {sidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
                         </button>
-                        <div className="flex items-center gap-2">
-                            <h1 className="text-sm font-semibold text-foreground">{title}</h1>
+                        <div className="flex items-center gap-2 min-w-0">
+                            <h1 className="text-sm font-semibold text-foreground truncate">{title}</h1>
                             {subtitle && (
                                 <>
-                                    <span className="text-muted-foreground/40">/</span>
-                                    <span className="text-sm text-muted-foreground">{subtitle}</span>
+                                    <span className="text-muted-foreground/40 shrink-0">/</span>
+                                    <span className="text-sm text-muted-foreground truncate hidden sm:inline">{subtitle}</span>
                                 </>
                             )}
                         </div>
                     </div>
 
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2 sm:gap-3 shrink-0">
                         <select
                             value={theme.id}
                             onChange={(e) => setTheme(e.target.value)}
@@ -180,8 +197,8 @@ export default function ProShell({ children, title, subtitle }: ProShellProps) {
                             ))}
                         </select>
 
-                        <div className="flex items-center gap-2 pl-3 border-l border-border">
-                            <div className="w-7 h-7 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center text-xs font-semibold text-primary">
+                        <div className="flex items-center gap-2 pl-2 sm:pl-3 border-l border-border">
+                            <div className="w-8 h-8 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center text-xs font-semibold text-primary">
                                 A
                             </div>
                         </div>
@@ -189,7 +206,7 @@ export default function ProShell({ children, title, subtitle }: ProShellProps) {
                 </header>
 
                 {/* Content */}
-                <main className="flex-1 p-4 lg:p-6 overflow-y-auto">
+                <main className="flex-1 p-3 sm:p-4 lg:p-6 overflow-y-auto pb-[max(1rem,env(safe-area-inset-bottom))]">
                     <div className="mx-auto max-w-7xl">
                         {children}
                     </div>

@@ -1,6 +1,7 @@
 import React from 'react';
 import dynamic from 'next/dynamic';
 import { Spinner } from '@/components/ui/spinner';
+import { WidgetErrorBoundary } from '@/components/ui/error-boundary';
 
 function WidgetLoader() {
     return (
@@ -30,22 +31,27 @@ const MemoryChartWidget = dynamic(() => import('@/modules/metrics/ui/MemoryChart
     loading: WidgetLoader,
 });
 
-const widgetMap: Record<string, React.ComponentType<Record<string, unknown>>> = {
-    HealthWidget,
-    ProcessWidget,
-    LogsWidget,
-    CPUChartWidget,
-    MemoryChartWidget,
+const widgetMap: Record<string, { component: React.ComponentType<Record<string, unknown>>; name: string }> = {
+    HealthWidget: { component: HealthWidget, name: 'System Health' },
+    ProcessWidget: { component: ProcessWidget, name: 'Processes' },
+    LogsWidget: { component: LogsWidget, name: 'Activity Log' },
+    CPUChartWidget: { component: CPUChartWidget, name: 'CPU Chart' },
+    MemoryChartWidget: { component: MemoryChartWidget, name: 'Memory Chart' },
 };
 
 export function renderWidget(componentName: string, props: Record<string, unknown> = {}) {
-    const Component = widgetMap[componentName];
-    if (!Component) {
+    const entry = widgetMap[componentName];
+    if (!entry) {
         return (
             <div className="p-4 rounded-lg border border-destructive/20 bg-destructive/5 text-destructive text-sm">
                 Widget &quot;{componentName}&quot; not found
             </div>
         );
     }
-    return <Component {...props} />;
+    const { component: Component, name } = entry;
+    return (
+        <WidgetErrorBoundary name={name}>
+            <Component {...props} />
+        </WidgetErrorBoundary>
+    );
 }
