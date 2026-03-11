@@ -5,8 +5,8 @@ import ProShell from '@/components/layout/ProShell';
 
 export default function Page() {
     return (
-        <ProShell title="Processes" subtitle="Real-time Orchestration">
-            <div className="animate-fade-in shadow-2xl">
+        <ProShell title="Processes" subtitle="System Processes">
+            <div className="animate-fade-in">
                 <ProcessWidget />
             </div>
         </ProShell>

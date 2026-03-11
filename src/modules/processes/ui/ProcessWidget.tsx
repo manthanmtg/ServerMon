@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { List, Activity, Cpu, HardDrive, Hash } from 'lucide-react';
+import { Cpu, MemoryStick } from 'lucide-react';
+import { Spinner } from '@/components/ui/spinner';
 
 interface ProcessInfo {
     pid: number;
@@ -32,73 +33,63 @@ export default function ProcessWidget() {
         return () => clearInterval(interval);
     }, []);
 
+    if (loading) {
+        return (
+            <div className="flex items-center justify-center py-20">
+                <Spinner size="lg" />
+            </div>
+        );
+    }
+
     return (
-        <div className="glass p-8 rounded-[2.5rem] border-white/5 animate-fade-in">
-            <div className="flex items-center justify-between mb-8">
-                <div className="flex items-center gap-3">
-                    <div className="p-3 bg-indigo-500/10 rounded-2xl">
-                        <List className="w-5 h-5 text-indigo-400" />
-                    </div>
-                    <div>
-                        <h3 className="text-lg font-black text-white tracking-tight uppercase tracking-widest">Active Orchestration</h3>
-                        <p className="text-[10px] font-bold text-slate-500">Live system process registry</p>
-                    </div>
-                </div>
-                <div className="flex items-center gap-2 bg-emerald-500/10 px-3 py-1.5 rounded-full border border-emerald-500/20">
-                    <Activity className="w-3 h-3 text-emerald-400 animate-pulse" />
-                    <span className="text-[10px] font-black text-emerald-400 uppercase tracking-widest">Live</span>
-                </div>
-            </div>
-
-            <div className="space-y-4">
-                {loading ? (
-                    <div className="animate-pulse space-y-4">
-                        {[1, 2, 3, 4].map(i => (
-                            <div key={i} className="h-16 bg-white/5 rounded-2xl border border-white/5" />
+        <div className="rounded-xl border border-border bg-card overflow-hidden">
+            <div className="overflow-x-auto">
+                <table className="w-full text-left">
+                    <thead>
+                        <tr className="border-b border-border bg-secondary/50">
+                            <th className="px-4 py-3 text-xs font-medium text-muted-foreground">PID</th>
+                            <th className="px-4 py-3 text-xs font-medium text-muted-foreground">Process</th>
+                            <th className="px-4 py-3 text-xs font-medium text-muted-foreground text-right">
+                                <span className="inline-flex items-center gap-1"><Cpu className="w-3 h-3" /> CPU</span>
+                            </th>
+                            <th className="px-4 py-3 text-xs font-medium text-muted-foreground text-right">
+                                <span className="inline-flex items-center gap-1"><MemoryStick className="w-3 h-3" /> Memory</span>
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {processes.map((p) => (
+                            <tr key={p.pid} className="border-b border-border last:border-0 hover:bg-accent/50 transition-colors">
+                                <td className="px-4 py-3">
+                                    <span className="text-xs font-mono text-muted-foreground">{p.pid}</span>
+                                </td>
+                                <td className="px-4 py-3">
+                                    <span className="text-sm font-medium text-foreground truncate block max-w-[200px] sm:max-w-none" title={p.name}>
+                                        {p.name}
+                                    </span>
+                                </td>
+                                <td className="px-4 py-3 text-right">
+                                    <span className={`text-sm font-medium tabular-nums ${p.cpu > 50 ? 'text-destructive' : p.cpu > 20 ? 'text-warning' : 'text-foreground'}`}>
+                                        {p.cpu.toFixed(1)}%
+                                    </span>
+                                </td>
+                                <td className="px-4 py-3 text-right">
+                                    <span className="text-sm font-medium text-foreground tabular-nums">
+                                        {p.mem.toFixed(1)}%
+                                    </span>
+                                </td>
+                            </tr>
                         ))}
-                    </div>
-                ) : (
-                    processes.map((p) => (
-                        <div key={p.pid} className="group flex items-center justify-between p-4 rounded-2xl bg-white/5 border border-white/5 hover:border-indigo-500/30 hover:bg-white/10 transition-all duration-300">
-                            <div className="flex items-center gap-4">
-                                <div className="w-10 h-10 rounded-xl bg-slate-900 flex flex-col items-center justify-center border border-white/5 group-hover:bg-indigo-600/20 group-hover:border-indigo-500/20 transition-colors">
-                                    <Hash className="w-3 h-3 text-slate-500 group-hover:text-indigo-400" />
-                                    <span className="text-[10px] font-black text-white">{p.pid}</span>
-                                </div>
-                                <div className="space-y-0.5 min-w-0">
-                                    <p className="text-sm font-bold text-white truncate max-w-[150px] sm:max-w-xs" title={p.name}>{p.name}</p>
-                                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Kernel Task</p>
-                                </div>
-                            </div>
-
-                            <div className="flex gap-6 shrink-0">
-                                <div className="text-right">
-                                    <div className="flex items-center gap-1.5 justify-end">
-                                        <Cpu className="w-3 h-3 text-indigo-400 opacity-50" />
-                                        <span className={`text-sm font-black ${p.cpu > 50 ? 'text-rose-400' : 'text-indigo-400'}`}>
-                                            {p.cpu.toFixed(1)}%
-                                        </span>
-                                    </div>
-                                    <p className="text-[9px] font-black text-slate-600 uppercase tracking-widest mt-1 text-right">CPU</p>
-                                </div>
-                                <div className="text-right">
-                                    <div className="flex items-center gap-1.5 justify-end">
-                                        <HardDrive className="w-3 h-3 text-pink-400 opacity-50" />
-                                        <span className="text-sm font-black text-pink-400">
-                                            {p.mem.toFixed(1)}%
-                                        </span>
-                                    </div>
-                                    <p className="text-[9px] font-black text-slate-600 uppercase tracking-widest mt-1 text-right">MEM</p>
-                                </div>
-                            </div>
-                        </div>
-                    ))
-                )}
+                    </tbody>
+                </table>
             </div>
-
-            <div className="mt-8 pt-6 border-t border-white/5 flex items-center justify-between text-[10px] font-black tracking-widest uppercase">
-                <span className="text-slate-500">Buffer synchronized</span>
-                <span className="text-indigo-400">{processes.length} Processes Tracked</span>
+            <div className="px-4 py-3 border-t border-border bg-secondary/30 flex items-center justify-between">
+                <span className="text-xs text-muted-foreground">
+                    {processes.length} processes
+                </span>
+                <span className="text-xs text-muted-foreground">
+                    Refreshes every 5s
+                </span>
             </div>
         </div>
     );

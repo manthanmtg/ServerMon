@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { Theme, themes } from './themes';
 
 interface ThemeContextType {
@@ -11,37 +11,38 @@ interface ThemeContextType {
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
-export function ThemeProvider({ children }: { children: React.ReactNode }) {
-    const [currentTheme, setCurrentTheme] = useState<Theme>(() => {
-        if (typeof window !== 'undefined') {
-            const savedThemeId = localStorage.getItem('servermon-theme');
-            if (savedThemeId) {
-                const found = themes.find((t) => t.id === savedThemeId);
-                if (found) return found;
-            }
+function getInitialTheme(): Theme {
+    if (typeof window !== 'undefined') {
+        const savedId = localStorage.getItem('servermon-theme');
+        if (savedId) {
+            const found = themes.find((t) => t.id === savedId);
+            if (found) return found;
         }
-        return themes[1]; // Dark default
+    }
+    return themes[1]; // Obsidian (dark default)
+}
+
+function applyTheme(theme: Theme) {
+    const root = document.documentElement;
+    Object.entries(theme.colors).forEach(([key, value]) => {
+        const cssVar = `--${key.replace(/([a-z])([A-Z])/g, '$1-$2').toLowerCase()}`;
+        root.style.setProperty(cssVar, value as string);
     });
+    root.setAttribute('data-theme', theme.type);
+}
+
+export function ThemeProvider({ children }: { children: React.ReactNode }) {
+    const [currentTheme, setCurrentTheme] = useState<Theme>(getInitialTheme);
 
     useEffect(() => {
-        // Apply theme colors to CSS variables
-        const root = document.documentElement;
-        const { colors } = currentTheme;
-
-        Object.entries(colors).forEach(([key, value]) => {
-            // Convert camelCase to kebab-case (e.g., primaryForeground -> --primary-foreground)
-            const cssVarName = `--${key.replace(/([a-z])([A-Z])/g, '$1-$2').toLowerCase()}`;
-            root.style.setProperty(cssVarName, value as string);
-        });
-
-        // Save theme preference
+        applyTheme(currentTheme);
         localStorage.setItem('servermon-theme', currentTheme.id);
     }, [currentTheme]);
 
-    const setTheme = (themeId: string) => {
+    const setTheme = useCallback((themeId: string) => {
         const found = themes.find((t) => t.id === themeId);
         if (found) setCurrentTheme(found);
-    };
+    }, []);
 
     return (
         <ThemeContext.Provider value={{ theme: currentTheme, setTheme, availableThemes: themes }}>

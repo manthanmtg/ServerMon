@@ -1,18 +1,26 @@
 import { redirect } from 'next/navigation';
+import { getSession } from '@/lib/session';
 import connectDB from '@/lib/db';
 import User from '@/models/User';
 
 export const dynamic = 'force-dynamic';
 
-export default async function IndexPage() {
-  await connectDB();
+export default async function RootPage() {
+    try {
+        await connectDB();
+        const userCount = await User.countDocuments();
 
-  // Check if system is initialized
-  const userCount = await User.countDocuments();
+        if (userCount === 0) {
+            redirect('/setup');
+        }
+    } catch {
+        redirect('/setup');
+    }
 
-  if (userCount === 0) {
-    redirect('/setup');
-  } else {
-    redirect('/dashboard');
-  }
+    const session = await getSession();
+    if (session) {
+        redirect('/dashboard');
+    }
+
+    redirect('/login');
 }

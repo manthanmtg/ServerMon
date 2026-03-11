@@ -3,28 +3,30 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
-import { Shield, CheckCircle, Smartphone, User, Lock, Activity, ChevronRight } from 'lucide-react';
+import { Activity, Shield, Lock, User, Smartphone, CheckCircle } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 
 export default function SetupPage() {
     const [step, setStep] = useState(1);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
-
-    // Step 1: Credentials
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
-
     const [totpSecret, setTotpSecret] = useState('');
     const [qrCode, setQrCode] = useState('');
     const [totpToken, setTotpToken] = useState('');
-
     const router = useRouter();
 
-    const handleNextToTOTP = async (e: React.FormEvent) => {
+    const handleCreateAdmin = async (e: React.FormEvent) => {
         e.preventDefault();
         if (password !== confirmPassword) {
             setError('Passwords do not match');
+            return;
+        }
+        if (password.length < 8) {
+            setError('Password must be at least 8 characters');
             return;
         }
 
@@ -37,15 +39,13 @@ export default function SetupPage() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ username }),
             });
-
             const data = await res.json();
             if (!res.ok) throw new Error(data.error);
-
             setTotpSecret(data.secret);
             setQrCode(data.qrCode);
             setStep(2);
         } catch (err: unknown) {
-            setError(err instanceof Error ? err.message : 'Unknown error');
+            setError(err instanceof Error ? err.message : 'Setup failed');
         } finally {
             setLoading(false);
         }
@@ -60,217 +60,166 @@ export default function SetupPage() {
             const res = await fetch('/api/setup/complete', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    username,
-                    password,
-                    totpSecret,
-                    totpToken
-                }),
+                body: JSON.stringify({ username, password, totpSecret, totpToken }),
             });
-
             if (!res.ok) {
                 const data = await res.json();
                 throw new Error(data.error);
             }
-
             setStep(3);
-            setTimeout(() => router.push('/login'), 3000);
+            setTimeout(() => router.push('/login'), 2500);
         } catch (err: unknown) {
-            setError(err instanceof Error ? err.message : 'Unknown error');
+            setError(err instanceof Error ? err.message : 'Setup failed');
         } finally {
             setLoading(false);
         }
     };
 
+    const steps = [
+        { label: 'Account', done: step > 1 },
+        { label: '2FA Setup', done: step > 2 },
+        { label: 'Complete', done: step > 3 },
+    ];
+
     return (
-        <main className="min-h-screen flex items-center justify-center p-6 sm:p-12 selection:bg-indigo-500/30">
-            <div className="w-full max-w-[500px] animate-slide-up flex flex-col items-center">
-                {/* Branding */}
-                <div className="text-center mb-12 space-y-4">
-                    <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-indigo-600/20 border border-indigo-500/30 mb-2 animate-fade-in shadow-xl shadow-indigo-500/10 mx-auto">
-                        <Activity className="w-10 h-10 text-indigo-400" />
+        <main className="min-h-screen flex items-center justify-center p-6 bg-background">
+            <div className="w-full max-w-md animate-slide-up">
+                {/* Logo */}
+                <div className="text-center mb-8">
+                    <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-primary mb-4">
+                        <Activity className="w-6 h-6 text-primary-foreground" />
                     </div>
-                    <div>
-                        <h1 className="text-4xl font-extrabold tracking-tight text-white font-['Outfit']">
-                            Initial <span className="text-gradient">Provisioning</span>
-                        </h1>
-                        <p className="text-slate-500 font-bold tracking-[0.2em] text-[10px] uppercase mt-2">
-                            Configuration Wizard v1.0
-                        </p>
-                    </div>
+                    <h1 className="text-2xl font-bold text-foreground tracking-tight">Setup ServerMon</h1>
+                    <p className="text-sm text-muted-foreground mt-1">Create your admin account to get started</p>
                 </div>
 
-                {/* Progress Tracker */}
-                <div className="flex items-center justify-between mb-12 px-6 w-full relative">
-                    <div className="absolute top-5 left-16 right-16 h-[2px] bg-slate-800 -z-10" />
-                    <div
-                        className="absolute top-5 left-16 h-[2px] bg-indigo-500 shadow-[0_0_15px_rgba(99,102,241,0.6)] -z-10 transition-all duration-1000 ease-in-out"
-                        style={{ width: `${(step - 1) * 41.5}%` }}
-                    />
-
-                    {[1, 2, 3].map((s) => (
-                        <div key={s} className="flex flex-col items-center gap-3">
-                            <div className={`w-10 h-10 rounded-2xl flex items-center justify-center text-xs font-black transition-all duration-700 ${step >= s
-                                ? 'bg-indigo-600 text-white shadow-2xl shadow-indigo-600/40'
-                                : 'bg-slate-900 border border-slate-800 text-slate-600'
-                                }`}>
-                                {step > s ? <CheckCircle className="w-5 h-5" /> : s}
+                {/* Step Indicator */}
+                <div className="flex items-center justify-center gap-2 mb-8">
+                    {steps.map((s, i) => (
+                        <div key={s.label} className="flex items-center gap-2">
+                            <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold transition-colors ${
+                                step > i + 1
+                                    ? 'bg-success text-success-foreground'
+                                    : step === i + 1
+                                        ? 'bg-primary text-primary-foreground'
+                                        : 'bg-secondary text-muted-foreground'
+                            }`}>
+                                {step > i + 1 ? <CheckCircle className="w-3.5 h-3.5" /> : i + 1}
                             </div>
-                            <span className={`text-[9px] font-black uppercase tracking-[0.2em] transition-colors duration-700 ${step >= s ? 'text-indigo-400' : 'text-slate-600'
-                                }`}>
-                                {s === 1 ? 'Core' : s === 2 ? 'Shield' : 'Ready'}
+                            <span className={`text-xs font-medium hidden sm:inline ${
+                                step === i + 1 ? 'text-foreground' : 'text-muted-foreground'
+                            }`}>
+                                {s.label}
                             </span>
+                            {i < steps.length - 1 && (
+                                <div className={`w-8 h-px ${step > i + 1 ? 'bg-success' : 'bg-border'}`} />
+                            )}
                         </div>
                     ))}
                 </div>
 
-                {/* Glass Card */}
-                <div className="glass w-full rounded-[2.5rem] p-8 sm:p-12 relative overflow-hidden min-h-[500px] flex flex-col justify-center">
-                    {/* Inner highlight flair */}
-                    <div className="absolute -top-24 -left-24 w-64 h-64 bg-pink-500/10 blur-[90px] rounded-full pointer-events-none" />
-
+                {/* Card */}
+                <div className="rounded-xl border border-border bg-card p-6">
                     {error && (
-                        <div className="bg-red-500/10 border border-red-500/20 text-red-400 p-4 rounded-2xl text-[11px] font-black uppercase tracking-widest mb-8 flex items-center gap-3 animate-fade-in">
-                            <Shield className="w-4 h-4 flex-shrink-0" />
+                        <div className="mb-4 p-3 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive text-sm flex items-center gap-2">
+                            <Shield className="w-4 h-4 shrink-0" />
                             {error}
                         </div>
                     )}
 
                     {step === 1 && (
-                        <form onSubmit={handleNextToTOTP} className="flex flex-col gap-8 animate-fade-in">
-                            <div className="space-y-4">
-                                <div className="space-y-3">
-                                    <label className="text-[11px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">Admin Identity</label>
-                                    <div className="relative group/input">
-                                        <input
-                                            type="text"
-                                            required
-                                            value={username}
-                                            onChange={(e) => setUsername(e.target.value)}
-                                            className="w-full h-16 pl-16 pr-6 bg-slate-950/60 border border-slate-800 rounded-2xl text-white placeholder-slate-600 focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500/50 outline-none transition-all text-sm font-medium"
-                                            placeholder="administrator"
-                                        />
-                                        <User className="w-5 h-5 text-slate-500 absolute left-6 top-1/2 -translate-y-1/2 group-focus-within/input:text-indigo-400 transition-colors" />
-                                    </div>
-                                </div>
-
-                                <div className="space-y-3">
-                                    <label className="text-[11px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">Master Password</label>
-                                    <div className="relative group/input">
-                                        <input
-                                            type="password"
-                                            required
-                                            value={password}
-                                            onChange={(e) => setPassword(e.target.value)}
-                                            className="w-full h-16 pl-16 pr-6 bg-slate-950/60 border border-slate-800 rounded-2xl text-white placeholder-slate-600 focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500/50 outline-none transition-all text-sm font-medium"
-                                            placeholder="••••••••"
-                                        />
-                                        <Lock className="w-5 h-5 text-slate-500 absolute left-6 top-1/2 -translate-y-1/2 group-focus-within/input:text-indigo-400 transition-colors" />
-                                    </div>
-                                </div>
-
-                                <div className="space-y-3">
-                                    <label className="text-[11px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">Confirm Protocol</label>
-                                    <div className="relative group/input">
-                                        <input
-                                            type="password"
-                                            required
-                                            value={confirmPassword}
-                                            onChange={(e) => setConfirmPassword(e.target.value)}
-                                            className="w-full h-16 pl-16 pr-6 bg-slate-950/60 border border-slate-800 rounded-2xl text-white placeholder-slate-600 focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500/50 outline-none transition-all text-sm font-medium"
-                                            placeholder="••••••••"
-                                        />
-                                        <CheckCircle className="w-5 h-5 text-slate-500 absolute left-6 top-1/2 -translate-y-1/2 group-focus-within/input:text-indigo-400 transition-colors" />
-                                    </div>
-                                </div>
-                            </div>
-
-                            <button
-                                type="submit"
-                                disabled={loading}
-                                className="w-full h-16 bg-indigo-600 hover:bg-indigo-500 text-white font-black uppercase tracking-widest text-xs rounded-2xl shadow-2xl shadow-indigo-600/30 hover:shadow-indigo-600/50 active:scale-[0.98] transition-all disabled:opacity-50 flex items-center justify-center gap-3 group mt-2"
-                            >
-                                {loading ? 'Initializing Interface' : 'Establish Core'}
-                                <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-                            </button>
+                        <form onSubmit={handleCreateAdmin} className="space-y-4">
+                            <Input
+                                label="Admin username"
+                                type="text"
+                                required
+                                value={username}
+                                onChange={(e) => setUsername(e.target.value)}
+                                placeholder="admin"
+                                icon={<User className="w-4 h-4" />}
+                            />
+                            <Input
+                                label="Password"
+                                type="password"
+                                required
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                                placeholder="At least 8 characters"
+                                icon={<Lock className="w-4 h-4" />}
+                            />
+                            <Input
+                                label="Confirm password"
+                                type="password"
+                                required
+                                value={confirmPassword}
+                                onChange={(e) => setConfirmPassword(e.target.value)}
+                                placeholder="Repeat your password"
+                                icon={<CheckCircle className="w-4 h-4" />}
+                            />
+                            <Button type="submit" className="w-full" loading={loading}>
+                                Continue
+                            </Button>
                         </form>
                     )}
 
                     {step === 2 && (
-                        <form onSubmit={handleCompleteSetup} className="flex flex-col gap-10 animate-fade-in">
-                            <div className="text-center space-y-4">
-                                <div className="p-5 bg-indigo-500/10 border border-indigo-500/20 rounded-[2.5rem] w-fit mx-auto shadow-inner">
-                                    <Smartphone className="w-10 h-10 text-indigo-400" />
+                        <form onSubmit={handleCompleteSetup} className="space-y-5 animate-fade-in">
+                            <div className="text-center">
+                                <div className="inline-flex items-center justify-center w-10 h-10 rounded-lg bg-primary/10 mb-3">
+                                    <Smartphone className="w-5 h-5 text-primary" />
                                 </div>
-                                <div className="space-y-2">
-                                    <h2 className="text-2xl font-black text-white tracking-tight uppercase tracking-widest text-xs">Security Matrix (2FA)</h2>
-                                    <p className="text-xs text-slate-500 max-w-[280px] mx-auto leading-relaxed font-bold">
-                                        Scan the telemetry token to finalize your administrative identity.
-                                    </p>
-                                </div>
+                                <h2 className="text-base font-semibold text-foreground">Set up two-factor auth</h2>
+                                <p className="text-sm text-muted-foreground mt-1">
+                                    Scan this QR code with your authenticator app
+                                </p>
                             </div>
 
                             {qrCode && (
-                                <div className="bg-white p-6 rounded-[2.5rem] flex justify-center shadow-2xl shadow-indigo-500/10 max-w-[220px] mx-auto group border-[8px] border-indigo-500/10">
-                                    <div className="relative">
-                                        <Image src={qrCode} alt="TOTP QR Code" width={176} height={176} className="w-40 h-40 group-hover:scale-105 transition-transform duration-700" />
+                                <div className="flex justify-center">
+                                    <div className="bg-white p-3 rounded-xl">
+                                        <Image src={qrCode} alt="TOTP QR Code" width={160} height={160} className="w-40 h-40" />
                                     </div>
                                 </div>
                             )}
 
-                            <div className="space-y-6">
-                                <div className="space-y-3 text-center">
-                                    <label className="text-[11px] font-black text-slate-500 uppercase tracking-[0.2em] block">Entry Verification</label>
-                                    <input
-                                        type="text"
-                                        required
-                                        value={totpToken}
-                                        onChange={(e) => setTotpToken(e.target.value)}
-                                        className="w-full h-20 bg-slate-950/60 border border-slate-800 rounded-3xl text-center text-4xl tracking-[0.4em] font-['Outfit'] font-black text-white focus:ring-2 focus:ring-indigo-500/40 outline-none transition-all"
-                                        placeholder="000000"
-                                        maxLength={6}
-                                    />
+                            {totpSecret && (
+                                <div className="text-center">
+                                    <p className="text-xs text-muted-foreground mb-1">Or enter this key manually:</p>
+                                    <code className="text-xs font-mono bg-secondary px-3 py-1.5 rounded-md text-foreground select-all">
+                                        {totpSecret}
+                                    </code>
                                 </div>
+                            )}
 
-                                <button
-                                    type="submit"
-                                    disabled={loading}
-                                    className="w-full h-16 bg-indigo-600 hover:bg-indigo-500 text-white font-black uppercase tracking-widest text-xs rounded-2xl shadow-2xl shadow-indigo-600/30 transition-all active:scale-[0.98] disabled:opacity-50"
-                                >
-                                    {loading ? 'Securing Subsystems' : 'Verify Identity Link'}
-                                </button>
-                            </div>
+                            <Input
+                                label="Verification code"
+                                type="text"
+                                required
+                                value={totpToken}
+                                onChange={(e) => setTotpToken(e.target.value.replace(/\D/g, ''))}
+                                placeholder="000000"
+                                maxLength={6}
+                                className="text-center text-lg tracking-widest font-mono"
+                                autoComplete="one-time-code"
+                            />
+
+                            <Button type="submit" className="w-full" loading={loading}>
+                                Complete setup
+                            </Button>
                         </form>
                     )}
 
                     {step === 3 && (
-                        <div className="text-center py-12 space-y-8 animate-fade-in flex flex-col items-center">
-                            <div className="flex justify-center">
-                                <div className="relative">
-                                    <div className="absolute inset-0 bg-indigo-500 blur-[50px] opacity-20 animate-pulse" />
-                                    <div className="bg-indigo-600/20 border border-indigo-500/30 p-8 rounded-full relative">
-                                        <CheckCircle className="w-24 h-24 text-indigo-400" />
-                                    </div>
-                                </div>
+                        <div className="text-center py-8 animate-fade-in">
+                            <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-success/10 mb-4">
+                                <CheckCircle className="w-7 h-7 text-success" />
                             </div>
-                            <div className="space-y-3">
-                                <h2 className="text-3xl font-black text-white font-['Outfit'] tracking-tight">Provisioning Complete</h2>
-                                <p className="text-slate-500 font-bold text-xs uppercase tracking-widest">
-                                    Handshaking with terminal. Redirecting...
-                                </p>
-                            </div>
-                            <div className="flex justify-center gap-3">
-                                <div className="w-2.5 h-2.5 bg-indigo-500 rounded-full animate-bounce [animation-delay:-0.3s]" />
-                                <div className="w-2.5 h-2.5 bg-indigo-500 rounded-full animate-bounce [animation-delay:-0.15s]" />
-                                <div className="w-2.5 h-2.5 bg-indigo-500 rounded-full animate-bounce" />
-                            </div>
+                            <h2 className="text-lg font-semibold text-foreground mb-1">Setup complete</h2>
+                            <p className="text-sm text-muted-foreground">
+                                Redirecting to login...
+                            </p>
                         </div>
                     )}
-                </div>
-
-                {/* Visual Flair */}
-                <div className="mt-16 text-center text-[10px] text-slate-600 font-black tracking-[0.4em] uppercase opacity-40">
-                    Protocol Secured via Argon2id & TOTP-HMAC
                 </div>
             </div>
         </main>

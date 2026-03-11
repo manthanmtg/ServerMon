@@ -1,18 +1,18 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useTheme } from '@/lib/ThemeContext';
 import {
     LayoutDashboard,
-    Monitor,
     Terminal,
+    Monitor,
+    Activity,
     Settings,
     LogOut,
-    Palette,
-    Activity,
     Menu,
+    X,
 } from 'lucide-react';
 
 interface ProShellProps {
@@ -21,147 +21,176 @@ interface ProShellProps {
     subtitle?: string;
 }
 
-const navItems = [
-    { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, group: 'Management' },
-    { label: 'Terminal', href: '/terminal', icon: Terminal, group: 'Modules' },
-    { label: 'Processes', href: '/processes', icon: Monitor, group: 'Modules' },
-    { label: 'Audit Logs', href: '/logs', icon: Activity, group: 'Modules' },
+const navGroups = [
+    {
+        label: 'Overview',
+        items: [
+            { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
+        ],
+    },
+    {
+        label: 'Modules',
+        items: [
+            { label: 'Terminal', href: '/terminal', icon: Terminal },
+            { label: 'Processes', href: '/processes', icon: Monitor },
+            { label: 'Audit Logs', href: '/logs', icon: Activity },
+        ],
+    },
 ];
 
-const SidebarContent = ({ pathname, onLogout }: { pathname: string; onLogout: () => void }) => (
-    <div className="flex flex-col h-full bg-slate-950/80">
-        <div className="p-6 flex items-center gap-3 border-b border-white/5 bg-slate-900/40">
-            <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center shadow-lg shadow-indigo-600/20">
-                <Activity className="w-5 h-5 text-white" />
-            </div>
-            <div>
-                <h1 className="text-lg font-bold tracking-tight text-white font-['Outfit']">Server<span className="text-indigo-400">Mon</span></h1>
-                <div className="flex items-center gap-1.5 opacity-50">
-                    <div className="w-1 h-1 rounded-full bg-emerald-500 animate-pulse" />
-                    <span className="text-[9px] font-bold uppercase tracking-widest text-slate-300">Console v1.0.4</span>
+function SidebarNav({ pathname, onNavigate, onLogout }: {
+    pathname: string;
+    onNavigate?: () => void;
+    onLogout: () => void;
+}) {
+    return (
+        <div className="flex flex-col h-full">
+            <div className="h-14 flex items-center gap-2.5 px-5 border-b border-sidebar-border shrink-0">
+                <div className="w-7 h-7 rounded-lg bg-primary flex items-center justify-center">
+                    <Activity className="w-4 h-4 text-primary-foreground" />
                 </div>
+                <span className="text-sm font-bold text-foreground tracking-tight">ServerMon</span>
             </div>
-        </div>
 
-        <nav className="flex-1 px-3 py-6 space-y-1.5 overflow-y-auto">
-            {navItems.map((item, i) => {
-                const isActive = pathname === item.href;
-                const showGroup = i === 0 || navItems[i - 1].group !== item.group;
+            <nav className="flex-1 overflow-y-auto py-4 px-3">
+                {navGroups.map((group) => (
+                    <div key={group.label} className="mb-5">
+                        <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider px-3 mb-1.5">
+                            {group.label}
+                        </p>
+                        <div className="space-y-0.5">
+                            {group.items.map((item) => {
+                                const isActive = pathname === item.href;
+                                return (
+                                    <Link
+                                        key={item.href}
+                                        href={item.href}
+                                        onClick={onNavigate}
+                                        className={`flex items-center gap-3 px-3 py-2 rounded-lg text-[13px] font-medium transition-colors ${
+                                            isActive
+                                                ? 'bg-primary text-primary-foreground'
+                                                : 'text-sidebar-foreground hover:bg-accent hover:text-foreground'
+                                        }`}
+                                    >
+                                        <item.icon className="w-4 h-4 shrink-0" />
+                                        {item.label}
+                                    </Link>
+                                );
+                            })}
+                        </div>
+                    </div>
+                ))}
+            </nav>
 
-                return (
-                    <React.Fragment key={item.href}>
-                        {showGroup && (
-                            <div className="px-3 mt-6 mb-2">
-                                <span className="text-[10px] font-bold text-slate-600 uppercase tracking-[0.2em]">{item.group}</span>
-                            </div>
-                        )}
-                        <Link
-                            href={item.href}
-                            className={`flex items-center gap-3 px-3 py-2.5 rounded-xl font-medium text-xs transition-all group relative ${isActive
-                                ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20'
-                                : 'text-slate-400 hover:text-white hover:bg-white/5'
-                                }`}
-                        >
-                            <item.icon className={`w-4 h-4 ${isActive ? 'text-white' : 'text-slate-500 group-hover:text-slate-300 transition-colors'}`} />
-                            {item.label}
-                        </Link>
-                    </React.Fragment>
-                );
-            })}
-        </nav>
-
-        <div className="p-4 border-t border-white/5 bg-slate-900/20">
-            <div className="space-y-1">
-                <Link href="/settings" className="flex items-center gap-3 px-3 py-2 hover:bg-white/5 rounded-lg text-xs font-medium text-slate-400 hover:text-white transition-all group">
-                    <Settings className="w-4 h-4 group-hover:rotate-45 transition-transform text-slate-500" />
+            <div className="p-3 border-t border-sidebar-border space-y-0.5">
+                <Link
+                    href="/settings"
+                    onClick={onNavigate}
+                    className={`flex items-center gap-3 px-3 py-2 rounded-lg text-[13px] font-medium transition-colors ${
+                        pathname === '/settings'
+                            ? 'bg-primary text-primary-foreground'
+                            : 'text-sidebar-foreground hover:bg-accent hover:text-foreground'
+                    }`}
+                >
+                    <Settings className="w-4 h-4 shrink-0" />
                     Settings
                 </Link>
-                <button onClick={onLogout} className="w-full flex items-center gap-3 px-3 py-2 text-rose-400 hover:bg-rose-500/10 rounded-lg text-xs font-medium transition-all group">
-                    <LogOut className="w-4 h-4 text-rose-500/60 group-hover:text-rose-400" />
-                    Kill Session
+                <button
+                    onClick={onLogout}
+                    className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-[13px] font-medium text-sidebar-foreground hover:bg-destructive/10 hover:text-destructive transition-colors cursor-pointer"
+                >
+                    <LogOut className="w-4 h-4 shrink-0" />
+                    Log out
                 </button>
             </div>
         </div>
-    </div>
-);
+    );
+}
 
 export default function ProShell({ children, title, subtitle }: ProShellProps) {
     const { theme, setTheme, availableThemes } = useTheme();
     const pathname = usePathname();
-    const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
+    const router = useRouter();
+    const [sidebarOpen, setSidebarOpen] = useState(false);
 
-    const username = "Admin";
-
-    const handleLogout = () => {
-        window.location.href = '/login';
+    const handleLogout = async () => {
+        try {
+            await fetch('/api/auth/logout', { method: 'POST' });
+        } finally {
+            router.push('/login');
+        }
     };
 
     return (
-        <div className="min-h-screen flex bg-[#020617] text-slate-200">
+        <div className="min-h-screen flex bg-background text-foreground">
             {/* Desktop Sidebar */}
-            <aside className="w-64 border-r border-white/5 hidden lg:flex flex-col shrink-0">
-                <SidebarContent pathname={pathname} onLogout={handleLogout} />
+            <aside className="hidden lg:flex flex-col w-[232px] border-r border-sidebar-border bg-sidebar shrink-0 sticky top-0 h-screen">
+                <SidebarNav pathname={pathname} onLogout={handleLogout} />
             </aside>
 
-            {/* Mobile Menu Overlay */}
-            {mobileMenuOpen && (
+            {/* Mobile Sidebar Overlay */}
+            {sidebarOpen && (
                 <div className="fixed inset-0 z-50 lg:hidden">
-                    <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setMobileMenuOpen(false)} />
-                    <aside className="absolute left-0 top-0 bottom-0 w-64 border-r border-white/5 bg-slate-950 shadow-2xl animate-fade-in flex flex-col">
-                        <SidebarContent pathname={pathname} onLogout={handleLogout} />
+                    <div
+                        className="absolute inset-0 bg-background/80 backdrop-blur-sm"
+                        onClick={() => setSidebarOpen(false)}
+                    />
+                    <aside className="absolute left-0 top-0 bottom-0 w-[232px] bg-sidebar border-r border-sidebar-border shadow-xl animate-fade-in">
+                        <SidebarNav
+                            pathname={pathname}
+                            onNavigate={() => setSidebarOpen(false)}
+                            onLogout={handleLogout}
+                        />
                     </aside>
                 </div>
             )}
 
-            {/* Main Content */}
+            {/* Main Area */}
             <div className="flex-1 flex flex-col min-w-0">
-                <header className="h-16 flex items-center justify-between px-6 border-b border-white/5 bg-slate-950/50 backdrop-blur-md sticky top-0 z-40">
-                    <div className="flex items-center gap-4">
+                {/* Header */}
+                <header className="h-14 flex items-center justify-between px-4 lg:px-6 border-b border-border bg-background sticky top-0 z-40">
+                    <div className="flex items-center gap-3">
                         <button
-                            className="lg:hidden p-2 -ml-2 text-slate-400 hover:text-white transition-colors"
-                            onClick={() => setMobileMenuOpen(true)}
+                            className="lg:hidden p-1.5 -ml-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                            onClick={() => setSidebarOpen(!sidebarOpen)}
+                            aria-label="Toggle sidebar"
                         >
-                            <Menu className="w-5 h-5" />
+                            {sidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
                         </button>
-                        <div className="flex items-center gap-4">
-                            <h2 className="text-base font-bold text-white tracking-tight">{title}</h2>
+                        <div className="flex items-center gap-2">
+                            <h1 className="text-sm font-semibold text-foreground">{title}</h1>
                             {subtitle && (
                                 <>
-                                    <div className="h-4 w-[1px] bg-slate-800" />
-                                    <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">{subtitle}</span>
+                                    <span className="text-muted-foreground/40">/</span>
+                                    <span className="text-sm text-muted-foreground">{subtitle}</span>
                                 </>
                             )}
                         </div>
                     </div>
 
-                    <div className="flex items-center gap-4">
-                        <div className="hidden sm:flex items-center gap-2 bg-slate-900/60 border border-white/5 p-1 rounded-lg px-2">
-                            <Palette className="w-3.5 h-3.5 text-indigo-400" />
-                            <select
-                                value={theme.id}
-                                onChange={(e) => setTheme(e.target.value)}
-                                className="bg-transparent text-[10px] font-bold uppercase tracking-widest outline-none border-none cursor-pointer text-slate-400 hover:text-white transition-colors"
-                            >
-                                {availableThemes.map(t => (
-                                    <option key={t.id} value={t.id} className="bg-slate-900 text-white capitalize">{t.name}</option>
-                                ))}
-                            </select>
-                        </div>
+                    <div className="flex items-center gap-3">
+                        <select
+                            value={theme.id}
+                            onChange={(e) => setTheme(e.target.value)}
+                            className="hidden sm:block h-8 px-2 pr-7 text-xs font-medium bg-secondary border border-border rounded-md text-secondary-foreground outline-none cursor-pointer hover:bg-accent transition-colors appearance-none"
+                            style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 6px center' }}
+                        >
+                            {availableThemes.map((t) => (
+                                <option key={t.id} value={t.id}>{t.name}</option>
+                            ))}
+                        </select>
 
-                        <div className="flex items-center gap-3 pl-4 border-l border-white/5">
-                            <div className="text-right hidden xs:block">
-                                <p className="text-xs font-bold text-white leading-none">{username}</p>
-                                <p className="text-[9px] font-bold text-indigo-500 uppercase tracking-widest mt-0.5">Root</p>
-                            </div>
-                            <div className="w-8 h-8 rounded-lg bg-slate-900 border border-white/10 flex items-center justify-center font-bold text-xs text-indigo-400">
-                                {username[0].toUpperCase()}
+                        <div className="flex items-center gap-2 pl-3 border-l border-border">
+                            <div className="w-7 h-7 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center text-xs font-semibold text-primary">
+                                A
                             </div>
                         </div>
                     </div>
                 </header>
 
-                <main className="flex-1 p-6 lg:p-8 overflow-y-auto">
-                    <div className="max-w-7xl mx-auto space-y-8">
+                {/* Content */}
+                <main className="flex-1 p-4 lg:p-6 overflow-y-auto">
+                    <div className="mx-auto max-w-7xl">
                         {children}
                     </div>
                 </main>

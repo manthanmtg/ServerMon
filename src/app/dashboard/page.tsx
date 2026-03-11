@@ -1,127 +1,148 @@
 'use client';
 
-import React from 'react';
-import { Activity, Zap, Cpu, HardDrive, ChevronRight } from 'lucide-react';
-import Link from 'next/link';
-import { renderWidget } from '@/components/modules/ModuleWidgetRegistry';
+import React, { useEffect, useState } from 'react';
+import { Cpu, MemoryStick, Clock, Activity as ActivityIcon } from 'lucide-react';
 import ProShell from '@/components/layout/ProShell';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Spinner } from '@/components/ui/spinner';
+import { renderWidget } from '@/components/modules/ModuleWidgetRegistry';
+
+interface SystemMetric {
+    timestamp: string;
+    cpu: number;
+    memory: number;
+}
 
 export default function DashboardPage() {
+    const [metrics, setMetrics] = useState<SystemMetric[]>([]);
+    const [latest, setLatest] = useState<SystemMetric | null>(null);
+    const [connected, setConnected] = useState(false);
+
+    useEffect(() => {
+        const es = new EventSource('/api/metrics/stream');
+
+        es.onmessage = (event) => {
+            const metric: SystemMetric = JSON.parse(event.data);
+            setLatest(metric);
+            setConnected(true);
+            setMetrics((prev) => [...prev, metric].slice(-60));
+        };
+
+        es.onerror = () => {
+            setConnected(false);
+            es.close();
+        };
+
+        return () => es.close();
+    }, []);
+
     return (
-        <ProShell title="Dashboard" subtitle="System Overview">
-            <div className="flex flex-col gap-8 pb-12">
-                
-                {/* Metrics Row */}
-                <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 animate-fade-in">
-                    {[
-                        { label: 'CPU LOAD', value: '12%', sub: '4.2GHz', icon: Cpu, color: 'text-indigo-400' },
-                        { label: 'MEMORY', value: '2.4 GB', sub: '92% eff', icon: HardDrive, color: 'text-pink-400' },
-                        { label: 'SESSIONS', value: '03', sub: 'Active', icon: Zap, color: 'text-amber-400' },
-                        { label: 'UPTIME', value: '12d 4h', sub: 'Stable', icon: Activity, color: 'text-emerald-400' },
-                    ].map((stat, i) => (
-                        <div key={i} className="card p-5 group">
-                            <div className="flex items-center justify-between mb-4">
-                                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{stat.label}</span>
-                                <stat.icon className={`w-4 h-4 ${stat.color} opacity-60 group-hover:opacity-100 transition-opacity`} />
-                            </div>
-                            <div className="flex items-end gap-2">
-                                <span className="text-2xl font-bold text-white tracking-tight">{stat.value}</span>
-                                <span className="text-[10px] font-medium text-slate-500 mb-1">{stat.sub}</span>
-                            </div>
-                        </div>
-                    ))}
-                </section>
+        <ProShell title="Dashboard" subtitle="Overview">
+            <div className="space-y-6 animate-fade-in">
+                {/* Stat Cards */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <StatCard
+                        label="CPU Usage"
+                        value={latest ? `${latest.cpu.toFixed(1)}%` : '--'}
+                        icon={<Cpu className="w-4 h-4" />}
+                        status={!latest ? 'loading' : latest.cpu > 80 ? 'warning' : 'normal'}
+                    />
+                    <StatCard
+                        label="Memory"
+                        value={latest ? `${latest.memory.toFixed(1)}%` : '--'}
+                        icon={<MemoryStick className="w-4 h-4" />}
+                        status={!latest ? 'loading' : latest.memory > 80 ? 'warning' : 'normal'}
+                    />
+                    <StatCard
+                        label="Data Points"
+                        value={metrics.length > 0 ? `${metrics.length}` : '--'}
+                        icon={<ActivityIcon className="w-4 h-4" />}
+                        status={!connected ? 'loading' : 'normal'}
+                    />
+                    <StatCard
+                        label="Stream"
+                        value={connected ? 'Connected' : 'Connecting...'}
+                        icon={<Clock className="w-4 h-4" />}
+                        status={connected ? 'normal' : 'loading'}
+                    />
+                </div>
 
-                {/* Main Content Grid */}
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                    
-                    {/* Primary Analytics Section */}
-                    <div className="lg:col-span-2 space-y-8">
-                        {/* CPU FLUX */}
-                        <div className="card h-[400px] flex flex-col overflow-hidden">
-                            <div className="p-4 border-b border-white/5 flex items-center justify-between bg-slate-900/20">
-                                <div className="flex items-center gap-2">
-                                    <Cpu className="w-4 h-4 text-indigo-400" />
-                                    <h3 className="text-xs font-bold text-white uppercase tracking-wider">Processor Flux</h3>
-                                </div>
-                                <span className="text-[9px] font-bold text-indigo-500 uppercase tracking-widest px-2 py-0.5 rounded bg-indigo-500/10 border border-indigo-500/20">Live</span>
+                {/* Charts Row */}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                    <Card className="lg:col-span-2">
+                        <CardHeader className="flex-row items-center justify-between">
+                            <CardTitle>CPU Usage</CardTitle>
+                            <Badge variant={connected ? 'success' : 'secondary'}>
+                                <span className={`w-1.5 h-1.5 rounded-full ${connected ? 'bg-success animate-pulse' : 'bg-muted-foreground'}`} />
+                                {connected ? 'Live' : 'Offline'}
+                            </Badge>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="h-[280px]">
+                                {renderWidget('CPUChartWidget', { externalData: metrics })}
                             </div>
-                            <div className="flex-1 p-4">
-                                {renderWidget('CPUChartWidget')}
-                            </div>
-                        </div>
+                        </CardContent>
+                    </Card>
 
-                        {/* Logs Section */}
-                        <div className="card h-[400px] flex flex-col overflow-hidden">
-                            <div className="p-4 border-b border-white/5 flex items-center justify-between bg-slate-900/20">
-                                <div className="flex items-center gap-2">
-                                    <Activity className="w-4 h-4 text-emerald-400" />
-                                    <h3 className="text-xs font-bold text-white uppercase tracking-wider">Kernel Activity Feed</h3>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Streaming</span>
-                                </div>
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Memory Usage</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="h-[280px]">
+                                {renderWidget('MemoryChartWidget', { externalData: metrics })}
                             </div>
-                            <div className="flex-1 overflow-hidden">
-                                {renderWidget('LogsWidget')}
-                            </div>
-                        </div>
-                    </div>
+                        </CardContent>
+                    </Card>
+                </div>
 
-                    {/* Secondary Utility Section */}
-                    <div className="space-y-8">
-                        {/* Memory Entropy */}
-                        <div className="card h-[300px] flex flex-col overflow-hidden">
-                            <div className="p-4 border-b border-white/5 flex items-center justify-between bg-slate-900/20">
-                                <div className="flex items-center gap-2">
-                                    <HardDrive className="w-4 h-4 text-pink-400" />
-                                    <h3 className="text-xs font-bold text-white uppercase tracking-wider">Memory Map</h3>
-                                </div>
-                            </div>
-                            <div className="flex-1 p-4">
-                                {renderWidget('MemoryChartWidget')}
-                            </div>
-                        </div>
+                {/* Bottom Row */}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                    <Card className="lg:col-span-2">
+                        <CardHeader>
+                            <CardTitle>Recent Activity</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            {renderWidget('LogsWidget')}
+                        </CardContent>
+                    </Card>
 
-                        {/* Diagnostics & Health */}
-                        <div className="card flex-1 flex flex-col overflow-hidden">
-                            <div className="p-4 border-b border-white/5 bg-slate-900/20">
-                                <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
-                                    <div className="w-1 h-3 bg-indigo-500 rounded-full" />
-                                    System Diagnostics
-                                </h3>
-                            </div>
-                            <div className="p-4 flex-1">
-                                {renderWidget('HealthWidget')}
-                            </div>
-                            <div className="p-4 border-t border-white/5 bg-slate-900/10 grid grid-cols-2 gap-2">
-                                <div className="p-2 rounded-lg bg-slate-950/50 border border-white/5 text-center">
-                                    <span className="text-[8px] font-bold text-slate-500 uppercase tracking-tighter block">Polling</span>
-                                    <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest mt-0.5 tracking-tighter">Real-time</span>
-                                </div>
-                                <div className="p-2 rounded-lg bg-slate-950/50 border border-white/5 text-center">
-                                    <span className="text-[8px] font-bold text-slate-500 uppercase tracking-tighter block">Engine</span>
-                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5 tracking-tighter">v1.4.2</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Pro Engine Callout */}
-                        <div className="card p-5 bg-gradient-to-br from-indigo-600/10 to-transparent border-indigo-500/20">
-                            <h3 className="text-sm font-bold text-white mb-2">Pro Console</h3>
-                            <p className="text-[11px] text-slate-400 leading-relaxed font-medium mb-4">
-                                High-frequency monitoring active. All modules inherited the LifeOS infrastructure core for maximum telemetry density.
-                            </p>
-                            <Link href="/settings" className="flex items-center justify-between p-3 rounded-xl bg-indigo-600 text-white hover:bg-indigo-500 transition-colors shadow-lg shadow-indigo-600/20">
-                                <span className="text-[9px] font-bold uppercase tracking-widest">Registry</span>
-                                <ChevronRight className="w-4 h-4" />
-                            </Link>
-                        </div>
-                    </div>
-
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>System Health</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            {renderWidget('HealthWidget')}
+                        </CardContent>
+                    </Card>
                 </div>
             </div>
         </ProShell>
+    );
+}
+
+function StatCard({ label, value, icon, status }: {
+    label: string;
+    value: string;
+    icon: React.ReactNode;
+    status: 'normal' | 'warning' | 'loading';
+}) {
+    return (
+        <Card>
+            <CardContent className="p-4">
+                <div className="flex items-center justify-between mb-3">
+                    <span className="text-sm text-muted-foreground">{label}</span>
+                    <span className={status === 'warning' ? 'text-warning' : 'text-muted-foreground'}>
+                        {status === 'loading' ? <Spinner size="sm" /> : icon}
+                    </span>
+                </div>
+                <p className={`text-2xl font-semibold tracking-tight ${
+                    status === 'warning' ? 'text-warning' : 'text-foreground'
+                }`}>
+                    {value}
+                </p>
+            </CardContent>
+        </Card>
     );
 }
