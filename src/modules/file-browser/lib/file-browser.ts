@@ -156,29 +156,6 @@ async function accessFlags(targetPath: string) {
     return { canRead, canWrite };
 }
 
-function toFsError(error: unknown, fallbackMessage: string): FileBrowserError {
-    if (
-        typeof error === 'object' &&
-        error !== null &&
-        'code' in error &&
-        typeof error.code === 'string'
-    ) {
-        switch (error.code) {
-        case 'EACCES':
-        case 'EPERM':
-            return new FileBrowserError('Permission denied', 403);
-        case 'ENOENT':
-            return new FileBrowserError('Entry not found', 404);
-        case 'EEXIST':
-            return new FileBrowserError('Entry already exists', 409);
-        default:
-            break;
-        }
-    }
-
-    return new FileBrowserError(fallbackMessage, 500);
-}
-
 async function toEntry(parentPath: string, name: string): Promise<FileBrowserEntry> {
     const entryPath = path.join(parentPath, name);
     const stats = await fs.stat(entryPath);
@@ -201,17 +178,15 @@ async function toEntry(parentPath: string, name: string): Promise<FileBrowserEnt
 
 export async function listDirectory(targetPath: string): Promise<DirectoryListing> {
     const resolved = resolveBrowserPath(targetPath);
-    const stats = await fs.stat(resolved).catch((error: unknown) => {
-        throw error instanceof FileBrowserError ? error : toFsError(error, 'Directory not found');
+    const stats = await fs.stat(resolved).catch(() => {
+        throw new FileBrowserError('Directory not found', 404);
     });
 
     if (!stats.isDirectory()) {
         throw new FileBrowserError('Path is not a directory', 400);
     }
 
-    const names = await fs.readdir(resolved).catch((error: unknown) => {
-        throw toFsError(error, 'Failed to read directory');
-    });
+    const names = await fs.readdir(resolved);
     const entries = await Promise.all(names.map((name) => toEntry(resolved, name)));
     entries.sort((left, right) => {
         if (left.isDirectory !== right.isDirectory) {
@@ -236,8 +211,8 @@ export async function listDirectory(targetPath: string): Promise<DirectoryListin
 
 export async function readTree(targetPath: string, depth = 2, maxEntries = 250): Promise<DirectoryTreeNode> {
     const resolved = resolveBrowserPath(targetPath);
-    const stats = await fs.stat(resolved).catch((error: unknown) => {
-        throw error instanceof FileBrowserError ? error : toFsError(error, 'Directory not found');
+    const stats = await fs.stat(resolved).catch(() => {
+        throw new FileBrowserError('Directory not found', 404);
     });
 
     if (!stats.isDirectory()) {
@@ -246,12 +221,9 @@ export async function readTree(targetPath: string, depth = 2, maxEntries = 250):
 
     const walk = async (currentPath: string, remainingDepth: number): Promise<DirectoryTreeNode> => {
         const children = remainingDepth > 0
-            ? await fs.readdir(currentPath, { withFileTypes: true })
-                .then((entries) => entries
-                    .filter((entry) => entry.isDirectory())
-                    .sort((left, right) => left.name.localeCompare(right.name))
-                    .slice(0, maxEntries))
-                .catch(() => [])
+            ? (await fs.readdir(currentPath, { withFileTypes: true }))
+                .filter((entry) => entry.isDirectory())
+                .slice(0, maxEntries)
             : [];
 
         return {
@@ -303,36 +275,10 @@ function mimeTypeForExtension(filePath: string): string {
     return lookup[extension] || 'application/octet-stream';
 }
 
-async function readHead(targetPath: string, maxBytes: number): Promise<Buffer> {
-    const handle = await fs.open(targetPath, 'r');
-    try {
-        const size = Math.max(1, maxBytes);
-        const buffer = Buffer.alloc(size);
-        const { bytesRead } = await handle.read(buffer, 0, size, 0);
-        return buffer.subarray(0, bytesRead);
-    } finally {
-        await handle.close();
-    }
-}
-
-async function readTail(targetPath: string, maxBytes: number): Promise<Buffer> {
-    const handle = await fs.open(targetPath, 'r');
-    try {
-        const stats = await handle.stat();
-        const size = Math.max(1, maxBytes);
-        const start = Math.max(0, stats.size - size);
-        const buffer = Buffer.alloc(Math.min(size, stats.size));
-        const { bytesRead } = await handle.read(buffer, 0, buffer.length, start);
-        return buffer.subarray(0, bytesRead);
-    } finally {
-        await handle.close();
-    }
-}
-
 export async function previewFile(targetPath: string, previewMaxBytes: number, tailLineCount = 200): Promise<PreviewPayload> {
     const resolved = resolveBrowserPath(targetPath);
-    const stats = await fs.stat(resolved).catch((error: unknown) => {
-        throw error instanceof FileBrowserError ? error : toFsError(error, 'File not found');
+    const stats = await fs.stat(resolved).catch(() => {
+        throw new FileBrowserError('File not found', 404);
     });
 
     if (!stats.isFile()) {
@@ -354,13 +300,6 @@ export async function previewFile(targetPath: string, previewMaxBytes: number, t
     };
 
     if (kind === 'image') {
-        if (stats.size > previewMaxBytes) {
-            return {
-                ...base,
-                truncated: true,
-            };
-        }
-
         const data = await fs.readFile(resolved);
         return {
             ...base,
@@ -369,14 +308,9 @@ export async function previewFile(targetPath: string, previewMaxBytes: number, t
         };
     }
 
-    const chunk = kind === 'log'
-        ? await readTail(resolved, previewMaxBytes)
-        : await readHead(resolved, previewMaxBytes);
+    const chunk = await fs.readFile(resolved);
     if (textLooksBinary(chunk)) {
-        return {
-            ...base,
-            truncated: stats.size > previewMaxBytes,
-        };
+        return base;
     }
 
     const text = chunk.toString('utf8');
@@ -384,15 +318,16 @@ export async function previewFile(targetPath: string, previewMaxBytes: number, t
         return {
             ...base,
             tailLines: text.split(/\r?\n/).slice(-tailLineCount),
-            truncated: stats.size > previewMaxBytes,
+            truncated: Buffer.byteLength(text) > previewMaxBytes,
         };
     }
 
+    const trimmed = text.slice(0, previewMaxBytes);
     return {
         ...base,
-        content: text,
+        content: trimmed,
         encoding: 'utf8',
-        truncated: stats.size > previewMaxBytes,
+        truncated: Buffer.byteLength(text) > previewMaxBytes,
     };
 }
 
@@ -409,32 +344,17 @@ export async function readEditableFile(targetPath: string, maxBytes: number): Pr
 
 export async function saveFile(targetPath: string, content: string): Promise<void> {
     const resolved = resolveBrowserPath(targetPath);
-    const stats = await fs.stat(resolved).catch((error: unknown) => {
-        throw error instanceof FileBrowserError ? error : toFsError(error, 'File not found');
+    const stats = await fs.stat(resolved).catch(() => {
+        throw new FileBrowserError('File not found', 404);
     });
     if (!stats.isFile()) {
         throw new FileBrowserError('Path is not a file', 400);
     }
-
-    const { canWrite } = await accessFlags(resolved);
-    if (!canWrite) {
-        throw new FileBrowserError('File is read-only', 403);
-    }
-
-    await fs.writeFile(resolved, content, 'utf8').catch((error: unknown) => {
-        throw toFsError(error, 'Failed to save file');
-    });
+    await fs.writeFile(resolved, content, 'utf8');
 }
 
 export async function createEntry(targetDir: string, name: string, kind: 'file' | 'directory', content = ''): Promise<string> {
     const resolvedDir = resolveBrowserPath(targetDir);
-    const parentStats = await fs.stat(resolvedDir).catch((error: unknown) => {
-        throw error instanceof FileBrowserError ? error : toFsError(error, 'Directory not found');
-    });
-    if (!parentStats.isDirectory()) {
-        throw new FileBrowserError('Parent path is not a directory', 400);
-    }
-
     const safeName = path.basename(name.trim());
     if (!safeName || safeName === '.' || safeName === '..') {
         throw new FileBrowserError('Valid name required', 400);
@@ -451,13 +371,9 @@ export async function createEntry(targetDir: string, name: string, kind: 'file' 
     }
 
     if (kind === 'directory') {
-        await fs.mkdir(nextPath).catch((error: unknown) => {
-            throw toFsError(error, 'Failed to create directory');
-        });
+        await fs.mkdir(nextPath);
     } else {
-        await fs.writeFile(nextPath, content, { encoding: 'utf8', flag: 'wx' }).catch((error: unknown) => {
-            throw toFsError(error, 'Failed to create file');
-        });
+        await fs.writeFile(nextPath, content, 'utf8');
     }
 
     return nextPath;
@@ -471,40 +387,22 @@ export async function renameEntry(targetPath: string, nextName: string): Promise
     }
 
     const nextPath = path.join(path.dirname(resolved), safeName);
-    if (nextPath === resolved) {
-        return nextPath;
-    }
-
-    await fs.access(nextPath).then(() => {
-        throw new FileBrowserError('Entry already exists', 409);
-    }).catch((error: unknown) => {
-        if (error instanceof FileBrowserError) {
-            throw error;
-        }
-    });
-
-    await fs.rename(resolved, nextPath).catch((error: unknown) => {
-        throw toFsError(error, 'Failed to rename entry');
-    });
+    await fs.rename(resolved, nextPath);
     return nextPath;
 }
 
 export async function deleteEntry(targetPath: string): Promise<void> {
     const resolved = resolveBrowserPath(targetPath);
-    const stats = await fs.stat(resolved).catch((error: unknown) => {
-        throw error instanceof FileBrowserError ? error : toFsError(error, 'Entry not found');
+    const stats = await fs.stat(resolved).catch(() => {
+        throw new FileBrowserError('Entry not found', 404);
     });
 
     if (stats.isDirectory()) {
-        await fs.rm(resolved, { recursive: true, force: true }).catch((error: unknown) => {
-            throw toFsError(error, 'Failed to delete directory');
-        });
+        await fs.rm(resolved, { recursive: true, force: true });
         return;
     }
 
-    await fs.unlink(resolved).catch((error: unknown) => {
-        throw toFsError(error, 'Failed to delete file');
-    });
+    await fs.unlink(resolved);
 }
 
 export async function writeUpload(targetDir: string, fileName: string, data: ReadableStream<Uint8Array>): Promise<string> {
@@ -515,12 +413,10 @@ export async function writeUpload(targetDir: string, fileName: string, data: Rea
     }
 
     const destination = path.join(resolvedDir, safeName);
-    const output = await fs.open(destination, 'wx').catch((error: unknown) => {
-        throw toFsError(error, 'Failed to create upload');
-    });
+    const output = await fs.open(destination, 'w');
 
     try {
-        const nodeReadable = Readable.fromWeb(data as unknown as import('stream/web').ReadableStream<Uint8Array>);
+        const nodeReadable = Readable.fromWeb(data);
         for await (const chunk of nodeReadable) {
             const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
             await output.write(buffer);

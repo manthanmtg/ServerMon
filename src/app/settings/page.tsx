@@ -13,8 +13,6 @@ interface ModuleInfo {
     description?: string;
 }
 
-export const dynamic = 'force-dynamic';
-
 export default function SettingsPage() {
     const { theme, setTheme, availableThemes } = useTheme();
     const [modules, setModules] = useState<ModuleInfo[]>([]);

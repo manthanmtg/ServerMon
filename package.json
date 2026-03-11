@@ -4,14 +4,13 @@
   "private": true,
   "scripts": {
     "dev": "tsx watch src/server.ts",
-    "build": "next build --webpack --experimental-build-mode compile",
+    "build": "next build",
     "start": "NODE_ENV=production tsx src/server.ts",
     "lint": "eslint src/",
     "lint:fix": "eslint src/ --fix",
     "typecheck": "tsc --noEmit",
     "check": "pnpm lint && pnpm typecheck && pnpm build && pnpm test",
-    "test": "node --import tsx --test src/modules/file-browser/lib/file-browser.test.ts",
-    "test:e2e": "playwright test"
+    "test": "node --test src/modules/file-browser/lib/file-browser.test.ts"
   },
   "dependencies": {
     "@types/mongoose": "^5.11.96",

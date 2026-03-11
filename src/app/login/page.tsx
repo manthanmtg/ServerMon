@@ -6,8 +6,6 @@ import { Activity, Shield, Lock, Smartphone } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
-export const dynamic = 'force-dynamic';
-
 export default function LoginPage() {
     const [step, setStep] = useState(1);
     const [loading, setLoading] = useState(false);

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { createLogger } from '@/lib/logger';
+import connectDB from '@/lib/db';
+import FileBrowserSettings from '@/models/FileBrowserSettings';
 import {
     createDownloadStream,
     FileBrowserError,
@@ -9,11 +11,11 @@ import {
     resolveBrowserPath,
     saveFile,
 } from '@/modules/file-browser/lib/file-browser';
-import { loadFileBrowserSettings } from '@/modules/file-browser/lib/settings-store';
 
 export const dynamic = 'force-dynamic';
 
 const log = createLogger('api:file-browser:file');
+const SETTINGS_ID = 'file-browser-settings';
 
 const updateSchema = z.object({
     path: z.string().trim().min(1),
@@ -21,11 +23,19 @@ const updateSchema = z.object({
 });
 
 async function getLimits() {
-    const settings = await loadFileBrowserSettings();
-    return {
-        previewMaxBytes: settings.previewMaxBytes,
-        editorMaxBytes: settings.editorMaxBytes,
-    };
+    try {
+        await connectDB();
+        const settings = await FileBrowserSettings.findById(SETTINGS_ID).lean();
+        return {
+            previewMaxBytes: settings?.previewMaxBytes || 512 * 1024,
+            editorMaxBytes: settings?.editorMaxBytes || 1024 * 1024,
+        };
+    } catch {
+        return {
+            previewMaxBytes: 512 * 1024,
+            editorMaxBytes: 1024 * 1024,
+        };
+    }
 }
 
 function toErrorResponse(error: unknown) {

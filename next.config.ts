@@ -1,9 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  experimental: {
-    cpus: 1,
-  },
+  /* config options here */
 };
 
 export default nextConfig;

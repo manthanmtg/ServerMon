@@ -3,8 +3,6 @@
 import TerminalPage from '@/modules/terminal/ui/TerminalPage';
 import ProShell from '@/components/layout/ProShell';
 
-export const dynamic = 'force-dynamic';
-
 export default function Page() {
     return (
         <ProShell title="Terminal" subtitle="Remote Shell">

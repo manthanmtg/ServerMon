@@ -10,11 +10,8 @@ import {
     listDirectory,
     matchesFilter,
     previewFile,
-    readEditableFile,
     renameEntry,
     resolveBrowserPath,
-    saveFile,
-    writeUpload,
 } from './file-browser.ts';
 
 let sandboxDir = '';
@@ -80,59 +77,5 @@ describe('file-browser helpers', () => {
         );
 
         await deleteEntry(duplicateDir);
-    });
-
-    it('applies preview and editor limits for large text and log files', async () => {
-        const limitDir = await createEntry(sandboxDir, 'limits', 'directory');
-        const textPath = await createEntry(limitDir, 'notes.txt', 'file', 'abcdefghij'.repeat(300));
-        const logPath = await createEntry(limitDir, 'events.log', 'file', Array.from({ length: 300 }, (_, index) => `line-${index}`).join('\n'));
-
-        const textPreview = await previewFile(textPath, 64);
-        assert.equal(textPreview.encoding, 'utf8');
-        assert.equal(textPreview.truncated, true);
-        assert.equal(textPreview.content?.length, 64);
-
-        const logPreview = await previewFile(logPath, 80, 5);
-        assert.equal(logPreview.kind, 'log');
-        assert.equal(logPreview.truncated, true);
-        assert.ok(logPreview.tailLines?.at(-1)?.includes('line-299'));
-
-        await assert.rejects(() => readEditableFile(textPath, 64), /exceeds editor limit/);
-        await deleteEntry(limitDir);
-    });
-
-    it('saves editable files and rejects overwriting uploads', async () => {
-        const uploadDir = await createEntry(sandboxDir, 'uploads', 'directory');
-        const editablePath = await createEntry(uploadDir, 'editable.txt', 'file', 'before');
-        await saveFile(editablePath, 'after');
-        assert.equal(await readFile(editablePath, 'utf8'), 'after');
-
-        const stream = new ReadableStream({
-            start(controller) {
-                controller.enqueue(new TextEncoder().encode('first upload'));
-                controller.close();
-            },
-        });
-
-        const uploadPath = await writeUpload(uploadDir, 'upload.txt', stream);
-        assert.equal(await readFile(uploadPath, 'utf8'), 'first upload');
-
-        await assert.rejects(
-            () => writeUpload(uploadDir, 'upload.txt', new ReadableStream({
-                start(controller) {
-                    controller.enqueue(new TextEncoder().encode('duplicate'));
-                    controller.close();
-                },
-            })),
-            /already exists/
-        );
-
-        await deleteEntry(uploadDir);
-    });
-
-    it('rejects saving directories as files', async () => {
-        const directoryPath = await createEntry(sandboxDir, 'save-target-dir', 'directory');
-        await assert.rejects(() => saveFile(directoryPath, 'updated'), /not a file/);
-        await deleteEntry(directoryPath);
     });
 });

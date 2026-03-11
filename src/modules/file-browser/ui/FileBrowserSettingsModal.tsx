@@ -88,7 +88,6 @@ export default function FileBrowserSettingsModal({ settings, onClose, onSaved }:
             }
 
             onSaved(data.settings as FileBrowserSettings);
-            toast({ title: 'Settings saved', variant: 'success' });
             window.dispatchEvent(new CustomEvent('file-browser-shortcuts-updated', { detail: data.settings }));
             onClose();
         } catch (error) {
@@ -99,24 +98,17 @@ export default function FileBrowserSettingsModal({ settings, onClose, onSaved }:
     };
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose} role="presentation">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
             <div className="absolute inset-0 bg-background/80 backdrop-blur-sm" />
-            <div
-                className="relative w-full max-w-3xl rounded-xl border border-border bg-card animate-slide-up"
-                onClick={(event) => event.stopPropagation()}
-                role="dialog"
-                aria-modal="true"
-                aria-labelledby="file-browser-settings-title"
-            >
+            <div className="relative w-full max-w-3xl rounded-xl border border-border bg-card animate-slide-up" onClick={(event) => event.stopPropagation()}>
                 <div className="flex items-center justify-between border-b border-border p-5">
                     <div>
-                        <h3 id="file-browser-settings-title" className="text-base font-semibold text-foreground">File Browser Settings</h3>
+                        <h3 className="text-base font-semibold text-foreground">File Browser Settings</h3>
                         <p className="text-xs text-muted-foreground mt-1">Manage shortcuts and editor limits shown in the top bar.</p>
                     </div>
                     <button
                         onClick={onClose}
                         className="min-h-[44px] min-w-[44px] rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground transition-colors flex items-center justify-center"
-                        aria-label="Close settings"
                     >
                         <X className="w-4 h-4" />
                     </button>

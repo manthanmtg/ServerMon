@@ -1,13 +1,19 @@
-import type { CSSProperties } from 'react';
-import type { Metadata, Viewport } from 'next';
-import './globals.css';
-import { ThemeProvider } from '@/lib/ThemeContext';
-import { ToastProvider } from '@/components/ui/toast';
+import type { Metadata, Viewport } from "next";
+import { Outfit, Inter } from "next/font/google";
+import "./globals.css";
+import { ThemeProvider } from "@/lib/ThemeContext";
+import { ToastProvider } from "@/components/ui/toast";
 
-const fontVariables = {
-    '--font-outfit': '"Avenir Next", "Segoe UI", sans-serif',
-    '--font-inter': '"Helvetica Neue", "Arial Nova", sans-serif',
-} as CSSProperties;
+const outfit = Outfit({
+    subsets: ["latin"],
+    variable: "--font-outfit",
+    weight: ["300", "400", "500", "600", "700"],
+});
+
+const inter = Inter({
+    subsets: ["latin"],
+    variable: "--font-inter",
+});
 
 export const metadata: Metadata = {
     title: "ServerMon",
@@ -27,7 +33,7 @@ export default function RootLayout({
     children: React.ReactNode;
 }>) {
     return (
-        <html lang="en" suppressHydrationWarning style={fontVariables}>
+        <html lang="en" suppressHydrationWarning className={`${outfit.variable} ${inter.variable}`}>
             <body className="antialiased" suppressHydrationWarning>
                 <ThemeProvider>
                     <ToastProvider>
