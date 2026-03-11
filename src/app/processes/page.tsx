@@ -3,6 +3,8 @@
 import ProcessWidget from '@/modules/processes/ui/ProcessWidget';
 import ProShell from '@/components/layout/ProShell';
 
+export const dynamic = 'force-dynamic';
+
 export default function Page() {
     return (
         <ProShell title="Processes" subtitle="System Processes">
