@@ -155,7 +155,7 @@ Historical sessions should retain key metadata:
 - duration
 - final status
 
-Selecting a past session should open the same **Session Detail View** used for live sessions, but in **read-only inspection mode**.
+Selecting a past session should open the same **Session Detail View** used for live sessions, but in **read‑only inspection mode**.
 
 Stored information may include:
 
@@ -393,6 +393,138 @@ Detect risky behaviors:
 - large repository rewrites
 - deleting critical files
 - infinite reasoning loops
+
+---
+
+# 🧩 Internal Architecture (Agent Submodules)
+
+Different AI coding agents behave differently in how they manage sessions, logs, prompts, and actions. For example:
+
+- **Claude Code** stores session data differently from
+- **Codex CLI**, which differs from
+- **OpenCode** and other agent frameworks.
+
+Because of these differences, the **AI Agents module should be internally structured using agent-specific submodules**.
+
+The top-level AI Agents module provides **shared infrastructure and UI**, while each agent implementation handles **agent-specific detection and data extraction**.
+
+---
+
+## 🏗 Architecture Layers
+
+### 1️⃣ Core AI Agents Module
+
+The top module provides reusable functionality shared across all agents.
+
+Responsibilities:
+
+- unified **Agent Sessions Dashboard**
+- shared **session data model**
+- **UI components** for session inspection
+- **resource monitoring integration**
+- **session history storage**
+- integration with other ServerMon modules
+
+The core module defines a **standard interface** that all agent submodules must implement.
+
+Example interface responsibilities:
+
+- detect running sessions
+- extract session metadata
+- collect logs
+- collect prompts / responses
+- track file changes
+
+This allows the UI to work with **all agents in a consistent way**.
+
+---
+
+### 2️⃣ Agent-Specific Submodules
+
+Each supported AI agent should have its own implementation module.
+
+Initial agents to support:
+
+- **Claude Code Adapter**
+- **Codex Adapter**
+- **OpenCode Adapter**
+
+Each adapter is responsible for:
+
+- detecting sessions for that specific agent
+- parsing agent logs or session files
+- extracting prompts / responses
+- identifying commands executed
+- identifying modified files
+
+Because agent tools evolve quickly, this design allows **new agents to be added without modifying the core module**.
+
+---
+
+### 3️⃣ Plugin-Style Extensibility
+
+The architecture should allow additional agent integrations in the future.
+
+Example future adapters:
+
+- Gemini CLI
+- Aider
+- Devika
+- custom internal agents
+
+New agents can be added by implementing the **agent adapter interface** defined by the core module.
+
+---
+
+## 🔁 Shared Components
+
+To maximize reuse, the following systems should remain inside the **core AI Agents module**:
+
+Shared components:
+
+- session dashboard UI
+- session detail viewer
+- action timeline renderer
+- log streaming viewer
+- resource monitoring widgets
+- session history storage
+
+Agent submodules should only provide:
+
+- detection logic
+- parsing logic
+- session metadata extraction
+
+This separation ensures the **UI and analytics systems remain reusable across all agents**.
+
+---
+
+## 📦 Example Architecture
+
+Conceptual structure:
+
+```
+ai-agents-module
+
+core/
+  session-manager
+  session-model
+  dashboard-ui
+  session-detail-ui
+  analytics
+
+adapters/
+  claude-code/
+  codex/
+  opencode/
+
+shared/
+  log-streamer
+  timeline-renderer
+  diff-viewer
+```
+
+This architecture keeps the system **modular, maintainable, and easy to extend**.
 
 ---
 
