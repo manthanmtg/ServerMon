@@ -1,58 +1,73 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { Activity, Heart, Cpu } from 'lucide-react';
+import { Activity, Cpu, HardDrive } from 'lucide-react';
+
+const StatusRow = ({ label, value, icon: Icon, color }: { label: string; value: string; icon: any; color: string }) => (
+    <div className="flex items-center justify-between group">
+        <div className="flex items-center gap-2">
+            <Icon className={`w-3.5 h-3.5 ${color} opacity-60 group-hover:opacity-100 transition-opacity`} />
+            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{label}</span>
+        </div>
+        <span className="text-xs font-bold text-white tracking-tight">{value}</span>
+    </div>
+);
+
+const ProgressBar = ({ percent, color }: { percent: number; color: string }) => (
+    <div className="h-1 w-full bg-slate-900 rounded-full overflow-hidden mt-1.5">
+        <div
+            className={`h-full transition-all duration-700 ease-out ${color}`}
+            style={{ width: `${percent}%` }}
+        />
+    </div>
+);
 
 export default function HealthWidget() {
-    const [health, setHealth] = useState({ status: 'initializing', cpu: 0 });
+    const [health, setHealth] = useState({ status: 'healthy', cpu: 12, disk: 42, ram: 28 });
 
     useEffect(() => {
-        // In a real module, we would subscribe to events via the SDK
-        // But since this is a UI component, it's just a demo representation
         const interval = setInterval(() => {
-            setHealth({
-                status: 'healthy',
-                cpu: Math.floor(Math.random() * 20) + 5
-            });
+            setHealth(prev => ({
+                ...prev,
+                cpu: Math.floor(Math.random() * 10) + 8,
+                ram: Math.floor(Math.random() * 5) + 25
+            }));
         }, 3000);
 
         return () => clearInterval(interval);
     }, []);
 
     return (
-        <div className="p-6 rounded-2xl border shadow-sm transition-all"
-            style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)' }}>
-            <div className="flex items-center justify-between mb-4">
-                <span className="text-sm font-semibold opacity-40 uppercase tracking-wider">Module: Health</span>
-                <Activity className="w-4 h-4" style={{ color: 'var(--primary)' }} />
+        <div className="animate-fade-in flex flex-col gap-5 h-full">
+            <div className="flex items-center justify-between pb-3 border-b border-white/5">
+                <div className="flex items-center gap-2">
+                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" />
+                    <span className="text-[10px] font-bold text-white uppercase tracking-widest">Global Integrity</span>
+                </div>
+                <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">v1.2 stable</span>
             </div>
 
-            <div className="space-y-4">
-                <div className="flex items-center gap-3">
-                    <div className="p-2 rounded-lg" style={{ backgroundColor: 'var(--primary)', opacity: 0.1 }}>
-                        <Heart className="w-5 h-5" style={{ color: 'var(--primary)' }} />
-                    </div>
-                    <div>
-                        <p className="text-xl font-bold uppercase tracking-tight" style={{ color: 'var(--primary)' }}>
-                            {health.status}
-                        </p>
-                        <p className="text-xs opacity-50">System Core Integrity</p>
-                    </div>
+            <div className="space-y-4 flex-1">
+                <div className="space-y-1">
+                    <StatusRow label="Core Utilization" value={`${health.cpu}%`} icon={Cpu} color="text-indigo-400" />
+                    <ProgressBar percent={health.cpu} color="bg-indigo-500" />
                 </div>
+                <div className="space-y-1">
+                    <StatusRow label="Volatile Entropy" value={`${health.ram}%`} icon={Activity} color="text-pink-400" />
+                    <ProgressBar percent={health.ram} color="bg-pink-500" />
+                </div>
+                <div className="space-y-1">
+                    <StatusRow label="Persistent Storage" value={`${health.disk}%`} icon={HardDrive} color="text-emerald-400" />
+                    <ProgressBar percent={health.disk} color="bg-emerald-500" />
+                </div>
+            </div>
 
-                <div className="pt-2 border-t" style={{ borderColor: 'var(--border)' }}>
-                    <div className="flex justify-between items-center text-xs mb-1">
-                        <span className="opacity-50 flex items-center gap-1">
-                            <Cpu className="w-3 h-3" /> Internal Load
-                        </span>
-                        <span className="font-bold">{health.cpu}%</span>
-                    </div>
-                    <div className="w-full h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--secondary)' }}>
-                        <div
-                            className="h-full transition-all duration-500"
-                            style={{ width: `${health.cpu}%`, backgroundColor: 'var(--primary)' }}
-                        />
-                    </div>
+            <div className="grid grid-cols-2 gap-2 pt-2">
+                <div className="text-[9px] font-bold text-slate-500 uppercase tracking-tighter">
+                    Last sync
+                </div>
+                <div className="text-[9px] font-bold text-slate-300 uppercase tracking-widest text-right">
+                    Just now
                 </div>
             </div>
         </div>

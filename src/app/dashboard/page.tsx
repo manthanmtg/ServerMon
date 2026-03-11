@@ -8,93 +8,118 @@ import ProShell from '@/components/layout/ProShell';
 
 export default function DashboardPage() {
     return (
-        <ProShell title="Command Center" subtitle="Overview">
-            <div className="mb-10 animate-slide-up">
-                <h2 className="text-4xl font-black text-white font-['Outfit'] tracking-tight">System <span className="text-gradient">Pulse</span></h2>
-                <p className="text-slate-400 mt-2 font-medium">Real-time telemetry and process orchestration.</p>
-            </div>
-
-            {/* Pro Metrics Row */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 animate-slide-up [animation-delay:100ms]">
-                {[
-                    { label: 'CPU LOAD', value: '12%', sub: '4.2GHz Peak', icon: Cpu, color: '#6366f1' },
-                    { label: 'RAM USAGE', value: '2.4 GB', sub: '92% Efficiency', icon: HardDrive, color: '#ec4899' },
-                    { label: 'SESSIONS', value: '03', sub: 'Active Links', icon: Zap, color: '#06b6d4' },
-                    { label: 'UPTIME', value: '12d 4h', sub: 'Zero Faults', icon: Activity, color: '#10b981' },
-                ].map((stat, i) => (
-                    <div key={i} className="glass p-8 rounded-[2rem] group hover:scale-[1.02] transition-all duration-500 relative overflow-hidden">
-                        <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
-                            <stat.icon className="w-16 h-16" style={{ color: stat.color }} />
+        <ProShell title="Dashboard" subtitle="System Overview">
+            <div className="flex flex-col gap-8 pb-12">
+                
+                {/* Metrics Row */}
+                <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 animate-fade-in">
+                    {[
+                        { label: 'CPU LOAD', value: '12%', sub: '4.2GHz', icon: Cpu, color: 'text-indigo-400' },
+                        { label: 'MEMORY', value: '2.4 GB', sub: '92% eff', icon: HardDrive, color: 'text-pink-400' },
+                        { label: 'SESSIONS', value: '03', sub: 'Active', icon: Zap, color: 'text-amber-400' },
+                        { label: 'UPTIME', value: '12d 4h', sub: 'Stable', icon: Activity, color: 'text-emerald-400' },
+                    ].map((stat, i) => (
+                        <div key={i} className="card p-5 group">
+                            <div className="flex items-center justify-between mb-4">
+                                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{stat.label}</span>
+                                <stat.icon className={`w-4 h-4 ${stat.color} opacity-60 group-hover:opacity-100 transition-opacity`} />
+                            </div>
+                            <div className="flex items-end gap-2">
+                                <span className="text-2xl font-bold text-white tracking-tight">{stat.value}</span>
+                                <span className="text-[10px] font-medium text-slate-500 mb-1">{stat.sub}</span>
+                            </div>
                         </div>
-                        <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">{stat.label}</span>
-                        <div className="mt-4 flex flex-col">
-                            <span className="text-3xl font-black text-white font-['Outfit']">{stat.value}</span>
-                            <span className="text-[10px] font-bold text-slate-400 mt-1 flex items-center gap-1">
-                                <div className="w-1 h-1 rounded-full" style={{ backgroundColor: stat.color }} />
-                                {stat.sub}
-                            </span>
+                    ))}
+                </section>
+
+                {/* Main Content Grid */}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                    
+                    {/* Primary Analytics Section */}
+                    <div className="lg:col-span-2 space-y-8">
+                        {/* CPU FLUX */}
+                        <div className="card h-[400px] flex flex-col overflow-hidden">
+                            <div className="p-4 border-b border-white/5 flex items-center justify-between bg-slate-900/20">
+                                <div className="flex items-center gap-2">
+                                    <Cpu className="w-4 h-4 text-indigo-400" />
+                                    <h3 className="text-xs font-bold text-white uppercase tracking-wider">Processor Flux</h3>
+                                </div>
+                                <span className="text-[9px] font-bold text-indigo-500 uppercase tracking-widest px-2 py-0.5 rounded bg-indigo-500/10 border border-indigo-500/20">Live</span>
+                            </div>
+                            <div className="flex-1 p-4">
+                                {renderWidget('CPUChartWidget')}
+                            </div>
+                        </div>
+
+                        {/* Logs Section */}
+                        <div className="card h-[400px] flex flex-col overflow-hidden">
+                            <div className="p-4 border-b border-white/5 flex items-center justify-between bg-slate-900/20">
+                                <div className="flex items-center gap-2">
+                                    <Activity className="w-4 h-4 text-emerald-400" />
+                                    <h3 className="text-xs font-bold text-white uppercase tracking-wider">Kernel Activity Feed</h3>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Streaming</span>
+                                </div>
+                            </div>
+                            <div className="flex-1 overflow-hidden">
+                                {renderWidget('LogsWidget')}
+                            </div>
                         </div>
                     </div>
-                ))}
-            </div>
 
-            {/* Chart Section */}
-            <div className="mt-10 grid grid-cols-1 lg:grid-cols-2 gap-8 animate-slide-up [animation-delay:200ms]">
-                <div className="glass p-8 rounded-[2.5rem] border-white/5">
-                    <div className="flex items-center justify-between mb-8">
-                        <h3 className="text-lg font-bold text-white flex items-center gap-3">
-                            <Cpu className="w-5 h-5 text-indigo-400" />
-                            Processor Flux
-                        </h3>
-                        <div className="text-[10px] font-black text-indigo-500 uppercase tracking-widest bg-indigo-500/10 px-3 py-1 rounded-full">Live</div>
-                    </div>
-                    <div className="h-[280px]">
-                        {renderWidget('CPUChartWidget')}
-                    </div>
-                </div>
+                    {/* Secondary Utility Section */}
+                    <div className="space-y-8">
+                        {/* Memory Entropy */}
+                        <div className="card h-[300px] flex flex-col overflow-hidden">
+                            <div className="p-4 border-b border-white/5 flex items-center justify-between bg-slate-900/20">
+                                <div className="flex items-center gap-2">
+                                    <HardDrive className="w-4 h-4 text-pink-400" />
+                                    <h3 className="text-xs font-bold text-white uppercase tracking-wider">Memory Map</h3>
+                                </div>
+                            </div>
+                            <div className="flex-1 p-4">
+                                {renderWidget('MemoryChartWidget')}
+                            </div>
+                        </div>
 
-                <div className="glass p-8 rounded-[2.5rem] border-white/5">
-                    <div className="flex items-center justify-between mb-8">
-                        <h3 className="text-lg font-bold text-white flex items-center gap-3">
-                            <HardDrive className="w-5 h-5 text-pink-400" />
-                            Memory Entropy
-                        </h3>
-                        <div className="text-[10px] font-black text-pink-500 uppercase tracking-widest bg-pink-500/10 px-3 py-1 rounded-full">Active</div>
-                    </div>
-                    <div className="h-[280px]">
-                        {renderWidget('MemoryChartWidget')}
-                    </div>
-                </div>
-            </div>
+                        {/* Diagnostics & Health */}
+                        <div className="card flex-1 flex flex-col overflow-hidden">
+                            <div className="p-4 border-b border-white/5 bg-slate-900/20">
+                                <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                                    <div className="w-1 h-3 bg-indigo-500 rounded-full" />
+                                    System Diagnostics
+                                </h3>
+                            </div>
+                            <div className="p-4 flex-1">
+                                {renderWidget('HealthWidget')}
+                            </div>
+                            <div className="p-4 border-t border-white/5 bg-slate-900/10 grid grid-cols-2 gap-2">
+                                <div className="p-2 rounded-lg bg-slate-950/50 border border-white/5 text-center">
+                                    <span className="text-[8px] font-bold text-slate-500 uppercase tracking-tighter block">Polling</span>
+                                    <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest mt-0.5 tracking-tighter">Real-time</span>
+                                </div>
+                                <div className="p-2 rounded-lg bg-slate-950/50 border border-white/5 text-center">
+                                    <span className="text-[8px] font-bold text-slate-500 uppercase tracking-tighter block">Engine</span>
+                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5 tracking-tighter">v1.4.2</span>
+                                </div>
+                            </div>
+                        </div>
 
-            {/* Feed Section */}
-            <div className="mt-10 grid grid-cols-1 xl:grid-cols-3 gap-8 animate-slide-up [animation-delay:300ms]">
-                <div className="xl:col-span-2 glass p-8 rounded-[2.5rem] min-h-[400px]">
-                    <h3 className="text-lg font-bold text-white mb-8 flex items-center gap-3">
-                        <Activity className="w-5 h-5 text-emerald-400" />
-                        Kernel Activity Feed
-                    </h3>
-                    <div className="space-y-4">
-                        {renderWidget('LogsWidget')}
-                    </div>
-                </div>
-
-                <div className="space-y-8">
-                    <div className="glass p-8 rounded-[2.5rem]">
-                        <h3 className="text-lg font-bold text-white mb-6">Pro Engine</h3>
-                        <p className="text-sm text-slate-400 leading-relaxed font-medium">
-                            ServerMon is optimized for **Phase 11** high-frequency monitoring. All registered modules inherit the deep-space obsidian core.
-                        </p>
-                        <Link href="/settings" className="mt-6 inline-flex items-center gap-2 text-xs font-bold text-indigo-400 hover:text-white transition-colors group">
-                            System Configuration
-                            <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-                        </Link>
+                        {/* Pro Engine Callout */}
+                        <div className="card p-5 bg-gradient-to-br from-indigo-600/10 to-transparent border-indigo-500/20">
+                            <h3 className="text-sm font-bold text-white mb-2">Pro Console</h3>
+                            <p className="text-[11px] text-slate-400 leading-relaxed font-medium mb-4">
+                                High-frequency monitoring active. All modules inherited the LifeOS infrastructure core for maximum telemetry density.
+                            </p>
+                            <Link href="/settings" className="flex items-center justify-between p-3 rounded-xl bg-indigo-600 text-white hover:bg-indigo-500 transition-colors shadow-lg shadow-indigo-600/20">
+                                <span className="text-[9px] font-bold uppercase tracking-widest">Registry</span>
+                                <ChevronRight className="w-4 h-4" />
+                            </Link>
+                        </div>
                     </div>
 
-                    <div className="glass p-8 rounded-[2.5rem] bg-indigo-600/10 border-indigo-500/20">
-                        <h3 className="text-sm font-black text-white uppercase tracking-widest mb-4">Diagnostics</h3>
-                        {renderWidget('HealthWidget')}
-                    </div>
                 </div>
             </div>
         </ProShell>

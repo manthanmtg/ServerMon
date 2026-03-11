@@ -4,7 +4,6 @@ import React, { useEffect, useState } from 'react';
 import {
     AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
 } from 'recharts';
-import { Cpu } from 'lucide-react';
 
 interface CPUMetric {
     cpu: number;
@@ -36,56 +35,45 @@ export default function CPUHistoryWidget() {
     }, []);
 
     return (
-        <div className="p-6 rounded-2xl border shadow-sm flex flex-col h-[300px]"
-            style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)' }}>
-            <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2">
-                    <Cpu className="w-5 h-5" style={{ color: 'var(--primary)' }} />
-                    <span className="text-sm font-semibold opacity-40 uppercase tracking-wider">CPU History (Live)</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                    <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                    <span className="text-[10px] font-bold opacity-30">CONNECTED</span>
-                </div>
-            </div>
-
+        <div className="w-full h-full flex flex-col animate-fade-in relative">
             <div className="flex-1 w-full min-h-0">
                 <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={data}>
+                    <AreaChart data={data} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
                         <defs>
                             <linearGradient id="cpuGradient" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="5%" stopColor="var(--primary)" stopOpacity={0.3} />
-                                <stop offset="95%" stopColor="var(--primary)" stopOpacity={0} />
+                                <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3} />
+                                <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
                             </linearGradient>
                         </defs>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" opacity={0.2} />
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.1)" opacity={0.2} />
                         <XAxis
                             dataKey="timestamp"
                             hide
                         />
                         <YAxis
                             domain={[0, 100]}
-                            tick={{ fontSize: 10, fill: 'var(--foreground)', opacity: 0.3 }}
+                            tick={{ fontSize: 9, fill: '#64748b', fontWeight: 'bold' }}
                             axisLine={false}
                             tickLine={false}
                             unit="%"
                         />
                         <Tooltip
                             contentStyle={{
-                                backgroundColor: 'var(--card)',
-                                borderColor: 'var(--border)',
-                                borderRadius: '8px',
-                                fontSize: '12px',
-                                color: 'var(--foreground)'
+                                backgroundColor: '#0f172a',
+                                borderColor: 'rgba(255,255,255,0.1)',
+                                borderRadius: '12px',
+                                fontSize: '10px',
+                                color: '#f8fafc',
+                                border: '1px solid rgba(255,255,255,0.1)'
                             }}
-                            itemStyle={{ color: 'var(--primary)', fontWeight: 'bold' }}
+                            itemStyle={{ color: '#6366f1', fontWeight: '900' }}
                             labelStyle={{ display: 'none' }}
                         />
                         <Area
                             type="monotone"
                             dataKey="cpu"
-                            stroke="var(--primary)"
-                            strokeWidth={2}
+                            stroke="#6366f1"
+                            strokeWidth={3}
                             fillOpacity={1}
                             fill="url(#cpuGradient)"
                             isAnimationActive={false}
@@ -94,10 +82,16 @@ export default function CPUHistoryWidget() {
                 </ResponsiveContainer>
             </div>
 
-            <div className="mt-2 flex items-center justify-between text-[10px] font-bold opacity-30 uppercase">
-                <span>0% Load</span>
-                <span>Real-time Pulse (1s)</span>
-                <span>100% Load</span>
+            <div className="mt-4 flex items-center justify-between text-[9px] font-black text-slate-600 uppercase tracking-widest border-t border-white/5 pt-4">
+                <div className="flex items-center gap-1.5 text-indigo-400">
+                    <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 shadow-[0_0_8px_rgba(99,102,241,0.5)]" />
+                    <span>0% Min</span>
+                </div>
+                <span>Sync Node Core</span>
+                <div className="flex items-center gap-1.5 text-rose-400">
+                    <span>100% Peak</span>
+                    <div className="w-1.5 h-1.5 rounded-full bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.5)]" />
+                </div>
             </div>
         </div>
     );

@@ -2,7 +2,6 @@
 
 import LogsPage from '@/modules/logs/ui/LogsPage';
 import ProShell from '@/components/layout/ProShell';
-import { Activity } from 'lucide-react';
 
 export default function Page() {
     return (
