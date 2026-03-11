@@ -374,10 +374,13 @@ rsync -a --exclude='.git' --exclude='node_modules' --exclude='.pnpm-store' \
 cd "$INSTALL_DIR"
 
 log_info "Installing dependencies..."
-pnpm install --frozen-lockfile > /dev/null 2>&1 || pnpm install > /dev/null 2>&1
+pnpm install --frozen-lockfile 2>&1 | tail -5 || pnpm install 2>&1 | tail -5
+
+# Native modules (node-pty, argon2) need build tools — already installed in step 1
+# .npmrc has enable-pre-post-scripts=true to allow postinstall scripts in pnpm v10+
 
 log_info "Building application..."
-pnpm run build > /dev/null 2>&1
+pnpm run build 2>&1 | tail -5
 log "Application built successfully"
 
 # ── Environment Configuration ────────────────────────────
