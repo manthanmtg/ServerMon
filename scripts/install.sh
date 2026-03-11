@@ -45,8 +45,18 @@ if systemctl list-unit-files | grep -q 'servermon.service'; then
   echo -e "${RED}Existing ServerMon service detected. Stopping and removing old service...${NC}"
   systemctl stop servermon || true
   systemctl disable servermon || true
-  # Kill any stray processes just in case
-  pkill -f "next-server" || true
+fi
+
+# Kill any stray processes listening on port 8912
+if command -v lsof &> /dev/null; then
+    PID=$(lsof -t -i:8912)
+    if [ -n "$PID" ]; then
+        echo -e "${RED}Killing existing processes on port 8912 (PIDs: $PID)...${NC}"
+        kill -9 $PID || true
+    fi
+else
+    # Fallback to fuser if lsof is missing
+    fuser -k 8912/tcp || true
 fi
 
 # 3. Install MongoDB
@@ -68,17 +78,17 @@ INSTALL_DIR="/opt/servermon"
 
 if [ -d "$INSTALL_DIR" ]; then
   echo -e "${BLUE}Updating existing installation in $INSTALL_DIR...${NC}"
-  # Backup old env if exists
+  # Backup old env if exists (legacy check)
   if [ -f /etc/servermon/env ]; then
     cp /etc/servermon/env /tmp/servermon_env_backup
   fi
-  # Simple way to "reinstall" is to clear and copy fresh, or just sync.
-  # Let's clear node_modules to ensure a clean pnpm install
-  rm -rf "$INSTALL_DIR/node_modules"
-  cp -r . "$INSTALL_DIR"
+  
+  # Remove old files but keep the directory
+  find "$INSTALL_DIR" -mindepth 1 -maxdepth 1 ! -name ".env" -exec rm -rf {} +
+  cp -r . "$INSTALL_DIR/"
 else
   mkdir -p "$INSTALL_DIR"
-  cp -r . "$INSTALL_DIR"
+  cp -r . "$INSTALL_DIR/"
 fi
 
 cd "$INSTALL_DIR"

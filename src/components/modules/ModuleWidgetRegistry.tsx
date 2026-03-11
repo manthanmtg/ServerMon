@@ -23,7 +23,7 @@ const MemoryChartWidget = dynamic(() => import('@/modules/metrics/ui/MemoryChart
     loading: () => <div className="animate-pulse h-[300px] bg-gray-200 rounded-xl opacity-20" />,
 });
 
-const widgetMap: Record<string, React.ComponentType<any>> = {
+const widgetMap: Record<string, React.ComponentType<Record<string, unknown>>> = {
     HealthWidget,
     ProcessWidget,
     LogsWidget,

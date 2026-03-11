@@ -1,3 +1,5 @@
+'use client';
+
 import React, { useEffect, useState } from 'react';
 import { useTheme } from '@/lib/ThemeContext';
 import { Shield, Settings, Palette, Check, Save, Box, Activity } from 'lucide-react';

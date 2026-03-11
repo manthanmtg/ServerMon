@@ -2,6 +2,8 @@ import { redirect } from 'next/navigation';
 import connectDB from '@/lib/db';
 import User from '@/models/User';
 
+export const dynamic = 'force-dynamic';
+
 export default async function IndexPage() {
   await connectDB();
 

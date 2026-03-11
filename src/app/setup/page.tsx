@@ -77,8 +77,8 @@ export default function SetupPage() {
 
             setStep(3);
             setTimeout(() => router.push('/login'), 3000);
-        } catch (err: any) {
-            setError(err.message);
+        } catch (err: unknown) {
+            setError(err instanceof Error ? err.message : 'Unknown error');
         } finally {
             setLoading(false);
         }

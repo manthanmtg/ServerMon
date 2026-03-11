@@ -1,3 +1,5 @@
+'use client';
+
 import React from 'react';
 import { useTheme } from '@/lib/ThemeContext';
 import { Shield, LayoutDashboard, Monitor, Terminal, Settings, LogOut, Palette } from 'lucide-react';
