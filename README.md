@@ -1,59 +1,90 @@
 # ServerMon
 
-**ServerMon** is a modular, high-performance, and secure server management platform designed for administrators who value simplicity and extensibility. It provides a real-time command center for your infrastructure with a beautiful, theme-aware interface.
+A secure, modular, self-hosted server monitoring platform. Real-time metrics, a built-in terminal, process management, and audit logs — all through a clean, theme-aware web interface.
 
-## ✨ Features
+## Features
 
-- **🛡️ Secure by Design**: Built with Multi-Factor Authentication (TOTP), Argon2 password hashing, and encrypted JWT sessions.
-- **🧩 Modular Architecture**: Add or remove capabilities as independent modules.
-- **🖥️ Integrated Terminal**: High-performance, theme-aware terminal access directly in your browser (Xterm.js).
-- **📈 Real-time Analytics**: Sub-second metrics streaming (SSE) with high-fidelity charts for CPU and Memory history.
-- **🔍 Active Auditing**: Comprehensive system logs and module-level event tracking.
-- **🎨 Designer Themes**: Beautiful, VS Code-inspired themes (Nord, Monokai, Synthwave, Solarized, and more).
+- **Multi-factor auth** — Argon2 password hashing + TOTP (Google Authenticator)
+- **Real-time dashboard** — Live CPU and memory charts via Server-Sent Events
+- **Web terminal** — Interactive shell access (xterm.js)
+- **Process monitor** — View and manage running processes
+- **Audit logs** — Filterable, searchable event history
+- **6 themes** — Light, Obsidian, Monokai, Solarized, Nord, Cyberpunk
+- **Modular architecture** — Shared UI components, error boundaries, and a module registry for easy extension
+- **Mobile-friendly** — Responsive layout with touch-optimized navigation
 
----
+## Quick Start
 
-## 🚀 One-Click Installation
-
-To deploy ServerMon on a fresh Ubuntu or Debian server, run:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/manthanmtg/ServerMon/main/scripts/install.sh | sudo bash
-```
-
-This script automates:
-1.  System updates and dependency installation (Node.js 20, MongoDB).
-2.  Application compilation and setup in `/opt/servermon`.
-3.  Environment configuration with secure secrets in `/etc/servermon/env`.
-4.  Background service registration via **Systemd**.
-
----
-
-## 🛠️ Management
-
-Once installed, managed the service using standard system tools:
+**Production (Ubuntu/Debian):**
 
 ```bash
-sudo systemctl status servermon   # Check status
-sudo systemctl restart servermon  # Restart
-sudo journalctl -u servermon -f   # View live logs
+git clone https://github.com/manthanmtg/ServerMon.git
+cd ServerMon
+sudo ./scripts/install.sh
 ```
 
----
+The interactive installer handles Node.js, MongoDB, Nginx, and SSL. See [DEPLOY.md](DEPLOY.md) for all options.
 
-## 👩‍💻 Development
+**Development (any OS):**
 
-1. **Clone the repo**: `git clone...`
-2. **Install dependencies**: `pnpm install`
-3. **Environment**: Create a `.env.local` with `MONGO_URI` and `JWT_SECRET`.
-4. **Run Dev server**: `pnpm run dev`
+```bash
+git clone https://github.com/manthanmtg/ServerMon.git
+cd ServerMon
+pnpm install
+cp .env.example .env.local   # then edit with your MONGO_URI
+pnpm dev
+```
 
----
+Open `http://localhost:8912`. The setup wizard will create your admin account on first run.
 
-## 🎨 Theme Compliance
-All modules and widgets in ServerMon honor the global theme system. To switch themes, visit **Settings > Appearance** in the web interface.
+## Managing the Service
 
----
+```bash
+sudo systemctl status servermon      # check status
+sudo journalctl -u servermon -f      # live logs
+sudo systemctl restart servermon     # restart
+sudo ./scripts/install.sh --uninstall  # remove
+```
 
-## 📄 License
+## Configuration
+
+Runtime config lives in `/etc/servermon/env`:
+
+| Variable | Description | Default |
+|---|---|---|
+| `PORT` | Application port | `8912` |
+| `MONGO_URI` | MongoDB connection string | `mongodb://localhost:27017/servermon` |
+| `JWT_SECRET` | Session token secret (auto-generated) | — |
+| `NODE_ENV` | Runtime mode | `production` |
+
+## Tech Stack
+
+- **Next.js 16** (App Router) + **TypeScript**
+- **MongoDB** (Mongoose) + **Zod** validation
+- **Tailwind CSS 4** with CSS variable theming
+- **Recharts** for real-time charts
+- **xterm.js** for the web terminal
+- **Argon2** + **TOTP** for authentication
+
+## Project Structure
+
+```
+src/
+├── app/              # Next.js pages and API routes
+├── components/
+│   ├── ui/           # Reusable components (Button, Card, Badge, Input, etc.)
+│   ├── layout/       # ProShell (sidebar + header layout)
+│   └── modules/      # Widget registry
+├── lib/              # Theme context, metrics context, session, DB, utilities
+├── modules/          # Feature modules (health, metrics, terminal, processes, logs)
+├── models/           # Mongoose models
+└── types/            # Shared TypeScript types
+```
+
+## Deployment Guide
+
+For production deployments including domain setup, SSL, remote MongoDB, upgrades, and troubleshooting, see **[DEPLOY.md](DEPLOY.md)**.
+
+## License
+
 MIT
