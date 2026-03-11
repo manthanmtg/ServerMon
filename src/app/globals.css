@@ -1,4 +1,4 @@
-/* Main styling uses CSS variables for theme management */
+@import "tailwindcss";
 
 :root {
   --background: #ffffff;
