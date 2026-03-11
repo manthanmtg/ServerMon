@@ -386,13 +386,39 @@ sudo cat /etc/servermon/env | grep MONGO_URI
 ### Nginx returns 502 Bad Gateway
 
 ```bash
-# ServerMon probably isn't running
+# 1. Is ServerMon running?
 sudo systemctl status servermon
 
-# Or the port in Nginx doesn't match the app port
-sudo cat /etc/servermon/env | grep PORT
-sudo cat /etc/nginx/sites-available/servermon | grep proxy_pass
+# 2. Check the health endpoint directly (bypasses Nginx)
+curl -s http://localhost:8912/api/health | python3 -m json.tool
+
+# 3. Port mismatch between Nginx and the app?
+grep PORT /etc/servermon/env
+grep proxy_pass /etc/nginx/sites-available/servermon
+
+# 4. Check Nginx error log for details
+sudo tail -20 /var/log/nginx/servermon_error.log
+
+# 5. Is the process hitting memory limits?
+sudo journalctl -u servermon --since "10 min" | grep -i "memory\|oom\|killed"
 ```
+
+### SSE streams stalling or disconnecting
+
+If the dashboard charts freeze or show "Connecting...":
+
+```bash
+# Check how many SSE connections are active (max 20)
+curl -s http://localhost:8912/api/health | python3 -c "import sys,json; print('SSE connections:', json.load(sys.stdin)['sseConnections'])"
+
+# Verify Nginx is not buffering SSE (should have proxy_buffering off)
+grep -A5 "metrics/stream" /etc/nginx/sites-available/servermon
+
+# Check for SSE errors in the app logs
+sudo journalctl -u servermon --since "5 min" | grep -i "sse"
+```
+
+If connections are at the limit (20), close unused browser tabs.
 
 ### SSL certificate errors
 
@@ -417,3 +443,102 @@ sudo systemctl restart servermon
 ```
 
 Then visit the web UI to create a new admin account.
+
+---
+
+## Logging
+
+All ServerMon logs go to journald with structured output (timestamps, log levels, context tags).
+
+### Viewing logs
+
+```bash
+# Live log stream
+sudo journalctl -u servermon -f
+
+# Last 50 lines
+sudo journalctl -u servermon -n 50 --no-pager
+
+# Errors only
+sudo journalctl -u servermon -p err
+
+# Last 5 minutes
+sudo journalctl -u servermon --since "5 min"
+
+# Today's logs
+sudo journalctl -u servermon --since today
+
+# Specific time range
+sudo journalctl -u servermon --since "2026-03-11 14:00" --until "2026-03-11 15:00"
+
+# Search for a keyword
+sudo journalctl -u servermon | grep "metrics"
+```
+
+### Log format
+
+Logs follow this structure:
+
+```
+TIMESTAMP [LEVEL] [CONTEXT] Message {optional data}
+```
+
+Example output:
+
+```
+2026-03-11T10:30:00.123Z [INFO] [sse] SSE connection opened (active: 3)
+2026-03-11T10:30:02.456Z [ERROR] [metrics] Failed to poll system metrics {...}
+2026-03-11T10:30:05.789Z [WARN] [sse] SSE connection rejected: limit reached
+```
+
+Context tags tell you which subsystem produced the log:
+- `metrics` — system metric polling
+- `sse` — SSE stream connections
+- `api:processes` — process list API
+- `api:analytics` — audit log API
+
+### Health check
+
+The `/api/health` endpoint provides a machine-readable status:
+
+```bash
+curl -s http://localhost:8912/api/health | python3 -m json.tool
+```
+
+```json
+{
+    "status": "ok",
+    "uptime": 86400,
+    "database": "connected",
+    "metrics": { "cpu": 12.5, "memory": 45.2 },
+    "sseConnections": 2,
+    "timestamp": "2026-03-11T10:30:00.000Z"
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `status` | `ok` (HTTP 200) or `degraded` (HTTP 503) |
+| `uptime` | Seconds since the process started |
+| `database` | `connected`, `disconnected`, or `error` |
+| `metrics` | Latest CPU/memory reading, or `null` if not yet available |
+| `sseConnections` | Number of active SSE streams (max 20) |
+
+Use this for external monitoring (UptimeRobot, Pingdom, etc.) — alert when status is not `200`.
+
+### Resource limits
+
+The systemd service enforces memory limits to prevent runaway usage:
+
+| Setting | Value | Effect |
+|---|---|---|
+| `MemoryHigh` | 384 MB | Kernel starts reclaiming memory |
+| `MemoryMax` | 512 MB | Hard kill if exceeded |
+| `StartLimitBurst` | 5 in 300s | Prevents restart loops |
+| `RestartSec` | 5s | Delay between restarts |
+
+To check current memory usage:
+
+```bash
+systemctl status servermon | grep Memory
+```
