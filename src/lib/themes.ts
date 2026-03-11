@@ -56,28 +56,28 @@ export const themes: Theme[] = [
     },
     {
         id: 'dark-default',
-        name: 'Dark Default',
+        name: 'Obsidian Pro',
         type: 'dark',
         colors: {
             background: '#020617',
             foreground: '#f8fafc',
-            card: '#020617',
+            card: '#0f172a', /* Slightly lighter for glass layering */
             cardForeground: '#f8fafc',
-            popover: '#020617',
+            popover: '#0f172a',
             popoverForeground: '#f8fafc',
-            primary: '#3b82f6',
+            primary: '#6366f1', /* Indigo vibrant */
             primaryForeground: '#ffffff',
             secondary: '#1e293b',
             secondaryForeground: '#f8fafc',
             muted: '#1e293b',
             mutedForeground: '#94a3b8',
-            accent: '#1e293b',
-            accentForeground: '#f8fafc',
+            accent: '#ec4899', /* Radiant Rose */
+            accentForeground: '#ffffff',
             destructive: '#ef4444',
             destructiveForeground: '#ffffff',
             border: '#1e293b',
             input: '#1e293b',
-            ring: '#3b82f6',
+            ring: '#6366f1',
         },
     },
     {
@@ -134,7 +134,7 @@ export const themes: Theme[] = [
     },
     {
         id: 'nord',
-        name: 'Nord',
+        name: 'Nord Deep',
         type: 'dark',
         colors: {
             background: '#2e3440',
@@ -160,7 +160,7 @@ export const themes: Theme[] = [
     },
     {
         id: 'synthwave-84',
-        name: 'Synthwave 84',
+        name: 'Cyberpunk 84',
         type: 'dark',
         colors: {
             background: '#262335',

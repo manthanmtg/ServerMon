@@ -1,180 +1,102 @@
 'use client';
 
 import React from 'react';
-import { useTheme } from '@/lib/ThemeContext';
-import { Shield, LayoutDashboard, Monitor, Terminal, Settings, LogOut, Palette } from 'lucide-react';
+import { Activity, Zap, Cpu, HardDrive, ChevronRight } from 'lucide-react';
 import Link from 'next/link';
 import { renderWidget } from '@/components/modules/ModuleWidgetRegistry';
+import ProShell from '@/components/layout/ProShell';
 
 export default function DashboardPage() {
-    const { theme, setTheme, availableThemes } = useTheme();
-
-    // Simulated registered module widgets
-    const registeredWidgets = [
-        { id: 'h1', component: 'HealthWidget' },
-        { id: 'p1', component: 'ProcessWidget' },
-        { id: 'l1', component: 'LogsWidget' },
-        { id: 'c1', component: 'CPUChartWidget' },
-        { id: 'm1', component: 'MemoryChartWidget' }
-    ];
-
-    const username = "Admin";
-
-    const handleLogout = () => {
-        // Implement logout logic
-        window.location.href = '/login';
-    };
-
     return (
-        <div className="min-h-screen flex" style={{ backgroundColor: 'var(--background)', color: 'var(--foreground)' }}>
-            {/* Sidebar */}
-            <aside className="w-64 border-r flex flex-col shadow-sm" style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)' }}>
-                <div className="p-6 border-b flex items-center gap-2" style={{ borderColor: 'var(--border)' }}>
-                    <Shield className="w-8 h-8" style={{ color: 'var(--primary)' }} />
-                    <h1 className="text-xl font-bold tracking-tight italic">ServerMon</h1>
+        <ProShell title="Command Center" subtitle="Overview">
+            <div className="mb-10 animate-slide-up">
+                <h2 className="text-4xl font-black text-white font-['Outfit'] tracking-tight">System <span className="text-gradient">Pulse</span></h2>
+                <p className="text-slate-400 mt-2 font-medium">Real-time telemetry and process orchestration.</p>
+            </div>
+
+            {/* Pro Metrics Row */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 animate-slide-up [animation-delay:100ms]">
+                {[
+                    { label: 'CPU LOAD', value: '12%', sub: '4.2GHz Peak', icon: Cpu, color: '#6366f1' },
+                    { label: 'RAM USAGE', value: '2.4 GB', sub: '92% Efficiency', icon: HardDrive, color: '#ec4899' },
+                    { label: 'SESSIONS', value: '03', sub: 'Active Links', icon: Zap, color: '#06b6d4' },
+                    { label: 'UPTIME', value: '12d 4h', sub: 'Zero Faults', icon: Activity, color: '#10b981' },
+                ].map((stat, i) => (
+                    <div key={i} className="glass p-8 rounded-[2rem] group hover:scale-[1.02] transition-all duration-500 relative overflow-hidden">
+                        <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
+                            <stat.icon className="w-16 h-16" style={{ color: stat.color }} />
+                        </div>
+                        <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">{stat.label}</span>
+                        <div className="mt-4 flex flex-col">
+                            <span className="text-3xl font-black text-white font-['Outfit']">{stat.value}</span>
+                            <span className="text-[10px] font-bold text-slate-400 mt-1 flex items-center gap-1">
+                                <div className="w-1 h-1 rounded-full" style={{ backgroundColor: stat.color }} />
+                                {stat.sub}
+                            </span>
+                        </div>
+                    </div>
+                ))}
+            </div>
+
+            {/* Chart Section */}
+            <div className="mt-10 grid grid-cols-1 lg:grid-cols-2 gap-8 animate-slide-up [animation-delay:200ms]">
+                <div className="glass p-8 rounded-[2.5rem] border-white/5">
+                    <div className="flex items-center justify-between mb-8">
+                        <h3 className="text-lg font-bold text-white flex items-center gap-3">
+                            <Cpu className="w-5 h-5 text-indigo-400" />
+                            Processor Flux
+                        </h3>
+                        <div className="text-[10px] font-black text-indigo-500 uppercase tracking-widest bg-indigo-500/10 px-3 py-1 rounded-full">Live</div>
+                    </div>
+                    <div className="h-[280px]">
+                        {renderWidget('CPUChartWidget')}
+                    </div>
                 </div>
 
-                <nav className="flex-1 p-4 space-y-1">
-                    <Link href="/dashboard" className="flex items-center gap-3 px-4 py-2 rounded-lg font-medium"
-                        style={{ backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)' }}>
-                        <LayoutDashboard className="w-5 h-5" />
-                        Dashboard
-                    </Link>
-                    <div className="pt-4 pb-2 px-4 text-xs font-bold uppercase tracking-wider opacity-50">
-                        Modules
+                <div className="glass p-8 rounded-[2.5rem] border-white/5">
+                    <div className="flex items-center justify-between mb-8">
+                        <h3 className="text-lg font-bold text-white flex items-center gap-3">
+                            <HardDrive className="w-5 h-5 text-pink-400" />
+                            Memory Entropy
+                        </h3>
+                        <div className="text-[10px] font-black text-pink-500 uppercase tracking-widest bg-pink-500/10 px-3 py-1 rounded-full">Active</div>
                     </div>
-                    <Link href="/terminal" className="flex items-center gap-3 px-4 py-2 hover:opacity-80 rounded-lg transition-all"
-                        style={{ color: 'var(--foreground)' }}>
-                        <Terminal className="w-5 h-5" />
-                        Terminal
-                    </Link>
-                    <Link href="/processes" className="flex items-center gap-3 px-4 py-2 hover:opacity-80 rounded-lg transition-all"
-                        style={{ color: 'var(--foreground)' }}>
-                        <Monitor className="w-5 h-5" />
-                        Processes
-                    </Link>
-                </nav>
-
-                <div className="p-4 border-t space-y-1" style={{ borderColor: 'var(--border)' }}>
-                    <Link href="/settings" className="flex items-center gap-3 px-4 py-2 hover:opacity-80 rounded-lg transition-all"
-                        style={{ color: 'var(--foreground)' }}>
-                        <Settings className="w-5 h-5" />
-                        Settings
-                    </Link>
-                    <div onClick={handleLogout} className="flex items-center gap-3 px-4 py-2 text-red-500 hover:bg-red-50 hover:bg-opacity-10 rounded-lg cursor-pointer transition-all font-medium">
-                        <LogOut className="w-5 h-5" />
-                        Logout
+                    <div className="h-[280px]">
+                        {renderWidget('MemoryChartWidget')}
                     </div>
                 </div>
-            </aside>
+            </div>
 
-            {/* Main Content */}
-            <main className="flex-1 flex flex-col overflow-y-auto">
-                <header className="h-16 border-b flex items-center justify-between px-8 shadow-sm"
-                    style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)' }}>
-                    <div className="flex items-center gap-2">
-                        <span className="opacity-50">Pages</span>
-                        <span className="opacity-50">/</span>
-                        <span className="font-medium">Dashboard</span>
-                    </div>
-
-                    <div className="flex items-center gap-6">
-                        {/* Theme Switcher Quick Menu */}
-                        <div className="flex items-center gap-2 p-1 rounded-full px-3" style={{ backgroundColor: 'var(--secondary)' }}>
-                            <Palette className="w-4 h-4 opacity-50" />
-                            <select
-                                value={theme.id}
-                                onChange={(e) => setTheme(e.target.value)}
-                                className="bg-transparent text-xs font-bold outline-none border-none cursor-pointer"
-                                style={{ color: 'var(--foreground)' }}
-                            >
-                                {availableThemes.map(t => (
-                                    <option key={t.id} value={t.id} className="bg-gray-800 text-white">{t.name}</option>
-                                ))}
-                            </select>
-                        </div>
-
-                        <div className="flex items-center gap-4 border-l pl-6" style={{ borderColor: 'var(--border)' }}>
-                            <div className="text-sm text-right">
-                                <p className="font-bold">{username}</p>
-                                <p className="text-xs opacity-50 capitalize">Administrator</p>
-                            </div>
-                            <div className="w-10 h-10 rounded-full flex items-center justify-center font-bold border-2"
-                                style={{ backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)', borderColor: 'var(--ring)' }}>
-                                {username[0].toUpperCase()}
-                            </div>
-                        </div>
-                    </div>
-                </header>
-
-                <div className="p-8">
-                    <div className="mb-8">
-                        <h2 className="text-3xl font-bold">Welcome Back</h2>
-                        <p className="opacity-60">System metrics and module activity overview.</p>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                        {[
-                            { label: 'CPU Usage', value: '12%', color: 'var(--primary)' },
-                            { label: 'Memory', value: '2.4 GB', color: 'var(--accent)' },
-                            { label: 'Active Sessions', value: '3', color: 'var(--primary)' },
-                            { label: 'System Uptime', value: '12d 4h', color: 'var(--destructive)' },
-                        ].map((widget, i) => (
-                            <div key={i} className="p-6 rounded-2xl shadow-sm border flex flex-col justify-between"
-                                style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)' }}>
-                                <span className="text-sm font-semibold opacity-40 uppercase tracking-wider">{widget.label}</span>
-                                <div className="mt-2 flex items-baseline justify-between">
-                                    <span className="text-2xl font-bold" style={{ color: widget.color }}>{widget.value}</span>
-                                    <div className="p-2 rounded-lg" style={{ backgroundColor: widget.color, opacity: 0.15 }}>
-                                        <Monitor className="w-5 h-5" style={{ color: widget.color, opacity: 1 }} />
-                                    </div>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-
-                    <div className="mt-8">
-                        <h2 className="text-xl font-bold mb-4 opacity-70">Real-time Analytics</h2>
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                            {renderWidget('CPUChartWidget')}
-                            {renderWidget('MemoryChartWidget')}
-                        </div>
-                    </div>
-
-                    <div className="mt-8">
-                        <h3 className="text-xl font-bold mb-4 opacity-70">Module Diagnostics</h3>
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                            {registeredWidgets.filter(w => !['CPUChartWidget', 'MemoryChartWidget'].includes(w.component)).map(w => (
-                                <React.Fragment key={w.id}>
-                                    {renderWidget(w.component)}
-                                </React.Fragment>
-                            ))}
-                        </div>
-                    </div>
-
-                    <div className="mt-8 border p-8 rounded-3xl text-center"
-                        style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)' }}>
-                        <div className="max-w-md mx-auto space-y-4">
-                            <Shield className="w-12 h-12 mx-auto" style={{ color: 'var(--primary)' }} />
-                            <h3 className="text-xl font-bold italic" style={{ color: 'var(--primary)' }}>Theme Engine Active</h3>
-                            <p className="text-sm opacity-70">
-                                You are currently viewing the system in **{theme.name}** mode. All modules integrated via the Module Registration system will automatically inherit these properties.
-                            </p>
-                            <div className="flex flex-wrap justify-center gap-2 mt-4">
-                                {availableThemes.map(t => (
-                                    <button
-                                        key={t.id}
-                                        onClick={() => setTheme(t.id)}
-                                        className={`w-8 h-8 rounded-full border-2 transition-transform hover:scale-110 ${theme.id === t.id ? 'scale-125' : ''}`}
-                                        style={{ backgroundColor: t.colors.background, borderColor: t.colors.primary }}
-                                        title={t.name}
-                                    />
-                                ))}
-                            </div>
-                        </div>
+            {/* Feed Section */}
+            <div className="mt-10 grid grid-cols-1 xl:grid-cols-3 gap-8 animate-slide-up [animation-delay:300ms]">
+                <div className="xl:col-span-2 glass p-8 rounded-[2.5rem] min-h-[400px]">
+                    <h3 className="text-lg font-bold text-white mb-8 flex items-center gap-3">
+                        <Activity className="w-5 h-5 text-emerald-400" />
+                        Kernel Activity Feed
+                    </h3>
+                    <div className="space-y-4">
+                        {renderWidget('LogsWidget')}
                     </div>
                 </div>
-            </main>
-        </div>
+
+                <div className="space-y-8">
+                    <div className="glass p-8 rounded-[2.5rem]">
+                        <h3 className="text-lg font-bold text-white mb-6">Pro Engine</h3>
+                        <p className="text-sm text-slate-400 leading-relaxed font-medium">
+                            ServerMon is optimized for **Phase 11** high-frequency monitoring. All registered modules inherit the deep-space obsidian core.
+                        </p>
+                        <Link href="/settings" className="mt-6 inline-flex items-center gap-2 text-xs font-bold text-indigo-400 hover:text-white transition-colors group">
+                            System Configuration
+                            <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                        </Link>
+                    </div>
+
+                    <div className="glass p-8 rounded-[2.5rem] bg-indigo-600/10 border-indigo-500/20">
+                        <h3 className="text-sm font-black text-white uppercase tracking-widest mb-4">Diagnostics</h3>
+                        {renderWidget('HealthWidget')}
+                    </div>
+                </div>
+            </div>
+        </ProShell>
     );
 }

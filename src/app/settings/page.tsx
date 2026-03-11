@@ -2,8 +2,8 @@
 
 import React, { useEffect, useState } from 'react';
 import { useTheme } from '@/lib/ThemeContext';
-import { Shield, Settings, Palette, Check, Save, Box, Activity } from 'lucide-react';
-import Link from 'next/link';
+import { Palette, Box, Shield, Zap } from 'lucide-react';
+import ProShell from '@/components/layout/ProShell';
 
 interface ModuleInfo {
     id: string;
@@ -23,134 +23,143 @@ export default function SettingsPage() {
     }, []);
 
     return (
-        <div className="min-h-screen flex" style={{ backgroundColor: 'var(--background)', color: 'var(--foreground)' }}>
-            {/* Reusable Sidebar (Simplified for now) */}
-            <aside className="w-64 border-r flex flex-col shadow-sm" style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)' }}>
-                <div className="p-6 border-b flex items-center gap-2" style={{ borderColor: 'var(--border)' }}>
-                    <Shield className="w-8 h-8" style={{ color: 'var(--primary)' }} />
-                    <h1 className="text-xl font-bold tracking-tight italic">ServerMon</h1>
-                </div>
-                <nav className="flex-1 p-4">
-                    <Link href="/dashboard" className="flex items-center gap-3 px-4 py-2 hover:opacity-80 rounded-lg transition-all"
-                        style={{ color: 'var(--foreground)' }}>
-                        Dashboard
-                    </Link>
-                    <div className="pt-4 pb-2 px-4 text-xs font-bold uppercase tracking-wider opacity-50">System</div>
-                    <Link href="/settings" className="flex items-center gap-3 px-4 py-2 rounded-lg font-medium"
-                        style={{ backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)' }}>
-                        <Settings className="w-5 h-5" />
-                        Settings
-                    </Link>
-                </nav>
-            </aside>
+        <ProShell title="System Settings" subtitle="Configuration">
+            <div className="mb-12 animate-slide-up">
+                <h2 className="text-4xl font-black text-white font-['Outfit'] tracking-tight">Personalization <span className="text-gradient">& Control</span></h2>
+                <p className="text-slate-400 mt-2 font-medium">Fine-tune the command center&apos;s visual and functional parameters.</p>
+            </div>
 
-            {/* Main Content */}
-            <main className="flex-1 overflow-y-auto">
-                <header className="h-16 border-b flex items-center px-8 shadow-sm" style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)' }}>
-                    <div className="flex items-center gap-2">
-                        <span className="opacity-50">System</span>
-                        <span className="opacity-50">/</span>
-                        <span className="font-medium">Settings</span>
-                    </div>
-                </header>
+            <div className="grid grid-cols-1 xl:grid-cols-3 gap-8 animate-slide-up [animation-delay:100ms]">
+                {/* Theme Selector */}
+                <div className="xl:col-span-2 space-y-8">
+                    <div className="glass p-8 rounded-[2.5rem] border-white/5 relative overflow-hidden">
+                        <div className="absolute top-0 right-0 p-8 opacity-5">
+                            <Palette className="w-24 h-24 text-indigo-400" />
+                        </div>
 
-                <div className="p-12 max-w-4xl">
-                    <div className="mb-12">
-                        <h2 className="text-4xl font-bold italic tracking-tight">System Settings</h2>
-                        <p className="opacity-60 text-lg mt-2 font-medium">Configure global system behavior and personalization.</p>
-                    </div>
-
-                    <section className="space-y-8">
-                        <div className="border rounded-3xl p-8" style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)' }}>
-                            <div className="flex items-center gap-4 mb-8">
-                                <div className="p-3 rounded-2xl" style={{ backgroundColor: 'var(--primary)', opacity: 0.1 }}>
-                                    <Palette className="w-6 h-6" style={{ color: 'var(--primary)' }} />
-                                </div>
-                                <div>
-                                    <h3 className="text-xl font-bold">Appearance & Themes</h3>
-                                    <p className="text-sm opacity-50">Choose a color palette that matches your preference.</p>
-                                </div>
+                        <div className="flex items-center gap-4 mb-10">
+                            <div className="p-3 bg-indigo-500/10 rounded-2xl">
+                                <Palette className="w-6 h-6 text-indigo-400" />
                             </div>
-
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                                {availableThemes.map((t) => (
-                                    <button
-                                        key={t.id}
-                                        onClick={() => setTheme(t.id)}
-                                        className={`relative p-1 rounded-2xl border-2 transition-all hover:scale-[1.02] active:scale-[0.98] ${theme.id === t.id ? '' : 'opacity-80'}`}
-                                        style={{ borderColor: theme.id === t.id ? 'var(--primary)' : 'var(--border)' }}
-                                    >
-                                        <div className="rounded-xl p-4 text-left space-y-3 shadow-sm" style={{ backgroundColor: t.colors.background }}>
-                                            <div className="flex items-center justify-between">
-                                                <span className="text-sm font-bold truncate" style={{ color: t.colors.foreground }}>{t.name}</span>
-                                                {theme.id === t.id && (
-                                                    <div className="p-1 rounded-full" style={{ backgroundColor: t.colors.primary }}>
-                                                        <Check className="w-3 h-3" style={{ color: t.colors.primaryForeground }} />
-                                                    </div>
-                                                )}
-                                            </div>
-
-                                            <div className="flex gap-1.5 h-3">
-                                                <div className="flex-1 rounded-full" style={{ backgroundColor: t.colors.primary }} />
-                                                <div className="flex-1 rounded-full" style={{ backgroundColor: t.colors.accent }} />
-                                                <div className="flex-1 rounded-full" style={{ backgroundColor: t.colors.secondary }} />
-                                            </div>
-
-                                            <div className="p-2 rounded-lg border text-[10px] font-mono opacity-50" style={{ backgroundColor: t.colors.card, color: t.colors.cardForeground, borderColor: t.colors.border }}>
-                                                System.init()
-                                            </div>
-                                        </div>
-                                    </button>
-                                ))}
+                            <div>
+                                <h3 className="text-xl font-bold text-white tracking-tight">Interface Skin</h3>
+                                <p className="text-sm text-slate-500 font-medium">Select a high-tier telemetry palette.</p>
                             </div>
                         </div>
 
-                        <div className="border rounded-3xl p-8" style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)' }}>
-                            <div className="flex items-center gap-4 mb-8">
-                                <div className="p-3 rounded-2xl" style={{ backgroundColor: 'var(--primary)', opacity: 0.1 }}>
-                                    <Box className="w-6 h-6" style={{ color: 'var(--primary)' }} />
-                                </div>
-                                <div>
-                                    <h3 className="text-xl font-bold">Module Management</h3>
-                                    <p className="text-sm opacity-50">Manage installed modules and their system integration.</p>
-                                </div>
-                            </div>
-
-                            <div className="space-y-4">
-                                {modules.map(mod => (
-                                    <div key={mod.id} className="flex items-center justify-between p-4 rounded-2xl border" style={{ borderColor: 'var(--border)' }}>
-                                        <div className="flex items-center gap-4">
-                                            <div className="p-2 rounded-xl" style={{ backgroundColor: 'var(--secondary)' }}>
-                                                <Activity className="w-5 h-5 opacity-70" />
-                                            </div>
-                                            <div>
-                                                <h4 className="font-bold">{mod.name}</h4>
-                                                <p className="text-xs opacity-50">{mod.description || 'No description provided.'}</p>
-                                            </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                            {availableThemes.map((t) => (
+                                <button
+                                    key={t.id}
+                                    onClick={() => setTheme(t.id)}
+                                    className={`group relative p-1 rounded-3xl border-2 transition-all duration-500 hover:scale-[1.02] active:scale-[0.98] ${theme.id === t.id ? 'border-indigo-500' : 'border-white/5 opacity-60 hover:opacity-100'
+                                        }`}
+                                >
+                                    <div className="rounded-2xl p-5 text-left space-y-4 shadow-2xl" style={{ backgroundColor: t.colors.background }}>
+                                        <div className="flex items-center justify-between">
+                                            <span className="text-sm font-black uppercase tracking-widest" style={{ color: t.colors.foreground }}>{t.name}</span>
+                                            {theme.id === t.id && (
+                                                <div className="p-1 px-2 rounded-full bg-indigo-500 text-[10px] font-black text-white uppercase tracking-tighter shadow-lg shadow-indigo-500/40">
+                                                    Active
+                                                </div>
+                                            )}
                                         </div>
-                                        <div className="flex items-center gap-3">
-                                            <span className="text-[10px] font-mono px-2 py-1 rounded bg-green-500 bg-opacity-10 text-green-500 uppercase font-bold">
-                                                Running
-                                            </span>
-                                            <button className="px-4 py-1.5 rounded-xl text-xs font-bold border hover:bg-red-50 hover:bg-opacity-10 hover:text-red-500 transition-all" style={{ borderColor: 'var(--border)' }}>
-                                                Disable
-                                            </button>
+
+                                        <div className="flex gap-2 h-4">
+                                            <div className="flex-1 rounded-full shadow-lg" style={{ backgroundColor: t.colors.primary }} />
+                                            <div className="flex-1 rounded-full shadow-lg" style={{ backgroundColor: t.colors.accent }} />
+                                            <div className="flex-1 rounded-full shadow-lg" style={{ backgroundColor: t.colors.secondary }} />
+                                        </div>
+
+                                        <div className="p-2.5 rounded-xl border text-[9px] font-black uppercase tracking-widest opacity-40 group-hover:opacity-70 transition-opacity" style={{ backgroundColor: t.colors.card, color: t.colors.cardForeground, borderColor: t.colors.border }}>
+                                            Core.Render()
                                         </div>
                                     </div>
-                                ))}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Module List */}
+                    <div className="glass p-8 rounded-[2.5rem] border-white/5">
+                        <div className="flex items-center gap-4 mb-10">
+                            <div className="p-3 bg-pink-500/10 rounded-2xl">
+                                <Box className="w-6 h-6 text-pink-400" />
+                            </div>
+                            <div>
+                                <h3 className="text-xl font-bold text-white tracking-tight">Integrated Modules</h3>
+                                <p className="text-sm text-slate-500 font-medium">Active sub-system management.</p>
                             </div>
                         </div>
 
-                        <div className="flex justify-end pt-4">
-                            <button className="flex items-center gap-2 px-8 py-3 rounded-2xl font-bold shadow-lg transition-transform hover:scale-105 active:scale-95"
-                                style={{ backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)' }}>
-                                <Save className="w-5 h-5" />
-                                Apply Changes
-                            </button>
+                        <div className="grid gap-4">
+                            {modules.map(mod => (
+                                <div key={mod.id} className="flex items-center justify-between p-5 rounded-2xl bg-white/5 border border-white/5 hover:border-white/10 transition-all group">
+                                    <div className="flex items-center gap-5">
+                                        <div className="w-12 h-12 rounded-xl bg-slate-900 flex items-center justify-center border border-white/5">
+                                            <Zap className="w-6 h-6 text-slate-500 group-hover:text-indigo-400 transition-colors" />
+                                        </div>
+                                        <div>
+                                            <h4 className="font-black text-white text-sm tracking-tight">{mod.name}</h4>
+                                            <p className="text-xs font-medium text-slate-500 mt-0.5">{mod.description || 'Active background process.'}</p>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-4">
+                                        <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20">
+                                            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                            <span className="text-[10px] font-black text-emerald-400 uppercase tracking-widest">Active</span>
+                                        </div>
+                                        <button className="px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition-all border border-transparent hover:border-rose-500/20">
+                                            Suspend
+                                        </button>
+                                    </div>
+                                </div>
+                            ))}
                         </div>
-                    </section>
+                    </div>
                 </div>
-            </main>
-        </div>
+
+                {/* Info & Help */}
+                <div className="space-y-8">
+                    <div className="glass p-8 rounded-[2.5rem] bg-indigo-600/5 border-indigo-500/20 relative overflow-hidden">
+                        <div className="absolute top-0 right-0 p-8 opacity-5">
+                            <Shield className="w-16 h-16 text-indigo-400" />
+                        </div>
+                        <h3 className="text-xl font-bold text-white mb-4">Security Baseline</h3>
+                        <p className="text-sm text-slate-400 leading-relaxed font-medium">
+                            Your current installation is secured via **Argon2id** hashing and **TOTP-HMAC** two-factor authentication.
+                        </p>
+                        <div className="mt-8 pt-8 border-t border-indigo-500/20 space-y-4">
+                            <div className="flex items-center justify-between text-[11px] font-black uppercase tracking-widest text-slate-500">
+                                <span>Version</span>
+                                <span className="text-indigo-400">1.0.4-PRO</span>
+                            </div>
+                            <div className="flex items-center justify-between text-[11px] font-black uppercase tracking-widest text-slate-500">
+                                <span>Encryption</span>
+                                <span className="text-indigo-400">AES-256-GCM</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="glass p-8 rounded-[2.5rem] relative overflow-hidden">
+                        <h3 className="text-lg font-bold text-white mb-6">Expert Mode</h3>
+                        <div className="space-y-4">
+                            <div className="flex items-center justify-between">
+                                <span className="text-xs font-bold text-slate-400">Debugger Mode</span>
+                                <div className="w-10 h-5 bg-slate-800 rounded-full relative">
+                                    <div className="absolute left-1 top-1 w-3 h-3 bg-slate-600 rounded-full" />
+                                </div>
+                            </div>
+                            <div className="flex items-center justify-between">
+                                <span className="text-xs font-bold text-slate-400">Low Entropy Mode</span>
+                                <div className="w-10 h-5 bg-indigo-600 rounded-full relative">
+                                    <div className="absolute right-1 top-1 w-3 h-3 bg-white rounded-full" />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </ProShell>
     );
 }
