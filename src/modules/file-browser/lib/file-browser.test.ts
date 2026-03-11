@@ -66,4 +66,16 @@ describe('file-browser helpers', () => {
         assert.equal(matchesFilter('server.conf', '*.log'), false);
         assert.equal(matchesFilter('app-01.log', 'app-??.log'), true);
     });
+
+    it('rejects duplicate create operations', async () => {
+        const duplicateDir = await createEntry(sandboxDir, 'duplicate-check', 'directory');
+        await createEntry(duplicateDir, 'sample.txt', 'file', 'content');
+
+        await assert.rejects(
+            () => createEntry(duplicateDir, 'sample.txt', 'file', 'content'),
+            /already exists/
+        );
+
+        await deleteEntry(duplicateDir);
+    });
 });
