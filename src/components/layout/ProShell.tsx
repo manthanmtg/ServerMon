@@ -9,6 +9,7 @@ import {
     Terminal,
     Monitor,
     Activity,
+    FolderTree,
     Settings,
     LogOut,
     Menu,
@@ -20,6 +21,7 @@ interface ProShellProps {
     children: React.ReactNode;
     title: string;
     subtitle?: string;
+    headerContent?: React.ReactNode;
 }
 
 const navGroups = [
@@ -35,6 +37,7 @@ const navGroups = [
             { label: 'Terminal', href: '/terminal', icon: Terminal },
             { label: 'Processes', href: '/processes', icon: Monitor },
             { label: 'Audit Logs', href: '/logs', icon: Activity },
+            { label: 'File Browser', href: '/file-browser', icon: FolderTree },
         ],
     },
 ];
@@ -110,7 +113,7 @@ function SidebarNav({ pathname, onNavigate, onLogout }: {
     );
 }
 
-export default function ProShell({ children, title, subtitle }: ProShellProps) {
+export default function ProShell({ children, title, subtitle, headerContent }: ProShellProps) {
     const { theme, setTheme, availableThemes } = useTheme();
     const pathname = usePathname();
     const router = useRouter();
@@ -185,7 +188,12 @@ export default function ProShell({ children, title, subtitle }: ProShellProps) {
                         </div>
                     </div>
 
-                    <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+                    <div className="flex items-center gap-2 sm:gap-3 shrink-0 min-w-0">
+                        {headerContent && (
+                            <div className="hidden xl:flex items-center gap-2 min-w-0 max-w-[32rem] overflow-x-auto">
+                                {headerContent}
+                            </div>
+                        )}
                         <select
                             value={theme.id}
                             onChange={(e) => setTheme(e.target.value)}
