@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useEffect, useState, useRef, useCallback } from 'react';
+import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
 
 export interface SystemMetric {
     timestamp: string;
@@ -21,6 +21,7 @@ const MetricsContext = createContext<MetricsContextType>({
 });
 
 const MAX_HISTORY = 60;
+const RECONNECT_MS = 3000;
 
 export function MetricsProvider({ children }: { children: React.ReactNode }) {
     const [latest, setLatest] = useState<SystemMetric | null>(null);
@@ -28,44 +29,50 @@ export function MetricsProvider({ children }: { children: React.ReactNode }) {
     const [connected, setConnected] = useState(false);
     const esRef = useRef<EventSource | null>(null);
     const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-    const connect = useCallback(() => {
-        if (esRef.current) {
-            esRef.current.close();
-        }
-
-        const es = new EventSource('/api/metrics/stream');
-        esRef.current = es;
-
-        es.onmessage = (event) => {
-            try {
-                const metric: SystemMetric = JSON.parse(event.data);
-                setLatest(metric);
-                setConnected(true);
-                setHistory((prev) => {
-                    const next = [...prev, metric];
-                    return next.length > MAX_HISTORY ? next.slice(-MAX_HISTORY) : next;
-                });
-            } catch {
-                // ignore malformed messages
-            }
-        };
-
-        es.onerror = () => {
-            setConnected(false);
-            es.close();
-            esRef.current = null;
-            reconnectTimer.current = setTimeout(connect, 3000);
-        };
-    }, []);
+    const mountedRef = useRef(true);
 
     useEffect(() => {
+        mountedRef.current = true;
+
+        function connect() {
+            if (!mountedRef.current) return;
+            if (esRef.current) esRef.current.close();
+
+            const es = new EventSource('/api/metrics/stream');
+            esRef.current = es;
+
+            es.onmessage = (event) => {
+                try {
+                    const metric: SystemMetric = JSON.parse(event.data);
+                    setLatest(metric);
+                    setConnected(true);
+                    setHistory((prev) => {
+                        const next = [...prev, metric];
+                        return next.length > MAX_HISTORY ? next.slice(-MAX_HISTORY) : next;
+                    });
+                } catch {
+                    // ignore malformed messages
+                }
+            };
+
+            es.onerror = () => {
+                setConnected(false);
+                es.close();
+                esRef.current = null;
+                if (mountedRef.current) {
+                    reconnectTimer.current = setTimeout(connect, RECONNECT_MS);
+                }
+            };
+        }
+
         connect();
+
         return () => {
+            mountedRef.current = false;
             esRef.current?.close();
             if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
         };
-    }, [connect]);
+    }, []);
 
     return (
         <MetricsContext.Provider value={{ latest, history, connected }}>
