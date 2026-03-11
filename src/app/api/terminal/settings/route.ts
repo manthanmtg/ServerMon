@@ -38,6 +38,9 @@ export async function PUT(request: Request) {
         if (body.fontSize !== undefined) {
             update.fontSize = Math.max(10, Math.min(24, Number(body.fontSize)));
         }
+        if (body.loginAsUser !== undefined) {
+            update.loginAsUser = String(body.loginAsUser).trim();
+        }
 
         const settings = await TerminalSettings.findByIdAndUpdate(
             SETTINGS_ID,

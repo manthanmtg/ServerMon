@@ -12,6 +12,10 @@ const app = next({ dev });
 const handle = app.getRequestHandler();
 const port = parseInt(process.env.PORT || '8912', 10);
 
+// Database imports for settings
+import connectDB from './lib/db';
+import TerminalSettings from './models/TerminalSettings';
+
 app.prepare().then(() => {
     const server = createServer((req, res) => {
         const parsedUrl = parse(req.url!, true);
@@ -83,29 +87,42 @@ app.prepare().then(() => {
                     }
                 } else {
                     let shell = '';
-                    if (os.platform() === 'win32') {
-                        shell = 'powershell.exe';
+                    let args: string[] = [];
+
+                    // Fetch settings for loginAsUser
+                    await connectDB();
+                    const settings = await TerminalSettings.findById('terminal-settings').lean();
+                    const loginAsUser = settings?.loginAsUser;
+
+                    if (loginAsUser && os.platform() !== 'win32') {
+                        shell = 'su';
+                        args = ['-', loginAsUser];
+                        log.info(`Spawning PTY for session ${sessionId} as user ${loginAsUser}`);
                     } else {
-                        shell = process.env.SHELL || '';
-                        
-                        if (!shell) {
-                            const fs = await import('fs');
-                            const fallbacks = ['/bin/zsh', '/bin/bash', '/bin/sh'];
-                            for (const fb of fallbacks) {
-                                if (fs.existsSync(fb)) {
-                                    shell = fb;
-                                    break;
+                        if (os.platform() === 'win32') {
+                            shell = 'powershell.exe';
+                        } else {
+                            shell = process.env.SHELL || '';
+                            
+                            if (!shell) {
+                                const fs = await import('fs');
+                                const fallbacks = ['/bin/zsh', '/bin/bash', '/bin/sh'];
+                                for (const fb of fallbacks) {
+                                    if (fs.existsSync(fb)) {
+                                        shell = fb;
+                                        break;
+                                    }
                                 }
                             }
+                            
+                            if (!shell) shell = 'sh';
                         }
-                        
-                        if (!shell) shell = 'sh';
+                        log.info(`Spawning PTY for session ${sessionId} (shell: ${shell})`);
                     }
                     
                     const cwd = process.cwd(); 
-                    log.info(`Spawning PTY for session ${sessionId} (shell: ${shell}, cwd: ${cwd})`);
 
-                    const ptyProcess = pty.spawn(shell, [], {
+                    const ptyProcess = pty.spawn(shell, args, {
                         name: 'xterm-color',
                         cols: options.cols || 80,
                         rows: options.rows || 24,

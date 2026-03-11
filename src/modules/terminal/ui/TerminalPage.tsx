@@ -21,13 +21,14 @@ interface TermSettings {
     idleTimeoutMinutes: number;
     maxSessions: number;
     fontSize: number;
+    loginAsUser: string;
 }
 
 export default function TerminalPage() {
     const [tabs, setTabs] = useState<SessionTab[]>([]);
     const [activeTabId, setActiveTabId] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
-    const [settings, setSettings] = useState<TermSettings>({ idleTimeoutMinutes: 30, maxSessions: 8, fontSize: 14 });
+    const [settings, setSettings] = useState<TermSettings>({ idleTimeoutMinutes: 30, maxSessions: 8, fontSize: 14, loginAsUser: '' });
     const [showSettings, setShowSettings] = useState(false);
     const [showResetConfirm, setShowResetConfirm] = useState(false);
     const [editingTabId, setEditingTabId] = useState<string | null>(null);

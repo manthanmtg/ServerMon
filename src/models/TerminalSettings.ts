@@ -4,6 +4,7 @@ export interface ITerminalSettings extends Document {
     idleTimeoutMinutes: number;
     maxSessions: number;
     fontSize: number;
+    loginAsUser: string;
     updatedAt: Date;
 }
 
@@ -13,6 +14,7 @@ const TerminalSettingsSchema: Schema = new Schema(
         idleTimeoutMinutes: { type: Number, default: 30, min: 1, max: 1440 },
         maxSessions: { type: Number, default: 8, min: 1, max: 20 },
         fontSize: { type: Number, default: 14, min: 10, max: 24 },
+        loginAsUser: { type: String, default: '' },
     },
     { timestamps: true }
 );

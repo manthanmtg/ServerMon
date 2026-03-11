@@ -9,6 +9,7 @@ interface TermSettings {
     idleTimeoutMinutes: number;
     maxSessions: number;
     fontSize: number;
+    loginAsUser: string;
 }
 
 interface Props {
@@ -118,6 +119,19 @@ export default function TerminalSettingsModal({ settings, onClose, onSaved }: Pr
                             />
                             <span className="text-xs text-muted-foreground">px</span>
                         </div>
+                    </SettingRow>
+
+                    <SettingRow
+                        label="Login as user"
+                        description="User account to run the terminal as"
+                    >
+                        <input
+                            type="text"
+                            placeholder="default"
+                            value={form.loginAsUser}
+                            onChange={(e) => setForm({ ...form, loginAsUser: e.target.value })}
+                            className="w-32 h-8 rounded-md border border-input bg-background px-2 text-sm text-foreground outline-none focus:ring-2 focus:ring-ring/40"
+                        />
                     </SettingRow>
                 </div>
 
