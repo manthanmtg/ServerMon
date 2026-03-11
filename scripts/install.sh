@@ -206,9 +206,14 @@ if [ "$UNATTENDED" != "true" ]; then
     if [ "$EXISTING_INSTALL" = "true" ]; then
         # Load existing config as defaults
         if [ -f "${CONFIG_DIR}/env" ]; then
-            EXISTING_PORT=$(grep -oP 'PORT=\K.*' "${CONFIG_DIR}/env" 2>/dev/null || echo "$DEFAULT_PORT")
-            EXISTING_MONGO=$(grep -oP 'MONGO_URI=\K.*' "${CONFIG_DIR}/env" 2>/dev/null || echo "$DEFAULT_MONGO_URI")
-            EXISTING_DOMAIN=$(grep -oP 'DOMAIN=\K.*' "${CONFIG_DIR}/env" 2>/dev/null || echo "")
+            EXISTING_PORT=$(grep "^PORT=" "${CONFIG_DIR}/env" 2>/dev/null | cut -d'=' -f2- | head -1)
+            EXISTING_MONGO=$(grep "^MONGO_URI=" "${CONFIG_DIR}/env" 2>/dev/null | cut -d'=' -f2- | head -1)
+            # Cleanup if previously corrupted by sed bug
+            if [[ "$EXISTING_MONGO" == *"MONGO_URI="* ]]; then
+                EXISTING_MONGO=${EXISTING_MONGO%%MONGO_URI=*}
+            fi
+
+            EXISTING_DOMAIN=$(grep "^DOMAIN=" "${CONFIG_DIR}/env" 2>/dev/null | cut -d'=' -f2- | head -1)
             
             # If not in env file, try to extract from Nginx config
             if [ -z "$EXISTING_DOMAIN" ] && [ -f "/etc/nginx/sites-available/servermon" ]; then
@@ -398,21 +403,24 @@ mkdir -p "$CONFIG_DIR"
 
 if [ "$EXISTING_INSTALL" = "true" ] && [ -f "${CONFIG_DIR}/env" ]; then
     log_info "Updating environment config..."
-    # Update values in existing config
-    sed -i "s|^MONGO_URI=.*|MONGO_URI=${MONGO_URI}|" "${CONFIG_DIR}/env"
-    sed -i "s|^PORT=.*|PORT=${APP_PORT}|" "${CONFIG_DIR}/env"
-    
-    if grep -q "^DOMAIN=" "${CONFIG_DIR}/env"; then
-        sed -i "s|^DOMAIN=.*|DOMAIN=${DOMAIN}|" "${CONFIG_DIR}/env"
-    else
-        echo "DOMAIN=${DOMAIN}" >> "${CONFIG_DIR}/env"
-    fi
+    # Safer replacement without sed & issues
+    update_env_line() {
+        local key=$1
+        local val=$2
+        grep -v "^${key}=" "${CONFIG_DIR}/env" > "${CONFIG_DIR}/env.tmp"
+        echo "${key}=${val}" >> "${CONFIG_DIR}/env.tmp"
+        mv "${CONFIG_DIR}/env.tmp" "${CONFIG_DIR}/env"
+    }
+
+    update_env_line "MONGO_URI" "${MONGO_URI}"
+    update_env_line "PORT" "${APP_PORT}"
+    update_env_line "DOMAIN" "${DOMAIN}"
 
     # Add JWT_SECRET if missing
-    grep -q "^JWT_SECRET=" "${CONFIG_DIR}/env" || {
+    if ! grep -q "^JWT_SECRET=" "${CONFIG_DIR}/env"; then
         JWT_SECRET=$(openssl rand -base64 32)
         echo "JWT_SECRET=${JWT_SECRET}" >> "${CONFIG_DIR}/env"
-    }
+    fi
     log "Environment config updated (secrets preserved)"
 else
     log_info "Generating environment config..."
