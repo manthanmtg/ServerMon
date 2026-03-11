@@ -117,14 +117,14 @@ Quick actions available directly in the file list:
 - 👁 Preview
 
 ### 📋 Copy Absolute Path
-- One-click **Copy Path** button for files and directories.
+- One‑click **Copy Path** button for files and directories.
 - Useful for quickly referencing paths in the **Terminal module**.
 
 ### 🔄 Directory Refresh
 - Manual refresh button.
-- Optional **auto-refresh** for frequently changing directories.
+- Optional **auto‑refresh** for frequently changing directories.
 
-### 📊 Human-Readable File Sizes
+### 📊 Human‑Readable File Sizes
 Display file sizes in readable formats:
 - KB
 - MB
@@ -143,7 +143,7 @@ Examples:
 
 ### 🧾 Live Log Streaming
 Enhanced log viewer capabilities:
-- Real-time streaming similar to `tail -f`
+- Real‑time streaming similar to `tail -f`
 - Pause / resume streaming
 - Auto scroll to latest log entry
 
@@ -170,6 +170,29 @@ Examples:
   - `nano <file>`
   - `tail -f <log>`
 
+### 🧠 Context-Aware Smart Actions
+The file browser should detect special project environments and surface relevant tools automatically.
+
+#### 🧬 Git Repository Detection
+If the opened directory contains a `.git` folder, the UI should automatically display a **Git Action Bar** below the top navigation bar.
+
+Capabilities may include:
+- ⬇️ **Pull** latest changes
+- ⬆️ **Push** commits
+- ✏️ **Commit changes** with message input
+- 🌿 **Branch indicator and switcher**
+- 📊 **Repository status** (modified / staged files)
+- ➕ **Stage / unstage files**
+- 🔄 **Fetch updates**
+
+UI behavior:
+- The **Git bar appears only when inside a Git repository**.
+- Displays current branch (e.g., `main`, `dev`, `feature/x`).
+- Provides quick actions without leaving the file browser.
+- Can open a **diff viewer** for modified files.
+
+This makes the file browser more intelligent and useful for **project directories and deployments**.
+
 ### ⭐ Favorite / Pinned Directories
 - Pin frequently used directories.
 - Appear in the **Topbar shortcuts** for quick access.
@@ -185,3 +208,4 @@ Optional file history support for tracking changes to important files.
 
 ### 🔍 Global File Search (Future)
 Search across multiple directories instead of only the current directory.
+
