@@ -8,66 +8,81 @@ import { useTheme } from '@/lib/ThemeContext';
 import { io, Socket } from 'socket.io-client';
 
 interface TerminalUIProps {
+    sessionId: string;
+    fontSize?: number;
     onStatusChange?: (status: 'connected' | 'disconnected' | 'connecting') => void;
 }
 
-export default function TerminalUI({ onStatusChange }: TerminalUIProps) {
-    const terminalRef = useRef<HTMLDivElement>(null);
+function buildTheme(colors: Record<string, string>) {
+    return {
+        background: colors.background,
+        foreground: colors.foreground,
+        cursor: colors.primary,
+        cursorAccent: colors.background,
+        selectionBackground: colors.primary + '40',
+        black: colors.background,
+        red: colors.destructive,
+        green: colors.success || colors.primary,
+        yellow: colors.warning || colors.accent,
+        blue: colors.primary,
+        magenta: colors.accent,
+        cyan: colors.primary,
+        white: colors.foreground,
+    };
+}
+
+export default function TerminalUI({ sessionId, fontSize = 14, onStatusChange }: TerminalUIProps) {
+    const containerRef = useRef<HTMLDivElement>(null);
     const xtermRef = useRef<Terminal | null>(null);
     const socketRef = useRef<Socket | null>(null);
+    const fitAddonRef = useRef<FitAddon | null>(null);
     const { theme } = useTheme();
 
     useEffect(() => {
-        if (!terminalRef.current) return;
+        if (!containerRef.current) return;
 
-        // Initialize Xterm
         const term = new Terminal({
             cursorBlink: true,
             fontFamily: 'Menlo, Monaco, "Courier New", monospace',
-            fontSize: 14,
-            theme: {
-                background: theme.colors.background,
-                foreground: theme.colors.foreground,
-                cursor: theme.colors.primary,
-                black: theme.colors.background,
-                red: theme.colors.destructive,
-                green: theme.colors.primary,
-                yellow: theme.colors.accent,
-                blue: theme.colors.primary,
-                magenta: theme.colors.accent,
-                cyan: theme.colors.primary,
-                white: theme.colors.foreground,
-            },
+            fontSize,
+            theme: buildTheme(theme.colors as unknown as Record<string, string>),
             allowProposedApi: true,
+            scrollback: 5000,
         });
 
         const fitAddon = new FitAddon();
         term.loadAddon(fitAddon);
-
-        term.open(terminalRef.current);
+        term.open(containerRef.current);
         fitAddon.fit();
 
         xtermRef.current = term;
+        fitAddonRef.current = fitAddon;
 
-        // Initialize Socket.io
-        const socket = io({
-            path: '/api/socket',
-        });
+        const socket = io({ path: '/api/socket' });
         socketRef.current = socket;
+
+        onStatusChange?.('connecting');
 
         socket.on('connect', () => {
             onStatusChange?.('connected');
             socket.emit('terminal:start', {
+                sessionId,
                 cols: term.cols,
                 rows: term.rows,
             });
+
+            fetch('/api/terminal/sessions', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ sessionId, lastActiveAt: new Date().toISOString() }),
+            }).catch(() => {});
         });
 
-        socket.on('connect_error', (_err) => {
+        socket.on('connect_error', () => {
             onStatusChange?.('disconnected');
         });
 
-        socket.on('disconnect', (_reason) => {
+        socket.on('disconnect', () => {
             onStatusChange?.('disconnected');
         });
 
@@ -83,43 +98,40 @@ export default function TerminalUI({ onStatusChange }: TerminalUIProps) {
             socket.emit('terminal:resize', { cols: size.cols, rows: size.rows });
         });
 
-        // Handle window resize
-        const handleResize = () => {
-            fitAddon.fit();
-        };
+        const handleResize = () => fitAddon.fit();
         window.addEventListener('resize', handleResize);
+
+        const resizeObserver = new ResizeObserver(() => {
+            requestAnimationFrame(() => fitAddon.fit());
+        });
+        resizeObserver.observe(containerRef.current);
 
         return () => {
             window.removeEventListener('resize', handleResize);
+            resizeObserver.disconnect();
             socket.disconnect();
             term.dispose();
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+    }, [sessionId]);
 
-    // Update theme dynamically
     useEffect(() => {
         if (xtermRef.current) {
-            xtermRef.current.options.theme = {
-                background: theme.colors.background,
-                foreground: theme.colors.foreground,
-                cursor: theme.colors.primary,
-                black: theme.colors.background,
-                red: theme.colors.destructive,
-                green: theme.colors.primary,
-                yellow: theme.colors.accent,
-                blue: theme.colors.primary,
-                magenta: theme.colors.accent,
-                cyan: theme.colors.primary,
-                white: theme.colors.foreground,
-            };
+            xtermRef.current.options.theme = buildTheme(theme.colors as unknown as Record<string, string>);
         }
     }, [theme.colors]);
 
+    useEffect(() => {
+        if (xtermRef.current) {
+            xtermRef.current.options.fontSize = fontSize;
+            fitAddonRef.current?.fit();
+        }
+    }, [fontSize]);
+
     return (
         <div
-            ref={terminalRef}
-            className="w-full h-full min-h-[400px] rounded-xl overflow-hidden p-2"
+            ref={containerRef}
+            className="w-full h-full min-h-[300px] overflow-hidden p-1"
             style={{ backgroundColor: theme.colors.background }}
         />
     );

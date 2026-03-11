@@ -33,7 +33,7 @@ app.prepare().then(() => {
 
         let ptyProcess: pty.IPty | null = null;
 
-        socket.on('terminal:start', (options: { cols?: number; rows?: number } = {}) => {
+        socket.on('terminal:start', async (options: { cols?: number; rows?: number } = {}) => {
             try {
                 if (ptyProcess) return;
 
@@ -45,9 +45,10 @@ app.prepare().then(() => {
                     shell = process.env.SHELL || '';
                     
                     if (!shell) {
+                        const fs = await import('fs');
                         const fallbacks = ['/bin/zsh', '/bin/bash', '/bin/sh'];
                         for (const fb of fallbacks) {
-                            if (require('fs').existsSync(fb)) {
+                            if (fs.existsSync(fb)) {
                                 shell = fb;
                                 break;
                             }
@@ -80,7 +81,7 @@ app.prepare().then(() => {
                     socket.emit('terminal:exit', { exitCode, signal });
                     ptyProcess = null;
                 });
-            } catch (err: any) {
+            } catch (err: unknown) {
                 log.error('Failed to spawn terminal process', err);
                 socket.emit('terminal:error', 'Failed to start terminal');
             }
