@@ -6,7 +6,11 @@
     "dev": "next dev -p 8912",
     "build": "next build",
     "start": "next start -p 8912",
-    "lint": "eslint"
+    "lint": "eslint src/",
+    "lint:fix": "eslint src/ --fix",
+    "typecheck": "tsc --noEmit",
+    "check": "pnpm lint && pnpm typecheck && pnpm build",
+    "test": "echo \"No tests configured yet\" && exit 0"
   },
   "dependencies": {
     "@types/mongoose": "^5.11.96",

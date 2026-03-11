@@ -1,0 +1,43 @@
+---
+description: ServerMon project rules for Cursor AI
+globs: ["src/**/*.ts", "src/**/*.tsx"]
+alwaysApply: true
+---
+
+# ServerMon — Cursor Rules
+
+## Validation
+
+Run after every change:
+- `pnpm lint` — zero errors and warnings
+- `pnpm build` — must succeed
+
+## Styling
+
+- Use Tailwind semantic classes: `bg-background`, `text-foreground`, `bg-card`, `text-muted-foreground`, `bg-primary`, `border-border`, `bg-secondary`, `text-destructive`, `bg-success`, `text-warning`
+- NEVER hardcode colors (`bg-slate-900`, `text-indigo-400`, `#6366f1`)
+- Use `cn()` from `@/lib/utils` for conditional classes
+
+## Components
+
+- Import from `@/components/ui/` — Button, Input, Card, Badge, Spinner, Skeleton
+- Wrap widgets in `WidgetErrorBoundary`
+- Use `useToast()` for user feedback
+- Interactive elements need `min-h-[44px]` touch targets
+
+## Patterns
+
+- SSE: use `MetricsProvider` + `useMetrics()`, never create `new EventSource` in components
+- Logging: use `createLogger('context')` from `@/lib/logger`, never bare console.log
+- DB: `import connectDB from '@/lib/db'` (default export)
+- API routes: always try/catch, return `{ error: "message" }`, add `export const dynamic = 'force-dynamic'` when accessing DB
+- New pages: wrap in `<ProShell title="..." subtitle="...">`
+- Mobile: use `dvh` not `vh`, `sm:hidden` / `hidden sm:block` for responsive tables
+
+## Do Not
+
+- Add `any` types — use `unknown` and narrow
+- Add `eslint-disable` or `@ts-ignore`
+- Add hardcoded colors — use theme tokens
+- Add `console.log` in API routes — use the logger
+- Commit `.env` files or secrets
