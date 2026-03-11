@@ -376,8 +376,9 @@ cd "$INSTALL_DIR"
 log_info "Installing dependencies..."
 pnpm install --frozen-lockfile 2>&1 | tail -5 || pnpm install 2>&1 | tail -5
 
-# Native modules (node-pty, argon2) need build tools — already installed in step 1
-# .npmrc has enable-pre-post-scripts=true to allow postinstall scripts in pnpm v10+
+# Ensure native modules are built (pnpm v10+ requires explicit approval or .npmrc)
+log_info "Ensuring native modules are built..."
+pnpm approve-builds 2>/dev/null || true
 
 log_info "Building application..."
 pnpm run build 2>&1 | tail -5
