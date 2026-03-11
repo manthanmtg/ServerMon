@@ -4,6 +4,9 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Image from 'next/image';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import {
+    ArrowLeft,
+    ArrowRight,
+    CheckSquare,
     ChevronRight,
     Copy,
     Download,
@@ -14,21 +17,21 @@ import {
     Folder,
     FolderOpen,
     FolderPlus,
+    GitBranch,
     LoaderCircle,
+    Logs,
+    PanelLeftClose,
+    PanelLeftOpen,
     Pencil,
     Plus,
     RefreshCcw,
     Save,
     Search,
     Settings2,
+    Square,
     Trash2,
     Upload,
-    ArrowLeft,
-    ArrowRight,
-    PanelLeftClose,
-    PanelLeftOpen,
-    Logs,
-    GitBranch,
+    X,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -96,9 +99,16 @@ interface TreeNode {
     children?: TreeNode[];
 }
 
+type DialogState =
+    | { kind: 'create'; entryKind: 'file' | 'directory' }
+    | { kind: 'rename'; entry: FileEntry }
+    | { kind: 'delete'; entries: FileEntry[] }
+    | null;
+
 const DEFAULT_SETTINGS: FileBrowserSettings = {
     shortcuts: [
         { id: 'root', label: 'Root', path: '/' },
+        { id: 'home', label: 'Home', path: '/root' },
     ],
     defaultPath: '/',
     editorMaxBytes: 1024 * 1024,
@@ -155,6 +165,293 @@ async function fetchJson<T>(input: RequestInfo, init?: RequestInit): Promise<T> 
     return data as T;
 }
 
+function Overlay({
+    children,
+    onClose,
+    labelledBy,
+    widthClass = 'max-w-xl',
+}: {
+    children: React.ReactNode;
+    onClose: () => void;
+    labelledBy: string;
+    widthClass?: string;
+}) {
+    return (
+        <div
+            className="fixed inset-0 z-50 flex items-center justify-center p-4"
+            role="presentation"
+            onClick={onClose}
+        >
+            <div className="absolute inset-0 bg-background/80 backdrop-blur-sm" />
+            <div
+                className={cn('relative w-full rounded-xl border border-border bg-card shadow-xl', widthClass)}
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby={labelledBy}
+                onClick={(event) => event.stopPropagation()}
+            >
+                {children}
+            </div>
+        </div>
+    );
+}
+
+function TreeBranch({
+    node,
+    currentPath,
+    expanded,
+    loadingPaths,
+    onToggle,
+    onSelect,
+}: {
+    node: TreeNode;
+    currentPath: string;
+    expanded: Set<string>;
+    loadingPaths: Set<string>;
+    onToggle: (path: string, isExpanded: boolean) => void;
+    onSelect: (path: string) => void;
+}) {
+    const isExpanded = expanded.has(node.path);
+    const isActive = currentPath === node.path;
+
+    return (
+        <div className="space-y-1" role="treeitem" aria-expanded={isExpanded} aria-selected={isActive}>
+            <div className="flex items-center gap-1">
+                <button
+                    type="button"
+                    className="min-h-[32px] min-w-[32px] rounded-md text-muted-foreground hover:bg-accent hover:text-foreground transition-colors flex items-center justify-center"
+                    onClick={() => onToggle(node.path, isExpanded)}
+                    disabled={!node.hasChildren && !node.children?.length}
+                    aria-label={`${isExpanded ? 'Collapse' : 'Expand'} ${node.name || node.path}`}
+                >
+                    <ChevronRight className={cn('h-4 w-4 transition-transform', isExpanded && 'rotate-90')} />
+                </button>
+                <button
+                    type="button"
+                    onClick={() => onSelect(node.path)}
+                    className={cn(
+                        'flex min-h-[36px] flex-1 items-center gap-2 rounded-lg px-2 text-left text-sm transition-colors',
+                        isActive ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-accent hover:text-foreground',
+                    )}
+                    title={node.path}
+                    aria-current={isActive ? 'page' : undefined}
+                    data-testid={`tree-node-${node.path}`}
+                >
+                    {isExpanded ? <FolderOpen className="h-4 w-4 shrink-0" /> : <Folder className="h-4 w-4 shrink-0" />}
+                    <span className="truncate">{node.name || node.path}</span>
+                    {loadingPaths.has(node.path) && <LoaderCircle className="ml-auto h-3.5 w-3.5 animate-spin" />}
+                </button>
+            </div>
+            {isExpanded && node.children && (
+                <div className="ml-5 border-l border-border pl-2" role="group">
+                    {node.children.map((child) => (
+                        <TreeBranch
+                            key={child.path}
+                            node={child}
+                            currentPath={currentPath}
+                            expanded={expanded}
+                            loadingPaths={loadingPaths}
+                            onToggle={onToggle}
+                            onSelect={onSelect}
+                        />
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+}
+
+function FileOperationDialog({
+    state,
+    onClose,
+    onConfirm,
+    busy,
+}: {
+    state: DialogState;
+    onClose: () => void;
+    onConfirm: (payload: { name?: string; content?: string }) => Promise<void>;
+    busy: boolean;
+}) {
+    const [name, setName] = useState(state?.kind === 'rename' ? state.entry.name : '');
+    const [content, setContent] = useState('');
+
+    if (!state) return null;
+
+    const titleId = `file-browser-dialog-${state.kind}`;
+    const isCreateFile = state.kind === 'create' && state.entryKind === 'file';
+
+    return (
+        <Overlay onClose={busy ? () => {} : onClose} labelledBy={titleId}>
+            <div className="flex items-center justify-between border-b border-border p-5">
+                <div>
+                    <h3 id={titleId} className="text-base font-semibold text-foreground">
+                        {state.kind === 'create' && state.entryKind === 'file' && 'Create File'}
+                        {state.kind === 'create' && state.entryKind === 'directory' && 'Create Folder'}
+                        {state.kind === 'rename' && 'Rename Entry'}
+                        {state.kind === 'delete' && (state.entries.length > 1 ? 'Delete Selected Entries' : 'Delete Entry')}
+                    </h3>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                        {state.kind === 'delete'
+                            ? 'This action cannot be undone.'
+                            : 'Changes are applied immediately on the server.'}
+                    </p>
+                </div>
+                <Button variant="ghost" size="icon" onClick={onClose} disabled={busy} aria-label="Close dialog">
+                    <X className="h-4 w-4" />
+                </Button>
+            </div>
+
+            <div className="space-y-4 p-5">
+                {state.kind === 'delete' ? (
+                    <div className="rounded-xl border border-border bg-secondary/20 p-4 text-sm text-foreground">
+                        <p className="font-medium">
+                            {state.entries.length > 1
+                                ? `Delete ${state.entries.length} selected entries?`
+                                : `Delete ${state.entries[0]?.name}?`}
+                        </p>
+                        <div className="mt-3 space-y-1 text-xs text-muted-foreground">
+                            {state.entries.slice(0, 6).map((entry) => (
+                                <p key={entry.path}>{entry.path}</p>
+                            ))}
+                            {state.entries.length > 6 && <p>…and {state.entries.length - 6} more</p>}
+                        </div>
+                    </div>
+                ) : (
+                    <>
+                        <Input
+                            label="Name"
+                            value={name}
+                            onChange={(event) => setName(event.target.value)}
+                            placeholder={state.kind === 'create' ? 'example.txt' : undefined}
+                            autoFocus
+                        />
+                        {isCreateFile && (
+                            <div className="space-y-1.5">
+                                <label className="block text-sm font-medium text-foreground" htmlFor="new-file-content">
+                                    Initial content
+                                </label>
+                                <textarea
+                                    id="new-file-content"
+                                    value={content}
+                                    onChange={(event) => setContent(event.target.value)}
+                                    className="min-h-[10rem] w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground outline-none transition-colors focus:border-ring focus:ring-2 focus:ring-ring/40"
+                                    spellCheck={false}
+                                />
+                            </div>
+                        )}
+                    </>
+                )}
+            </div>
+
+            <div className="flex items-center justify-end gap-2 border-t border-border p-5">
+                <Button variant="outline" onClick={onClose} disabled={busy}>Cancel</Button>
+                <Button
+                    variant={state.kind === 'delete' ? 'destructive' : 'default'}
+                    loading={busy}
+                    onClick={() => onConfirm({ name, content })}
+                    disabled={state.kind !== 'delete' && !name.trim()}
+                >
+                    {state.kind === 'delete' ? 'Delete' : 'Confirm'}
+                </Button>
+            </div>
+        </Overlay>
+    );
+}
+
+function renderPreviewContent({
+    isEditing,
+    editorValue,
+    onEditorChange,
+    preview,
+    onOpenLightbox,
+}: {
+    isEditing: boolean;
+    editorValue: string;
+    onEditorChange: (value: string) => void;
+    preview: PreviewFile;
+    onOpenLightbox: () => void;
+}) {
+    if (isEditing) {
+        return (
+            <textarea
+                value={editorValue}
+                onChange={(event) => onEditorChange(event.target.value)}
+                className="min-h-[28rem] w-full rounded-xl border border-border bg-background p-4 font-mono text-sm text-foreground outline-none focus:ring-2 focus:ring-ring/40"
+                spellCheck={false}
+                data-testid="editor-textarea"
+            />
+        );
+    }
+
+    if (preview.kind === 'image' && preview.content) {
+        return (
+            <button
+                type="button"
+                className="overflow-hidden rounded-xl border border-border bg-secondary/20 p-3 text-left"
+                onClick={onOpenLightbox}
+                aria-label="Open image preview"
+            >
+                <Image
+                    src={`data:${preview.mimeType || 'image/png'};base64,${preview.content}`}
+                    alt={preview.name}
+                    width={1600}
+                    height={1200}
+                    unoptimized
+                    className="max-h-[32rem] w-full rounded-lg object-contain"
+                />
+            </button>
+        );
+    }
+
+    if (preview.kind === 'log' && preview.tailLines) {
+        return (
+            <div className="overflow-hidden rounded-xl border border-border bg-[#0b1020] text-slate-200">
+                <div className="border-b border-white/10 px-4 py-2 text-xs text-slate-400">Tail view</div>
+                <div className="max-h-[32rem] overflow-auto p-4 font-mono text-xs leading-6" data-testid="log-preview">
+                    {preview.tailLines.map((line, index) => (
+                        <div key={`${index}-${line.slice(0, 24)}`} className="grid grid-cols-[44px,minmax(0,1fr)] gap-3">
+                            <span className="text-slate-500">{index + 1}</span>
+                            <span className="break-all">{line || ' '}</span>
+                        </div>
+                    ))}
+                </div>
+            </div>
+        );
+    }
+
+    if (preview.content && preview.encoding === 'utf8') {
+        return (
+            <div className="overflow-hidden rounded-xl border border-border bg-[#0b1020] text-slate-200">
+                <div className="border-b border-white/10 px-4 py-2 text-xs text-slate-400">
+                    {preview.mimeType || 'Text preview'}
+                </div>
+                <div className="max-h-[32rem] overflow-auto p-4 font-mono text-xs leading-6" data-testid="text-preview">
+                    {preview.content.split('\n').map((line, index) => (
+                        <div key={`${index}-${line.slice(0, 24)}`} className="grid grid-cols-[44px,minmax(0,1fr)] gap-3">
+                            <span className="select-none text-slate-500">{index + 1}</span>
+                            <span className="break-all">{line || ' '}</span>
+                        </div>
+                    ))}
+                </div>
+            </div>
+        );
+    }
+
+    if (preview.kind === 'image' && !preview.content) {
+        return (
+            <div className="rounded-xl border border-border bg-secondary/20 p-4 text-sm text-muted-foreground">
+                Image preview is unavailable because the file exceeds the preview limit.
+            </div>
+        );
+    }
+
+    return (
+        <div className="rounded-xl border border-border bg-secondary/20 p-4 text-sm text-muted-foreground">
+            Binary preview is not supported for this file type. Use download or open the file from the terminal.
+        </div>
+    );
+}
+
 export function FileBrowserHeaderShortcuts() {
     const router = useRouter();
     const pathname = usePathname();
@@ -175,7 +472,7 @@ export function FileBrowserHeaderShortcuts() {
             if (customEvent.detail) setSettings(customEvent.detail);
         };
 
-        load();
+        void load();
         window.addEventListener('file-browser-shortcuts-updated', handleUpdated);
         return () => window.removeEventListener('file-browser-shortcuts-updated', handleUpdated);
     }, []);
@@ -200,79 +497,17 @@ export function FileBrowserHeaderShortcuts() {
     );
 }
 
-function TreeBranch({
-    node,
-    currentPath,
-    expanded,
-    loadingPaths,
-    onToggle,
-    onSelect,
-}: {
-    node: TreeNode;
-    currentPath: string;
-    expanded: Set<string>;
-    loadingPaths: Set<string>;
-    onToggle: (path: string, isExpanded: boolean) => void;
-    onSelect: (path: string) => void;
-}) {
-    const isExpanded = expanded.has(node.path);
-    const isActive = currentPath === node.path;
-
-    return (
-        <div className="space-y-1">
-            <div className="flex items-center gap-1">
-                <button
-                    className="min-h-[32px] min-w-[32px] rounded-md text-muted-foreground hover:bg-accent hover:text-foreground transition-colors flex items-center justify-center"
-                    onClick={() => onToggle(node.path, isExpanded)}
-                    disabled={!node.hasChildren && !node.children?.length}
-                >
-                    <ChevronRight className={cn('w-4 h-4 transition-transform', isExpanded && 'rotate-90')} />
-                </button>
-                <button
-                    onClick={() => onSelect(node.path)}
-                    className={cn(
-                        'flex min-h-[36px] flex-1 items-center gap-2 rounded-lg px-2 text-left text-sm transition-colors',
-                        isActive ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-accent hover:text-foreground',
-                    )}
-                    title={node.path}
-                >
-                    {isExpanded ? <FolderOpen className="w-4 h-4 shrink-0" /> : <Folder className="w-4 h-4 shrink-0" />}
-                    <span className="truncate">{node.name || node.path}</span>
-                    {loadingPaths.has(node.path) && <LoaderCircle className="ml-auto h-3.5 w-3.5 animate-spin" />}
-                </button>
-            </div>
-            {isExpanded && node.children && (
-                <div className="ml-5 border-l border-border pl-2">
-                    {node.children.map((child) => (
-                        <TreeBranch
-                            key={child.path}
-                            node={child}
-                            currentPath={currentPath}
-                            expanded={expanded}
-                            loadingPaths={loadingPaths}
-                            onToggle={onToggle}
-                            onSelect={onSelect}
-                        />
-                    ))}
-                </div>
-            )}
-        </div>
-    );
-}
-
 export default function FileBrowserPage() {
     const router = useRouter();
     const searchParams = useSearchParams();
-    const pathFromQuery = searchParams.get('path') || '';
-    const initialPath = pathFromQuery || '/';
-
+    const initialPath = searchParams.get('path') || '';
     const [settings, setSettings] = useState<FileBrowserSettings>(DEFAULT_SETTINGS);
     const [loading, setLoading] = useState(true);
     const [listing, setListing] = useState<DirectoryListing | null>(null);
     const [tree, setTree] = useState<TreeNode[]>([]);
     const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set(['/']));
     const [loadingTreePaths, setLoadingTreePaths] = useState<Set<string>>(new Set());
-    const [currentPath, setCurrentPath] = useState(initialPath);
+    const [currentPath, setCurrentPath] = useState(initialPath || DEFAULT_SETTINGS.defaultPath);
     const [search, setSearch] = useState('');
     const [showSettings, setShowSettings] = useState(false);
     const [selectedEntry, setSelectedEntry] = useState<FileEntry | null>(null);
@@ -282,72 +517,40 @@ export default function FileBrowserPage() {
     const [isEditing, setIsEditing] = useState(false);
     const [saving, setSaving] = useState(false);
     const [showTree, setShowTree] = useState(true);
+    const [showMobileTree, setShowMobileTree] = useState(false);
     const [dragging, setDragging] = useState(false);
     const [uploadProgress, setUploadProgress] = useState(0);
     const [autoRefreshLogs, setAutoRefreshLogs] = useState(false);
     const [history, setHistory] = useState<string[]>([]);
     const [historyIndex, setHistoryIndex] = useState(-1);
     const [treeRoots, setTreeRoots] = useState<string[]>(['/']);
+    const [dialogState, setDialogState] = useState<DialogState>(null);
+    const [dialogBusy, setDialogBusy] = useState(false);
+    const [lightboxOpen, setLightboxOpen] = useState(false);
+    const [selectedPaths, setSelectedPaths] = useState<Set<string>>(new Set());
+    const [activeRowPath, setActiveRowPath] = useState<string | null>(null);
     const historyIndexRef = useRef(-1);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const listRef = useRef<HTMLDivElement>(null);
     const { toast } = useToast();
 
     const filteredEntries = useMemo(() => (
         listing?.entries.filter((entry) => matchesFilter(entry.name, search)) || []
     ), [listing?.entries, search]);
 
+    const selectedEntries = useMemo(() => {
+        const byPath = new Map((listing?.entries || []).map((entry) => [entry.path, entry]));
+        return Array.from(selectedPaths).map((entryPath) => byPath.get(entryPath)).filter(Boolean) as FileEntry[];
+    }, [listing?.entries, selectedPaths]);
+
     const [scrollTop, setScrollTop] = useState(0);
-    const rowHeight = 52;
-    const visibleHeight = 520;
+    const rowHeight = 56;
+    const visibleHeight = 560;
     const useVirtualization = filteredEntries.length > 200;
     const startIndex = useVirtualization ? Math.max(0, Math.floor(scrollTop / rowHeight) - 8) : 0;
     const visibleCount = useVirtualization ? Math.ceil(visibleHeight / rowHeight) + 16 : filteredEntries.length;
     const visibleEntries = useVirtualization ? filteredEntries.slice(startIndex, startIndex + visibleCount) : filteredEntries;
-
-    const loadSettings = useCallback(async () => {
-        try {
-            const data = await fetchJson<{ settings: FileBrowserSettings }>('/api/modules/file-browser/settings');
-            setSettings(data.settings);
-            setTreeRoots(Array.from(new Set(data.settings.shortcuts.map((shortcut) => shortcut.path).concat('/'))));
-
-            if (!pathFromQuery && data.settings.defaultPath) {
-                setCurrentPath(data.settings.defaultPath);
-            }
-        } catch {
-            setSettings(DEFAULT_SETTINGS);
-        }
-    }, [pathFromQuery]);
-
-    const loadListing = useCallback(async (nextPath: string, recordHistory = false) => {
-        setLoading(true);
-        try {
-            const data = await fetchJson<{ listing: DirectoryListing }>(`/api/modules/file-browser?path=${encodeURIComponent(nextPath)}`);
-            setListing(data.listing);
-            setCurrentPath(data.listing.path);
-            if (recordHistory) {
-                setHistory((current) => {
-                    const trimmed = current.slice(0, historyIndexRef.current + 1);
-                    return [...trimmed, data.listing.path];
-                });
-                setHistoryIndex((current) => {
-                    const next = current + 1;
-                    historyIndexRef.current = next;
-                    return next;
-                });
-            } else {
-                setHistory((current) => current.length === 0 ? [data.listing.path] : current);
-                setHistoryIndex((current) => {
-                    const next = current < 0 ? 0 : current;
-                    historyIndexRef.current = next;
-                    return next;
-                });
-            }
-        } catch (error) {
-            toast({ title: error instanceof Error ? error.message : 'Failed to load directory', variant: 'destructive' });
-        } finally {
-            setLoading(false);
-        }
-    }, [toast]);
+    const breadcrumbs = useMemo(() => buildSegments(currentPath), [currentPath]);
 
     const mergeTreeNode = useCallback((nodes: TreeNode[], pathToReplace: string, children: TreeNode[] | undefined): TreeNode[] => (
         nodes.map((node) => {
@@ -357,6 +560,60 @@ export default function FileBrowserPage() {
             return node.children ? { ...node, children: mergeTreeNode(node.children, pathToReplace, children) } : node;
         })
     ), []);
+
+    const loadSettings = useCallback(async () => {
+        try {
+            const data = await fetchJson<{ settings: FileBrowserSettings }>('/api/modules/file-browser/settings');
+            setSettings(data.settings);
+            setTreeRoots(Array.from(new Set(data.settings.shortcuts.map((shortcut) => shortcut.path).concat('/'))));
+            if (!initialPath) {
+                setCurrentPath(data.settings.defaultPath || '/');
+            }
+        } catch {
+            setSettings(DEFAULT_SETTINGS);
+            setTreeRoots(Array.from(new Set(DEFAULT_SETTINGS.shortcuts.map((shortcut) => shortcut.path).concat('/'))));
+        }
+    }, [initialPath]);
+
+    const loadListing = useCallback(async (nextPath: string, pushHistory = false) => {
+        setLoading(true);
+        try {
+            const data = await fetchJson<{ listing: DirectoryListing }>(`/api/modules/file-browser?path=${encodeURIComponent(nextPath)}`);
+            setListing(data.listing);
+            setCurrentPath(data.listing.path);
+            setSelectedPaths((current) => {
+                const validPaths = new Set(data.listing.entries.map((entry) => entry.path));
+                return new Set(Array.from(current).filter((entryPath) => validPaths.has(entryPath)));
+            });
+
+            if (selectedEntry && selectedEntry.parentPath !== data.listing.path) {
+                setSelectedEntry(null);
+                setPreview(null);
+                setIsEditing(false);
+            }
+
+            if (pushHistory) {
+                setHistory((current) => {
+                    const trimmed = current.slice(0, historyIndexRef.current + 1);
+                    const nextHistory = trimmed[trimmed.length - 1] === data.listing.path
+                        ? trimmed
+                        : [...trimmed, data.listing.path];
+                    const nextIndex = nextHistory.length - 1;
+                    historyIndexRef.current = nextIndex;
+                    setHistoryIndex(nextIndex);
+                    return nextHistory;
+                });
+            } else if (historyIndexRef.current < 0) {
+                historyIndexRef.current = 0;
+                setHistory([data.listing.path]);
+                setHistoryIndex(0);
+            }
+        } catch (error) {
+            toast({ title: error instanceof Error ? error.message : 'Failed to load directory', variant: 'destructive' });
+        } finally {
+            setLoading(false);
+        }
+    }, [selectedEntry, toast]);
 
     const loadTreeRoot = useCallback(async (rootPath: string) => {
         try {
@@ -405,135 +662,41 @@ export default function FileBrowserPage() {
         }
     }, [toast]);
 
-    useEffect(() => {
-        void loadSettings();
-    }, [loadSettings]);
-
-    useEffect(() => {
-        void loadListing(pathFromQuery || settings.defaultPath || '/');
-    }, [loadListing, pathFromQuery, settings.defaultPath]);
-
-    useEffect(() => {
-        treeRoots.forEach((rootPath) => {
-            void loadTreeRoot(rootPath);
-        });
-    }, [loadTreeRoot, treeRoots]);
-
-    useEffect(() => {
-        if (!autoRefreshLogs || preview?.kind !== 'log' || !selectedEntry) return;
-        const interval = window.setInterval(() => {
-            void loadPreview(selectedEntry);
-        }, 3000);
-        return () => window.clearInterval(interval);
-    }, [autoRefreshLogs, loadPreview, preview?.kind, selectedEntry]);
-
-    const navigate = (nextPath: string, recordHistory = true) => {
+    const navigate = useCallback((nextPath: string, pushHistory = true) => {
         router.replace(`/file-browser?path=${encodeURIComponent(nextPath)}`);
-        if (!recordHistory) {
-            void loadListing(nextPath, false);
-            return;
-        }
+        void loadListing(nextPath, pushHistory);
+        setShowMobileTree(false);
+    }, [loadListing, router]);
 
-        setHistory((current) => {
-            const trimmed = current.slice(0, historyIndexRef.current + 1);
-            return [...trimmed, nextPath];
-        });
-        setHistoryIndex((current) => {
-            const next = current + 1;
-            historyIndexRef.current = next;
-            return next;
-        });
-    };
-
-    const refresh = () => {
-        void loadListing(currentPath);
+    const refresh = useCallback(() => {
+        void loadListing(currentPath, false);
         if (selectedEntry && selectedEntry.parentPath === currentPath) {
             void loadPreview(selectedEntry, isEditing);
         }
-    };
+        treeRoots.forEach((rootPath) => {
+            void loadTreeRoot(rootPath);
+        });
+    }, [currentPath, isEditing, loadListing, loadPreview, loadTreeRoot, selectedEntry, treeRoots]);
 
-    const handleCreate = async (kind: 'file' | 'directory') => {
-        const label = kind === 'file' ? 'file' : 'folder';
-        const name = window.prompt(`New ${label} name`);
-        if (!name) return;
+    const openDeleteDialog = useCallback((entries: FileEntry[]) => {
+        if (entries.length === 0) return;
+        setDialogState({ kind: 'delete', entries });
+    }, []);
 
-        try {
-            await fetchJson('/api/modules/file-browser', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    parentPath: currentPath,
-                    name,
-                    kind,
-                    content: kind === 'file' ? '' : undefined,
-                }),
-            });
-            toast({ title: `${kind === 'file' ? 'File' : 'Folder'} created`, variant: 'success' });
-            refresh();
-            if (kind === 'directory') {
-                void loadTreeRoot(currentPath);
-            }
-        } catch (error) {
-            toast({ title: error instanceof Error ? error.message : `Failed to create ${label}`, variant: 'destructive' });
-        }
-    };
-
-    const handleRename = async (entry: FileEntry) => {
-        const nextName = window.prompt('Rename entry', entry.name);
-        if (!nextName || nextName === entry.name) return;
-
-        try {
-            const data = await fetchJson<{ path: string }>('/api/modules/file-browser', {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ path: entry.path, name: nextName }),
-            });
-            toast({ title: 'Entry renamed', variant: 'success' });
-            refresh();
-            if (selectedEntry?.path === entry.path) {
-                setSelectedEntry({ ...entry, path: data.path, name: nextName });
-            }
-        } catch (error) {
-            toast({ title: error instanceof Error ? error.message : 'Rename failed', variant: 'destructive' });
-        }
-    };
-
-    const handleDelete = async (entry: FileEntry) => {
-        const confirmed = window.confirm(`Delete ${entry.name}? This cannot be undone.`);
-        if (!confirmed) return;
-
-        try {
-            await fetchJson('/api/modules/file-browser', {
-                method: 'DELETE',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ path: entry.path }),
-            });
-            toast({ title: 'Entry deleted', variant: 'success' });
-            if (selectedEntry?.path === entry.path) {
-                setSelectedEntry(null);
-                setPreview(null);
-                setIsEditing(false);
-            }
-            refresh();
-        } catch (error) {
-            toast({ title: error instanceof Error ? error.message : 'Delete failed', variant: 'destructive' });
-        }
-    };
-
-    const handleCopyPath = async (entry: FileEntry) => {
+    const handleCopyPath = useCallback(async (entry: FileEntry) => {
         try {
             await navigator.clipboard.writeText(entry.path);
             toast({ title: 'Path copied', variant: 'success' });
         } catch {
             toast({ title: 'Clipboard unavailable', variant: 'warning' });
         }
-    };
+    }, [toast]);
 
-    const handleDownload = (entry: FileEntry) => {
-        window.open(`/api/modules/file-browser/file?path=${encodeURIComponent(entry.path)}&action=download`, '_blank');
-    };
+    const handleDownload = useCallback((entry: FileEntry) => {
+        window.open(`/api/modules/file-browser/file?path=${encodeURIComponent(entry.path)}&action=download`, '_blank', 'noopener,noreferrer');
+    }, []);
 
-    const handleSave = async () => {
+    const handleSave = useCallback(async () => {
         if (!selectedEntry) return;
         setSaving(true);
         try {
@@ -544,15 +707,16 @@ export default function FileBrowserPage() {
             });
             toast({ title: 'File saved', variant: 'success' });
             setIsEditing(false);
+            void loadPreview(selectedEntry, false);
             refresh();
         } catch (error) {
             toast({ title: error instanceof Error ? error.message : 'Save failed', variant: 'destructive' });
         } finally {
             setSaving(false);
         }
-    };
+    }, [editorValue, loadPreview, refresh, selectedEntry, toast]);
 
-    const uploadFiles = async (files: FileList | null) => {
+    const uploadFiles = useCallback(async (files: FileList | null) => {
         if (!files || files.length === 0) return;
 
         const formData = new FormData();
@@ -590,54 +754,199 @@ export default function FileBrowserPage() {
         };
 
         request.send(formData);
-    };
+    }, [currentPath, refresh, toast]);
 
-    const handleHistoryMove = (direction: -1 | 1) => {
+    const handleHistoryMove = useCallback((direction: -1 | 1) => {
         const nextIndex = historyIndex + direction;
         if (nextIndex < 0 || nextIndex >= history.length) return;
         historyIndexRef.current = nextIndex;
         setHistoryIndex(nextIndex);
         navigate(history[nextIndex], false);
+    }, [history, historyIndex, navigate]);
+
+    const handleDialogConfirm = useCallback(async ({ name, content }: { name?: string; content?: string }) => {
+        if (!dialogState) return;
+        setDialogBusy(true);
+        try {
+            if (dialogState.kind === 'create') {
+                await fetchJson('/api/modules/file-browser', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        parentPath: currentPath,
+                        name,
+                        kind: dialogState.entryKind,
+                        content: dialogState.entryKind === 'file' ? content || '' : undefined,
+                    }),
+                });
+                toast({
+                    title: dialogState.entryKind === 'file' ? 'File created' : 'Folder created',
+                    variant: 'success',
+                });
+            }
+
+            if (dialogState.kind === 'rename') {
+                const data = await fetchJson<{ path: string }>('/api/modules/file-browser', {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ path: dialogState.entry.path, name }),
+                });
+                if (selectedEntry?.path === dialogState.entry.path) {
+                    setSelectedEntry({ ...dialogState.entry, path: data.path, name: name || dialogState.entry.name });
+                }
+                toast({ title: 'Entry renamed', variant: 'success' });
+            }
+
+            if (dialogState.kind === 'delete') {
+                for (const entry of dialogState.entries) {
+                    await fetchJson('/api/modules/file-browser', {
+                        method: 'DELETE',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ path: entry.path }),
+                    });
+                }
+                setSelectedPaths(new Set());
+                if (selectedEntry && dialogState.entries.some((entry) => entry.path === selectedEntry.path)) {
+                    setSelectedEntry(null);
+                    setPreview(null);
+                    setIsEditing(false);
+                }
+                toast({
+                    title: dialogState.entries.length > 1 ? 'Entries deleted' : 'Entry deleted',
+                    variant: 'success',
+                });
+            }
+
+            setDialogState(null);
+            refresh();
+        } catch (error) {
+            toast({ title: error instanceof Error ? error.message : 'Action failed', variant: 'destructive' });
+        } finally {
+            setDialogBusy(false);
+        }
+    }, [currentPath, dialogState, refresh, selectedEntry, toast]);
+
+    useEffect(() => {
+        void loadSettings();
+    }, [loadSettings]);
+
+    useEffect(() => {
+        const nextPath = initialPath || settings.defaultPath || '/';
+        void loadListing(nextPath, false);
+    }, [initialPath, loadListing, settings.defaultPath]);
+
+    useEffect(() => {
+        treeRoots.forEach((rootPath) => {
+            void loadTreeRoot(rootPath);
+        });
+    }, [loadTreeRoot, treeRoots]);
+
+    useEffect(() => {
+        if (!autoRefreshLogs || preview?.kind !== 'log' || !selectedEntry) return;
+        const interval = window.setInterval(() => {
+            void loadPreview(selectedEntry, false);
+        }, 3000);
+        return () => window.clearInterval(interval);
+    }, [autoRefreshLogs, loadPreview, preview?.kind, selectedEntry]);
+
+    useEffect(() => {
+        if (!filteredEntries.length) {
+            setActiveRowPath(null);
+            return;
+        }
+        if (!activeRowPath || !filteredEntries.some((entry) => entry.path === activeRowPath)) {
+            setActiveRowPath(filteredEntries[0]?.path || null);
+        }
+    }, [activeRowPath, filteredEntries]);
+
+    const handleKeyboardListNavigation = (event: React.KeyboardEvent<HTMLDivElement>) => {
+        if (!filteredEntries.length) return;
+        const currentIndex = filteredEntries.findIndex((entry) => entry.path === activeRowPath);
+        const safeIndex = currentIndex >= 0 ? currentIndex : 0;
+
+        if (event.key === 'ArrowDown') {
+            event.preventDefault();
+            setActiveRowPath(filteredEntries[Math.min(filteredEntries.length - 1, safeIndex + 1)]?.path || null);
+        }
+
+        if (event.key === 'ArrowUp') {
+            event.preventDefault();
+            setActiveRowPath(filteredEntries[Math.max(0, safeIndex - 1)]?.path || null);
+        }
+
+        if (event.key === 'Enter') {
+            event.preventDefault();
+            const activeEntry = filteredEntries[safeIndex];
+            if (!activeEntry) return;
+            if (activeEntry.isDirectory) {
+                navigate(activeEntry.path);
+                return;
+            }
+            void loadPreview(activeEntry, false);
+        }
+
+        if (event.key === 'Backspace' && listing?.parentPath) {
+            event.preventDefault();
+            navigate(listing.parentPath);
+        }
+
+        if (event.key === ' ' && filteredEntries[safeIndex]) {
+            event.preventDefault();
+            const activeEntry = filteredEntries[safeIndex];
+            setSelectedPaths((current) => {
+                const next = new Set(current);
+                if (next.has(activeEntry.path)) next.delete(activeEntry.path);
+                else next.add(activeEntry.path);
+                return next;
+            });
+        }
     };
 
-    const breadcrumbs = useMemo(() => buildSegments(currentPath), [currentPath]);
+    const treePanel = (
+        <Card className={cn('flex flex-col', !showTree && 'lg:w-[72px]')}>
+            <CardHeader className="pb-3">
+                <div className="flex items-center justify-between gap-2">
+                    <CardTitle>{showTree ? 'Folders' : 'Tree'}</CardTitle>
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setShowTree((current) => !current)}
+                        aria-label={showTree ? 'Collapse folder tree' : 'Expand folder tree'}
+                    >
+                        {showTree ? <PanelLeftClose className="h-4 w-4" /> : <PanelLeftOpen className="h-4 w-4" />}
+                    </Button>
+                </div>
+            </CardHeader>
+            {showTree && (
+                <CardContent className="min-h-0 flex-1 space-y-3 overflow-y-auto" role="tree" aria-label="Directory tree">
+                    {tree.map((node) => (
+                        <TreeBranch
+                            key={node.path}
+                            node={node}
+                            currentPath={currentPath}
+                            expanded={expandedPaths}
+                            loadingPaths={loadingTreePaths}
+                            onToggle={(pathValue, isExpanded) => {
+                                setExpandedPaths((current) => {
+                                    const next = new Set(current);
+                                    if (isExpanded) next.delete(pathValue);
+                                    else next.add(pathValue);
+                                    return next;
+                                });
+                                if (!isExpanded) void loadTreeChildren(pathValue);
+                            }}
+                            onSelect={(pathValue) => navigate(pathValue)}
+                        />
+                    ))}
+                </CardContent>
+            )}
+        </Card>
+    );
 
     return (
         <>
             <div className="flex h-full min-h-0 gap-3">
-                <Card className={cn('hidden lg:flex lg:w-[280px] lg:flex-col', !showTree && 'lg:w-[72px]')}>
-                    <CardHeader className="pb-3">
-                        <div className="flex items-center justify-between gap-2">
-                            <CardTitle>{showTree ? 'Folders' : 'Tree'}</CardTitle>
-                            <Button variant="ghost" size="icon" onClick={() => setShowTree((current) => !current)}>
-                                {showTree ? <PanelLeftClose className="w-4 h-4" /> : <PanelLeftOpen className="w-4 h-4" />}
-                            </Button>
-                        </div>
-                    </CardHeader>
-                    {showTree && (
-                        <CardContent className="min-h-0 flex-1 overflow-y-auto space-y-3">
-                            {tree.map((node) => (
-                                <TreeBranch
-                                    key={node.path}
-                                    node={node}
-                                    currentPath={currentPath}
-                                    expanded={expandedPaths}
-                                    loadingPaths={loadingTreePaths}
-                                    onToggle={(pathValue, isExpanded) => {
-                                        setExpandedPaths((current) => {
-                                            const next = new Set(current);
-                                            if (isExpanded) next.delete(pathValue);
-                                            else next.add(pathValue);
-                                            return next;
-                                        });
-                                        if (!isExpanded) void loadTreeChildren(pathValue);
-                                    }}
-                                    onSelect={(pathValue) => navigate(pathValue)}
-                                />
-                            ))}
-                        </CardContent>
-                    )}
-                </Card>
+                <div className="hidden lg:flex lg:w-[280px] lg:flex-col">{treePanel}</div>
 
                 <div className="grid min-h-0 flex-1 gap-3 xl:grid-cols-[minmax(0,1.25fr),minmax(360px,0.85fr)]">
                     <Card className="min-h-0 flex flex-col">
@@ -661,6 +970,9 @@ export default function FileBrowserPage() {
                                         <Badge variant="secondary">{listing?.summary.directories || 0} dirs</Badge>
                                         <Badge variant="secondary">{listing?.summary.files || 0} files</Badge>
                                         <Badge variant="outline">{formatBytes(listing?.summary.totalSize || 0)}</Badge>
+                                        {selectedEntries.length > 0 && (
+                                            <Badge variant="warning">{selectedEntries.length} selected</Badge>
+                                        )}
                                     </div>
                                     {listing?.git && (
                                         <div className="mt-2 flex flex-wrap items-center gap-2 rounded-lg border border-border bg-secondary/20 px-3 py-2 text-xs">
@@ -675,55 +987,69 @@ export default function FileBrowserPage() {
                                 </div>
 
                                 <div className="flex flex-wrap items-center gap-2">
-                                    <Button variant="outline" size="icon" onClick={() => handleHistoryMove(-1)} disabled={historyIndex <= 0}>
-                                        <ArrowLeft className="w-4 h-4" />
+                                    <Button variant="outline" size="icon" onClick={() => setShowMobileTree(true)} className="lg:hidden" aria-label="Open folder tree">
+                                        <PanelLeftOpen className="h-4 w-4" />
                                     </Button>
-                                    <Button variant="outline" size="icon" onClick={() => handleHistoryMove(1)} disabled={historyIndex < 0 || historyIndex >= history.length - 1}>
-                                        <ArrowRight className="w-4 h-4" />
+                                    <Button variant="outline" size="icon" onClick={() => handleHistoryMove(-1)} disabled={historyIndex <= 0} aria-label="Go back">
+                                        <ArrowLeft className="h-4 w-4" />
                                     </Button>
-                                    <Button variant="outline" size="icon" onClick={refresh}>
-                                        <RefreshCcw className="w-4 h-4" />
+                                    <Button variant="outline" size="icon" onClick={() => handleHistoryMove(1)} disabled={historyIndex < 0 || historyIndex >= history.length - 1} aria-label="Go forward">
+                                        <ArrowRight className="h-4 w-4" />
                                     </Button>
-                                    <Button variant="outline" size="icon" onClick={() => fileInputRef.current?.click()}>
-                                        <Upload className="w-4 h-4" />
+                                    <Button variant="outline" size="icon" onClick={refresh} aria-label="Refresh directory">
+                                        <RefreshCcw className="h-4 w-4" />
                                     </Button>
-                                    <Button variant="outline" size="icon" onClick={() => handleCreate('file')}>
-                                        <Plus className="w-4 h-4" />
+                                    <Button variant="outline" size="icon" onClick={() => fileInputRef.current?.click()} aria-label="Upload files">
+                                        <Upload className="h-4 w-4" />
                                     </Button>
-                                    <Button variant="outline" size="icon" onClick={() => handleCreate('directory')}>
-                                        <FolderPlus className="w-4 h-4" />
+                                    <Button variant="outline" size="icon" onClick={() => setDialogState({ kind: 'create', entryKind: 'file' })} aria-label="Create file">
+                                        <Plus className="h-4 w-4" />
                                     </Button>
-                                    <Button variant="outline" size="icon" onClick={() => setShowSettings(true)}>
-                                        <Settings2 className="w-4 h-4" />
+                                    <Button variant="outline" size="icon" onClick={() => setDialogState({ kind: 'create', entryKind: 'directory' })} aria-label="Create folder">
+                                        <FolderPlus className="h-4 w-4" />
+                                    </Button>
+                                    <Button variant="outline" size="icon" onClick={() => setShowSettings(true)} aria-label="Open settings">
+                                        <Settings2 className="h-4 w-4" />
                                     </Button>
                                 </div>
                             </div>
 
-                            <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
-                                <Input
-                                    icon={<Search className="w-4 h-4" />}
-                                    placeholder="Filter files in this directory. Supports *.log and ? wildcards."
-                                    value={search}
-                                    onChange={(event) => setSearch(event.target.value)}
-                                    className="lg:max-w-md"
-                                />
-                                <div className="flex flex-wrap gap-2 overflow-x-auto">
-                                    {settings.shortcuts.map((shortcut) => (
-                                        <button
-                                            key={shortcut.id}
-                                            onClick={() => navigate(shortcut.path)}
-                                            className={cn(
-                                                'min-h-[36px] rounded-lg border px-3 text-xs font-medium transition-colors',
-                                                currentPath === shortcut.path
-                                                    ? 'border-primary bg-primary text-primary-foreground'
-                                                    : 'border-border bg-secondary/50 text-muted-foreground hover:bg-accent hover:text-foreground',
-                                            )}
-                                            title={shortcut.path}
-                                        >
-                                            {shortcut.label}
-                                        </button>
-                                    ))}
+                            <div className="flex flex-col gap-3">
+                                <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+                                    <Input
+                                        icon={<Search className="h-4 w-4" />}
+                                        placeholder="Filter files in this directory. Supports *.log and ? wildcards."
+                                        value={search}
+                                        onChange={(event) => setSearch(event.target.value)}
+                                        className="lg:max-w-md"
+                                        aria-label="Filter files"
+                                    />
+                                    <div className="flex flex-wrap gap-2 overflow-x-auto">
+                                        {settings.shortcuts.map((shortcut) => (
+                                            <button
+                                                key={shortcut.id}
+                                                onClick={() => navigate(shortcut.path)}
+                                                className={cn(
+                                                    'min-h-[36px] rounded-lg border px-3 text-xs font-medium transition-colors',
+                                                    currentPath === shortcut.path
+                                                        ? 'border-primary bg-primary text-primary-foreground'
+                                                        : 'border-border bg-secondary/50 text-muted-foreground hover:bg-accent hover:text-foreground',
+                                                )}
+                                                title={shortcut.path}
+                                            >
+                                                {shortcut.label}
+                                            </button>
+                                        ))}
+                                    </div>
                                 </div>
+
+                                {selectedEntries.length > 0 && (
+                                    <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-secondary/20 px-3 py-2">
+                                        <span className="text-xs font-medium text-foreground">Bulk actions</span>
+                                        <Button variant="outline" size="sm" onClick={() => setSelectedPaths(new Set())}>Clear</Button>
+                                        <Button variant="destructive" size="sm" onClick={() => openDeleteDialog(selectedEntries)}>Delete selected</Button>
+                                    </div>
+                                )}
                             </div>
                         </CardHeader>
 
@@ -734,6 +1060,7 @@ export default function FileBrowserPage() {
                                 multiple
                                 className="hidden"
                                 onChange={(event) => uploadFiles(event.target.files)}
+                                data-testid="file-upload-input"
                             />
 
                             <div
@@ -751,17 +1078,18 @@ export default function FileBrowserPage() {
                                     setDragging(false);
                                     void uploadFiles(event.dataTransfer.files);
                                 }}
+                                data-testid="upload-dropzone"
                             >
                                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                                     <div>
                                         <p className="font-medium text-foreground">Drop files here to upload</p>
-                                        <p className="text-xs text-muted-foreground mt-1">Uploads stream directly into the current directory.</p>
+                                        <p className="mt-1 text-xs text-muted-foreground">Uploads stream directly into the current directory.</p>
                                     </div>
                                     {uploadProgress > 0 ? (
                                         <Badge variant="secondary">{uploadProgress}%</Badge>
                                     ) : (
                                         <Button variant="secondary" size="sm" className="gap-1.5" onClick={() => fileInputRef.current?.click()}>
-                                            <Upload className="w-3.5 h-3.5" />
+                                            <Upload className="h-3.5 w-3.5" />
                                             Choose Files
                                         </Button>
                                     )}
@@ -779,7 +1107,8 @@ export default function FileBrowserPage() {
                             ) : (
                                 <>
                                     <div className="hidden md:block px-5 pt-4">
-                                        <div className="grid grid-cols-[minmax(0,1.2fr),110px,165px,110px,188px] gap-3 border-b border-border px-3 py-2 text-xs font-medium text-muted-foreground">
+                                        <div className="grid grid-cols-[40px,minmax(0,1.2fr),110px,165px,110px,188px] gap-3 border-b border-border px-3 py-2 text-xs font-medium text-muted-foreground">
+                                            <span />
                                             <span>Name</span>
                                             <span className="text-right">Size</span>
                                             <span>Modified</span>
@@ -789,8 +1118,13 @@ export default function FileBrowserPage() {
                                     </div>
 
                                     <div
-                                        className="min-h-0 flex-1 overflow-y-auto"
+                                        ref={listRef}
+                                        className="min-h-0 flex-1 overflow-y-auto outline-none"
                                         onScroll={(event) => setScrollTop(event.currentTarget.scrollTop)}
+                                        onKeyDown={handleKeyboardListNavigation}
+                                        tabIndex={0}
+                                        aria-label="File list"
+                                        data-testid="file-list"
                                     >
                                         <div
                                             className="relative"
@@ -799,12 +1133,16 @@ export default function FileBrowserPage() {
                                             {(useVirtualization ? visibleEntries : filteredEntries).map((entry, index) => {
                                                 const actualIndex = useVirtualization ? startIndex + index : index;
                                                 const Icon = fileIcon(entry);
-                                                const row = (
+                                                const isSelected = selectedPaths.has(entry.path);
+                                                const isActive = activeRowPath === entry.path;
+
+                                                return (
                                                     <div
                                                         key={entry.path}
                                                         className={cn(
-                                                            'mx-5 grid items-center gap-3 border-b border-border/70 px-3 py-2 transition-colors md:grid-cols-[minmax(0,1.2fr),110px,165px,110px,188px]',
+                                                            'mx-5 grid items-center gap-3 border-b border-border/70 px-3 py-2 transition-colors md:grid-cols-[40px,minmax(0,1.2fr),110px,165px,110px,188px]',
                                                             selectedEntry?.path === entry.path ? 'bg-accent/40' : 'hover:bg-accent/20',
+                                                            isActive && 'ring-1 ring-inset ring-primary/40',
                                                         )}
                                                         style={useVirtualization ? {
                                                             position: 'absolute',
@@ -812,9 +1150,24 @@ export default function FileBrowserPage() {
                                                             top: actualIndex * rowHeight,
                                                             height: rowHeight,
                                                         } : undefined}
+                                                        onMouseEnter={() => setActiveRowPath(entry.path)}
+                                                        data-testid={`entry-row-${entry.name}`}
                                                     >
                                                         <button
-                                                            onClick={() => entry.isDirectory ? navigate(entry.path) : loadPreview(entry)}
+                                                            type="button"
+                                                            className="hidden h-9 w-9 items-center justify-center rounded-lg border border-border text-muted-foreground transition-colors hover:bg-accent md:flex"
+                                                            onClick={() => setSelectedPaths((current) => {
+                                                                const next = new Set(current);
+                                                                if (next.has(entry.path)) next.delete(entry.path);
+                                                                else next.add(entry.path);
+                                                                return next;
+                                                            })}
+                                                            aria-label={isSelected ? `Deselect ${entry.name}` : `Select ${entry.name}`}
+                                                        >
+                                                            {isSelected ? <CheckSquare className="h-4 w-4" /> : <Square className="h-4 w-4" />}
+                                                        </button>
+                                                        <button
+                                                            onClick={() => entry.isDirectory ? navigate(entry.path) : void loadPreview(entry, false)}
                                                             className="flex min-w-0 items-center gap-3 text-left"
                                                         >
                                                             <Icon className={cn('h-4 w-4 shrink-0', entry.isDirectory ? 'text-primary' : 'text-muted-foreground')} />
@@ -835,58 +1188,73 @@ export default function FileBrowserPage() {
                                                         <div className="flex items-center justify-end gap-1">
                                                             {!entry.isDirectory && (
                                                                 <>
-                                                                    <Button variant="ghost" size="icon" onClick={() => loadPreview(entry)} title="Preview">
-                                                                        <Eye className="w-4 h-4" />
+                                                                    <Button variant="ghost" size="icon" onClick={() => void loadPreview(entry, false)} aria-label={`Preview ${entry.name}`}>
+                                                                        <Eye className="h-4 w-4" />
                                                                     </Button>
-                                                                    <Button variant="ghost" size="icon" onClick={() => handleDownload(entry)} title="Download">
-                                                                        <Download className="w-4 h-4" />
+                                                                    <Button variant="ghost" size="icon" onClick={() => handleDownload(entry)} aria-label={`Download ${entry.name}`}>
+                                                                        <Download className="h-4 w-4" />
                                                                     </Button>
                                                                 </>
                                                             )}
-                                                            <Button variant="ghost" size="icon" onClick={() => handleCopyPath(entry)} title="Copy path">
-                                                                <Copy className="w-4 h-4" />
+                                                            <Button variant="ghost" size="icon" onClick={() => void handleCopyPath(entry)} aria-label={`Copy path for ${entry.name}`}>
+                                                                <Copy className="h-4 w-4" />
                                                             </Button>
-                                                            <Button variant="ghost" size="icon" onClick={() => handleRename(entry)} title="Rename">
-                                                                <Pencil className="w-4 h-4" />
+                                                            <Button variant="ghost" size="icon" onClick={() => setDialogState({ kind: 'rename', entry })} disabled={!entry.canWrite} aria-label={`Rename ${entry.name}`}>
+                                                                <Pencil className="h-4 w-4" />
                                                             </Button>
-                                                            <Button variant="ghost" size="icon" onClick={() => handleDelete(entry)} title="Delete">
-                                                                <Trash2 className="w-4 h-4" />
+                                                            <Button variant="ghost" size="icon" onClick={() => openDeleteDialog([entry])} disabled={!entry.canWrite} aria-label={`Delete ${entry.name}`}>
+                                                                <Trash2 className="h-4 w-4" />
                                                             </Button>
                                                         </div>
                                                     </div>
                                                 );
-
-                                                return row;
                                             })}
                                         </div>
                                     </div>
 
-                                    <div className="md:hidden overflow-y-auto px-4 pb-4 pt-3">
-                                        <div className="space-y-2">
-                                            {filteredEntries.map((entry) => {
-                                                const Icon = fileIcon(entry);
-                                                return (
-                                                    <div key={entry.path} className="rounded-xl border border-border bg-secondary/10 p-3">
-                                                        <button onClick={() => entry.isDirectory ? navigate(entry.path) : loadPreview(entry)} className="flex w-full items-start gap-3 text-left">
-                                                            <Icon className={cn('h-4 w-4 shrink-0 mt-0.5', entry.isDirectory ? 'text-primary' : 'text-muted-foreground')} />
+                                    <div className="space-y-2 overflow-y-auto px-4 pb-4 pt-3 md:hidden">
+                                        {filteredEntries.map((entry) => {
+                                            const Icon = fileIcon(entry);
+                                            const isSelected = selectedPaths.has(entry.path);
+
+                                            return (
+                                                <div key={entry.path} className="rounded-xl border border-border bg-secondary/10 p-3">
+                                                    <div className="flex items-start gap-2">
+                                                        <button
+                                                            type="button"
+                                                            className="mt-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border text-muted-foreground"
+                                                            onClick={() => setSelectedPaths((current) => {
+                                                                const next = new Set(current);
+                                                                if (next.has(entry.path)) next.delete(entry.path);
+                                                                else next.add(entry.path);
+                                                                return next;
+                                                            })}
+                                                            aria-label={isSelected ? `Deselect ${entry.name}` : `Select ${entry.name}`}
+                                                        >
+                                                            {isSelected ? <CheckSquare className="h-4 w-4" /> : <Square className="h-4 w-4" />}
+                                                        </button>
+                                                        <button onClick={() => entry.isDirectory ? navigate(entry.path) : void loadPreview(entry, false)} className="flex w-full items-start gap-3 text-left">
+                                                            <Icon className={cn('mt-0.5 h-4 w-4 shrink-0', entry.isDirectory ? 'text-primary' : 'text-muted-foreground')} />
                                                             <div className="min-w-0 flex-1">
                                                                 <p className="truncate text-sm font-medium text-foreground">{entry.name}</p>
-                                                                <p className="truncate text-xs text-muted-foreground mt-1">{entry.path}</p>
+                                                                <p className="mt-1 truncate text-xs text-muted-foreground">{entry.path}</p>
                                                                 <div className="mt-2 flex flex-wrap gap-2">
                                                                     <Badge variant="secondary">{entry.isDirectory ? 'Folder' : formatBytes(entry.size)}</Badge>
                                                                     <Badge variant="outline">{entry.permissions}</Badge>
                                                                 </div>
                                                             </div>
                                                         </button>
-                                                        <div className="mt-3 flex flex-wrap gap-2">
-                                                            {!entry.isDirectory && <Button variant="outline" size="sm" onClick={() => loadPreview(entry)}>Preview</Button>}
-                                                            <Button variant="outline" size="sm" onClick={() => handleRename(entry)}>Rename</Button>
-                                                            <Button variant="outline" size="sm" onClick={() => handleDelete(entry)}>Delete</Button>
-                                                        </div>
                                                     </div>
-                                                );
-                                            })}
-                                        </div>
+                                                    <div className="mt-3 flex flex-wrap gap-2">
+                                                        {!entry.isDirectory && <Button variant="outline" size="sm" onClick={() => void loadPreview(entry, false)}>Preview</Button>}
+                                                        {!entry.isDirectory && <Button variant="outline" size="sm" onClick={() => handleDownload(entry)}>Download</Button>}
+                                                        <Button variant="outline" size="sm" onClick={() => void handleCopyPath(entry)}>Copy Path</Button>
+                                                        <Button variant="outline" size="sm" onClick={() => setDialogState({ kind: 'rename', entry })} disabled={!entry.canWrite}>Rename</Button>
+                                                        <Button variant="destructive" size="sm" onClick={() => openDeleteDialog([entry])} disabled={!entry.canWrite}>Delete</Button>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
                                     </div>
                                 </>
                             )}
@@ -916,14 +1284,14 @@ export default function FileBrowserPage() {
                                             </button>
                                         )}
                                         {!isEditing && preview?.canWrite && preview?.encoding === 'utf8' && (
-                                            <Button variant="outline" size="sm" className="gap-1.5" onClick={() => selectedEntry && loadPreview(selectedEntry, true)}>
-                                                <Pencil className="w-3.5 h-3.5" />
+                                            <Button variant="outline" size="sm" className="gap-1.5" onClick={() => void loadPreview(selectedEntry, true)}>
+                                                <Pencil className="h-3.5 w-3.5" />
                                                 Edit
                                             </Button>
                                         )}
                                         {isEditing && (
-                                            <Button size="sm" className="gap-1.5" onClick={handleSave} loading={saving}>
-                                                <Save className="w-3.5 h-3.5" />
+                                            <Button size="sm" className="gap-1.5" onClick={() => void handleSave()} loading={saving}>
+                                                <Save className="h-3.5 w-3.5" />
                                                 Save
                                             </Button>
                                         )}
@@ -945,7 +1313,7 @@ export default function FileBrowserPage() {
                                 <div className="text-sm text-muted-foreground">Preview unavailable.</div>
                             ) : (
                                 <div className="space-y-4">
-                                    <div className="grid gap-2 sm:grid-cols-2">
+                                    <div className="grid gap-2 sm:grid-cols-3">
                                         <div className="rounded-xl border border-border bg-secondary/20 p-3 text-xs">
                                             <p className="text-muted-foreground">Last modified</p>
                                             <p className="mt-1 font-medium text-foreground">{new Date(preview.modifiedAt).toLocaleString()}</p>
@@ -954,69 +1322,35 @@ export default function FileBrowserPage() {
                                             <p className="text-muted-foreground">Permissions</p>
                                             <p className="mt-1 font-medium text-foreground">{preview.permissions}</p>
                                         </div>
+                                        <div className="rounded-xl border border-border bg-secondary/20 p-3 text-xs">
+                                            <p className="text-muted-foreground">Size</p>
+                                            <p className="mt-1 font-medium text-foreground">{formatBytes(preview.size)}</p>
+                                        </div>
                                     </div>
 
-                                    {isEditing ? (
-                                        <textarea
-                                            value={editorValue}
-                                            onChange={(event) => setEditorValue(event.target.value)}
-                                            className="min-h-[28rem] w-full rounded-xl border border-border bg-background p-4 font-mono text-sm text-foreground outline-none focus:ring-2 focus:ring-ring/40"
-                                            spellCheck={false}
-                                        />
-                                    ) : preview.kind === 'image' && preview.content ? (
-                                        <div className="overflow-hidden rounded-xl border border-border bg-secondary/20 p-3">
-                                            <Image
-                                                src={`data:${preview.mimeType || 'image/png'};base64,${preview.content}`}
-                                                alt={preview.name}
-                                                width={1600}
-                                                height={1200}
-                                                unoptimized
-                                                className="max-h-[32rem] w-full rounded-lg object-contain"
-                                            />
-                                        </div>
-                                    ) : preview.kind === 'log' && preview.tailLines ? (
-                                        <div className="overflow-hidden rounded-xl border border-border bg-[#0b1020] text-slate-200">
-                                            <div className="border-b border-white/10 px-4 py-2 text-xs text-slate-400">Tail view</div>
-                                            <div className="max-h-[32rem] overflow-auto p-4 font-mono text-xs leading-6">
-                                                {preview.tailLines.map((line, index) => (
-                                                    <div key={`${index}-${line.slice(0, 24)}`} className="grid grid-cols-[44px,minmax(0,1fr)] gap-3">
-                                                        <span className="text-slate-500">{index + 1}</span>
-                                                        <span className="break-all">{line || ' '}</span>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    ) : preview.content && preview.encoding === 'utf8' ? (
-                                        <div className="overflow-hidden rounded-xl border border-border bg-[#0b1020] text-slate-200">
-                                            <div className="border-b border-white/10 px-4 py-2 text-xs text-slate-400">
-                                                {preview.mimeType || 'Text preview'}
-                                            </div>
-                                            <div className="max-h-[32rem] overflow-auto p-4 font-mono text-xs leading-6">
-                                                {preview.content.split('\n').map((line, index) => (
-                                                    <div key={`${index}-${line.slice(0, 24)}`} className="grid grid-cols-[44px,minmax(0,1fr)] gap-3">
-                                                        <span className="select-none text-slate-500">{index + 1}</span>
-                                                        <span className="break-all">{line || ' '}</span>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    ) : (
-                                        <div className="rounded-xl border border-border bg-secondary/20 p-4 text-sm text-muted-foreground">
-                                            Binary preview is not supported for this file type. Use download or open the file from the terminal.
-                                        </div>
-                                    )}
+                                    {renderPreviewContent({
+                                        isEditing,
+                                        editorValue,
+                                        onEditorChange: setEditorValue,
+                                        preview,
+                                        onOpenLightbox: () => setLightboxOpen(true),
+                                    })}
 
                                     {preview.truncated && (
                                         <Badge variant="warning">Preview truncated by module limit</Badge>
                                     )}
 
+                                    {!preview.canWrite && preview.encoding === 'utf8' && (
+                                        <Badge variant="outline">Read-only</Badge>
+                                    )}
+
                                     <div className="flex flex-wrap gap-2">
                                         <Button variant="outline" size="sm" className="gap-1.5" onClick={() => handleDownload(selectedEntry)}>
-                                            <Download className="w-3.5 h-3.5" />
+                                            <Download className="h-3.5 w-3.5" />
                                             Download
                                         </Button>
-                                        <Button variant="outline" size="sm" className="gap-1.5" onClick={() => handleCopyPath(selectedEntry)}>
-                                            <Copy className="w-3.5 h-3.5" />
+                                        <Button variant="outline" size="sm" className="gap-1.5" onClick={() => void handleCopyPath(selectedEntry)}>
+                                            <Copy className="h-3.5 w-3.5" />
                                             Copy Path
                                         </Button>
                                     </div>
@@ -1027,6 +1361,20 @@ export default function FileBrowserPage() {
                 </div>
             </div>
 
+            {showMobileTree && (
+                <Overlay onClose={() => setShowMobileTree(false)} labelledBy="mobile-tree-title" widthClass="max-w-md">
+                    <div className="border-b border-border p-5">
+                        <div className="flex items-center justify-between">
+                            <h3 id="mobile-tree-title" className="text-base font-semibold text-foreground">Folders</h3>
+                            <Button variant="ghost" size="icon" onClick={() => setShowMobileTree(false)} aria-label="Close folder tree">
+                                <X className="h-4 w-4" />
+                            </Button>
+                        </div>
+                    </div>
+                    <div className="max-h-[70vh] p-4">{treePanel}</div>
+                </Overlay>
+            )}
+
             {showSettings && (
                 <FileBrowserSettingsModal
                     settings={settings}
@@ -1036,6 +1384,40 @@ export default function FileBrowserPage() {
                         setTreeRoots(Array.from(new Set(nextSettings.shortcuts.map((shortcut) => shortcut.path).concat('/'))));
                     }}
                 />
+            )}
+
+            <FileOperationDialog
+                key={
+                    dialogState?.kind === 'rename' ? `rename-${dialogState.entry.path}`
+                        : dialogState?.kind === 'delete' ? `delete-${dialogState.entries.map((entry) => entry.path).join('|')}`
+                            : dialogState?.kind === 'create' ? `create-${dialogState.entryKind}`
+                                : 'dialog-none'
+                }
+                state={dialogState}
+                onClose={() => setDialogState(null)}
+                onConfirm={handleDialogConfirm}
+                busy={dialogBusy}
+            />
+
+            {lightboxOpen && preview?.kind === 'image' && preview.content && (
+                <Overlay onClose={() => setLightboxOpen(false)} labelledBy="image-lightbox-title" widthClass="max-w-5xl">
+                    <div className="flex items-center justify-between border-b border-border p-5">
+                        <h3 id="image-lightbox-title" className="text-base font-semibold text-foreground">{preview.name}</h3>
+                        <Button variant="ghost" size="icon" onClick={() => setLightboxOpen(false)} aria-label="Close image preview">
+                            <X className="h-4 w-4" />
+                        </Button>
+                    </div>
+                    <div className="p-5">
+                        <Image
+                            src={`data:${preview.mimeType || 'image/png'};base64,${preview.content}`}
+                            alt={preview.name}
+                            width={2200}
+                            height={1800}
+                            unoptimized
+                            className="max-h-[80vh] w-full rounded-lg object-contain"
+                        />
+                    </div>
+                </Overlay>
             )}
         </>
     );

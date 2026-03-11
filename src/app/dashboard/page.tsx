@@ -9,6 +9,8 @@ import { Spinner } from '@/components/ui/spinner';
 import { renderWidget } from '@/components/modules/ModuleWidgetRegistry';
 import { MetricsProvider, useMetrics } from '@/lib/MetricsContext';
 
+export const dynamic = 'force-dynamic';
+
 function Sparkline({ data, color = 'var(--primary)' }: { data: number[]; color?: string }) {
     if (data.length < 2) return null;
     const min = Math.min(...data);

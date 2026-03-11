@@ -3,6 +3,8 @@
 import ProShell from '@/components/layout/ProShell';
 import FileBrowserPage, { FileBrowserHeaderShortcuts } from '@/modules/file-browser/ui/FileBrowserPage';
 
+export const dynamic = 'force-dynamic';
+
 export default function Page() {
     return (
         <ProShell

@@ -7,6 +7,8 @@ import { Activity, Shield, Lock, User, Smartphone, CheckCircle } from 'lucide-re
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
+export const dynamic = 'force-dynamic';
+
 export default function SetupPage() {
     const [step, setStep] = useState(1);
     const [loading, setLoading] = useState(false);
