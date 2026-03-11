@@ -423,6 +423,8 @@ cat > "/etc/systemd/system/${SERVICE_NAME}.service" <<SVCEOF
 Description=ServerMon — Server Monitoring Platform
 After=network.target$([ "$SKIP_MONGO_INSTALL" != "true" ] && echo " mongod.service")
 Wants=network-online.target
+StartLimitIntervalSec=300
+StartLimitBurst=5
 
 [Service]
 Type=simple
@@ -433,6 +435,11 @@ EnvironmentFile=${CONFIG_DIR}/env
 ExecStart=${PNPM_PATH} start
 Restart=always
 RestartSec=5
+TimeoutStopSec=30
+KillMode=mixed
+KillSignal=SIGTERM
+MemoryMax=512M
+MemoryHigh=384M
 StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=servermon
@@ -469,6 +476,7 @@ if [ "$SETUP_NGINX" = "true" ]; then
 server {
     listen 80;
     server_name ${SERVER_NAME};
+    client_max_body_size 2m;
 
     # Security headers
     add_header X-Frame-Options DENY always;
@@ -476,6 +484,28 @@ server {
     add_header X-XSS-Protection "1; mode=block" always;
     add_header Referrer-Policy strict-origin-when-cross-origin always;
 
+    # Health check for monitoring tools
+    location /api/health {
+        proxy_pass http://127.0.0.1:${APP_PORT};
+        proxy_read_timeout 5s;
+        access_log off;
+    }
+
+    # SSE stream — disable buffering so events arrive instantly
+    location /api/metrics/stream {
+        proxy_pass http://127.0.0.1:${APP_PORT};
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_buffering off;
+        proxy_cache off;
+        proxy_read_timeout 86400s;
+        proxy_send_timeout 86400s;
+        chunked_transfer_encoding off;
+    }
+
+    # Everything else
     location / {
         proxy_pass http://127.0.0.1:${APP_PORT};
         proxy_http_version 1.1;
@@ -486,8 +516,8 @@ server {
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
         proxy_cache_bypass \$http_upgrade;
-        proxy_read_timeout 86400s;
-        proxy_send_timeout 86400s;
+        proxy_read_timeout 300s;
+        proxy_send_timeout 300s;
     }
 }
 NGXEOF

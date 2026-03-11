@@ -1,49 +1,56 @@
 import { metricsService } from '@/lib/metrics';
+import { createLogger } from '@/lib/logger';
+
+const log = createLogger('sse');
 
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
+    if (!metricsService.canAcceptConnection()) {
+        log.warn('SSE connection rejected: limit reached');
+        return new Response('Too many connections', { status: 429 });
+    }
+
+    metricsService.registerConnection();
+
     const encoder = new TextEncoder();
-    let interval: NodeJS.Timeout | null = null;
+    let interval: ReturnType<typeof setInterval> | null = null;
 
     const stream = new ReadableStream({
         start(controller) {
-            const sendMetric = async () => {
+            const send = () => {
                 try {
-                    // Check if controller is closed or closing before enqueueing
-                    const metric = await metricsService.getCurrent();
-                    
-                    // In some environments, controller might not have a closed check, 
-                    // but we can try-catch the enqueue itself.
-                    controller.enqueue(encoder.encode(`data: ${JSON.stringify(metric)}\n\n`));
-                } catch (_err) {
-                    // If controller is closed, enqueue will throw ERR_INVALID_STATE
-                    if (interval) {
-                        clearInterval(interval);
-                        interval = null;
+                    const metric = metricsService.getCurrent();
+                    if (metric) {
+                        controller.enqueue(encoder.encode(`data: ${JSON.stringify(metric)}\n\n`));
                     }
-                    console.log('[SSE] Controller closed, stopping metrics stream');
+                } catch {
+                    cleanup();
                 }
             };
 
-            // Start periodic updates
-            interval = setInterval(sendMetric, 1000);
+            interval = setInterval(send, 2000);
+            send();
         },
         cancel() {
-            // Clean up when client disconnects
-            if (interval) {
-                clearInterval(interval);
-                interval = null;
-            }
-            console.log('[SSE] Client disconnected, metrics stream terminated');
-        }
+            cleanup();
+        },
     });
+
+    function cleanup() {
+        if (interval) {
+            clearInterval(interval);
+            interval = null;
+        }
+        metricsService.unregisterConnection();
+    }
 
     return new Response(stream, {
         headers: {
             'Content-Type': 'text/event-stream',
-            'Cache-Control': 'no-cache',
+            'Cache-Control': 'no-cache, no-transform',
             'Connection': 'keep-alive',
+            'X-Accel-Buffering': 'no',
         },
     });
 }

@@ -6,6 +6,8 @@
 Description=ServerMon — Server Monitoring Platform
 After=network.target mongod.service
 Wants=network-online.target
+StartLimitIntervalSec=300
+StartLimitBurst=5
 
 [Service]
 Type=simple
@@ -16,6 +18,11 @@ EnvironmentFile=/etc/servermon/env
 ExecStart=/usr/local/bin/pnpm start
 Restart=always
 RestartSec=5
+TimeoutStopSec=30
+KillMode=mixed
+KillSignal=SIGTERM
+MemoryMax=512M
+MemoryHigh=384M
 StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=servermon
