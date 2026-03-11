@@ -208,8 +208,17 @@ if [ "$UNATTENDED" != "true" ]; then
         if [ -f "${CONFIG_DIR}/env" ]; then
             EXISTING_PORT=$(grep -oP 'PORT=\K.*' "${CONFIG_DIR}/env" 2>/dev/null || echo "$DEFAULT_PORT")
             EXISTING_MONGO=$(grep -oP 'MONGO_URI=\K.*' "${CONFIG_DIR}/env" 2>/dev/null || echo "$DEFAULT_MONGO_URI")
+            EXISTING_DOMAIN=$(grep -oP 'DOMAIN=\K.*' "${CONFIG_DIR}/env" 2>/dev/null || echo "")
+            
+            # If not in env file, try to extract from Nginx config
+            if [ -z "$EXISTING_DOMAIN" ] && [ -f "/etc/nginx/sites-available/servermon" ]; then
+                EXISTING_DOMAIN=$(grep -oP 'server_name \K[^;]*' /etc/nginx/sites-available/servermon 2>/dev/null | head -1 | xargs || echo "")
+                [ "$EXISTING_DOMAIN" = "_" ] && EXISTING_DOMAIN=""
+            fi
+
             [ -n "$EXISTING_PORT" ] && APP_PORT="$EXISTING_PORT"
             [ -n "$EXISTING_MONGO" ] && MONGO_URI="$EXISTING_MONGO"
+            [ -n "$EXISTING_DOMAIN" ] && DOMAIN="$EXISTING_DOMAIN"
         fi
     fi
 
@@ -392,6 +401,13 @@ if [ "$EXISTING_INSTALL" = "true" ] && [ -f "${CONFIG_DIR}/env" ]; then
     # Update values in existing config
     sed -i "s|^MONGO_URI=.*|MONGO_URI=${MONGO_URI}|" "${CONFIG_DIR}/env"
     sed -i "s|^PORT=.*|PORT=${APP_PORT}|" "${CONFIG_DIR}/env"
+    
+    if grep -q "^DOMAIN=" "${CONFIG_DIR}/env"; then
+        sed -i "s|^DOMAIN=.*|DOMAIN=${DOMAIN}|" "${CONFIG_DIR}/env"
+    else
+        echo "DOMAIN=${DOMAIN}" >> "${CONFIG_DIR}/env"
+    fi
+
     # Add JWT_SECRET if missing
     grep -q "^JWT_SECRET=" "${CONFIG_DIR}/env" || {
         JWT_SECRET=$(openssl rand -base64 32)
@@ -406,6 +422,7 @@ NODE_ENV=production
 PORT=${APP_PORT}
 MONGO_URI=${MONGO_URI}
 JWT_SECRET=${JWT_SECRET}
+DOMAIN=${DOMAIN}
 ENVEOF
     log "Environment config created at ${CONFIG_DIR}/env"
 fi
