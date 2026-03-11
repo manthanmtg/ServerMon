@@ -1,19 +1,24 @@
+# Reference template — the installer generates the actual service file.
+# If installing manually, copy this to /etc/systemd/system/servermon.service
+# and adjust paths below.
+
 [Unit]
-Description=ServerMon Background Service
-After=network.target mongodb.service
+Description=ServerMon — Server Monitoring Platform
+After=network.target mongod.service
+Wants=network-online.target
 
 [Service]
 Type=simple
 User=servermon
 Group=servermon
 WorkingDirectory=/opt/servermon
-Environment=NODE_ENV=production
-Environment=PORT=8912
-# Ensure you set MONGO_URI and JWT_SECRET in /etc/servermon/env
 EnvironmentFile=/etc/servermon/env
 ExecStart=/usr/local/bin/pnpm start
 Restart=always
-RestartSec=10
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=servermon
 
 [Install]
 WantedBy=multi-user.target
