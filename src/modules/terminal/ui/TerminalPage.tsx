@@ -5,9 +5,7 @@ import TerminalUI from './TerminalUI';
 import { Badge } from '@/components/ui/badge';
 
 export default function TerminalPage() {
-    const handleTerminalData = (data: string) => {
-        console.log('Terminal data:', data);
-    };
+    const [status, setStatus] = React.useState<'connected' | 'disconnected' | 'connecting'>('connecting');
 
     return (
         <div className="h-full flex flex-col gap-3">
@@ -22,14 +20,14 @@ export default function TerminalPage() {
                         </div>
                         <span className="text-xs text-muted-foreground ml-2">Terminal</span>
                     </div>
-                    <Badge variant="success">
-                        <span className="w-1.5 h-1.5 rounded-full bg-success animate-pulse" />
-                        Connected
+                    <Badge variant={status === 'connected' ? 'success' : status === 'connecting' ? 'secondary' : 'destructive'}>
+                        {status === 'connected' && <span className="w-1.5 h-1.5 rounded-full bg-success animate-pulse mr-1.5" />}
+                        {status === 'connected' ? 'Connected' : status === 'connecting' ? 'Connecting...' : 'Disconnected'}
                     </Badge>
                 </div>
                 {/* Terminal body */}
                 <div className="flex-1 relative bg-[#0a0a0a]">
-                    <TerminalUI onData={handleTerminalData} />
+                    <TerminalUI onStatusChange={setStatus} />
                 </div>
             </div>
         </div>

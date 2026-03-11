@@ -5,15 +5,16 @@ import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import '@xterm/xterm/css/xterm.css';
 import { useTheme } from '@/lib/ThemeContext';
+import { io, Socket } from 'socket.io-client';
 
 interface TerminalUIProps {
-    onData?: (data: string) => void;
-    onBinary?: (data: string) => void;
+    onStatusChange?: (status: 'connected' | 'disconnected' | 'connecting') => void;
 }
 
-export default function TerminalUI({ onData }: TerminalUIProps) {
+export default function TerminalUI({ onStatusChange }: TerminalUIProps) {
     const terminalRef = useRef<HTMLDivElement>(null);
     const xtermRef = useRef<Terminal | null>(null);
+    const socketRef = useRef<Socket | null>(null);
     const { theme } = useTheme();
 
     useEffect(() => {
@@ -48,13 +49,39 @@ export default function TerminalUI({ onData }: TerminalUIProps) {
 
         xtermRef.current = term;
 
-        term.onData((data) => {
-            onData?.(data);
+        // Initialize Socket.io
+        const socket = io({
+            path: '/api/socket',
+        });
+        socketRef.current = socket;
+
+        socket.on('connect', () => {
+            onStatusChange?.('connected');
+            socket.emit('terminal:start', {
+                cols: term.cols,
+                rows: term.rows,
+            });
         });
 
-        term.writeln('\x1b[1;32mWelcome to ServerMon Terminal\x1b[0m');
-        term.writeln('Type commands to interact with the system.');
-        term.write('\r\n$ ');
+        socket.on('connect_error', (_err) => {
+            onStatusChange?.('disconnected');
+        });
+
+        socket.on('disconnect', (_reason) => {
+            onStatusChange?.('disconnected');
+        });
+
+        socket.on('terminal:data', (data: string) => {
+            term.write(data);
+        });
+
+        term.onData((data) => {
+            socket.emit('terminal:data', data);
+        });
+
+        term.onResize((size) => {
+            socket.emit('terminal:resize', { cols: size.cols, rows: size.rows });
+        });
 
         // Handle window resize
         const handleResize = () => {
@@ -64,6 +91,7 @@ export default function TerminalUI({ onData }: TerminalUIProps) {
 
         return () => {
             window.removeEventListener('resize', handleResize);
+            socket.disconnect();
             term.dispose();
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
