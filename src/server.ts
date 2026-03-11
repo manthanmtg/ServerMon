@@ -37,9 +37,25 @@ app.prepare().then(() => {
             try {
                 if (ptyProcess) return;
 
-                const shell = os.platform() === 'win32'
-                    ? 'powershell.exe'
-                    : (process.env.SHELL || '/bin/zsh');
+                let shell = '';
+                if (os.platform() === 'win32') {
+                    shell = 'powershell.exe';
+                } else {
+                    // Try to use the user's preferred shell, fallback to common defaults
+                    shell = process.env.SHELL || '';
+                    
+                    if (!shell) {
+                        const fallbacks = ['/bin/zsh', '/bin/bash', '/bin/sh'];
+                        for (const fb of fallbacks) {
+                            if (require('fs').existsSync(fb)) {
+                                shell = fb;
+                                break;
+                            }
+                        }
+                    }
+                    
+                    if (!shell) shell = 'sh'; // Universal fallback
+                }
                 
                 const cwd = process.cwd(); 
                 
