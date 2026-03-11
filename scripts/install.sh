@@ -32,6 +32,7 @@ SETUP_NGINX="false"
 UNATTENDED="false"
 UNINSTALL="false"
 SKIP_MONGO_INSTALL="false"
+ALLOW_ROOT="false"
 
 # ── Helpers ──────────────────────────────────────────────
 log()      { echo -e "  ${GREEN}✓${NC} $1"; }
@@ -89,6 +90,7 @@ usage() {
     echo "  --ssl                Enable SSL via Let's Encrypt (requires --domain)"
     echo "  --skip-mongo         Skip MongoDB installation (use remote MongoDB)"
     echo "  --unattended         Non-interactive mode, use defaults/flags"
+    echo "  --allow-root         Run service as root (not recommended)"
     echo "  --uninstall          Remove ServerMon completely"
     echo "  -h, --help           Show this help message"
     echo ""
@@ -109,6 +111,7 @@ while [[ $# -gt 0 ]]; do
         --ssl)         SETUP_SSL="true"; shift ;;
         --skip-mongo)  SKIP_MONGO_INSTALL="true"; shift ;;
         --unattended)  UNATTENDED="true"; shift ;;
+        --allow-root)  ALLOW_ROOT="true"; shift ;;
         --uninstall)   UNINSTALL="true"; shift ;;
         -h|--help)     usage ;;
         *)             log_err "Unknown option: $1"; usage ;;
@@ -245,6 +248,10 @@ if [ "$UNATTENDED" != "true" ]; then
     else
         ask_yn "Set up Nginx reverse proxy? (recommended)" "false" "SETUP_NGINX"
     fi
+
+    if [ "$ALLOW_ROOT" = "false" ]; then
+        ask_yn "Run as root? (WARNING: Not recommended for security)" "false" "ALLOW_ROOT"
+    fi
 fi
 
 # SSL requires domain
@@ -267,6 +274,7 @@ echo -e "  Install Mongo:   ${BOLD}$([ "$SKIP_MONGO_INSTALL" = "true" ] && echo 
 echo -e "  Domain:          ${BOLD}${DOMAIN:-"— (IP access only)"}${NC}"
 echo -e "  Nginx:           ${BOLD}$([ "$SETUP_NGINX" = "true" ] && echo "Yes" || echo "No")${NC}"
 echo -e "  SSL:             ${BOLD}$([ "$SETUP_SSL" = "true" ] && echo "Yes (Let's Encrypt)" || echo "No")${NC}"
+echo -e "  Run as root:     ${BOLD}$([ "$ALLOW_ROOT" = "true" ] && echo "Yes (WARNING)" || echo "No")${NC}"
 echo -e "  Mode:            ${BOLD}$([ "$EXISTING_INSTALL" = "true" ] && echo "Upgrade" || echo "Fresh install")${NC}"
 divider
 
@@ -438,11 +446,16 @@ fi
 chmod 600 "${CONFIG_DIR}/env"
 
 # Create service user
-if ! id "$SERVICE_USER" &>/dev/null; then
-    useradd -r -s /bin/false "$SERVICE_USER"
-    log "Service user '${SERVICE_USER}' created"
+if [ "$ALLOW_ROOT" = "true" ]; then
+    SERVICE_USER="root"
+    log_warn "Service will run as root user"
+else
+    if ! id "$SERVICE_USER" &>/dev/null; then
+        useradd -r -s /bin/false "$SERVICE_USER"
+        log "Service user '${SERVICE_USER}' created"
+    fi
+    chown -R "${SERVICE_USER}:${SERVICE_USER}" "$INSTALL_DIR"
 fi
-chown -R "${SERVICE_USER}:${SERVICE_USER}" "$INSTALL_DIR"
 
 # ── Step 5: Systemd Service ──────────────────────────────
 step "5/${TOTAL_STEPS}" "Configuring systemd service"
