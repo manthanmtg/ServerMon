@@ -122,6 +122,53 @@ Examples:
 
 ---
 
+# 🕘 Past Session Inspection
+
+The module should allow inspection of **previous (completed) AI agent sessions**, not only currently running ones.
+
+Historical sessions are important for:
+
+- debugging failures
+- auditing AI actions
+- reviewing what code changes were made
+- understanding how an agent solved a task
+
+The **Agent Sessions Dashboard** should therefore include:
+
+- Active sessions
+- Recent sessions
+- Historical sessions
+
+Possible filters:
+
+- running
+- completed
+- failed
+- time range
+
+Historical sessions should retain key metadata:
+
+- agent type
+- session owner
+- repository / working directory
+- start and end time
+- duration
+- final status
+
+Selecting a past session should open the same **Session Detail View** used for live sessions, but in **read-only inspection mode**.
+
+Stored information may include:
+
+- conversation history
+- action timeline
+- files modified
+- commands executed
+- logs produced during the session
+
+This allows teams to **review and audit agent behavior after the session has finished**.
+
+---
+
 # 📜 Session Detail View
 
 Clicking a session opens a **deep inspection panel**.
@@ -203,19 +250,24 @@ This helps debug failures or runaway agent loops.
 
 # ⚙️ Agent Controls
 
-Allow administrators to manage running agents.
+Allow administrators to manage the **lifecycle of running agent processes**.
 
-Supported actions:
+Because many AI agents run as CLI processes, direct pause/resume capabilities may not always be supported. Instead, the module should provide **process‑level lifecycle management**.
 
-- ⏸ Pause session
-- ▶ Resume session
-- ⛔ Terminate agent
-- 🔄 Restart session
+Supported lifecycle controls may include:
 
-Optional:
+- ⛔ **Terminate session** – gracefully stop the running agent session
+- 💀 **Kill process** – forcefully stop a stuck or runaway agent
+- 🔄 **Restart agent session** – restart the agent process in the same working directory
+- ▶ **Start new session** – launch a new agent instance
 
-- send new instructions
-- approve/reject actions
+Optional capabilities:
+
+- ✉ **Send instruction** – send additional prompts or commands to the agent if supported
+- 🧾 **Attach note / annotation** – add notes for debugging or auditing sessions
+- 🛑 **Stop current task** – request the agent to halt the current operation (if the agent API supports it)
+
+These controls allow administrators to safely manage **long‑running or malfunctioning AI agent sessions**.
 
 ---
 
@@ -341,6 +393,187 @@ Detect risky behaviors:
 - large repository rewrites
 - deleting critical files
 - infinite reasoning loops
+
+---
+
+# 🎨 User Interface Design
+
+The **AI Agents module UI** should follow the same design principles used across existing ServerMon modules:
+
+- Clean dashboard layout
+- Fast real‑time updates
+- Consistent topbar + content structure
+- Rich icons and status indicators
+- Context panels instead of full page navigation
+
+The goal is to make AI sessions **easy to observe at a glance while still allowing deep inspection**.
+
+---
+
+## 🧭 Module Layout
+
+The module should be organized into three primary UI areas.
+
+### 1️⃣ Topbar
+
+Consistent with other modules.
+
+Topbar elements:
+
+- 🔄 Refresh sessions
+- 🔍 Session search
+- 🧠 Filter by agent type
+- 📂 Filter by repository
+- ⚙ Open module settings
+
+Optional indicators:
+
+- total running agents
+- idle agents
+- error sessions
+
+---
+
+### 2️⃣ Agent Sessions List
+
+The primary dashboard view.
+
+Sessions should appear as **table rows or cards** depending on screen size.
+
+Each session card should include:
+
+- 🤖 agent icon
+- agent type
+- repository / directory
+- model used
+- session owner
+- status indicator
+- running time
+
+Status indicators should be color coded:
+
+- 🟢 running
+- 🟡 idle
+- 🔵 waiting
+- 🔴 error
+
+Clicking a session opens the **Session Detail View**.
+
+---
+
+### 3️⃣ Session Detail Panel
+
+Opening a session reveals a **rich inspection interface**.
+
+Suggested layout:
+
+Left sidebar:
+
+- session metadata
+- resource usage
+- project context
+
+Main content tabs:
+
+- 💬 Conversation
+- 🧾 Action timeline
+- 📂 Files modified
+- 🖥 Commands executed
+- 📜 Logs / output
+
+Tabs allow developers to quickly inspect **what the agent is doing internally**.
+
+---
+
+## 📊 Live Visual Indicators
+
+The UI should use subtle indicators to show activity.
+
+Examples:
+
+- animated "thinking" indicator when the agent is reasoning
+- streaming output indicator
+- git activity badges
+
+This helps users immediately understand whether the agent is:
+
+- actively working
+- waiting for input
+- stalled
+
+---
+
+# ⚙️ Module Settings
+
+The **AI Agents module settings** should follow the same configuration approach used by other ServerMon modules (such as the Terminal module).
+
+Settings allow administrators to configure how agent detection and monitoring works.
+
+---
+
+## 🔎 Agent Detection Settings
+
+Configure how ServerMon detects agent sessions.
+
+Options may include:
+
+- enable automatic process scanning
+- define known agent process names
+- monitor specific directories
+- detect containerized agents
+
+Example monitored processes:
+
+- `claude`
+- `codex`
+- `opencode`
+- `aider`
+
+---
+
+## 📂 Repository Awareness
+
+Optional configuration for Git integrations.
+
+Settings:
+
+- enable repository detection
+- enable commit tracking
+- enable diff preview
+
+---
+
+## 📊 Resource Monitoring Settings
+
+Control how resource usage is collected.
+
+Options:
+
+- enable CPU monitoring
+- enable memory monitoring
+- update interval (1s / 3s / 5s)
+
+---
+
+## 📜 Log Collection
+
+Configure how agent logs are captured.
+
+Options:
+
+- monitor agent log directories
+- enable live log streaming
+- maximum log retention
+
+---
+
+## 🧠 Advanced Settings
+
+Future options could include:
+
+- enable session replay
+- enable analytics collection
+- enable multi‑agent workflow detection
 
 ---
 
