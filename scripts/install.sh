@@ -244,13 +244,13 @@ if [ "$UNATTENDED" != "true" ]; then
 
     if [ -n "$DOMAIN" ]; then
         SETUP_NGINX="true"
-        ask_yn "Set up SSL with Let's Encrypt?" "false" "SETUP_SSL"
+        ask_yn "Set up SSL with Let's Encrypt?" "true" "SETUP_SSL"
     else
         ask_yn "Set up Nginx reverse proxy? (recommended)" "false" "SETUP_NGINX"
     fi
 
     if [ "$ALLOW_ROOT" = "false" ]; then
-        ask_yn "Run as root? (WARNING: Not recommended for security)" "false" "ALLOW_ROOT"
+        ask_yn "Run as root? (WARNING: Not recommended for security)" "true" "ALLOW_ROOT"
     fi
 fi
 

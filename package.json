@@ -9,6 +9,7 @@
     "lint": "eslint src/",
     "lint:fix": "eslint src/ --fix",
     "typecheck": "tsc --noEmit",
+    "clean": "rm -rf .next tsconfig.tsbuildinfo",
     "check": "pnpm lint && pnpm typecheck && pnpm build && pnpm test",
     "test": "tsx --test src/modules/file-browser/lib/file-browser.test.ts"
   },
