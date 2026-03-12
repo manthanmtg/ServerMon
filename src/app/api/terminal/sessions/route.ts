@@ -3,10 +3,16 @@ import connectDB from '@/lib/db';
 import TerminalSession from '@/models/TerminalSession';
 import TerminalSettings from '@/models/TerminalSettings';
 import { createLogger } from '@/lib/logger';
+import { getSession } from '@/lib/session';
+import TerminalHistory from '@/models/TerminalHistory';
 import crypto from 'crypto';
 
 export const dynamic = 'force-dynamic';
 const log = createLogger('api:terminal:sessions');
+
+interface SessionUser {
+    username: string;
+}
 
 export async function GET() {
     try {
@@ -22,6 +28,9 @@ export async function GET() {
 export async function POST(request: Request) {
     try {
         await connectDB();
+        // User check not needed here as history is created in server.ts
+        // but we'll keep getSession call to ensure authorized
+        await getSession();
 
         const settings = await TerminalSettings.findById('terminal-settings').lean();
         const maxSessions = settings?.maxSessions ?? 8;
@@ -82,6 +91,10 @@ export async function PUT(request: Request) {
 export async function DELETE(request: Request) {
     try {
         await connectDB();
+        const sessionPayload = await getSession();
+        const user = sessionPayload?.user as SessionUser | undefined;
+        const username = user?.username || 'unknown';
+
         const { searchParams } = new URL(request.url);
         const sessionId = searchParams.get('sessionId');
         const resetAll = searchParams.get('resetAll');
@@ -101,6 +114,17 @@ export async function DELETE(request: Request) {
         }
 
         await TerminalSession.deleteOne({ sessionId });
+
+        // Update history
+        await TerminalHistory.findOneAndUpdate(
+            { sessionId },
+            { 
+                $set: { 
+                    closedBy: `user:${username}`,
+                    closedAt: new Date()
+                } 
+            }
+        ).catch(err => log.error('Failed to update history on delete', err));
 
         const remaining = await TerminalSession.countDocuments();
         if (remaining === 0) {

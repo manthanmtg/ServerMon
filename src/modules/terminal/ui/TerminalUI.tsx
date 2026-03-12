@@ -9,6 +9,8 @@ import { io, Socket } from 'socket.io-client';
 
 interface TerminalUIProps {
     sessionId: string;
+    label?: string;
+    username?: string;
     fontSize?: number;
     onStatusChange?: (status: 'connected' | 'disconnected' | 'connecting') => void;
     initialCommand?: string;
@@ -32,7 +34,7 @@ function buildTheme(colors: Record<string, string>) {
     };
 }
 
-export default function TerminalUI({ sessionId, fontSize = 14, onStatusChange, initialCommand }: TerminalUIProps) {
+export default function TerminalUI({ sessionId, label, username, fontSize = 14, onStatusChange, initialCommand }: TerminalUIProps) {
     const containerRef = useRef<HTMLDivElement>(null);
     const xtermRef = useRef<Terminal | null>(null);
     const socketRef = useRef<Socket | null>(null);
@@ -70,6 +72,8 @@ export default function TerminalUI({ sessionId, fontSize = 14, onStatusChange, i
             lastCommandRef.current = initialCommand;
             socket.emit('terminal:start', {
                 sessionId,
+                label,
+                username,
                 cols: term.cols,
                 rows: term.rows,
                 initialCommand,
@@ -92,6 +96,11 @@ export default function TerminalUI({ sessionId, fontSize = 14, onStatusChange, i
 
         socket.on('terminal:data', (data: string) => {
             term.write(data);
+        });
+
+        socket.on('terminal:error', (error: string) => {
+            term.write(`\r\n\x1b[31m[Error] ${error}\x1b[0m\r\n`);
+            onStatusChange?.('disconnected');
         });
 
         term.onData((data) => {

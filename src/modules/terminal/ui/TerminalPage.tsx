@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState, useCallback, useRef } from 'react';
-import { Plus, X, Settings as SettingsIcon, RotateCcw, Pencil, Check } from 'lucide-react';
+import { Plus, X, Settings as SettingsIcon, RotateCcw, Pencil, Check, History } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
@@ -9,6 +9,7 @@ import { useToast } from '@/components/ui/toast';
 import { cn } from '@/lib/utils';
 import TerminalUI from './TerminalUI';
 import TerminalSettingsModal from './TerminalSettingsModal';
+import TerminalHistoryModal from './TerminalHistoryModal';
 
 interface SessionTab {
     sessionId: string;
@@ -30,7 +31,9 @@ export default function TerminalPage() {
     const [loading, setLoading] = useState(true);
     const [settings, setSettings] = useState<TermSettings>({ idleTimeoutMinutes: 30, maxSessions: 8, fontSize: 14, loginAsUser: '' });
     const [showSettings, setShowSettings] = useState(false);
+    const [showHistory, setShowHistory] = useState(false);
     const [showResetConfirm, setShowResetConfirm] = useState(false);
+    const [currentUser, setCurrentUser] = useState<string>('unknown');
     const [editingTabId, setEditingTabId] = useState<string | null>(null);
     const [editLabel, setEditLabel] = useState('');
     const editInputRef = useRef<HTMLInputElement>(null);
@@ -76,10 +79,19 @@ export default function TerminalPage() {
         } catch { /* use defaults */ }
     }, []);
 
+    const fetchUser = useCallback(async () => {
+        try {
+            const res = await fetch('/api/auth/me');
+            const data = await res.json();
+            if (data.user?.username) setCurrentUser(data.user.username);
+        } catch { /* fallback to unknown */ }
+    }, []);
+
     useEffect(() => {
         fetchSessions();
         fetchSettings();
-    }, [fetchSessions, fetchSettings]);
+        fetchUser();
+    }, [fetchSessions, fetchSettings, fetchUser]);
 
     const addTab = async () => {
         if (tabs.length >= settings.maxSessions) {
@@ -273,6 +285,15 @@ export default function TerminalPage() {
                     <Button
                         variant="ghost"
                         size="icon"
+                        className="h-9 w-9 text-muted-foreground hover:text-primary"
+                        onClick={() => setShowHistory(true)}
+                        title="Session history"
+                    >
+                        <History className="w-4 h-4" />
+                    </Button>
+                    <Button
+                        variant="ghost"
+                        size="icon"
                         className="h-9 w-9"
                         onClick={() => setShowSettings(true)}
                         title="Terminal settings"
@@ -308,6 +329,8 @@ export default function TerminalPage() {
                         >
                             <TerminalUI
                                 sessionId={tab.sessionId}
+                                label={tab.label}
+                                username={currentUser}
                                 fontSize={settings.fontSize}
                                 onStatusChange={(status) => updateTabStatus(tab.sessionId, status)}
                             />
@@ -331,6 +354,13 @@ export default function TerminalPage() {
                         </div>
                     </div>
                 </div>
+            )}
+
+            {/* History Modal */}
+            {showHistory && (
+                <TerminalHistoryModal
+                    onClose={() => setShowHistory(false)}
+                />
             )}
 
             {/* Settings Modal */}

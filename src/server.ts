@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import { createServer } from 'http';
 import { parse } from 'url';
 import next from 'next';
@@ -15,6 +16,7 @@ const port = parseInt(process.env.PORT || '8912', 10);
 // Database imports for settings
 import connectDB from './lib/db';
 import TerminalSettings from './models/TerminalSettings';
+import TerminalHistory from './models/TerminalHistory';
 
 app.prepare().then(() => {
     const server = createServer((req, res) => {
@@ -38,17 +40,35 @@ app.prepare().then(() => {
         buffer: string[];
         lastActive: number;
         sockets: Set<string>;
+        label: string;
+        createdBy: string;
     }
     const ptySessions = new Map<string, ptySession>();
     const BUFFER_SIZE = 1000;
     const SESSION_TIMEOUT = 5 * 60 * 1000; // 5 minutes
 
     // Cleanup idle sessions
-    setInterval(() => {
+    setInterval(async () => {
         const now = Date.now();
         for (const [sessionId, session] of ptySessions.entries()) {
             if (session.sockets.size === 0 && now - session.lastActive > SESSION_TIMEOUT) {
                 log.info(`Cleaning up idle terminal session: ${sessionId}`);
+                
+                try {
+                    await connectDB();
+                    await TerminalHistory.findOneAndUpdate(
+                        { sessionId },
+                        { 
+                            $set: { 
+                                closedAt: new Date(),
+                                closedBy: 'timeout-autokill'
+                            } 
+                        }
+                    );
+                } catch (err) {
+                    log.error(`Failed to update history for timed out session ${sessionId}`, err);
+                }
+
                 session.ptyProcess.kill();
                 ptySessions.delete(sessionId);
             }
@@ -60,8 +80,8 @@ app.prepare().then(() => {
 
         let activeSessionId: string | null = null;
 
-        socket.on('terminal:start', async (options: { sessionId: string; cols?: number; rows?: number; initialCommand?: string }) => {
-            const { sessionId } = options;
+        socket.on('terminal:start', async (options: { sessionId: string; label?: string; username?: string; cols?: number; rows?: number; initialCommand?: string }) => {
+            const { sessionId, label, username } = options;
             if (!sessionId) {
                 socket.emit('terminal:error', 'sessionId is required');
                 return;
@@ -93,8 +113,8 @@ app.prepare().then(() => {
                     let args: string[] = [];
 
                     // Fetch settings for loginAsUser
-                    await connectDB();
-                    const settings = await TerminalSettings.findById('terminal-settings').lean();
+                    await connectDB().catch(e => log.error('DB Connection failed in server.ts', e));
+                    const settings = await TerminalSettings.findById('terminal-settings').lean().catch(() => null);
                     const loginAsUser = settings?.loginAsUser;
 
                     if (loginAsUser && os.platform() !== 'win32') {
@@ -133,11 +153,20 @@ app.prepare().then(() => {
                         env: process.env as Record<string, string>,
                     });
 
+                    // Log history entry asynchronously
+                    TerminalHistory.create({
+                        sessionId,
+                        label: label || 'Terminal',
+                        createdBy: username || 'unknown',
+                    }).catch(err => log.error(`Failed to create history for session ${sessionId}`, err));
+
                     session = {
                         ptyProcess,
                         buffer: [],
                         lastActive: Date.now(),
                         sockets: new Set([socket.id]),
+                        label: label || 'Terminal',
+                        createdBy: username || 'unknown',
                     };
                     ptySessions.set(sessionId, session);
 
@@ -154,8 +183,26 @@ app.prepare().then(() => {
                         }
                     });
 
-                    ptyProcess.onExit(({ exitCode, signal }) => {
+                    ptyProcess.onExit(async ({ exitCode, signal }) => {
                         log.info(`Terminal process for session ${sessionId} exited (${exitCode})`);
+                        
+                        try {
+                            await connectDB();
+                            await TerminalHistory.findOneAndUpdate(
+                                { sessionId },
+                                { 
+                                    $set: { 
+                                        closedAt: new Date(),
+                                        exitCode,
+                                        signal,
+                                        closedBy: 'process-exit'
+                                    } 
+                                }
+                            );
+                        } catch (err) {
+                            log.error(`Failed to update history for exited session ${sessionId}`, err);
+                        }
+
                         for (const sid of session!.sockets) {
                             io.to(sid).emit('terminal:exit', { exitCode, signal });
                         }
