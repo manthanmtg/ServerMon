@@ -11,6 +11,7 @@ interface TerminalUIProps {
     sessionId: string;
     fontSize?: number;
     onStatusChange?: (status: 'connected' | 'disconnected' | 'connecting') => void;
+    initialCommand?: string;
 }
 
 function buildTheme(colors: Record<string, string>) {
@@ -31,11 +32,12 @@ function buildTheme(colors: Record<string, string>) {
     };
 }
 
-export default function TerminalUI({ sessionId, fontSize = 14, onStatusChange }: TerminalUIProps) {
+export default function TerminalUI({ sessionId, fontSize = 14, onStatusChange, initialCommand }: TerminalUIProps) {
     const containerRef = useRef<HTMLDivElement>(null);
     const xtermRef = useRef<Terminal | null>(null);
     const socketRef = useRef<Socket | null>(null);
     const fitAddonRef = useRef<FitAddon | null>(null);
+    const lastCommandRef = useRef<string | undefined>(undefined);
     const { theme } = useTheme();
 
     useEffect(() => {
@@ -65,10 +67,12 @@ export default function TerminalUI({ sessionId, fontSize = 14, onStatusChange }:
 
         socket.on('connect', () => {
             onStatusChange?.('connected');
+            lastCommandRef.current = initialCommand;
             socket.emit('terminal:start', {
                 sessionId,
                 cols: term.cols,
                 rows: term.rows,
+                initialCommand,
             });
 
             fetch('/api/terminal/sessions', {
@@ -127,6 +131,14 @@ export default function TerminalUI({ sessionId, fontSize = 14, onStatusChange }:
             fitAddonRef.current?.fit();
         }
     }, [fontSize]);
+
+    useEffect(() => {
+        if (!initialCommand || initialCommand === lastCommandRef.current) {
+            return;
+        }
+        lastCommandRef.current = initialCommand;
+        socketRef.current?.emit('terminal:data', initialCommand);
+    }, [initialCommand]);
 
     return (
         <div

@@ -15,6 +15,7 @@ import {
     Menu,
     X,
     HardDrive,
+    Container,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -40,6 +41,7 @@ const navGroups = [
             { label: 'Audit Logs', href: '/logs', icon: Activity },
             { label: 'File Browser', href: '/file-browser', icon: FolderTree },
             { label: 'Disk', href: '/disk', icon: HardDrive },
+            { label: 'Docker', href: '/docker', icon: Container },
         ],
     },
 ];

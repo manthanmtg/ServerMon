@@ -60,7 +60,7 @@ app.prepare().then(() => {
 
         let activeSessionId: string | null = null;
 
-        socket.on('terminal:start', async (options: { sessionId: string; cols?: number; rows?: number }) => {
+        socket.on('terminal:start', async (options: { sessionId: string; cols?: number; rows?: number; initialCommand?: string }) => {
             const { sessionId } = options;
             if (!sessionId) {
                 socket.emit('terminal:error', 'sessionId is required');
@@ -84,6 +84,9 @@ app.prepare().then(() => {
                     // Resize if requested
                     if (options.cols && options.rows) {
                         session.ptyProcess.resize(options.cols, options.rows);
+                    }
+                    if (options.initialCommand) {
+                        session.ptyProcess.write(options.initialCommand);
                     }
                 } else {
                     let shell = '';
@@ -158,6 +161,10 @@ app.prepare().then(() => {
                         }
                         ptySessions.delete(sessionId);
                     });
+
+                    if (options.initialCommand) {
+                        ptyProcess.write(options.initialCommand);
+                    }
                 }
             } catch (err: unknown) {
                 log.error(`Failed to start/attach terminal session ${sessionId}`, err);

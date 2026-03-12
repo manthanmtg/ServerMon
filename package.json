@@ -11,7 +11,8 @@
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf .next tsconfig.tsbuildinfo",
     "check": "pnpm lint && pnpm typecheck && pnpm build && pnpm test",
-    "test": "tsx --test src/modules/file-browser/lib/file-browser.test.ts"
+    "test": "tsx --test src/modules/file-browser/lib/file-browser.test.ts",
+    "test:e2e": "playwright test src/modules/docker/docker.spec.ts"
   },
   "dependencies": {
     "@types/mongoose": "^5.11.96",
