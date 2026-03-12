@@ -17,6 +17,7 @@ import {
     HardDrive,
     Container,
     Cog,
+    Bot,
     BookOpen,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -45,6 +46,7 @@ const navGroups = [
             { label: 'Disk', href: '/disk', icon: HardDrive },
             { label: 'Docker', href: '/docker', icon: Container },
             { label: 'Services', href: '/services', icon: Cog },
+            { label: 'AI Agents', href: '/ai-agents', icon: Bot },
         ],
     },
 ];

@@ -39,6 +39,10 @@ const ServicesWidget = dynamic(() => import('@/modules/services/ui/ServicesWidge
     loading: WidgetLoader,
 });
 
+const AIAgentsWidget = dynamic(() => import('@/modules/ai-agents/ui/AIAgentsWidget'), {
+    loading: WidgetLoader,
+});
+
 const widgetMap: Record<string, { component: React.ComponentType<Record<string, unknown>>; name: string }> = {
     HealthWidget: { component: HealthWidget, name: 'System Health' },
     ProcessWidget: { component: ProcessWidget, name: 'Processes' },
@@ -47,6 +51,7 @@ const widgetMap: Record<string, { component: React.ComponentType<Record<string, 
     MemoryChartWidget: { component: MemoryChartWidget, name: 'Memory Chart' },
     DiskWidget: { component: DiskWidget, name: 'Disk Usage' },
     ServicesWidget: { component: ServicesWidget, name: 'Services' },
+    AIAgentsWidget: { component: AIAgentsWidget, name: 'AI Agents' },
 };
 
 export function renderWidget(componentName: string, props: Record<string, unknown> = {}) {
