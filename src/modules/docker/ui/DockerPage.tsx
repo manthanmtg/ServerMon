@@ -1,6 +1,6 @@
 'use client';
 
-import { Fragment, useEffect, useMemo, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import {
     Area,
     AreaChart,
@@ -23,7 +23,6 @@ import {
     Boxes,
     ChevronDown,
     ChevronRight,
-    Cpu,
     Database,
     LoaderCircle,
     PauseCircle,
@@ -37,7 +36,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/components/ui/toast';
 import { cn, formatBytes } from '@/lib/utils';
-import type { DockerContainerSummary, DockerImageSummary, DockerNetworkSummary, DockerSnapshot, DockerVolumeSummary } from '../types';
+import type { DockerImageSummary, DockerNetworkSummary, DockerSnapshot, DockerVolumeSummary } from '../types';
 import TerminalUI from '@/modules/terminal/ui/TerminalUI';
 
 type DataTab = 'images' | 'volumes' | 'networks';
@@ -203,17 +202,15 @@ export default function DockerPage() {
     const [sessionId] = useState(() => `docker-${crypto.randomUUID()}`);
     const [pendingActionId, setPendingActionId] = useState<string | null>(null);
 
-    async function loadSnapshot() {
+    const loadSnapshot = useCallback(async () => {
         const response = await fetch('/api/modules/docker', { cache: 'no-store' });
         const data = await response.json();
         if (!response.ok) {
             throw new Error(data.error || 'Failed to fetch docker data');
         }
         setSnapshot(data);
-        if (!selectedContainerId && data.containers[0]) {
-            setSelectedContainerId(data.containers[0].id);
-        }
-    }
+        setSelectedContainerId((currentId) => currentId || data.containers[0]?.id || null);
+    }, []);
 
     useEffect(() => {
         let active = true;
@@ -244,7 +241,7 @@ export default function DockerPage() {
             active = false;
             window.clearInterval(interval);
         };
-    }, [refreshMs, selectedContainerId, toast]);
+    }, [loadSnapshot, refreshMs, toast]);
 
     const topContainers = useMemo(
         () => [...(snapshot?.containers || [])].sort((a, b) => b.cpuPercent - a.cpuPercent).slice(0, 5),

@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "tsx watch src/server.ts",
-    "build": "next build",
+    "build": "next build --webpack",
     "start": "NODE_ENV=production tsx src/server.ts",
     "lint": "eslint src/",
     "lint:fix": "eslint src/ --fix",
@@ -47,6 +47,7 @@
     "autoprefixer": "^10.4.27",
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
+    "playwright": "^1.58.2",
     "postcss": "^8.5.8",
     "tailwindcss": "^4.2.1",
     "typescript": "^5"

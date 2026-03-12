@@ -36,6 +36,8 @@
 }
 
 :root {
+  --font-outfit: "Avenir Next", "Segoe UI", ui-sans-serif, system-ui, sans-serif;
+  --font-inter: "Helvetica Neue", "Segoe UI", ui-sans-serif, system-ui, sans-serif;
   --background: #020617;
   --foreground: #f8fafc;
   --card: #0f172a;
