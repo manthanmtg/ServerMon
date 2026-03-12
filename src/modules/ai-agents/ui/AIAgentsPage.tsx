@@ -1,6 +1,6 @@
 'use client';
 
-import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
     ArrowLeft,
     Bot,
@@ -325,11 +325,22 @@ function SessionDetail({
 
 /* ─── Tab Panels ─── */
 function ConversationPanel({ conversation }: { conversation: AgentSession['conversation'] }) {
+    const scrollRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        if (scrollRef.current) {
+            scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+        }
+    }, [conversation]);
+
     if (conversation.length === 0) {
         return <EmptyState label="No conversation data available" />;
     }
     return (
-        <div className="space-y-2 max-h-[400px] overflow-y-auto">
+        <div 
+            ref={scrollRef}
+            className="space-y-2 max-h-[400px] overflow-y-auto scroll-smooth"
+        >
             {conversation.map((entry, i) => (
                 <div
                     key={i}
@@ -452,7 +463,7 @@ export default function AIAgentsPage() {
 
     useEffect(() => {
         load();
-        const interval = window.setInterval(() => load(), 10000);
+        const interval = window.setInterval(() => load(), 3000);
         return () => window.clearInterval(interval);
     }, [load]);
 
