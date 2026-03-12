@@ -47,6 +47,10 @@ const NetworkWidget = dynamic(() => import('@/modules/network/ui/NetworkWidget')
     loading: WidgetLoader,
 });
 
+const UpdateWidget = dynamic(() => import('@/modules/updates/ui/UpdateWidget'), {
+    loading: WidgetLoader,
+});
+
 const widgetMap: Record<string, { component: React.ComponentType<Record<string, unknown>>; name: string }> = {
     HealthWidget: { component: HealthWidget, name: 'System Health' },
     ProcessWidget: { component: ProcessWidget, name: 'Processes' },
@@ -57,6 +61,7 @@ const widgetMap: Record<string, { component: React.ComponentType<Record<string, 
     ServicesWidget: { component: ServicesWidget, name: 'Services' },
     AIAgentsWidget: { component: AIAgentsWidget, name: 'AI Agents' },
     NetworkWidget: { component: NetworkWidget, name: 'Network Usage' },
+    UpdateWidget: { component: UpdateWidget, name: 'System Updates' },
 };
 
 export function renderWidget(componentName: string, props: Record<string, unknown> = {}) {
