@@ -183,6 +183,7 @@ function SessionDetail({
     actionLoading: boolean;
 }) {
     const [activeTab, setActiveTab] = useState<DetailTab>('conversation');
+    const [autoScroll, setAutoScroll] = useState(true);
 
     const tabs: Array<{ id: DetailTab; label: string; icon: React.ReactNode; count?: number }> = [
         { id: 'conversation', label: 'Conversation', icon: <MessageSquare className="w-3.5 h-3.5" />, count: session.conversation.length },
@@ -275,35 +276,49 @@ function SessionDetail({
             {/* Tabs */}
             <Card className="border-border/60">
                 <CardHeader className="pb-0 px-3 pt-3">
-                    <div className="flex items-center gap-1 overflow-x-auto">
-                        {tabs.map((tab) => (
+                    <div className="flex items-center justify-between gap-1">
+                        <div className="flex items-center gap-1 overflow-x-auto">
+                            {tabs.map((tab) => (
+                                <button
+                                    key={tab.id}
+                                    onClick={() => setActiveTab(tab.id)}
+                                    className={cn(
+                                        'flex items-center gap-1.5 px-3 py-2 rounded-md text-xs font-medium transition-colors cursor-pointer whitespace-nowrap min-h-[36px]',
+                                        activeTab === tab.id
+                                            ? 'bg-primary text-primary-foreground'
+                                            : 'text-muted-foreground hover:bg-accent hover:text-foreground',
+                                    )}
+                                >
+                                    {tab.icon}
+                                    {tab.label}
+                                    {(tab.count ?? 0) > 0 && (
+                                        <span className={cn(
+                                            'ml-1 px-1.5 py-0.5 rounded text-[10px] font-semibold',
+                                            activeTab === tab.id ? 'bg-primary-foreground/20' : 'bg-secondary',
+                                        )}>
+                                            {tab.count}
+                                        </span>
+                                    )}
+                                </button>
+                            ))}
+                        </div>
+                        {activeTab === 'conversation' && (
                             <button
-                                key={tab.id}
-                                onClick={() => setActiveTab(tab.id)}
+                                onClick={() => setAutoScroll(!autoScroll)}
                                 className={cn(
-                                    'flex items-center gap-1.5 px-3 py-2 rounded-md text-xs font-medium transition-colors cursor-pointer whitespace-nowrap min-h-[36px]',
-                                    activeTab === tab.id
-                                        ? 'bg-primary text-primary-foreground'
-                                        : 'text-muted-foreground hover:bg-accent hover:text-foreground',
+                                    'flex items-center gap-1.5 px-2 py-1 rounded text-[10px] font-medium transition-colors cursor-pointer shrink-0',
+                                    autoScroll ? 'bg-primary/20 text-primary' : 'bg-secondary text-muted-foreground'
                                 )}
                             >
-                                {tab.icon}
-                                {tab.label}
-                                {(tab.count ?? 0) > 0 && (
-                                    <span className={cn(
-                                        'ml-1 px-1.5 py-0.5 rounded text-[10px] font-semibold',
-                                        activeTab === tab.id ? 'bg-primary-foreground/20' : 'bg-secondary',
-                                    )}>
-                                        {tab.count}
-                                    </span>
-                                )}
+                                <RefreshCcw className={cn('w-3 h-3', autoScroll && 'animate-spin-slow')} />
+                                Auto-scroll: {autoScroll ? 'ON' : 'OFF'}
                             </button>
-                        ))}
+                        )}
                     </div>
                 </CardHeader>
                 <CardContent className="p-3">
                     {activeTab === 'conversation' && (
-                        <ConversationPanel conversation={session.conversation} />
+                        <ConversationPanel conversation={session.conversation} autoScroll={autoScroll} />
                     )}
                     {activeTab === 'timeline' && (
                         <TimelinePanel timeline={session.timeline} />
@@ -324,22 +339,23 @@ function SessionDetail({
 }
 
 /* ─── Tab Panels ─── */
-function ConversationPanel({ conversation }: { conversation: AgentSession['conversation'] }) {
+function ConversationPanel({ conversation, autoScroll }: { conversation: AgentSession['conversation'], autoScroll: boolean }) {
     const scrollRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
-        if (scrollRef.current) {
+        if (autoScroll && scrollRef.current) {
             scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
         }
-    }, [conversation]);
+    }, [conversation, autoScroll]);
 
     if (conversation.length === 0) {
         return <EmptyState label="No conversation data available" />;
     }
+
     return (
         <div 
             ref={scrollRef}
-            className="space-y-2 max-h-[400px] overflow-y-auto scroll-smooth"
+            className="space-y-2 max-h-[400px] overflow-y-auto scroll-smooth pr-1"
         >
             {conversation.map((entry, i) => (
                 <div
