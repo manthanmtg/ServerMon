@@ -15,8 +15,13 @@ export function execPromise(cmd: string): Promise<{ stdout: string; stderr: stri
 
 export async function getProcessResourceUsage(pid: number): Promise<SessionResourceUsage> {
     try {
-        const { stdout } = await execPromise(`ps -p ${pid} -o %cpu,%mem,rss --no-headers`);
-        const parts = stdout.trim().split(/\s+/);
+        // macOS ps doesn't support --no-headers, so we fetch with headers and skip the first line
+        const { stdout } = await execPromise(`ps -p ${pid} -o %cpu,%mem,rss`);
+        const lines = stdout.trim().split('\n');
+        if (lines.length < 2) return { cpuPercent: 0, memoryPercent: 0, memoryBytes: 0 };
+        
+        const dataLine = lines[1];
+        const parts = dataLine.trim().split(/\s+/);
         if (parts.length >= 3) {
             return {
                 cpuPercent: parseFloat(parts[0]) || 0,
