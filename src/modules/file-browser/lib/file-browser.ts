@@ -51,6 +51,7 @@ export interface DirectoryTreeNode {
     path: string;
     children?: DirectoryTreeNode[];
     hasChildren: boolean;
+    isDirectory: boolean;
 }
 
 export interface PreviewPayload {
@@ -156,24 +157,28 @@ async function accessFlags(targetPath: string) {
     return { canRead, canWrite };
 }
 
-async function toEntry(parentPath: string, name: string): Promise<FileBrowserEntry> {
-    const entryPath = path.join(parentPath, name);
-    const stats = await fs.stat(entryPath);
-    const { canRead, canWrite } = await accessFlags(entryPath);
+async function toEntry(parentPath: string, name: string): Promise<FileBrowserEntry | null> {
+    try {
+        const entryPath = path.join(parentPath, name);
+        const stats = await fs.stat(entryPath);
+        const { canRead, canWrite } = await accessFlags(entryPath);
 
-    return {
-        name,
-        path: entryPath,
-        parentPath,
-        extension: stats.isDirectory() ? '' : path.extname(name).toLowerCase(),
-        isDirectory: stats.isDirectory(),
-        size: stats.isDirectory() ? 0 : stats.size,
-        modifiedAt: stats.mtime.toISOString(),
-        permissions: formatPermissions(stats.mode),
-        canRead,
-        canWrite,
-        kind: detectKind(entryPath, stats.isDirectory()),
-    };
+        return {
+            name,
+            path: entryPath,
+            parentPath,
+            extension: stats.isDirectory() ? '' : path.extname(name).toLowerCase(),
+            isDirectory: stats.isDirectory(),
+            size: stats.isDirectory() ? 0 : stats.size,
+            modifiedAt: stats.mtime.toISOString(),
+            permissions: formatPermissions(stats.mode),
+            canRead,
+            canWrite,
+            kind: detectKind(entryPath, stats.isDirectory()),
+        };
+    } catch {
+        return null;
+    }
 }
 
 export async function listDirectory(targetPath: string): Promise<DirectoryListing> {
@@ -187,7 +192,9 @@ export async function listDirectory(targetPath: string): Promise<DirectoryListin
     }
 
     const names = await fs.readdir(resolved);
-    const entries = await Promise.all(names.map((name) => toEntry(resolved, name)));
+    const entryResults = await Promise.all(names.map((name) => toEntry(resolved, name)));
+    const entries = entryResults.filter((entry): entry is FileBrowserEntry => entry !== null);
+
     entries.sort((left, right) => {
         if (left.isDirectory !== right.isDirectory) {
             return left.isDirectory ? -1 : 1;
@@ -220,19 +227,43 @@ export async function readTree(targetPath: string, depth = 2, maxEntries = 250):
     }
 
     const walk = async (currentPath: string, remainingDepth: number): Promise<DirectoryTreeNode> => {
-        const children = remainingDepth > 0
-            ? (await fs.readdir(currentPath, { withFileTypes: true }))
-                .filter((entry) => entry.isDirectory())
-                .slice(0, maxEntries)
-            : [];
+        const stats = await fs.stat(currentPath);
+        const isDirectory = stats.isDirectory();
+        
+        // At max depth, we don't read children but we still need to know if it's a directory
+        // for the UI to show the expansion toggle.
+        let hasChildren = false;
+        let children: DirectoryTreeNode[] | undefined = undefined;
+
+        if (isDirectory) {
+            if (remainingDepth > 0) {
+                const subEntries = await fs.readdir(currentPath, { withFileTypes: true });
+                // Include both files and directories in the tree
+                hasChildren = subEntries.length > 0;
+                
+                // Sort: directories first, then files
+                const sortedEntries = subEntries.sort((a, b) => {
+                    if (a.isDirectory() !== b.isDirectory()) {
+                        return a.isDirectory() ? -1 : 1;
+                    }
+                    return a.name.localeCompare(b.name);
+                });
+
+                children = await Promise.all(
+                    sortedEntries.slice(0, maxEntries).map((e) => walk(path.join(currentPath, e.name), remainingDepth - 1))
+                );
+            } else {
+                // If it's a directory at max depth, assume it might have children for the UI
+                hasChildren = true;
+            }
+        }
 
         return {
             name: path.basename(currentPath) || currentPath,
             path: currentPath,
-            hasChildren: children.length > 0,
-            children: remainingDepth > 0
-                ? await Promise.all(children.map((entry) => walk(path.join(currentPath, entry.name), remainingDepth - 1)))
-                : undefined,
+            isDirectory,
+            hasChildren,
+            children,
         };
     };
 
@@ -416,7 +447,7 @@ export async function writeUpload(targetDir: string, fileName: string, data: Rea
     const output = await fs.open(destination, 'w');
 
     try {
-        const nodeReadable = Readable.fromWeb(data);
+        const nodeReadable = Readable.fromWeb(data as Parameters<typeof Readable.fromWeb>[0]);
         for await (const chunk of nodeReadable) {
             const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
             await output.write(buffer);

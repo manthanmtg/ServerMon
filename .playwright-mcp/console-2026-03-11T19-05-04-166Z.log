@@ -1,0 +1,20 @@
+[   43438ms] [WARNING] The width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width. @ http://localhost:8912/_next/static/chunks/b2b3e_next_dist_77a734fe._.js:2297
+[   43438ms] [WARNING] The width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width. @ http://localhost:8912/_next/static/chunks/b2b3e_next_dist_77a734fe._.js:2297
+[   43439ms] [WARNING] The width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width. @ http://localhost:8912/_next/static/chunks/b2b3e_next_dist_77a734fe._.js:2297
+[   43439ms] [WARNING] The width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width. @ http://localhost:8912/_next/static/chunks/b2b3e_next_dist_77a734fe._.js:2297
+[   45466ms] [ERROR] Error: <polyline> attribute points: Expected number, "0,NaN 100,NaN". @ http://localhost:8912/_next/static/chunks/b2b3e_next_dist_compiled_react-dom_d19f9ff6._.js:1377
+[   47488ms] [ERROR] Error: <polyline> attribute points: Expected number, "0,NaN 50,NaN 100,N…". @ http://localhost:8912/_next/static/chunks/b2b3e_next_dist_compiled_react-dom_d19f9ff6._.js:1377
+[   49489ms] [ERROR] Error: <polyline> attribute points: Expected number, "0,NaN 33.333333333…". @ http://localhost:8912/_next/static/chunks/b2b3e_next_dist_compiled_react-dom_d19f9ff6._.js:1377
+[   51470ms] [ERROR] Error: <polyline> attribute points: Expected number, "0,NaN 25,NaN 50,Na…". @ http://localhost:8912/_next/static/chunks/b2b3e_next_dist_compiled_react-dom_d19f9ff6._.js:1377

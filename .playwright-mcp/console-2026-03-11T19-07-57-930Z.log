@@ -1,0 +1,172 @@
+[  140322ms] [ERROR] ./src/modules/file-browser/ui/FileBrowserPage.tsx:155:1
+Parsing ecmascript source code failed
+  153 |     );
+  154 | }
+> 155 | }
+      | ^
+  156 |
+  157 | function TreeBranch({
+  158 |     node,
+
+Expression expected
+
+Import traces:
+  Client Component Browser:
+    ./src/modules/file-browser/ui/FileBrowserPage.tsx [Client Component Browser]
+    ./src/app/file-browser/page.tsx [Client Component Browser]
+    ./src/app/file-browser/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./src/modules/file-browser/ui/FileBrowserPage.tsx [Client Component SSR]
+    ./src/app/file-browser/page.tsx [Client Component SSR]
+    ./src/app/file-browser/page.tsx [Server Component] @ http://localhost:8912/_next/static/chunks/b2b3e_next_dist_77a734fe._.js:3127
+[  260828ms] [ERROR] ./src/modules/file-browser/ui/FileBrowserPage.tsx:155:1
+Parsing ecmascript source code failed
+  153 |     );
+  154 | }
+> 155 | }
+      | ^
+  156 |
+  157 | function TreeBranch({
+  158 |     node,
+
+Expression expected
+
+Import traces:
+  Client Component Browser:
+    ./src/modules/file-browser/ui/FileBrowserPage.tsx [Client Component Browser]
+    ./src/app/file-browser/page.tsx [Client Component Browser]
+    ./src/app/file-browser/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./src/modules/file-browser/ui/FileBrowserPage.tsx [Client Component SSR]
+    ./src/app/file-browser/page.tsx [Client Component SSR]
+    ./src/app/file-browser/page.tsx [Server Component] @ http://localhost:8912/_next/static/chunks/b2b3e_next_dist_77a734fe._.js:3127
+[  482310ms] [ERROR] ./src/modules/file-browser/ui/FileBrowserPage.tsx:15:8
+Parsing ecmascript source code failed
+  13 |     Search,
+  14 |     Settings2,
+> 15 | import { Button } from '@/components/ui/button';
+     |        ^
+  16 | import { Input } from '@/components/ui/input';
+  17 | import { Input } from '@/components/ui/input';
+  18 | import { useToast } from '@/components/ui/toast';
+
+Expected ',', got '{'
+
+Import traces:
+  Client Component Browser:
+    ./src/modules/file-browser/ui/FileBrowserPage.tsx [Client Component Browser]
+    ./src/app/file-browser/page.tsx [Client Component Browser]
+    ./src/app/file-browser/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./src/modules/file-browser/ui/FileBrowserPage.tsx [Client Component SSR]
+    ./src/app/file-browser/page.tsx [Client Component SSR]
+    ./src/app/file-browser/page.tsx [Server Component] @ http://localhost:8912/_next/static/chunks/b2b3e_next_dist_77a734fe._.js:3127
+[  590936ms] [ERROR] ./src/modules/file-browser/ui/FileBrowserPage.tsx:1:30
+Ecmascript file had an error
+> 1 | import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+    |                              ^^^^^^^^^
+  2 | import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+  3 | import {
+  4 |     ChevronRight,
+
+You're importing a component that needs `useEffect`. This React Hook only works in a Client Component. To fix, mark the file (or its parent) with the `"use client"` directive.
+
+ Learn more: https://nextjs.org/docs/app/api-reference/directives/use-client
+
+Import trace:
+  Server Component:
+    ./src/modules/file-browser/ui/FileBrowserPage.tsx
+    ./src/app/file-browser/page.tsx @ http://localhost:8912/_next/static/chunks/b2b3e_next_dist_77a734fe._.js:3127
+[  590936ms] [ERROR] ./src/modules/file-browser/ui/FileBrowserPage.tsx:2:10
+Ecmascript file had an error
+  1 | import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+> 2 | import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+    |          ^^^^^^^^^^^
+  3 | import {
+  4 |     ChevronRight,
+  5 |     Folder,
+
+You're importing a component that needs `usePathname`. This React Hook only works in a Client Component. To fix, mark the file (or its parent) with the `"use client"` directive.
+
+ Learn more: https://nextjs.org/docs/app/api-reference/directives/use-client
+
+Import trace:
+  Server Component:
+    ./src/modules/file-browser/ui/FileBrowserPage.tsx
+    ./src/app/file-browser/page.tsx @ http://localhost:8912/_next/static/chunks/b2b3e_next_dist_77a734fe._.js:3127
+[  590936ms] [ERROR] ./src/modules/file-browser/ui/FileBrowserPage.tsx:1:50
+Ecmascript file had an error
+> 1 | import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+    |                                                  ^^^^^^
+  2 | import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+  3 | import {
+  4 |     ChevronRight,
+
+You're importing a component that needs `useRef`. This React Hook only works in a Client Component. To fix, mark the file (or its parent) with the `"use client"` directive.
+
+ Learn more: https://nextjs.org/docs/app/api-reference/directives/use-client
+
+Import trace:
+  Server Component:
+    ./src/modules/file-browser/ui/FileBrowserPage.tsx
+    ./src/app/file-browser/page.tsx @ http://localhost:8912/_next/static/chunks/b2b3e_next_dist_77a734fe._.js:3127
+[  590936ms] [ERROR] ./src/modules/file-browser/ui/FileBrowserPage.tsx:2:23
+Ecmascript file had an error
+  1 | import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+> 2 | import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+    |                       ^^^^^^^^^
+  3 | import {
+  4 |     ChevronRight,
+  5 |     Folder,
+
+You're importing a component that needs `useRouter`. This React Hook only works in a Client Component. To fix, mark the file (or its parent) with the `"use client"` directive.
+
+ Learn more: https://nextjs.org/docs/app/api-reference/directives/use-client
+
+Import trace:
+  Server Component:
+    ./src/modules/file-browser/ui/FileBrowserPage.tsx
+    ./src/app/file-browser/page.tsx @ http://localhost:8912/_next/static/chunks/b2b3e_next_dist_77a734fe._.js:3127
+[  590936ms] [ERROR] ./src/modules/file-browser/ui/FileBrowserPage.tsx:2:34
+Ecmascript file had an error
+  1 | import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+> 2 | import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+    |                                  ^^^^^^^^^^^^^^^
+  3 | import {
+  4 |     ChevronRight,
+  5 |     Folder,
+
+You're importing a component that needs `useSearchParams`. This React Hook only works in a Client Component. To fix, mark the file (or its parent) with the `"use client"` directive.
+
+ Learn more: https://nextjs.org/docs/app/api-reference/directives/use-client
+
+Import trace:
+  Server Component:
+    ./src/modules/file-browser/ui/FileBrowserPage.tsx
+    ./src/app/file-browser/page.tsx @ http://localhost:8912/_next/static/chunks/b2b3e_next_dist_77a734fe._.js:3127
+[  590936ms] [ERROR] ./src/modules/file-browser/ui/FileBrowserPage.tsx:1:58
+Ecmascript file had an error
+> 1 | import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+    |                                                          ^^^^^^^^
+  2 | import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+  3 | import {
+  4 |     ChevronRight,
+
+You're importing a component that needs `useState`. This React Hook only works in a Client Component. To fix, mark the file (or its parent) with the `"use client"` directive.
+
+ Learn more: https://nextjs.org/docs/app/api-reference/directives/use-client
+
+Import trace:
+  Server Component:
+    ./src/modules/file-browser/ui/FileBrowserPage.tsx
+    ./src/app/file-browser/page.tsx @ http://localhost:8912/_next/static/chunks/b2b3e_next_dist_77a734fe._.js:3127
+[  611654ms] [WARNING] [HMR] Invalid message: {"isTrusted":true}
+TypeError: Cannot convert undefined or null to object
+    at Object.keys (<anonymous>)
+    at extractModulesFromTurbopackMessage (http://localhost:8912/_next/static/chunks/b2b3e_next_dist_client_121ab40e._.js:11210:39)
+    at TurbopackHmr.onTurbopackMessage (http://localhost:8912/_next/static/chunks/b2b3e_next_dist_client_121ab40e._.js:11157:32)
+    at processMessage (http://localhost:8912/_next/static/chunks/b2b3e_next_dist_client_121ab40e._.js:11589:30)
+    at WebSocket.handleMessage (http://localhost:8912/_next/static/chunks/b2b3e_next_dist_client_121ab40e._.js:10914:52) @ http://localhost:8912/_next/static/chunks/b2b3e_next_dist_77a734fe._.js:2297

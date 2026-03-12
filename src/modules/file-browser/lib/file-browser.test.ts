@@ -12,7 +12,7 @@ import {
     previewFile,
     renameEntry,
     resolveBrowserPath,
-} from './file-browser.ts';
+} from './file-browser';
 
 let sandboxDir = '';
 
