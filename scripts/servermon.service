@@ -1,0 +1,31 @@
+# Reference template — the installer generates the actual service file.
+# If installing manually, copy this to /etc/systemd/system/servermon.service
+# and adjust paths below.
+
+[Unit]
+Description=ServerMon — Server Monitoring Platform
+After=network.target mongod.service
+Wants=network-online.target
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=servermon
+Group=servermon
+WorkingDirectory=/opt/servermon
+EnvironmentFile=/etc/servermon/env
+ExecStart=/usr/local/bin/pnpm start
+Restart=always
+RestartSec=5
+TimeoutStopSec=30
+KillMode=mixed
+KillSignal=SIGTERM
+MemoryMax=512M
+MemoryHigh=384M
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=servermon
+
+[Install]
+WantedBy=multi-user.target
