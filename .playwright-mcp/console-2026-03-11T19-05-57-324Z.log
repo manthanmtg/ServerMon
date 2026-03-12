@@ -1,2 +1,0 @@
-[     524ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:8912/api/modules/file-browser?path=%2F:0
-[     633ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:8912/api/modules/file-browser?path=%2F:0
