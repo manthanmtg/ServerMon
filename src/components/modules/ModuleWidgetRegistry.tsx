@@ -35,6 +35,10 @@ const DiskWidget = dynamic(() => import('@/modules/disk/ui/DiskWidget'), {
     loading: WidgetLoader,
 });
 
+const ServicesWidget = dynamic(() => import('@/modules/services/ui/ServicesWidget'), {
+    loading: WidgetLoader,
+});
+
 const widgetMap: Record<string, { component: React.ComponentType<Record<string, unknown>>; name: string }> = {
     HealthWidget: { component: HealthWidget, name: 'System Health' },
     ProcessWidget: { component: ProcessWidget, name: 'Processes' },
@@ -42,6 +46,7 @@ const widgetMap: Record<string, { component: React.ComponentType<Record<string, 
     CPUChartWidget: { component: CPUChartWidget, name: 'CPU Chart' },
     MemoryChartWidget: { component: MemoryChartWidget, name: 'Memory Chart' },
     DiskWidget: { component: DiskWidget, name: 'Disk Usage' },
+    ServicesWidget: { component: ServicesWidget, name: 'Services' },
 };
 
 export function renderWidget(componentName: string, props: Record<string, unknown> = {}) {
