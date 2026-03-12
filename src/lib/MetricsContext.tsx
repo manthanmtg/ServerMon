@@ -11,6 +11,22 @@ export interface SystemMetric {
     memTotal: number;
     memUsed: number;
     uptime: number;
+    disks: {
+        fs: string;
+        type: string;
+        size: number;
+        used: number;
+        available: number;
+        use: number;
+        mount: string;
+    }[];
+    io: {
+        r_sec: number;
+        w_sec: number;
+        t_sec: number;
+        r_wait: number;
+        w_wait: number;
+    } | null;
 }
 
 interface MetricsContextType {

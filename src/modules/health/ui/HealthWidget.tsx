@@ -32,7 +32,7 @@ export default function HealthWidget() {
                 setHealth((prev) => ({
                     cpu: data.cpu ?? prev.cpu,
                     memory: data.memory ?? prev.memory,
-                    disk: prev.disk || 42,
+                    disk: data.disks?.[0]?.use ?? prev.disk,
                 }));
             } catch { /* ignore */ }
         };

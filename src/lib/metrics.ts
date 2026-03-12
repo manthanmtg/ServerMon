@@ -13,6 +13,22 @@ export interface SystemMetric {
     memTotal: number;
     memUsed: number;
     uptime: number;
+    disks: {
+        fs: string;
+        type: string;
+        size: number;
+        used: number;
+        available: number;
+        use: number;
+        mount: string;
+    }[];
+    io: {
+        r_sec: number;
+        w_sec: number;
+        t_sec: number;
+        r_wait: number;
+        w_wait: number;
+    } | null;
 }
 
 const MAX_HISTORY = 120;
@@ -56,10 +72,12 @@ class MetricsService extends EventEmitter {
     private startPolling() {
         const poll = async () => {
             try {
-                const [cpu, mem, time] = await Promise.all([
+                const [cpu, mem, time, disks, fsStats] = await Promise.all([
                     si.currentLoad(),
                     si.mem(),
                     si.time(),
+                    si.fsSize(),
+                    si.fsStats(),
                 ]);
 
                 const metric: SystemMetric = {
@@ -71,6 +89,22 @@ class MetricsService extends EventEmitter {
                     memTotal: this.memTotal,
                     memUsed: mem.active,
                     uptime: time.uptime,
+                    disks: disks.map(d => ({
+                        fs: d.fs,
+                        type: d.type,
+                        size: d.size,
+                        used: d.used,
+                        available: d.available,
+                        use: d.use,
+                        mount: d.mount,
+                    })),
+                    io: fsStats ? {
+                        r_sec: fsStats.rx_sec || 0,
+                        w_sec: fsStats.wx_sec || 0,
+                        t_sec: (fsStats.rx_sec || 0) + (fsStats.wx_sec || 0),
+                        r_wait: 0, // systeminformation doesn't provide wait per device in fsStats easily
+                        w_wait: 0,
+                    } : null,
                 };
 
                 this.latest = metric;

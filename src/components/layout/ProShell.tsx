@@ -14,6 +14,7 @@ import {
     LogOut,
     Menu,
     X,
+    HardDrive,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -38,6 +39,7 @@ const navGroups = [
             { label: 'Processes', href: '/processes', icon: Monitor },
             { label: 'Audit Logs', href: '/logs', icon: Activity },
             { label: 'File Browser', href: '/file-browser', icon: FolderTree },
+            { label: 'Disk', href: '/disk', icon: HardDrive },
         ],
     },
 ];

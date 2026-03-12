@@ -31,12 +31,17 @@ const MemoryChartWidget = dynamic(() => import('@/modules/metrics/ui/MemoryChart
     loading: WidgetLoader,
 });
 
+const DiskWidget = dynamic(() => import('@/modules/disk/ui/DiskWidget'), {
+    loading: WidgetLoader,
+});
+
 const widgetMap: Record<string, { component: React.ComponentType<Record<string, unknown>>; name: string }> = {
     HealthWidget: { component: HealthWidget, name: 'System Health' },
     ProcessWidget: { component: ProcessWidget, name: 'Processes' },
     LogsWidget: { component: LogsWidget, name: 'Activity Log' },
     CPUChartWidget: { component: CPUChartWidget, name: 'CPU Chart' },
     MemoryChartWidget: { component: MemoryChartWidget, name: 'Memory Chart' },
+    DiskWidget: { component: DiskWidget, name: 'Disk Usage' },
 };
 
 export function renderWidget(componentName: string, props: Record<string, unknown> = {}) {
