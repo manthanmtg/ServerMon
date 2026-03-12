@@ -13,14 +13,52 @@ export class ClaudeCodeAdapter implements AgentAdapter {
 
     async detect(): Promise<AgentSession[]> {
         const sessions: AgentSession[] = [];
+        const projectsDir = path.join(os.homedir(), '.claude/projects');
+        
         try {
-            const pids = await this.findProcesses();
-            for (const proc of pids) {
-                try {
-                    const session = await this.buildSession(proc);
+            // 1. Find running processes
+            const runningProcs = await this.findProcesses();
+            
+            // 2. Scan projects directory for all historical contexts
+            if (fs.existsSync(projectsDir)) {
+                const projectFolders = fs.readdirSync(projectsDir)
+                    .filter(f => fs.statSync(path.join(projectsDir, f)).isDirectory());
+                
+                const claimedProjectFolders = new Set<string>();
+
+                // Build sessions for running processes first
+                for (const proc of runningProcs) {
+                    const projectFolderName = proc.cwd.replace(/[^a-zA-Z0-9]/g, '-');
+                    claimedProjectFolders.add(projectFolderName);
+                    
+                    try {
+                        const session = await this.buildSessionFromProc(proc, projectFolderName);
+                        if (session) sessions.push(session);
+                    } catch (err) {
+                        log.debug(`Failed to build running session for pid ${proc.pid}`, err);
+                    }
+                }
+
+                // Build sessions for a few recent idle projects (limit to 10 for performance)
+                const idleFolders = projectFolders
+                    .filter(f => !claimedProjectFolders.has(f))
+                    .map(f => ({ name: f, time: fs.statSync(path.join(projectsDir, f)).mtime.getTime() }))
+                    .sort((a, b) => b.time - a.time)
+                    .slice(0, 10);
+
+                for (const folder of idleFolders) {
+                    try {
+                        const session = await this.buildIdleSession(folder.name);
+                        if (session) sessions.push(session);
+                    } catch (err) {
+                        log.debug(`Failed to build idle session for ${folder.name}`, err);
+                    }
+                }
+            } else {
+                // Fallback to just running processes if projects dir not found
+                for (const proc of runningProcs) {
+                    const session = await this.buildSessionFromProc(proc, proc.cwd.replace(/[^a-zA-Z0-9]/g, '-'));
                     if (session) sessions.push(session);
-                } catch (err) {
-                    log.debug(`Failed to build session for pid ${proc.pid}`, err);
                 }
             }
         } catch (err) {
@@ -64,10 +102,10 @@ export class ClaudeCodeAdapter implements AgentAdapter {
         }
     }
 
-    private async buildSession(proc: { pid: number; user: string; cwd: string; cmd: string }): Promise<AgentSession | null> {
+    private async buildSessionFromProc(proc: { pid: number; user: string; cwd: string; cmd: string }, projectFolderName: string): Promise<AgentSession | null> {
         const resources = await getProcessResourceUsage(proc.pid);
         const gitInfo = await detectGitInfo(proc.cwd);
-        const historyData = await this.extractSessionData(proc.cwd);
+        const historyData = await this.extractSessionData(projectFolderName);
         const now = new Date().toISOString();
 
         return {
@@ -103,7 +141,47 @@ export class ClaudeCodeAdapter implements AgentAdapter {
         };
     }
 
-    private async extractSessionData(cwd: string): Promise<{
+    private async buildIdleSession(projectFolderName: string): Promise<AgentSession | null> {
+        const historyData = await this.extractSessionData(projectFolderName);
+        if (historyData.conversation.length === 0) return null;
+
+        // Try to guess the working directory from the folder name
+        // (This is imperfect but better than nothing; hyphenated names are hard to reverse)
+        // For now, we'll just show the project folder name as human-readable activity
+        const mockNow = historyData.lastActivity || new Date().toISOString();
+
+        return {
+            id: `claude-code-past-${projectFolderName}`,
+            agent: {
+                type: 'claude-code',
+                displayName: 'Claude Code',
+                model: historyData.model || 'Claude',
+            },
+            owner: {
+                user: os.userInfo().username,
+                pid: 0,
+            },
+            environment: {
+                workingDirectory: projectFolderName, // Show hyphenated name if path unknown
+                host: (await execPromise('hostname').catch(() => ({ stdout: 'localhost' }))).stdout.trim(),
+            },
+            lifecycle: {
+                startTime: historyData.startTime || mockNow,
+                lastActivity: historyData.lastActivity || mockNow,
+                durationSeconds: historyData.durationSeconds || 0,
+            },
+            status: 'idle',
+            currentActivity: `Past: ${projectFolderName}`,
+            resources: { cpuPercent: 0, memoryBytes: 0, memoryPercent: 0 },
+            filesModified: [],
+            commandsExecuted: [],
+            conversation: historyData.conversation,
+            timeline: [],
+            logs: [],
+        };
+    }
+
+    private async extractSessionData(projectFolderName: string): Promise<{
         conversation: ConversationEntry[];
         summary?: string;
         model?: string;
@@ -123,9 +201,8 @@ export class ClaudeCodeAdapter implements AgentAdapter {
         };
 
         try {
-            // Claude project folder name is CWD with non-alphanumeric replaced by -
-            const projectFolderName = cwd.replace(/[^a-zA-Z0-9]/g, '-');
-            const projectPath = path.join(os.homedir(), '.claude/projects', projectFolderName);
+            const projectsDir = path.join(os.homedir(), '.claude/projects');
+            const projectPath = path.join(projectsDir, projectFolderName);
 
             if (!fs.existsSync(projectPath)) return data;
 
@@ -184,7 +261,7 @@ export class ClaudeCodeAdapter implements AgentAdapter {
                 data.summary = 'Active conversation';
             }
         } catch (err) {
-            log.debug('Failed to extract Claude Code session data', err);
+            log.debug(`Failed to extract Claude Code session data for ${projectFolderName}`, err);
         }
 
         return data;

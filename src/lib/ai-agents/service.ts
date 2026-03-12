@@ -28,11 +28,28 @@ class AIAgentsService {
     }
 
     async getSnapshot(): Promise<AgentsSnapshot> {
-        const sessions = await this.detectSessions();
-        const summary = this.computeSummary(sessions);
+        const allSessions = await this.detectSessions();
+        const sessions: AgentSession[] = [];
+        const pastSessions: AgentSession[] = [];
+
+        for (const session of allSessions) {
+            if (session.status === 'running') {
+                sessions.push(session);
+            } else {
+                pastSessions.push(session);
+            }
+        }
+
+        // Sort past sessions by created time (newest first)
+        pastSessions.sort((a, b) => 
+            new Date(b.lifecycle.startTime).getTime() - new Date(a.lifecycle.startTime).getTime()
+        );
+
+        const summary = this.computeSummary(allSessions);
         return {
             summary,
             sessions,
+            pastSessions,
             timestamp: new Date().toISOString(),
         };
     }

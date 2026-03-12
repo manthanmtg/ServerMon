@@ -476,9 +476,26 @@ export default function AIAgentsPage() {
         return sessions;
     }, [snapshot, filterStatus, filterAgent, search]);
 
+    const filteredPastSessions = useMemo(() => {
+        let sessions = snapshot?.pastSessions ?? [];
+        if (filterAgent !== 'all') {
+            sessions = sessions.filter((s) => s.agent.type === filterAgent);
+        }
+        if (search.trim()) {
+            const q = search.toLowerCase();
+            sessions = sessions.filter((s) =>
+                s.agent.displayName.toLowerCase().includes(q) ||
+                (s.environment.repository ?? '').toLowerCase().includes(q) ||
+                s.owner.user.toLowerCase().includes(q) ||
+                s.environment.workingDirectory.toLowerCase().includes(q)
+            );
+        }
+        return sessions;
+    }, [snapshot, filterAgent, search]);
+
     const selectedSession = useMemo(
-        () => filteredSessions.find((s) => s.id === selectedId) ?? null,
-        [filteredSessions, selectedId],
+        () => [...filteredSessions, ...filteredPastSessions].find((s) => s.id === selectedId) ?? null,
+        [filteredSessions, filteredPastSessions, selectedId],
     );
 
     const handleTerminate = useCallback(async () => {
@@ -597,8 +614,56 @@ export default function AIAgentsPage() {
             </div>
 
             {/* Session List */}
-            <div className="space-y-2">
-                {filteredSessions.length === 0 ? (
+            <div className="space-y-6">
+                <div className="space-y-2">
+                    <h3 className="text-sm font-semibold flex items-center gap-2 px-1 text-success">
+                        <CircleDot className="w-4 h-4" />
+                        Active Sessions
+                        <Badge variant="outline" className="ml-auto text-[10px] font-normal opacity-70">
+                            {filteredSessions.length} sessions
+                        </Badge>
+                    </h3>
+                    {filteredSessions.length === 0 ? (
+                        <Card className="border-border/60 bg-transparent border-dashed">
+                            <CardContent className="flex flex-col items-center justify-center py-10">
+                                <p className="text-xs text-muted-foreground italic">No active sessions matching filters</p>
+                            </CardContent>
+                        </Card>
+                    ) : (
+                        <div className="space-y-2">
+                            {filteredSessions.map((session) => (
+                                <SessionRow
+                                    key={session.id}
+                                    session={session}
+                                    onClick={() => setSelectedId(session.id)}
+                                />
+                            ))}
+                        </div>
+                    )}
+                </div>
+
+                {filteredPastSessions.length > 0 && (
+                    <div className="space-y-2">
+                        <h3 className="text-sm font-semibold flex items-center gap-2 px-1 text-muted-foreground">
+                            <Clock className="w-4 h-4" />
+                            Past Sessions
+                            <Badge variant="outline" className="ml-auto text-[10px] font-normal opacity-70">
+                                {filteredPastSessions.length} total
+                            </Badge>
+                        </h3>
+                        <div className="space-y-2">
+                            {filteredPastSessions.map((session) => (
+                                <SessionRow
+                                    key={session.id}
+                                    session={session}
+                                    onClick={() => setSelectedId(session.id)}
+                                />
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {filteredSessions.length === 0 && filteredPastSessions.length === 0 && (
                     <Card className="border-border/60">
                         <CardContent className="flex flex-col items-center justify-center py-16">
                             <Bot className="w-10 h-10 text-muted-foreground/30 mb-3" />
@@ -610,16 +675,6 @@ export default function AIAgentsPage() {
                             </p>
                         </CardContent>
                     </Card>
-                ) : (
-                    <Fragment>
-                        {filteredSessions.map((session) => (
-                            <SessionRow
-                                key={session.id}
-                                session={session}
-                                onClick={() => setSelectedId(session.id)}
-                            />
-                        ))}
-                    </Fragment>
                 )}
             </div>
         </div>

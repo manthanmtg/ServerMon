@@ -14,13 +14,57 @@ export class CodexAdapter implements AgentAdapter {
     async detect(): Promise<AgentSession[]> {
         const sessions: AgentSession[] = [];
         try {
-            const procs = await this.findProcesses();
-            for (const proc of procs) {
+            // 1. Find running processes
+            const runningProcs = await this.findProcesses();
+            
+            // 2. Find all rollout files
+            const sessionsDir = path.join(os.homedir(), '.codex/sessions');
+            if (!fs.existsSync(sessionsDir)) return [];
+
+            const { stdout: fileList } = await execPromise(`find "${sessionsDir}" -name "rollout-*.jsonl" -type f`);
+            const files = fileList.trim().split('\n')
+                .filter(f => f.trim())
+                .map(f => ({ path: f, time: fs.statSync(f).mtime.getTime() }))
+                .sort((a, b) => b.time - a.time);
+
+            const claimedRolloutPaths = new Set<string>();
+
+            // Build sessions for running processes first
+            for (const proc of runningProcs) {
+                // Try to find the latest rollout file matching this CWD
+                const matchingFile = files.find(f => {
+                    try {
+                        const content = fs.readFileSync(f.path, 'utf8');
+                        const firstLines = content.trim().split('\n').slice(0, 5);
+                        for (const line of firstLines) {
+                            const evt = JSON.parse(line);
+                            if (evt.type === 'session_meta' && evt.payload.cwd === proc.cwd) return true;
+                        }
+                    } catch { /* ignore */ }
+                    return false;
+                });
+
+                if (matchingFile) claimedRolloutPaths.add(matchingFile.path);
+                
                 try {
-                    const session = await this.buildSession(proc);
+                    const session = await this.buildSessionFromProc(proc, matchingFile?.path);
                     if (session) sessions.push(session);
                 } catch (err) {
-                    log.debug(`Failed to build session for pid ${proc.pid}`, err);
+                    log.debug(`Failed to build running session for pid ${proc.pid}`, err);
+                }
+            }
+
+            // Build sessions for 10 most recent idle files
+            const idleFiles = files
+                .filter(f => !claimedRolloutPaths.has(f.path))
+                .slice(0, 10);
+
+            for (const fileObj of idleFiles) {
+                try {
+                    const session = await this.buildIdleSession(fileObj.path);
+                    if (session) sessions.push(session);
+                } catch (err) {
+                    log.debug(`Failed to build idle session for ${fileObj.path}`, err);
                 }
             }
         } catch (err) {
@@ -81,10 +125,10 @@ export class CodexAdapter implements AgentAdapter {
         }
     }
 
-    private async buildSession(proc: { pid: number; user: string; cwd: string; cmd: string }): Promise<AgentSession | null> {
+    private async buildSessionFromProc(proc: { pid: number; user: string; cwd: string; cmd: string }, rolloutPath?: string): Promise<AgentSession | null> {
         const resources = await getProcessResourceUsage(proc.pid);
         const gitInfo = await detectGitInfo(proc.cwd);
-        const historyData = await this.extractSessionData(proc.cwd);
+        const historyData = await this.extractSessionData(rolloutPath || '', proc.cwd);
         const now = new Date().toISOString();
 
         return {
@@ -120,7 +164,52 @@ export class CodexAdapter implements AgentAdapter {
         };
     }
 
-    private async extractSessionData(cwd: string): Promise<{
+    private async buildIdleSession(rolloutPath: string): Promise<AgentSession | null> {
+        const historyData = await this.extractSessionData(rolloutPath);
+        if (historyData.conversation.length === 0) return null;
+
+        // Try to find the CWD from the rollout file
+        let cwd = 'Past session';
+        try {
+            const content = fs.readFileSync(rolloutPath, 'utf8');
+            const match = content.match(/"cwd":"([^"]+)"/);
+            if (match) cwd = match[1];
+        } catch { /* skip */ }
+
+        const mockNow = historyData.lastActivity || new Date().toISOString();
+
+        return {
+            id: `codex-past-${path.basename(rolloutPath)}`,
+            agent: {
+                type: 'codex',
+                displayName: 'Codex CLI',
+                model: historyData.model || 'GPT',
+            },
+            owner: {
+                user: os.userInfo().username,
+                pid: 0,
+            },
+            environment: {
+                workingDirectory: cwd,
+                host: (await execPromise('hostname').catch(() => ({ stdout: 'localhost' }))).stdout.trim(),
+            },
+            lifecycle: {
+                startTime: historyData.startTime || mockNow,
+                lastActivity: historyData.lastActivity || mockNow,
+                durationSeconds: historyData.durationSeconds || 0,
+            },
+            status: 'idle',
+            currentActivity: historyData.summary || 'Past session',
+            resources: { cpuPercent: 0, memoryBytes: 0, memoryPercent: 0 },
+            filesModified: [],
+            commandsExecuted: [],
+            conversation: historyData.conversation,
+            timeline: [],
+            logs: [],
+        };
+    }
+
+    private async extractSessionData(explicitRolloutPath?: string, cwdHint?: string): Promise<{
         conversation: ConversationEntry[];
         summary?: string;
         model?: string;
@@ -144,31 +233,26 @@ export class CodexAdapter implements AgentAdapter {
             const sessionsDir = path.join(codexDir, 'sessions');
             if (!fs.existsSync(sessionsDir)) return data;
 
-            // Find latest rollout file by traversing year/month/day
-            // This is a bit complex, let's look for all .jsonl files in sessions/ recursive
-            const { stdout: fileList } = await execPromise(`find "${sessionsDir}" -name "rollout-*.jsonl" -type f`);
-            const files = fileList.trim().split('\n')
-                .filter(f => f.trim())
-                .map(f => ({ path: f, time: fs.statSync(f).mtime.getTime() }))
-                .sort((a, b) => b.time - a.time);
+            let foundFile = explicitRolloutPath || '';
+            
+            if (!foundFile && cwdHint) {
+                // Find latest rollout file by traversing year/month/day
+                const { stdout: fileList } = await execPromise(`find "${sessionsDir}" -name "rollout-*.jsonl" -type f`);
+                const files = fileList.trim().split('\n')
+                    .filter(f => f.trim())
+                    .map(f => ({ path: f, time: fs.statSync(f).mtime.getTime() }))
+                    .sort((a, b) => b.time - a.time);
 
-            if (files.length === 0) return data;
+                if (files.length === 0) return data;
 
-            // Let's try to find a session that matches our CWD
-            let foundFile = '';
-            for (const fileObj of files) {
-                const content = fs.readFileSync(fileObj.path, 'utf8');
-                const firstLines = content.trim().split('\n').slice(0, 5);
-                for (const line of firstLines) {
-                    try {
-                        const evt = JSON.parse(line);
-                        if (evt.type === 'session_meta' && evt.payload.cwd === cwd) {
-                            foundFile = fileObj.path;
-                            break;
-                        }
-                    } catch { /* skip */ }
+                // Match by CWD hint
+                for (const fileObj of files) {
+                    const content = fs.readFileSync(fileObj.path, 'utf8');
+                    if (content.includes(`"cwd":"${cwdHint}"`)) {
+                        foundFile = fileObj.path;
+                        break;
+                    }
                 }
-                if (foundFile) break;
             }
 
             if (!foundFile) return data;

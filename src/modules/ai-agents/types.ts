@@ -74,6 +74,7 @@ export interface AgentsSummary {
 export interface AgentsSnapshot {
     summary: AgentsSummary;
     sessions: AgentSession[];
+    pastSessions: AgentSession[];
     timestamp: string;
 }
 
