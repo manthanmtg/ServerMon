@@ -44,6 +44,7 @@ const navGroups = [
             { label: 'Audit Logs', href: '/logs', icon: Activity },
             { label: 'File Browser', href: '/file-browser', icon: FolderTree },
             { label: 'Disk', href: '/disk', icon: HardDrive },
+            { label: 'Network', href: '/network', icon: Activity },
             { label: 'Docker', href: '/docker', icon: Container },
             { label: 'Services', href: '/services', icon: Cog },
             { label: 'AI Agents', href: '/ai-agents', icon: Bot },
