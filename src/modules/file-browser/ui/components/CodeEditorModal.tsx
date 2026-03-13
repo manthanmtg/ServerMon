@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { Save, X, Undo2, Redo2, Search, WrapText, Copy, Check } from 'lucide-react';
+import { Save, X, Undo2, Redo2, Search, WrapText, Copy, Check, LoaderCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
@@ -134,12 +134,13 @@ interface CodeEditorModalProps {
     fileName: string;
     extension: string;
     content: string;
+    loading?: boolean;
     saving: boolean;
     onSave: (content: string) => void;
     onClose: () => void;
 }
 
-export default function CodeEditorModal({ fileName, extension, content, saving, onSave, onClose }: CodeEditorModalProps) {
+export default function CodeEditorModal({ fileName, extension, content, loading, saving, onSave, onClose }: CodeEditorModalProps) {
     const containerRef = useRef<HTMLDivElement>(null);
     const viewRef = useRef<EditorView | null>(null);
     const [wordWrap, setWordWrap] = useState(false);
@@ -153,7 +154,12 @@ export default function CodeEditorModal({ fileName, extension, content, saving, 
     }, [onSave]);
 
     useEffect(() => {
-        if (!containerRef.current) return;
+        setDirty(false);
+        setCursorInfo({ line: 1, col: 1 });
+    }, [content]);
+
+    useEffect(() => {
+        if (!containerRef.current || loading) return;
 
         const langExt = getLanguageExtension(extension);
         const extensions = [
@@ -209,7 +215,7 @@ export default function CodeEditorModal({ fileName, extension, content, saving, 
             viewRef.current = null;
         };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [extension, wordWrap]);
+    }, [extension, wordWrap, content, loading]);
 
     const handleCopy = async () => {
         if (!viewRef.current) return;
@@ -286,7 +292,16 @@ export default function CodeEditorModal({ fileName, extension, content, saving, 
             </div>
 
             {/* Editor area */}
-            <div ref={containerRef} className="flex-1 min-h-0 overflow-hidden [&_.cm-editor]:h-full [&_.cm-scroller]:!overflow-auto [&_.cm-editor]:outline-none" />
+            {loading ? (
+                <div className="flex-1 min-h-0 flex items-center justify-center bg-[#282c34]">
+                    <div className="flex flex-col items-center gap-3 text-muted-foreground">
+                        <LoaderCircle className="h-8 w-8 animate-spin text-primary" />
+                        <span className="text-xs font-medium">Loading file...</span>
+                    </div>
+                </div>
+            ) : (
+                <div ref={containerRef} className="flex-1 min-h-0 overflow-hidden [&_.cm-editor]:h-full [&_.cm-scroller]:!overflow-auto [&_.cm-editor]:outline-none" />
+            )}
 
             {/* Status bar */}
             <div className="flex items-center justify-between px-4 py-1.5 border-t border-border bg-card text-[10px] font-medium text-muted-foreground shrink-0">

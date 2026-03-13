@@ -1142,6 +1142,7 @@ export default function FileBrowserPage() {
                     fileName={selectedEntry.name}
                     extension={selectedEntry.extension}
                     content={editorValue}
+                    loading={previewLoading}
                     saving={saving}
                     onSave={(content) => void handleSave(content)}
                     onClose={() => {
