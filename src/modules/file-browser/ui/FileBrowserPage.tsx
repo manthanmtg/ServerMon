@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState, FormEvent } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import {
+    AlertTriangle,
     ChevronRight,
     FileText,
     Folder,
@@ -11,6 +12,7 @@ import {
     LoaderCircle,
     PanelLeftClose,
     PanelLeftOpen,
+    Pencil,
     Plus,
     RefreshCcw,
     Search,
@@ -102,6 +104,104 @@ function matchesFilter(name: string, filter: string) {
         .replace(/\*/g, '.*')
         .replace(/\?/g, '.');
     return new RegExp(escaped, 'i').test(name);
+}
+
+// ---- In-app modals to replace native prompt/confirm ----
+
+interface InputModalProps {
+    title: string;
+    description?: string;
+    icon?: React.ReactNode;
+    placeholder?: string;
+    defaultValue?: string;
+    submitLabel: string;
+    onSubmit: (value: string) => void;
+    onClose: () => void;
+}
+
+function InputModal({ title, description, icon, placeholder, defaultValue, submitLabel, onSubmit, onClose }: InputModalProps) {
+    const [value, setValue] = useState(defaultValue || '');
+    const inputRef = useRef<HTMLInputElement>(null);
+
+    useEffect(() => {
+        inputRef.current?.focus();
+        inputRef.current?.select();
+    }, []);
+
+    const handleSubmit = (e: FormEvent) => {
+        e.preventDefault();
+        if (value.trim()) onSubmit(value.trim());
+    };
+
+    return (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center">
+            <div className="absolute inset-0 bg-background/80 backdrop-blur-sm" onClick={onClose} />
+            <div className="relative w-full max-w-md rounded-2xl border border-border bg-card shadow-xl mx-4 animate-in fade-in zoom-in-95 duration-200">
+                <form onSubmit={handleSubmit}>
+                    <div className="p-5 space-y-4">
+                        <div className="flex items-center gap-3">
+                            {icon && <div className="rounded-xl border border-border/60 bg-muted/30 p-2.5 shrink-0">{icon}</div>}
+                            <div>
+                                <h3 className="text-sm font-semibold text-foreground">{title}</h3>
+                                {description && <p className="text-xs text-muted-foreground mt-0.5">{description}</p>}
+                            </div>
+                        </div>
+                        <input
+                            ref={inputRef}
+                            type="text"
+                            value={value}
+                            onChange={(e) => setValue(e.target.value)}
+                            placeholder={placeholder}
+                            className="w-full h-10 px-3 rounded-xl border border-border bg-background text-sm outline-none focus:ring-2 focus:ring-primary/30"
+                        />
+                    </div>
+                    <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-border">
+                        <Button variant="outline" size="sm" type="button" onClick={onClose}>Cancel</Button>
+                        <Button size="sm" type="submit" disabled={!value.trim()}>{submitLabel}</Button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    );
+}
+
+interface ConfirmModalProps {
+    title: string;
+    description: string;
+    icon?: React.ReactNode;
+    confirmLabel: string;
+    variant?: 'destructive' | 'default';
+    onConfirm: () => void;
+    onClose: () => void;
+}
+
+function ConfirmModal({ title, description, icon, confirmLabel, variant = 'default', onConfirm, onClose }: ConfirmModalProps) {
+    return (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center">
+            <div className="absolute inset-0 bg-background/80 backdrop-blur-sm" onClick={onClose} />
+            <div className="relative w-full max-w-md rounded-2xl border border-border bg-card shadow-xl mx-4 animate-in fade-in zoom-in-95 duration-200">
+                <div className="p-5 space-y-4">
+                    <div className="flex items-center gap-3">
+                        {icon && <div className="rounded-xl border border-border/60 bg-muted/30 p-2.5 shrink-0">{icon}</div>}
+                        <div>
+                            <h3 className="text-sm font-semibold text-foreground">{title}</h3>
+                            <p className="text-xs text-muted-foreground mt-0.5">{description}</p>
+                        </div>
+                    </div>
+                </div>
+                <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-border">
+                    <Button variant="outline" size="sm" onClick={onClose}>Cancel</Button>
+                    <Button
+                        size="sm"
+                        className={variant === 'destructive' ? 'bg-destructive text-destructive-foreground hover:bg-destructive/90' : ''}
+                        onClick={() => { onConfirm(); onClose(); }}
+                    >
+                        {confirmLabel}
+                    </Button>
+                </div>
+            </div>
+        </div>
+    );
 }
 
 function buildSegments(currentPath: string) {
@@ -277,6 +377,12 @@ export default function FileBrowserPage() {
     const [history, setHistory] = useState<string[]>([]);
     const [historyIndex, setHistoryIndex] = useState(-1);
     const [treeRoots, setTreeRoots] = useState<string[]>(['/']);
+    const [dialogState, setDialogState] = useState<
+        | { type: 'create'; kind: 'file' | 'directory' }
+        | { type: 'rename'; entry: FileEntry }
+        | { type: 'delete'; entry: FileEntry }
+        | null
+    >(null);
     const historyIndexRef = useRef(-1);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const { toast } = useToast();
@@ -448,11 +554,8 @@ export default function FileBrowserPage() {
         }
     };
 
-    const handleCreate = async (kind: 'file' | 'directory') => {
+    const handleCreate = async (kind: 'file' | 'directory', name: string) => {
         const label = kind === 'file' ? 'file' : 'folder';
-        const name = window.prompt(`New ${label} name`);
-        if (!name) return;
-
         try {
             await fetchJson('/api/modules/file-browser', {
                 method: 'POST',
@@ -474,10 +577,8 @@ export default function FileBrowserPage() {
         }
     };
 
-    const handleRename = async (entry: FileEntry) => {
-        const nextName = window.prompt('Rename entry', entry.name);
-        if (!nextName || nextName === entry.name) return;
-
+    const handleRename = async (entry: FileEntry, nextName: string) => {
+        if (nextName === entry.name) return;
         try {
             const data = await fetchJson<{ path: string }>('/api/modules/file-browser', {
                 method: 'PATCH',
@@ -495,9 +596,6 @@ export default function FileBrowserPage() {
     };
 
     const handleDelete = async (entry: FileEntry) => {
-        const confirmed = window.confirm(`Delete ${entry.name}? This cannot be undone.`);
-        if (!confirmed) return;
-
         try {
             await fetchJson('/api/modules/file-browser', {
                 method: 'DELETE',
@@ -660,14 +758,14 @@ export default function FileBrowserPage() {
                             variant="outline"
                             size="sm"
                             className="h-8 md:h-9 gap-2 hidden md:inline-flex"
-                            onClick={() => handleCreate('directory')}
+                            onClick={() => setDialogState({ type: 'create', kind: 'directory' })}
                         >
                             <FolderPlus className="h-4 w-4" />
                             <span className="hidden lg:inline">New Folder</span>
                         </Button>
                         <Button 
                             className="h-8 md:h-9 gap-2 shadow-sm shadow-primary/20"
-                            onClick={() => handleCreate('file')}
+                            onClick={() => setDialogState({ type: 'create', kind: 'file' })}
                         >
                             <Plus className="h-4 w-4" />
                             <span className="hidden sm:inline">New File</span>
@@ -712,7 +810,7 @@ export default function FileBrowserPage() {
                                         variant="ghost" 
                                         size="icon" 
                                         className="h-6 w-6 text-muted-foreground"
-                                        onClick={() => handleCreate('directory')}
+                                        onClick={() => setDialogState({ type: 'create', kind: 'directory' })}
                                     >
                                         <FolderPlus className="h-3.5 w-3.5" />
                                     </Button>
@@ -794,8 +892,8 @@ export default function FileBrowserPage() {
                                 onNavigate={navigate}
                                 onPreview={loadPreview}
                                 onEdit={(entry) => loadPreview(entry, true)}
-                                onRename={handleRename}
-                                onDelete={handleDelete}
+                                onRename={(entry) => setDialogState({ type: 'rename', entry })}
+                                onDelete={(entry) => setDialogState({ type: 'delete', entry })}
                                 onDownload={handleDownload}
                                 onCopyPath={handleCopyPath}
                             />
@@ -877,7 +975,7 @@ export default function FileBrowserPage() {
                 <Button variant="ghost" size="sm" className="h-9 gap-1.5 text-xs" onClick={() => fileInputRef.current?.click()}>
                     <Upload className="h-3.5 w-3.5" /> Upload
                 </Button>
-                <Button variant="ghost" size="sm" className="h-9 gap-1.5 text-xs" onClick={() => handleCreate('directory')}>
+                <Button variant="ghost" size="sm" className="h-9 gap-1.5 text-xs" onClick={() => setDialogState({ type: 'create', kind: 'directory' })}>
                     <FolderPlus className="h-3.5 w-3.5" /> Folder
                 </Button>
                 <Button variant="ghost" size="sm" className="h-9 gap-1.5 text-xs" onClick={refresh}>
@@ -903,6 +1001,56 @@ export default function FileBrowserPage() {
                 ref={fileInputRef}
                 onChange={(e) => uploadFiles(e.target.files)}
             />
+
+            {/* In-app modals for create / rename / delete */}
+            {dialogState?.type === 'create' && (
+                <InputModal
+                    title={dialogState.kind === 'file' ? 'New File' : 'New Folder'}
+                    description={`Create a new ${dialogState.kind === 'file' ? 'file' : 'folder'} in the current directory.`}
+                    icon={dialogState.kind === 'file' ? <Plus className="h-5 w-5 text-primary" /> : <FolderPlus className="h-5 w-5 text-primary" />}
+                    placeholder={dialogState.kind === 'file' ? 'filename.txt' : 'folder-name'}
+                    submitLabel="Create"
+                    onSubmit={(name) => {
+                        const kind = dialogState.kind;
+                        setDialogState(null);
+                        void handleCreate(kind, name);
+                    }}
+                    onClose={() => setDialogState(null)}
+                />
+            )}
+
+            {dialogState?.type === 'rename' && (
+                <InputModal
+                    title="Rename"
+                    description={`Rename "${dialogState.entry.name}"`}
+                    icon={<Pencil className="h-5 w-5 text-primary" />}
+                    defaultValue={dialogState.entry.name}
+                    placeholder="New name"
+                    submitLabel="Rename"
+                    onSubmit={(name) => {
+                        const entry = dialogState.entry;
+                        setDialogState(null);
+                        void handleRename(entry, name);
+                    }}
+                    onClose={() => setDialogState(null)}
+                />
+            )}
+
+            {dialogState?.type === 'delete' && (
+                <ConfirmModal
+                    title="Delete entry"
+                    description={`Are you sure you want to delete "${dialogState.entry.name}"? This cannot be undone.`}
+                    icon={<AlertTriangle className="h-5 w-5 text-destructive" />}
+                    confirmLabel="Delete"
+                    variant="destructive"
+                    onConfirm={() => {
+                        const entry = dialogState.entry;
+                        setDialogState(null);
+                        void handleDelete(entry);
+                    }}
+                    onClose={() => setDialogState(null)}
+                />
+            )}
         </div>
     );
 }
