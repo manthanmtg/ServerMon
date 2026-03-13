@@ -26,6 +26,7 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/components/ui/toast';
+import { AutoscrollButton } from '@/components/ui/AutoscrollButton';
 import { cn, formatBytes } from '@/lib/utils';
 import type { AgentSession, AgentsSnapshot, AgentType, SessionStatus } from '../types';
 
@@ -303,16 +304,11 @@ function SessionDetail({
                             ))}
                         </div>
                         {activeTab === 'conversation' && (
-                            <button
-                                onClick={() => setAutoScroll(!autoScroll)}
-                                className={cn(
-                                    'flex items-center gap-1.5 px-2 py-1 rounded text-[10px] font-medium transition-colors cursor-pointer shrink-0',
-                                    autoScroll ? 'bg-primary/20 text-primary' : 'bg-secondary text-muted-foreground'
-                                )}
-                            >
-                                <RefreshCcw className={cn('w-3 h-3', autoScroll && 'animate-spin-slow')} />
-                                Auto-scroll: {autoScroll ? 'ON' : 'OFF'}
-                            </button>
+                            <AutoscrollButton
+                                enabled={autoScroll}
+                                onToggle={setAutoScroll}
+                                className="h-9 px-3"
+                            />
                         )}
                     </div>
                 </CardHeader>
