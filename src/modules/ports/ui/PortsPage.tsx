@@ -65,13 +65,59 @@ export default function PortsPage() {
             if (res.ok) {
                 const data = await res.json();
                 setCheckResult(data);
+            } else {
+                setCheckResult(null);
             }
         } catch {
-            // ignore
+            setCheckResult(null);
         } finally {
             setChecking(false);
         }
     };
+
+    useEffect(() => {
+        if (!checkPort) {
+            setCheckResult(null);
+            return;
+        }
+
+        const port = parseInt(checkPort, 10);
+        if (isNaN(port) || port < 1 || port > 65535) {
+            setCheckResult(null);
+            return;
+        }
+
+        setChecking(true);
+        setCheckResult(null);
+
+        const controller = new AbortController();
+        const timeoutId = window.setTimeout(async () => {
+            try {
+                const res = await fetch(`/api/modules/ports/check?port=${port}`, {
+                    signal: controller.signal,
+                });
+                if (res.ok) {
+                    const data: PortCheckResult = await res.json();
+                    setCheckResult(data);
+                } else {
+                    setCheckResult(null);
+                }
+            } catch {
+                if (!controller.signal.aborted) {
+                    setCheckResult(null);
+                }
+            } finally {
+                if (!controller.signal.aborted) {
+                    setChecking(false);
+                }
+            }
+        }, 400);
+
+        return () => {
+            controller.abort();
+            window.clearTimeout(timeoutId);
+        };
+    }, [checkPort]);
 
     const filtered = snapshot?.listening.filter(p => {
         if (protocolFilter === 'tcp' && !p.protocol.startsWith('tcp')) return false;
