@@ -696,7 +696,7 @@ export default function FileBrowserPage() {
 
 
     return (
-        <div className="flex flex-col h-full bg-background overflow-hidden animate-in fade-in duration-500">
+        <div className="relative flex flex-col h-full bg-background overflow-hidden animate-in fade-in duration-500">
             {/* Header / Toolbar */}
             <div className="flex flex-col border-b border-border/50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
                 {/* Row 1: Nav + actions */}
@@ -960,11 +960,12 @@ export default function FileBrowserPage() {
                 )}
             </div>
 
-            {/* Desktop sidebar toggle — positioned relative to sidebar */}
+            {/* Desktop sidebar toggle — positioned inside the file browser layout */}
             <Button
                 variant="outline"
                 size="icon"
-                className="hidden md:flex fixed bottom-6 left-6 h-10 w-10 rounded-full shadow-lg border-primary/20 bg-background/80 backdrop-blur z-20"
+                className="hidden md:flex absolute bottom-4 h-9 w-9 rounded-full shadow-lg border-primary/20 bg-background/80 backdrop-blur z-20 transition-[left] duration-200"
+                style={{ left: showTree ? 'calc(18rem - 0.25rem)' : '0.75rem' }}
                 onClick={() => setShowTree(!showTree)}
             >
                 {showTree ? <PanelLeftClose className="h-4 w-4" /> : <PanelLeftOpen className="h-4 w-4" />}
