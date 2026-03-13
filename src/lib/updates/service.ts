@@ -10,8 +10,20 @@ import type {
     UpdateSnapshot, 
     PackageUpdate, 
     UpdateHistoryEntry, 
-    UpdateAlertSummary 
+    UpdateAlertSummary
 } from '@/modules/updates/types';
+import { UpdateRunStatus } from '@/types/updates';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
+import { 
+    readdir, 
+    readFile, 
+    stat, 
+    unlink, 
+    writeFile, 
+    mkdir 
+} from 'node:fs/promises';
+import { openSync, closeSync } from 'node:fs';
 
 const execFileAsync = promisify(execFile);
 const log = createLogger('updates-service');
@@ -22,6 +34,9 @@ class UpdateService {
     private lastCheck: number = 0;
     private isChecking: boolean = false;
     private CACHE_DURATION = 3600 * 1000; // 1 hour
+    private UPDATE_LOG_DIR = process.env.UPDATE_LOG_DIR || '/var/log/servermon_update';
+    private MAX_TRACKED_RUNS = 50;
+    private LOG_PREFIX = 'servermon_update_';
 
     private constructor() {}
 
@@ -250,7 +265,95 @@ class UpdateService {
         }
     }
 
-    public async triggerUpdate(): Promise<{ success: boolean; pid?: number; message: string }> {
+    private async ensureLogDir(): Promise<string> {
+        try {
+            if (!existsSync(this.UPDATE_LOG_DIR)) {
+                await mkdir(this.UPDATE_LOG_DIR, { recursive: true, mode: 0o755 });
+                log.info(`Created update log directory: ${this.UPDATE_LOG_DIR}`);
+            }
+            return this.UPDATE_LOG_DIR;
+        } catch (err) {
+            log.warn(`Failed to create log directory ${this.UPDATE_LOG_DIR}, falling back to tmp`, err);
+            return tmpdir();
+        }
+    }
+
+    private async pruneOldRuns(logDir: string): Promise<void> {
+        try {
+            const files = await readdir(logDir);
+            const metadataFiles = files.filter(f => f.startsWith(this.LOG_PREFIX) && f.endsWith('.json'));
+            if (metadataFiles.length <= this.MAX_TRACKED_RUNS) return;
+
+            const stats = await Promise.all(
+                metadataFiles.map(async f => {
+                    const s = await stat(join(logDir, f));
+                    return { name: f, mtime: s.mtime.getTime() };
+                })
+            );
+
+            stats.sort((a, b) => a.mtime - b.mtime);
+            const toDelete = stats.slice(0, stats.length - this.MAX_TRACKED_RUNS);
+
+            for (const item of toDelete) {
+                const base = item.name.replace('.json', '');
+                await unlink(join(logDir, `${base}.json`)).catch(() => {});
+                await unlink(join(logDir, `${base}.log`)).catch(() => {});
+            }
+        } catch (err) {
+            log.error('Failed to prune old update runs', err);
+        }
+    }
+
+    public async listUpdateRuns(): Promise<UpdateRunStatus[]> {
+        const logDir = await this.ensureLogDir();
+        try {
+            const files = await readdir(logDir);
+            const metadataFiles = files.filter(f => f.startsWith(this.LOG_PREFIX) && f.endsWith('.json'));
+
+            const runs = await Promise.all(
+                metadataFiles.map(async f => {
+                    try {
+                        const content = await readFile(join(logDir, f), 'utf-8');
+                        return JSON.parse(content) as UpdateRunStatus;
+                    } catch {
+                        return null;
+                    }
+                })
+            );
+
+            return runs
+                .filter((r): r is UpdateRunStatus => r !== null)
+                .sort((a: UpdateRunStatus, b: UpdateRunStatus) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+        } catch (err) {
+            log.error('Failed to list update runs', err);
+            return [];
+        }
+    }
+
+    public async getUpdateRunDetails(runId: string): Promise<UpdateRunStatus | null> {
+        const logDir = await this.ensureLogDir();
+        const fullId = runId.startsWith(this.LOG_PREFIX) ? runId : `${this.LOG_PREFIX}${runId}`;
+        const metadataPath = join(logDir, `${fullId}.json`);
+        const logPath = join(logDir, `${fullId}.log`);
+
+        try {
+            if (!existsSync(metadataPath)) return null;
+            const content = await readFile(metadataPath, 'utf-8');
+            const run = JSON.parse(content) as UpdateRunStatus;
+
+            if (existsSync(logPath)) {
+                const logData = await readFile(logPath, 'utf-8');
+                run.logContent = logData;
+            }
+
+            return run;
+        } catch (err) {
+            log.error(`Failed to get update run details for ${runId}`, err);
+            return null;
+        }
+    }
+
+    public async triggerUpdate(): Promise<{ success: boolean; pid?: number; message: string; runId?: string }> {
         // Use the explicit repo dir if set, otherwise default to the production install path
         const scriptBase = process.env.SERVERMON_REPO_DIR || '/opt/servermon/repo';
         const updateScript = `${scriptBase}/scripts/update-servermon.sh`;
@@ -263,20 +366,57 @@ class UpdateService {
             };
         }
 
-        log.info(`Triggering system update via ${updateScript}`);
+        const logDir = await this.ensureLogDir();
+        const runIdBase = String(Date.now());
+        const runId = `${this.LOG_PREFIX}${runIdBase}`;
+        const timestamp = new Date().toISOString();
+        const logFile = join(logDir, `${runId}.log`);
+        const metadataFile = join(logDir, `${runId}.json`);
+
+        log.info(`Triggering system update via ${updateScript}`, { runId });
         
         try {
-            // Run the script in the background with inherited stdout/stderr redirected to logs if possible
+            const logFd = openSync(logFile, 'w');
+            
+            // Run the script in the background with stdout/stderr redirected to our log file
             const child = spawn('sudo', [updateScript], {
                 detached: true,
-                stdio: 'ignore'
+                stdio: ['ignore', logFd, logFd]
             });
             
+            closeSync(logFd);
             child.unref();
             
             if (child.pid) {
+                const initialStatus: UpdateRunStatus = {
+                    runId: runIdBase,
+                    timestamp,
+                    status: 'running',
+                    pid: child.pid,
+                    exitCode: null,
+                    startedAt: timestamp
+                };
+
+                await writeFile(metadataFile, JSON.stringify(initialStatus, null, 2));
+                
+                // Track completion (best effort, parent might restart)
+                child.on('exit', async (code) => {
+                    try {
+                        const statusData = await readFile(metadataFile, 'utf-8');
+                        const status = JSON.parse(statusData) as UpdateRunStatus;
+                        status.status = code === 0 ? 'completed' : 'failed';
+                        status.exitCode = code;
+                        status.finishedAt = new Date().toISOString();
+                        await writeFile(metadataFile, JSON.stringify(status, null, 2));
+                    } catch (e) {
+                        log.error(`Failed to update metadata on exit for ${runId}`, e);
+                    }
+                });
+
+                this.pruneOldRuns(logDir);
+                
                 log.info(`Update process started with PID ${child.pid}`);
-                return { success: true, pid: child.pid, message: 'Update triggered successfully' };
+                return { success: true, pid: child.pid, message: 'Update triggered successfully', runId: runIdBase };
             } else {
                 throw new Error('Failed to get PID for update process');
             }

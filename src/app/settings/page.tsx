@@ -2,12 +2,13 @@
 
 import React, { useEffect, useState } from 'react';
 import { useTheme } from '@/lib/ThemeContext';
-import { Palette, Box, Shield, Check, RefreshCcw, LoaderCircle } from 'lucide-react';
+import { Palette, Box, Shield, Check, RefreshCcw, LoaderCircle, History } from 'lucide-react';
 import ProShell from '@/components/layout/ProShell';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import PasskeySettings from '@/modules/security/ui/PasskeySettings';
 import { useToast } from '@/components/ui/toast';
+import UpdateHistoryModal from '@/components/settings/UpdateHistoryModal';
 
 interface ModuleInfo {
     id: string;
@@ -20,6 +21,7 @@ export default function SettingsPage() {
     const { toast } = useToast();
     const [modules, setModules] = useState<ModuleInfo[]>([]);
     const [updating, setUpdating] = useState(false);
+    const [showHistory, setShowHistory] = useState(false);
 
     useEffect(() => {
         fetch('/api/modules')
@@ -183,20 +185,30 @@ export default function SettingsPage() {
                             <CardHeader>
                                 <div className="flex items-center justify-between">
                                     <CardTitle className="text-base">About</CardTitle>
-                                    <button
-                                        type="button"
-                                        onClick={handleUpdate}
-                                        disabled={updating}
-                                        className="flex h-8 items-center gap-2 rounded-lg border border-border bg-background px-3 text-xs font-medium text-foreground transition-all hover:bg-accent disabled:opacity-50"
-                                        title="Trigger system update"
-                                    >
-                                        {updating ? (
-                                            <LoaderCircle className="w-3.5 h-3.5 animate-spin" />
-                                        ) : (
-                                            <RefreshCcw className="w-3.5 h-3.5 text-primary" />
-                                        )}
-                                        {updating ? 'Updating...' : 'Update'}
-                                    </button>
+                                    <div className="flex items-center gap-2">
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowHistory(true)}
+                                            className="flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-background text-foreground transition-all hover:bg-accent"
+                                            title="View update history"
+                                        >
+                                            <History className="w-3.5 h-3.5" />
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={handleUpdate}
+                                            disabled={updating}
+                                            className="flex h-8 items-center gap-2 rounded-lg border border-border bg-background px-3 text-xs font-medium text-foreground transition-all hover:bg-accent disabled:opacity-50"
+                                            title="Trigger system update"
+                                        >
+                                            {updating ? (
+                                                <LoaderCircle className="w-3.5 h-3.5 animate-spin" />
+                                            ) : (
+                                                <RefreshCcw className="w-3.5 h-3.5 text-primary" />
+                                            )}
+                                            {updating ? 'Updating...' : 'Update'}
+                                        </button>
+                                    </div>
                                 </div>
                             </CardHeader>
                             <CardContent>
@@ -219,6 +231,10 @@ export default function SettingsPage() {
                     </div>
                 </div>
             </div>
+
+            {showHistory && (
+                <UpdateHistoryModal onClose={() => setShowHistory(false)} />
+            )}
         </ProShell>
     );
 }
