@@ -1,0 +1,607 @@
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+import { readdir, readFile, access } from 'node:fs/promises';
+import { join } from 'node:path';
+import { createHash } from 'node:crypto';
+import { createLogger } from '@/lib/logger';
+import type {
+    CronJob,
+    CronLogEntry,
+    CronSource,
+    CronsSnapshot,
+    SystemCronDir,
+    CronCreateRequest,
+    CronUpdateRequest,
+} from '@/modules/crons/types';
+
+const execFileAsync = promisify(execFile);
+const log = createLogger('crons');
+
+let crontabChecked = false;
+let crontabAvailable = false;
+
+async function checkCrontab(): Promise<boolean> {
+    if (crontabChecked) return crontabAvailable;
+    try {
+        await execFileAsync('crontab', ['-l'], { timeout: 5000 });
+        crontabAvailable = true;
+    } catch (err: unknown) {
+        const error = err as { code?: number; stderr?: string };
+        if (error.stderr?.includes('no crontab for')) {
+            crontabAvailable = true;
+        } else {
+            crontabAvailable = false;
+            log.warn('crontab not available, using mock data');
+        }
+    }
+    crontabChecked = true;
+    return crontabAvailable;
+}
+
+async function execCmd(cmd: string, args: string[], timeoutMs = 10000): Promise<string> {
+    try {
+        const { stdout } = await execFileAsync(cmd, args, { timeout: timeoutMs, maxBuffer: 5 * 1024 * 1024 });
+        return stdout;
+    } catch (err: unknown) {
+        const error = err as { stdout?: string; stderr?: string };
+        if (error.stdout) return error.stdout;
+        throw err;
+    }
+}
+
+function makeId(user: string, expression: string, command: string): string {
+    const hash = createHash('sha256').update(`${user}:${expression}:${command}`).digest('hex');
+    return hash.slice(0, 12);
+}
+
+function computeNextRuns(minute: string, hour: string, dom: string, month: string, dow: string, count = 5): string[] {
+    const runs: string[] = [];
+    const now = new Date();
+    const cursor = new Date(now.getTime());
+    cursor.setSeconds(0, 0);
+    cursor.setMinutes(cursor.getMinutes() + 1);
+
+    const maxIterations = 525600;
+    let iterations = 0;
+
+    while (runs.length < count && iterations < maxIterations) {
+        iterations++;
+        if (matchesCronField(minute, cursor.getMinutes(), 0, 59) &&
+            matchesCronField(hour, cursor.getHours(), 0, 23) &&
+            matchesCronField(dom, cursor.getDate(), 1, 31) &&
+            matchesCronField(month, cursor.getMonth() + 1, 1, 12) &&
+            matchesCronField(dow, cursor.getDay(), 0, 7)) {
+            runs.push(cursor.toISOString());
+        }
+        cursor.setMinutes(cursor.getMinutes() + 1);
+    }
+
+    return runs;
+}
+
+function matchesCronField(field: string, value: number, min: number, max: number): boolean {
+    if (field === '*') return true;
+
+    const parts = field.split(',');
+    for (const part of parts) {
+        if (part.includes('/')) {
+            const [range, stepStr] = part.split('/');
+            const step = parseInt(stepStr, 10);
+            if (isNaN(step) || step <= 0) continue;
+            let start = min;
+            let end = max;
+            if (range !== '*') {
+                if (range.includes('-')) {
+                    const [s, e] = range.split('-').map(Number);
+                    start = s;
+                    end = e;
+                } else {
+                    start = parseInt(range, 10);
+                }
+            }
+            for (let i = start; i <= end; i += step) {
+                if (i === value) return true;
+            }
+        } else if (part.includes('-')) {
+            const [s, e] = part.split('-').map(Number);
+            if (value >= s && value <= e) return true;
+        } else {
+            const num = parseInt(part, 10);
+            if (num === value) return true;
+            if (field === '7' && value === 0) return true;
+            if (field === '0' && value === 7) return true;
+        }
+    }
+    return false;
+}
+
+function parseCrontabLine(line: string, user: string, source: CronSource, sourceFile?: string): CronJob | null {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#') && !trimmed.startsWith('#!')) {
+        if (trimmed.startsWith('#') && trimmed.length > 1) {
+            const uncommented = trimmed.slice(1).trim();
+            const job = parseCronExpression(uncommented, user, source, sourceFile);
+            if (job) {
+                job.enabled = false;
+                job.comment = trimmed;
+                return job;
+            }
+        }
+        return null;
+    }
+
+    if (trimmed.includes('=') && !trimmed.match(/^\S+\s+\S+\s+\S+\s+\S+\s+\S+\s+/)) {
+        return null;
+    }
+
+    return parseCronExpression(trimmed, user, source, sourceFile);
+}
+
+function parseCronExpression(line: string, user: string, source: CronSource, sourceFile?: string): CronJob | null {
+    // Handle @reboot, @hourly, etc.
+    const specialMap: Record<string, string> = {
+        '@reboot': '- - - - -',
+        '@yearly': '0 0 1 1 *',
+        '@annually': '0 0 1 1 *',
+        '@monthly': '0 0 1 * *',
+        '@weekly': '0 0 * * 0',
+        '@daily': '0 0 * * *',
+        '@midnight': '0 0 * * *',
+        '@hourly': '0 * * * *',
+    };
+
+    let minute: string, hour: string, dayOfMonth: string, month: string, dayOfWeek: string, command: string;
+
+    const firstToken = line.split(/\s+/)[0];
+    if (firstToken && specialMap[firstToken]) {
+        const expanded = specialMap[firstToken].split(' ');
+        [minute, hour, dayOfMonth, month, dayOfWeek] = expanded;
+        command = line.slice(firstToken.length).trim();
+    } else {
+        const parts = line.split(/\s+/);
+        if (parts.length < 6) return null;
+        [minute, hour, dayOfMonth, month, dayOfWeek] = parts;
+        command = parts.slice(5).join(' ');
+    }
+
+    if (!command) return null;
+
+    const expression = `${minute} ${hour} ${dayOfMonth} ${month} ${dayOfWeek}`;
+    const nextRuns = minute === '-' ? [] : computeNextRuns(minute, hour, dayOfMonth, month, dayOfWeek);
+
+    return {
+        id: makeId(user, expression, command),
+        minute,
+        hour,
+        dayOfMonth,
+        month,
+        dayOfWeek,
+        command,
+        expression,
+        user,
+        source,
+        sourceFile,
+        enabled: true,
+        nextRuns,
+        description: describeSchedule(minute, hour, dayOfMonth, month, dayOfWeek),
+    };
+}
+
+function describeSchedule(minute: string, hour: string, dom: string, month: string, dow: string): string {
+    if (minute === '-') return 'On reboot';
+    if (minute === '*' && hour === '*') return 'Every minute';
+    if (minute === '0' && hour === '*') return 'Every hour';
+    if (minute === '0' && hour === '0' && dom === '*' && month === '*' && dow === '*') return 'Daily at midnight';
+    if (minute === '0' && hour === '0' && dom === '1' && month === '*' && dow === '*') return 'Monthly on the 1st';
+    if (minute === '0' && hour === '0' && dom === '*' && month === '*' && dow === '0') return 'Weekly on Sunday';
+
+    const parts: string[] = [];
+
+    if (minute.includes('/')) parts.push(`Every ${minute.split('/')[1]} minutes`);
+    else if (minute !== '*') parts.push(`At minute ${minute}`);
+
+    if (hour.includes('/')) parts.push(`every ${hour.split('/')[1]} hours`);
+    else if (hour !== '*') parts.push(`at hour ${hour}`);
+
+    if (dom !== '*') parts.push(`on day ${dom}`);
+    if (month !== '*') parts.push(`in month ${month}`);
+
+    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    if (dow !== '*') {
+        const dayParts = dow.split(',').map(d => {
+            const num = parseInt(d, 10);
+            return isNaN(num) ? d : (dayNames[num % 7] || d);
+        });
+        parts.push(`on ${dayParts.join(', ')}`);
+    }
+
+    return parts.length > 0 ? parts.join(' ') : `${minute} ${hour} ${dom} ${month} ${dow}`;
+}
+
+async function getUserCrontab(user?: string): Promise<string> {
+    try {
+        const args = user ? ['-u', user, '-l'] : ['-l'];
+        return await execCmd('crontab', args);
+    } catch (err: unknown) {
+        const error = err as { stderr?: string };
+        if (error.stderr?.includes('no crontab for')) return '';
+        throw err;
+    }
+}
+
+async function setUserCrontab(content: string, user?: string): Promise<void> {
+    const { writeFileSync, unlinkSync } = await import('node:fs');
+    const { tmpdir } = await import('node:os');
+    const tmpFile = join(tmpdir(), `crontab-${Date.now()}.tmp`);
+
+    try {
+        writeFileSync(tmpFile, content);
+        const args = user ? ['-u', user, tmpFile] : [tmpFile];
+        await execCmd('crontab', args, 15000);
+    } finally {
+        try { unlinkSync(tmpFile); } catch { /* ignore */ }
+    }
+}
+
+async function listUserJobs(): Promise<CronJob[]> {
+    const raw = await getUserCrontab();
+    const jobs: CronJob[] = [];
+    const currentUser = process.env.USER || 'root';
+
+    for (const line of raw.split('\n')) {
+        const job = parseCrontabLine(line, currentUser, 'user');
+        if (job) jobs.push(job);
+    }
+
+    return jobs;
+}
+
+async function listSystemCronDirs(): Promise<SystemCronDir[]> {
+    const dirs: SystemCronDir[] = [];
+    const cronDirs: Array<{ name: string; path: string; source: CronSource }> = [
+        { name: 'cron.d', path: '/etc/cron.d', source: 'etc-cron.d' },
+        { name: 'cron.daily', path: '/etc/cron.daily', source: 'etc-cron.daily' },
+        { name: 'cron.hourly', path: '/etc/cron.hourly', source: 'etc-cron.hourly' },
+        { name: 'cron.weekly', path: '/etc/cron.weekly', source: 'etc-cron.weekly' },
+        { name: 'cron.monthly', path: '/etc/cron.monthly', source: 'etc-cron.monthly' },
+    ];
+
+    for (const dir of cronDirs) {
+        try {
+            await access(dir.path);
+            const files = await readdir(dir.path);
+            dirs.push({
+                name: dir.name,
+                path: dir.path,
+                count: files.length,
+                scripts: files.filter(f => !f.startsWith('.')),
+            });
+        } catch {
+            // directory doesn't exist or not readable
+        }
+    }
+
+    return dirs;
+}
+
+async function listSystemCronJobs(): Promise<CronJob[]> {
+    const jobs: CronJob[] = [];
+
+    try {
+        await access('/etc/cron.d');
+        const files = await readdir('/etc/cron.d');
+        for (const file of files) {
+            if (file.startsWith('.')) continue;
+            try {
+                const content = await readFile(join('/etc/cron.d', file), 'utf-8');
+                for (const line of content.split('\n')) {
+                    const job = parseCrontabLine(line, 'system', 'etc-cron.d', file);
+                    if (job) jobs.push(job);
+                }
+            } catch { /* skip unreadable files */ }
+        }
+    } catch { /* /etc/cron.d not accessible */ }
+
+    return jobs;
+}
+
+async function getRecentLogs(count = 50): Promise<CronLogEntry[]> {
+    try {
+        const raw = await execCmd('journalctl', [
+            '-u', 'cron',
+            '-n', String(Math.min(count, 200)),
+            '--no-pager',
+            '-o', 'json',
+        ]);
+
+        const entries: CronLogEntry[] = [];
+        for (const line of raw.split('\n')) {
+            if (!line.trim()) continue;
+            try {
+                const parsed = JSON.parse(line);
+                entries.push({
+                    timestamp: parsed.__REALTIME_TIMESTAMP
+                        ? new Date(Number(parsed.__REALTIME_TIMESTAMP) / 1000).toISOString()
+                        : new Date().toISOString(),
+                    user: parsed._UID || 'unknown',
+                    command: parsed.MESSAGE || '',
+                    pid: Number(parsed._PID) || 0,
+                    message: parsed.MESSAGE || '',
+                });
+            } catch { /* skip malformed json */ }
+        }
+        return entries;
+    } catch {
+        // Try syslog fallback
+        try {
+            const raw = await execCmd('grep', ['CRON', '/var/log/syslog'], 5000);
+            const lines = raw.split('\n').filter(Boolean).slice(-count);
+            return lines.map((line, i) => ({
+                timestamp: new Date().toISOString(),
+                user: 'unknown',
+                command: line,
+                pid: i,
+                message: line,
+            }));
+        } catch {
+            return [];
+        }
+    }
+}
+
+// ---- Mock data for non-Linux environments ----
+
+function generateMockJobs(): CronJob[] {
+    const mockEntries = [
+        { expr: '0 * * * *', cmd: '/usr/local/bin/health-check.sh', comment: 'Hourly health check' },
+        { expr: '*/5 * * * *', cmd: '/opt/scripts/sync-data.py --quiet', comment: 'Sync data every 5 minutes' },
+        { expr: '0 2 * * *', cmd: '/usr/local/bin/backup.sh /data /backup', comment: 'Daily backup at 2 AM' },
+        { expr: '0 0 * * 0', cmd: '/opt/maintenance/weekly-cleanup.sh', comment: 'Weekly cleanup on Sunday' },
+        { expr: '30 3 1 * *', cmd: '/usr/local/bin/monthly-report.sh --email admin@example.com', comment: 'Monthly report' },
+        { expr: '*/15 * * * *', cmd: '/opt/monitoring/check-disk-space.sh --threshold 90', comment: 'Disk space check' },
+        { expr: '0 6 * * 1-5', cmd: '/opt/scripts/daily-digest.py --send', comment: 'Weekday daily digest' },
+        { expr: '0 0 1 1 *', cmd: '/opt/maintenance/annual-archive.sh', comment: 'Annual archive' },
+        { expr: '*/30 * * * *', cmd: '/usr/bin/certbot renew --quiet', comment: 'Certificate renewal check' },
+        { expr: '0 4 * * *', cmd: '/opt/scripts/log-rotate.sh --compress', comment: 'Log rotation at 4 AM' },
+        { expr: '15 10 * * *', cmd: '/opt/monitoring/uptime-report.sh', comment: 'Daily uptime report' },
+        { expr: '0 */6 * * *', cmd: '/opt/scripts/cache-warmup.py', comment: 'Cache warmup every 6 hours' },
+    ];
+
+    const currentUser = process.env.USER || 'root';
+    return mockEntries.map((entry, index) => {
+        const [minute, hour, dom, month, dow] = entry.expr.split(' ');
+        const expression = entry.expr;
+        const enabled = index !== 3;
+        const nextRuns = computeNextRuns(minute, hour, dom, month, dow);
+
+        return {
+            id: makeId(currentUser, expression, entry.cmd),
+            minute,
+            hour,
+            dayOfMonth: dom,
+            month,
+            dayOfWeek: dow,
+            command: entry.cmd,
+            expression,
+            user: index < 8 ? currentUser : 'root',
+            source: (index < 8 ? 'user' : 'system') as CronSource,
+            sourceFile: index >= 8 ? 'cron.d/maintenance' : undefined,
+            enabled,
+            comment: entry.comment,
+            nextRuns: enabled ? nextRuns : [],
+            description: describeSchedule(minute, hour, dom, month, dow),
+        };
+    });
+}
+
+function generateMockLogs(): CronLogEntry[] {
+    const commands = [
+        'health-check.sh', 'sync-data.py', 'backup.sh',
+        'check-disk-space.sh', 'log-rotate.sh',
+    ];
+    const logs: CronLogEntry[] = [];
+    const now = Date.now();
+
+    for (let i = 0; i < 30; i++) {
+        const cmd = commands[i % commands.length];
+        logs.push({
+            timestamp: new Date(now - i * 300_000).toISOString(),
+            user: 'root',
+            command: `/opt/scripts/${cmd}`,
+            pid: 10000 + i,
+            message: `(root) CMD (/opt/scripts/${cmd})`,
+        });
+    }
+
+    return logs;
+}
+
+function generateMockSystemDirs(): SystemCronDir[] {
+    return [
+        { name: 'cron.d', path: '/etc/cron.d', count: 4, scripts: ['certbot', 'sysstat', 'php', 'e2scrub_all'] },
+        { name: 'cron.daily', path: '/etc/cron.daily', count: 6, scripts: ['logrotate', 'man-db', 'apt-compat', 'dpkg', 'passwd', 'mlocate'] },
+        { name: 'cron.hourly', path: '/etc/cron.hourly', count: 1, scripts: ['0anacron'] },
+        { name: 'cron.weekly', path: '/etc/cron.weekly', count: 2, scripts: ['man-db', 'fstrim'] },
+        { name: 'cron.monthly', path: '/etc/cron.monthly', count: 0, scripts: [] },
+    ];
+}
+
+// ---- Public API ----
+
+async function getSnapshot(): Promise<CronsSnapshot> {
+    const hasCrontab = await checkCrontab();
+
+    if (!hasCrontab) {
+        const mockJobs = generateMockJobs();
+        const activeJobs = mockJobs.filter(j => j.enabled);
+        const nextJob = activeJobs
+            .filter(j => j.nextRuns.length > 0)
+            .sort((a, b) => new Date(a.nextRuns[0]).getTime() - new Date(b.nextRuns[0]).getTime())[0];
+
+        return {
+            source: 'mock',
+            crontabAvailable: false,
+            summary: {
+                total: mockJobs.length,
+                active: activeJobs.length,
+                disabled: mockJobs.length - activeJobs.length,
+                userCrons: mockJobs.filter(j => j.source === 'user').length,
+                systemCrons: mockJobs.filter(j => j.source !== 'user').length,
+                nextRunJob: nextJob?.command.split('/').pop()?.split(' ')[0],
+                nextRunTime: nextJob?.nextRuns[0],
+            },
+            jobs: mockJobs,
+            systemDirs: generateMockSystemDirs(),
+            recentLogs: generateMockLogs(),
+            timestamp: new Date().toISOString(),
+        };
+    }
+
+    try {
+        const [userJobs, systemJobs, systemDirs, recentLogs] = await Promise.all([
+            listUserJobs(),
+            listSystemCronJobs(),
+            listSystemCronDirs(),
+            getRecentLogs(),
+        ]);
+
+        const allJobs = [...userJobs, ...systemJobs];
+        const activeJobs = allJobs.filter(j => j.enabled);
+        const nextJob = activeJobs
+            .filter(j => j.nextRuns.length > 0)
+            .sort((a, b) => new Date(a.nextRuns[0]).getTime() - new Date(b.nextRuns[0]).getTime())[0];
+
+        return {
+            source: 'crontab',
+            crontabAvailable: true,
+            summary: {
+                total: allJobs.length,
+                active: activeJobs.length,
+                disabled: allJobs.length - activeJobs.length,
+                userCrons: userJobs.length,
+                systemCrons: systemJobs.length,
+                nextRunJob: nextJob?.command.split('/').pop()?.split(' ')[0],
+                nextRunTime: nextJob?.nextRuns[0],
+            },
+            jobs: allJobs,
+            systemDirs,
+            recentLogs,
+            timestamp: new Date().toISOString(),
+        };
+    } catch (err) {
+        log.error('Failed to get crons snapshot', err);
+        throw err;
+    }
+}
+
+async function createJob(req: CronCreateRequest): Promise<{ success: boolean; message: string; job?: CronJob }> {
+    const hasCrontab = await checkCrontab();
+    if (!hasCrontab) {
+        return { success: true, message: '[mock] Job created successfully' };
+    }
+
+    try {
+        const expression = `${req.minute} ${req.hour} ${req.dayOfMonth} ${req.month} ${req.dayOfWeek}`;
+        const commentLine = req.comment ? `# ${req.comment}\n` : '';
+        const cronLine = `${expression} ${req.command}`;
+
+        const existing = await getUserCrontab(req.user);
+        const newContent = existing.trimEnd() + '\n' + commentLine + cronLine + '\n';
+        await setUserCrontab(newContent, req.user);
+
+        const job = parseCronExpression(cronLine, req.user || process.env.USER || 'root', 'user');
+        return { success: true, message: 'Cron job created successfully', job: job || undefined };
+    } catch (err) {
+        const message = err instanceof Error ? err.message : 'Unknown error';
+        log.error('Failed to create cron job', err);
+        return { success: false, message };
+    }
+}
+
+async function updateJob(id: string, req: CronUpdateRequest): Promise<{ success: boolean; message: string }> {
+    const hasCrontab = await checkCrontab();
+    if (!hasCrontab) {
+        return { success: true, message: '[mock] Job updated successfully' };
+    }
+
+    try {
+        const raw = await getUserCrontab();
+        const lines = raw.split('\n');
+        const currentUser = process.env.USER || 'root';
+        let found = false;
+
+        const newLines = lines.map(line => {
+            const job = parseCrontabLine(line, currentUser, 'user');
+            if (job && job.id === id) {
+                found = true;
+                const minute = req.minute ?? job.minute;
+                const hour = req.hour ?? job.hour;
+                const dom = req.dayOfMonth ?? job.dayOfMonth;
+                const month = req.month ?? job.month;
+                const dow = req.dayOfWeek ?? job.dayOfWeek;
+                const command = req.command ?? job.command;
+                const newLine = `${minute} ${hour} ${dom} ${month} ${dow} ${command}`;
+
+                if (req.enabled === false) {
+                    return `# ${newLine}`;
+                } else if (req.enabled === true && line.trim().startsWith('#')) {
+                    return newLine;
+                }
+                return newLine;
+            }
+            return line;
+        });
+
+        if (!found) {
+            return { success: false, message: 'Cron job not found' };
+        }
+
+        await setUserCrontab(newLines.join('\n'));
+        return { success: true, message: 'Cron job updated successfully' };
+    } catch (err) {
+        const message = err instanceof Error ? err.message : 'Unknown error';
+        log.error('Failed to update cron job', err);
+        return { success: false, message };
+    }
+}
+
+async function deleteJob(id: string): Promise<{ success: boolean; message: string }> {
+    const hasCrontab = await checkCrontab();
+    if (!hasCrontab) {
+        return { success: true, message: '[mock] Job deleted successfully' };
+    }
+
+    try {
+        const raw = await getUserCrontab();
+        const lines = raw.split('\n');
+        const currentUser = process.env.USER || 'root';
+        let found = false;
+
+        const newLines = lines.filter(line => {
+            const job = parseCrontabLine(line, currentUser, 'user');
+            if (job && job.id === id) {
+                found = true;
+                return false;
+            }
+            return true;
+        });
+
+        if (!found) {
+            return { success: false, message: 'Cron job not found' };
+        }
+
+        await setUserCrontab(newLines.join('\n'));
+        return { success: true, message: 'Cron job deleted successfully' };
+    } catch (err) {
+        const message = err instanceof Error ? err.message : 'Unknown error';
+        log.error('Failed to delete cron job', err);
+        return { success: false, message };
+    }
+}
+
+export const cronsService = {
+    getSnapshot,
+    createJob,
+    updateJob,
+    deleteJob,
+};

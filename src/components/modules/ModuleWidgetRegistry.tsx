@@ -51,6 +51,10 @@ const UpdateWidget = dynamic(() => import('@/modules/updates/ui/UpdateWidget'), 
     loading: WidgetLoader,
 });
 
+const CronsWidget = dynamic(() => import('@/modules/crons/ui/CronsWidget'), {
+    loading: WidgetLoader,
+});
+
 const widgetMap: Record<string, { component: React.ComponentType<Record<string, unknown>>; name: string }> = {
     HealthWidget: { component: HealthWidget, name: 'System Health' },
     ProcessWidget: { component: ProcessWidget, name: 'Processes' },
@@ -62,6 +66,7 @@ const widgetMap: Record<string, { component: React.ComponentType<Record<string, 
     AIAgentsWidget: { component: AIAgentsWidget, name: 'AI Agents' },
     NetworkWidget: { component: NetworkWidget, name: 'Network Usage' },
     UpdateWidget: { component: UpdateWidget, name: 'System Updates' },
+    CronsWidget: { component: CronsWidget, name: 'Cron Jobs' },
 };
 
 export function renderWidget(componentName: string, props: Record<string, unknown> = {}) {

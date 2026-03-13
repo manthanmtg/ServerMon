@@ -20,6 +20,7 @@ import {
     Bot,
     BookOpen,
     Package,
+    Clock,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -50,6 +51,7 @@ const navGroups = [
             { label: 'Docker', href: '/docker', icon: Container },
             { label: 'Services', href: '/services', icon: Cog },
             { label: 'AI Agents', href: '/ai-agents', icon: Bot },
+            { label: 'Crons', href: '/crons', icon: Clock },
         ],
     },
 ];

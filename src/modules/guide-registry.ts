@@ -87,4 +87,29 @@ export const moduleGuides: ModuleGuideItem[] = [
             ],
         },
     },
+    {
+        id: 'crons-manager',
+        name: 'Cron Jobs Manager',
+        guide: {
+            title: 'Cron Job Management',
+            description: 'Schedule, monitor, and manage cron jobs with ease.',
+            sections: [
+                {
+                    title: 'Visual Schedule Builder',
+                    content: 'Create and edit cron schedules using an intuitive visual builder with presets for common intervals. See human-readable descriptions and next run times instantly.',
+                    icon: 'Clock',
+                },
+                {
+                    title: 'Job Management',
+                    content: 'View all user and system cron jobs in one place. Enable, disable, edit, or delete jobs with a single click. System cron directories are shown in a read-only view.',
+                    icon: 'Calendar',
+                },
+                {
+                    title: 'Execution History',
+                    content: 'Track recent cron executions from system journal logs. Monitor which jobs ran, when, and identify failures quickly.',
+                    icon: 'Terminal',
+                },
+            ],
+        },
+    },
 ];
