@@ -346,8 +346,8 @@ if grep -q "ookla/speedtest-cli" /etc/apt/sources.list.d/*.list 2>/dev/null; the
     log_info "Found existing Ookla speedtest-cli repository. Checking for compatibility..."
     if ! apt-get update -o Dir::Etc::sourcelist="sources.list.d/speedtest.list" -o Dir::Etc::sourceparts="-" -o APT::Get::List-Cleanup="0" -qq 2>/dev/null; then
         log_warn "Ookla repository looks broken (common on Ubuntu Noble). Disabling it to allow installation..."
-        rm -f /etc/apt/sources.list.d/speedtest.list
-        rm -f /etc/apt/sources.list.d/ookla_speedtest-cli.list
+        rm -v -f /etc/apt/sources.list.d/speedtest.list | xargs -I {} log_info "Removed {}"
+        rm -v -f /etc/apt/sources.list.d/ookla_speedtest-cli.list | xargs -I {} log_info "Removed {}"
     fi
 fi
 
@@ -361,6 +361,7 @@ apt-get update -y || {
 
 log_info "Installing core packages: curl, git, build-essential, lsof, liblzma-dev, pkg-config, snapd..."
 apt-get install -y curl git build-essential lsof liblzma-dev pkg-config snapd || { log_err "Failed to install system dependencies"; exit 1; }
+log "Installed core build and system tools"
 
 # Install official speedtest via snap as a robust alternative to apt repo
 if ! command -v speedtest &> /dev/null; then
@@ -379,8 +380,9 @@ if command -v node &> /dev/null; then
     NODE_VER=$(node -v)
     log "Node.js already installed: ${NODE_VER}"
 else
-    log_info "Installing Node.js v20 LTS..."
+    log_info "Setting up NodeSource repository for Node.js v20..."
     curl -fsSL https://deb.nodesource.com/setup_20.x 2>/dev/null | bash - > /dev/null 2>&1
+    log_info "Installing nodejs package..."
     apt-get install -qq -y nodejs > /dev/null 2>&1
     log "Node.js $(node -v) installed"
 fi
@@ -409,6 +411,7 @@ else
             | gpg --dearmor -o /usr/share/keyrings/mongodb-server-7.0.gpg 2>/dev/null
 
         CODENAME=$(lsb_release -cs 2>/dev/null || echo "jammy")
+        log_info "Detected OS codename: ${CODENAME}"
         echo "deb [ arch=amd64,arm64 signed-by=/usr/share/keyrings/mongodb-server-7.0.gpg ] https://repo.mongodb.org/apt/ubuntu ${CODENAME}/mongodb-org/7.0 multiverse" \
             > /etc/apt/sources.list.d/mongodb-org-7.0.list
 
@@ -449,18 +452,22 @@ else
 fi
 
 # Copy source excluding git, node_modules, .pnpm-store, .next, env files
+log_info "Syncing source files to ${NEW_RELEASE_DIR}..."
 rsync -a --exclude='.git' --exclude='node_modules' --exclude='.pnpm-store' \
     --exclude='.next' --exclude='.env*' \
     "${SOURCE_DIR}/" "${NEW_RELEASE_DIR}/" 2>/dev/null || {
     # Fallback if rsync is not available
+    log_warn "rsync not available, falling back to cp..."
     cp -r "${SOURCE_DIR}/." "${NEW_RELEASE_DIR}/"
     rm -rf "${NEW_RELEASE_DIR}/.git" "${NEW_RELEASE_DIR}/node_modules" "${NEW_RELEASE_DIR}/.pnpm-store" "${NEW_RELEASE_DIR}/.next"
 }
+log "Release source prepared"
 
 cd "$NEW_RELEASE_DIR"
 
 log_info "Installing dependencies..."
 # Pre-approve native builds for pnpm v10+ to avoid interactive prompts
+log_info "Configuring pre-approved built dependencies (lzma-native, node-pty, argon2)..."
 pnpm config set only-built-dependencies --json '["lzma-native", "node-pty", "argon2"]' > /dev/null 2>&1
 
 pnpm install --frozen-lockfile 2>&1 | tail -5 || pnpm install 2>&1 | tail -5
@@ -545,7 +552,14 @@ if command -v lsof &> /dev/null; then
 fi
 
 # Point the stable install directory to the new release
+# Transition: if INSTALL_DIR is a real directory (legacy), move it aside
+if [ -d "$INSTALL_DIR" ] && [ ! -L "$INSTALL_DIR" ]; then
+    log_warn "Legacy installation detected at ${INSTALL_DIR}. Converting to symlink..."
+    mv "$INSTALL_DIR" "${INSTALL_DIR}.legacy-$(date +%Y%m%d-%H%M%S)"
+    log_info "Legacy directory moved to ${INSTALL_DIR}.legacy-*"
+fi
 ln -sfn "$NEW_RELEASE_DIR" "$INSTALL_DIR"
+log_info "Current release linked to ${INSTALL_DIR}"
 
 cat > "/etc/systemd/system/${SERVICE_NAME}.service" <<SVCEOF
 [Unit]
@@ -576,10 +590,13 @@ SyslogIdentifier=servermon
 [Install]
 WantedBy=multi-user.target
 SVCEOF
+log_info "Systemd service file created at /etc/systemd/system/${SERVICE_NAME}.service"
 
 systemctl daemon-reload
 systemctl enable "$SERVICE_NAME" > /dev/null 2>&1
+log_info "Enabling ${SERVICE_NAME} service..."
 systemctl start "$SERVICE_NAME"
+log_info "Starting ${SERVICE_NAME} service..."
 
 sleep 2
 if systemctl is-active --quiet "$SERVICE_NAME"; then
@@ -597,8 +614,10 @@ if systemctl is-active --quiet "$SERVICE_NAME"; then
                 [ -z "$rel" ] && continue
                 # Don't delete the directory currently in use
                 if [ -n "$CURRENT_TARGET" ] && [ "$(readlink -f "$rel" 2>/dev/null || echo "")" = "$CURRENT_TARGET" ]; then
+                    log_info "Skipping active release: ${rel}"
                     continue
                 fi
+                log_info "Deleting old release: ${rel}"
                 rm -rf "$rel"
             done <<< "$OLD_RELEASES"
         fi
@@ -619,6 +638,7 @@ if [ "$SETUP_NGINX" = "true" ]; then
 
     SERVER_NAME="${DOMAIN:-_}"
     NGINX_CONF="/etc/nginx/sites-available/servermon"
+    log_info "Creating Nginx configuration at ${NGINX_CONF}..."
 
     cat > "$NGINX_CONF" <<NGXEOF
 server {
@@ -671,6 +691,7 @@ server {
 NGXEOF
 
     # Enable the site
+    log_info "Enabling Nginx site..."
     ln -sf "$NGINX_CONF" /etc/nginx/sites-enabled/servermon
     rm -f /etc/nginx/sites-enabled/default 2>/dev/null || true
 
@@ -689,6 +710,8 @@ NGXEOF
         if ! command -v certbot &> /dev/null; then
             apt-get install -qq -y certbot python3-certbot-nginx > /dev/null 2>&1
         fi
+
+        log_info "Attempting to obtain SSL certificate for ${DOMAIN}..."
 
         certbot --nginx -d "$DOMAIN" --non-interactive --agree-tos \
             --redirect --register-unsafely-without-email 2>/dev/null && {

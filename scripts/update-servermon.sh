@@ -104,25 +104,25 @@ log_info "Changing directory to '$REPO_DIR'."
 cd "$REPO_DIR"
 
 log_info "Resetting repository to a clean state (git reset --hard)."
-if ! git reset --hard >>"$LOG_FILE" 2>&1; then
+if ! git reset --hard 2>&1 | tee -a "$LOG_FILE"; then
   log_error "git reset --hard failed. See log for details."
   exit 1
 fi
 
 log_info "Fetching latest changes from remote '$GIT_REMOTE'."
-if ! git fetch "$GIT_REMOTE" >>"$LOG_FILE" 2>&1; then
+if ! git fetch "$GIT_REMOTE" 2>&1 | tee -a "$LOG_FILE"; then
   log_error "git fetch from '$GIT_REMOTE' failed."
   exit 1
 fi
 
 log_info "Checking out branch '$GIT_BRANCH'."
-if ! git checkout "$GIT_BRANCH" >>"$LOG_FILE" 2>&1; then
+if ! git checkout "$GIT_BRANCH" 2>&1 | tee -a "$LOG_FILE"; then
   log_error "git checkout '$GIT_BRANCH' failed."
   exit 1
 fi
 
 log_info "Pulling latest changes with rebase (git pull --rebase)."
-if ! git pull --rebase "$GIT_REMOTE" "$GIT_BRANCH" >>"$LOG_FILE" 2>&1; then
+if ! git pull --rebase "$GIT_REMOTE" "$GIT_BRANCH" 2>&1 | tee -a "$LOG_FILE"; then
   log_error "git pull --rebase failed. Manual intervention may be required."
   exit 1
 fi
@@ -130,7 +130,7 @@ fi
 # ── Run installer in upgrade mode ──────────────────────────────
 
 log_info "Running ServerMon installer with --use-existing-values."
-if ! "$REPO_DIR/scripts/install.sh" --use-existing-values >>"$LOG_FILE" 2>&1; then
+if ! "$REPO_DIR/scripts/install.sh" --use-existing-values 2>&1 | tee -a "$LOG_FILE"; then
   log_error "Installer exited with a non-zero status. See log for details."
   exit 1
 fi
