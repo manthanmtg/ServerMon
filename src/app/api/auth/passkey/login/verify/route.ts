@@ -30,10 +30,18 @@ export async function POST(req: NextRequest) {
 
         if (!user) {
             logger.warn(`Passkey mismatch: No user found with credentialID: ${body.id}`);
-            // Temporarily include DB name in error for debugging
+            
+            // Extreme debugging: find the admin user and list their passkeys to compare
+            const admin = await User.findOne({ username: 'admin' });
+            const adminPKs = admin?.passkeys.map(pk => String(pk.credentialID)) || [];
+            
             return NextResponse.json({ 
-                error: `User not found in database: ${dbName}`,
-                debug: { db: dbName, idPrefix: body.id?.slice(0, 8) }
+                error: `User not found in database: ${dbName}. Received ID: "${body.id}"`,
+                debug: {
+                    receivedId: body.id,
+                    receivedLen: body.id?.length,
+                    adminPasskeysInDB: adminPKs,
+                }
             }, { status: 404 });
         }
         
