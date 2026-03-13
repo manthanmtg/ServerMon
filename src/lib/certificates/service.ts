@@ -1,4 +1,5 @@
 import { execFile } from 'node:child_process';
+import { access, constants } from 'node:fs/promises';
 import { promisify } from 'node:util';
 import { createLogger } from '@/lib/logger';
 import type {
@@ -35,17 +36,28 @@ let certbotPath: string | null = null;
 async function checkCertbot(): Promise<boolean> {
     if (certbotChecked) return certbotPath !== null;
 
-    for (const path of COMMON_CERTBOT_PATHS) {
-        try {
-            await execCmd(path, ['--version'], 5000);
+    // 1. Try 'which certbot' to find it in PATH
+    try {
+        const path = (await execCmd('which', ['certbot'])).trim();
+        if (path) {
             certbotPath = path;
-            log.info(`certbot detected at: ${path}`);
-            break;
-        } catch (err: unknown) {
-            // only log if it was an actual execution error, not "not found"
-            const error = err as { message?: string; code?: string };
-            if (error.code !== 'ENOENT') {
-                log.warn(`Failed to execute certbot at ${path}: ${error.message}`);
+            log.info(`certbot detected via which at: ${path}`);
+        }
+    } catch {
+        // ignore
+    }
+
+    // 2. Try common paths if not found in PATH
+    if (!certbotPath) {
+        for (const path of COMMON_CERTBOT_PATHS) {
+            if (path === 'certbot') continue;
+            try {
+                await access(path, constants.X_OK);
+                certbotPath = path;
+                log.info(`certbot detected via access at: ${path}`);
+                break;
+            } catch {
+                // ignore
             }
         }
     }
