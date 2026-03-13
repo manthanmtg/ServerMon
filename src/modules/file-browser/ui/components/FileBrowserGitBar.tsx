@@ -132,8 +132,8 @@ export function FileBrowserGitBar({ git, onRefresh }: Props) {
 
                     {showBranches && (
                         <>
-                            <div className="fixed inset-0 z-40" onClick={() => setShowBranches(false)} />
-                            <div className="absolute left-0 top-full mt-1 z-50 w-56 max-h-64 overflow-y-auto rounded-xl border border-border bg-card shadow-xl animate-in fade-in slide-in-from-top-1 duration-150">
+                            <div className="fixed inset-0 z-[60]" onClick={() => setShowBranches(false)} />
+                            <div className="absolute left-0 top-full mt-1 z-[61] w-56 max-h-64 overflow-y-auto rounded-xl border border-border shadow-xl animate-in fade-in slide-in-from-top-1 duration-150 bg-popover" style={{ backgroundColor: 'var(--card)' }}>
                                 <div className="p-1.5">
                                     <p className="px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Local</p>
                                     {git.branches.map(b => (
