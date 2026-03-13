@@ -12,21 +12,60 @@ import {
     FolderTree,
     HardDrive,
     Container,
-    LayoutDashboard
+    LayoutDashboard,
+    Package,
+    Cog,
+    Bot,
+    Clock,
+    Cable,
+    Cpu,
+    ShieldCheck,
+    Server,
+    Shield,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { moduleGuides } from '@/modules/guide-registry';
 import { LucideIcon } from 'lucide-react';
 
 const iconMap: Record<string, LucideIcon> = {
-    'Info': Info,
-    'Compass': Compass,
-    'Terminal': Terminal,
-    'Activity': Activity,
-    'FolderTree': FolderTree,
-    'HardDrive': HardDrive,
-    'Container': Container,
-    'LayoutDashboard': LayoutDashboard,
+    Info,
+    Compass,
+    Terminal,
+    Activity,
+    FolderTree,
+    HardDrive,
+    Container,
+    LayoutDashboard,
+    Clock,
+    Package,
+    Cog,
+    Bot,
+    Cable,
+    Cpu,
+    ShieldCheck,
+    Server,
+    Shield,
+};
+
+const sidebarIconByModuleId: Record<string, LucideIcon> = {
+    guide: BookOpen,
+    dashboard: LayoutDashboard,
+    terminal: Terminal,
+    processes: Activity,
+    logs: Activity,
+    'file-browser': FolderTree,
+    disk: HardDrive,
+    network: Activity,
+    updates: Package,
+    docker: Container,
+    services: Cog,
+    'ai-agents': Bot,
+    crons: Clock,
+    ports: Cable,
+    hardware: Cpu,
+    certificates: ShieldCheck,
+    nginx: Server,
+    security: Shield,
 };
 
 export default function UserGuidePage() {
@@ -86,9 +125,10 @@ export default function UserGuidePage() {
                                 )}
                             >
                                 <span className="flex items-center gap-3">
-                                    {module.name === 'Docker Monitor' ? <Container className="w-4 h-4" /> :
-                                        module.name === 'Terminal' ? <Terminal className="w-4 h-4" /> :
-                                            <Activity className="w-4 h-4" />}
+                                    {(() => {
+                                        const Icon = sidebarIconByModuleId[module.id] ?? BookOpen;
+                                        return <Icon className="w-4 h-4" />;
+                                    })()}
                                     {module.name}
                                 </span>
                                 <ChevronRight className={cn(
