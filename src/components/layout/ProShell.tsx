@@ -21,6 +21,11 @@ import {
     BookOpen,
     Package,
     Clock,
+    Cable,
+    Cpu,
+    ShieldCheck,
+    Server,
+    Shield,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -52,6 +57,11 @@ const navGroups = [
             { label: 'Services', href: '/services', icon: Cog },
             { label: 'AI Agents', href: '/ai-agents', icon: Bot },
             { label: 'Crons', href: '/crons', icon: Clock },
+            { label: 'Ports', href: '/ports', icon: Cable },
+            { label: 'Hardware', href: '/hardware', icon: Cpu },
+            { label: 'Certificates', href: '/certificates', icon: ShieldCheck },
+            { label: 'Nginx', href: '/nginx', icon: Server },
+            { label: 'Security', href: '/security', icon: Shield },
         ],
     },
 ];

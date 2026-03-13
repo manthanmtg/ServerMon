@@ -12,6 +12,11 @@ import { aiAgentsModule } from './ai-agents/module';
 import { networkModule } from './network/module';
 import { updatesModule } from './updates/module';
 import { cronsModule } from './crons/module';
+import { portsModule } from './ports/module';
+import { hardwareModule } from './hardware/module';
+import { certificatesModule } from './certificates/module';
+import { nginxModule } from './nginx/module';
+import { securityModule } from './security/module';
 
 // For now, we will manually register modules here.
 // In the future, this could be a dynamic scan of the modules directory.
@@ -29,4 +34,9 @@ export const coreModules: Module[] = [
     networkModule,
     updatesModule,
     cronsModule,
+    portsModule,
+    hardwareModule,
+    certificatesModule,
+    nginxModule,
+    securityModule,
 ];

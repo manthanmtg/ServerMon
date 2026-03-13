@@ -55,6 +55,26 @@ const CronsWidget = dynamic(() => import('@/modules/crons/ui/CronsWidget'), {
     loading: WidgetLoader,
 });
 
+const PortsWidget = dynamic(() => import('@/modules/ports/ui/PortsWidget'), {
+    loading: WidgetLoader,
+});
+
+const HardwareWidget = dynamic(() => import('@/modules/hardware/ui/HardwareWidget'), {
+    loading: WidgetLoader,
+});
+
+const CertificatesWidget = dynamic(() => import('@/modules/certificates/ui/CertificatesWidget'), {
+    loading: WidgetLoader,
+});
+
+const NginxWidget = dynamic(() => import('@/modules/nginx/ui/NginxWidget'), {
+    loading: WidgetLoader,
+});
+
+const SecurityWidget = dynamic(() => import('@/modules/security/ui/SecurityWidget'), {
+    loading: WidgetLoader,
+});
+
 const widgetMap: Record<string, { component: React.ComponentType<Record<string, unknown>>; name: string }> = {
     HealthWidget: { component: HealthWidget, name: 'System Health' },
     ProcessWidget: { component: ProcessWidget, name: 'Processes' },
@@ -67,6 +87,11 @@ const widgetMap: Record<string, { component: React.ComponentType<Record<string, 
     NetworkWidget: { component: NetworkWidget, name: 'Network Usage' },
     UpdateWidget: { component: UpdateWidget, name: 'System Updates' },
     CronsWidget: { component: CronsWidget, name: 'Cron Jobs' },
+    PortsWidget: { component: PortsWidget, name: 'Ports' },
+    HardwareWidget: { component: HardwareWidget, name: 'Hardware' },
+    CertificatesWidget: { component: CertificatesWidget, name: 'Certificates' },
+    NginxWidget: { component: NginxWidget, name: 'Nginx' },
+    SecurityWidget: { component: SecurityWidget, name: 'Security' },
 };
 
 export function renderWidget(componentName: string, props: Record<string, unknown> = {}) {
