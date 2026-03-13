@@ -45,6 +45,19 @@ log_err()  { echo -e "  ${RED}✗${NC} $1"; }
 step()     { echo -e "\n${BOLD}${CYAN}[$1]${NC} ${BOLD}$2${NC}"; }
 divider()  { echo -e "${DIM}──────────────────────────────────────────────${NC}"; }
 
+format_duration_ms() {
+    local ms="$1"
+    if [ "$ms" -lt 1000 ]; then
+        echo "${ms}ms"
+        return
+    fi
+    # Round to the nearest 100ms and format as seconds with one decimal place
+    local total_tenths=$(( (ms + 50) / 100 ))
+    local secs=$(( total_tenths / 10 ))
+    local tenths=$(( total_tenths % 10 ))
+    echo "${secs}.${tenths}s"
+}
+
 ask() {
     local prompt="$1" default="$2" var="$3"
     if [ "$UNATTENDED" = "true" ]; then
@@ -535,8 +548,14 @@ if ! [[ "$KEEP_RELEASES" =~ ^[0-9]+$ ]] || [ "$KEEP_RELEASES" -lt 1 ]; then
     KEEP_RELEASES=1
 fi
 
+# Track downtime when we stop an already-running service
+SERVICE_WAS_ACTIVE="false"
+SERVICE_DOWNTIME_START_MS=""
+
 # Stop existing service during upgrade to switch to new release
 if systemctl is-active --quiet "$SERVICE_NAME" 2>/dev/null; then
+    SERVICE_WAS_ACTIVE="true"
+    SERVICE_DOWNTIME_START_MS="$(date +%s%3N)"
     log_info "Stopping existing service for upgrade..."
     systemctl stop "$SERVICE_NAME" || true
 fi
@@ -601,6 +620,16 @@ log_info "Starting ${SERVICE_NAME} service..."
 sleep 2
 if systemctl is-active --quiet "$SERVICE_NAME"; then
     log "ServerMon service is running"
+
+    if [ "$SERVICE_WAS_ACTIVE" = "true" ] && [ -n "$SERVICE_DOWNTIME_START_MS" ]; then
+        SERVICE_DOWNTIME_END_MS="$(date +%s%3N)"
+        SERVICE_DOWNTIME_MS=$(( SERVICE_DOWNTIME_END_MS - SERVICE_DOWNTIME_START_MS ))
+        if [ "$SERVICE_DOWNTIME_MS" -lt 0 ]; then
+            SERVICE_DOWNTIME_MS=0
+        fi
+        SERVICE_DOWNTIME_HUMAN="$(format_duration_ms "$SERVICE_DOWNTIME_MS")"
+        log_info "Service was down for ${SERVICE_DOWNTIME_HUMAN}"
+    fi
 
     # Cleanup old releases, keeping only the most recent $KEEP_RELEASES
     if [ -d "$RELEASES_DIR" ]; then
