@@ -93,6 +93,7 @@ export default function PortsPage() {
         const controller = new AbortController();
         const timeoutId = window.setTimeout(async () => {
             try {
+                const port = parseInt(checkPort, 10);
                 const res = await fetch(`/api/modules/ports/check?port=${port}`, {
                     signal: controller.signal,
                 });

@@ -18,6 +18,8 @@ NC='\033[0m'
 
 # ── Defaults ─────────────────────────────────────────────
 INSTALL_DIR="/opt/servermon"
+RELEASES_DIR="/opt/servermon-releases"
+KEEP_RELEASES=2 # Number of releases to keep (can be changed here or via --keep-last-n-release)
 CONFIG_DIR="/etc/servermon"
 SERVICE_NAME="servermon"
 SERVICE_USER="servermon"
@@ -115,6 +117,7 @@ while [[ $# -gt 0 ]]; do
         --skip-mongo)  SKIP_MONGO_INSTALL="true"; shift ;;
         --unattended)  UNATTENDED="true"; shift ;;
         --use-existing-values) USE_EXISTING="true"; UNATTENDED="true"; shift ;;
+        --keep-last-n-release) KEEP_RELEASES="$2"; shift 2 ;;
         --allow-root)  ALLOW_ROOT="true"; shift ;;
         --uninstall)   UNINSTALL="true"; shift ;;
         -h|--help)     usage ;;
@@ -429,45 +432,32 @@ fi
 # ── Step 4: Application Setup ────────────────────────────
 step "4/${TOTAL_STEPS}" "Building ServerMon"
 
-# Stop existing service during upgrade
-if systemctl is-active --quiet "$SERVICE_NAME" 2>/dev/null; then
-    log_info "Stopping existing service for upgrade..."
-    systemctl stop "$SERVICE_NAME" || true
-fi
-
-# Kill stray processes on the port
-if command -v lsof &> /dev/null; then
-    STRAY_PID=$(lsof -t -i:"${APP_PORT}" 2>/dev/null || true)
-    if [ -n "$STRAY_PID" ]; then
-        log_info "Stopping process on port ${APP_PORT}..."
-        kill "$STRAY_PID" 2>/dev/null || true
-        sleep 1
-    fi
-fi
-
 # Determine source directory (where this script lives)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SOURCE_DIR="$(dirname "$SCRIPT_DIR")"
 
-# Copy application files
+# Prepare new release directory (build happens here to minimize downtime)
+mkdir -p "$RELEASES_DIR"
+TIMESTAMP="$(date +%Y%m%d-%H%M%S)"
+NEW_RELEASE_DIR="${RELEASES_DIR}/servermon-${TIMESTAMP}"
+mkdir -p "$NEW_RELEASE_DIR"
+
 if [ "$EXISTING_INSTALL" = "true" ]; then
-    log_info "Upgrading application files..."
-    # Preserve .env and config
-    find "$INSTALL_DIR" -mindepth 1 -maxdepth 1 ! -name ".env" ! -name "node_modules" -exec rm -rf {} +
+    log_info "Upgrading application files into new release: ${NEW_RELEASE_DIR}"
 else
-    mkdir -p "$INSTALL_DIR"
+    log_info "Performing fresh install into new release: ${NEW_RELEASE_DIR}"
 fi
 
-# Copy source excluding git, node_modules, .pnpm-store, .next
+# Copy source excluding git, node_modules, .pnpm-store, .next, env files
 rsync -a --exclude='.git' --exclude='node_modules' --exclude='.pnpm-store' \
     --exclude='.next' --exclude='.env*' \
-    "${SOURCE_DIR}/" "${INSTALL_DIR}/" 2>/dev/null || {
+    "${SOURCE_DIR}/" "${NEW_RELEASE_DIR}/" 2>/dev/null || {
     # Fallback if rsync is not available
-    cp -r "${SOURCE_DIR}/." "${INSTALL_DIR}/"
-    rm -rf "${INSTALL_DIR}/.git" "${INSTALL_DIR}/node_modules" "${INSTALL_DIR}/.pnpm-store" "${INSTALL_DIR}/.next"
+    cp -r "${SOURCE_DIR}/." "${NEW_RELEASE_DIR}/"
+    rm -rf "${NEW_RELEASE_DIR}/.git" "${NEW_RELEASE_DIR}/node_modules" "${NEW_RELEASE_DIR}/.pnpm-store" "${NEW_RELEASE_DIR}/.next"
 }
 
-cd "$INSTALL_DIR"
+cd "$NEW_RELEASE_DIR"
 
 log_info "Installing dependencies..."
 # Pre-approve native builds for pnpm v10+ to avoid interactive prompts
@@ -533,6 +523,30 @@ fi
 # ── Step 5: Systemd Service ──────────────────────────────
 step "5/${TOTAL_STEPS}" "Configuring systemd service"
 
+# Ensure we always keep at least one release
+if ! [[ "$KEEP_RELEASES" =~ ^[0-9]+$ ]] || [ "$KEEP_RELEASES" -lt 1 ]; then
+    KEEP_RELEASES=1
+fi
+
+# Stop existing service during upgrade to switch to new release
+if systemctl is-active --quiet "$SERVICE_NAME" 2>/dev/null; then
+    log_info "Stopping existing service for upgrade..."
+    systemctl stop "$SERVICE_NAME" || true
+fi
+
+# Kill stray processes on the port
+if command -v lsof &> /dev/null; then
+    STRAY_PID=$(lsof -t -i:"${APP_PORT}" 2>/dev/null || true)
+    if [ -n "$STRAY_PID" ]; then
+        log_info "Stopping process on port ${APP_PORT}..."
+        kill "$STRAY_PID" 2>/dev/null || true
+        sleep 1
+    fi
+fi
+
+# Point the stable install directory to the new release
+ln -sfn "$NEW_RELEASE_DIR" "$INSTALL_DIR"
+
 cat > "/etc/systemd/system/${SERVICE_NAME}.service" <<SVCEOF
 [Unit]
 Description=ServerMon — Server Monitoring Platform
@@ -570,6 +584,25 @@ systemctl start "$SERVICE_NAME"
 sleep 2
 if systemctl is-active --quiet "$SERVICE_NAME"; then
     log "ServerMon service is running"
+
+    # Cleanup old releases, keeping only the most recent $KEEP_RELEASES
+    if [ -d "$RELEASES_DIR" ]; then
+        CURRENT_TARGET="$(readlink -f "$INSTALL_DIR" 2>/dev/null || echo "")"
+        cd "$RELEASES_DIR" 2>/dev/null || true
+        # List directories sorted by mtime (newest first), then drop everything after KEEP_RELEASES
+        OLD_RELEASES="$(ls -1dt servermon-* 2>/dev/null | tail -n +$((KEEP_RELEASES + 1)) || true)"
+        if [ -n "$OLD_RELEASES" ]; then
+            log_info "Cleaning up old releases (keeping last ${KEEP_RELEASES})..."
+            while IFS= read -r rel; do
+                [ -z "$rel" ] && continue
+                # Don't delete the directory currently in use
+                if [ -n "$CURRENT_TARGET" ] && [ "$(readlink -f "$rel" 2>/dev/null || echo "")" = "$CURRENT_TARGET" ]; then
+                    continue
+                fi
+                rm -rf "$rel"
+            done <<< "$OLD_RELEASES"
+        fi
+    fi
 else
     log_warn "Service may not have started. Check: journalctl -u ${SERVICE_NAME} -f"
 fi
