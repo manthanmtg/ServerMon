@@ -224,9 +224,8 @@ export function FileBrowserPreview({
                         </div>
                         <div className="flex items-center gap-1.5 md:gap-2 ml-2 md:ml-4 shrink-0">
                             {preview?.canWrite && !isEditing && (
-                                <Button variant="outline" size="sm" onClick={onEdit} className="h-8 md:h-10 gap-1.5 md:gap-2 shadow-sm border-border/60 hover:bg-accent hover:border-border font-semibold text-xs">
-                                    <Pencil className="w-3 h-3 md:w-3.5 md:h-3.5" />
-                                    <span className="hidden sm:inline">Edit</span>
+                                <Button variant="outline" size="sm" onClick={onEdit} className="h-8 md:h-10 px-2.5 md:px-3.5 shadow-sm border-border/60 hover:bg-accent hover:border-border">
+                                    <Pencil className="w-3.5 h-3.5 md:w-4 md:h-4" />
                                 </Button>
                             )}
                             <Button variant="outline" size="sm" onClick={onDownload} className="h-8 md:h-10 px-2.5 md:px-3.5 shadow-sm border-border/60 hover:bg-accent hover:border-border">

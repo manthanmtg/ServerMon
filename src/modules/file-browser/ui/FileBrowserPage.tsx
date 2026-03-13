@@ -30,6 +30,9 @@ import { FileBrowserBreadcrumbs } from './components/FileBrowserBreadcrumbs';
 import { FileBrowserGitBar } from './components/FileBrowserGitBar';
 import { FileBrowserEntryList, FileEntry, FileKind } from './components/FileBrowserEntryList';
 import { FileBrowserPreview } from './components/FileBrowserPreview';
+import dynamic from 'next/dynamic';
+
+const CodeEditorModal = dynamic(() => import('./components/CodeEditorModal'), { ssr: false });
 
 interface GitInfo {
     root: string;
@@ -406,6 +409,7 @@ export default function FileBrowserPage() {
     const [editorValue, setEditorValue] = useState('');
     const [isEditing, setIsEditing] = useState(false);
     const [saving, setSaving] = useState(false);
+    const [showCodeEditor, setShowCodeEditor] = useState(false);
     const [showTree, setShowTree] = useState(true);
     const [treeWidth, setTreeWidth] = useState(288);
     const [previewWidth, setPreviewWidth] = useState(420);
@@ -539,6 +543,7 @@ export default function FileBrowserPage() {
             if (editMode) {
                 setEditorValue(data.file.content || '');
                 setIsEditing(true);
+                setShowCodeEditor(true);
             }
         } catch (error) {
             toast({ title: error instanceof Error ? error.message : 'Failed to load preview', variant: 'destructive' });
@@ -667,17 +672,19 @@ export default function FileBrowserPage() {
         window.open(`/api/modules/file-browser/file?path=${encodeURIComponent(entry.path)}&action=download`, '_blank');
     };
 
-    const handleSave = async () => {
+    const handleSave = async (content?: string) => {
         if (!selectedEntry) return;
+        const saveContent = content ?? editorValue;
         setSaving(true);
         try {
             await fetchJson('/api/modules/file-browser/file', {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ path: selectedEntry.path, content: editorValue }),
+                body: JSON.stringify({ path: selectedEntry.path, content: saveContent }),
             });
             toast({ title: 'File saved', variant: 'success' });
             setIsEditing(false);
+            setShowCodeEditor(false);
             refresh();
         } catch (error) {
             toast({ title: error instanceof Error ? error.message : 'Save failed', variant: 'destructive' });
@@ -1126,6 +1133,20 @@ export default function FileBrowserPage() {
                         void handleDelete(entry);
                     }}
                     onClose={() => setDialogState(null)}
+                />
+            )}
+
+            {showCodeEditor && selectedEntry && (
+                <CodeEditorModal
+                    fileName={selectedEntry.name}
+                    extension={selectedEntry.extension}
+                    content={editorValue}
+                    saving={saving}
+                    onSave={(content) => void handleSave(content)}
+                    onClose={() => {
+                        setShowCodeEditor(false);
+                        setIsEditing(false);
+                    }}
                 />
             )}
         </div>
