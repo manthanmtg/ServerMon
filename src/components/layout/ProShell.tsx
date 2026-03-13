@@ -27,8 +27,12 @@ import {
     ShieldCheck,
     Server,
     Shield,
+    Power,
+    LoaderCircle,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useToast } from '@/components/ui/toast';
+import ConfirmationModal from '@/components/ui/ConfirmationModal';
 
 interface ProShellProps {
     children: React.ReactNode;
@@ -156,6 +160,9 @@ export default function ProShell({ children, title, subtitle, headerContent }: P
     const pathname = usePathname();
     const router = useRouter();
     const [sidebarOpen, setSidebarOpen] = useState(false);
+    const { toast } = useToast();
+    const [showRebootConfirm, setShowRebootConfirm] = useState(false);
+    const [isRebooting, setIsRebooting] = useState(false);
 
     // Close sidebar on route change and lock body scroll when open
     useEffect(() => {
@@ -176,6 +183,29 @@ export default function ProShell({ children, title, subtitle, headerContent }: P
             await fetch('/api/auth/logout', { method: 'POST' });
         } finally {
             router.push('/login');
+        }
+    };
+
+    const handleReboot = async () => {
+        setShowRebootConfirm(false);
+        setIsRebooting(true);
+        try {
+            const response = await fetch('/api/system/reboot', { method: 'POST' });
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error || 'Failed to issue reboot command');
+            
+            toast({
+                title: 'System Rebooting',
+                description: data.message,
+                variant: 'success',
+            });
+        } catch (error: unknown) {
+            toast({
+                title: 'Reboot Failed',
+                description: error instanceof Error ? error.message : 'Unknown error',
+                variant: 'destructive',
+            });
+            setIsRebooting(false);
         }
     };
 
@@ -232,6 +262,24 @@ export default function ProShell({ children, title, subtitle, headerContent }: P
                                 {headerContent}
                             </div>
                         )}
+                        
+                        <button
+                            onClick={() => setShowRebootConfirm(true)}
+                            disabled={isRebooting}
+                            className={cn(
+                                "flex items-center justify-center h-9 w-9 rounded-xl transition-all duration-300",
+                                "bg-destructive/10 text-destructive border border-destructive/20 hover:bg-destructive hover:text-white hover:shadow-lg hover:shadow-destructive/20",
+                                "active:scale-95 disabled:opacity-50 disabled:grayscale disabled:pointer-events-none"
+                            )}
+                            title="Reboot System"
+                        >
+                            {isRebooting ? (
+                                <LoaderCircle className="w-4 h-4 animate-spin" />
+                            ) : (
+                                <Power className="w-4 h-4" />
+                            )}
+                        </button>
+
                         <ThemeSelector />
 
                         <div className="flex items-center gap-2 pl-2 sm:pl-3 border-l border-border">
@@ -249,6 +297,18 @@ export default function ProShell({ children, title, subtitle, headerContent }: P
                     </div>
                 </main>
             </div>
+
+            <ConfirmationModal
+                isOpen={showRebootConfirm}
+                onCancel={() => setShowRebootConfirm(false)}
+                onConfirm={handleReboot}
+                title="System Reboot"
+                message="Are you sure you want to reboot the system? This will terminate all active processes and disconnect all sessions."
+                verificationText="reboot"
+                confirmLabel="Reboot Now"
+                variant="danger"
+                isLoading={isRebooting}
+            />
         </div>
     );
 }

@@ -12,6 +12,7 @@ interface ConfirmationModalProps {
     title: string;
     message: string;
     description?: string;
+    verificationText?: string;
     confirmLabel?: string;
     cancelLabel?: string;
     variant?: 'danger' | 'info' | 'warning';
@@ -25,12 +26,14 @@ export default function ConfirmationModal({
     title,
     message,
     description,
+    verificationText,
     confirmLabel = 'Confirm',
     cancelLabel = 'Cancel',
     variant = 'danger',
     isLoading = false
 }: ConfirmationModalProps) {
     const modalRef = useRef<HTMLDivElement>(null);
+    const [inputValue, setInputValue] = React.useState('');
 
     useEffect(() => {
         if (!isOpen) return;
@@ -95,6 +98,25 @@ export default function ConfirmationModal({
                                     </p>
                                 </div>
                             )}
+                            {verificationText && (
+                                <div className="mt-4 space-y-2">
+                                    <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+                                        Type <span className="text-foreground font-bold font-mono">&quot;{verificationText}&quot;</span> to confirm
+                                    </p>
+                                    <input
+                                        type="text"
+                                        value={inputValue}
+                                        onChange={(e) => setInputValue(e.target.value)}
+                                        placeholder={verificationText}
+                                        className="w-full h-11 px-4 rounded-xl border border-border/50 bg-background/50 text-sm font-mono outline-none focus:ring-2 focus:ring-primary/30 transition-all placeholder:opacity-30"
+                                        autoFocus
+                                        autoComplete="off"
+                                        autoCorrect="off"
+                                        autoCapitalize="off"
+                                        spellCheck="false"
+                                    />
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -112,9 +134,11 @@ export default function ConfirmationModal({
                         variant={buttonVariant}
                         onClick={onConfirm}
                         loading={isLoading}
+                        disabled={!!verificationText && inputValue !== verificationText}
                         className={cn(
                             "w-full sm:w-auto h-11 px-6 rounded-xl font-bold shadow-lg transition-all duration-300",
-                            shadowColor
+                            shadowColor,
+                            (!!verificationText && inputValue !== verificationText) && "opacity-50 grayscale cursor-not-allowed shadow-none"
                         )}
                     >
                         {confirmLabel}
