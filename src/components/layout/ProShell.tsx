@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useTheme } from '@/lib/ThemeContext';
+import ThemeSelector from './ThemeSelector';
 import {
     LayoutDashboard,
     Terminal,
@@ -151,7 +152,7 @@ function SidebarNav({ pathname, onNavigate, onLogout }: {
 }
 
 export default function ProShell({ children, title, subtitle, headerContent }: ProShellProps) {
-    const { theme, setTheme, availableThemes } = useTheme();
+    const { theme } = useTheme();
     const pathname = usePathname();
     const router = useRouter();
     const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -231,16 +232,7 @@ export default function ProShell({ children, title, subtitle, headerContent }: P
                                 {headerContent}
                             </div>
                         )}
-                        <select
-                            value={theme.id}
-                            onChange={(e) => setTheme(e.target.value)}
-                            className="hidden sm:block h-8 px-2 pr-7 text-xs font-medium bg-secondary border border-border rounded-md text-secondary-foreground outline-none cursor-pointer hover:bg-accent transition-colors appearance-none"
-                            style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 6px center' }}
-                        >
-                            {availableThemes.map((t) => (
-                                <option key={t.id} value={t.id}>{t.name}</option>
-                            ))}
-                        </select>
+                        <ThemeSelector />
 
                         <div className="flex items-center gap-2 pl-2 sm:pl-3 border-l border-border">
                             <div className="w-8 h-8 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center text-xs font-semibold text-primary">
