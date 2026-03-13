@@ -29,6 +29,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/components/ui/toast';
+import ConfirmationModal from '@/components/ui/ConfirmationModal';
 import { cn } from '@/lib/utils';
 import type {
     CronJob,
@@ -454,6 +455,11 @@ export default function CronsPage() {
     const [autoScroll, setAutoScroll] = useState(true);
     const stdoutRef = useRef<HTMLPreElement | null>(null);
 
+    // Confirmation states
+    const [confirmRun, setConfirmRun] = useState<CronJob | null>(null);
+    const [confirmToggle, setConfirmToggle] = useState<CronJob | null>(null);
+    const [confirmDelete, setConfirmDelete] = useState<CronJob | null>(null);
+
     const showRunOutput = useCallback(async (run: CronRunStatus) => {
         setActiveRun(run);
         if (run.status === 'running') {
@@ -566,6 +572,7 @@ export default function CronsPage() {
     }
 
     async function toggleJob(job: CronJob) {
+        setConfirmToggle(null);
         setPendingAction(`${job.id}:toggle`);
         try {
             const response = await fetch(`/api/modules/crons/${job.id}`, {
@@ -585,6 +592,7 @@ export default function CronsPage() {
     }
 
     async function deleteJob(job: CronJob) {
+        setConfirmDelete(null);
         setPendingAction(`${job.id}:delete`);
         try {
             const response = await fetch(`/api/modules/crons/${job.id}`, { method: 'DELETE' });
@@ -600,6 +608,7 @@ export default function CronsPage() {
     }
 
     async function runJobNow(job: CronJob) {
+        setConfirmRun(null);
         setPendingAction(`${job.id}:run`);
         try {
             const response = await fetch(`/api/modules/crons/${job.id}/run`, { method: 'POST' });
@@ -943,7 +952,7 @@ export default function CronsPage() {
                                                                         type="button"
                                                                         title={job.enabled ? 'Disable' : 'Enable'}
                                                                         disabled={pendingAction === `${job.id}:toggle`}
-                                                                        onClick={() => toggleJob(job)}
+                                                                        onClick={() => setConfirmToggle(job)}
                                                                         className="p-1.5 rounded-lg hover:bg-accent transition-colors min-h-[32px] min-w-[32px] flex items-center justify-center"
                                                                     >
                                                                         {pendingAction === `${job.id}:toggle`
@@ -964,7 +973,7 @@ export default function CronsPage() {
                                                                         type="button"
                                                                         title="Run Now"
                                                                         disabled={pendingAction === `${job.id}:run`}
-                                                                        onClick={() => runJobNow(job)}
+                                                                        onClick={() => setConfirmRun(job)}
                                                                         className="p-1.5 rounded-lg hover:bg-primary/10 transition-colors min-h-[32px] min-w-[32px] flex items-center justify-center"
                                                                     >
                                                                         {pendingAction === `${job.id}:run`
@@ -975,7 +984,7 @@ export default function CronsPage() {
                                                                         type="button"
                                                                         title="Delete"
                                                                         disabled={pendingAction === `${job.id}:delete`}
-                                                                        onClick={() => deleteJob(job)}
+                                                                        onClick={() => setConfirmDelete(job)}
                                                                         className="p-1.5 rounded-lg hover:bg-destructive/10 transition-colors min-h-[32px] min-w-[32px] flex items-center justify-center"
                                                                     >
                                                                         {pendingAction === `${job.id}:delete`
@@ -1236,6 +1245,46 @@ export default function CronsPage() {
                             await handleEditSubmit(modal.job.id, data);
                         }
                     }}
+                />
+            )}
+
+            {/* Confirmations */}
+            {confirmRun && (
+                <ConfirmationModal
+                    isOpen={true}
+                    onCancel={() => setConfirmRun(null)}
+                    onConfirm={() => runJobNow(confirmRun)}
+                    title="Confirm Execution"
+                    message={`Are you sure you want to run this cron job now?`}
+                    description={confirmRun.command}
+                    confirmLabel="Run Now"
+                    variant="info"
+                />
+            )}
+
+            {confirmToggle && (
+                <ConfirmationModal
+                    isOpen={true}
+                    onCancel={() => setConfirmToggle(null)}
+                    onConfirm={() => toggleJob(confirmToggle)}
+                    title={confirmToggle.enabled ? 'Disable Job' : 'Enable Job'}
+                    message={`Are you sure you want to ${confirmToggle.enabled ? 'disable' : 'enable'} this cron job?`}
+                    description={confirmToggle.command}
+                    confirmLabel={confirmToggle.enabled ? 'Disable' : 'Enable'}
+                    variant={confirmToggle.enabled ? 'warning' : 'info'}
+                />
+            )}
+
+            {confirmDelete && (
+                <ConfirmationModal
+                    isOpen={true}
+                    onCancel={() => setConfirmDelete(null)}
+                    onConfirm={() => deleteJob(confirmDelete)}
+                    title="Delete Job"
+                    message="Are you sure you want to delete this cron job? This action cannot be undone."
+                    description={confirmDelete.command}
+                    confirmLabel="Delete"
+                    variant="danger"
                 />
             )}
         </div>

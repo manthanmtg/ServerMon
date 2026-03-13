@@ -11,9 +11,10 @@ interface ConfirmationModalProps {
     onCancel: () => void;
     title: string;
     message: string;
+    description?: string;
     confirmLabel?: string;
     cancelLabel?: string;
-    variant?: 'danger' | 'info';
+    variant?: 'danger' | 'info' | 'warning';
     isLoading?: boolean;
 }
 
@@ -23,6 +24,7 @@ export default function ConfirmationModal({
     onCancel,
     title,
     message,
+    description,
     confirmLabel = 'Confirm',
     cancelLabel = 'Cancel',
     variant = 'danger',
@@ -45,6 +47,10 @@ export default function ConfirmationModal({
     if (!isOpen) return null;
 
     const Icon = variant === 'danger' ? AlertTriangle : Info;
+    const iconColor = variant === 'danger' ? 'text-destructive' : variant === 'warning' ? 'text-warning' : 'text-primary';
+    const iconBg = variant === 'danger' ? 'bg-destructive/10' : variant === 'warning' ? 'bg-warning/10' : 'bg-primary/10';
+    const buttonVariant = variant === 'danger' ? 'destructive' : 'default';
+    const shadowColor = variant === 'danger' ? 'shadow-destructive/20 hover:shadow-destructive/30' : variant === 'warning' ? 'shadow-warning/20 hover:shadow-warning/30' : 'shadow-primary/20 hover:shadow-primary/30';
 
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
@@ -70,7 +76,8 @@ export default function ConfirmationModal({
                     <div className="flex items-start gap-4">
                         <div className={cn(
                             "flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl",
-                            variant === 'danger' ? "bg-destructive/10 text-destructive" : "bg-primary/10 text-primary"
+                            iconBg,
+                            iconColor
                         )}>
                             <Icon className="h-6 w-6" />
                         </div>
@@ -81,6 +88,13 @@ export default function ConfirmationModal({
                             <p id="modal-message" className="text-sm leading-relaxed text-muted-foreground">
                                 {message}
                             </p>
+                            {description && (
+                                <div className="mt-2 p-3 rounded-xl bg-muted/40 border border-border/40">
+                                    <p className="text-xs font-mono break-all text-foreground/80">
+                                        {description}
+                                    </p>
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -95,12 +109,12 @@ export default function ConfirmationModal({
                         {cancelLabel}
                     </Button>
                     <Button
-                        variant={variant === 'danger' ? 'destructive' : 'default'}
+                        variant={buttonVariant}
                         onClick={onConfirm}
                         loading={isLoading}
                         className={cn(
                             "w-full sm:w-auto h-11 px-6 rounded-xl font-bold shadow-lg transition-all duration-300",
-                            variant === 'danger' ? "shadow-destructive/20 hover:shadow-destructive/30" : "shadow-primary/20 hover:shadow-primary/30"
+                            shadowColor
                         )}
                     >
                         {confirmLabel}
