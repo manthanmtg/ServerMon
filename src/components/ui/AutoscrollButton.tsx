@@ -21,7 +21,7 @@ const AutoscrollButton = React.forwardRef<HTMLButtonElement, AutoscrollButtonPro
                 className={cn(
                     'group relative h-11 px-4 transition-all duration-300 ease-out active:scale-95 overflow-hidden',
                     enabled 
-                        ? 'bg-primary/10 border-primary/50 text-primary shadow-[0_0_15px_-3px_rgba(var(--primary),0.2)]' 
+                        ? 'bg-primary/10 border-primary/50 text-primary shadow-sm shadow-primary/20' 
                         : 'bg-background hover:bg-accent text-muted-foreground hover:text-foreground',
                     className
                 )}
@@ -29,7 +29,7 @@ const AutoscrollButton = React.forwardRef<HTMLButtonElement, AutoscrollButtonPro
             >
                 {/* Background Glow Pulse */}
                 {enabled && (
-                    <span className="absolute inset-0 bg-primary/5 animate-pulse-slow pointer-events-none" />
+                    <span className="absolute inset-0 bg-primary/5 animate-pulse pointer-events-none" />
                 )}
                 
                 <div className="relative flex items-center gap-2.5 z-10">
