@@ -1,4 +1,5 @@
 import { createLogger } from '@/lib/logger';
+import { spawn } from 'child_process';
 
 const log = createLogger('speedtest');
 
@@ -72,16 +73,24 @@ export class SpeedtestService {
                 return await this.runMockTest(onProgress);
             }
 
-            // Attempt Ookla first
+            // Attempt Ookla (npm library) first
             try {
                 return await this.runOoklaTest(onProgress);
             } catch (ooklaError: unknown) {
                 const message = ooklaError instanceof Error ? ooklaError.message : String(ooklaError);
-                if (message.includes('not supported') || message.includes('MODULE_NOT_FOUND')) {
-                    log.warn('Ookla Speedtest not supported on this platform, falling back to Fast.com:', message);
+                log.warn('Ookla npm library failed or not supported, trying system binary:', message);
+                
+                // Fallback to system CLI
+                try {
+                    return await this.runSystemOoklaTest(onProgress);
+                } catch (systemError: unknown) {
+                    const sysMessage = systemError instanceof Error ? systemError.message : String(systemError);
+                    log.error('System Ookla CLI failed:', sysMessage);
+
+                    // Final fallback to Fast.com
+                    log.warn('Both Ookla methods failed, falling back to Fast.com');
                     return await this.runFastTest(onProgress);
                 }
-                throw ooklaError;
             }
         } catch (error) {
             const message = error instanceof Error ? error.message : String(error);
@@ -91,6 +100,88 @@ export class SpeedtestService {
         } finally {
             this.isRunning = false;
         }
+    }
+
+    private async runSystemOoklaTest(onProgress?: (progress: SpeedtestProgress) => void): Promise<SpeedtestResult> {
+        return new Promise((resolve, reject) => {
+            log.info('Starting System Ookla CLI Speedtest...');
+            
+            // Accept license automatically
+            const cp = spawn('speedtest', ['--format=json', '--accept-license', '--accept-gdpr']);
+
+            let lastResult: {
+                ping?: { latency: number; jitter: number };
+                download?: { bandwidth: number };
+                isp?: string;
+                server?: { name: string; location: string };
+            } | null = null;
+
+            cp.stdout.on('data', (data) => {
+                try {
+                    const lines = data.toString().trim().split('\n');
+                    for (const line of lines) {
+                        const parsed = JSON.parse(line);
+                        
+                        // speedtest cli outputs different types of lines
+                        if (parsed.type === 'ping') {
+                            onProgress?.({ type: 'ping', progress: parsed.progress ?? 0.1 });
+                        } else if (parsed.type === 'download') {
+                            onProgress?.({ 
+                                type: 'download', 
+                                progress: parsed.progress ?? 0.5,
+                                speed: (parsed.download?.bandwidth ?? 0) * 8
+                            });
+                        } else if (parsed.type === 'upload') {
+                            onProgress?.({ 
+                                type: 'upload', 
+                                progress: parsed.progress ?? 0.8,
+                                speed: (parsed.upload?.bandwidth ?? 0) * 8
+                            });
+                        } else if (parsed.type === 'result') {
+                            lastResult = parsed;
+                        }
+                    }
+                } catch (e) {
+                    // Ignore non-json lines or partial lines
+                }
+            });
+
+            cp.stderr.on('data', (data) => {
+                log.warn(`Speedtest CLI stderr: ${data.toString()}`);
+            });
+
+            cp.on('close', (code) => {
+                if (code !== 0 || !lastResult) {
+                    return reject(new Error(`Speedtest CLI exited with code ${code}`));
+                }
+
+                const finalResult: SpeedtestResult = {
+                    ping: lastResult.ping?.latency ?? 0,
+                    jitter: lastResult.ping?.jitter ?? 0,
+                    speed: (lastResult.download?.bandwidth ?? 0) * 8 / 1_000_000,
+                    isp: lastResult.isp ?? 'Unknown',
+                    server: lastResult.server?.name ?? 'Unknown',
+                    location: lastResult.server?.location ?? 'Unknown'
+                };
+
+                onProgress?.({
+                    type: 'result',
+                    progress: 1,
+                    speed: finalResult.speed * 1_000_000 / 8,
+                    ping_ms: finalResult.ping,
+                    jitter: finalResult.jitter,
+                    isp: finalResult.isp,
+                    server: finalResult.server,
+                    location: finalResult.location
+                });
+
+                resolve(finalResult);
+            });
+
+            cp.on('error', (err) => {
+                reject(err);
+            });
+        });
     }
 
     private async runOoklaTest(onProgress?: (progress: SpeedtestProgress) => void): Promise<SpeedtestResult> {
