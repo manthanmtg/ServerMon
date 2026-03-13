@@ -17,8 +17,42 @@ const port = parseInt(process.env.PORT || '8912', 10);
 import connectDB from './lib/db';
 import TerminalSettings from './models/TerminalSettings';
 import TerminalHistory from './models/TerminalHistory';
+import TerminalSession from './models/TerminalSession';
 
-app.prepare().then(() => {
+async function cleanupStaleSessions() {
+    try {
+        await connectDB();
+        log.info('Checking for stale terminal sessions on startup...');
+        
+        // Find all sessions that were "Active" but the server just started
+        // These sessions are now dead because the PTY processes are gone
+        const sessions = await TerminalSession.find().lean();
+        
+        if (sessions.length > 0) {
+            log.info(`Found ${sessions.length} stale sessions. Cleaning up...`);
+            
+            for (const session of sessions) {
+                await TerminalHistory.findOneAndUpdate(
+                    { sessionId: session.sessionId, closedAt: { $exists: false } },
+                    { 
+                        $set: { 
+                            closedAt: new Date(),
+                            closedBy: 'server-restart'
+                        } 
+                    }
+                );
+            }
+            
+            await TerminalSession.deleteMany({});
+            log.info('Stale sessions cleaned up.');
+        }
+    } catch (err) {
+        log.error('Failed to cleanup stale sessions on startup', err);
+    }
+}
+
+app.prepare().then(async () => {
+    await cleanupStaleSessions();
     const server = createServer((req, res) => {
         const parsedUrl = parse(req.url!, true);
         const { pathname } = parsedUrl;
@@ -45,13 +79,25 @@ app.prepare().then(() => {
     }
     const ptySessions = new Map<string, ptySession>();
     const BUFFER_SIZE = 1000;
-    const SESSION_TIMEOUT = 5 * 60 * 1000; // 5 minutes
 
     // Cleanup idle sessions
     setInterval(async () => {
         const now = Date.now();
+        
+        // Fetch current timeout setting (default to 30 mins if not found)
+        let timeoutMs = 30 * 60 * 1000;
+        try {
+            await connectDB();
+            const settings = await TerminalSettings.findById('terminal-settings').lean();
+            if (settings?.idleTimeoutMinutes) {
+                timeoutMs = settings.idleTimeoutMinutes * 60 * 1000;
+            }
+        } catch (err) {
+            log.error('Failed to fetch terminal settings for cleanup', err);
+        }
+
         for (const [sessionId, session] of ptySessions.entries()) {
-            if (session.sockets.size === 0 && now - session.lastActive > SESSION_TIMEOUT) {
+            if (session.sockets.size === 0 && now - session.lastActive > timeoutMs) {
                 log.info(`Cleaning up idle terminal session: ${sessionId}`);
                 
                 try {
@@ -65,8 +111,9 @@ app.prepare().then(() => {
                             } 
                         }
                     );
+                    await TerminalSession.deleteOne({ sessionId });
                 } catch (err) {
-                    log.error(`Failed to update history for timed out session ${sessionId}`, err);
+                    log.error(`Failed to update history/db for timed out session ${sessionId}`, err);
                 }
 
                 session.ptyProcess.kill();
@@ -153,12 +200,19 @@ app.prepare().then(() => {
                         env: process.env as Record<string, string>,
                     });
 
-                    // Log history entry asynchronously
+                    // Log history entry and update session with PID
+                    const pid = ptyProcess.pid;
                     TerminalHistory.create({
                         sessionId,
                         label: label || 'Terminal',
                         createdBy: username || 'unknown',
+                        pid,
                     }).catch(err => log.error(`Failed to create history for session ${sessionId}`, err));
+
+                    TerminalSession.findOneAndUpdate(
+                        { sessionId },
+                        { $set: { pid } }
+                    ).catch(err => log.error(`Failed to update session PID for ${sessionId}`, err));
 
                     session = {
                         ptyProcess,

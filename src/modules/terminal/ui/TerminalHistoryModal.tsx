@@ -18,6 +18,7 @@ interface HistoryRecord {
     exitCode?: number;
     signal?: string;
     durationMinutes?: number;
+    pid?: number;
 }
 
 interface TerminalHistoryModalProps {
@@ -65,6 +66,13 @@ export default function TerminalHistoryModal({ onClose }: TerminalHistoryModalPr
             return (
                 <Badge variant="outline" className="text-[10px] text-warning border-warning/20 bg-warning/5">
                     Timeout
+                </Badge>
+            );
+        }
+        if (record.closedBy === 'server-restart') {
+            return (
+                <Badge variant="outline" className="text-[10px] text-muted-foreground border-border bg-secondary/30">
+                    Restart
                 </Badge>
             );
         }
@@ -136,6 +144,7 @@ export default function TerminalHistoryModal({ onClose }: TerminalHistoryModalPr
                                 <tr className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
                                     <th className="px-4 py-3 font-semibold">Terminal Name</th>
                                     <th className="px-4 py-3 font-semibold">Created By</th>
+                                    <th className="px-4 py-3 font-semibold text-center">PID</th>
                                     <th className="px-4 py-3 font-semibold">Started At</th>
                                     <th className="px-4 py-3 font-semibold">Duration</th>
                                     <th className="px-4 py-3 font-semibold">Closed By</th>
@@ -163,6 +172,9 @@ export default function TerminalHistoryModal({ onClose }: TerminalHistoryModalPr
                                                 </div>
                                                 <span className="text-muted-foreground truncate">{record.createdBy}</span>
                                             </div>
+                                        </td>
+                                        <td className="px-4 py-3.5 text-center font-mono text-[10px] text-muted-foreground/70">
+                                            {record.pid || '-'}
                                         </td>
                                         <td className="px-4 py-3.5 text-muted-foreground whitespace-nowrap font-mono tabular-nums">
                                             {formatDate(record.createdAt)}

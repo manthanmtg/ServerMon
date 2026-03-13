@@ -16,6 +16,7 @@ interface SessionTab {
     label: string;
     order: number;
     status: 'connected' | 'disconnected' | 'connecting';
+    pid?: number;
 }
 
 interface TermSettings {
@@ -316,10 +317,18 @@ export default function TerminalPage() {
                             {activeTab?.label || 'Terminal'}
                         </span>
                     </div>
-                    <Badge variant={activeTab?.status === 'connected' ? 'success' : activeTab?.status === 'connecting' ? 'secondary' : 'destructive'} className="text-[10px]">
-                        {activeTab?.status === 'connected' && <span className="w-1.5 h-1.5 rounded-full bg-success animate-pulse" />}
-                        {activeTab?.status === 'connected' ? 'Connected' : activeTab?.status === 'connecting' ? 'Connecting...' : 'Disconnected'}
-                    </Badge>
+                    <div className="flex items-center gap-3">
+                        <Badge variant={activeTab?.status === 'connected' ? 'success' : activeTab?.status === 'connecting' ? 'secondary' : 'destructive'} className="text-[10px]">
+                            {activeTab?.status === 'connected' && <span className="w-1.5 h-1.5 rounded-full bg-success animate-pulse" />}
+                            {activeTab?.status === 'connected' ? 'Connected' : activeTab?.status === 'connecting' ? 'Connecting...' : 'Disconnected'}
+                        </Badge>
+                        {activeTab?.pid && (
+                            <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-primary/5 border border-primary/10 text-[10px] text-primary/80 font-mono">
+                                <span className="text-[9px] uppercase tracking-wider opacity-60">PID</span>
+                                <span>{activeTab.pid}</span>
+                            </div>
+                        )}
+                    </div>
                 </div>
                 <div className="flex-1 relative">
                     {tabs.map((tab) => (

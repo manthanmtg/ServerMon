@@ -6,6 +6,7 @@ export interface ITerminalSession extends Document {
     order: number;
     createdAt: Date;
     lastActiveAt: Date;
+    pid?: number;
 }
 
 const TerminalSessionSchema: Schema = new Schema(
@@ -14,6 +15,7 @@ const TerminalSessionSchema: Schema = new Schema(
         label: { type: String, default: 'Terminal' },
         order: { type: Number, default: 0 },
         lastActiveAt: { type: Date, default: Date.now },
+        pid: { type: Number },
     },
     { timestamps: true }
 );

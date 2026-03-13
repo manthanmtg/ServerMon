@@ -10,6 +10,7 @@ export interface ITerminalHistory extends Document {
     exitCode?: number;
     signal?: string;
     durationMinutes?: number;
+    pid?: number;
 }
 
 const TerminalHistorySchema: Schema = new Schema(
@@ -22,6 +23,7 @@ const TerminalHistorySchema: Schema = new Schema(
         exitCode: { type: Number },
         signal: { type: String },
         durationMinutes: { type: Number },
+        pid: { type: Number },
     },
     { timestamps: { createdAt: true, updatedAt: false } }
 );
