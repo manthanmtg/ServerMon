@@ -141,7 +141,7 @@ export class SpeedtestService {
                             lastResult = parsed;
                         }
                     }
-                } catch (e) {
+                } catch (_error) {
                     // Ignore non-json lines or partial lines
                 }
             });

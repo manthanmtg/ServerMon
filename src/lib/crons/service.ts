@@ -2,7 +2,7 @@ import { execFile, spawn } from 'node:child_process';
 import { promisify } from 'node:util';
 import { readdir, readFile, access, unlink, writeFile, stat } from 'node:fs/promises';
 import { openSync, closeSync, mkdirSync, existsSync } from 'node:fs';
-import { join, basename } from 'node:path';
+import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { createHash } from 'node:crypto';
 import { createLogger } from '@/lib/logger';
