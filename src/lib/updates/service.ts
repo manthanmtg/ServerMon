@@ -4,6 +4,8 @@ import si from 'systeminformation';
 import connectDB from '@/lib/db';
 import UpdateHistory from '@/models/UpdateHistory';
 import { createLogger } from '@/lib/logger';
+import { existsSync } from 'node:fs';
+import { spawn } from 'node:child_process';
 import type { 
     UpdateSnapshot, 
     PackageUpdate, 
@@ -249,15 +251,22 @@ class UpdateService {
     }
 
     public async triggerUpdate(): Promise<{ success: boolean; pid?: number; message: string }> {
-        const updateScript = '/opt/servermon/scripts/update-servermon.sh';
+        // Use the explicit repo dir if set, otherwise default to the production install path
+        const scriptBase = process.env.SERVERMON_REPO_DIR || '/opt/servermon/repo';
+        const updateScript = `${scriptBase}/scripts/update-servermon.sh`;
         
+        if (!existsSync(updateScript)) {
+            log.error(`Update script not found at ${updateScript}`);
+            return { 
+                success: false, 
+                message: `Update script not found at ${updateScript}. Please ensure SERVERMON_REPO_DIR is set correctly.` 
+            };
+        }
+
         log.info(`Triggering system update via ${updateScript}`);
         
         try {
-            const { spawn } = await import('node:child_process');
-            
             // Run the script in the background with inherited stdout/stderr redirected to logs if possible
-            // For now, we just spawn it and let it run.
             const child = spawn('sudo', [updateScript], {
                 detached: true,
                 stdio: 'ignore'

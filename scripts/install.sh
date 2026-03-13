@@ -215,9 +215,17 @@ log "OS: ${OS_NAME} (${ARCH})"
 
 # Detect existing installation
 EXISTING_INSTALL="false"
+EXISTING_SERVERMON_REPO_DIR=""
 if [ -d "$INSTALL_DIR" ] && [ -f "${CONFIG_DIR}/env" ]; then
     EXISTING_INSTALL="true"
+    EXISTING_SERVERMON_REPO_DIR=$(grep "^SERVERMON_REPO_DIR=" "${CONFIG_DIR}/env" 2>/dev/null | cut -d'=' -f2- | xargs 2>/dev/null || true)
     log_warn "Existing ServerMon installation detected — will upgrade."
+fi
+
+# Reuse existing repo dir if available and valid
+if [ -n "$EXISTING_SERVERMON_REPO_DIR" ] && [ -d "$EXISTING_SERVERMON_REPO_DIR" ]; then
+    SOURCE_DIR="$EXISTING_SERVERMON_REPO_DIR"
+    log_info "Reusing existing repository directory for build: ${SOURCE_DIR}"
 fi
 
 # --use-existing-values: load all config from existing env file
@@ -247,7 +255,7 @@ if [ "$USE_EXISTING" = "true" ]; then
     [ -n "$EXISTING_MONGO" ] && MONGO_URI="$EXISTING_MONGO"
     [ -n "$EXISTING_DOMAIN" ] && DOMAIN="$EXISTING_DOMAIN"
     [ "$EXISTING_ALLOW_ROOT" = "true" ] && ALLOW_ROOT="true"
-
+    
     if [[ "$MONGO_URI" != *"localhost"* && "$MONGO_URI" != *"127.0.0.1"* ]]; then
         SKIP_MONGO_INSTALL="true"
     fi
@@ -450,7 +458,7 @@ step "4/${TOTAL_STEPS}" "Building ServerMon"
 
 # Determine source directory (where this script lives)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SOURCE_DIR="$(dirname "$SCRIPT_DIR")"
+SOURCE_DIR="${SOURCE_DIR:-$(dirname "$SCRIPT_DIR")}"
 
 # Prepare new release directory (build happens here to minimize downtime)
 mkdir -p "$RELEASES_DIR"
@@ -506,6 +514,7 @@ if [ "$EXISTING_INSTALL" = "true" ] && [ -f "${CONFIG_DIR}/env" ]; then
     update_env_line "MONGO_URI" "${MONGO_URI}"
     update_env_line "PORT" "${APP_PORT}"
     update_env_line "DOMAIN" "${DOMAIN}"
+    update_env_line "SERVERMON_REPO_DIR" "${SOURCE_DIR}"
 
     # Add JWT_SECRET if missing
     if ! grep -q "^JWT_SECRET=" "${CONFIG_DIR}/env"; then
@@ -522,6 +531,7 @@ PORT=${APP_PORT}
 MONGO_URI=${MONGO_URI}
 JWT_SECRET=${JWT_SECRET}
 DOMAIN=${DOMAIN}
+SERVERMON_REPO_DIR=${SOURCE_DIR}
 ENVEOF
     log "Environment config created at ${CONFIG_DIR}/env"
 fi

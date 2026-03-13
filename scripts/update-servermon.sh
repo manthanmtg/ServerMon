@@ -40,10 +40,42 @@ set -euo pipefail
 
 # ── Configuration ───────────────────────────────────────────────
 
-# Absolute path to the ServerMon git repository used for deployments.
-# Default value matches the recommended install location for the
-# release clone. Change this if your deployment uses a different path.
-REPO_DIR="/root/repos/ServerMon"
+# SERVERMON_REPO_DIR: Absolute path to the ServerMon git repository.
+# This variable is the "Single Source of Truth" for system updates.
+# It is typically set during installation in /etc/servermon/env.
+SERVERMON_REPO_DIR="${SERVERMON_REPO_DIR:-}"
+
+# Fallback path to check for configuration
+ENV_FILE="/etc/servermon/env"
+
+# Resolve SERVERMON_REPO_DIR if not provided via environment
+if [ -z "$SERVERMON_REPO_DIR" ]; then
+  # 1. Try to load from system configuration
+  if [ -f "$ENV_FILE" ]; then
+    SERVERMON_REPO_DIR=$(grep "^SERVERMON_REPO_DIR=" "$ENV_FILE" | cut -d'=' -f2- | xargs 2>/dev/null || true)
+    [ -n "$SERVERMON_REPO_DIR" ] && RESOLVED_VIA="system configuration (/etc/servermon/env)"
+  fi
+
+  # 2. Self-detection: are we running inside the repo?
+  if [ -z "$SERVERMON_REPO_DIR" ] || [ ! -d "$SERVERMON_REPO_DIR" ]; then
+    SCRIPT_PARENT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+    if [ -d "$SCRIPT_PARENT/.git" ]; then
+      SERVERMON_REPO_DIR="$SCRIPT_PARENT"
+      RESOLVED_VIA="self-detection (script location)"
+    fi
+  fi
+
+  # 3. Final default fallback
+  if [ -z "$SERVERMON_REPO_DIR" ]; then
+    SERVERMON_REPO_DIR="/opt/servermon/repo"
+    RESOLVED_VIA="default fallback"
+  fi
+else
+  RESOLVED_VIA="environment variable"
+fi
+
+# Compatibility: set REPO_DIR for the rest of the script
+REPO_DIR="$SERVERMON_REPO_DIR"
 
 # Log file capturing all update activity. Suitable for review and
 # troubleshooting (e.g. via `tail -f`).
@@ -77,8 +109,11 @@ log_error() {
 # Ensure the log directory exists before we start appending.
 mkdir -p "$(dirname "$LOG_FILE")"
 
-log_info "────────────────────────────────────────────────────────"
-log_info "ServerMon update started"
+log_info "───# ── Execution ───────────────────────────────────────────────────"
+
+log_info "Starting ServerMon system update..."
+log_info "Repository resolved via: $RESOLVED_VIA"
+log_info "Resolved path: $REPO_DIR"
 
 # ── Pre-flight checks ───────────────────────────────────────────
 
