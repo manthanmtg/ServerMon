@@ -111,10 +111,11 @@ function matchesFilter(name: string, filter: string) {
 function ResizeHandle({ onResize, side }: { onResize: (delta: number) => void; side: 'left' | 'right' }) {
     const handleMouseDown = (e: React.MouseEvent) => {
         e.preventDefault();
-        const startX = e.clientX;
+        let lastX = e.clientX;
 
         const onMouseMove = (ev: MouseEvent) => {
-            const delta = side === 'left' ? ev.clientX - startX : startX - ev.clientX;
+            const delta = side === 'left' ? ev.clientX - lastX : lastX - ev.clientX;
+            lastX = ev.clientX;
             onResize(delta);
         };
 
