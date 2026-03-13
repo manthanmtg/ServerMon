@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
 
         if (verification.verified && verification.registrationInfo) {
             const { id, publicKey, counter } = verification.registrationInfo.credential;
-            const credentialID = Buffer.from(id).toString('base64url');
+            const credentialID = String(id);
 
             // Check if credential already exists
             const existing = user.passkeys.find(pk => pk.credentialID === credentialID);

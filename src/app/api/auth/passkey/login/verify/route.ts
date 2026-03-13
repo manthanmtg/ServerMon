@@ -26,29 +26,29 @@ export async function POST(req: NextRequest) {
         logger.info(`Checking passkey login. DB: ${dbName}, ID prefix: ${body.id?.slice(0, 10)}...`);
 
         // 1. Find the user who owns this credential.
-        const user = await User.findOne({ 'passkeys.credentialID': body.id, isActive: true });
+        // We handle a legacy bug where IDs were doubly-encoded during registration.
+        const credentialID = body.id;
+        const legacyEncodedID = Buffer.from(body.id).toString('base64url');
+        
+        logger.info(`Searching for user with ID: ${credentialID} or legacy: ${legacyEncodedID}`);
+
+        const user = await User.findOne({ 
+            'passkeys.credentialID': { $in: [credentialID, legacyEncodedID] },
+            isActive: true 
+        });
 
         if (!user) {
-            logger.warn(`Passkey mismatch: No user found with credentialID: ${body.id}`);
-            
-            // Extreme debugging: find the admin user and list their passkeys to compare
-            const admin = await User.findOne({ username: 'admin' });
-            const adminPKs = admin?.passkeys.map(pk => String(pk.credentialID)) || [];
-            
-            return NextResponse.json({ 
-                error: `User not found in database: ${dbName}. Received ID: "${body.id}"`,
-                debug: {
-                    receivedId: body.id,
-                    receivedLen: body.id?.length,
-                    adminPasskeysInDB: adminPKs,
-                }
-            }, { status: 404 });
+            logger.warn(`Passkey mismatch: No user found with credentialID: ${credentialID}`);
+            return NextResponse.json({ error: 'User not found' }, { status: 404 });
         }
         
         logger.info(`Found user ${user.username} for passkey.`);
 
         // 2. Find the specific passkey in the user's list
-        const passkey = user.passkeys.find(pk => String(pk.credentialID) === body.id);
+        const passkey = user.passkeys.find(pk => 
+            String(pk.credentialID) === credentialID || 
+            String(pk.credentialID) === legacyEncodedID
+        );
         if (!passkey) {
             return NextResponse.json({ error: 'Passkey not found on user' }, { status: 400 });
         }
