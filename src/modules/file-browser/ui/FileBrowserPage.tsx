@@ -106,6 +106,41 @@ function matchesFilter(name: string, filter: string) {
     return new RegExp(escaped, 'i').test(name);
 }
 
+// ---- Resizable panel handle ----
+
+function ResizeHandle({ onResize, side }: { onResize: (delta: number) => void; side: 'left' | 'right' }) {
+    const handleMouseDown = (e: React.MouseEvent) => {
+        e.preventDefault();
+        const startX = e.clientX;
+
+        const onMouseMove = (ev: MouseEvent) => {
+            const delta = side === 'left' ? ev.clientX - startX : startX - ev.clientX;
+            onResize(delta);
+        };
+
+        const onMouseUp = () => {
+            document.removeEventListener('mousemove', onMouseMove);
+            document.removeEventListener('mouseup', onMouseUp);
+            document.body.style.cursor = '';
+            document.body.style.userSelect = '';
+        };
+
+        document.body.style.cursor = 'col-resize';
+        document.body.style.userSelect = 'none';
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
+    };
+
+    return (
+        <div
+            className="hidden md:flex w-1.5 shrink-0 cursor-col-resize items-center justify-center hover:bg-primary/10 active:bg-primary/20 transition-colors group z-10"
+            onMouseDown={handleMouseDown}
+        >
+            <div className="w-0.5 h-8 rounded-full bg-border group-hover:bg-primary/40 group-active:bg-primary/60 transition-colors" />
+        </div>
+    );
+}
+
 // ---- In-app modals to replace native prompt/confirm ----
 
 interface InputModalProps {
@@ -371,6 +406,10 @@ export default function FileBrowserPage() {
     const [isEditing, setIsEditing] = useState(false);
     const [saving, setSaving] = useState(false);
     const [showTree, setShowTree] = useState(true);
+    const [treeWidth, setTreeWidth] = useState(288);
+    const [previewWidth, setPreviewWidth] = useState(400);
+    const treeWidthRef = useRef(288);
+    const previewWidthRef = useRef(400);
     const [dragging, setDragging] = useState(false);
     const [uploadProgress, setUploadProgress] = useState(0);
     const [autoRefreshLogs, setAutoRefreshLogs] = useState(false);
@@ -798,11 +837,14 @@ export default function FileBrowserPage() {
                 {showTree && (
                     <>
                         <div className="fixed inset-0 z-30 bg-black/40 md:hidden" onClick={() => setShowTree(false)} />
-                        <div className={cn(
-                            "flex flex-col bg-background md:bg-secondary/5 overflow-hidden border-r border-border/50 z-30",
-                            "fixed inset-y-0 left-0 w-[280px] shadow-2xl md:shadow-none",
-                            "md:relative md:inset-auto md:w-72"
-                        )}>
+                        <div
+                            className={cn(
+                                "flex flex-col bg-background md:bg-secondary/5 overflow-hidden border-r border-border/50 z-30 shrink-0",
+                                "fixed inset-y-0 left-0 w-[280px] shadow-2xl md:shadow-none",
+                                "md:relative md:inset-auto md:w-auto"
+                            )}
+                            style={{ width: treeWidth }}
+                        >
                             <div className="flex items-center justify-between px-4 py-3 md:px-5 md:py-4 border-b border-border/40">
                                 <h3 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Directory Tree</h3>
                                 <div className="flex items-center gap-1">
@@ -870,6 +912,13 @@ export default function FileBrowserPage() {
                     </>
                 )}
 
+                {/* Resize handle: tree ↔ content */}
+                {showTree && <ResizeHandle side="left" onResize={(delta) => {
+                    const next = Math.max(180, Math.min(500, treeWidthRef.current + delta));
+                    treeWidthRef.current = next;
+                    setTreeWidth(next);
+                }} />}
+
                 {/* Main Content Area */}
                 <div className="flex-1 flex flex-col min-w-0 bg-background overflow-hidden relative">
                     <div className="flex-1 flex flex-col min-h-0">
@@ -935,11 +984,21 @@ export default function FileBrowserPage() {
                 {selectedEntry && (
                     <>
                         <div className="fixed inset-0 z-40 bg-black/40 md:hidden" onClick={() => setSelectedEntry(null)} />
+
+                        {/* Resize handle: content ↔ preview */}
+                        <ResizeHandle side="right" onResize={(delta) => {
+                            const next = Math.max(250, Math.min(800, previewWidthRef.current + delta));
+                            previewWidthRef.current = next;
+                            setPreviewWidth(next);
+                        }} />
+
                         <div className={cn(
-                            "flex flex-col bg-background backdrop-blur-md overflow-hidden shadow-2xl z-40",
+                            "flex flex-col bg-background backdrop-blur-md overflow-hidden shadow-2xl z-40 shrink-0",
                             "fixed inset-2 rounded-2xl md:rounded-none md:shadow-none",
-                            "md:relative md:inset-auto md:w-[35%] md:border-l md:border-border/40"
-                        )}>
+                            "md:relative md:inset-auto md:border-l md:border-border/40 md:w-auto"
+                        )}
+                        style={{ width: previewWidth }}
+                        >
                             <FileBrowserPreview
                                 entry={selectedEntry}
                                 preview={preview}
@@ -965,7 +1024,7 @@ export default function FileBrowserPage() {
                 variant="outline"
                 size="icon"
                 className="hidden md:flex absolute bottom-4 h-9 w-9 rounded-full shadow-lg border-primary/20 bg-background/80 backdrop-blur z-20 transition-[left] duration-200"
-                style={{ left: showTree ? 'calc(18rem - 0.25rem)' : '0.75rem' }}
+                style={{ left: showTree ? `${treeWidth + 10}px` : '0.75rem' }}
                 onClick={() => setShowTree(!showTree)}
             >
                 {showTree ? <PanelLeftClose className="h-4 w-4" /> : <PanelLeftOpen className="h-4 w-4" />}
