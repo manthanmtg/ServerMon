@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import mongoose from 'mongoose';
 import connectDB from '@/lib/db';
 import User from '@/models/User';
 import { verifyPasskeyLogin, getRPID, getOrigin } from '@/lib/passkey-utils';
@@ -18,16 +19,26 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'Login challenge missing or expired' }, { status: 400 });
         }
 
-        await connectDB();
+        const conn = await connectDB();
+        
+        // Redacted reveal of DB name to confirm connectivity
+        const dbName = conn.connection.name;
+        logger.info(`Checking passkey login. DB: ${dbName}, ID prefix: ${body.id?.slice(0, 10)}...`);
 
         // 1. Find the user who owns this credential.
-        // We prioritize the credential ID over the username cookie to support resident keys
-        // and handle cases where the typed username might mismatch the chosen passkey.
         const user = await User.findOne({ 'passkeys.credentialID': body.id, isActive: true });
 
         if (!user) {
+            logger.warn(`Passkey mismatch: No user found with credentialID: ${body.id}`);
+            // Let's check if the ID exists but user is inactive or something?
+            const anyUser = await User.findOne({ 'passkeys.credentialID': body.id });
+            if (anyUser) {
+                logger.warn(`Found user ${anyUser.username} but they are INACTIVE.`);
+            }
             return NextResponse.json({ error: 'User not found' }, { status: 404 });
         }
+        
+        logger.info(`Found user ${user.username} for passkey.`);
 
         // 2. Find the specific passkey in the user's list
         const passkey = user.passkeys.find(pk => String(pk.credentialID) === body.id);
