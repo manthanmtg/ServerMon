@@ -26,6 +26,12 @@ const WELL_KNOWN: Record<number, string> = {
     8912: 'ServerMon', 9090: 'Prometheus', 9200: 'Elasticsearch', 27017: 'MongoDB',
 };
 
+function isValidPortValue(value: string): boolean {
+    if (!value) return false;
+    const port = parseInt(value, 10);
+    return Number.isInteger(port) && port >= 1 && port <= 65535;
+}
+
 export default function PortsPage() {
     const [snapshot, setSnapshot] = useState<PortsSnapshot | null>(null);
     const [loading, setLoading] = useState(true);
@@ -56,8 +62,8 @@ export default function PortsPage() {
     }, [load]);
 
     const handleCheckPort = async () => {
+        if (!isValidPortValue(checkPort)) return;
         const port = parseInt(checkPort, 10);
-        if (isNaN(port) || port < 1 || port > 65535) return;
         setChecking(true);
         setCheckResult(null);
         try {
@@ -76,13 +82,7 @@ export default function PortsPage() {
     };
 
     useEffect(() => {
-        if (!checkPort) {
-            setCheckResult(null);
-            return;
-        }
-
-        const port = parseInt(checkPort, 10);
-        if (isNaN(port) || port < 1 || port > 65535) {
+        if (!isValidPortValue(checkPort)) {
             setCheckResult(null);
             return;
         }
@@ -223,12 +223,17 @@ export default function PortsPage() {
                         />
                         <button
                             onClick={handleCheckPort}
-                            disabled={checking || !checkPort}
+                            disabled={checking || !isValidPortValue(checkPort)}
                             className="h-10 px-4 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 disabled:opacity-50 transition-colors"
                         >
                             {checking ? <LoaderCircle className="w-4 h-4 animate-spin" /> : 'Check'}
                         </button>
                     </div>
+                    {checkPort && !isValidPortValue(checkPort) && (
+                        <p className="mt-2 text-xs text-destructive">
+                            Port must be a number between 1 and 65535.
+                        </p>
+                    )}
                     {checkResult && (
                         <div className={cn(
                             'mt-3 flex items-center gap-2 rounded-lg px-4 py-3 text-sm border',
