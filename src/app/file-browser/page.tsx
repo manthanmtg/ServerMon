@@ -11,7 +11,7 @@ export default function Page() {
             subtitle="Secure Server Files"
             headerContent={<FileBrowserHeaderShortcuts />}
         >
-            <div className="h-[calc(100dvh-140px)] min-h-[560px] animate-fade-in">
+            <div className="h-[calc(100dvh-64px)] md:h-[calc(100dvh-140px)] min-h-[400px] md:min-h-[560px] animate-fade-in">
                 <Suspense fallback={<div className="flex h-full items-center justify-center">Loading...</div>}>
                     <FileBrowserPage />
                 </Suspense>

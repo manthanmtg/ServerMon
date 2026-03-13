@@ -15,6 +15,8 @@ import {
     RefreshCcw,
     Search,
     Settings2,
+    Upload,
+    X,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -79,6 +81,18 @@ const DEFAULT_SETTINGS: FileBrowserSettings = {
     editorMaxBytes: 1024 * 1024,
     previewMaxBytes: 512 * 1024,
 };
+
+function formatBytesCompact(bytes: number) {
+    if (bytes < 1024) return `${bytes} B`;
+    const units = ['KB', 'MB', 'GB', 'TB'];
+    let value = bytes;
+    let unitIndex = -1;
+    while (value >= 1024 && unitIndex < units.length - 1) {
+        value /= 1024;
+        unitIndex += 1;
+    }
+    return `${value.toFixed(value >= 10 || unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`;
+}
 
 function matchesFilter(name: string, filter: string) {
     if (!filter.trim()) return true;
@@ -587,9 +601,18 @@ export default function FileBrowserPage() {
         <div className="flex flex-col h-full bg-background overflow-hidden animate-in fade-in duration-500">
             {/* Header / Toolbar */}
             <div className="flex flex-col border-b border-border/50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-                <div className="flex items-center justify-between px-6 py-4">
-                    <div className="flex items-center gap-4 min-w-0">
-                        <div className="flex items-center gap-2">
+                {/* Row 1: Nav + actions */}
+                <div className="flex items-center gap-2 px-3 py-3 md:px-6 md:py-4 flex-wrap">
+                    <div className="flex items-center gap-1 md:gap-2 min-w-0 flex-1">
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 md:h-9 md:w-9 text-muted-foreground hover:bg-accent shrink-0 md:hidden"
+                            onClick={() => setShowTree(!showTree)}
+                        >
+                            {showTree ? <PanelLeftClose className="w-4 h-4" /> : <PanelLeftOpen className="w-4 h-4" />}
+                        </Button>
+                        <div className="hidden md:flex items-center gap-2">
                             <Button
                                 variant="ghost"
                                 size="icon"
@@ -608,114 +631,150 @@ export default function FileBrowserPage() {
                             >
                                 <ChevronRight className="w-5 h-5" />
                             </Button>
+                            <div className="h-6 w-px bg-border/50 mx-1" />
                         </div>
-                        <div className="h-6 w-px bg-border/50 mx-1" />
                         <FileBrowserBreadcrumbs 
                             segments={buildSegments(currentPath)} 
                             onNavigate={(path) => navigate(path)} 
                         />
                     </div>
 
-                    <div className="flex items-center gap-3">
-                        <div className="relative w-64 group">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground/50 group-focus-within:text-primary transition-colors" />
-                            <Input
-                                placeholder="Filter files..."
-                                value={search}
-                                onChange={(e) => setSearch(e.target.value)}
-                                className="h-9 pl-9 bg-secondary/20 border-border/40 focus:bg-background transition-all"
-                            />
-                        </div>
-                        <Button variant="outline" size="sm" onClick={refresh} className="h-9 w-9 p-0">
-                            <RefreshCcw className={cn("h-4 w-4", loading && "animate-spin")} />
+                    <div className="flex items-center gap-1.5 md:gap-3 shrink-0">
+                        <Button variant="outline" size="sm" onClick={refresh} className="h-8 w-8 md:h-9 md:w-9 p-0">
+                            <RefreshCcw className={cn("h-3.5 w-3.5 md:h-4 md:w-4", loading && "animate-spin")} />
                         </Button>
-                        <Button variant="outline" size="sm" onClick={() => setShowSettings(true)} className="h-9 w-9 p-0">
-                            <Settings2 className="h-4 w-4" />
+                        <Button variant="outline" size="sm" onClick={() => setShowSettings(true)} className="h-8 w-8 md:h-9 md:w-9 p-0">
+                            <Settings2 className="h-3.5 w-3.5 md:h-4 md:w-4" />
                         </Button>
-                        <div className="h-6 w-px bg-border/50 mx-1" />
+                        <div className="hidden md:block h-6 w-px bg-border/50 mx-1" />
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-8 md:h-9 gap-2 hidden md:inline-flex"
+                            onClick={() => fileInputRef.current?.click()}
+                        >
+                            <Upload className="h-4 w-4" />
+                            <span className="hidden lg:inline">Upload</span>
+                        </Button>
                         <Button 
-                            className="h-9 gap-2 shadow-sm shadow-primary/20"
+                            variant="outline"
+                            size="sm"
+                            className="h-8 md:h-9 gap-2 hidden md:inline-flex"
+                            onClick={() => handleCreate('directory')}
+                        >
+                            <FolderPlus className="h-4 w-4" />
+                            <span className="hidden lg:inline">New Folder</span>
+                        </Button>
+                        <Button 
+                            className="h-8 md:h-9 gap-2 shadow-sm shadow-primary/20"
                             onClick={() => handleCreate('file')}
                         >
                             <Plus className="h-4 w-4" />
-                            New File
+                            <span className="hidden sm:inline">New File</span>
                         </Button>
                     </div>
                 </div>
 
+                {/* Row 2: Search (full width on mobile) */}
+                <div className="px-3 pb-3 md:px-6 md:pb-4">
+                    <div className="relative group">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground/50 group-focus-within:text-primary transition-colors" />
+                        <Input
+                            placeholder="Filter files..."
+                            value={search}
+                            onChange={(e) => setSearch(e.target.value)}
+                            className="h-9 pl-9 bg-secondary/20 border-border/40 focus:bg-background transition-all w-full md:max-w-xs"
+                        />
+                    </div>
+                </div>
+
                 {listing?.git && (
-                    <div className="px-6 pb-4">
+                    <div className="px-3 pb-3 md:px-6 md:pb-4">
                         <FileBrowserGitBar git={listing.git} />
                     </div>
                 )}
             </div>
 
-            <div className="flex flex-1 min-h-0 divide-x divide-border/50 overflow-hidden">
-                {/* Sidebar Tree */}
+            <div className="flex flex-1 min-h-0 overflow-hidden relative">
+                {/* Sidebar Tree — overlay on mobile, inline on desktop */}
                 {showTree && (
-                    <div className="w-72 flex flex-col bg-secondary/5 overflow-hidden">
-                        <div className="flex items-center justify-between px-5 py-4 border-b border-border/40">
-                            <h3 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Directory Tree</h3>
-                            <Button 
-                                variant="ghost" 
-                                size="icon" 
-                                className="h-6 w-6 text-muted-foreground"
-                                onClick={() => handleCreate('directory')}
-                            >
-                                <FolderPlus className="h-3.5 w-3.5" />
-                            </Button>
-                        </div>
-                        <div className="flex-1 overflow-y-auto p-3 space-y-1 custom-scrollbar">
-                            {tree.map((node) => (
-                                <TreeBranch
-                                    key={node.path}
-                                    node={node}
-                                    currentPath={currentPath}
-                                    expanded={expandedPaths}
-                                    loadingPaths={loadingTreePaths}
-                                    onToggle={async (path, isExpanded) => {
-                                        if (isExpanded) {
-                                            setExpandedPaths((prev) => {
-                                                const next = new Set(prev);
-                                                next.delete(path);
-                                                return next;
-                                            });
-                                        } else {
-                                            setExpandedPaths((prev) => new Set([...prev, path]));
-                                            const node = findTreeNode(tree, path);
-                                            if (node && !node.children) {
-                                                await loadTreeChildren(path);
-                                            }
-                                        }
-                                    }}
-                                    onSelect={(path) => {
-                                        const node = findTreeNode(tree, path);
-                                        if (node?.isDirectory) {
-                                            navigate(path);
-                                        } else {
-                                            // Handle file selection
-                                            const fileEntry = listing?.entries.find(e => e.path === path);
-                                            if (fileEntry) {
-                                                loadPreview(fileEntry);
+                    <>
+                        <div className="fixed inset-0 z-30 bg-black/40 md:hidden" onClick={() => setShowTree(false)} />
+                        <div className={cn(
+                            "flex flex-col bg-background md:bg-secondary/5 overflow-hidden border-r border-border/50 z-30",
+                            "fixed inset-y-0 left-0 w-[280px] shadow-2xl md:shadow-none",
+                            "md:relative md:inset-auto md:w-72"
+                        )}>
+                            <div className="flex items-center justify-between px-4 py-3 md:px-5 md:py-4 border-b border-border/40">
+                                <h3 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Directory Tree</h3>
+                                <div className="flex items-center gap-1">
+                                    <Button 
+                                        variant="ghost" 
+                                        size="icon" 
+                                        className="h-6 w-6 text-muted-foreground"
+                                        onClick={() => handleCreate('directory')}
+                                    >
+                                        <FolderPlus className="h-3.5 w-3.5" />
+                                    </Button>
+                                    <Button 
+                                        variant="ghost" 
+                                        size="icon" 
+                                        className="h-6 w-6 text-muted-foreground md:hidden"
+                                        onClick={() => setShowTree(false)}
+                                    >
+                                        <X className="h-3.5 w-3.5" />
+                                    </Button>
+                                </div>
+                            </div>
+                            <div className="flex-1 overflow-y-auto p-3 space-y-1 custom-scrollbar">
+                                {tree.map((node) => (
+                                    <TreeBranch
+                                        key={node.path}
+                                        node={node}
+                                        currentPath={currentPath}
+                                        expanded={expandedPaths}
+                                        loadingPaths={loadingTreePaths}
+                                        onToggle={async (path, isExpanded) => {
+                                            if (isExpanded) {
+                                                setExpandedPaths((prev) => {
+                                                    const next = new Set(prev);
+                                                    next.delete(path);
+                                                    return next;
+                                                });
                                             } else {
-                                                // If file not in current listing, we need to fetch its parent and then preview
-                                                const parentPath = path.substring(0, path.lastIndexOf('/')) || '/';
-                                                navigate(parentPath);
-                                                // In a real app we'd wait for navigate to finish then preview, 
-                                                // but for now let's assume it's in the current listing or the user can click it there.
+                                                setExpandedPaths((prev) => new Set([...prev, path]));
+                                                const node = findTreeNode(tree, path);
+                                                if (node && !node.children) {
+                                                    await loadTreeChildren(path);
+                                                }
                                             }
-                                        }
-                                    }}
-                                />
-                            ))}
+                                        }}
+                                        onSelect={(path) => {
+                                            const node = findTreeNode(tree, path);
+                                            if (node?.isDirectory) {
+                                                navigate(path);
+                                            } else {
+                                                const fileEntry = listing?.entries.find(e => e.path === path);
+                                                if (fileEntry) {
+                                                    loadPreview(fileEntry);
+                                                } else {
+                                                    const parentPath = path.substring(0, path.lastIndexOf('/')) || '/';
+                                                    navigate(parentPath);
+                                                }
+                                            }
+                                            // Auto-close sidebar on mobile after selection
+                                            if (window.innerWidth < 768) setShowTree(false);
+                                        }}
+                                    />
+                                ))}
+                            </div>
                         </div>
-                    </div>
+                    </>
                 )}
 
                 {/* Main Content Area */}
                 <div className="flex-1 flex flex-col min-w-0 bg-background overflow-hidden relative">
                     <div className="flex-1 flex flex-col min-h-0">
-                        {/* Drop Zone Area could go here */}
                         <div 
                             className={cn(
                                 "flex-1 flex flex-col min-h-0",
@@ -731,6 +790,7 @@ export default function FileBrowserPage() {
                         >
                             <FileBrowserEntryList
                                 entries={filteredEntries}
+                                selectedPath={selectedEntry?.path}
                                 onNavigate={navigate}
                                 onPreview={loadPreview}
                                 onEdit={(entry) => loadPreview(entry, true)}
@@ -741,6 +801,21 @@ export default function FileBrowserPage() {
                             />
                         </div>
                     </div>
+
+                    {/* Summary bar */}
+                    {listing?.summary && !loading && (
+                        <div className="flex items-center gap-3 px-3 py-2 md:px-6 md:py-2.5 border-t border-border/40 bg-secondary/5 text-[10px] md:text-[11px] font-medium text-muted-foreground shrink-0">
+                            <span>{listing.summary.directories} folder{listing.summary.directories !== 1 ? 's' : ''}</span>
+                            <span className="opacity-30">·</span>
+                            <span>{listing.summary.files} file{listing.summary.files !== 1 ? 's' : ''}</span>
+                            {listing.summary.totalSize > 0 && (
+                                <>
+                                    <span className="opacity-30">·</span>
+                                    <span>{formatBytesCompact(listing.summary.totalSize)}</span>
+                                </>
+                            )}
+                        </div>
+                    )}
 
                     {uploadProgress > 0 && (
                         <div className="absolute inset-x-0 bottom-0 p-4 bg-background/80 backdrop-blur border-t border-border">
@@ -758,37 +833,57 @@ export default function FileBrowserPage() {
                     )}
                 </div>
 
-                {/* Preview Panel */}
-                <div className={cn(
-                    "flex flex-col bg-background/50 backdrop-blur-md border-l border-border/40 transition-all duration-300 overflow-hidden shadow-2xl z-10",
-                    selectedEntry ? "w-[35%] opacity-100" : "w-0 opacity-0 border-l-0 shadow-none"
-                )}>
-                    <FileBrowserPreview
-                        entry={selectedEntry}
-                        preview={preview}
-                        loading={previewLoading}
-                        isEditing={isEditing}
-                        editorValue={editorValue}
-                        saving={saving}
-                        onEditorChange={setEditorValue}
-                        onSave={handleSave}
-                        onClose={() => setSelectedEntry(null)}
-                        onEdit={() => selectedEntry && loadPreview(selectedEntry, true)}
-                        onDownload={() => selectedEntry && handleDownload(selectedEntry)}
-                        autoRefreshLogs={autoRefreshLogs}
-                        onToggleAutoRefreshLogs={setAutoRefreshLogs}
-                    />
-                </div>
+                {/* Preview Panel — full-screen overlay on mobile, inline on desktop */}
+                {selectedEntry && (
+                    <>
+                        <div className="fixed inset-0 z-40 bg-black/40 md:hidden" onClick={() => setSelectedEntry(null)} />
+                        <div className={cn(
+                            "flex flex-col bg-background backdrop-blur-md overflow-hidden shadow-2xl z-40",
+                            "fixed inset-2 rounded-2xl md:rounded-none md:shadow-none",
+                            "md:relative md:inset-auto md:w-[35%] md:border-l md:border-border/40"
+                        )}>
+                            <FileBrowserPreview
+                                entry={selectedEntry}
+                                preview={preview}
+                                loading={previewLoading}
+                                isEditing={isEditing}
+                                editorValue={editorValue}
+                                saving={saving}
+                                onEditorChange={setEditorValue}
+                                onSave={handleSave}
+                                onClose={() => setSelectedEntry(null)}
+                                onEdit={() => selectedEntry && loadPreview(selectedEntry, true)}
+                                onDownload={() => selectedEntry && handleDownload(selectedEntry)}
+                                autoRefreshLogs={autoRefreshLogs}
+                                onToggleAutoRefreshLogs={setAutoRefreshLogs}
+                            />
+                        </div>
+                    </>
+                )}
             </div>
 
+            {/* Desktop sidebar toggle — positioned relative to sidebar */}
             <Button
                 variant="outline"
                 size="icon"
-                className="fixed bottom-6 left-6 h-10 w-10 rounded-full shadow-lg border-primary/20 bg-background/80 backdrop-blur z-20"
+                className="hidden md:flex fixed bottom-6 left-6 h-10 w-10 rounded-full shadow-lg border-primary/20 bg-background/80 backdrop-blur z-20"
                 onClick={() => setShowTree(!showTree)}
             >
                 {showTree ? <PanelLeftClose className="h-4 w-4" /> : <PanelLeftOpen className="h-4 w-4" />}
             </Button>
+
+            {/* Mobile bottom action bar */}
+            <div className="flex md:hidden items-center justify-around border-t border-border/50 bg-background/95 backdrop-blur px-2 py-2 shrink-0">
+                <Button variant="ghost" size="sm" className="h-9 gap-1.5 text-xs" onClick={() => fileInputRef.current?.click()}>
+                    <Upload className="h-3.5 w-3.5" /> Upload
+                </Button>
+                <Button variant="ghost" size="sm" className="h-9 gap-1.5 text-xs" onClick={() => handleCreate('directory')}>
+                    <FolderPlus className="h-3.5 w-3.5" /> Folder
+                </Button>
+                <Button variant="ghost" size="sm" className="h-9 gap-1.5 text-xs" onClick={refresh}>
+                    <RefreshCcw className={cn("h-3.5 w-3.5", loading && "animate-spin")} /> Refresh
+                </Button>
+            </div>
 
             {showSettings && (
                 <FileBrowserSettingsModal

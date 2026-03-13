@@ -3,6 +3,7 @@
 import React from 'react';
 import { GitBranch, GitCommit, RefreshCcw } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
 
 interface GitInfo {
     root: string;
@@ -57,9 +58,4 @@ export function FileBrowserGitBar({ git }: Props) {
             </div>
         </div>
     );
-}
-
-// Minimal cn implementation or import from utils
-function cn(...inputs: unknown[]) {
-    return inputs.filter(Boolean).join(' ');
 }
