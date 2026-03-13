@@ -291,8 +291,10 @@ echo ""
 
 # ── Step 1: System Dependencies ──────────────────────────
 step "1/${TOTAL_STEPS}" "Installing system dependencies"
-apt-get update -qq -y > /dev/null 2>&1
-apt-get install -qq -y curl git build-essential lsof > /dev/null 2>&1
+log_info "Updating package lists..."
+apt-get update -y || { log_err "apt-get update failed"; exit 1; }
+log_info "Installing required packages: curl, git, build-essential, lsof, liblzma-dev, pkg-config..."
+apt-get install -y curl git build-essential lsof liblzma-dev pkg-config || { log_err "Failed to install system dependencies"; exit 1; }
 log "Base packages installed"
 
 # ── Step 2: Node.js & pnpm ──────────────────────────────
