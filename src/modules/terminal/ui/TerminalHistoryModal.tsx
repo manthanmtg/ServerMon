@@ -180,10 +180,10 @@ export default function TerminalHistoryModal({ onClose }: TerminalHistoryModalPr
                                             {formatDate(record.createdAt)}
                                         </td>
                                         <td className="px-4 py-3.5">
-                                            {record.durationMinutes !== undefined ? (
+                                            {record.closedAt ? (
                                                 <div className="flex items-center gap-1.5 text-muted-foreground">
                                                     <Clock className="w-3 h-3" />
-                                                    <span>{record.durationMinutes}m</span>
+                                                    <span>{record.durationMinutes ?? 0}m</span>
                                                 </div>
                                             ) : (
                                                 <Badge variant="success" className="text-[9px] h-4 px-1 leading-none">Active</Badge>

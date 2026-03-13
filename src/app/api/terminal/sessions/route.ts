@@ -116,15 +116,15 @@ export async function DELETE(request: Request) {
         await TerminalSession.deleteOne({ sessionId });
 
         // Update history
-        await TerminalHistory.findOneAndUpdate(
-            { sessionId },
-            { 
-                $set: { 
-                    closedBy: `user:${username}`,
-                    closedAt: new Date()
-                } 
-            }
-        ).catch(err => log.error('Failed to update history on delete', err));
+        const history = await TerminalHistory.findOne({ 
+            sessionId, 
+            closedAt: { $exists: false } 
+        });
+        if (history) {
+            history.closedAt = new Date();
+            history.closedBy = `user:${username}`;
+            await history.save();
+        }
 
         const remaining = await TerminalSession.countDocuments();
         if (remaining === 0) {

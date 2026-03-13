@@ -32,15 +32,15 @@ async function cleanupStaleSessions() {
             log.info(`Found ${sessions.length} stale sessions. Cleaning up...`);
             
             for (const session of sessions) {
-                await TerminalHistory.findOneAndUpdate(
-                    { sessionId: session.sessionId, closedAt: { $exists: false } },
-                    { 
-                        $set: { 
-                            closedAt: new Date(),
-                            closedBy: 'server-restart'
-                        } 
-                    }
-                );
+                const history = await TerminalHistory.findOne({ 
+                    sessionId: session.sessionId, 
+                    closedAt: { $exists: false } 
+                });
+                if (history) {
+                    history.closedAt = new Date();
+                    history.closedBy = 'server-restart';
+                    await history.save().catch(err => log.error(`Failed to save history for stale session ${session.sessionId}`, err));
+                }
             }
             
             await TerminalSession.deleteMany({});
@@ -102,15 +102,15 @@ app.prepare().then(async () => {
                 
                 try {
                     await connectDB();
-                    await TerminalHistory.findOneAndUpdate(
-                        { sessionId },
-                        { 
-                            $set: { 
-                                closedAt: new Date(),
-                                closedBy: 'timeout-autokill'
-                            } 
-                        }
-                    );
+                    const history = await TerminalHistory.findOne({ 
+                        sessionId, 
+                        closedAt: { $exists: false } 
+                    });
+                    if (history) {
+                        history.closedAt = new Date();
+                        history.closedBy = 'timeout-autokill';
+                        await history.save();
+                    }
                     await TerminalSession.deleteOne({ sessionId });
                 } catch (err) {
                     log.error(`Failed to update history/db for timed out session ${sessionId}`, err);
@@ -242,17 +242,17 @@ app.prepare().then(async () => {
                         
                         try {
                             await connectDB();
-                            await TerminalHistory.findOneAndUpdate(
-                                { sessionId },
-                                { 
-                                    $set: { 
-                                        closedAt: new Date(),
-                                        exitCode,
-                                        signal,
-                                        closedBy: 'process-exit'
-                                    } 
-                                }
-                            );
+                            const history = await TerminalHistory.findOne({ 
+                                sessionId, 
+                                closedAt: { $exists: false } 
+                            });
+                            if (history) {
+                                history.closedAt = new Date();
+                                history.exitCode = exitCode;
+                                history.signal = signal ? String(signal) : undefined;
+                                history.closedBy = 'process-exit';
+                                await history.save();
+                            }
                         } catch (err) {
                             log.error(`Failed to update history for exited session ${sessionId}`, err);
                         }
