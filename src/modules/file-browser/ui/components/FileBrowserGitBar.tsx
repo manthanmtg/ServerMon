@@ -115,7 +115,7 @@ export function FileBrowserGitBar({ git, onRefresh }: Props) {
     const totalChanged = git.staged.length + git.unstaged.length + git.untracked.length;
 
     return (
-        <div className="rounded-2xl border border-border/40 bg-background/50 backdrop-blur-sm shadow-sm ring-1 ring-border/5 overflow-hidden">
+        <div className="rounded-2xl border border-border/40 bg-background/50 backdrop-blur-sm shadow-sm ring-1 ring-border/5">
             {/* Main bar */}
             <div className="flex items-center gap-2 sm:gap-3 px-4 py-3 text-xs">
                 {/* Branch with switcher */}
