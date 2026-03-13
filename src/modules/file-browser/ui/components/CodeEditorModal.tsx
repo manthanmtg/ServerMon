@@ -11,7 +11,7 @@ import { EditorState } from '@codemirror/state';
 import { defaultKeymap, history, historyKeymap, indentWithTab, undo, redo } from '@codemirror/commands';
 import { searchKeymap, highlightSelectionMatches, openSearchPanel } from '@codemirror/search';
 import { oneDark } from '@codemirror/theme-one-dark';
-import { indentOnInput, bracketMatching, foldGutter, syntaxHighlighting, defaultHighlightStyle, LanguageSupport } from '@codemirror/language';
+import { indentOnInput, bracketMatching, foldGutter, syntaxHighlighting, defaultHighlightStyle, LanguageSupport, StreamLanguage } from '@codemirror/language';
 
 import { javascript } from '@codemirror/lang-javascript';
 import { json } from '@codemirror/lang-json';
@@ -27,6 +27,7 @@ import { java } from '@codemirror/lang-java';
 import { php } from '@codemirror/lang-php';
 import { rust } from '@codemirror/lang-rust';
 import { go } from '@codemirror/lang-go';
+import { shell } from '@codemirror/legacy-modes/mode/shell';
 
 function getLanguageExtension(extension: string): LanguageSupport | null {
     const ext = extension.toLowerCase().replace(/^\./, '');
@@ -97,6 +98,7 @@ function getLanguageExtension(extension: string): LanguageSupport | null {
         case 'bash':
         case 'zsh':
         case 'fish':
+            return new LanguageSupport(StreamLanguage.define(shell));
         case 'conf':
         case 'ini':
         case 'env':

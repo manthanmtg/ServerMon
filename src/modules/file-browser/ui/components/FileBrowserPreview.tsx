@@ -200,41 +200,40 @@ export function FileBrowserPreview({
         <div className="flex flex-col flex-1 min-h-0 bg-background/60">
             {/* Header */}
                 <div className="flex flex-col border-b border-border/40 shrink-0">
-                    <div className="flex items-center justify-between px-4 py-4 md:px-6 md:py-6">
-                        <div className="flex items-center gap-3 md:gap-5 min-w-0">
-                            <div className="w-10 h-10 md:w-14 md:h-14 rounded-xl md:rounded-2xl bg-primary/10 flex items-center justify-center text-primary shadow-inner border border-primary/10 shrink-0">
-                                {entry.kind === 'image' ? <FileImage className="w-5 h-5 md:w-7 md:h-7" /> : 
-                                 entry.kind === 'log' ? <Logs className="w-5 h-5 md:w-7 md:h-7" /> : 
-                                 entry.kind === 'code' ? <FileCode2 className="w-5 h-5 md:w-7 md:h-7" /> : <FileText className="w-5 h-5 md:w-7 md:h-7" />}
-                            </div>
-                            <div className="min-w-0">
-                                <h3 className="font-bold text-foreground truncate text-base md:text-xl tracking-tight leading-tight mb-1 md:mb-2" title={entry.name}>
-                                    {entry.name}
-                                </h3>
-                                <div className="flex items-center gap-2">
-                                    <Badge variant="secondary" className="h-5 px-2 text-[10px] uppercase font-black tracking-widest bg-primary/20 text-primary border-primary/20 ring-1 ring-primary/10">
-                                        {entry.kind}
-                                    </Badge>
-                                    <div className="h-1 w-1 rounded-full bg-border" />
-                                    <span className="text-[10px] md:text-xs font-semibold text-muted-foreground/70 uppercase tracking-tighter">
-                                        {entry.extension || 'no ext'}
-                                    </span>
-                                </div>
-                            </div>
+                    {/* Row 1: Icon + Name + Close */}
+                    <div className="flex items-center gap-3 px-4 pt-4 pb-2 md:px-5 md:pt-5 md:pb-2.5">
+                        <div className="w-9 h-9 md:w-11 md:h-11 rounded-xl bg-primary/10 flex items-center justify-center text-primary shadow-inner border border-primary/10 shrink-0">
+                            {entry.kind === 'image' ? <FileImage className="w-4 h-4 md:w-5 md:h-5" /> : 
+                             entry.kind === 'log' ? <Logs className="w-4 h-4 md:w-5 md:h-5" /> : 
+                             entry.kind === 'code' ? <FileCode2 className="w-4 h-4 md:w-5 md:h-5" /> : <FileText className="w-4 h-4 md:w-5 md:h-5" />}
                         </div>
-                        <div className="flex items-center gap-1.5 md:gap-2 ml-2 md:ml-4 shrink-0">
-                            {preview?.canWrite && !isEditing && (
-                                <Button variant="outline" size="sm" onClick={onEdit} className="h-8 md:h-10 px-2.5 md:px-3.5 shadow-sm border-border/60 hover:bg-accent hover:border-border">
-                                    <Pencil className="w-3.5 h-3.5 md:w-4 md:h-4" />
-                                </Button>
-                            )}
-                            <Button variant="outline" size="sm" onClick={onDownload} className="h-8 md:h-10 px-2.5 md:px-3.5 shadow-sm border-border/60 hover:bg-accent hover:border-border">
-                                <Download className="w-3.5 h-3.5 md:w-4 md:h-4" />
+                        <h3 className="font-bold text-foreground truncate text-sm md:text-lg tracking-tight leading-tight flex-1 min-w-0" title={entry.name}>
+                            {entry.name}
+                        </h3>
+                        <Button variant="ghost" size="icon" onClick={onClose} className="h-8 w-8 shrink-0 text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-all">
+                            <X className="w-4 h-4" />
+                        </Button>
+                    </div>
+
+                    {/* Row 2: Badge + Extension + Actions */}
+                    <div className="flex items-center gap-2 px-4 pb-3 md:px-5 md:pb-4 pl-[4.25rem] md:pl-[4.75rem]">
+                        <Badge variant="secondary" className="h-5 px-2 text-[10px] uppercase font-black tracking-widest bg-primary/20 text-primary border-primary/20 ring-1 ring-primary/10">
+                            {entry.kind}
+                        </Badge>
+                        <span className="text-[10px] md:text-xs font-semibold text-muted-foreground/60 uppercase tracking-tighter">
+                            {entry.extension || 'no ext'}
+                        </span>
+                        <div className="flex-1" />
+                        {preview?.canWrite && !isEditing && (
+                            <Button variant="outline" size="sm" onClick={onEdit} className="h-7 gap-1.5 px-2.5 text-[11px] shadow-sm border-border/60 hover:bg-accent hover:border-border">
+                                <Pencil className="w-3 h-3" />
+                                <span className="hidden md:inline">Edit</span>
                             </Button>
-                            <Button variant="ghost" size="icon" onClick={onClose} className="h-8 w-8 md:h-10 md:w-10 text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-all">
-                                <X className="w-4 h-4 md:w-5 md:h-5" />
-                            </Button>
-                        </div>
+                        )}
+                        <Button variant="outline" size="sm" onClick={onDownload} className="h-7 gap-1.5 px-2.5 text-[11px] shadow-sm border-border/60 hover:bg-accent hover:border-border">
+                            <Download className="w-3 h-3" />
+                            <span className="hidden md:inline">Download</span>
+                        </Button>
                     </div>
 
                     {/* Metadata Section */}

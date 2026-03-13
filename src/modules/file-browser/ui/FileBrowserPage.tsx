@@ -536,6 +536,7 @@ export default function FileBrowserPage() {
         setSelectedEntry(entry);
         setPreviewLoading(true);
         setIsEditing(false);
+        if (editMode) setShowCodeEditor(true);
         try {
             const action = editMode ? 'edit' : 'preview';
             const data = await fetchJson<{ file: PreviewFile }>(`/api/modules/file-browser/file?path=${encodeURIComponent(entry.path)}&action=${action}`);
@@ -543,10 +544,10 @@ export default function FileBrowserPage() {
             if (editMode) {
                 setEditorValue(data.file.content || '');
                 setIsEditing(true);
-                setShowCodeEditor(true);
             }
         } catch (error) {
             toast({ title: error instanceof Error ? error.message : 'Failed to load preview', variant: 'destructive' });
+            if (editMode) setShowCodeEditor(false);
         } finally {
             setPreviewLoading(false);
         }

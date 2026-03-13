@@ -281,17 +281,17 @@ export function FileBrowserEntryList({
                                                 <span className={cn("truncate font-medium text-[13px]", isSelected && "text-primary")}>{entry.name}</span>
                                             </button>
                                         </td>
-                                        <td className="px-6 py-1.5 text-right border-b border-border/10">
+                                        <td className="px-6 py-1.5 text-right border-b border-border/10 whitespace-nowrap">
                                             <span className="font-mono text-[11px] text-muted-foreground">
                                                 {entry.isDirectory ? '—' : formatBytes(entry.size)}
                                             </span>
                                         </td>
-                                        <td className="px-6 py-1.5 border-b border-border/10 hidden lg:table-cell">
+                                        <td className="px-6 py-1.5 border-b border-border/10 hidden lg:table-cell whitespace-nowrap">
                                             <span className="text-[11px] text-muted-foreground">
                                                 {formatDate(entry.modifiedAt)}
                                             </span>
                                         </td>
-                                        <td className="px-4 py-1.5 border-b border-border/10 hidden xl:table-cell">
+                                        <td className="px-4 py-1.5 border-b border-border/10 hidden xl:table-cell whitespace-nowrap">
                                             <code className="text-[10px] px-1.5 py-0.5 rounded bg-muted/50 text-muted-foreground font-mono" title={entry.permissions}>
                                                 {entry.permissions}
                                             </code>
