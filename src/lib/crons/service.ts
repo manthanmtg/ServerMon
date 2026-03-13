@@ -1,8 +1,8 @@
 import { execFile, spawn } from 'node:child_process';
 import { promisify } from 'node:util';
-import { readdir, readFile, access, unlink } from 'node:fs/promises';
-import { openSync, closeSync, mkdirSync } from 'node:fs';
-import { join } from 'node:path';
+import { readdir, readFile, access, unlink, writeFile, stat } from 'node:fs/promises';
+import { openSync, closeSync, mkdirSync, existsSync } from 'node:fs';
+import { join, basename } from 'node:path';
 import { tmpdir } from 'node:os';
 import { createHash } from 'node:crypto';
 import { createLogger } from '@/lib/logger';
@@ -613,27 +613,50 @@ function extractJobName(command: string): string {
 
 // ---- Manual Run Tracking ----
 
-const MAX_TRACKED_RUNS = 50;
-const MAX_OUTPUT_BYTES = 64 * 1024;
-const RUN_LOG_DIR = join(tmpdir(), 'servermon-cron-runs');
-const activeRuns = new Map<string, CronRunStatus & { stdoutFile: string; stderrFile: string }>();
+const MAX_TRACKED_RUNS = 100; // Increased since we are on disk
+const MAX_OUTPUT_BYTES = 128 * 1024; // Increased to 128KB
+const RUN_LOG_DIR = process.env.CRON_RUN_LOG_DIR || '/var/log/servermon_cron_manual_run';
+const activeRuns = new Map<string, CronRunStatus & { logFile: string; metadataFile: string }>();
 
 // Ensure log directory exists
-try { mkdirSync(RUN_LOG_DIR, { recursive: true }); } catch { /* ignore */ }
-
-function pruneOldRuns() {
-    if (activeRuns.size <= MAX_TRACKED_RUNS) return;
-    const sorted = [...activeRuns.entries()]
-        .filter(([, r]) => r.status !== 'running')
-        .sort((a, b) => new Date(a[1].startedAt).getTime() - new Date(b[1].startedAt).getTime());
-    while (activeRuns.size > MAX_TRACKED_RUNS && sorted.length > 0) {
-        const oldest = sorted.shift();
-        if (oldest) {
-            activeRuns.delete(oldest[0]);
-            // Clean up log files
-            unlink(oldest[1].stdoutFile).catch(() => {});
-            unlink(oldest[1].stderrFile).catch(() => {});
+function ensureLogDir() {
+    try {
+        if (!existsSync(RUN_LOG_DIR)) {
+            mkdirSync(RUN_LOG_DIR, { recursive: true, mode: 0o755 });
+            log.info(`Created manual run log directory: ${RUN_LOG_DIR}`);
         }
+    } catch (err) {
+        log.error(`Failed to create log directory ${RUN_LOG_DIR}. Falling back to tmp.`, err);
+        // Fallback handled in the path definition if needed, but for now we just try
+    }
+}
+ensureLogDir();
+
+async function pruneOldRuns() {
+    try {
+        const files = await readdir(RUN_LOG_DIR);
+        const metadataFiles = files.filter(f => f.endsWith('.json'));
+
+        if (metadataFiles.length <= MAX_TRACKED_RUNS) return;
+
+        const stats = await Promise.all(
+            metadataFiles.map(async f => {
+                const s = await stat(join(RUN_LOG_DIR, f));
+                return { name: f, mtime: s.mtime.getTime() };
+            })
+        );
+
+        stats.sort((a, b) => a.mtime - b.mtime);
+
+        const TO_DELETE = stats.slice(0, stats.length - MAX_TRACKED_RUNS);
+        for (const item of TO_DELETE) {
+            const base = item.name.replace('.json', '');
+            await unlink(join(RUN_LOG_DIR, `${base}.json`)).catch(() => {});
+            await unlink(join(RUN_LOG_DIR, `${base}.log`)).catch(() => {});
+            activeRuns.delete(base);
+        }
+    } catch (err) {
+        log.error('Failed to prune old runs', err);
     }
 }
 
@@ -679,44 +702,43 @@ checkSystemdRun().catch(() => {});
 function runJobNow(jobId: string, command: string): CronRunStatus {
     const runId = `${jobId}-${Date.now()}`;
     const startedAt = new Date().toISOString();
-    const stdoutFile = join(RUN_LOG_DIR, `${runId}.stdout.log`);
-    const stderrFile = join(RUN_LOG_DIR, `${runId}.stderr.log`);
+    let logFile = join(RUN_LOG_DIR, `${runId}.log`);
+    let metadataFile = join(RUN_LOG_DIR, `${runId}.json`);
 
     log.info(`Manual run triggered for job ${jobId}`, { runId, command });
 
-    // Open log files for the child to write to directly
-    const stdoutFd = openSync(stdoutFile, 'w');
-    const stderrFd = openSync(stderrFile, 'w');
+    ensureLogDir();
 
-    // Use systemd-run --scope to place the child in its own transient
-    // cgroup scope. This ensures that when `systemctl stop servermon`
-    // kills all processes in the servermon cgroup, this child is NOT
-    // included because it lives in a separate scope.
-    // Fallback to plain detached spawn on non-systemd systems (e.g. macOS).
+    // Open log file for the child to write to directly
+    let logFd;
+    try {
+        logFd = openSync(logFile, 'w');
+    } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : String(err);
+        log.warn(`Failed to open log file in ${RUN_LOG_DIR}, falling back to tmp`, { error: errorMsg });
+        logFile = join(tmpdir(), `${runId}.log`);
+        metadataFile = join(tmpdir(), `${runId}.json`);
+        logFd = openSync(logFile, 'w');
+    }
+
     const useSystemd = systemdRunAvailable === true;
-    const spawnCmd = useSystemd
-        ? 'systemd-run'
-        : 'sh';
+    const spawnCmd = useSystemd ? 'systemd-run' : 'sh';
     const spawnArgs = useSystemd
         ? ['--scope', '--quiet', '--', 'sh', '-c', command]
         : ['-c', command];
 
     const child = spawn(spawnCmd, spawnArgs, {
         detached: true,
-        stdio: ['ignore', stdoutFd, stderrFd],
+        stdio: ['ignore', logFd, logFd], // Unified stdout and stderr
         env: { ...process.env },
     });
 
-    // Close our copies of the fds — the child owns them now
-    closeSync(stdoutFd);
-    closeSync(stderrFd);
-
-    // Unref so Node can exit without waiting for this child
+    closeSync(logFd);
     child.unref();
 
     const pid = child.pid || 0;
 
-    const run: CronRunStatus & { stdoutFile: string; stderrFile: string } = {
+    const run: CronRunStatus & { logFile: string; metadataFile: string } = {
         runId,
         jobId,
         command,
@@ -726,23 +748,44 @@ function runJobNow(jobId: string, command: string): CronRunStatus {
         stdout: '',
         stderr: '',
         startedAt,
-        stdoutFile,
-        stderrFile,
+        logFile,
+        metadataFile,
     };
 
-    // If we're still alive when the child exits, update in-memory status
-    child.on('close', (code) => {
+    const updateMetadata = async () => {
+        try {
+            await writeFile(metadataFile, JSON.stringify({
+                runId: run.runId,
+                jobId: run.jobId,
+                command: run.command,
+                pid: run.pid,
+                status: run.status,
+                exitCode: run.exitCode,
+                startedAt: run.startedAt,
+                finishedAt: run.finishedAt,
+            }, null, 2));
+        } catch (err) {
+            log.error(`Failed to write metadata for run ${runId}`, err);
+        }
+    };
+
+    // Initial metadata write
+    updateMetadata();
+
+    child.on('close', async (code) => {
         run.exitCode = code;
         run.status = code === 0 ? 'completed' : 'failed';
         run.finishedAt = new Date().toISOString();
         log.info(`Manual run finished for job ${jobId}`, { runId, exitCode: code });
+        await updateMetadata();
     });
 
-    child.on('error', (err) => {
+    child.on('error', async (err) => {
         run.status = 'failed';
         run.exitCode = -1;
         run.finishedAt = new Date().toISOString();
         log.error(`Manual run spawn error for job ${jobId}`, err);
+        await updateMetadata();
     });
 
     activeRuns.set(runId, run);
@@ -752,20 +795,51 @@ function runJobNow(jobId: string, command: string): CronRunStatus {
 }
 
 async function getRunStatus(runId: string): Promise<CronRunStatus | null> {
-    const run = activeRuns.get(runId);
+    const active = activeRuns.get(runId);
+    let run: (CronRunStatus & { logFile: string; metadataFile: string }) | null = null;
+
+    if (active) {
+        run = active;
+    } else {
+        // If not in memory, try to read from disk
+        const metadataFile = join(RUN_LOG_DIR, `${runId}.json`);
+        const logFile = join(RUN_LOG_DIR, `${runId}.log`);
+        try {
+            const content = await readFile(metadataFile, 'utf-8');
+            const metadata = JSON.parse(content);
+            run = {
+                ...metadata,
+                logFile,
+                metadataFile
+            };
+        } catch {
+            return null;
+        }
+    }
+
     if (!run) return null;
 
     // If still marked running, check if the process is actually alive
     if (run.status === 'running' && run.pid > 0 && !isProcessRunning(run.pid)) {
         run.status = 'completed';
         run.finishedAt = new Date().toISOString();
+        // Update on disk if it was a ghost process
+        try {
+            await writeFile(run.metadataFile, JSON.stringify({
+                runId: run.runId,
+                jobId: run.jobId,
+                command: run.command,
+                pid: run.pid,
+                status: run.status,
+                exitCode: run.exitCode,
+                startedAt: run.startedAt,
+                finishedAt: run.finishedAt,
+            }, null, 2));
+        } catch { /* ignore */ }
     }
 
-    // Read current output from log files
-    const [stdout, stderr] = await Promise.all([
-        readLogFile(run.stdoutFile),
-        readLogFile(run.stderrFile),
-    ]);
+    // Read current output from log file
+    const logOutput = await readLogFile(run.logFile);
 
     return {
         runId: run.runId,
@@ -774,30 +848,60 @@ async function getRunStatus(runId: string): Promise<CronRunStatus | null> {
         pid: run.pid,
         status: run.status,
         exitCode: run.exitCode,
-        stdout,
-        stderr,
+        stdout: logOutput,
+        stderr: '', // Combined in logOutput
         startedAt: run.startedAt,
         finishedAt: run.finishedAt,
     };
 }
 
-function listRuns(jobId?: string): CronRunStatus[] {
-    const all = [...activeRuns.values()];
-    const filtered = jobId ? all.filter(r => r.jobId === jobId) : all;
-    return filtered
-        .sort((a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime())
-        .map(r => ({
-            runId: r.runId,
-            jobId: r.jobId,
-            command: r.command,
-            pid: r.pid,
-            status: r.status,
-            exitCode: r.exitCode,
-            stdout: '',
-            stderr: '',
-            startedAt: r.startedAt,
-            finishedAt: r.finishedAt,
-        }));
+async function listRuns(jobId?: string): Promise<CronRunStatus[]> {
+    const runs: CronRunStatus[] = [];
+
+    try {
+        const files = await readdir(RUN_LOG_DIR);
+        const metadataFiles = files.filter(f => f.endsWith('.json'));
+
+        for (const f of metadataFiles) {
+            try {
+                const content = await readFile(join(RUN_LOG_DIR, f), 'utf-8');
+                const run: CronRunStatus = JSON.parse(content);
+                if (!jobId || run.jobId === jobId) {
+                    runs.push({
+                        ...run,
+                        stdout: '',
+                        stderr: ''
+                    });
+                }
+            } catch { /* skip corrupted files */ }
+        }
+    } catch { /* log dir might not exist yet */ }
+
+    // Merge with active in-memory runs that might not have hit disk yet or are more up-to-date
+    for (const active of activeRuns.values()) {
+        if (!jobId || active.jobId === jobId) {
+            const existingIdx = runs.findIndex(r => r.runId === active.runId);
+            const basicStatus = {
+                runId: active.runId,
+                jobId: active.jobId,
+                command: active.command,
+                pid: active.pid,
+                status: active.status,
+                exitCode: active.exitCode,
+                stdout: '',
+                stderr: '',
+                startedAt: active.startedAt,
+                finishedAt: active.finishedAt,
+            };
+            if (existingIdx >= 0) {
+                runs[existingIdx] = basicStatus;
+            } else {
+                runs.push(basicStatus);
+            }
+        }
+    }
+
+    return runs.sort((a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime());
 }
 
 export const cronsService = {

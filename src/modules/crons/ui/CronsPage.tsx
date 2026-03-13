@@ -40,7 +40,7 @@ type FilterSource = 'all' | 'user' | 'system';
 type FilterStatus = 'all' | 'active' | 'disabled';
 type SortField = 'command' | 'expression' | 'user' | 'source' | 'nextRun';
 type SortDir = 'asc' | 'desc';
-type ViewTab = 'jobs' | 'system' | 'logs' | 'create';
+type ViewTab = 'jobs' | 'system' | 'manual' | 'logs';
 
 function relativeTime(iso: string): string {
     const diff = new Date(iso).getTime() - Date.now();
@@ -346,6 +346,92 @@ function NextRunsPanel({ job }: { job: CronJob }) {
     );
 }
 
+// ---- Past Runs Panel ----
+
+function PastRunsPanel({ jobId, onShowOutput }: { jobId?: string, onShowOutput: (run: CronRunStatus) => void }) {
+    const [runs, setRuns] = useState<CronRunStatus[]>([]);
+    const [loading, setLoading] = useState(true);
+
+    const loadRuns = useCallback(async () => {
+        try {
+            const url = jobId ? `/api/modules/crons/${jobId}/run` : '/api/modules/crons/all/run'; // Use a generic ID for global
+            const res = await fetch(url);
+            if (res.ok) {
+                const data = await res.json();
+                setRuns(data);
+            }
+        } finally {
+            setLoading(false);
+        }
+    }, [jobId]);
+
+    useEffect(() => {
+        loadRuns();
+    }, [loadRuns]);
+
+    if (loading) return <div className="text-xs text-muted-foreground animate-pulse py-4">Loading runs...</div>;
+    if (runs.length === 0) return <div className="text-xs text-muted-foreground py-4 text-center border border-dashed border-border/60 rounded-xl">No historical manual runs found.</div>;
+
+    const isGlobal = !jobId;
+
+    return (
+        <div className="space-y-2">
+            {!isGlobal && <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-2">MANUAL RUN HISTORY</p>}
+            <div className="border border-border/40 rounded-xl overflow-hidden bg-background/50">
+                <table className="min-w-full text-xs">
+                    <thead className="bg-muted/30 border-b border-border/40">
+                        <tr className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                            <th className="py-2 px-3 text-left font-medium">Time Started</th>
+                            {isGlobal && <th className="py-2 px-3 text-left font-medium">Job / Command</th>}
+                            <th className="py-2 px-3 text-left font-medium">Status</th>
+                            <th className="py-2 px-3 text-right font-medium">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border/40">
+                        {runs.slice(0, isGlobal ? 50 : 10).map(run => (
+                            <tr key={run.runId} className="hover:bg-muted/10 transition-colors">
+                                <td className="py-2 px-3 text-muted-foreground whitespace-nowrap">
+                                    {new Date(run.startedAt).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                </td>
+                                {isGlobal && (
+                                    <td className="py-2 px-3">
+                                        <div className="font-mono text-[10px] max-w-[300px] truncate" title={run.command}>
+                                            {run.command}
+                                        </div>
+                                    </td>
+                                )}
+                                <td className="py-2 px-3">
+                                    <Badge 
+                                        variant={run.status === 'completed' ? 'success' : run.status === 'running' ? 'warning' : 'destructive'} 
+                                        className="text-[10px] px-1.5 py-0 h-4 uppercase"
+                                    >
+                                        {run.status}
+                                    </Badge>
+                                </td>
+                                <td className="py-2 px-3 text-right">
+                                    <Button
+                                        variant="ghost"
+                                        size="default"
+                                        onClick={() => onShowOutput(run)}
+                                        className="min-h-[44px] px-3 text-primary hover:text-primary hover:bg-primary/10 text-[10px]"
+                                    >
+                                        VIEW LOG
+                                    </Button>
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+                {runs.length > (isGlobal ? 50 : 10) && (
+                    <div className="p-2 text-center text-[10px] text-muted-foreground bg-muted/5 italic border-t border-border/40">
+                        Showing last {isGlobal ? 50 : 10} runs
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+}
+
 // ---- Main Page ----
 
 export default function CronsPage() {
@@ -395,7 +481,7 @@ export default function CronsPage() {
             });
 
         const interval = window.setInterval(() => {
-            loadSnapshot().catch(() => {});
+            loadSnapshot().catch(() => { });
         }, refreshMs);
 
         return () => {
@@ -688,7 +774,7 @@ export default function CronsPage() {
             {/* Tab navigation */}
             <div className="flex items-center gap-4 flex-wrap">
                 <div className="inline-flex rounded-xl border border-border bg-muted/30 p-1">
-                    {(['jobs', 'system', 'logs'] as ViewTab[]).map((tab) => (
+                    {(['jobs', 'system', 'manual', 'logs'] as ViewTab[]).map((tab) => (
                         <button
                             key={tab}
                             type="button"
@@ -700,8 +786,9 @@ export default function CronsPage() {
                         >
                             {tab === 'jobs' && <Clock className="w-3.5 h-3.5" />}
                             {tab === 'system' && <FolderOpen className="w-3.5 h-3.5" />}
+                            {tab === 'manual' && <RefreshCcw className="w-3.5 h-3.5" />}
                             {tab === 'logs' && <Terminal className="w-3.5 h-3.5" />}
-                            {tab}
+                            {tab === 'manual' ? 'manual run history' : tab === 'logs' ? 'system logs' : tab}
                         </button>
                     ))}
                 </div>
@@ -919,6 +1006,17 @@ export default function CronsPage() {
                                                                         )}
                                                                     </div>
                                                                 </div>
+                                                                {job.source === 'user' && (
+                                                                    <div className="pt-2">
+                                                                        <PastRunsPanel
+                                                                            jobId={job.id}
+                                                                            onShowOutput={(run) => {
+                                                                                setActiveRun(run);
+                                                                                if (run.status === 'running') setRunPolling(true);
+                                                                            }}
+                                                                        />
+                                                                    </div>
+                                                                )}
                                                             </div>
                                                         </td>
                                                     </tr>
@@ -980,7 +1078,7 @@ export default function CronsPage() {
                     <CardHeader>
                         <div className="flex items-center justify-between">
                             <div>
-                                <CardTitle>Recent Cron Execution Logs</CardTitle>
+                                <CardTitle>Recent System Cron Logs</CardTitle>
                                 <p className="text-sm text-muted-foreground">Parsed from system journal or syslog.</p>
                             </div>
                             <Badge variant="outline">{snapshot?.recentLogs.length || 0} entries</Badge>
@@ -1004,6 +1102,29 @@ export default function CronsPage() {
                                 ))}
                             </div>
                         )}
+                    </CardContent>
+                </Card>
+            )}
+
+            {/* Global Manual Run History tab */}
+            {viewTab === 'manual' && (
+                <Card className="border-border/60">
+                    <CardHeader>
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <CardTitle>Manual Execution History</CardTitle>
+                                <p className="text-sm text-muted-foreground">Historical records of jobs triggered through this interface.</p>
+                            </div>
+                        </div>
+                    </CardHeader>
+                    <CardContent>
+                        <PastRunsPanel
+                            jobId=""
+                            onShowOutput={(run) => {
+                                setActiveRun(run);
+                                if (run.status === 'running') setRunPolling(true);
+                            }}
+                        />
                     </CardContent>
                 </Card>
             )}
@@ -1059,7 +1180,7 @@ export default function CronsPage() {
                             {(activeRun.stdout || activeRun.status === 'running') && (
                                 <div>
                                     <div className="flex items-center justify-between mb-1">
-                                        <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">stdout</p>
+                                        <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Run Output</p>
                                         <button
                                             type="button"
                                             onClick={() => setAutoScroll((prev) => !prev)}
@@ -1070,22 +1191,14 @@ export default function CronsPage() {
                                     </div>
                                     <pre
                                         ref={stdoutRef}
-                                        className="max-h-[200px] overflow-auto rounded-lg bg-muted/30 border border-border p-3 text-xs font-mono text-foreground whitespace-pre-wrap break-all"
+                                        className="max-h-[300px] overflow-auto rounded-lg bg-muted/30 border border-border p-3 text-xs font-mono text-foreground whitespace-pre-wrap break-all"
                                     >
                                         {activeRun.stdout || (activeRun.status === 'running' ? 'Waiting for output...' : '')}
                                     </pre>
                                 </div>
                             )}
-                            {activeRun.stderr && (
-                                <div>
-                                    <p className="text-[10px] font-medium text-destructive uppercase tracking-wider mb-1">stderr</p>
-                                    <pre className="max-h-[200px] overflow-auto rounded-lg bg-destructive/5 border border-destructive/20 p-3 text-xs font-mono text-destructive whitespace-pre-wrap break-all">
-                                        {activeRun.stderr}
-                                    </pre>
-                                </div>
-                            )}
                             <div className="flex justify-end pt-2">
-                                <Button variant="outline" onClick={() => setActiveRun(null)}>
+                                <Button variant="outline" size="lg" onClick={() => setActiveRun(null)} className="min-h-[44px]">
                                     {activeRun.status === 'running' ? 'Run in Background' : 'Close'}
                                 </Button>
                             </div>

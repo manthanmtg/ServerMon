@@ -538,6 +538,13 @@ else
         log "Service user '${SERVICE_USER}' created"
     fi
     chown -R "${SERVICE_USER}:${SERVICE_USER}" "$INSTALL_DIR"
+
+    # Create manual cron run log directory
+    CRON_LOG_DIR="/var/log/servermon_cron_manual_run"
+    mkdir -p "$CRON_LOG_DIR"
+    chown -R "${SERVICE_USER}:${SERVICE_USER}" "$CRON_LOG_DIR"
+    chmod 755 "$CRON_LOG_DIR"
+    log "Manual cron log directory created at ${CRON_LOG_DIR}"
 fi
 
 # ── Step 5: Systemd Service ──────────────────────────────

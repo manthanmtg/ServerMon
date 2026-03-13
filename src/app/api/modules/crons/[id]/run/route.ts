@@ -52,8 +52,8 @@ export async function GET(
             return NextResponse.json(run);
         }
 
-        const runs = cronsService.listRuns(id);
-        return NextResponse.json({ runs });
+        const runs = await cronsService.listRuns(id);
+        return NextResponse.json(runs); // No need for { runs } wrapper if listRuns returns an array
     } catch (error) {
         log.error('Failed to get run status', error);
         return NextResponse.json({ error: 'Failed to get run status' }, { status: 500 });
