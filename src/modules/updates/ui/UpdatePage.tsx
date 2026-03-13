@@ -5,15 +5,20 @@ import dynamic from 'next/dynamic';
 import { 
     AlertTriangle, 
     ArrowRight, 
+    Box,
+    Boxes,
     CheckCircle2, 
     Clock, 
+    Cpu,
     History, 
     Info, 
     Package, 
     RefreshCcw, 
     RotateCcw, 
     ShieldAlert, 
-    TerminalSquare 
+    ShieldCheck,
+    TerminalSquare,
+    Zap
 } from 'lucide-react';
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { 
@@ -220,58 +225,97 @@ export default function UpdatePage() {
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Available Updates Table */}
-                <Card className="lg:col-span-2 bg-card/30 backdrop-blur-md border border-border/50 flex flex-col h-[600px] overflow-hidden">
-                    <CardHeader className="flex flex-row items-center justify-between px-6 py-4 border-b border-border/50">
-                        <div>
-                            <CardTitle className="text-lg">Available Updates</CardTitle>
-                            <CardDescription>Updates ready for installation</CardDescription>
+                <Card className="lg:col-span-2 bg-card/20 backdrop-blur-xl border border-white/5 flex flex-col h-[600px] overflow-hidden shadow-2xl">
+                    <CardHeader className="flex flex-row items-center justify-between px-6 py-5 border-b border-border/50 bg-white/5">
+                        <div className="space-y-1">
+                            <div className="flex items-center gap-2">
+                                <Boxes className="w-5 h-5 text-primary" />
+                                <CardTitle className="text-xl font-bold tracking-tight">Available Updates</CardTitle>
+                            </div>
+                            <CardDescription className="text-xs">System and package updates ready for installation</CardDescription>
                         </div>
-                        <Badge className="bg-primary/10 text-primary border-primary/20">
-                            {totalUpdates} Total
-                        </Badge>
+                        <div className="flex items-center gap-3">
+                            <Badge className="bg-primary/20 text-primary border-primary/30 font-bold px-3 py-1">
+                                {totalUpdates} Total
+                            </Badge>
+                            <Button 
+                                size="sm" 
+                                className="h-9 gap-2 bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg shadow-primary/20 transition-all active:scale-95"
+                                onClick={() => {
+                                    toast({
+                                        title: 'Starting updates...',
+                                        description: 'Update process initiated in the package manager terminal.',
+                                        variant: 'default',
+                                    });
+                                }}
+                            >
+                                <Zap className="w-4 h-4" />
+                                Update All
+                            </Button>
+                        </div>
                     </CardHeader>
-                    <CardContent className="p-0 flex-1 overflow-auto">
+                    <CardContent className="p-0 flex-1 overflow-auto bg-black/5">
                         <table className="w-full text-left border-collapse">
-                            <thead className="sticky top-0 bg-background/80 backdrop-blur-md border-b border-border/50 z-10">
+                            <thead className="sticky top-0 bg-background/40 backdrop-blur-2xl border-b border-border/50 z-10">
                                 <tr>
-                                    <th className="px-6 py-3 text-xs font-bold uppercase tracking-wider text-muted-foreground/70">Package</th>
-                                    <th className="px-6 py-3 text-xs font-bold uppercase tracking-wider text-muted-foreground/70 text-center">Version Change</th>
-                                    <th className="px-6 py-3 text-xs font-bold uppercase tracking-wider text-muted-foreground/70">Manager</th>
-                                    <th className="px-6 py-3 text-xs font-bold uppercase tracking-wider text-muted-foreground/70">Severity</th>
+                                    <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/60">Package Info</th>
+                                    <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/60 text-center">Version Journey</th>
+                                    <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/60">System</th>
+                                    <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/60 text-right">Severity</th>
                                 </tr>
                             </thead>
-                            <tbody className="divide-y divide-border/30">
+                            <tbody className="divide-y divide-border/20">
                                 {snapshot?.updates.map((update, i) => (
                                     <tr 
                                         key={i} 
-                                        className="group hover:bg-muted/30 transition-colors"
+                                        className="group hover:bg-primary/[0.03] transition-all duration-300"
                                     >
                                         <td className="px-6 py-4">
-                                            <div className="flex flex-col gap-0.5">
-                                                <span className="font-bold text-foreground group-hover:text-primary transition-colors">{update.name}</span>
-                                                <span className="text-[10px] text-muted-foreground uppercase">{update.repository}</span>
+                                            <div className="flex items-center gap-3">
+                                                <div className="p-2.5 bg-muted/30 rounded-xl group-hover:bg-primary/10 group-hover:scale-110 transition-all duration-300">
+                                                    {update.manager === 'apt' ? (
+                                                        <Cpu className="w-4 h-4 text-muted-foreground group-hover:text-primary" />
+                                                    ) : (
+                                                        <Box className="w-4 h-4 text-muted-foreground group-hover:text-primary" />
+                                                    )}
+                                                </div>
+                                                <div className="flex flex-col">
+                                                    <span className="font-bold text-sm text-foreground group-hover:text-primary transition-colors">{update.name}</span>
+                                                    <span className="text-[10px] text-muted-foreground/70 uppercase tracking-widest font-medium">{update.repository}</span>
+                                                </div>
                                             </div>
                                         </td>
                                         <td className="px-6 py-4">
-                                            <div className="flex items-center justify-center gap-2 tabular-nums">
-                                                <span className="text-xs text-muted-foreground line-through opacity-50">{update.currentVersion}</span>
-                                                <ArrowRight className="w-3 h-3 text-muted-foreground/50" />
-                                                <span className="text-xs font-bold text-success">{update.newVersion}</span>
+                                            <div className="flex items-center justify-center gap-6">
+                                                <div className="flex flex-col items-center gap-1">
+                                                    <span className="text-[9px] font-black text-muted-foreground/40 uppercase tracking-tighter">From</span>
+                                                    <code className="text-[11px] px-2 py-0.5 bg-muted/30 rounded text-muted-foreground font-mono">{update.currentVersion}</code>
+                                                </div>
+                                                <div className="relative flex items-center justify-center">
+                                                    <div className="absolute inset-0 bg-primary/20 blur-lg rounded-full animate-pulse group-hover:bg-primary/40 transition-all" />
+                                                    <ArrowRight className="w-4 h-4 text-primary relative z-10 group-hover:translate-x-1 transition-transform" />
+                                                </div>
+                                                <div className="flex flex-col items-center gap-1">
+                                                    <span className="text-[9px] font-black text-success/60 uppercase tracking-tighter">To</span>
+                                                    <code className="text-[11px] px-2 py-0.5 bg-success/10 rounded border border-success/20 text-success font-mono font-bold">{update.newVersion}</code>
+                                                </div>
                                             </div>
                                         </td>
                                         <td className="px-6 py-4">
-                                            <Badge variant="outline" className="text-[10px] uppercase bg-muted/50">
-                                                {update.manager}
-                                            </Badge>
+                                            <div className="flex items-center gap-2">
+                                                <Badge variant="outline" className="text-[10px] uppercase font-bold tracking-tighter bg-muted/20 border-border/50 py-0 h-5">
+                                                    {update.manager}
+                                                </Badge>
+                                            </div>
                                         </td>
-                                        <td className="px-6 py-4">
+                                        <td className="px-6 py-4 text-right">
                                             <Badge 
                                                 className={cn(
-                                                    "text-[10px] uppercase font-bold",
-                                                    update.severity === 'critical' ? "bg-destructive/10 text-destructive border-destructive/20" :
-                                                    update.severity === 'high' ? "bg-destructive/5 text-destructive border-destructive/10" :
-                                                    update.severity === 'medium' ? "bg-warning/10 text-warning border-warning/20" :
-                                                    "bg-primary/10 text-primary border-primary/20"
+                                                    "text-[9px] uppercase font-black tracking-widest px-2 py-0.5 border-0 shadow-sm",
+                                                    update.severity === 'critical' ? "bg-destructive text-destructive-foreground" :
+                                                    update.severity === 'high' ? "bg-orange-500 text-white" :
+                                                    update.severity === 'medium' ? "bg-warning text-warning-foreground" :
+                                                    "bg-primary text-primary-foreground"
                                                 )}
                                             >
                                                 {update.severity}
@@ -281,10 +325,15 @@ export default function UpdatePage() {
                                 ))}
                                 {snapshot?.updates.length === 0 && (
                                     <tr>
-                                        <td colSpan={4} className="px-6 py-12 text-center text-muted-foreground">
-                                            <div className="flex flex-col items-center gap-2">
-                                                <CheckCircle2 className="w-8 h-8 text-success" />
-                                                <p>All packages are up to date.</p>
+                                        <td colSpan={4} className="px-6 py-24 text-center">
+                                            <div className="flex flex-col items-center gap-4 animate-in zoom-in duration-500">
+                                                <div className="p-4 bg-success/10 rounded-full shadow-inner">
+                                                    <ShieldCheck className="w-12 h-12 text-success" />
+                                                </div>
+                                                <div className="space-y-1">
+                                                    <h3 className="text-xl font-bold bg-gradient-to-br from-foreground to-muted-foreground bg-clip-text text-transparent">System is Secure</h3>
+                                                    <p className="text-sm text-muted-foreground">All packages are running the latest versions.</p>
+                                                </div>
                                             </div>
                                         </td>
                                     </tr>
