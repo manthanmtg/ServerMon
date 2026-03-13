@@ -450,7 +450,7 @@ async function getSnapshot(): Promise<CronsSnapshot> {
                 disabled: mockJobs.length - activeJobs.length,
                 userCrons: mockJobs.filter(j => j.source === 'user').length,
                 systemCrons: mockJobs.filter(j => j.source !== 'user').length,
-                nextRunJob: nextJob ? (nextJob.command.split('/').pop()?.split(' ')[0] || nextJob.command.split(' ')[0]) : undefined,
+                nextRunJob: nextJob ? extractJobName(nextJob.command) : undefined,
                 nextRunTime: nextJob?.nextRuns[0],
             },
             jobs: mockJobs,
@@ -483,7 +483,7 @@ async function getSnapshot(): Promise<CronsSnapshot> {
                 disabled: allJobs.length - activeJobs.length,
                 userCrons: userJobs.length,
                 systemCrons: systemJobs.length,
-                nextRunJob: nextJob ? (nextJob.command.split('/').pop()?.split(' ')[0] || nextJob.command.split(' ')[0]) : undefined,
+                nextRunJob: nextJob ? extractJobName(nextJob.command) : undefined,
                 nextRunTime: nextJob?.nextRuns[0],
             },
             jobs: allJobs,
@@ -600,6 +600,15 @@ async function deleteJob(id: string): Promise<{ success: boolean; message: strin
         log.error('Failed to delete cron job', err);
         return { success: false, message };
     }
+}
+
+// ---- Helpers ----
+
+function extractJobName(command: string): string {
+    // Get the first token of the command (the executable), then its basename
+    const firstToken = command.trim().split(/\s+/)[0] || command;
+    const basename = firstToken.split('/').pop() || firstToken;
+    return basename || 'job';
 }
 
 // ---- Manual Run Tracking ----
