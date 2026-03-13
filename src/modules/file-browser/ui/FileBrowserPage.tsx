@@ -9,6 +9,7 @@ import {
     Folder,
     FolderOpen,
     FolderPlus,
+    Heart,
     LoaderCircle,
     PanelLeftClose,
     PanelLeftOpen,
@@ -25,7 +26,7 @@ import { Input } from '@/components/ui/input';
 import { useToast } from '@/components/ui/toast';
 import { cn } from '@/lib/utils';
 
-import FileBrowserSettingsModal, { FileBrowserSettings } from './FileBrowserSettingsModal';
+import FileBrowserSettingsModal, { FileBrowserSettings, FileBrowserShortcut } from './FileBrowserSettingsModal';
 import { FileBrowserBreadcrumbs } from './components/FileBrowserBreadcrumbs';
 import { FileBrowserGitBar } from './components/FileBrowserGitBar';
 import { FileBrowserEntryList, FileEntry, FileKind } from './components/FileBrowserEntryList';
@@ -438,6 +439,7 @@ export default function FileBrowserPage() {
         | { type: 'create'; kind: 'file' | 'directory' }
         | { type: 'rename'; entry: FileEntry }
         | { type: 'delete'; entry: FileEntry }
+        | { type: 'favorite'; entry: FileEntry }
         | null
     >(null);
     const historyIndexRef = useRef(-1);
@@ -447,6 +449,8 @@ export default function FileBrowserPage() {
     const filteredEntries = useMemo(() => (
         listing?.entries.filter((entry) => matchesFilter(entry.name, search)) || []
     ), [listing?.entries, search]);
+
+    const favoritePaths = useMemo(() => new Set(settings.shortcuts.map(s => s.path)), [settings.shortcuts]);
 
 
     const loadSettings = useCallback(async () => {
@@ -684,6 +688,31 @@ export default function FileBrowserPage() {
 
     const handleDownload = (entry: FileEntry) => {
         window.open(`/api/modules/file-browser/file?path=${encodeURIComponent(entry.path)}&action=download`, '_blank');
+    };
+
+    const handleFavorite = (entry: FileEntry) => {
+        if (favoritePaths.has(entry.path)) {
+            const next = settings.shortcuts.filter(s => s.path !== entry.path);
+            void saveShortcuts(next);
+        } else {
+            setDialogState({ type: 'favorite', entry });
+        }
+    };
+
+    const saveShortcuts = async (shortcuts: FileBrowserShortcut[]) => {
+        try {
+            const data = await fetchJson<{ settings: FileBrowserSettings }>('/api/modules/file-browser/settings', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ shortcuts }),
+            });
+            setSettings(data.settings);
+            setTreeRoots(Array.from(new Set(data.settings.shortcuts.map(s => s.path).concat('/'))));
+            window.dispatchEvent(new CustomEvent('file-browser-shortcuts-updated', { detail: data.settings }));
+            toast({ title: 'Shortcuts updated', variant: 'success' });
+        } catch (error) {
+            toast({ title: error instanceof Error ? error.message : 'Failed to update shortcuts', variant: 'destructive' });
+        }
     };
 
     const handleSave = async (content?: string) => {
@@ -986,6 +1015,7 @@ export default function FileBrowserPage() {
                             <FileBrowserEntryList
                                 entries={filteredEntries}
                                 selectedPath={selectedEntry?.path}
+                                favoritePaths={favoritePaths}
                                 onNavigate={navigate}
                                 onPreview={loadPreview}
                                 onEdit={(entry) => loadPreview(entry, true)}
@@ -993,6 +1023,7 @@ export default function FileBrowserPage() {
                                 onDelete={(entry) => setDialogState({ type: 'delete', entry })}
                                 onDownload={handleDownload}
                                 onCopyPath={handleCopyPath}
+                                onFavorite={handleFavorite}
                             />
                         </div>
                     </div>
@@ -1145,6 +1176,25 @@ export default function FileBrowserPage() {
                         const entry = dialogState.entry;
                         setDialogState(null);
                         void handleDelete(entry);
+                    }}
+                    onClose={() => setDialogState(null)}
+                />
+            )}
+
+            {dialogState?.type === 'favorite' && (
+                <InputModal
+                    title="Add to Shortcuts"
+                    description={`Add "${dialogState.entry.name}" (${dialogState.entry.path}) as a topbar shortcut.`}
+                    icon={<Heart className="h-5 w-5 text-red-500" />}
+                    placeholder="Shortcut label"
+                    defaultValue={dialogState.entry.name}
+                    submitLabel="Add Shortcut"
+                    onSubmit={(label) => {
+                        const entry = dialogState.entry;
+                        setDialogState(null);
+                        const id = label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || `shortcut-${Date.now()}`;
+                        const next = [...settings.shortcuts, { id, label, path: entry.path }];
+                        void saveShortcuts(next);
                     }}
                     onClose={() => setDialogState(null)}
                 />

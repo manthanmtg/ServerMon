@@ -9,6 +9,7 @@ import {
     FileText,
     FolderOpen,
     Folder,
+    Heart,
     Logs,
     MoreHorizontal,
     Pencil,
@@ -38,6 +39,7 @@ export interface FileEntry {
 interface Props {
     entries: FileEntry[];
     selectedPath?: string | null;
+    favoritePaths?: Set<string>;
     onNavigate: (path: string) => void;
     onPreview: (entry: FileEntry) => void;
     onEdit: (entry: FileEntry) => void;
@@ -45,6 +47,7 @@ interface Props {
     onDelete: (entry: FileEntry) => void;
     onDownload: (entry: FileEntry) => void;
     onCopyPath: (entry: FileEntry) => void;
+    onFavorite?: (entry: FileEntry) => void;
 }
 
 function formatBytes(bytes: number) {
@@ -75,13 +78,15 @@ function formatDate(dateStr: string) {
     });
 }
 
-function MobileActions({ entry, onEdit, onRename, onDelete, onDownload, onCopyPath }: {
+function MobileActions({ entry, isFavorited, onEdit, onRename, onDelete, onDownload, onCopyPath, onFavorite }: {
     entry: FileEntry;
+    isFavorited: boolean;
     onEdit: (e: FileEntry) => void;
     onRename: (e: FileEntry) => void;
     onDelete: (e: FileEntry) => void;
     onDownload: (e: FileEntry) => void;
     onCopyPath: (e: FileEntry) => void;
+    onFavorite?: (e: FileEntry) => void;
 }) {
     const [open, setOpen] = useState(false);
 
@@ -99,6 +104,11 @@ function MobileActions({ entry, onEdit, onRename, onDelete, onDownload, onCopyPa
                 <>
                     <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
                     <div className="absolute right-0 top-full mt-1 z-50 min-w-[160px] rounded-xl border border-border bg-popover p-1.5 shadow-xl animate-in fade-in zoom-in-95 duration-150">
+                        {onFavorite && (
+                            <button className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-xs hover:bg-accent transition-colors" onClick={(e) => { e.stopPropagation(); onFavorite(entry); setOpen(false); }}>
+                                <Heart className={cn("h-3.5 w-3.5", isFavorited ? "fill-red-500 text-red-500" : "text-muted-foreground")} /> {isFavorited ? 'Unfavorite' : 'Favorite'}
+                            </button>
+                        )}
                         <button className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-xs hover:bg-accent transition-colors" onClick={(e) => { e.stopPropagation(); onCopyPath(entry); setOpen(false); }}>
                             <Copy className="h-3.5 w-3.5 text-muted-foreground" /> Copy Path
                         </button>
@@ -134,6 +144,7 @@ function MobileActions({ entry, onEdit, onRename, onDelete, onDownload, onCopyPa
 export function FileBrowserEntryList({
     entries,
     selectedPath,
+    favoritePaths,
     onNavigate,
     onPreview,
     onEdit,
@@ -141,6 +152,7 @@ export function FileBrowserEntryList({
     onDelete,
     onDownload,
     onCopyPath,
+    onFavorite,
 }: Props) {
     const [scrollTop, setScrollTop] = useState(0);
     const rowHeight = 44;
@@ -220,11 +232,13 @@ export function FileBrowserEntryList({
                             </button>
                             <MobileActions
                                 entry={entry}
+                                isFavorited={!!favoritePaths?.has(entry.path)}
                                 onEdit={onEdit}
                                 onRename={onRename}
                                 onDelete={onDelete}
                                 onDownload={onDownload}
                                 onCopyPath={onCopyPath}
+                                onFavorite={onFavorite}
                             />
                         </div>
                     );
@@ -298,6 +312,17 @@ export function FileBrowserEntryList({
                                         </td>
                                         <td className="px-6 py-1.5 text-right pr-6 border-b border-border/10">
                                             <div className="flex items-center justify-end gap-0.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+                                                {onFavorite && (
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        className={cn("h-7 w-7", favoritePaths?.has(entry.path) && "text-red-500 hover:text-red-600")}
+                                                        onClick={() => onFavorite(entry)}
+                                                        title={favoritePaths?.has(entry.path) ? 'Remove from shortcuts' : 'Add to shortcuts'}
+                                                    >
+                                                        <Heart className={cn("h-3 w-3", favoritePaths?.has(entry.path) && "fill-red-500")} />
+                                                    </Button>
+                                                )}
                                                 <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onCopyPath(entry)} title="Copy Path">
                                                     <Copy className="h-3 w-3" />
                                                 </Button>
