@@ -1,6 +1,6 @@
 'use client';
 
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
     ArrowLeft,
     Bot,
@@ -353,7 +353,7 @@ function ConversationPanel({ conversation, autoScroll }: { conversation: AgentSe
     }
 
     return (
-        <div 
+        <div
             ref={scrollRef}
             className="space-y-2 max-h-[400px] overflow-y-auto scroll-smooth pr-1"
         >

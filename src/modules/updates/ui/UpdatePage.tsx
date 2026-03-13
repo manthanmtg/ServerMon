@@ -62,7 +62,7 @@ export default function UpdatePage() {
 
     useEffect(() => {
         loadSnapshot();
-    }, []);
+    }, [loadSnapshot]);
 
     const handleCheckUpdates = () => {
         setChecking(true);
