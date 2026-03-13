@@ -10,8 +10,19 @@ import type {
     GenerateAuthenticationOptionsOpts,
     VerifyAuthenticationResponseOpts,
 } from '@simplewebauthn/server';
+import type { NextRequest } from 'next/server';
 
 export const RP_NAME = 'ServerMon';
+
+/**
+ * Get the expected origin from the request.
+ * Accounts for reverse proxies and environment.
+ */
+export function getOrigin(req: NextRequest): string {
+    const host = req.headers.get('host') || 'localhost';
+    const proto = req.headers.get('x-forwarded-proto') || (process.env.NODE_ENV === 'production' ? 'https' : 'http');
+    return `${proto}://${host}`;
+}
 
 /**
  * Get the RP ID (domain) from the request host.

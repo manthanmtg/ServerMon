@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/session';
 import connectDB from '@/lib/db';
 import User from '@/models/User';
-import { verifyPasskeyRegistration, getRPID } from '@/lib/passkey-utils';
+import { verifyPasskeyRegistration, getRPID, getOrigin } from '@/lib/passkey-utils';
 import { createLogger } from '@/lib/logger';
 
 export const dynamic = 'force-dynamic';
@@ -32,11 +32,12 @@ export async function POST(req: NextRequest) {
 
         const host = req.headers.get('host') || 'localhost';
         const rpID = getRPID(host);
+        const origin = getOrigin(req);
 
         const verification = await verifyPasskeyRegistration({
             response: body,
             expectedChallenge: challenge,
-            expectedOrigin: `http://${host}`, // For dev; production should be https
+            expectedOrigin: origin,
             expectedRPID: rpID,
         });
 

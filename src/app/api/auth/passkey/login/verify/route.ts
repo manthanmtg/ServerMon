@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/db';
 import User from '@/models/User';
-import { verifyPasskeyLogin, getRPID } from '@/lib/passkey-utils';
+import { verifyPasskeyLogin, getRPID, getOrigin } from '@/lib/passkey-utils';
 import { login } from '@/lib/session';
 import { createLogger } from '@/lib/logger';
 
@@ -41,12 +41,13 @@ export async function POST(req: NextRequest) {
 
         const host = req.headers.get('host') || 'localhost';
         const rpID = getRPID(host);
+        const origin = getOrigin(req);
 
         // 3. Verify the authentication response
         const verification = await verifyPasskeyLogin({
             response: body,
             expectedChallenge: challenge,
-            expectedOrigin: `http://${host}`, // For dev; production should be https
+            expectedOrigin: origin,
             expectedRPID: rpID,
             credential: {
                 id: passkey.credentialID,
