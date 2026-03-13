@@ -1,6 +1,6 @@
 'use client';
 
-import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
     ArrowDown,
     ArrowUp,
@@ -365,6 +365,8 @@ export default function CronsPage() {
     const [copiedId, setCopiedId] = useState<string | null>(null);
     const [activeRun, setActiveRun] = useState<CronRunStatus | null>(null);
     const [runPolling, setRunPolling] = useState(false);
+    const [autoScroll, setAutoScroll] = useState(true);
+    const stdoutRef = useRef<HTMLPreElement | null>(null);
 
     const loadSnapshot = useCallback(async () => {
         const response = await fetch('/api/modules/crons', { cache: 'no-store' });
@@ -530,6 +532,13 @@ export default function CronsPage() {
         }, 1500);
         return () => window.clearInterval(interval);
     }, [runPolling, activeRun]);
+
+    // Auto-scroll stdout panel when new output arrives
+    useEffect(() => {
+        if (!autoScroll) return;
+        if (!stdoutRef.current) return;
+        stdoutRef.current.scrollTop = stdoutRef.current.scrollHeight;
+    }, [autoScroll, activeRun?.stdout, activeRun?.status]);
 
     async function handleCreateSubmit(data: { minute: string; hour: string; dayOfMonth: string; month: string; dayOfWeek: string; command: string; comment?: string }) {
         const response = await fetch('/api/modules/crons/create', {
@@ -1049,8 +1058,20 @@ export default function CronsPage() {
                             </div>
                             {(activeRun.stdout || activeRun.status === 'running') && (
                                 <div>
-                                    <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1">stdout</p>
-                                    <pre className="max-h-[200px] overflow-auto rounded-lg bg-muted/30 border border-border p-3 text-xs font-mono text-foreground whitespace-pre-wrap break-all">
+                                    <div className="flex items-center justify-between mb-1">
+                                        <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">stdout</p>
+                                        <button
+                                            type="button"
+                                            onClick={() => setAutoScroll((prev) => !prev)}
+                                            className="text-[10px] font-medium text-muted-foreground border border-border rounded px-2 py-1 min-h-[44px] flex items-center"
+                                        >
+                                            Autoscroll: {autoScroll ? 'On' : 'Off'}
+                                        </button>
+                                    </div>
+                                    <pre
+                                        ref={stdoutRef}
+                                        className="max-h-[200px] overflow-auto rounded-lg bg-muted/30 border border-border p-3 text-xs font-mono text-foreground whitespace-pre-wrap break-all"
+                                    >
                                         {activeRun.stdout || (activeRun.status === 'running' ? 'Waiting for output...' : '')}
                                     </pre>
                                 </div>
