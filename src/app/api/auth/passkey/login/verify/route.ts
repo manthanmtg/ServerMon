@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import mongoose from 'mongoose';
 import connectDB from '@/lib/db';
 import User from '@/models/User';
 import { verifyPasskeyLogin, getRPID, getOrigin } from '@/lib/passkey-utils';
@@ -13,7 +12,6 @@ export async function POST(req: NextRequest) {
     try {
         const body = await req.json();
         const challenge = req.cookies.get('login-challenge')?.value;
-        const usernameInCookie = req.cookies.get('login-username')?.value;
 
         if (!challenge) {
             return NextResponse.json({ error: 'Login challenge missing or expired' }, { status: 400 });
