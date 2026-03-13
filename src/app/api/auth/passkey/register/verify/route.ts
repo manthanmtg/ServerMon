@@ -43,9 +43,9 @@ export async function POST(req: NextRequest) {
 
         if (verification.verified && verification.registrationInfo) {
             const { id, publicKey, counter } = verification.registrationInfo.credential;
+            const credentialID = Buffer.from(id).toString('base64url');
 
             // Check if credential already exists
-            const credentialID = Buffer.from(id).toString('base64url');
             const existing = user.passkeys.find(pk => pk.credentialID === credentialID);
             if (!existing) {
                 user.passkeys.push({
@@ -55,6 +55,8 @@ export async function POST(req: NextRequest) {
                     transports: (body.response as { transports?: string[] }).transports || [],
                     createdAt: new Date(),
                 });
+                
+                user.markModified('passkeys');
                 await user.save();
             }
 

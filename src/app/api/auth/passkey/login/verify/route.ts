@@ -32,7 +32,6 @@ export async function POST(req: NextRequest) {
         // 2. Find the specific passkey in the user's list
         const passkey = user.passkeys.find(pk => String(pk.credentialID) === body.id);
         if (!passkey) {
-            logger.warn(`Passkey mismatch for user ${user.username}. Expected one of: ${user.passkeys.map(pk => String(pk.credentialID)).join(', ')}. Received: ${body.id}`);
             return NextResponse.json({ error: 'Passkey not found on user' }, { status: 400 });
         }
 
