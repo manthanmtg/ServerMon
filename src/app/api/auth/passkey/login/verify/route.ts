@@ -30,12 +30,11 @@ export async function POST(req: NextRequest) {
 
         if (!user) {
             logger.warn(`Passkey mismatch: No user found with credentialID: ${body.id}`);
-            // Let's check if the ID exists but user is inactive or something?
-            const anyUser = await User.findOne({ 'passkeys.credentialID': body.id });
-            if (anyUser) {
-                logger.warn(`Found user ${anyUser.username} but they are INACTIVE.`);
-            }
-            return NextResponse.json({ error: 'User not found' }, { status: 404 });
+            // Temporarily include DB name in error for debugging
+            return NextResponse.json({ 
+                error: `User not found in database: ${dbName}`,
+                debug: { db: dbName, idPrefix: body.id?.slice(0, 8) }
+            }, { status: 404 });
         }
         
         logger.info(`Found user ${user.username} for passkey.`);
