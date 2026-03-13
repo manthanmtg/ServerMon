@@ -866,7 +866,7 @@ async function listRuns(jobId?: string): Promise<CronRunStatus[]> {
             try {
                 const content = await readFile(join(RUN_LOG_DIR, f), 'utf-8');
                 const run: CronRunStatus = JSON.parse(content);
-                if (!jobId || run.jobId === jobId) {
+                if (!jobId || jobId === 'all' || run.jobId === jobId) {
                     runs.push({
                         ...run,
                         stdout: '',
@@ -879,7 +879,7 @@ async function listRuns(jobId?: string): Promise<CronRunStatus[]> {
 
     // Merge with active in-memory runs that might not have hit disk yet or are more up-to-date
     for (const active of activeRuns.values()) {
-        if (!jobId || active.jobId === jobId) {
+        if (!jobId || jobId === 'all' || active.jobId === jobId) {
             const existingIdx = runs.findIndex(r => r.runId === active.runId);
             const basicStatus = {
                 runId: active.runId,
