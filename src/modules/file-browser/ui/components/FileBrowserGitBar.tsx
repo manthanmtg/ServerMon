@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState, useCallback, FormEvent } from 'react';
+import React, { useState, useCallback, useRef, useEffect, FormEvent } from 'react';
+import { createPortal } from 'react-dom';
 import {
     ArrowDown,
     ArrowUp,
@@ -88,6 +89,15 @@ export function FileBrowserGitBar({ git, onRefresh }: Props) {
     const [showBranches, setShowBranches] = useState(false);
     const [showCommit, setShowCommit] = useState(false);
     const [commitMsg, setCommitMsg] = useState('');
+    const branchBtnRef = useRef<HTMLButtonElement>(null);
+    const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0 });
+
+    useEffect(() => {
+        if (showBranches && branchBtnRef.current) {
+            const rect = branchBtnRef.current.getBoundingClientRect();
+            setDropdownPos({ top: rect.bottom + 4, left: rect.left });
+        }
+    }, [showBranches]);
 
     const doAction = useCallback(async (action: string, extra: Record<string, string> = {}, label?: string) => {
         setBusy(action);
@@ -119,21 +129,25 @@ export function FileBrowserGitBar({ git, onRefresh }: Props) {
             {/* Main bar */}
             <div className="flex items-center gap-2 sm:gap-3 px-4 py-3 text-xs">
                 {/* Branch with switcher */}
-                <div className="relative min-w-0">
+                <div className="min-w-0">
                     <button
+                        ref={branchBtnRef}
                         type="button"
                         onClick={() => setShowBranches(!showBranches)}
                         className="flex items-center gap-2 rounded-xl border border-border/40 bg-background/80 px-3 py-1.5 transition-all hover:bg-accent hover:border-border active:scale-95 min-w-0 max-w-full"
                     >
                         <GitBranch className="w-3.5 h-3.5 text-primary shrink-0" />
                         <span className="font-semibold text-foreground truncate" title={git.branch}>{git.branch}</span>
-                        <ChevronDown className={cn("w-3 h-3 text-muted-foreground transition-transform", showBranches && "rotate-180")} />
+                        <ChevronDown className={cn("w-3 h-3 text-muted-foreground transition-transform shrink-0", showBranches && "rotate-180")} />
                     </button>
 
-                    {showBranches && (
+                    {showBranches && createPortal(
                         <>
-                            <div className="fixed inset-0 z-[60]" onClick={() => setShowBranches(false)} />
-                            <div className="absolute left-0 top-full mt-1 z-[61] w-56 max-h-64 overflow-y-auto rounded-xl border border-border shadow-xl animate-in fade-in slide-in-from-top-1 duration-150 bg-popover" style={{ backgroundColor: 'var(--card)' }}>
+                            <div className="fixed inset-0 z-[9998]" onClick={() => setShowBranches(false)} />
+                            <div
+                                className="fixed z-[9999] w-56 max-h-64 overflow-y-auto rounded-xl border border-border shadow-2xl text-xs"
+                                style={{ top: dropdownPos.top, left: dropdownPos.left, backgroundColor: 'var(--popover)', color: 'var(--popover-foreground)', overscrollBehavior: 'contain' }}
+                            >
                                 <div className="p-1.5">
                                     <p className="px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Local</p>
                                     {git.branches.map(b => (
@@ -178,7 +192,8 @@ export function FileBrowserGitBar({ git, onRefresh }: Props) {
                                     )}
                                 </div>
                             </div>
-                        </>
+                        </>,
+                        document.body
                     )}
                 </div>
 
