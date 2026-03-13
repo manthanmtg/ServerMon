@@ -33,6 +33,7 @@ UNATTENDED="false"
 UNINSTALL="false"
 SKIP_MONGO_INSTALL="false"
 ALLOW_ROOT="false"
+USE_EXISTING="false"
 
 # ── Helpers ──────────────────────────────────────────────
 log()      { echo -e "  ${GREEN}✓${NC} $1"; }
@@ -90,6 +91,7 @@ usage() {
     echo "  --ssl                Enable SSL via Let's Encrypt (requires --domain)"
     echo "  --skip-mongo         Skip MongoDB installation (use remote MongoDB)"
     echo "  --unattended         Non-interactive mode, use defaults/flags"
+    echo "  --use-existing-values Use existing config values, no prompts (upgrade shortcut)"
     echo "  --allow-root         Run service as root (not recommended)"
     echo "  --uninstall          Remove ServerMon completely"
     echo "  -h, --help           Show this help message"
@@ -99,6 +101,7 @@ usage() {
     echo "  sudo $0 --domain mon.example.com --ssl"
     echo "  sudo $0 --mongo-uri mongodb://db.host:27017/servermon --skip-mongo"
     echo "  sudo $0 --unattended --port 9000"
+    echo "  sudo $0 --use-existing-values"
     exit 0
 }
 
@@ -111,6 +114,7 @@ while [[ $# -gt 0 ]]; do
         --ssl)         SETUP_SSL="true"; shift ;;
         --skip-mongo)  SKIP_MONGO_INSTALL="true"; shift ;;
         --unattended)  UNATTENDED="true"; shift ;;
+        --use-existing-values) USE_EXISTING="true"; UNATTENDED="true"; shift ;;
         --allow-root)  ALLOW_ROOT="true"; shift ;;
         --uninstall)   UNINSTALL="true"; shift ;;
         -h|--help)     usage ;;
@@ -198,6 +202,49 @@ EXISTING_INSTALL="false"
 if [ -d "$INSTALL_DIR" ] && [ -f "${CONFIG_DIR}/env" ]; then
     EXISTING_INSTALL="true"
     log_warn "Existing ServerMon installation detected — will upgrade."
+fi
+
+# --use-existing-values: load all config from existing env file
+if [ "$USE_EXISTING" = "true" ]; then
+    if [ "$EXISTING_INSTALL" != "true" ]; then
+        log_err "--use-existing-values requires an existing installation at ${CONFIG_DIR}/env"
+        exit 1
+    fi
+    log_info "Loading existing configuration from ${CONFIG_DIR}/env"
+    EXISTING_PORT=$(grep "^PORT=" "${CONFIG_DIR}/env" 2>/dev/null | cut -d'=' -f2- | head -1)
+    EXISTING_MONGO=$(grep "^MONGO_URI=" "${CONFIG_DIR}/env" 2>/dev/null | cut -d'=' -f2- | head -1)
+    if [[ "$EXISTING_MONGO" == *"MONGO_URI="* ]]; then
+        EXISTING_MONGO=${EXISTING_MONGO%%MONGO_URI=*}
+    fi
+    EXISTING_DOMAIN=$(grep "^DOMAIN=" "${CONFIG_DIR}/env" 2>/dev/null | cut -d'=' -f2- | head -1)
+    if [ -z "$EXISTING_DOMAIN" ] && [ -f "/etc/nginx/sites-available/servermon" ]; then
+        EXISTING_DOMAIN=$(grep -oP 'server_name \K[^;]*' /etc/nginx/sites-available/servermon 2>/dev/null | head -1 | xargs || echo "")
+        [ "$EXISTING_DOMAIN" = "_" ] && EXISTING_DOMAIN=""
+    fi
+    if grep -q "^User=root" /etc/systemd/system/${SERVICE_NAME}.service 2>/dev/null; then
+        EXISTING_ALLOW_ROOT="true"
+    else
+        EXISTING_ALLOW_ROOT="false"
+    fi
+
+    [ -n "$EXISTING_PORT" ] && APP_PORT="$EXISTING_PORT"
+    [ -n "$EXISTING_MONGO" ] && MONGO_URI="$EXISTING_MONGO"
+    [ -n "$EXISTING_DOMAIN" ] && DOMAIN="$EXISTING_DOMAIN"
+    [ "$EXISTING_ALLOW_ROOT" = "true" ] && ALLOW_ROOT="true"
+
+    if [[ "$MONGO_URI" != *"localhost"* && "$MONGO_URI" != *"127.0.0.1"* ]]; then
+        SKIP_MONGO_INSTALL="true"
+    fi
+    if [ -n "$DOMAIN" ]; then
+        SETUP_NGINX="true"
+        # Preserve SSL setting: check if cert exists
+        if [ -d "/etc/letsencrypt/live/${DOMAIN}" ]; then
+            SETUP_SSL="true"
+        fi
+    elif [ -f "/etc/nginx/sites-enabled/servermon" ]; then
+        SETUP_NGINX="true"
+    fi
+    log "Loaded existing values (port=${APP_PORT}, mongo=${MONGO_URI}, domain=${DOMAIN:-none})"
 fi
 
 # ── Interactive Configuration ────────────────────────────
