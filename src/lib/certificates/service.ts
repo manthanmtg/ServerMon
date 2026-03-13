@@ -21,20 +21,41 @@ async function execCmd(cmd: string, args: string[], timeoutMs = 15000): Promise<
     }
 }
 
+const COMMON_CERTBOT_PATHS = [
+    'certbot', // default in PATH
+    '/snap/bin/certbot',
+    '/usr/bin/certbot',
+    '/usr/local/bin/certbot',
+    '/opt/homebrew/bin/certbot', // for local dev on mac if needed
+];
+
 let certbotChecked = false;
-let certbotAvailable = false;
+let certbotPath: string | null = null;
 
 async function checkCertbot(): Promise<boolean> {
-    if (certbotChecked) return certbotAvailable;
-    try {
-        await execCmd('certbot', ['--version']);
-        certbotAvailable = true;
-    } catch {
-        certbotAvailable = false;
-        log.warn('certbot not available');
+    if (certbotChecked) return certbotPath !== null;
+
+    for (const path of COMMON_CERTBOT_PATHS) {
+        try {
+            await execCmd(path, ['--version'], 5000);
+            certbotPath = path;
+            log.info(`certbot detected at: ${path}`);
+            break;
+        } catch (err: unknown) {
+            // only log if it was an actual execution error, not "not found"
+            const error = err as { message?: string; code?: string };
+            if (error.code !== 'ENOENT') {
+                log.warn(`Failed to execute certbot at ${path}: ${error.message}`);
+            }
+        }
     }
+
+    if (!certbotPath) {
+        log.warn('certbot not found in any common locations');
+    }
+
     certbotChecked = true;
-    return certbotAvailable;
+    return certbotPath !== null;
 }
 
 function parseDaysUntilExpiry(expiryDateStr: string): number {
@@ -47,7 +68,8 @@ async function getCertbotCertificates(): Promise<CertbotCertificate[]> {
     const certs: CertbotCertificate[] = [];
 
     try {
-        const raw = await execCmd('certbot', ['certificates', '--no-color']);
+        if (!certbotPath) throw new Error('certbot path not initialized');
+        const raw = await execCmd(certbotPath, ['certificates', '--no-color']);
         const blocks = raw.split('Certificate Name:');
 
         for (const block of blocks.slice(1)) {
@@ -211,7 +233,8 @@ async function getSnapshot(): Promise<CertificatesSnapshot> {
 
 async function renewCertificate(domain: string): Promise<{ success: boolean; output: string }> {
     try {
-        const raw = await execCmd('certbot', ['renew', '--cert-name', domain, '--no-color'], 60000);
+        if (!certbotPath) throw new Error('certbot path not initialized');
+        const raw = await execCmd(certbotPath, ['renew', '--cert-name', domain, '--no-color'], 60000);
         return { success: true, output: raw };
     } catch (err: unknown) {
         const error = err as { stderr?: string; message?: string };
