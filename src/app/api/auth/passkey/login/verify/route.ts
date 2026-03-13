@@ -20,22 +20,19 @@ export async function POST(req: NextRequest) {
 
         await connectDB();
 
-        // 1. Find the user. Either by the stored username or by searching for the credential ID.
-        let user;
-        if (usernameInCookie) {
-            user = await User.findOne({ username: usernameInCookie, isActive: true });
-        } else {
-            // Generic login: search for the user who owns this credential
-            user = await User.findOne({ 'passkeys.credentialID': body.id, isActive: true });
-        }
+        // 1. Find the user who owns this credential.
+        // We prioritize the credential ID over the username cookie to support resident keys
+        // and handle cases where the typed username might mismatch the chosen passkey.
+        const user = await User.findOne({ 'passkeys.credentialID': body.id, isActive: true });
 
         if (!user) {
             return NextResponse.json({ error: 'User not found' }, { status: 404 });
         }
 
         // 2. Find the specific passkey in the user's list
-        const passkey = user.passkeys.find(pk => pk.credentialID === body.id);
+        const passkey = user.passkeys.find(pk => String(pk.credentialID) === body.id);
         if (!passkey) {
+            logger.warn(`Passkey mismatch for user ${user.username}. Expected one of: ${user.passkeys.map(pk => String(pk.credentialID)).join(', ')}. Received: ${body.id}`);
             return NextResponse.json({ error: 'Passkey not found on user' }, { status: 400 });
         }
 
