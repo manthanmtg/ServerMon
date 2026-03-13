@@ -76,11 +76,24 @@ export interface Shortcut {
     path: string;
 }
 
+export interface GitFileStatus {
+    path: string;
+    status: string;
+    staged: boolean;
+}
+
 export interface GitInfo {
     root: string;
     branch: string;
     dirty: boolean;
     changedFiles: number;
+    staged: GitFileStatus[];
+    unstaged: GitFileStatus[];
+    untracked: GitFileStatus[];
+    branches: string[];
+    remotes: string[];
+    ahead: number;
+    behind: number;
 }
 
 export class FileBrowserError extends Error {
@@ -498,29 +511,128 @@ export function defaultShortcuts(): Shortcut[] {
     ];
 }
 
+const STATUS_LABELS: Record<string, string> = {
+    M: 'modified', A: 'added', D: 'deleted', R: 'renamed',
+    C: 'copied', U: 'unmerged', '?': 'untracked', '!': 'ignored',
+};
+
+function parseStatusCode(code: string): string {
+    return STATUS_LABELS[code] || code;
+}
+
 async function detectGitInfo(targetPath: string): Promise<GitInfo | null> {
     try {
         const { stdout: topLevelOut } = await execFileAsync('git', ['-C', targetPath, 'rev-parse', '--show-toplevel']);
         const root = topLevelOut.trim();
         if (!root) return null;
 
-        const [{ stdout: branchOut }, { stdout: statusOut }] = await Promise.all([
-            execFileAsync('git', ['-C', targetPath, 'branch', '--show-current']),
-            execFileAsync('git', ['-C', targetPath, 'status', '--short']),
+        const [{ stdout: branchOut }, { stdout: statusOut }, { stdout: branchListOut }] = await Promise.all([
+            execFileAsync('git', ['-C', root, 'branch', '--show-current']),
+            execFileAsync('git', ['-C', root, 'status', '--porcelain=v1']),
+            execFileAsync('git', ['-C', root, 'branch', '-a', '--no-color']),
         ]);
 
-        const changedFiles = statusOut
-            .split('\n')
-            .map((line) => line.trim())
-            .filter(Boolean).length;
+        const staged: GitFileStatus[] = [];
+        const unstaged: GitFileStatus[] = [];
+        const untracked: GitFileStatus[] = [];
+
+        for (const line of statusOut.split('\n').filter(Boolean)) {
+            const x = line[0];
+            const y = line[1];
+            const filePath = line.slice(3).trim();
+
+            if (x === '?' && y === '?') {
+                untracked.push({ path: filePath, status: 'untracked', staged: false });
+            } else {
+                if (x && x !== ' ' && x !== '?') {
+                    staged.push({ path: filePath, status: parseStatusCode(x), staged: true });
+                }
+                if (y && y !== ' ' && y !== '?') {
+                    unstaged.push({ path: filePath, status: parseStatusCode(y), staged: false });
+                }
+            }
+        }
+
+        const allBranches = branchListOut.split('\n')
+            .map(b => b.trim())
+            .filter(Boolean)
+            .map(b => b.replace(/^\* /, ''));
+
+        const localBranches = allBranches.filter(b => !b.startsWith('remotes/'));
+        const remotes = allBranches
+            .filter(b => b.startsWith('remotes/'))
+            .map(b => b.replace(/^remotes\//, ''))
+            .filter(b => !b.includes('HEAD'));
+
+        let ahead = 0;
+        let behind = 0;
+        try {
+            const { stdout: abOut } = await execFileAsync('git', ['-C', root, 'rev-list', '--left-right', '--count', 'HEAD...@{upstream}']);
+            const parts = abOut.trim().split(/\s+/);
+            ahead = parseInt(parts[0], 10) || 0;
+            behind = parseInt(parts[1], 10) || 0;
+        } catch { /* no upstream */ }
+
+        const changedFiles = staged.length + unstaged.length + untracked.length;
 
         return {
             root,
             branch: branchOut.trim() || 'detached',
             dirty: changedFiles > 0,
             changedFiles,
+            staged,
+            unstaged,
+            untracked,
+            branches: localBranches,
+            remotes,
+            ahead,
+            behind,
         };
     } catch {
         return null;
     }
+}
+
+export async function gitStage(root: string, filePath: string): Promise<void> {
+    await execFileAsync('git', ['-C', root, 'add', '--', filePath]);
+}
+
+export async function gitUnstage(root: string, filePath: string): Promise<void> {
+    await execFileAsync('git', ['-C', root, 'reset', 'HEAD', '--', filePath]);
+}
+
+export async function gitStageAll(root: string): Promise<void> {
+    await execFileAsync('git', ['-C', root, 'add', '-A']);
+}
+
+export async function gitUnstageAll(root: string): Promise<void> {
+    await execFileAsync('git', ['-C', root, 'reset', 'HEAD']);
+}
+
+export async function gitDiscardFile(root: string, filePath: string): Promise<void> {
+    await execFileAsync('git', ['-C', root, 'checkout', '--', filePath]);
+}
+
+export async function gitDiscardAll(root: string): Promise<void> {
+    await execFileAsync('git', ['-C', root, 'checkout', '--', '.']);
+    await execFileAsync('git', ['-C', root, 'clean', '-fd']);
+}
+
+export async function gitCheckout(root: string, branch: string): Promise<void> {
+    await execFileAsync('git', ['-C', root, 'checkout', branch]);
+}
+
+export async function gitFetch(root: string): Promise<string> {
+    const { stdout, stderr } = await execFileAsync('git', ['-C', root, 'fetch', '--all', '--prune']);
+    return (stdout + stderr).trim();
+}
+
+export async function gitCommit(root: string, message: string): Promise<string> {
+    const { stdout } = await execFileAsync('git', ['-C', root, 'commit', '-m', message]);
+    return stdout.trim();
+}
+
+export async function gitPull(root: string): Promise<string> {
+    const { stdout, stderr } = await execFileAsync('git', ['-C', root, 'pull']);
+    return (stdout + stderr).trim();
 }

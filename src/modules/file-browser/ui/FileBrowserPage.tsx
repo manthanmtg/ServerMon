@@ -34,11 +34,24 @@ import dynamic from 'next/dynamic';
 
 const CodeEditorModal = dynamic(() => import('./components/CodeEditorModal'), { ssr: false });
 
+interface GitFileStatus {
+    path: string;
+    status: string;
+    staged: boolean;
+}
+
 interface GitInfo {
     root: string;
     branch: string;
     dirty: boolean;
     changedFiles: number;
+    staged: GitFileStatus[];
+    unstaged: GitFileStatus[];
+    untracked: GitFileStatus[];
+    branches: string[];
+    remotes: string[];
+    ahead: number;
+    behind: number;
 }
 
 interface DirectoryListing {
@@ -836,7 +849,7 @@ export default function FileBrowserPage() {
 
                 {listing?.git && (
                     <div className="px-3 pb-3 md:px-6 md:pb-4">
-                        <FileBrowserGitBar git={listing.git} />
+                        <FileBrowserGitBar git={listing.git} onRefresh={refresh} />
                     </div>
                 )}
             </div>
