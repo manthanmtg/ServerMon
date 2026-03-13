@@ -8,6 +8,13 @@ export const UserZodSchema = z.object({
     role: z.enum(['admin', 'user']).default('user'),
     totpSecret: z.string().optional(),
     totpEnabled: z.boolean().default(false),
+    passkeys: z.array(z.object({
+        credentialID: z.string(),
+        publicKey: z.instanceof(Buffer),
+        counter: z.number(),
+        transports: z.array(z.string()).optional(),
+        createdAt: z.date().default(() => new Date()),
+    })).default([]),
     isActive: z.boolean().default(true),
     lastLoginAt: z.date().optional(),
     createdBy: z.string().optional(), // Admin ID who created this user
@@ -29,6 +36,15 @@ const UserSchema: Schema = new Schema(
         role: { type: String, enum: ['admin', 'user'], default: 'user' },
         totpSecret: { type: String },
         totpEnabled: { type: Boolean, default: false },
+        passkeys: [
+            {
+                credentialID: { type: String, required: true },
+                publicKey: { type: Buffer, required: true },
+                counter: { type: Number, required: true },
+                transports: [String],
+                createdAt: { type: Date, default: Date.now },
+            },
+        ],
         isActive: { type: Boolean, default: true },
         lastLoginAt: { type: Date },
         createdBy: { type: Schema.Types.ObjectId, ref: 'User' },

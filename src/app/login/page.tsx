@@ -2,9 +2,13 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Activity, Shield, Lock, Smartphone } from 'lucide-react';
+import { Activity, Shield, Lock, Smartphone, Fingerprint } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { startAuthentication } from '@simplewebauthn/browser';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('auth:login');
 
 export default function LoginPage() {
     const [step, setStep] = useState(1);
@@ -59,6 +63,48 @@ export default function LoginPage() {
         }
     };
 
+    const handlePasskeyLogin = async () => {
+        setLoading(true);
+        setError('');
+
+        try {
+            // 1. Get options from server
+            const optionsRes = await fetch('/api/auth/passkey/login/options', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username }),
+            });
+            if (!optionsRes.ok) throw new Error('Failed to get login options');
+            const options = await optionsRes.json();
+
+            // 2. Start authentication in browser
+            const asseResp = await startAuthentication({ optionsJSON: options });
+
+            // 3. Verify with server
+            const verifyRes = await fetch('/api/auth/passkey/login/verify', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(asseResp),
+            });
+
+            if (!verifyRes.ok) {
+                const data = await verifyRes.json();
+                throw new Error(data.error || 'Passkey verification failed');
+            }
+
+            router.push('/dashboard');
+        } catch (err: unknown) {
+            logger.error('Passkey authentication failed', err);
+            if (err instanceof Error && err.name !== 'NotAllowedError') { // Ignore user cancellation
+                setError(err.message || 'Passkey login failed');
+            } else if (!(err instanceof Error)) {
+                setError('Passkey login failed');
+            }
+        } finally {
+            setLoading(false);
+        }
+    };
+
     return (
         <main className="min-h-screen flex items-center justify-center p-6 bg-background">
             <div className="w-full max-w-sm animate-slide-up">
@@ -104,6 +150,26 @@ export default function LoginPage() {
                             />
                             <Button type="submit" className="w-full" loading={loading}>
                                 Continue
+                            </Button>
+
+                            <div className="relative my-6">
+                                <div className="absolute inset-0 flex items-center">
+                                    <div className="w-full border-t border-border"></div>
+                                </div>
+                                <div className="relative flex justify-center text-xs uppercase">
+                                    <span className="bg-card px-2 text-muted-foreground">Or</span>
+                                </div>
+                            </div>
+
+                            <Button 
+                                type="button" 
+                                variant="secondary" 
+                                className="w-full gap-2" 
+                                onClick={handlePasskeyLogin}
+                                loading={loading}
+                            >
+                                <Fingerprint className="w-4 h-4" />
+                                Sign in with Passkey
                             </Button>
                         </form>
                     )}
