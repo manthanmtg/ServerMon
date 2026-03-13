@@ -117,16 +117,16 @@ export function FileBrowserGitBar({ git, onRefresh }: Props) {
     return (
         <div className="rounded-2xl border border-border/40 bg-background/50 backdrop-blur-sm shadow-sm ring-1 ring-border/5 overflow-hidden">
             {/* Main bar */}
-            <div className="flex flex-wrap items-center gap-2 sm:gap-3 px-4 py-3 text-xs">
+            <div className="flex items-center gap-2 sm:gap-3 px-4 py-3 text-xs overflow-x-auto">
                 {/* Branch with switcher */}
-                <div className="relative">
+                <div className="relative shrink-0">
                     <button
                         type="button"
                         onClick={() => setShowBranches(!showBranches)}
                         className="flex items-center gap-2 rounded-xl border border-border/40 bg-background/80 px-3 py-1.5 transition-all hover:bg-accent hover:border-border active:scale-95"
                     >
                         <GitBranch className="w-3.5 h-3.5 text-primary" />
-                        <span className="font-semibold text-foreground max-w-[140px] truncate">{git.branch}</span>
+                        <span className="font-semibold text-foreground max-w-[260px] truncate" title={git.branch}>{git.branch}</span>
                         <ChevronDown className={cn("w-3 h-3 text-muted-foreground transition-transform", showBranches && "rotate-180")} />
                     </button>
 
@@ -182,17 +182,17 @@ export function FileBrowserGitBar({ git, onRefresh }: Props) {
                     )}
                 </div>
 
-                <p className="text-[10px] text-muted-foreground truncate max-w-[160px] hidden sm:block" title={git.root}>
+                <p className="text-[10px] text-muted-foreground truncate max-w-[160px] hidden sm:block shrink-0" title={git.root}>
                     {git.root}
                 </p>
 
-                <div className="h-4 w-px bg-border hidden sm:block" />
+                <div className="h-4 w-px bg-border hidden sm:block shrink-0" />
 
                 {/* Status badge — clickable to expand */}
                 <button
                     type="button"
                     onClick={() => toggleTab('status')}
-                    className="flex items-center gap-1.5 transition-all hover:opacity-80 active:scale-95"
+                    className="flex items-center gap-1.5 transition-all hover:opacity-80 active:scale-95 shrink-0"
                 >
                     <Badge
                         variant={git.dirty ? 'warning' : 'success'}
@@ -209,7 +209,7 @@ export function FileBrowserGitBar({ git, onRefresh }: Props) {
 
                 {/* Ahead/Behind */}
                 {(git.ahead > 0 || git.behind > 0) && (
-                    <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                    <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground shrink-0">
                         {git.ahead > 0 && (
                             <span className="flex items-center gap-0.5 text-success">
                                 <ArrowUp className="w-3 h-3" />{git.ahead}
@@ -224,7 +224,7 @@ export function FileBrowserGitBar({ git, onRefresh }: Props) {
                 )}
 
                 {/* Actions */}
-                <div className="ml-auto flex items-center gap-1.5">
+                <div className="ml-auto flex items-center gap-1.5 shrink-0">
                     {git.dirty && (
                         <Button
                             variant="ghost"
