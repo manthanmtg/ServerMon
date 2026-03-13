@@ -239,7 +239,7 @@ export function FileBrowserPreview({
                     </div>
 
                     {/* Metadata Section */}
-                    <div className="flex flex-wrap md:grid md:grid-cols-3 md:divide-x divide-border/30 bg-secondary/5 border-t border-border/30 overflow-hidden">
+                    <div className="flex flex-wrap md:grid md:grid-cols-3 md:divide-x divide-border/30 bg-secondary/5 border-t border-border/30 overflow-hidden min-w-0">
                         <div className="px-4 py-2.5 md:px-6 md:py-4 flex items-center gap-2 md:flex-col md:items-start md:gap-1.5 transition-colors hover:bg-secondary/10">
                             <span className="text-[9px] md:text-[10px] font-black text-muted-foreground/50 uppercase tracking-[0.15em] md:tracking-[0.2em] leading-none">Modified</span>
                             <div className="flex items-center gap-1.5 md:gap-2 text-[11px] md:text-xs font-bold text-foreground/90">
@@ -264,7 +264,7 @@ export function FileBrowserPreview({
                             <span className="text-[9px] md:text-[10px] font-black text-muted-foreground/50 uppercase tracking-[0.15em] md:tracking-[0.2em] leading-none">Perms</span>
                             <div className="flex items-center gap-1.5 md:gap-2 text-[11px] md:text-xs font-bold text-foreground/90">
                                 <Shield className="w-3 h-3 md:w-3.5 md:h-3.5 text-primary/70 hidden md:block" />
-                                <code className="text-[10px] md:text-[11px] font-mono bg-background/80 px-1.5 py-0.5 rounded border border-border/40 text-primary shadow-sm tracking-tight">
+                                <code className="text-[10px] md:text-[11px] font-mono bg-background/80 px-1.5 py-0.5 rounded border border-border/40 text-primary shadow-sm tracking-tight whitespace-nowrap">
                                     {entry.permissions}
                                 </code>
                             </div>

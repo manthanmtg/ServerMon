@@ -407,9 +407,9 @@ export default function FileBrowserPage() {
     const [saving, setSaving] = useState(false);
     const [showTree, setShowTree] = useState(true);
     const [treeWidth, setTreeWidth] = useState(288);
-    const [previewWidth, setPreviewWidth] = useState(400);
+    const [previewWidth, setPreviewWidth] = useState(420);
     const treeWidthRef = useRef(288);
-    const previewWidthRef = useRef(400);
+    const previewWidthRef = useRef(420);
     const [dragging, setDragging] = useState(false);
     const [uploadProgress, setUploadProgress] = useState(0);
     const [autoRefreshLogs, setAutoRefreshLogs] = useState(false);
@@ -908,8 +908,34 @@ export default function FileBrowserPage() {
                                     />
                                 ))}
                             </div>
+                            <div className="hidden md:flex items-center justify-center py-2 border-t border-border/40 shrink-0">
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-7 w-full mx-2 gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground"
+                                    onClick={() => setShowTree(false)}
+                                >
+                                    <PanelLeftClose className="h-3.5 w-3.5" />
+                                    Collapse
+                                </Button>
+                            </div>
                         </div>
                     </>
+                )}
+
+                {/* Expand sidebar button when tree is hidden (desktop) */}
+                {!showTree && (
+                    <div className="hidden md:flex items-start shrink-0">
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-9 w-9 m-1 text-muted-foreground hover:text-foreground"
+                            onClick={() => setShowTree(true)}
+                            title="Show directory tree"
+                        >
+                            <PanelLeftOpen className="h-4 w-4" />
+                        </Button>
+                    </div>
                 )}
 
                 {/* Resize handle: tree ↔ content */}
@@ -987,7 +1013,7 @@ export default function FileBrowserPage() {
 
                         {/* Resize handle: content ↔ preview */}
                         <ResizeHandle side="right" onResize={(delta) => {
-                            const next = Math.max(250, Math.min(800, previewWidthRef.current + delta));
+                            const next = Math.max(350, Math.min(800, previewWidthRef.current + delta));
                             previewWidthRef.current = next;
                             setPreviewWidth(next);
                         }} />
@@ -1019,16 +1045,6 @@ export default function FileBrowserPage() {
                 )}
             </div>
 
-            {/* Desktop sidebar toggle — positioned inside the file browser layout */}
-            <Button
-                variant="outline"
-                size="icon"
-                className="hidden md:flex absolute bottom-4 h-9 w-9 rounded-full shadow-lg border-primary/20 bg-background/80 backdrop-blur z-20 transition-[left] duration-200"
-                style={{ left: showTree ? `${treeWidth + 10}px` : '0.75rem' }}
-                onClick={() => setShowTree(!showTree)}
-            >
-                {showTree ? <PanelLeftClose className="h-4 w-4" /> : <PanelLeftOpen className="h-4 w-4" />}
-            </Button>
 
             {/* Mobile bottom action bar */}
             <div className="flex md:hidden items-center justify-around border-t border-border/50 bg-background/95 backdrop-blur px-2 py-2 shrink-0">
