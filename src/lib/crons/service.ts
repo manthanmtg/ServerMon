@@ -1,4 +1,4 @@
-import { execFile } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
 import { promisify } from 'node:util';
 import { readdir, readFile, access } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -9,6 +9,7 @@ import type {
     CronLogEntry,
     CronSource,
     CronsSnapshot,
+    CronRunStatus,
     SystemCronDir,
     CronCreateRequest,
     CronUpdateRequest,
@@ -599,9 +600,111 @@ async function deleteJob(id: string): Promise<{ success: boolean; message: strin
     }
 }
 
+// ---- Manual Run Tracking ----
+
+const MAX_TRACKED_RUNS = 50;
+const MAX_OUTPUT_BYTES = 64 * 1024;
+const activeRuns = new Map<string, CronRunStatus>();
+
+function pruneOldRuns() {
+    if (activeRuns.size <= MAX_TRACKED_RUNS) return;
+    const sorted = [...activeRuns.entries()]
+        .filter(([, r]) => r.status !== 'running')
+        .sort((a, b) => new Date(a[1].startedAt).getTime() - new Date(b[1].startedAt).getTime());
+    while (activeRuns.size > MAX_TRACKED_RUNS && sorted.length > 0) {
+        const oldest = sorted.shift();
+        if (oldest) activeRuns.delete(oldest[0]);
+    }
+}
+
+function runJobNow(jobId: string, command: string): CronRunStatus {
+    const runId = `${jobId}-${Date.now()}`;
+    const startedAt = new Date().toISOString();
+
+    const run: CronRunStatus = {
+        runId,
+        jobId,
+        command,
+        pid: 0,
+        status: 'running',
+        exitCode: null,
+        stdout: '',
+        stderr: '',
+        startedAt,
+    };
+
+    log.info(`Manual run triggered for job ${jobId}`, { runId, command });
+
+    // Spawn via shell, fully detached so it survives server shutdown
+    const child = spawn('sh', ['-c', command], {
+        detached: true,
+        stdio: ['ignore', 'pipe', 'pipe'],
+        env: { ...process.env },
+    });
+
+    // Unref so the Node process can exit without waiting for this child
+    child.unref();
+
+    run.pid = child.pid || 0;
+
+    child.stdout?.on('data', (chunk: Buffer) => {
+        if (run.stdout.length < MAX_OUTPUT_BYTES) {
+            run.stdout += chunk.toString();
+            if (run.stdout.length > MAX_OUTPUT_BYTES) {
+                run.stdout = run.stdout.slice(0, MAX_OUTPUT_BYTES) + '\n... [truncated]';
+            }
+        }
+    });
+
+    child.stderr?.on('data', (chunk: Buffer) => {
+        if (run.stderr.length < MAX_OUTPUT_BYTES) {
+            run.stderr += chunk.toString();
+            if (run.stderr.length > MAX_OUTPUT_BYTES) {
+                run.stderr = run.stderr.slice(0, MAX_OUTPUT_BYTES) + '\n... [truncated]';
+            }
+        }
+    });
+
+    child.on('close', (code) => {
+        run.exitCode = code;
+        run.status = code === 0 ? 'completed' : 'failed';
+        run.finishedAt = new Date().toISOString();
+        log.info(`Manual run finished for job ${jobId}`, { runId, exitCode: code });
+    });
+
+    child.on('error', (err) => {
+        run.status = 'failed';
+        run.exitCode = -1;
+        run.stderr += `\nSpawn error: ${err.message}`;
+        run.finishedAt = new Date().toISOString();
+        log.error(`Manual run spawn error for job ${jobId}`, err);
+    });
+
+    activeRuns.set(runId, run);
+    pruneOldRuns();
+
+    return { ...run };
+}
+
+function getRunStatus(runId: string): CronRunStatus | null {
+    const run = activeRuns.get(runId);
+    return run ? { ...run } : null;
+}
+
+function listRuns(jobId?: string): CronRunStatus[] {
+    const all = [...activeRuns.values()];
+    const filtered = jobId ? all.filter(r => r.jobId === jobId) : all;
+    return filtered
+        .sort((a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime())
+        .map(r => ({ ...r }));
+}
+
 export const cronsService = {
     getSnapshot,
     createJob,
     updateJob,
     deleteJob,
+    runJobNow,
+    getRunStatus,
+    listRuns,
 };

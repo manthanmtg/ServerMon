@@ -23,6 +23,7 @@ import {
     Timer,
     Trash2,
     X,
+    Zap,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -31,6 +32,7 @@ import { useToast } from '@/components/ui/toast';
 import { cn } from '@/lib/utils';
 import type {
     CronJob,
+    CronRunStatus,
     CronsSnapshot,
 } from '../types';
 
@@ -361,6 +363,8 @@ export default function CronsPage() {
     const [pendingAction, setPendingAction] = useState<string | null>(null);
     const [modal, setModal] = useState<{ mode: 'create' | 'edit'; job?: CronJob } | null>(null);
     const [copiedId, setCopiedId] = useState<string | null>(null);
+    const [activeRun, setActiveRun] = useState<CronRunStatus | null>(null);
+    const [runPolling, setRunPolling] = useState(false);
 
     const loadSnapshot = useCallback(async () => {
         const response = await fetch('/api/modules/crons', { cache: 'no-store' });
@@ -488,6 +492,44 @@ export default function CronsPage() {
             setPendingAction(null);
         }
     }
+
+    async function runJobNow(job: CronJob) {
+        setPendingAction(`${job.id}:run`);
+        try {
+            const response = await fetch(`/api/modules/crons/${job.id}/run`, { method: 'POST' });
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error || 'Failed');
+            toast({ title: 'Run triggered', description: `PID ${data.run.pid}`, variant: 'success' });
+            setActiveRun(data.run);
+            setRunPolling(true);
+        } catch (error: unknown) {
+            toast({ title: 'Run failed', description: error instanceof Error ? error.message : 'Unknown error', variant: 'destructive' });
+        } finally {
+            setPendingAction(null);
+        }
+    }
+
+    // Poll active run status
+    useEffect(() => {
+        if (!runPolling || !activeRun) return;
+        if (activeRun.status !== 'running') {
+            setRunPolling(false);
+            return;
+        }
+        const interval = window.setInterval(async () => {
+            try {
+                const res = await fetch(`/api/modules/crons/${activeRun.jobId}/run?runId=${activeRun.runId}`);
+                if (res.ok) {
+                    const data: CronRunStatus = await res.json();
+                    setActiveRun(data);
+                    if (data.status !== 'running') {
+                        setRunPolling(false);
+                    }
+                }
+            } catch { /* ignore polling errors */ }
+        }, 1500);
+        return () => window.clearInterval(interval);
+    }, [runPolling, activeRun]);
 
     async function handleCreateSubmit(data: { minute: string; hour: string; dayOfMonth: string; month: string; dayOfWeek: string; command: string; comment?: string }) {
         const response = await fetch('/api/modules/crons/create', {
@@ -806,6 +848,17 @@ export default function CronsPage() {
                                                                     </button>
                                                                     <button
                                                                         type="button"
+                                                                        title="Run Now"
+                                                                        disabled={pendingAction === `${job.id}:run`}
+                                                                        onClick={() => runJobNow(job)}
+                                                                        className="p-1.5 rounded-lg hover:bg-primary/10 transition-colors min-h-[32px] min-w-[32px] flex items-center justify-center"
+                                                                    >
+                                                                        {pendingAction === `${job.id}:run`
+                                                                            ? <LoaderCircle className="w-3.5 h-3.5 animate-spin" />
+                                                                            : <Zap className="w-3.5 h-3.5 text-primary" />}
+                                                                    </button>
+                                                                    <button
+                                                                        type="button"
                                                                         title="Delete"
                                                                         disabled={pendingAction === `${job.id}:delete`}
                                                                         onClick={() => deleteJob(job)}
@@ -944,6 +997,80 @@ export default function CronsPage() {
                         )}
                     </CardContent>
                 </Card>
+            )}
+
+            {/* Run Output modal */}
+            {activeRun && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center">
+                    <div className="absolute inset-0 bg-background/80 backdrop-blur-sm" onClick={() => { if (activeRun.status !== 'running') setActiveRun(null); }} />
+                    <div className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl border border-border bg-card shadow-xl mx-4">
+                        <div className="flex items-center justify-between p-5 border-b border-border">
+                            <div className="flex items-center gap-3">
+                                <h2 className="text-lg font-semibold">Run Output</h2>
+                                <Badge variant={activeRun.status === 'running' ? 'warning' : activeRun.status === 'completed' ? 'success' : 'destructive'}>
+                                    {activeRun.status === 'running' && <LoaderCircle className="w-3 h-3 mr-1 animate-spin" />}
+                                    {activeRun.status}
+                                </Badge>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setActiveRun(null)}
+                                className="p-2 rounded-lg hover:bg-accent transition-colors"
+                            >
+                                <X className="w-4 h-4" />
+                            </button>
+                        </div>
+                        <div className="p-5 space-y-4">
+                            <div className="text-xs space-y-1">
+                                <div className="flex gap-2">
+                                    <span className="text-muted-foreground w-20 shrink-0">Command:</span>
+                                    <code className="font-mono text-foreground break-all">{activeRun.command}</code>
+                                </div>
+                                <div className="flex gap-2">
+                                    <span className="text-muted-foreground w-20 shrink-0">PID:</span>
+                                    <span className="font-mono text-foreground">{activeRun.pid}</span>
+                                </div>
+                                <div className="flex gap-2">
+                                    <span className="text-muted-foreground w-20 shrink-0">Started:</span>
+                                    <span className="text-foreground">{new Date(activeRun.startedAt).toLocaleString()}</span>
+                                </div>
+                                {activeRun.finishedAt && (
+                                    <div className="flex gap-2">
+                                        <span className="text-muted-foreground w-20 shrink-0">Finished:</span>
+                                        <span className="text-foreground">{new Date(activeRun.finishedAt).toLocaleString()}</span>
+                                    </div>
+                                )}
+                                {activeRun.exitCode !== null && (
+                                    <div className="flex gap-2">
+                                        <span className="text-muted-foreground w-20 shrink-0">Exit code:</span>
+                                        <span className={cn('font-mono', activeRun.exitCode === 0 ? 'text-success' : 'text-destructive')}>{activeRun.exitCode}</span>
+                                    </div>
+                                )}
+                            </div>
+                            {(activeRun.stdout || activeRun.status === 'running') && (
+                                <div>
+                                    <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1">stdout</p>
+                                    <pre className="max-h-[200px] overflow-auto rounded-lg bg-muted/30 border border-border p-3 text-xs font-mono text-foreground whitespace-pre-wrap break-all">
+                                        {activeRun.stdout || (activeRun.status === 'running' ? 'Waiting for output...' : '')}
+                                    </pre>
+                                </div>
+                            )}
+                            {activeRun.stderr && (
+                                <div>
+                                    <p className="text-[10px] font-medium text-destructive uppercase tracking-wider mb-1">stderr</p>
+                                    <pre className="max-h-[200px] overflow-auto rounded-lg bg-destructive/5 border border-destructive/20 p-3 text-xs font-mono text-destructive whitespace-pre-wrap break-all">
+                                        {activeRun.stderr}
+                                    </pre>
+                                </div>
+                            )}
+                            <div className="flex justify-end pt-2">
+                                <Button variant="outline" onClick={() => setActiveRun(null)}>
+                                    {activeRun.status === 'running' ? 'Run in Background' : 'Close'}
+                                </Button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             )}
 
             {/* Create/Edit modal */}

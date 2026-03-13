@@ -64,6 +64,19 @@ export interface CronCreateRequest {
     user?: string;
 }
 
+export interface CronRunStatus {
+    runId: string;
+    jobId: string;
+    command: string;
+    pid: number;
+    status: 'running' | 'completed' | 'failed';
+    exitCode: number | null;
+    stdout: string;
+    stderr: string;
+    startedAt: string;
+    finishedAt?: string;
+}
+
 export interface CronUpdateRequest {
     minute?: string;
     hour?: string;
