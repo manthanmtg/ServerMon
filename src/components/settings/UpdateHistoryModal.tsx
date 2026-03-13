@@ -85,9 +85,9 @@ export default function UpdateHistoryModal({ onClose }: UpdateHistoryModalProps)
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 lg:p-8">
-            <div className="absolute inset-0 bg-background/40 backdrop-blur-md transition-all duration-500" onClick={onClose} />
+            <div className="absolute inset-0 bg-background/60 backdrop-blur-sm transition-all duration-500" onClick={onClose} />
             
-            <div className="relative w-full max-w-4xl h-[85vh] flex flex-col rounded-[2.5rem] border border-white/10 bg-card/60 backdrop-blur-3xl shadow-[0_32px_64px_-16px_rgba(0,0,0,0.5)] overflow-hidden animate-in fade-in zoom-in-95 duration-500">
+            <div className="relative w-full max-w-4xl h-[85vh] flex flex-col rounded-[2.5rem] border border-white/10 bg-card/75 backdrop-blur-xl shadow-[0_32px_64px_-16px_rgba(0,0,0,0.5)] overflow-hidden animate-in fade-in zoom-in-95 duration-500">
                 {/* Header */}
                 <div className="flex items-center justify-between p-6 sm:px-8 border-b border-white/5 bg-white/5 shrink-0">
                     <div className="flex items-center gap-5">
