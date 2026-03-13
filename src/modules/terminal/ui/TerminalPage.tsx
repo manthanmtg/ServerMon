@@ -44,33 +44,41 @@ export default function TerminalPage() {
         try {
             const res = await fetch('/api/terminal/sessions');
             const data = await res.json();
-            const sessions = (data.sessions || []).map((s: SessionTab) => ({
-                ...s,
-                status: 'connecting' as const,
-            }));
-
-            if (sessions.length === 0) {
-                const createRes = await fetch('/api/terminal/sessions', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ label: 'Terminal 1' }),
+            
+            setTabs(prevTabs => {
+                const sessions = (data.sessions || []).map((s: SessionTab) => {
+                    const existing = prevTabs.find(t => t.sessionId === s.sessionId);
+                    return {
+                        ...s,
+                        status: existing?.status || 'connecting' as const,
+                    };
                 });
-                const created = await createRes.json();
-                if (created.session) {
-                    sessions.push({ ...created.session, status: 'connecting' as const });
-                }
-            }
 
-            setTabs(sessions);
-            if (sessions.length > 0 && !activeTabId) {
-                setActiveTabId(sessions[0].sessionId);
-            }
+                if (sessions.length === 0) {
+                    fetch('/api/terminal/sessions', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ label: 'Terminal 1' }),
+                    }).then(res => res.json()).then(created => {
+                        if (created.session) {
+                            setTabs([{ ...created.session, status: 'connecting' as const }]);
+                            if (!activeTabId) setActiveTabId(created.session.sessionId);
+                        }
+                    });
+                    return prevTabs;
+                }
+
+                if (!activeTabId && sessions.length > 0) {
+                    setActiveTabId(sessions[0].sessionId);
+                }
+                return sessions;
+            });
         } catch {
             toast({ title: 'Failed to load terminal sessions', variant: 'destructive' });
         } finally {
             setLoading(false);
         }
-    }, [activeTabId, toast]);
+    }, [toast, activeTabId]);
 
     const fetchSettings = useCallback(async () => {
         try {
