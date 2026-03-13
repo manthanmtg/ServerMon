@@ -99,9 +99,9 @@ export default function UpdateHistoryModal({ onClose }: UpdateHistoryModalProps)
                 </div>
 
                 {/* Content */}
-                <div className="flex-1 overflow-hidden">
+                <div className="flex-1 overflow-hidden min-h-0">
                     {selectedRun ? (
-                        <div className="h-full flex flex-col">
+                        <div className="h-full flex flex-col min-h-0">
                             <div className="p-4 border-b border-border bg-muted/5 flex items-center justify-between shrink-0">
                                 <div className="flex items-center gap-4">
                                     <div className="flex items-center gap-1.5">
@@ -124,7 +124,7 @@ export default function UpdateHistoryModal({ onClose }: UpdateHistoryModalProps)
                                 )}
                             </div>
                             
-                            <div className="flex-1 bg-[#0a0a0a] text-zinc-300 font-mono text-[13px] leading-relaxed overflow-auto selection:bg-primary/30">
+                            <div className="flex-1 bg-[#0a0a0a] text-zinc-300 font-mono text-[13px] leading-relaxed overflow-hidden min-h-0 selection:bg-primary/30">
                                 {detailsLoading ? (
                                     <div className="flex flex-col items-center justify-center h-full gap-3">
                                         <LoaderCircle className="w-6 h-6 animate-spin text-primary/50" />
@@ -133,7 +133,7 @@ export default function UpdateHistoryModal({ onClose }: UpdateHistoryModalProps)
                                 ) : (
                                     <pre 
                                         ref={logContainerRef}
-                                        className="p-4 min-h-full whitespace-pre-wrap break-all focus:outline-none"
+                                        className="p-4 h-full whitespace-pre-wrap break-all focus:outline-none overflow-y-auto custom-scrollbar"
                                     >
                                         {selectedRun.logContent || 'No log output available for this run.'}
                                         {selectedRun.status === 'running' && (
