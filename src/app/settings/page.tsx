@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import PasskeySettings from '@/modules/security/ui/PasskeySettings';
 import { useToast } from '@/components/ui/toast';
 import UpdateHistoryModal from '@/components/settings/UpdateHistoryModal';
+import ConfirmationModal from '@/components/ui/ConfirmationModal';
 
 interface ModuleInfo {
     id: string;
@@ -22,6 +23,7 @@ export default function SettingsPage() {
     const [modules, setModules] = useState<ModuleInfo[]>([]);
     const [updating, setUpdating] = useState(false);
     const [showHistory, setShowHistory] = useState(false);
+    const [showUpdateConfirm, setShowUpdateConfirm] = useState(false);
 
     useEffect(() => {
         fetch('/api/modules')
@@ -31,17 +33,16 @@ export default function SettingsPage() {
     }, []);
 
     async function handleUpdate() {
-        if (!confirm('Are you sure you want to trigger a system update? This will discard any local changes.')) return;
-        
+        setShowUpdateConfirm(false);
         setUpdating(true);
         try {
             const res = await fetch('/api/modules/updates/run', { method: 'POST' });
             const data = await res.json();
-            
+
             if (res.ok && data.success) {
                 toast({
                     title: 'Update Triggered',
-                    description: `System update started (PID ${data.pid}). Server will be unavailable during restart.`,
+                    description: `System update started (PID ${data.pid}). Server will be unavailable for a few seconds during restart.`,
                     variant: 'success'
                 });
             } else {
@@ -88,11 +89,10 @@ export default function SettingsPage() {
                                         <button
                                             key={t.id}
                                             onClick={() => setTheme(t.id)}
-                                            className={`relative p-3 rounded-lg border-2 text-left transition-all hover:scale-[1.01] active:scale-[0.99] cursor-pointer ${
-                                                theme.id === t.id
-                                                    ? 'border-primary shadow-sm'
-                                                    : 'border-border hover:border-muted-foreground/30'
-                                            }`}
+                                            className={`relative p-3 rounded-lg border-2 text-left transition-all hover:scale-[1.01] active:scale-[0.99] cursor-pointer ${theme.id === t.id
+                                                ? 'border-primary shadow-sm'
+                                                : 'border-border hover:border-muted-foreground/30'
+                                                }`}
                                         >
                                             {theme.id === t.id && (
                                                 <div className="absolute top-2 right-2 w-5 h-5 rounded-full bg-primary flex items-center justify-center">
@@ -196,7 +196,7 @@ export default function SettingsPage() {
                                         </button>
                                         <button
                                             type="button"
-                                            onClick={handleUpdate}
+                                            onClick={() => setShowUpdateConfirm(true)}
                                             disabled={updating}
                                             className="flex h-8 items-center gap-2 rounded-lg border border-border bg-background px-3 text-xs font-medium text-foreground transition-all hover:bg-accent disabled:opacity-50"
                                             title="Trigger system update"
@@ -235,6 +235,17 @@ export default function SettingsPage() {
             {showHistory && (
                 <UpdateHistoryModal onClose={() => setShowHistory(false)} />
             )}
+
+            <ConfirmationModal
+                isOpen={showUpdateConfirm}
+                onConfirm={handleUpdate}
+                onCancel={() => setShowUpdateConfirm(false)}
+                title="System Update"
+                message="Are you sure you want to trigger a system update? This will discard any local changes and the server will be temporarily unavailable."
+                confirmLabel="Trigger Update"
+                cancelLabel="Cancel"
+                variant="danger"
+            />
         </ProShell>
     );
 }
