@@ -247,6 +247,38 @@ class UpdateService {
             this.isChecking = false;
         }
     }
+
+    public async triggerUpdate(): Promise<{ success: boolean; pid?: number; message: string }> {
+        const updateScript = '/opt/servermon/scripts/update-servermon.sh';
+        
+        log.info(`Triggering system update via ${updateScript}`);
+        
+        try {
+            const { spawn } = await import('node:child_process');
+            
+            // Run the script in the background with inherited stdout/stderr redirected to logs if possible
+            // For now, we just spawn it and let it run.
+            const child = spawn('sudo', [updateScript], {
+                detached: true,
+                stdio: 'ignore'
+            });
+            
+            child.unref();
+            
+            if (child.pid) {
+                log.info(`Update process started with PID ${child.pid}`);
+                return { success: true, pid: child.pid, message: 'Update triggered successfully' };
+            } else {
+                throw new Error('Failed to get PID for update process');
+            }
+        } catch (err) {
+            log.error('Failed to trigger update', err);
+            return { 
+                success: false, 
+                message: err instanceof Error ? err.message : 'Unknown error during update trigger' 
+            };
+        }
+    }
 }
 
 export const updateService = UpdateService.getInstance();

@@ -2,11 +2,12 @@
 
 import React, { useEffect, useState } from 'react';
 import { useTheme } from '@/lib/ThemeContext';
-import { Palette, Box, Shield, Check } from 'lucide-react';
+import { Palette, Box, Shield, Check, RefreshCcw, LoaderCircle } from 'lucide-react';
 import ProShell from '@/components/layout/ProShell';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import PasskeySettings from '@/modules/security/ui/PasskeySettings';
+import { useToast } from '@/components/ui/toast';
 
 interface ModuleInfo {
     id: string;
@@ -16,7 +17,9 @@ interface ModuleInfo {
 
 export default function SettingsPage() {
     const { theme, setTheme, availableThemes } = useTheme();
+    const { toast } = useToast();
     const [modules, setModules] = useState<ModuleInfo[]>([]);
+    const [updating, setUpdating] = useState(false);
 
     useEffect(() => {
         fetch('/api/modules')
@@ -24,6 +27,34 @@ export default function SettingsPage() {
             .then(data => setModules(data.modules || []))
             .catch(err => console.error(err));
     }, []);
+
+    async function handleUpdate() {
+        if (!confirm('Are you sure you want to trigger a system update? This will discard any local changes.')) return;
+        
+        setUpdating(true);
+        try {
+            const res = await fetch('/api/modules/updates/run', { method: 'POST' });
+            const data = await res.json();
+            
+            if (res.ok && data.success) {
+                toast({
+                    title: 'Update Triggered',
+                    description: `System update started (PID ${data.pid}). Server will be unavailable during restart.`,
+                    variant: 'success'
+                });
+            } else {
+                throw new Error(data.error || 'Failed to trigger update');
+            }
+        } catch (error) {
+            toast({
+                title: 'Update Failed',
+                description: error instanceof Error ? error.message : 'Unknown error',
+                variant: 'destructive'
+            });
+        } finally {
+            setUpdating(false);
+        }
+    }
 
     return (
         <ProShell title="Settings" subtitle="Configuration">
@@ -150,7 +181,23 @@ export default function SettingsPage() {
 
                         <Card>
                             <CardHeader>
-                                <CardTitle className="text-base">About</CardTitle>
+                                <div className="flex items-center justify-between">
+                                    <CardTitle className="text-base">About</CardTitle>
+                                    <button
+                                        type="button"
+                                        onClick={handleUpdate}
+                                        disabled={updating}
+                                        className="flex h-8 items-center gap-2 rounded-lg border border-border bg-background px-3 text-xs font-medium text-foreground transition-all hover:bg-accent disabled:opacity-50"
+                                        title="Trigger system update"
+                                    >
+                                        {updating ? (
+                                            <LoaderCircle className="w-3.5 h-3.5 animate-spin" />
+                                        ) : (
+                                            <RefreshCcw className="w-3.5 h-3.5 text-primary" />
+                                        )}
+                                        {updating ? 'Updating...' : 'Update'}
+                                    </button>
+                                </div>
                             </CardHeader>
                             <CardContent>
                                 <div className="space-y-3">
