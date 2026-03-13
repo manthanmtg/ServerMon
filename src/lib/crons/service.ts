@@ -649,6 +649,24 @@ function isProcessRunning(pid: number): boolean {
     }
 }
 
+// Detect systemd-run availability once at startup
+let systemdRunAvailable: boolean | null = null;
+async function checkSystemdRun(): Promise<boolean> {
+    if (systemdRunAvailable !== null) return systemdRunAvailable;
+    try {
+        await execFileAsync('systemd-run', ['--version'], { timeout: 3000 });
+        systemdRunAvailable = true;
+        log.info('systemd-run available — cron runs will escape service cgroup');
+    } catch {
+        systemdRunAvailable = false;
+        log.info('systemd-run not available — cron runs will use plain detached spawn');
+    }
+    return systemdRunAvailable;
+}
+
+// Fire-and-forget the check at module load
+checkSystemdRun().catch(() => {});
+
 function runJobNow(jobId: string, command: string): CronRunStatus {
     const runId = `${jobId}-${Date.now()}`;
     const startedAt = new Date().toISOString();
@@ -661,10 +679,20 @@ function runJobNow(jobId: string, command: string): CronRunStatus {
     const stdoutFd = openSync(stdoutFile, 'w');
     const stderrFd = openSync(stderrFile, 'w');
 
-    // Spawn via shell, fully detached with file-based stdio
-    // Child writes directly to files — no pipes to parent — so it
-    // survives even if the Node server process is killed.
-    const child = spawn('sh', ['-c', command], {
+    // Use systemd-run --scope to place the child in its own transient
+    // cgroup scope. This ensures that when `systemctl stop servermon`
+    // kills all processes in the servermon cgroup, this child is NOT
+    // included because it lives in a separate scope.
+    // Fallback to plain detached spawn on non-systemd systems (e.g. macOS).
+    const useSystemd = systemdRunAvailable === true;
+    const spawnCmd = useSystemd
+        ? 'systemd-run'
+        : 'sh';
+    const spawnArgs = useSystemd
+        ? ['--scope', '--quiet', '--', 'sh', '-c', command]
+        : ['-c', command];
+
+    const child = spawn(spawnCmd, spawnArgs, {
         detached: true,
         stdio: ['ignore', stdoutFd, stderrFd],
         env: { ...process.env },
