@@ -1,7 +1,9 @@
 import { execFile, spawn } from 'node:child_process';
 import { promisify } from 'node:util';
-import { readdir, readFile, access } from 'node:fs/promises';
+import { readdir, readFile, access, unlink } from 'node:fs/promises';
+import { openSync, closeSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 import { createHash } from 'node:crypto';
 import { createLogger } from '@/lib/logger';
 import type {
@@ -604,7 +606,11 @@ async function deleteJob(id: string): Promise<{ success: boolean; message: strin
 
 const MAX_TRACKED_RUNS = 50;
 const MAX_OUTPUT_BYTES = 64 * 1024;
-const activeRuns = new Map<string, CronRunStatus>();
+const RUN_LOG_DIR = join(tmpdir(), 'servermon-cron-runs');
+const activeRuns = new Map<string, CronRunStatus & { stdoutFile: string; stderrFile: string }>();
+
+// Ensure log directory exists
+try { mkdirSync(RUN_LOG_DIR, { recursive: true }); } catch { /* ignore */ }
 
 function pruneOldRuns() {
     if (activeRuns.size <= MAX_TRACKED_RUNS) return;
@@ -613,58 +619,81 @@ function pruneOldRuns() {
         .sort((a, b) => new Date(a[1].startedAt).getTime() - new Date(b[1].startedAt).getTime());
     while (activeRuns.size > MAX_TRACKED_RUNS && sorted.length > 0) {
         const oldest = sorted.shift();
-        if (oldest) activeRuns.delete(oldest[0]);
+        if (oldest) {
+            activeRuns.delete(oldest[0]);
+            // Clean up log files
+            unlink(oldest[1].stdoutFile).catch(() => {});
+            unlink(oldest[1].stderrFile).catch(() => {});
+        }
+    }
+}
+
+async function readLogFile(path: string): Promise<string> {
+    try {
+        const content = await readFile(path, 'utf-8');
+        if (content.length > MAX_OUTPUT_BYTES) {
+            return content.slice(0, MAX_OUTPUT_BYTES) + '\n... [truncated]';
+        }
+        return content;
+    } catch {
+        return '';
+    }
+}
+
+function isProcessRunning(pid: number): boolean {
+    try {
+        process.kill(pid, 0);
+        return true;
+    } catch {
+        return false;
     }
 }
 
 function runJobNow(jobId: string, command: string): CronRunStatus {
     const runId = `${jobId}-${Date.now()}`;
     const startedAt = new Date().toISOString();
+    const stdoutFile = join(RUN_LOG_DIR, `${runId}.stdout.log`);
+    const stderrFile = join(RUN_LOG_DIR, `${runId}.stderr.log`);
 
-    const run: CronRunStatus = {
+    log.info(`Manual run triggered for job ${jobId}`, { runId, command });
+
+    // Open log files for the child to write to directly
+    const stdoutFd = openSync(stdoutFile, 'w');
+    const stderrFd = openSync(stderrFile, 'w');
+
+    // Spawn via shell, fully detached with file-based stdio
+    // Child writes directly to files — no pipes to parent — so it
+    // survives even if the Node server process is killed.
+    const child = spawn('sh', ['-c', command], {
+        detached: true,
+        stdio: ['ignore', stdoutFd, stderrFd],
+        env: { ...process.env },
+    });
+
+    // Close our copies of the fds — the child owns them now
+    closeSync(stdoutFd);
+    closeSync(stderrFd);
+
+    // Unref so Node can exit without waiting for this child
+    child.unref();
+
+    const pid = child.pid || 0;
+
+    const run: CronRunStatus & { stdoutFile: string; stderrFile: string } = {
         runId,
         jobId,
         command,
-        pid: 0,
+        pid,
         status: 'running',
         exitCode: null,
         stdout: '',
         stderr: '',
         startedAt,
+        stdoutFile,
+        stderrFile,
     };
 
-    log.info(`Manual run triggered for job ${jobId}`, { runId, command });
-
-    // Spawn via shell, fully detached so it survives server shutdown
-    const child = spawn('sh', ['-c', command], {
-        detached: true,
-        stdio: ['ignore', 'pipe', 'pipe'],
-        env: { ...process.env },
-    });
-
-    // Unref so the Node process can exit without waiting for this child
-    child.unref();
-
-    run.pid = child.pid || 0;
-
-    child.stdout?.on('data', (chunk: Buffer) => {
-        if (run.stdout.length < MAX_OUTPUT_BYTES) {
-            run.stdout += chunk.toString();
-            if (run.stdout.length > MAX_OUTPUT_BYTES) {
-                run.stdout = run.stdout.slice(0, MAX_OUTPUT_BYTES) + '\n... [truncated]';
-            }
-        }
-    });
-
-    child.stderr?.on('data', (chunk: Buffer) => {
-        if (run.stderr.length < MAX_OUTPUT_BYTES) {
-            run.stderr += chunk.toString();
-            if (run.stderr.length > MAX_OUTPUT_BYTES) {
-                run.stderr = run.stderr.slice(0, MAX_OUTPUT_BYTES) + '\n... [truncated]';
-            }
-        }
-    });
-
+    // If we're still alive when the child exits, update in-memory status
     child.on('close', (code) => {
         run.exitCode = code;
         run.status = code === 0 ? 'completed' : 'failed';
@@ -675,7 +704,6 @@ function runJobNow(jobId: string, command: string): CronRunStatus {
     child.on('error', (err) => {
         run.status = 'failed';
         run.exitCode = -1;
-        run.stderr += `\nSpawn error: ${err.message}`;
         run.finishedAt = new Date().toISOString();
         log.error(`Manual run spawn error for job ${jobId}`, err);
     });
@@ -683,12 +711,37 @@ function runJobNow(jobId: string, command: string): CronRunStatus {
     activeRuns.set(runId, run);
     pruneOldRuns();
 
-    return { ...run };
+    return { runId, jobId, command, pid, status: 'running', exitCode: null, stdout: '', stderr: '', startedAt };
 }
 
-function getRunStatus(runId: string): CronRunStatus | null {
+async function getRunStatus(runId: string): Promise<CronRunStatus | null> {
     const run = activeRuns.get(runId);
-    return run ? { ...run } : null;
+    if (!run) return null;
+
+    // If still marked running, check if the process is actually alive
+    if (run.status === 'running' && run.pid > 0 && !isProcessRunning(run.pid)) {
+        run.status = 'completed';
+        run.finishedAt = new Date().toISOString();
+    }
+
+    // Read current output from log files
+    const [stdout, stderr] = await Promise.all([
+        readLogFile(run.stdoutFile),
+        readLogFile(run.stderrFile),
+    ]);
+
+    return {
+        runId: run.runId,
+        jobId: run.jobId,
+        command: run.command,
+        pid: run.pid,
+        status: run.status,
+        exitCode: run.exitCode,
+        stdout,
+        stderr,
+        startedAt: run.startedAt,
+        finishedAt: run.finishedAt,
+    };
 }
 
 function listRuns(jobId?: string): CronRunStatus[] {
@@ -696,7 +749,18 @@ function listRuns(jobId?: string): CronRunStatus[] {
     const filtered = jobId ? all.filter(r => r.jobId === jobId) : all;
     return filtered
         .sort((a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime())
-        .map(r => ({ ...r }));
+        .map(r => ({
+            runId: r.runId,
+            jobId: r.jobId,
+            command: r.command,
+            pid: r.pid,
+            status: r.status,
+            exitCode: r.exitCode,
+            stdout: '',
+            stderr: '',
+            startedAt: r.startedAt,
+            finishedAt: r.finishedAt,
+        }));
 }
 
 export const cronsService = {

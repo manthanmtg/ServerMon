@@ -45,7 +45,7 @@ export async function GET(
         const runId = url.searchParams.get('runId');
 
         if (runId) {
-            const run = cronsService.getRunStatus(runId);
+            const run = await cronsService.getRunStatus(runId);
             if (!run) {
                 return NextResponse.json({ error: 'Run not found' }, { status: 404 });
             }
