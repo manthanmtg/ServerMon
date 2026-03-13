@@ -454,6 +454,24 @@ export default function CronsPage() {
     const [autoScroll, setAutoScroll] = useState(true);
     const stdoutRef = useRef<HTMLPreElement | null>(null);
 
+    const showRunOutput = useCallback(async (run: CronRunStatus) => {
+        setActiveRun(run);
+        if (run.status === 'running') {
+            setRunPolling(true);
+        } else if (!run.stdout) {
+            // Fetch full details for completed runs that don't have stdout (from history list)
+            try {
+                const res = await fetch(`/api/modules/crons/${run.jobId}/run?runId=${run.runId}`);
+                if (res.ok) {
+                    const fullRun = await res.json();
+                    setActiveRun(fullRun);
+                }
+            } catch (error) {
+                console.error('Failed to fetch full run details', error);
+            }
+        }
+    }, []);
+
     const loadSnapshot = useCallback(async () => {
         const response = await fetch('/api/modules/crons', { cache: 'no-store' });
         const data = await response.json();
@@ -1010,10 +1028,7 @@ export default function CronsPage() {
                                                                     <div className="pt-2">
                                                                         <PastRunsPanel
                                                                             jobId={job.id}
-                                                                            onShowOutput={(run) => {
-                                                                                setActiveRun(run);
-                                                                                if (run.status === 'running') setRunPolling(true);
-                                                                            }}
+                                                                            onShowOutput={showRunOutput}
                                                                         />
                                                                     </div>
                                                                 )}
@@ -1120,10 +1135,7 @@ export default function CronsPage() {
                     <CardContent>
                         <PastRunsPanel
                             jobId=""
-                            onShowOutput={(run) => {
-                                setActiveRun(run);
-                                if (run.status === 'running') setRunPolling(true);
-                            }}
+                            onShowOutput={showRunOutput}
                         />
                     </CardContent>
                 </Card>
@@ -1177,26 +1189,30 @@ export default function CronsPage() {
                                     </div>
                                 )}
                             </div>
-                            {(activeRun.stdout || activeRun.status === 'running') && (
-                                <div>
-                                    <div className="flex items-center justify-between mb-1">
-                                        <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Run Output</p>
-                                        <button
-                                            type="button"
-                                            onClick={() => setAutoScroll((prev) => !prev)}
-                                            className="text-[10px] font-medium text-muted-foreground border border-border rounded px-2 py-1 min-h-[44px] flex items-center"
-                                        >
-                                            Autoscroll: {autoScroll ? 'On' : 'Off'}
-                                        </button>
-                                    </div>
+                            <div className="space-y-2">
+                                <div className="flex items-center justify-between">
+                                    <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Run Output</p>
+                                    <button
+                                        type="button"
+                                        onClick={() => setAutoScroll((prev) => !prev)}
+                                        className="text-[10px] font-medium text-muted-foreground border border-border rounded px-2 py-1 flex items-center gap-1 hover:bg-accent transition-colors"
+                                    >
+                                        <RefreshCcw className={cn("w-3 h-3", autoScroll && "text-primary")} />
+                                        Autoscroll: {autoScroll ? 'On' : 'Off'}
+                                    </button>
+                                </div>
+                                <div className="relative">
                                     <pre
                                         ref={stdoutRef}
-                                        className="max-h-[300px] overflow-auto rounded-lg bg-muted/30 border border-border p-3 text-xs font-mono text-foreground whitespace-pre-wrap break-all"
+                                        className={cn(
+                                            "max-h-[400px] overflow-auto rounded-xl bg-muted/30 border border-border p-4 text-xs font-mono text-foreground whitespace-pre-wrap break-all",
+                                            !activeRun.stdout && activeRun.status !== 'running' && "flex items-center justify-center text-muted-foreground italic min-h-[100px]"
+                                        )}
                                     >
-                                        {activeRun.stdout || (activeRun.status === 'running' ? 'Waiting for output...' : '')}
+                                        {activeRun.stdout || (activeRun.status === 'running' ? 'Waiting for output...' : 'No output produced by this run.')}
                                     </pre>
                                 </div>
-                            )}
+                            </div>
                             <div className="flex justify-end pt-2">
                                 <Button variant="outline" size="lg" onClick={() => setActiveRun(null)} className="min-h-[44px]">
                                     {activeRun.status === 'running' ? 'Run in Background' : 'Close'}
