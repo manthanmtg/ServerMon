@@ -291,11 +291,36 @@ echo ""
 
 # ── Step 1: System Dependencies ──────────────────────────
 step "1/${TOTAL_STEPS}" "Installing system dependencies"
+# Fix for broken ookla speedtest-cli repo on some systems (especially Ubuntu Noble)
+if grep -q "ookla/speedtest-cli" /etc/apt/sources.list.d/*.list 2>/dev/null; then
+    log_info "Found existing Ookla speedtest-cli repository. Checking for compatibility..."
+    if ! apt-get update -o Dir::Etc::sourcelist="sources.list.d/speedtest.list" -o Dir::Etc::sourceparts="-" -o APT::Get::List-Cleanup="0" -qq 2>/dev/null; then
+        log_warn "Ookla repository looks broken (common on Ubuntu Noble). Disabling it to allow installation..."
+        rm -f /etc/apt/sources.list.d/speedtest.list
+        rm -f /etc/apt/sources.list.d/ookla_speedtest-cli.list
+    fi
+fi
+
 log_info "Updating package lists..."
-apt-get update -y || { log_err "apt-get update failed"; exit 1; }
-log_info "Installing required packages: curl, git, build-essential, lsof, liblzma-dev, pkg-config..."
-apt-get install -y curl git build-essential lsof liblzma-dev pkg-config || { log_err "Failed to install system dependencies"; exit 1; }
-log "Base packages installed"
+apt-get update -y || { 
+    log_err "apt-get update failed."
+    log_err "This is often caused by broken third-party repositories."
+    log_err "Please fix your /etc/apt/sources.list.d/ items and try again."
+    exit 1; 
+}
+
+log_info "Installing core packages: curl, git, build-essential, lsof, liblzma-dev, pkg-config, snapd..."
+apt-get install -y curl git build-essential lsof liblzma-dev pkg-config snapd || { log_err "Failed to install system dependencies"; exit 1; }
+
+# Install official speedtest via snap as a robust alternative to apt repo
+if ! command -v speedtest &> /dev/null; then
+    log_info "Installing official Speedtest CLI via snap..."
+    snap install speedtest --classic || log_warn "Snap installation failed. Will fall back to npm-based execution."
+else
+    log "Speedtest CLI already present"
+fi
+
+log "Base packages and tools installed"
 
 # ── Step 2: Node.js & pnpm ──────────────────────────────
 step "2/${TOTAL_STEPS}" "Setting up Node.js and pnpm"
@@ -398,11 +423,10 @@ rsync -a --exclude='.git' --exclude='node_modules' --exclude='.pnpm-store' \
 cd "$INSTALL_DIR"
 
 log_info "Installing dependencies..."
-pnpm install --frozen-lockfile 2>&1 | tail -5 || pnpm install 2>&1 | tail -5
+# Pre-approve native builds for pnpm v10+ to avoid interactive prompts
+pnpm config set only-built-dependencies --json '["lzma-native", "node-pty", "argon2"]' > /dev/null 2>&1
 
-# Ensure native modules are built (pnpm v10+ requires explicit approval or .npmrc)
-log_info "Ensuring native modules are built..."
-pnpm approve-builds 2>/dev/null || true
+pnpm install --frozen-lockfile 2>&1 | tail -5 || pnpm install 2>&1 | tail -5
 
 log_info "Building application..."
 pnpm run build 2>&1 | tail -5
