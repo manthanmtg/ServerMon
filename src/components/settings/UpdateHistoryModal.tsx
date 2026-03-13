@@ -76,9 +76,9 @@ export default function UpdateHistoryModal({ onClose }: UpdateHistoryModalProps)
                                 variant="ghost" 
                                 size="sm" 
                                 onClick={() => setSelectedRun(null)}
-                                className="h-8 w-8 p-0"
+                                className="h-11 w-11 p-0 rounded-xl"
                             >
-                                <ArrowLeft className="w-4 h-4" />
+                                <ArrowLeft className="w-5 h-5" />
                             </Button>
                         )}
                         <div className="p-2 rounded-lg bg-primary/10">
@@ -93,8 +93,8 @@ export default function UpdateHistoryModal({ onClose }: UpdateHistoryModalProps)
                             </p>
                         </div>
                     </div>
-                    <Button variant="ghost" size="sm" onClick={onClose} className="h-8 w-8 p-0 border border-border/40">
-                        <X className="w-4 h-4" />
+                    <Button variant="ghost" size="sm" onClick={onClose} className="h-11 w-11 p-0 rounded-xl border border-border/40 hover:bg-destructive/10 hover:text-destructive hover:border-destructive/20 transition-all">
+                        <X className="w-5 h-5" />
                     </Button>
                 </div>
 
