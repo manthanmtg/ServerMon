@@ -10,7 +10,6 @@ import {
     Zap, 
     Palette, 
     Cloud, 
-    Droplets,
     Terminal
 } from 'lucide-react';
 import { cn } from '@/lib/utils';

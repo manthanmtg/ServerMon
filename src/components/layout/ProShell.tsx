@@ -152,7 +152,7 @@ function SidebarNav({ pathname, onNavigate, onLogout }: {
 }
 
 export default function ProShell({ children, title, subtitle, headerContent }: ProShellProps) {
-    const { theme } = useTheme();
+    useTheme();
     const pathname = usePathname();
     const router = useRouter();
     const [sidebarOpen, setSidebarOpen] = useState(false);
