@@ -493,8 +493,9 @@ pnpm config set only-built-dependencies --json '["lzma-native", "node-pty", "arg
 
 pnpm install --frozen-lockfile 2>&1 | tail -5 || pnpm install 2>&1 | tail -5
 
-log_info "Building application..."
-pnpm run build 2>&1 | tail -5
+log_info "Building application (allocating 4GB memory)..."
+export NODE_OPTIONS="--max-old-space-size=4096"
+pnpm run build 2>&1 | tail -5 || { log_err "Build failed. This might be due to OOM even with 4GB limit."; exit 1; }
 log "Application built successfully"
 
 # ── Environment Configuration ────────────────────────────
