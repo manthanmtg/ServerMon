@@ -81,7 +81,7 @@ async function getCertbotCertificates(): Promise<CertbotCertificate[]> {
 
     try {
         if (!certbotPath) throw new Error('certbot path not initialized');
-        const raw = await execCmd(certbotPath, ['certificates', '--no-color']);
+        const raw = await execCmd(certbotPath, ['certificates']);
         const blocks = raw.split('Certificate Name:');
 
         for (const block of blocks.slice(1)) {
@@ -108,8 +108,14 @@ async function getCertbotCertificates(): Promise<CertbotCertificate[]> {
                 isExpiringSoon: daysUntilExpiry >= 0 && daysUntilExpiry <= 30,
             });
         }
-    } catch (err) {
-        log.error('Failed to list certbot certificates', err);
+    } catch (err: unknown) {
+        const error = err as { message?: string };
+        const msg = error.message || '';
+        if (msg.toLowerCase().includes('permission') || msg.toLowerCase().includes('access denied') || msg.toLowerCase().includes('eacces')) {
+            log.error('Failed to list certificates due to permission issue. Run this on your server to fix: sudo setfacl -R -m u:servermon:r /etc/letsencrypt');
+        } else {
+            log.error('Failed to list certbot certificates', err);
+        }
     }
 
     return certs;
@@ -246,7 +252,7 @@ async function getSnapshot(): Promise<CertificatesSnapshot> {
 async function renewCertificate(domain: string): Promise<{ success: boolean; output: string }> {
     try {
         if (!certbotPath) throw new Error('certbot path not initialized');
-        const raw = await execCmd(certbotPath, ['renew', '--cert-name', domain, '--no-color'], 60000);
+        const raw = await execCmd(certbotPath, ['renew', '--cert-name', domain], 60000);
         return { success: true, output: raw };
     } catch (err: unknown) {
         const error = err as { stderr?: string; message?: string };
