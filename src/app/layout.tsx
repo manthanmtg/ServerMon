@@ -6,6 +6,14 @@ import { ToastProvider } from "@/components/ui/toast";
 export const metadata: Metadata = {
     title: "ServerMon",
     description: "Secure, modular server monitoring platform.",
+    appleWebApp: {
+        capable: true,
+        statusBarStyle: "default",
+        title: "ServerMon",
+    },
+    formatDetection: {
+        telephone: false,
+    },
 };
 
 export const viewport: Viewport = {
