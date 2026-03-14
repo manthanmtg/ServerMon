@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
-import Providers from "./providers";
+import { ThemeProvider } from "@/lib/ThemeContext";
+import { BrandProvider } from "@/lib/BrandContext";
+import { ToastProvider } from "@/components/ui/toast";
 
 export const dynamic = 'force-dynamic';
 
@@ -36,9 +38,13 @@ export default function RootLayout({
     return (
         <html lang="en" suppressHydrationWarning>
             <body className="antialiased" suppressHydrationWarning>
-                <Providers>
-                    {children}
-                </Providers>
+                <ThemeProvider>
+                    <BrandProvider>
+                        <ToastProvider>
+                            {children}
+                        </ToastProvider>
+                    </BrandProvider>
+                </ThemeProvider>
             </body>
         </html>
     );
