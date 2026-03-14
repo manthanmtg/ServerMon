@@ -1,4 +1,7 @@
 import { exec } from 'child_process';
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
 import type { SessionResourceUsage } from '@/modules/ai-agents/types';
 
 export function execPromise(cmd: string): Promise<{ stdout: string; stderr: string }> {
@@ -56,4 +59,46 @@ export async function killProcess(pid: number, signal: 'SIGTERM' | 'SIGKILL' = '
     } catch {
         return false;
     }
+}
+
+/** Discover all user home directories on the system. */
+export function discoverHomeDirs(): Array<{ username: string; homeDir: string }> {
+    const results: Array<{ username: string; homeDir: string }> = [];
+    const seen = new Set<string>();
+
+    const addDir = (homeDir: string, username: string) => {
+        if (seen.has(homeDir)) return;
+        try {
+            if (fs.existsSync(homeDir)) {
+                seen.add(homeDir);
+                results.push({ username, homeDir });
+            }
+        } catch { /* permission denied, skip */ }
+    };
+
+    // Always include the current user
+    addDir(os.homedir(), os.userInfo().username);
+
+    // macOS: /Users/*
+    try {
+        if (fs.existsSync('/Users')) {
+            for (const name of fs.readdirSync('/Users')) {
+                if (name.startsWith('.')) continue;
+                addDir(path.join('/Users', name), name);
+            }
+        }
+    } catch { /* skip */ }
+
+    // Linux: /home/* + /root
+    try {
+        if (fs.existsSync('/home')) {
+            for (const name of fs.readdirSync('/home')) {
+                if (name.startsWith('.')) continue;
+                addDir(path.join('/home', name), name);
+            }
+        }
+    } catch { /* skip */ }
+    addDir('/root', 'root');
+
+    return results;
 }

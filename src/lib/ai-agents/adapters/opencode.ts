@@ -1,10 +1,13 @@
-import * as os from 'os';
+import * as fs from 'fs';
 import * as path from 'path';
-import { execPromise, getProcessResourceUsage, detectGitInfo } from '../process-utils';
+import { execPromise, detectGitInfo, discoverHomeDirs } from '../process-utils';
 import { createLogger } from '@/lib/logger';
 import type { AgentAdapter, AgentSession, AgentType, ConversationEntry } from '@/modules/ai-agents/types';
 
 const log = createLogger('ai-agents:opencode');
+
+// If a session was updated within this window, consider it active
+const ACTIVE_THRESHOLD_MS = 120_000;
 
 interface DbSession {
     id: string;
@@ -21,83 +24,50 @@ export class OpenCodeAdapter implements AgentAdapter {
 
     async detect(): Promise<AgentSession[]> {
         const sessions: AgentSession[] = [];
-        const dbPath = path.join(os.homedir(), '.local/share/opencode/opencode.db');
 
-        try {
-            // 1. Get recent sessions from DB (updated in last 24 hours)
-            const twentyFourHoursAgo = Date.now() - 24 * 60 * 60 * 1000;
-            const sessionQuery = `SELECT id, slug, title, directory, time_created, time_updated FROM session WHERE time_updated > ${twentyFourHoursAgo} ORDER BY time_updated DESC LIMIT 50;`;
-            const { stdout: sessionOut } = await execPromise(`sqlite3 -json ${dbPath} "${sessionQuery}"`);
-            
-            if (!sessionOut.trim()) return [];
+        for (const { username, homeDir } of discoverHomeDirs()) {
+            const dbPath = path.join(homeDir, '.local/share/opencode/opencode.db');
+            try {
+                if (!fs.existsSync(dbPath)) continue;
 
-            const dbSessions: DbSession[] = JSON.parse(sessionOut);
-            
-            // 2. Find all potentially relevant processes once
-            const { stdout: psOut } = await execPromise('ps aux | grep -iE "opencode|openclaw" | grep -v grep');
-            const availableProcesses: Array<{ pid: number; user: string; cwd: string }> = [];
-            
-            for (const line of psOut.trim().split('\n')) {
-                if (!line.trim()) continue;
-                const parts = line.trim().split(/\s+/);
-                if (parts.length < 11) continue;
-                const user = parts[0];
-                const pid = parseInt(parts[1], 10);
-                if (isNaN(pid)) continue;
-
-                let cwd = '';
-                try {
-                    const lsof = await execPromise(`lsof -p ${pid} -Fn | grep "^n" | head -1`);
-                    cwd = lsof.stdout.trim().replace(/^n/, '');
-                } catch { /* skip */ }
-
-                availableProcesses.push({ pid, user, cwd: cwd || '~' });
-            }
-
-            // 3. Match DB sessions to processes (Newest first)
-            for (const dbSes of dbSessions) {
-                // Find first available process matching this directory
-                const procIndex = availableProcesses.findIndex(p => p.cwd === dbSes.directory);
-                let matchedProc: { pid: number; user: string; cwd: string } | undefined;
-
-                if (procIndex >= 0) {
-                    matchedProc = availableProcesses[procIndex];
-                    availableProcesses.splice(procIndex, 1); // Claimed!
-                }
+                const twentyFourHoursAgo = Date.now() - 24 * 60 * 60 * 1000;
+                const sessionQuery = `SELECT id, slug, title, directory, time_created, time_updated FROM session WHERE time_updated > ${twentyFourHoursAgo} ORDER BY time_updated DESC LIMIT 50;`;
+                const { stdout: sessionOut } = await execPromise(`sqlite3 -json "${dbPath}" "${sessionQuery}"`);
                 
-                try {
-                    const session = await this.buildSession(dbSes, matchedProc);
-                    if (session) sessions.push(session);
-                } catch (err) {
-                    log.debug(`Failed to build session for ${dbSes.id}`, err);
+                if (!sessionOut.trim()) continue;
+
+                const dbSessions: DbSession[] = JSON.parse(sessionOut);
+
+                for (const dbSes of dbSessions) {
+                    try {
+                        const session = await this.buildSession(dbSes, dbPath, username);
+                        if (session) sessions.push(session);
+                    } catch (err) {
+                        log.debug(`Failed to build session for ${username}:${dbSes.id}`, err);
+                    }
                 }
+            } catch (err) {
+                log.debug(`OpenCode detection failed for user ${username}`, err);
             }
-        } catch (err) {
-            log.debug('OpenCode detection scan failed', err);
         }
         return sessions;
     }
 
-    private async buildSession(dbSes: DbSession, proc?: { pid: number; user: string; cwd: string }): Promise<AgentSession | null> {
+    private async buildSession(dbSes: DbSession, dbPath: string, username: string): Promise<AgentSession | null> {
         const gitInfo = await detectGitInfo(dbSes.directory);
-        const detailData = await this.extractSessionDetail(dbSes.id);
-
-        // If no process, it's either idle or just finished
-        const status = proc ? 'running' : 'idle';
-        const resources = proc 
-            ? await getProcessResourceUsage(proc.pid)
-            : { cpuPercent: 0, memoryBytes: 0, memoryPercent: 0 };
+        const detailData = await this.extractSessionDetail(dbSes.id, dbPath);
+        const isActive = (Date.now() - dbSes.time_updated) < ACTIVE_THRESHOLD_MS;
 
         return {
-            id: `opencode-${dbSes.id}`,
+            id: `opencode-${username}-${dbSes.id}`,
             agent: {
                 type: 'opencode',
                 displayName: 'OpenCode',
                 model: detailData.model || 'big-pickle',
             },
             owner: {
-                user: proc?.user || os.userInfo().username,
-                pid: proc?.pid || 0,
+                user: username,
+                pid: 0,
             },
             environment: {
                 workingDirectory: dbSes.directory,
@@ -110,9 +80,9 @@ export class OpenCodeAdapter implements AgentAdapter {
                 lastActivity: new Date(dbSes.time_updated).toISOString(),
                 durationSeconds: Math.floor((dbSes.time_updated - dbSes.time_created) / 1000),
             },
-            status,
-            currentActivity: dbSes.title || dbSes.slug || 'Active session',
-            resources,
+            status: isActive ? 'running' : 'idle',
+            currentActivity: dbSes.title || dbSes.slug || (isActive ? 'Active session' : 'Past session'),
+            resources: { cpuPercent: 0, memoryBytes: 0, memoryPercent: 0 },
             filesModified: detailData.filesModified,
             commandsExecuted: [],
             conversation: detailData.conversation,
@@ -121,12 +91,11 @@ export class OpenCodeAdapter implements AgentAdapter {
         };
     }
 
-    private async extractSessionDetail(sessionId: string): Promise<{
+    private async extractSessionDetail(sessionId: string, dbPath: string): Promise<{
         conversation: ConversationEntry[];
         model?: string;
         filesModified: string[];
     }> {
-        const dbPath = path.join(os.homedir(), '.local/share/opencode/opencode.db');
         const data: {
             conversation: ConversationEntry[];
             model?: string;
@@ -145,7 +114,7 @@ export class OpenCodeAdapter implements AgentAdapter {
                 WHERE m.session_id = '${sessionId}' 
                 ORDER BY m.time_created ASC;
             `;
-            const { stdout: msgOut } = await execPromise(`sqlite3 -json ${dbPath} "${msgQuery}"`);
+            const { stdout: msgOut } = await execPromise(`sqlite3 -json "${dbPath}" "${msgQuery}"`);
             
             if (msgOut.trim()) {
                 const rows = JSON.parse(msgOut);
