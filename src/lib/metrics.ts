@@ -89,7 +89,7 @@ class MetricsService extends EventEmitter {
                     cpu: cpu.currentLoad,
                     memory: (mem.active / mem.total) * 100,
                     cpuCores: this.cpuCores,
-                    memTotal: this.memTotal,
+                    memTotal: mem.total,
                     memUsed: mem.active,
                     swapTotal: mem.swaptotal,
                     swapUsed: mem.swapused,
