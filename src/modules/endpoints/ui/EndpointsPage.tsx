@@ -76,15 +76,12 @@ const LANGUAGES: ScriptLanguage[] = ['python', 'bash', 'node'];
 
 // ---- Resizable panel handle ----
 
-function ResizeHandle({ onResize }: { onResize: (delta: number) => void }) {
+function ResizeHandle({ onDrag }: { onDrag: (clientX: number) => void }) {
     const handleMouseDown = (e: React.MouseEvent) => {
         e.preventDefault();
-        let lastX = e.clientX;
 
         const onMouseMove = (ev: MouseEvent) => {
-            const delta = lastX - ev.clientX;
-            lastX = ev.clientX;
-            onResize(delta);
+            onDrag(ev.clientX);
         };
 
         const onMouseUp = () => {
@@ -248,7 +245,7 @@ export default function EndpointsPage() {
 
     // Resizable list panel (left side)
     const [listWidth, setListWidth] = useState(340);
-    const listWidthRef = useRef(340);
+    const containerRef = useRef<HTMLDivElement>(null);
 
     // Close menu when clicking outside
     useEffect(() => {
@@ -689,7 +686,7 @@ export default function EndpointsPage() {
     }
 
     return (
-        <div className="flex gap-4 h-[calc(100vh-8rem)] relative">
+        <div ref={containerRef} className="flex gap-4 h-[calc(100vh-8rem)] relative">
             {/* ---- Left Panel: Endpoint List ---- */}
             <div 
                 className={cn(
@@ -862,10 +859,10 @@ export default function EndpointsPage() {
 
             {/* ---- Resize Handle ---- */}
             {showDetail && (
-                <ResizeHandle onResize={(delta) => {
-                    const next = Math.max(280, Math.min(500, listWidthRef.current - delta));
-                    listWidthRef.current = next;
-                    setListWidth(next);
+                <ResizeHandle onDrag={(clientX) => {
+                    const containerLeft = containerRef.current?.getBoundingClientRect().left ?? 0;
+                    const newWidth = Math.max(280, Math.min(500, clientX - containerLeft));
+                    setListWidth(newWidth);
                 }} />
             )}
 
