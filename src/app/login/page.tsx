@@ -7,10 +7,13 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { startAuthentication } from '@simplewebauthn/browser';
 import { createLogger } from '@/lib/logger';
+import { useBrand } from '@/lib/BrandContext';
+import { useEffect } from 'react';
 
 const logger = createLogger('auth:login');
 
 export default function LoginPage() {
+    const { settings } = useBrand();
     const [step, setStep] = useState(1);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
@@ -18,6 +21,11 @@ export default function LoginPage() {
     const [password, setPassword] = useState('');
     const [totpToken, setTotpToken] = useState('');
     const router = useRouter();
+
+    // Update document title for login page
+    useEffect(() => {
+        document.title = `Login | ${settings.pageTitle}`;
+    }, [settings.pageTitle]);
 
     const handleVerifyCredentials = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -110,10 +118,15 @@ export default function LoginPage() {
             <div className="w-full max-w-sm animate-slide-up">
                 {/* Logo */}
                 <div className="text-center mb-8">
-                    <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-primary mb-4">
-                        <Activity className="w-6 h-6 text-primary-foreground" />
+                    <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-primary mb-4 overflow-hidden">
+                        {settings.logoBase64 ? (
+                            /* eslint-disable-next-line @next/next/no-img-element */
+                            <img src={settings.logoBase64} alt="Logo" className="w-full h-full object-cover" />
+                        ) : (
+                            <Activity className="w-6 h-6 text-primary-foreground" />
+                        )}
                     </div>
-                    <h1 className="text-2xl font-bold text-foreground tracking-tight">ServerMon</h1>
+                    <h1 className="text-2xl font-bold text-foreground tracking-tight">{settings.pageTitle}</h1>
                     <p className="text-sm text-muted-foreground mt-1">Sign in to your server</p>
                 </div>
 

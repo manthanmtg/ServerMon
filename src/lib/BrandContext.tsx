@@ -41,6 +41,35 @@ export function BrandProvider({ children }: { children: React.ReactNode }) {
         fetchSettings();
     }, [fetchSettings]);
 
+    // Update favicon and document title dynamically
+    useEffect(() => {
+        if (typeof document === 'undefined') return;
+
+        // Update Title - fallback if components don't update it
+        if (settings.pageTitle && !document.title.includes(settings.pageTitle)) {
+            // Only update if it doesn't already contain the title (to avoid overwriting page-specific titles)
+            if (document.title === 'ServerMon' || document.title === '') {
+                document.title = settings.pageTitle;
+            }
+        }
+
+        // Update Favicon
+        if (settings.logoBase64) {
+            const updateIcon = (selector: string) => {
+                let link = document.querySelector(selector) as HTMLLinkElement;
+                if (!link) {
+                    link = document.createElement('link');
+                    link.rel = selector.includes('apple') ? 'apple-touch-icon' : 'icon';
+                    document.head.appendChild(link);
+                }
+                link.href = settings.logoBase64;
+            };
+
+            updateIcon('link[rel*="icon"]');
+            updateIcon('link[rel="apple-touch-icon"]');
+        }
+    }, [settings.logoBase64, settings.pageTitle]);
+
     const updateSettings = async (newSettings: BrandSettings) => {
         try {
             const res = await fetch('/api/settings/branding', {
