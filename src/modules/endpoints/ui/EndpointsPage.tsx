@@ -74,6 +74,42 @@ const METHODS: HttpMethod[] = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'];
 const TYPES: EndpointType[] = ['script', 'logic', 'webhook'];
 const LANGUAGES: ScriptLanguage[] = ['python', 'bash', 'node'];
 
+// ---- Resizable panel handle ----
+
+function ResizeHandle({ onResize }: { onResize: (delta: number) => void }) {
+    const handleMouseDown = (e: React.MouseEvent) => {
+        e.preventDefault();
+        let lastX = e.clientX;
+
+        const onMouseMove = (ev: MouseEvent) => {
+            const delta = lastX - ev.clientX;
+            lastX = ev.clientX;
+            onResize(delta);
+        };
+
+        const onMouseUp = () => {
+            document.removeEventListener('mousemove', onMouseMove);
+            document.removeEventListener('mouseup', onMouseUp);
+            document.body.style.cursor = '';
+            document.body.style.userSelect = '';
+        };
+
+        document.body.style.cursor = 'col-resize';
+        document.body.style.userSelect = 'none';
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
+    };
+
+    return (
+        <div
+            className="hidden lg:flex w-1.5 shrink-0 cursor-col-resize items-center justify-center hover:bg-primary/10 active:bg-primary/20 transition-colors group z-10"
+            onMouseDown={handleMouseDown}
+        >
+            <div className="w-0.5 h-8 rounded-full bg-border group-hover:bg-primary/40 group-active:bg-primary/60 transition-colors" />
+        </div>
+    );
+}
+
 type DetailTab = 'configure' | 'code' | 'auth' | 'logs' | 'settings';
 
 function slugify(text: string): string {
@@ -209,6 +245,10 @@ export default function EndpointsPage() {
     const [exampleTab, setExampleTab] = useState<'curl' | 'fetch'>('curl');
     const [showCopyRequestMenu, setShowCopyRequestMenu] = useState(false);
     const copyRequestMenuRef = useRef<HTMLDivElement>(null);
+
+    // Resizable detail panel
+    const [detailWidth, setDetailWidth] = useState(600);
+    const detailWidthRef = useRef(600);
 
     // Close menu when clicking outside
     useEffect(() => {
@@ -817,12 +857,25 @@ export default function EndpointsPage() {
                 </div>
             </div>
 
+            {/* ---- Resize Handle ---- */}
+            {showDetail && (
+                <ResizeHandle onResize={(delta) => {
+                    const next = Math.max(400, Math.min(900, detailWidthRef.current + delta));
+                    detailWidthRef.current = next;
+                    setDetailWidth(next);
+                }} />
+            )}
+
             {/* ---- Right Panel: Detail/Editor ---- */}
             {showDetail && (
-                <div className={cn(
-                    'flex-1 flex flex-col min-w-0 bg-card/40 rounded-2xl border border-border/40 overflow-hidden',
-                    'animate-in slide-in-from-right-4 fade-in duration-300',
-                )}>
+                <div 
+                    className={cn(
+                        'flex flex-col min-w-0 bg-card/40 rounded-2xl border border-border/40 overflow-hidden shrink-0',
+                        'animate-in slide-in-from-right-4 fade-in duration-300',
+                        'lg:w-auto w-full'
+                    )}
+                    style={{ width: detailWidth }}
+                >
                     {/* Detail Header */}
                     <div className="flex items-center gap-3 px-5 py-3.5 border-b border-border/40 bg-card/60">
                         <button onClick={closeDetail} className="lg:hidden p-1.5 rounded-lg hover:bg-accent text-muted-foreground">
