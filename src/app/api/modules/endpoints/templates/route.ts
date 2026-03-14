@@ -174,6 +174,167 @@ console.log(JSON.stringify(status, null, 2));`,
         },
         tags: ['notification', 'slack'],
     },
+    {
+        id: 'disk-usage',
+        name: 'Disk Usage',
+        description: 'Returns disk usage statistics for the root partition',
+        icon: 'HardDrive',
+        method: 'GET',
+        endpointType: 'script',
+        scriptLang: 'bash',
+        scriptContent: `#!/bin/bash
+# Disk Usage — returns JSON with space info
+df -h / | awk 'NR==2 {printf "{\\\"total\\\": \\\"%s\\\", \\\"used\\\": \\\"%s\\\", \\\"available\\\": \\\"%s\\\", \\\"percent\\\": \\\"%s\\\"}", $2, $3, $4, $5}'`,
+        tags: ['monitoring', 'disk'],
+    },
+    {
+        id: 'memory-stats',
+        name: 'Memory Stats',
+        description: 'Returns detailed memory usage metrics',
+        icon: 'Cpu',
+        method: 'GET',
+        endpointType: 'script',
+        scriptLang: 'bash',
+        scriptContent: `#!/bin/bash
+# Memory Stats — returns JSON from /proc/meminfo
+grep -E 'MemTotal|MemFree|MemAvailable|Buffers|Cached' /proc/meminfo | awk '{printf "\\\"%s\\\": \\\"%s %s\\\",", substr($1, 1, length($1)-1), $2, $3}' | sed 's/,$//' | awk '{print "{" $0 "}"}'`,
+        tags: ['monitoring', 'memory'],
+    },
+    {
+        id: 'log-searcher',
+        name: 'Log Searcher',
+        description: 'Search a log file for a specific pattern',
+        icon: 'Search',
+        method: 'POST',
+        endpointType: 'script',
+        scriptLang: 'node',
+        scriptContent: `// Log Searcher — reads filename and pattern from body
+const fs = require('fs');
+const readline = require('readline');
+
+const body = process.env.ENDPOINT_BODY || '{}';
+let config = {};
+try { config = JSON.parse(body); } catch(e) {}
+
+const file = config.file || '/var/log/syslog';
+const pattern = config.pattern || 'error';
+const limit = config.limit || 10;
+
+if (!fs.existsSync(file)) {
+  console.log(JSON.stringify({ error: 'File not found', file }));
+  process.exit(1);
+}
+
+const results = [];
+const rl = readline.createInterface({
+  input: fs.createReadStream(file),
+  terminal: false
+});
+
+rl.on('line', (line) => {
+  if (line.toLowerCase().includes(pattern.toLowerCase())) {
+    results.push(line);
+    if (results.length >= limit) rl.close();
+  }
+});
+
+rl.on('close', () => {
+  console.log(JSON.stringify({ file, pattern, matches: results }));
+});`,
+        tags: ['logs', 'search'],
+    },
+    {
+        id: 'process-list',
+        name: 'Top Processes',
+        description: 'Returns the top 5 processes by memory usage',
+        icon: 'List',
+        method: 'GET',
+        endpointType: 'script',
+        scriptLang: 'node',
+        scriptContent: `// Top Processes — using ps command
+const { exec } = require('child_process');
+
+exec('ps aux --sort=-%mem | head -n 6', (err, stdout) => {
+  if (err) {
+    console.log(JSON.stringify({ error: err.message }));
+    return;
+  }
+  const lines = stdout.trim().split('\\n');
+  const headers = lines[0].split(/\\s+/);
+  const processes = lines.slice(1).map(line => {
+    const parts = line.split(/\\s+/);
+    return {
+      user: parts[0],
+      pid: parts[1],
+      cpu: parts[2],
+      mem: parts[3],
+      command: parts.slice(10).join(' ')
+    };
+  });
+  console.log(JSON.stringify({ processes }));
+});`,
+        tags: ['monitoring', 'processes'],
+    },
+    {
+        id: 'ssl-expiry',
+        name: 'SSL Expiry Checker',
+        description: 'Check the expiration date of an SSL certificate',
+        icon: 'ShieldCheck',
+        method: 'POST',
+        endpointType: 'script',
+        scriptLang: 'python',
+        scriptContent: `import ssl
+import socket
+import json
+import sys
+from datetime import datetime
+
+# SSL Expiry — reads domain from request body
+body = sys.stdin.read()
+try:
+    data = json.loads(body) if body.strip() else {}
+except json.JSONDecodeError:
+    data = {}
+
+hostname = data.get("domain", "google.com")
+port = 443
+
+context = ssl.create_default_context()
+try:
+    with socket.create_connection((hostname, port), timeout=5) as sock:
+        with context.wrap_socket(sock, server_hostname=hostname) as ssock:
+            cert = ssock.getpeercert()
+            expiry_str = cert['notAfter']
+            expiry_date = datetime.strptime(expiry_str, '%b %d %H:%M:%S %Y %Z')
+            days_left = (expiry_date - datetime.utcnow()).days
+            
+            result = {
+                "domain": hostname,
+                "expiry": expiry_str,
+                "days_remaining": days_left,
+                "status": "valid" if days_left > 30 else "expiring soon"
+            }
+except Exception as e:
+    result = {"error": str(e), "domain": hostname}
+
+print(json.dumps(result))`,
+        tags: ['security', 'ssl'],
+    },
+    {
+        id: 'discord-notifier',
+        name: 'Discord Notifier',
+        description: 'Send a message to a Discord channel',
+        icon: 'MessageSquare',
+        method: 'POST',
+        endpointType: 'webhook',
+        webhookConfig: {
+            targetUrl: 'https://discord.com/api/webhooks/YOUR/WEBHOOK/URL',
+            method: 'POST',
+            forwardHeaders: false,
+            transformBody: `return { content: input.message || 'Notification from ServerMon' };`,
+        },
+        tags: ['notification', 'discord'],
+    },
 ];
 
 export async function GET() {
