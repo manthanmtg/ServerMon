@@ -36,9 +36,9 @@ describe('HardwareService', () => {
         vi.stubGlobal('process', { ...process, platform: 'linux' });
         
         // Default OS mocks
-        (os.cpus as any).mockReturnValue([{ model: 'Intel Core i7', speed: 2800 }]);
-        (os.totalmem as any).mockReturnValue(16 * 1024 * 1024 * 1024);
-        (os.freemem as any).mockReturnValue(8 * 1024 * 1024 * 1024);
+        (os.cpus as unknown as ReturnType<typeof vi.fn>).mockReturnValue([{ model: 'Intel Core i7', speed: 2800 }]);
+        (os.totalmem as unknown as ReturnType<typeof vi.fn>).mockReturnValue(16 * 1024 * 1024 * 1024);
+        (os.freemem as unknown as ReturnType<typeof vi.fn>).mockReturnValue(8 * 1024 * 1024 * 1024);
     });
 
     const mockExec = (outputs: Record<string, string | Error>) => {
@@ -97,7 +97,7 @@ describe('HardwareService', () => {
         });
 
         it('should fallback to mock data if hardware detection fails completely', async () => {
-            (os.cpus as any).mockReturnValue([]);
+            (os.cpus as unknown as ReturnType<typeof vi.fn>).mockReturnValue([]);
             mockExec({
                 'lsblk': new Error('lsblk not found')
             });
@@ -110,7 +110,7 @@ describe('HardwareService', () => {
     describe('getSnapshot (Darwin)', () => {
         beforeEach(() => {
             vi.stubGlobal('process', { ...process, platform: 'darwin' });
-            (os.cpus as any).mockReturnValue([{ model: 'Apple M1', speed: 3200 }]);
+            (os.cpus as unknown as ReturnType<typeof vi.fn>).mockReturnValue([{ model: 'Apple M1', speed: 3200 }]);
         });
 
         it('should return live snapshot for macOS', async () => {
