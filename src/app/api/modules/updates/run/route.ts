@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createLogger } from '@/lib/logger';
-import { updateService } from '@/lib/updates/service';
+import { systemUpdateService } from '@/lib/updates/system-service';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,7 +10,7 @@ const log = createLogger('api:updates:run');
 export async function POST() {
     try {
         log.info('Manual update triggered via API');
-        const result = await updateService.triggerUpdate();
+        const result = await systemUpdateService.triggerUpdate();
         
         if (result.success) {
             return NextResponse.json({ 

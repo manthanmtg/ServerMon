@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createLogger } from '@/lib/logger';
-import { updateService } from '@/lib/updates/service';
+import { systemUpdateService } from '@/lib/updates/system-service';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,7 +12,7 @@ export async function GET(
 ) {
     try {
         const { id } = await params;
-        const details = await updateService.getUpdateRunDetails(id);
+        const details = await systemUpdateService.getUpdateRunDetails(id);
         
         if (!details) {
             return NextResponse.json({ error: 'Update run not found' }, { status: 404 });
