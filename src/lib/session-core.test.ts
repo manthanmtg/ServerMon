@@ -7,7 +7,7 @@ describe('session-core', () => {
   beforeEach(() => {
     // Use a stable test secret so tests are deterministic
     process.env.JWT_SECRET = 'test-secret-key-for-unit-tests-only';
-    process.env.NODE_ENV = 'test';
+    (process.env as NodeJS.ProcessEnv & { NODE_ENV: string }).NODE_ENV = 'test';
   });
 
   afterEach(() => {

@@ -110,7 +110,7 @@ describe('auth-utils', () => {
     });
 
     it('should return false when verifySync reports invalid', () => {
-      mockedVerifySync.mockReturnValue({ valid: false, delta: null });
+      mockedVerifySync.mockReturnValue({ valid: false } as ReturnType<typeof mockedVerifySync>);
 
       const result = verifyTOTPToken('000000', 'JBSWY3DPEHPK3PXP');
 
