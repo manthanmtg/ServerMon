@@ -62,7 +62,7 @@ export function MetricsProvider({ children }: { children: React.ReactNode }) {
             if (!mountedRef.current) return;
             if (esRef.current) esRef.current.close();
 
-            const es = new EventSource('/api/metrics/stream');
+            const es = new EventSource('/api/metrics/stream', { withCredentials: true });
             esRef.current = es;
 
             es.onmessage = (event) => {

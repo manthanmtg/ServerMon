@@ -9,6 +9,7 @@ const publicApiRoutes = [
     '/api/auth/verify',
     '/api/setup',
     '/api/endpoints', // Custom endpoints handle their own auth via tokens
+    '/api/metrics/stream', // Allow metrics stream in proxy and send credentials in MetricsContext.
 ];
 
 export default async function middleware(req: NextRequest) {
