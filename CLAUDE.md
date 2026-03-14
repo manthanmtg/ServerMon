@@ -14,7 +14,7 @@ Before considering any change complete, **all** of these must pass:
 pnpm lint        # ESLint — zero errors, zero warnings
 pnpm typecheck   # TypeScript — zero errors
 pnpm build       # Next.js production build — must succeed
-pnpm test        # Tests — must pass (when tests exist)
+pnpm test        # Tests — runs module tests (node:test + tsx)
 ```
 
 Shortcut: `pnpm check` runs lint + typecheck + build in sequence.

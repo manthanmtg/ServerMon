@@ -11,7 +11,7 @@ Every pull request and every commit to `main` must satisfy:
 | Lint | `pnpm lint` | 0 errors, 0 warnings |
 | Types | `pnpm typecheck` | 0 errors |
 | Build | `pnpm build` | Exit code 0 |
-| Tests | `pnpm test` | Exit code 0 (currently a no-op pass) |
+| Tests | `pnpm test` | Exit code 0 |
 
 Combined: `pnpm check` runs all of the above in order. **A failure in any step blocks the merge.**
 
@@ -94,16 +94,15 @@ When creating a new module in `src/modules/<name>/`:
 7. **Security**: Ensure all routes require authentication via `getSession()`. Only whitelisted public routes in `src/middleware.ts` should be unauthenticated.
 8. **Authorization**: Implement role-based checks (`admin` vs `user`) for management or destructive operations.
 
-## Testing Guidelines (Future)
+## Testing Guidelines
 
-Tests do not exist yet. When adding tests:
+Tests are implemented using the native `node:test` runner and `tsx`.
 
-- Use a framework compatible with Next.js (vitest or jest with next/jest).
-- Place test files adjacent to the source: `Button.test.tsx` next to `Button.tsx`.
-- Test naming: `describe('<ComponentName>', () => { it('should ...') })`.
-- Minimum coverage targets: aim for critical paths (auth, API routes, module registry).
-- Mock `systeminformation` and MongoDB in tests — they are not available in CI.
-- The `pnpm test` command must remain a pass even when no tests exist.
+- **Unit Tests**: Place tests in the `lib/` or `ui/` subfolder of a module: `file-browser.test.ts`.
+- **Runner**: Use `import { describe, it, before, after } from 'node:test'` and `import assert from 'node:assert/strict'`.
+- **Execution**: `pnpm test` runs the configured test suite.
+- **Mocking**: For system-level tests, use temporary directories and files for sandboxing (see `file-browser.test.ts`).
+- **Coverage**: Aim to cover core utility logic and API handlers.
 
 ## Environment Variables
 
