@@ -246,9 +246,9 @@ export default function EndpointsPage() {
     const [showCopyRequestMenu, setShowCopyRequestMenu] = useState(false);
     const copyRequestMenuRef = useRef<HTMLDivElement>(null);
 
-    // Resizable detail panel
-    const [detailWidth, setDetailWidth] = useState(600);
-    const detailWidthRef = useRef(600);
+    // Resizable list panel (left side)
+    const [listWidth, setListWidth] = useState(340);
+    const listWidthRef = useRef(340);
 
     // Close menu when clicking outside
     useEffect(() => {
@@ -691,10 +691,13 @@ export default function EndpointsPage() {
     return (
         <div className="flex gap-4 h-[calc(100vh-8rem)] relative">
             {/* ---- Left Panel: Endpoint List ---- */}
-            <div className={cn(
-                'flex flex-col min-w-0 transition-all duration-300',
-                showDetail ? 'w-[340px] shrink-0 hidden lg:flex' : 'flex-1',
-            )}>
+            <div 
+                className={cn(
+                    'flex flex-col min-w-0 transition-all duration-300',
+                    showDetail ? 'shrink-0 hidden lg:flex' : 'flex-1',
+                )}
+                style={showDetail ? { width: listWidth } : undefined}
+            >
                 {/* Toolbar */}
                 <div className="flex items-center gap-2 mb-4 flex-wrap">
                     <div className="relative flex-1 min-w-[180px]">
@@ -860,9 +863,9 @@ export default function EndpointsPage() {
             {/* ---- Resize Handle ---- */}
             {showDetail && (
                 <ResizeHandle onResize={(delta) => {
-                    const next = Math.max(400, Math.min(900, detailWidthRef.current + delta));
-                    detailWidthRef.current = next;
-                    setDetailWidth(next);
+                    const next = Math.max(280, Math.min(500, listWidthRef.current - delta));
+                    listWidthRef.current = next;
+                    setListWidth(next);
                 }} />
             )}
 
@@ -870,11 +873,9 @@ export default function EndpointsPage() {
             {showDetail && (
                 <div 
                     className={cn(
-                        'flex flex-col min-w-0 bg-card/40 rounded-2xl border border-border/40 overflow-hidden shrink-0',
+                        'flex flex-col min-w-0 flex-1 bg-card/40 rounded-2xl border border-border/40 overflow-hidden',
                         'animate-in slide-in-from-right-4 fade-in duration-300',
-                        'lg:w-auto w-full'
                     )}
-                    style={{ width: detailWidth }}
                 >
                     {/* Detail Header */}
                     <div className="flex items-center gap-3 px-5 py-3.5 border-b border-border/40 bg-card/60">
@@ -918,7 +919,7 @@ export default function EndpointsPage() {
                             <Button
                                 size="sm"
                                 onClick={handleSave}
-                                disabled={saving || !form.name || !isDirty}
+                                disabled={saving || !form.name || (!isCreating && !isDirty)}
                                 className="h-8 gap-1.5 rounded-lg text-xs font-semibold"
                             >
                                 {saving ? <LoaderCircle className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
