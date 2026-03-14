@@ -96,13 +96,18 @@ When creating a new module in `src/modules/<name>/`:
 
 ## Testing Guidelines
 
-Tests are implemented using the native `node:test` runner and `tsx`.
+Tests are implemented using **Vitest** for unit/integration tests and **Playwright** for E2E tests.
 
-- **Unit Tests**: Place tests in the `lib/` or `ui/` subfolder of a module: `file-browser.test.ts`.
-- **Runner**: Use `import { describe, it, before, after } from 'node:test'` and `import assert from 'node:assert/strict'`.
-- **Execution**: `pnpm test` runs the configured test suite.
-- **Mocking**: For system-level tests, use temporary directories and files for sandboxing (see `file-browser.test.ts`).
-- **Coverage**: Aim to cover core utility logic and API handlers.
+- **Unit Tests**: Place tests next to the file they test or in a `__tests__` folder: `file.test.ts` or `ui/Component.test.tsx`.
+- **Runner**: Use `vitest`.
+- **Execution**: 
+  - `pnpm test`: Run all unit tests once (included in `pnpm check`).
+  - `pnpm test:watch`: Run unit tests in watch mode.
+  - `pnpm test:ui`: Open Vitest UI.
+  - `pnpm test:coverage`: Generate coverage report.
+  - `pnpm test:e2e`: Run Playwright E2E tests (optional, manual only).
+- **Mocking**: Use `vi.mock()` or `vitest-mock-extended` for dependency injection.
+- **Coverage**: Aim for high coverage on core utility logic and API handlers.
 
 ## Environment Variables
 
