@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic';
+
 import ProShell from '@/components/layout/ProShell';
 import UserGuidePage from '@/modules/guide/ui/UserGuidePage';
 

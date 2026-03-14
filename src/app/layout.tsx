@@ -4,6 +4,8 @@ import { ThemeProvider } from "@/lib/ThemeContext";
 import { BrandProvider } from "@/lib/BrandContext";
 import { ToastProvider } from "@/components/ui/toast";
 
+export const dynamic = 'force-dynamic';
+
 export const metadata: Metadata = {
     title: "ServerMon",
     description: "Secure, modular server monitoring platform.",
