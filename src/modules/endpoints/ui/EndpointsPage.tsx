@@ -962,7 +962,7 @@ export default function EndpointsPage() {
                     </div>
 
                     {/* Tab Content */}
-                    <div className="flex-1 overflow-y-auto p-5 space-y-5 pb-24">
+                    <div className="flex-1 overflow-y-auto p-5 space-y-5 pb-80">
                         {/* ---- Configure Tab ---- */}
                         {detailTab === 'configure' && (
                             <div className="space-y-5 animate-in fade-in duration-200">
