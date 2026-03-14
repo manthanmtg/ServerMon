@@ -205,6 +205,7 @@ export default function EndpointsPage() {
     const [saving, setSaving] = useState(false);
     const [copiedSlug, setCopiedSlug] = useState(false);
     const [showDiscardModal, setShowDiscardModal] = useState(false);
+    const [exampleTab, setExampleTab] = useState<'curl' | 'fetch'>('curl');
 
     // ---- Data loading ----
 
@@ -1312,6 +1313,70 @@ export default function EndpointsPage() {
                                                 ))}
                                             </div>
                                         )}
+
+                                        {/* Usage Example */}
+                                        <div className="mt-8 space-y-4 pt-6 border-t border-border/40">
+                                            <div className="flex items-center justify-between">
+                                                <div className="flex items-center gap-2">
+                                                    <Terminal className="w-4 h-4 text-primary" />
+                                                    <h4 className="text-xs font-bold uppercase tracking-widest text-foreground">Usage Example</h4>
+                                                </div>
+                                                <div className="flex items-center gap-1 bg-muted/40 p-1 rounded-lg">
+                                                    {(['curl', 'fetch'] as const).map((tab) => (
+                                                        <button
+                                                            key={tab}
+                                                            onClick={() => setExampleTab(tab)}
+                                                            className={cn(
+                                                                "px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all",
+                                                                exampleTab === tab 
+                                                                    ? "bg-card text-primary shadow-sm" 
+                                                                    : "text-muted-foreground hover:text-foreground"
+                                                            )}
+                                                        >
+                                                            {tab}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+
+                                            <div className="relative group">
+                                                <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                    <button 
+                                                        onClick={() => {
+                                                            const url = `${window.location.origin}/api/endpoints/${form.slug}`;
+                                                            const code = exampleTab === 'curl' 
+                                                                ? `curl -X ${form.method} "${url}" \\\n  -H "Authorization: Bearer YOUR_TOKEN"`
+                                                                : `fetch("${url}", {\n  method: "${form.method}",\n  headers: {\n    "Authorization": "Bearer YOUR_TOKEN"\n  }\n});`;
+                                                            navigator.clipboard.writeText(code);
+                                                            toast({ title: 'Example copied', variant: 'success' });
+                                                        }}
+                                                        className="p-2 rounded-lg bg-white/5 hover:bg-white/10 text-muted-foreground hover:text-foreground backdrop-blur-md border border-white/10 shadow-xl transition-all"
+                                                    >
+                                                        <Copy className="w-3.5 h-3.5" />
+                                                    </button>
+                                                </div>
+                                                <pre className="p-4 rounded-2xl bg-[#0d0d0d] border border-white/5 text-[11px] font-mono leading-relaxed overflow-x-auto text-blue-400 select-all">
+                                                    {exampleTab === 'curl' ? (
+                                                        <>
+                                                            <span className="text-purple-400">curl</span> <span className="text-orange-400">-X</span> {form.method} <span className="text-green-400">&quot;{window.location.origin}/api/endpoints/{form.slug}&quot;</span> \<br />
+                                                            &nbsp;&nbsp;<span className="text-orange-400">-H</span> <span className="text-green-400">&quot;Authorization: Bearer <span className="bg-primary/20 text-primary px-1 rounded">YOUR_TOKEN</span>&quot;</span>
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <span className="text-purple-400">fetch</span>(<span className="text-green-400">&quot;{window.location.origin}/api/endpoints/{form.slug}&quot;</span>, &#123;<br />
+                                                            &nbsp;&nbsp;method: <span className="text-green-400">&quot;{form.method}&quot;</span>,<br />
+                                                            &nbsp;&nbsp;headers: &#123;<br />
+                                                            &nbsp;&nbsp;&nbsp;&nbsp;<span className="text-green-400">&quot;Authorization&quot;</span>: <span className="text-green-400">&quot;Bearer <span className="bg-primary/20 text-primary px-1 rounded">YOUR_TOKEN</span>&quot;</span><br />
+                                                            &nbsp;&nbsp;&#125;<br />
+                                                            &#125;);
+                                                        </>
+                                                    )}
+                                                </pre>
+                                            </div>
+                                            <p className="text-[10px] text-muted-foreground/60 italic">
+                                                Replace <code className="text-primary font-bold">YOUR_TOKEN</code> with one of the generated tokens above.
+                                            </p>
+                                        </div>
                                     </>
                                 )}
                             </div>
