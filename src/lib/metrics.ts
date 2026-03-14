@@ -54,14 +54,12 @@ class MetricsService extends EventEmitter {
 
     private async initStaticInfo() {
         try {
-            log.info('Initializing static system info...');
             const [cpu, mem] = await Promise.all([
                 si.cpu(),
                 si.mem(),
             ]);
             this.cpuCores = cpu.cores;
             this.memTotal = mem.total;
-            log.info(`Static info initialized: ${cpu.cores} cores, ${Math.round(mem.total / 1024 / 1024 / 1024)}GB RAM`);
         } catch (err) {
             log.error('Failed to get static system info', err);
         }
@@ -75,7 +73,6 @@ class MetricsService extends EventEmitter {
     }
 
     private startPolling() {
-        log.info('Starting metrics polling...');
         const poll = async () => {
             try {
                 const [cpu, mem, time, disks, fsStats] = await Promise.all([
@@ -85,7 +82,6 @@ class MetricsService extends EventEmitter {
                     si.fsSize(),
                     si.fsStats(),
                 ]);
-                log.debug(`Poll: CPU=${cpu.currentLoad?.toFixed(1)}%, MEM total=${mem.total}, active=${mem.active}`);
 
                 const metric: SystemMetric = {
                     timestamp: new Date().toLocaleTimeString(),
@@ -123,7 +119,6 @@ class MetricsService extends EventEmitter {
                     this.history = this.history.slice(-MAX_HISTORY);
                 }
                 this.emit('metric', metric);
-                log.debug(`Emitted metric: memTotal=${metric.memTotal}, memUsed=${metric.memUsed}`);
             } catch (err) {
                 log.error('Failed to poll system metrics', err);
             }
