@@ -18,6 +18,8 @@ import { hardwareModule } from './hardware/module';
 import { certificatesModule } from './certificates/module';
 import { nginxModule } from './nginx/module';
 import { securityModule } from './security/module';
+import { memoryModule } from './memory/module';
+import { usersModule } from './users/module';
 
 // For now, we will manually register modules here.
 // In the future, this could be a dynamic scan of the modules directory.
@@ -41,4 +43,6 @@ export const coreModules: Module[] = [
     certificatesModule,
     nginxModule,
     securityModule,
+    memoryModule,
+    usersModule,
 ];

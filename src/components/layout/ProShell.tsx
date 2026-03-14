@@ -29,6 +29,8 @@ import {
     Shield,
     Power,
     LoaderCircle,
+    Brain,
+    Users as UsersIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/components/ui/toast';
@@ -67,6 +69,8 @@ const navGroups = [
             { label: 'Certificates', href: '/certificates', icon: ShieldCheck },
             { label: 'Nginx', href: '/nginx', icon: Server },
             { label: 'Security', href: '/security', icon: Shield },
+            { label: 'Users & Permissions', href: '/users', icon: UsersIcon },
+            { label: 'Memory', href: '/memory', icon: Brain },
         ],
     },
 ];

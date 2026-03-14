@@ -11,6 +11,9 @@ export interface SystemMetric {
     memTotal: number;
     memUsed: number;
     uptime: number;
+    swapTotal: number;
+    swapUsed: number;
+    swapFree: number;
     disks: {
         fs: string;
         type: string;

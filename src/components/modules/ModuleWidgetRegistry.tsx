@@ -75,6 +75,14 @@ const SecurityWidget = dynamic(() => import('@/modules/security/ui/SecurityWidge
     loading: WidgetLoader,
 });
 
+const MemoryWidget = dynamic(() => import('@/modules/memory/ui/MemoryWidget'), {
+    loading: WidgetLoader,
+});
+
+const UsersWidget = dynamic(() => import('@/modules/users/ui/UsersWidget'), {
+    loading: WidgetLoader,
+});
+
 const widgetMap: Record<string, { component: React.ComponentType<Record<string, unknown>>; name: string }> = {
     HealthWidget: { component: HealthWidget, name: 'System Health' },
     ProcessWidget: { component: ProcessWidget, name: 'Processes' },
@@ -92,6 +100,8 @@ const widgetMap: Record<string, { component: React.ComponentType<Record<string, 
     CertificatesWidget: { component: CertificatesWidget, name: 'Certificates' },
     NginxWidget: { component: NginxWidget, name: 'Nginx' },
     SecurityWidget: { component: SecurityWidget, name: 'Security' },
+    MemoryWidget: { component: MemoryWidget, name: 'Memory Health' },
+    UsersWidget: { component: UsersWidget, name: 'Users & Access' },
 };
 
 export function renderWidget(componentName: string, props: Record<string, unknown> = {}) {

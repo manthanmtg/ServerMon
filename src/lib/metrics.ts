@@ -13,6 +13,9 @@ export interface SystemMetric {
     memTotal: number;
     memUsed: number;
     uptime: number;
+    swapTotal: number;
+    swapUsed: number;
+    swapFree: number;
     disks: {
         fs: string;
         type: string;
@@ -88,6 +91,9 @@ class MetricsService extends EventEmitter {
                     cpuCores: this.cpuCores,
                     memTotal: this.memTotal,
                     memUsed: mem.active,
+                    swapTotal: mem.swaptotal,
+                    swapUsed: mem.swapused,
+                    swapFree: mem.swapfree,
                     uptime: time.uptime,
                     disks: disks.map(d => ({
                         fs: d.fs,
