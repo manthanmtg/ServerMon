@@ -1,8 +1,9 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { Info, AlertTriangle, XCircle, Clock } from 'lucide-react';
+import { Info, AlertTriangle, XCircle, Clock, ScrollText } from 'lucide-react';
 import Link from 'next/link';
+import { Skeleton } from '@/components/ui/skeleton';
 
 interface LogEntry {
     _id: string;
@@ -43,8 +44,14 @@ export default function LogsWidget() {
     if (loading) {
         return (
             <div className="space-y-3">
-                {[1, 2, 3].map(i => (
-                    <div key={i} className="h-12 rounded-lg bg-secondary animate-pulse" />
+                {[1, 2, 3, 4, 5].map((i) => (
+                    <div key={i} className="flex items-start gap-3 py-2">
+                        <Skeleton className="h-7 w-7 rounded-md shrink-0" />
+                        <div className="flex-1 min-w-0 space-y-1.5">
+                            <Skeleton className="h-3.5 w-full max-w-[90%] rounded" />
+                            <Skeleton className="h-3 w-20 rounded" />
+                        </div>
+                    </div>
                 ))}
             </div>
         );
@@ -52,8 +59,15 @@ export default function LogsWidget() {
 
     if (logs.length === 0) {
         return (
-            <div className="text-center py-8 text-muted-foreground text-sm">
-                No activity recorded yet
+            <div className="flex flex-col items-center justify-center py-8 px-4 text-center">
+                <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center mb-3">
+                    <ScrollText className="w-5 h-5 text-muted-foreground" />
+                </div>
+                <p className="text-sm font-medium text-foreground">No activity yet</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Audit events will appear here as you use the app.</p>
+                <Link href="/logs" className="mt-3 text-sm text-primary hover:text-primary/80 font-medium transition-colors">
+                    View logs page
+                </Link>
             </div>
         );
     }

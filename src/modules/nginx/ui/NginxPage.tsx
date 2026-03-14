@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { PageSkeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import type { NginxSnapshot, NginxConfigTest } from '../types';
 
@@ -76,11 +77,7 @@ export default function NginxPage() {
     };
 
     if (loading && !snapshot) {
-        return (
-            <div className="flex items-center justify-center py-24">
-                <LoaderCircle className="h-6 w-6 animate-spin text-primary" />
-            </div>
-        );
+        return <PageSkeleton statCards={4} />;
     }
 
     if (!snapshot) return null;

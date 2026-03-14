@@ -27,6 +27,7 @@ import {
 } from 'recharts';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Spinner } from '@/components/ui/spinner';
 import { Badge } from '@/components/ui/badge';
 import { formatBytes } from '@/lib/utils';
@@ -416,8 +417,19 @@ export default function DiskPage() {
                         </CardHeader>
                         <CardContent className="p-0 max-h-[280px] overflow-y-auto custom-scrollbar">
                             {loadingHealth ? (
-                                <div className="flex items-center justify-center h-48">
-                                    <Spinner />
+                                <div className="divide-y divide-border/30 p-4 space-y-4">
+                                    {[1, 2, 3].map((i) => (
+                                        <div key={i} className="flex items-start justify-between gap-3">
+                                            <div className="flex items-center gap-3 min-w-0">
+                                                <Skeleton className="h-9 w-9 rounded-lg shrink-0" />
+                                                <div className="space-y-1.5 min-w-0">
+                                                    <Skeleton className="h-3 w-28 rounded" />
+                                                    <Skeleton className="h-2.5 w-20 rounded" />
+                                                </div>
+                                            </div>
+                                            <Skeleton className="h-5 w-16 rounded-full shrink-0" />
+                                        </div>
+                                    ))}
                                 </div>
                             ) : (healthData?.layout?.length ?? 0) > 0 ? (
                                 <div className="divide-y divide-border/30">

@@ -6,8 +6,53 @@ import ProShell from '@/components/layout/ProShell';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Spinner } from '@/components/ui/spinner';
+import { Skeleton, SkeletonChart, SkeletonTable } from '@/components/ui/skeleton';
 import { renderWidget } from '@/components/modules/ModuleWidgetRegistry';
 import { MetricsProvider, useMetrics } from '@/lib/MetricsContext';
+
+function StatCardSkeleton() {
+    return (
+        <Card className="overflow-hidden">
+            <CardContent className="p-3 sm:p-4 space-y-2">
+                <div className="flex items-center justify-between">
+                    <Skeleton className="h-3 w-14" />
+                    <Skeleton className="h-4 w-4 rounded" variant="circular" />
+                </div>
+                <Skeleton className="h-7 w-16" />
+                <div className="mt-2 h-8 w-full">
+                    <Skeleton className="h-full w-full rounded" />
+                </div>
+            </CardContent>
+        </Card>
+    );
+}
+
+function DashboardSkeleton() {
+    return (
+        <div className="space-y-4 sm:space-y-6 animate-fade-in">
+            <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
+                {Array.from({ length: 5 }).map((_, i) => (
+                    <StatCardSkeleton key={i} />
+                ))}
+            </div>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4">
+                <div className="lg:col-span-2">
+                    <SkeletonChart />
+                </div>
+                <SkeletonChart />
+            </div>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4">
+                <div className="lg:col-span-2">
+                    <SkeletonTable rows={4} />
+                </div>
+                <div className="rounded-xl border border-border bg-card p-5 space-y-3">
+                    <Skeleton className="h-4 w-28" />
+                    <Skeleton className="h-20 w-full" />
+                </div>
+            </div>
+        </div>
+    );
+}
 
 function Sparkline({ data, color = 'var(--primary)' }: { data: number[]; color?: string }) {
     if (data.length < 2) return null;
@@ -78,6 +123,12 @@ function DashboardContent() {
         const interval = setInterval(performPing, 10000);
         return () => clearInterval(interval);
     }, []);
+
+    const isInitialLoad = !latest;
+
+    if (isInitialLoad) {
+        return <DashboardSkeleton />;
+    }
 
     return (
         <div className="space-y-4 sm:space-y-6 animate-fade-in">

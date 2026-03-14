@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Spinner } from '@/components/ui/spinner';
+import { SkeletonCard, SkeletonTable } from '@/components/ui/skeleton';
 import { useToast } from '@/components/ui/toast';
 import { cn } from '@/lib/utils';
 
@@ -169,7 +169,16 @@ export default function ProcessWidget() {
     );
 
     if (loading) {
-        return <div className="flex items-center justify-center py-20"><Spinner size="lg" /></div>;
+        return (
+            <div className="space-y-4 animate-fade-in">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    {Array.from({ length: 4 }).map((_, i) => (
+                        <SkeletonCard key={i} />
+                    ))}
+                </div>
+                <SkeletonTable rows={8} />
+            </div>
+        );
     }
 
     return (

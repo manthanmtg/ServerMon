@@ -30,6 +30,7 @@ import {
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Spinner } from '@/components/ui/spinner';
 import { useToast } from '@/components/ui/toast';
 import { cn } from '@/lib/utils';
 import type { UpdateSnapshot } from '../types';
@@ -85,8 +86,9 @@ export default function UpdatePage() {
 
     if (loading && !snapshot) {
         return (
-            <div className="flex items-center justify-center min-h-[400px]">
-                <RefreshCcw className="w-8 h-8 animate-spin text-muted-foreground" />
+            <div className="flex flex-col items-center justify-center min-h-[400px] gap-4 animate-fade-in">
+                <Spinner size="lg" />
+                <p className="text-sm text-muted-foreground">Loading updates...</p>
             </div>
         );
     }

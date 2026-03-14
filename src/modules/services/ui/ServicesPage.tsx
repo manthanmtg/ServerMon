@@ -43,6 +43,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { PageSkeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/components/ui/toast';
 import { cn, formatBytes } from '@/lib/utils';
 import type {
@@ -357,11 +358,7 @@ export default function ServicesPage() {
     }
 
     if (loading) {
-        return (
-            <div className="flex min-h-[70vh] items-center justify-center">
-                <LoaderCircle className="h-8 w-8 animate-spin text-primary" />
-            </div>
-        );
+        return <PageSkeleton statCards={3} />;
     }
 
     return (

@@ -5,13 +5,13 @@ import {
     AlertTriangle,
     CheckCircle,
     Cog,
-    LoaderCircle,
     Play,
     Power,
     XCircle,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { WidgetCardSkeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import type { ServicesSnapshot } from '../types';
 
@@ -64,13 +64,7 @@ export default function ServicesWidget() {
     }, [load]);
 
     if (initialLoad && !snapshot) {
-        return (
-            <Card className="border-border/60">
-                <CardContent className="flex items-center justify-center py-12">
-                    <LoaderCircle className="h-5 w-5 animate-spin text-primary" />
-                </CardContent>
-            </Card>
-        );
+        return <WidgetCardSkeleton />;
     }
 
     const s = snapshot?.summary;

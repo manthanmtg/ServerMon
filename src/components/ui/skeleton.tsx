@@ -58,4 +58,34 @@ function SkeletonTable({ rows = 4 }: { rows?: number }) {
     );
 }
 
-export { Skeleton, SkeletonCard, SkeletonChart, SkeletonTable };
+/** Generic module page loading skeleton: stat cards row + content block. */
+function PageSkeleton({ statCards = 4, showTable = true }: { statCards?: number; showTable?: boolean }) {
+    return (
+        <div className="space-y-6 animate-fade-in">
+            <div className={statCards === 4 ? 'grid grid-cols-2 md:grid-cols-4 gap-4' : 'grid grid-cols-2 lg:grid-cols-4 gap-4'}>
+                {Array.from({ length: statCards }).map((_, i) => (
+                    <SkeletonCard key={i} />
+                ))}
+            </div>
+            {showTable && <SkeletonTable rows={5} />}
+        </div>
+    );
+}
+
+/** Card with header + content skeleton for dashboard-style widgets. */
+function WidgetCardSkeleton() {
+    return (
+        <div className="rounded-xl border border-border bg-card overflow-hidden">
+            <div className="p-4 pb-2 flex items-center justify-between">
+                <Skeleton className="h-4 w-24" />
+            </div>
+            <div className="px-4 pb-4 space-y-3">
+                <Skeleton className="h-8 w-full" />
+                <Skeleton className="h-8 w-3/4" />
+                <Skeleton className="h-6 w-1/2" />
+            </div>
+        </div>
+    );
+}
+
+export { Skeleton, SkeletonCard, SkeletonChart, SkeletonTable, PageSkeleton, WidgetCardSkeleton };

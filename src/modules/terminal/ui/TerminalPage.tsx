@@ -4,7 +4,7 @@ import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { Plus, X, Settings as SettingsIcon, RotateCcw, Pencil, Check, History } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Spinner } from '@/components/ui/spinner';
+import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/components/ui/toast';
 import { cn } from '@/lib/utils';
 import TerminalUI from './TerminalUI';
@@ -194,8 +194,19 @@ export default function TerminalPage() {
 
     if (loading) {
         return (
-            <div className="h-full flex items-center justify-center">
-                <Spinner size="lg" />
+            <div className="h-full flex flex-col gap-2 animate-fade-in">
+                <div className="flex items-center gap-1 shrink-0">
+                    <Skeleton className="h-9 w-24 rounded-lg" />
+                    <Skeleton className="h-9 w-20 rounded-lg" />
+                </div>
+                <div className="flex-1 rounded-lg border border-border bg-card overflow-hidden">
+                    <div className="h-full flex items-center justify-center p-8">
+                        <div className="space-y-3 text-center">
+                            <Skeleton className="h-4 w-32 mx-auto rounded" />
+                            <Skeleton className="h-3 w-48 mx-auto rounded" />
+                        </div>
+                    </div>
+                </div>
             </div>
         );
     }
