@@ -4,6 +4,7 @@ import User from '@/models/User';
 import { verifyPassword } from '@/lib/auth-utils';
 
 export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 export async function POST(req: NextRequest) {
     try {
@@ -27,10 +28,12 @@ export async function POST(req: NextRequest) {
             );
         }
 
-        // Step 1 successful: Credentials verified
-        // In a real app, you might want to issue a temporary "pre-auth" token here
         return NextResponse.json({ success: true, requiresTOTP: user.totpEnabled });
     } catch (error: unknown) {
         return NextResponse.json({ error: error instanceof Error ? error.message : 'Unknown error' }, { status: 500 });
     }
+}
+
+export async function GET() {
+    return NextResponse.json({ error: 'Method not allowed' }, { status: 405 });
 }

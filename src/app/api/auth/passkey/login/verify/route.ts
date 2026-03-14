@@ -6,6 +6,7 @@ import { login } from '@/lib/session';
 import { createLogger } from '@/lib/logger';
 
 export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 const logger = createLogger('api:auth:passkey:login:verify');
 
 export async function POST(req: NextRequest) {

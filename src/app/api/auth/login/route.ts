@@ -5,6 +5,7 @@ import { verifyPassword, verifyTOTPToken } from '@/lib/auth-utils';
 import { login } from '@/lib/session';
 
 export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 export async function POST(req: NextRequest) {
     try {
@@ -20,7 +21,6 @@ export async function POST(req: NextRequest) {
             );
         }
 
-        // Verify password again (stateless API)
         const isValidPassword = await verifyPassword(password, user.passwordHash);
         if (!isValidPassword) {
             return NextResponse.json(
@@ -29,7 +29,6 @@ export async function POST(req: NextRequest) {
             );
         }
 
-        // Verify TOTP token
         if (user.totpEnabled && user.totpSecret) {
             const isValidTOTP = verifyTOTPToken(totpToken, user.totpSecret);
             if (!isValidTOTP) {
@@ -40,14 +39,12 @@ export async function POST(req: NextRequest) {
             }
         }
 
-        // Create session
         await login({
             id: user._id.toString(),
             username: user.username,
             role: user.role,
         });
 
-        // Update last login
         user.lastLoginAt = new Date();
         await user.save();
 
@@ -55,4 +52,8 @@ export async function POST(req: NextRequest) {
     } catch (error: unknown) {
         return NextResponse.json({ error: error instanceof Error ? error.message : 'Unknown error' }, { status: 500 });
     }
+}
+
+export async function GET() {
+    return NextResponse.json({ error: 'Method not allowed' }, { status: 405 });
 }

@@ -7,6 +7,7 @@ import type { AuthenticatorTransport } from '@simplewebauthn/server';
 import { createLogger } from '@/lib/logger';
 
 export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 const logger = createLogger('api:auth:passkey:register:options');
 
 export async function GET(req: NextRequest) {

@@ -6,6 +6,7 @@ import { verifyPasskeyRegistration, getRPID, getOrigin } from '@/lib/passkey-uti
 import { createLogger } from '@/lib/logger';
 
 export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 const logger = createLogger('api:auth:passkey:register:verify');
 
 export async function POST(req: NextRequest) {

@@ -5,6 +5,7 @@ import User from '@/models/User';
 import { createLogger } from '@/lib/logger';
 
 export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 const logger = createLogger('api:auth:passkey:list');
 
 export async function GET() {
