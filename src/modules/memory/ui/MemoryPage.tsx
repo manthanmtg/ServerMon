@@ -149,7 +149,7 @@ export default function MemoryPage() {
                             </div>
                         </div>
                         <div className="h-[280px] -mx-4">
-                            <ResponsiveContainer width="100%" height="100%">
+                            <ResponsiveContainer width="100%" height="100%" minHeight={200}>
                                 <AreaChart data={history}>
                                     <defs>
                                         <linearGradient id="memGradMain" x1="0" y1="0" x2="0" y2="1">
@@ -158,13 +158,27 @@ export default function MemoryPage() {
                                         </linearGradient>
                                     </defs>
                                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" opacity={0.5} />
-                                    <XAxis dataKey="timestamp" hide />
+                                    <XAxis 
+                                        dataKey="timestamp" 
+                                        hide={false} 
+                                        axisLine={false} 
+                                        tickLine={false} 
+                                        tick={false}
+                                        height={0}
+                                    />
                                     <YAxis domain={[0, 100]} axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }} unit="%" />
                                     <Tooltip 
                                         contentStyle={{ backgroundColor: 'var(--card)', borderRadius: '12px', border: '1px solid var(--border)', fontSize: '12px', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
                                         itemStyle={{ color: 'var(--primary)', fontWeight: 'bold' }}
                                     />
-                                    <Area type="monotone" dataKey="memory" stroke="var(--primary)" strokeWidth={3} fill="url(#memGradMain)" isAnimationActive={false} />
+                                    <Area 
+                                        type="monotone" 
+                                        dataKey="memory" 
+                                        stroke="var(--primary)" 
+                                        strokeWidth={3} 
+                                        fill="url(#memGradMain)" 
+                                        animationDuration={1000}
+                                    />
                                 </AreaChart>
                             </ResponsiveContainer>
                         </div>
@@ -210,9 +224,9 @@ export default function MemoryPage() {
                             })}
                         </div>
 
-                        {detailedStats && detailedStats.swaptotal > 0 && (
-                            <div className="mt-8 pt-6 border-t border-border/50">
-                                <h4 className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest mb-4">Swap Utilization</h4>
+                        <div className="mt-8 pt-6 border-t border-border/50">
+                            <h4 className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest mb-4">Swap Utilization</h4>
+                            {detailedStats && detailedStats.swaptotal > 0 ? (
                                 <div className="p-4 rounded-2xl bg-accent/20 border border-border/30">
                                     <div className="flex items-center justify-between mb-2">
                                         <div className="text-sm font-bold tracking-tight">
@@ -229,8 +243,20 @@ export default function MemoryPage() {
                                         />
                                     </div>
                                 </div>
-                            </div>
-                        )}
+                            ) : (
+                                <div className="p-4 rounded-2xl bg-amber-500/5 border border-amber-500/10">
+                                    <div className="flex gap-3">
+                                        <Terminal className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+                                        <div className="space-y-1">
+                                            <p className="text-sm font-bold text-amber-600">Swap is Disabled</p>
+                                            <p className="text-xs text-muted-foreground leading-relaxed">
+                                                Swap space is 0B. This usually means swap is disabled on this system, which is common in cloud instances and containerized environments to ensure predictable performance.
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </div>
 
@@ -254,7 +280,7 @@ export default function MemoryPage() {
                                 <tr className="border-b border-border/50">
                                     <th className="pb-3 text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Process</th>
                                     <th className="pb-3 text-[11px] font-bold text-muted-foreground uppercase tracking-wider text-right">PID</th>
-                                    <th className="pb-3 text-[11px] font-bold text-muted-foreground uppercase tracking-wider text-right">Usage</th>
+                                    <th className="pb-3 text-[11px] font-bold text-muted-foreground uppercase tracking-wider text-center px-4">Usage</th>
                                     <th className="pb-3 text-[11px] font-bold text-muted-foreground uppercase tracking-wider text-right">RSS</th>
                                     <th className="pb-3 text-[11px] font-bold text-muted-foreground uppercase tracking-wider text-right">VMS</th>
                                     <th className="pb-3 text-[11px] font-bold text-muted-foreground uppercase tracking-wider text-right">Action</th>
@@ -272,15 +298,27 @@ export default function MemoryPage() {
                                             </div>
                                         </td>
                                         <td className="py-4 text-xs font-mono text-muted-foreground text-right">{proc.pid}</td>
-                                        <td className="py-4 text-right">
-                                            <span className={cn(
-                                                "px-2 py-0.5 rounded-full text-[10px] font-bold",
-                                                proc.mem > 10 ? "bg-destructive/10 text-destructive" : "bg-emerald-500/10 text-emerald-500"
-                                            )}>
-                                                {proc.mem.toFixed(1)}%
-                                            </span>
+                                        <td className="py-4 px-4 min-w-[140px]">
+                                            <div className="space-y-1.5">
+                                                <div className="flex justify-between items-center text-[10px] font-bold px-0.5">
+                                                    <span className={cn(
+                                                        proc.mem > 15 ? "text-destructive" : "text-emerald-500"
+                                                    )}>
+                                                        {proc.mem.toFixed(1)}%
+                                                    </span>
+                                                </div>
+                                                <div className="h-1.5 w-full rounded-full bg-accent/30 overflow-hidden">
+                                                    <div 
+                                                        className={cn(
+                                                            "h-full transition-all duration-700",
+                                                            proc.mem > 15 ? "bg-destructive" : "bg-emerald-500"
+                                                        )}
+                                                        style={{ width: `${Math.min(proc.mem * 4, 100)}%` }}
+                                                    />
+                                                </div>
+                                            </div>
                                         </td>
-                                        <td className="py-4 text-xs font-medium text-right">{formatBytes(proc.memRss * 1024)}</td>
+                                        <td className="py-4 text-xs font-bold text-right text-foreground">{formatBytes(proc.memRss * 1024)}</td>
                                         <td className="py-4 text-xs text-muted-foreground text-right">{formatBytes(proc.memVsz * 1024)}</td>
                                         <td className="py-4 text-right">
                                             <button 

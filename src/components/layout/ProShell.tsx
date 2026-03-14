@@ -80,6 +80,21 @@ function SidebarNav({ pathname, onNavigate, onLogout }: {
     onNavigate?: () => void;
     onLogout: () => void;
 }) {
+    const navRef = React.useRef<HTMLElement>(null);
+
+    // Restore scroll position
+    useEffect(() => {
+        const savedScroll = localStorage.getItem('sidebar-scroll');
+        if (savedScroll && navRef.current) {
+            navRef.current.scrollTop = parseInt(savedScroll, 10);
+        }
+    }, []);
+
+    // Save scroll position
+    const handleScroll = (e: React.UIEvent<HTMLElement>) => {
+        localStorage.setItem('sidebar-scroll', e.currentTarget.scrollTop.toString());
+    };
+
     return (
         <div className="flex flex-col h-full">
             <div className="h-14 flex items-center gap-2.5 px-5 border-b border-sidebar-border shrink-0">
@@ -89,7 +104,11 @@ function SidebarNav({ pathname, onNavigate, onLogout }: {
                 <span className="text-sm font-bold text-foreground tracking-tight">ServerMon</span>
             </div>
 
-            <nav className="flex-1 overflow-y-auto py-4 px-3">
+            <nav 
+                ref={navRef}
+                onScroll={handleScroll}
+                className="flex-1 overflow-y-auto py-4 px-3"
+            >
                 {navGroups.map((group) => (
                     <div key={group.label} className="mb-5">
                         <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider px-3 mb-1.5">

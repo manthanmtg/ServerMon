@@ -6,6 +6,7 @@ import { Key, ShieldCheck, Search, Trash2, UserPlus, ShieldAlert } from 'lucide-
 import { cn } from '@/lib/utils';
 import { useToast } from '@/components/ui/toast';
 import { useCallback } from 'react';
+import AddUserModal from './AddUserModal';
 
 interface OSUser {
     username: string;
@@ -27,11 +28,12 @@ interface WebUser {
 
 export default function UsersPage() {
     const { toast } = useToast();
-    const [activeTab, setActiveTab] = useState<'os' | 'web'>('web');
+    const [activeTab, setActiveTab] = useState<'os' | 'web'>('os');
     const [osUsers, setOsUsers] = useState<OSUser[]>([]);
     const [webUsers, setWebUsers] = useState<WebUser[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
+    const [isAddModalOpen, setIsAddModalOpen] = useState(false);
 
     const fetchData = useCallback(async () => {
         setIsLoading(true);
@@ -120,15 +122,6 @@ export default function UsersPage() {
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div className="flex p-1 bg-accent/20 rounded-xl border border-border/50 max-w-fit">
                         <button 
-                            onClick={() => setActiveTab('web')}
-                            className={cn(
-                                "px-6 py-2 rounded-lg text-sm font-semibold transition-all",
-                                activeTab === 'web' ? "bg-card shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
-                            )}
-                        >
-                            Web Access
-                        </button>
-                        <button 
                             onClick={() => setActiveTab('os')}
                             className={cn(
                                 "px-6 py-2 rounded-lg text-sm font-semibold transition-all",
@@ -136,6 +129,15 @@ export default function UsersPage() {
                             )}
                         >
                             OS Users
+                        </button>
+                        <button 
+                            onClick={() => setActiveTab('web')}
+                            className={cn(
+                                "px-6 py-2 rounded-lg text-sm font-semibold transition-all",
+                                activeTab === 'web' ? "bg-card shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
+                            )}
+                        >
+                            Web Access
                         </button>
                     </div>
 
@@ -150,7 +152,10 @@ export default function UsersPage() {
                                 className="w-full pl-9 pr-4 py-2.5 bg-card border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all shadow-sm"
                             />
                         </div>
-                        <button className="px-4 py-2.5 bg-primary text-primary-foreground rounded-xl text-sm font-bold shadow-lg shadow-primary/20 hover:shadow-primary/30 transition-all flex items-center gap-2">
+                        <button 
+                            onClick={() => setIsAddModalOpen(true)}
+                            className="px-4 py-2.5 bg-primary text-primary-foreground rounded-xl text-sm font-bold shadow-lg shadow-primary/20 hover:shadow-primary/30 transition-all flex items-center gap-2"
+                        >
                             <UserPlus className="w-4 h-4" />
                             Add User
                         </button>
@@ -286,6 +291,15 @@ export default function UsersPage() {
                     </div>
                 </div>
             </div>
+
+            <AddUserModal 
+                isOpen={isAddModalOpen} 
+                onClose={() => setIsAddModalOpen(false)} 
+                onSuccess={() => {
+                    toast({ title: 'User Created', description: 'System user has been created successfully', variant: 'success' });
+                    fetchData();
+                }}
+            />
         </ProShell>
     );
 }
