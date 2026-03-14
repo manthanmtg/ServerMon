@@ -26,8 +26,8 @@ export default function UpdateHistoryModal({ onClose }: UpdateHistoryModalProps)
         return () => clearInterval(interval);
     }, []);
 
-    async function loadRuns() {
-        setLoading(true);
+    async function loadRuns(isSilent = false) {
+        if (!isSilent) setLoading(true);
         try {
             const res = await fetch('/api/system/update/history');
             if (res.ok) {
@@ -35,7 +35,7 @@ export default function UpdateHistoryModal({ onClose }: UpdateHistoryModalProps)
                 setRuns(data);
             }
         } finally {
-            setLoading(false);
+            if (!isSilent) setLoading(false);
         }
     }
 
@@ -52,12 +52,21 @@ export default function UpdateHistoryModal({ onClose }: UpdateHistoryModalProps)
         }
     }
 
+    const hasRunningRun = runs.some(r => r.status === 'running');
     useEffect(() => {
         loadRuns();
+
+        const listPolling = setInterval(() => {
+            if (hasRunningRun) {
+                loadRuns(true);
+            }
+        }, 5000);
+
         return () => {
             if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
+            clearInterval(listPolling);
         };
-    }, []);
+    }, [hasRunningRun]);
 
     useEffect(() => {
         if (selectedRun?.status === 'running') {
