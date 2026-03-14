@@ -62,28 +62,36 @@ export function MetricsProvider({ children }: { children: React.ReactNode }) {
             if (!mountedRef.current) return;
             if (esRef.current) esRef.current.close();
 
+            console.log('[MetricsContext] Connecting to SSE stream...');
             const es = new EventSource('/api/metrics/stream', { withCredentials: true });
             esRef.current = es;
+
+            es.onopen = () => {
+                console.log('[MetricsContext] SSE connection opened');
+            };
 
             es.onmessage = (event) => {
                 try {
                     const metric: SystemMetric = JSON.parse(event.data);
+                    console.log('[MetricsContext] Received metric:', { memTotal: metric.memTotal, memUsed: metric.memUsed });
                     setLatest(metric);
                     setConnected(true);
                     setHistory((prev) => {
                         const next = [...prev, metric];
                         return next.length > MAX_HISTORY ? next.slice(-MAX_HISTORY) : next;
                     });
-                } catch {
-                    // ignore malformed messages
+                } catch (err) {
+                    console.error('[MetricsContext] Failed to parse metric:', err);
                 }
             };
 
-            es.onerror = () => {
+            es.onerror = (err) => {
+                console.error('[MetricsContext] SSE error:', err, 'readyState:', es.readyState);
                 setConnected(false);
                 es.close();
                 esRef.current = null;
                 if (mountedRef.current) {
+                    console.log('[MetricsContext] Reconnecting in', RECONNECT_MS, 'ms...');
                     reconnectTimer.current = setTimeout(connect, RECONNECT_MS);
                 }
             };
