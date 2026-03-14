@@ -36,6 +36,9 @@ jobs:
           PORT: 8912
           NODE_ENV: development
 
+      - name: Run tests with coverage
+        run: pnpm test:coverage
+
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v5
         with:
