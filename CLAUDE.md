@@ -137,11 +137,12 @@ New modules need a nav entry in `src/components/layout/ProShell.tsx` in the `nav
 
 ## Security Rules
 
-- All routes are protected by default via middleware (`src/middleware.ts`). Only `/login` and `/setup` are public.
-- If you add a new page, it is automatically protected. Do **not** add it to the public routes list unless it genuinely needs to be unauthenticated.
-- Passwords are hashed with Argon2. Never store or log plaintext passwords.
-- JWT secrets come from environment variables. Never hardcode secrets.
-- Validate all user input with Zod before processing.
+- **Default Authentication**: All routes (UI and API) are protected by default via middleware (`src/middleware.ts`). Only an explicit whitelisted set of public routes (e.g., `/login`, `/api/auth/login`) are unauthenticated.
+- **WebSocket Security**: All Socket.io connections **must** be authenticated using the session cookie. Use the authentication middleware in `src/server.ts`.
+- **API Hardening**: Critical API routes (settings, system updates, user management) **must** double-check the session using `getSession()` and enforce role-based access control where appropriate.
+- **Manual Verification**: Never trust that middleware alone covers all cases. Proactively verify session existence in sensitive API handlers.
+- **Secrets Management**: JWT secrets come from environment variables. Never hardcode secrets or provide insecure fallbacks in production.
+- **Input Validation**: Validate all user input with Zod before processing.
 
 ## Mobile / Responsive Requirements
 

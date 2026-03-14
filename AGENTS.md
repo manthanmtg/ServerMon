@@ -91,6 +91,8 @@ When creating a new module in `src/modules/<name>/`:
 4. Add `export const dynamic = 'force-dynamic'` if accessing DB or runtime state.
 5. Cap any user-provided `limit` parameters.
 6. Validate input with Zod if accepting a request body.
+7. **Security**: Ensure all routes require authentication via `getSession()`. Only whitelisted public routes in `src/middleware.ts` should be unauthenticated.
+8. **Authorization**: Implement role-based checks (`admin` vs `user`) for management or destructive operations.
 
 ## Testing Guidelines (Future)
 
