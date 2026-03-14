@@ -884,7 +884,7 @@ export default function EndpointsPage() {
                                 {/* Endpoint Type */}
                                 <div className="space-y-1.5">
                                     <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Type</label>
-                                    <div className="grid grid-cols-3 gap-2">
+                                    <div className="flex p-1 bg-white/[0.03] border border-white/5 rounded-[1.25rem] backdrop-blur-md">
                                         {TYPES.map((t) => {
                                             const Icon = TYPE_ICONS[t];
                                             const active = form.endpointType === t;
@@ -893,14 +893,20 @@ export default function EndpointsPage() {
                                                     key={t}
                                                     onClick={() => updateForm('endpointType', t)}
                                                     className={cn(
-                                                        'flex flex-col items-center gap-2 p-4 rounded-xl border transition-all min-h-[44px]',
+                                                        'flex-1 flex items-center justify-center gap-2.5 py-2.5 px-4 rounded-[1rem] text-xs font-bold transition-all duration-300 relative group',
                                                         active
-                                                            ? 'bg-primary/10 border-primary/30 text-primary shadow-sm'
-                                                            : 'border-border/40 text-muted-foreground hover:bg-accent hover:text-foreground',
+                                                            ? 'bg-primary/10 text-primary shadow-[0_0_20px_rgba(var(--primary),0.15)] border border-primary/20'
+                                                            : 'text-muted-foreground/60 hover:text-foreground hover:bg-white/5 border border-transparent'
                                                     )}
                                                 >
-                                                    <Icon className="w-5 h-5" />
-                                                    <span className="text-xs font-medium capitalize">{t}</span>
+                                                    <Icon className={cn(
+                                                        "w-4 h-4 transition-transform duration-300",
+                                                        active ? "scale-110" : "group-hover:scale-110 opacity-50"
+                                                    )} />
+                                                    <span className="capitalize tracking-tight">{t}</span>
+                                                    {active && (
+                                                        <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-primary shadow-[0_0_10px_rgba(var(--primary),0.8)]" />
+                                                    )}
                                                 </button>
                                             );
                                         })}
