@@ -172,6 +172,12 @@ export default function EndpointsPage() {
         enabled: true,
         timeout: 30000,
     });
+    const [initialForm, setInitialForm] = useState<EndpointCreateRequest | null>(null);
+
+    const isDirty = useMemo(() => {
+        if (!initialForm) return false;
+        return JSON.stringify(form) !== JSON.stringify(initialForm);
+    }, [form, initialForm]);
 
     // Test console
     const [testBody, setTestBody] = useState('');
@@ -198,6 +204,7 @@ export default function EndpointsPage() {
     // Saving
     const [saving, setSaving] = useState(false);
     const [copiedSlug, setCopiedSlug] = useState(false);
+    const [showDiscardModal, setShowDiscardModal] = useState(false);
 
     // ---- Data loading ----
 
@@ -275,7 +282,7 @@ export default function EndpointsPage() {
         setShowTestConsole(false);
         setTestResult(null);
         setGeneratedToken(null);
-        setForm({
+        const f: EndpointCreateRequest = {
             name: ep.name,
             slug: ep.slug,
             description: ep.description,
@@ -291,7 +298,9 @@ export default function EndpointsPage() {
             enabled: ep.enabled,
             timeout: ep.timeout,
             responseHeaders: ep.responseHeaders,
-        });
+        };
+        setForm(f);
+        setInitialForm(f);
     }, []);
 
     const startCreate = useCallback(() => {
@@ -301,7 +310,7 @@ export default function EndpointsPage() {
         setShowTestConsole(false);
         setTestResult(null);
         setGeneratedToken(null);
-        setForm({
+        const f: EndpointCreateRequest = {
             name: '',
             slug: '',
             method: 'GET',
@@ -312,7 +321,9 @@ export default function EndpointsPage() {
             tags: [],
             enabled: true,
             timeout: 30000,
-        });
+        };
+        setForm(f);
+        setInitialForm(f);
     }, []);
 
     const createFromTemplate = useCallback((tmpl: EndpointTemplate) => {
@@ -323,7 +334,7 @@ export default function EndpointsPage() {
         setShowTestConsole(false);
         setTestResult(null);
         setGeneratedToken(null);
-        setForm({
+        const f: EndpointCreateRequest = {
             name: tmpl.name,
             slug: slugify(tmpl.name),
             description: tmpl.description,
@@ -337,13 +348,28 @@ export default function EndpointsPage() {
             tags: tmpl.tags,
             enabled: true,
             timeout: 30000,
-        });
+        };
+        setForm(f);
+        setInitialForm(f);
     }, []);
 
     const closeDetail = useCallback(() => {
+        if (isDirty) {
+            setShowDiscardModal(true);
+        } else {
+            setSelectedId(null);
+            setIsCreating(false);
+            setShowTestConsole(false);
+            setInitialForm(null);
+        }
+    }, [isDirty]);
+
+    const confirmDiscard = useCallback(() => {
+        setShowDiscardModal(false);
         setSelectedId(null);
         setIsCreating(false);
         setShowTestConsole(false);
+        setInitialForm(null);
     }, []);
 
     // ---- CRUD ----
@@ -391,6 +417,7 @@ export default function EndpointsPage() {
                 toast({ title: 'Endpoint created', description: data.name, variant: 'success' });
                 setIsCreating(false);
                 setSelectedId(data._id);
+                setInitialForm({ ...form });
                 await loadEndpoints();
             } else if (selectedId) {
                 const res = await fetch(`/api/modules/endpoints/${selectedId}`, {
@@ -404,6 +431,7 @@ export default function EndpointsPage() {
                     throw new Error(data.error + (details ? `: ${details}` : '') || 'Failed to update');
                 }
                 toast({ title: 'Endpoint saved', variant: 'success' });
+                setInitialForm({ ...form });
                 await loadEndpoints();
             }
         } catch (err: unknown) {
@@ -793,11 +821,20 @@ export default function EndpointsPage() {
                             <Button
                                 size="sm"
                                 onClick={handleSave}
-                                disabled={saving || !form.name}
+                                disabled={saving || !form.name || !isDirty}
                                 className="h-8 gap-1.5 rounded-lg text-xs font-semibold"
                             >
                                 {saving ? <LoaderCircle className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
                                 {isCreating ? 'Create' : 'Save'}
+                            </Button>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={closeDetail}
+                                className="h-8 gap-1.5 rounded-lg text-xs"
+                            >
+                                <X className="w-3.5 h-3.5 text-muted-foreground" />
+                                Close
                             </Button>
                         </div>
                     </div>
@@ -1507,13 +1544,25 @@ export default function EndpointsPage() {
             {/* ---- Delete Confirmation ---- */}
             <ConfirmationModal
                 isOpen={!!deleteTarget}
-                onCancel={() => setDeleteTarget(null)}
                 onConfirm={handleDelete}
+                onCancel={() => setDeleteTarget(null)}
                 title="Delete Endpoint"
                 message={`Are you sure you want to delete "${deleteTarget?.name}"? This will remove all tokens and execution logs.`}
-                verificationText={deleteTarget?.slug}
                 confirmLabel="Delete"
                 variant="danger"
+                verificationText={deleteTarget?.slug}
+            />
+
+            {/* Discard Changes Confirmation */}
+            <ConfirmationModal
+                isOpen={showDiscardModal}
+                onConfirm={confirmDiscard}
+                onCancel={() => setShowDiscardModal(false)}
+                title="Unsaved Changes"
+                message="You have unsaved changes in this endpoint. If you close now, all changes will be permanently lost."
+                confirmLabel="Discard Changes"
+                cancelLabel="Keep Editing"
+                variant="warning"
             />
         </div>
     );
