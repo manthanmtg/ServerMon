@@ -5,7 +5,7 @@ import { X, Clock, Terminal, CheckCircle2, XCircle, AlertCircle, LoaderCircle, H
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { UpdateRunStatus } from '@/types/updates';
-import { cn } from '@/lib/utils';
+import { cn, formatDuration } from '@/lib/utils';
 
 interface UpdateHistoryModalProps {
     onClose: () => void;
@@ -19,6 +19,12 @@ export default function UpdateHistoryModal({ onClose }: UpdateHistoryModalProps)
     const [autoScroll, setAutoScroll] = useState(true);
     const logContainerRef = useRef<HTMLPreElement | null>(null);
     const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+    const [now, setNow] = useState(Date.now());
+
+    useEffect(() => {
+        const interval = setInterval(() => setNow(Date.now()), 1000);
+        return () => clearInterval(interval);
+    }, []);
 
     async function loadRuns() {
         setLoading(true);
@@ -254,15 +260,20 @@ export default function UpdateHistoryModal({ onClose }: UpdateHistoryModalProps)
                                                             <span className="opacity-30">•</span>
                                                             {new Date(run.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                                         </div>
-                                                        {run.finishedAt && (
-                                                            <>
-                                                                <div className="flex items-center gap-2 text-primary/70">
-                                                                    <LoaderCircle className="w-4 h-4" />
-                                                                    <span className="font-black uppercase text-[10px] tracking-[0.1em]">
-                                                                        Duration: {Math.round((new Date(run.finishedAt).getTime() - new Date(run.startedAt).getTime()) / 1000)}s
-                                                                    </span>
-                                                                </div>
-                                                            </>
+                                                        {run.status === 'running' ? (
+                                                            <div className="flex items-center gap-2 text-warning/80">
+                                                                <LoaderCircle className="w-4 h-4 animate-spin" />
+                                                                <span className="font-black uppercase text-[10px] tracking-[0.1em]">
+                                                                    ELAPSED: {formatDuration(Math.round((now - new Date(run.startedAt).getTime()) / 1000))}
+                                                                </span>
+                                                            </div>
+                                                        ) : run.finishedAt && (
+                                                            <div className="flex items-center gap-2 text-primary/70">
+                                                                <Clock className="w-4 h-4" />
+                                                                <span className="font-black uppercase text-[10px] tracking-[0.1em]">
+                                                                    Duration: {formatDuration(Math.round((new Date(run.finishedAt).getTime() - new Date(run.startedAt).getTime()) / 1000))}
+                                                                </span>
+                                                            </div>
                                                         )}
                                                     </div>
                                                 </div>

@@ -11,3 +11,18 @@ export function formatBytes(bytes: number, system: 'binary' | 'decimal' = 'binar
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
 }
+
+export function formatDuration(seconds: number): string {
+    if (seconds <= 0) return '0 secs';
+    
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = Math.floor(seconds % 60);
+    
+    const parts = [];
+    if (h > 0) parts.push(`${h} hour${h !== 1 ? 's' : ''}`);
+    if (m > 0) parts.push(`${m} min${m !== 1 ? 's' : ''}`);
+    if (s > 0 || parts.length === 0) parts.push(`${s} sec${s !== 1 ? 's' : ''}`);
+    
+    return parts.join(' ');
+}
