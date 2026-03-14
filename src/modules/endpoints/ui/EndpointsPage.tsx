@@ -21,6 +21,7 @@ import {
     Settings,
     FileText,
     ChevronRight,
+    ChevronDown,
     AlertTriangle,
     Shield,
     LockOpen,
@@ -206,6 +207,21 @@ export default function EndpointsPage() {
     const [copiedSlug, setCopiedSlug] = useState(false);
     const [showDiscardModal, setShowDiscardModal] = useState(false);
     const [exampleTab, setExampleTab] = useState<'curl' | 'fetch'>('curl');
+    const [showCopyRequestMenu, setShowCopyRequestMenu] = useState(false);
+    const copyRequestMenuRef = useRef<HTMLDivElement>(null);
+
+    // Close menu when clicking outside
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (copyRequestMenuRef.current && !copyRequestMenuRef.current.contains(event.target as Node)) {
+                setShowCopyRequestMenu(false);
+            }
+        };
+        if (showCopyRequestMenu) {
+            document.addEventListener('mousedown', handleClickOutside);
+        }
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, [showCopyRequestMenu]);
 
     // ---- Data loading ----
 
@@ -373,7 +389,34 @@ export default function EndpointsPage() {
         setInitialForm(null);
     }, []);
 
-    // ---- CRUD ----
+    const generateCopySnippet = useCallback((format: 'url' | 'curl' | 'powershell' | 'fetch' | 'node' | 'python') => {
+        const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+        const url = `${baseUrl}/api/endpoints/${form.slug}`;
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+        if (form.auth === 'token') {
+            headers['Authorization'] = 'Bearer YOUR_TOKEN';
+        }
+
+        const safeBody = testBody || '{}';
+
+        switch (format) {
+            case 'url':
+                return url;
+            case 'curl':
+                return `curl -X ${form.method} "${url}" \\\n  ${Object.entries(headers).map(([k, v]) => `-H "${k}: ${v}"`).join(' \\\n  ')} \\\n  -d '${safeBody}'`;
+            case 'powershell':
+                const psHeaders = Object.entries(headers).map(([k, v]) => `"${k}"="${v}"`).join('; ');
+                return `Invoke-RestMethod -Uri "${url}" -Method ${form.method} -Headers @{${psHeaders}} -Body '${safeBody}'`;
+            case 'fetch':
+                return `fetch("${url}", {\n  method: "${form.method}",\n  headers: ${JSON.stringify(headers, null, 2)},\n  body: ${testBody ? `JSON.stringify(${testBody})` : 'null'}\n});`;
+            case 'node':
+                return `const response = await fetch("${url}", {\n  method: "${form.method}",\n  headers: ${JSON.stringify(headers, null, 2)},\n  body: ${testBody ? `JSON.stringify(${testBody})` : 'null'}\n});\nconst data = await response.json();`;
+            case 'python':
+                return `import requests\n\nurl = "${url}"\nheaders = ${JSON.stringify(headers, null, 2)}\nresponse = requests.${form.method.toLowerCase()}(url, headers=headers, json=${testBody || '{}'})\nprint(response.json())`;
+            default:
+                return '';
+        }
+    }, [form, testBody]);
 
     const handleSave = useCallback(async () => {
         setSaving(true);
@@ -1521,8 +1564,44 @@ export default function EndpointsPage() {
                                 </button>
                             </div>
                             <div className="grid grid-cols-2 divide-x divide-white/10 max-h-[300px]">
-                                <div className="p-3 overflow-y-auto">
-                                    <p className="text-[10px] font-medium text-white/40 uppercase tracking-wider mb-2">Request Body</p>
+                                <div className="p-3 overflow-y-auto relative">
+                                    <div className="flex items-center justify-between mb-2">
+                                        <p className="text-[10px] font-medium text-white/40 uppercase tracking-wider">Request Body</p>
+                                        <div className="relative" ref={copyRequestMenuRef}>
+                                            <button 
+                                                onClick={() => setShowCopyRequestMenu(!showCopyRequestMenu)}
+                                                className="flex items-center gap-1 px-2 py-1 rounded-lg bg-white/5 hover:bg-white/10 text-white/40 hover:text-white/70 transition-colors text-[10px] font-medium"
+                                            >
+                                                <Copy className="w-3 h-3" />
+                                                Copy
+                                                <ChevronDown className="w-2.5 h-2.5" />
+                                            </button>
+                                            {showCopyRequestMenu && (
+                                                <div className="absolute right-0 top-full mt-1 w-48 py-1.5 rounded-xl border border-white/10 bg-[#2d2d3d] shadow-2xl z-50 animate-in fade-in zoom-in-95 duration-200">
+                                                    {[
+                                                        { label: 'Copy URL', format: 'url' },
+                                                        { label: 'Copy as cURL', format: 'curl' },
+                                                        { label: 'Copy as PowerShell', format: 'powershell' },
+                                                        { label: 'Copy as fetch', format: 'fetch' },
+                                                        { label: 'Copy as fetch (Node.js)', format: 'node' },
+                                                        { label: 'Copy as Python', format: 'python' },
+                                                    ].map((opt) => (
+                                                        <button
+                                                            key={opt.label}
+                                                            onClick={() => {
+                                                                navigator.clipboard.writeText(generateCopySnippet(opt.format as 'url' | 'curl' | 'powershell' | 'fetch' | 'node' | 'python'));
+                                                                toast({ title: 'Copied to clipboard', variant: 'success' });
+                                                                setShowCopyRequestMenu(false);
+                                                            }}
+                                                            className="w-full text-left px-3 py-1.5 text-[11px] text-white/70 hover:text-white hover:bg-white/10 transition-colors"
+                                                        >
+                                                            {opt.label}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
                                     <textarea
                                         value={testBody}
                                         onChange={(e) => setTestBody(e.target.value)}
@@ -1531,8 +1610,23 @@ export default function EndpointsPage() {
                                         spellCheck={false}
                                     />
                                 </div>
-                                <div className="p-3 overflow-y-auto">
-                                    <p className="text-[10px] font-medium text-white/40 uppercase tracking-wider mb-2">Response</p>
+                                <div className="p-3 overflow-y-auto relative">
+                                    <div className="flex items-center justify-between mb-2">
+                                        <p className="text-[10px] font-medium text-white/40 uppercase tracking-wider">Response</p>
+                                        {testResult && (
+                                            <button 
+                                                onClick={() => {
+                                                    navigator.clipboard.writeText(testResult.body);
+                                                    toast({ title: 'Response copied', variant: 'success' });
+                                                }}
+                                                className="flex items-center gap-1 px-2 py-1 rounded-lg bg-white/5 hover:bg-white/10 text-white/40 hover:text-white/70 transition-colors text-[10px] font-medium"
+                                                title="Copy response body"
+                                            >
+                                                <Copy className="w-3 h-3" />
+                                                Copy
+                                            </button>
+                                        )}
+                                    </div>
                                     {testLoading ? (
                                         <div className="flex items-center gap-2 text-white/60 text-xs">
                                             <LoaderCircle className="w-3.5 h-3.5 animate-spin" />
