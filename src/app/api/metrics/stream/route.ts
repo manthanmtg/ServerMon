@@ -12,6 +12,7 @@ export async function GET() {
     }
 
     metricsService.registerConnection();
+    log.info('SSE connection established');
 
     const encoder = new TextEncoder();
     let onMetric: ((metric: SystemMetric) => void) | null = null;
@@ -30,6 +31,7 @@ export async function GET() {
             
             // Send latest immediately on connect
             const latest = metricsService.getCurrent();
+            log.info(`SSE sending initial metric: ${latest ? 'yes' : 'no'}`);
             if (latest) onMetric(latest);
         },
         cancel() {
