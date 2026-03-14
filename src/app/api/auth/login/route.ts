@@ -4,6 +4,8 @@ import User from '@/models/User';
 import { verifyPassword, verifyTOTPToken } from '@/lib/auth-utils';
 import { login } from '@/lib/session';
 
+export const dynamic = 'force-dynamic';
+
 export async function POST(req: NextRequest) {
     try {
         await connectDB();
