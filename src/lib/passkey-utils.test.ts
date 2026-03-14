@@ -8,7 +8,20 @@ vi.mock('@simplewebauthn/server', () => ({
   verifyAuthenticationResponse: vi.fn(),
 }));
 
-import { getOrigin, getRPID } from './passkey-utils';
+import {
+  getOrigin,
+  getRPID,
+  getPasskeyRegistrationOptions,
+  verifyPasskeyRegistration,
+  getPasskeyLoginOptions,
+  verifyPasskeyLogin
+} from './passkey-utils';
+import type {
+  GenerateRegistrationOptionsOpts,
+  VerifyRegistrationResponseOpts,
+  GenerateAuthenticationOptionsOpts,
+  VerifyAuthenticationResponseOpts,
+} from '@simplewebauthn/server';
 import type { NextRequest } from 'next/server';
 
 function makeRequest(headers: Record<string, string | undefined>): NextRequest {
@@ -80,6 +93,36 @@ describe('passkey-utils', () => {
 
     it('should handle IP addresses without port', () => {
       expect(getRPID('192.168.1.1')).toBe('192.168.1.1');
+    });
+  });
+
+  describe('WebAuthn wrappers', () => {
+    it('should call generateRegistrationOptions', async () => {
+      const { generateRegistrationOptions } = await import('@simplewebauthn/server');
+      const opts = { rpName: 'test' } as GenerateRegistrationOptionsOpts;
+      await getPasskeyRegistrationOptions(opts);
+      expect(generateRegistrationOptions).toHaveBeenCalledWith(opts);
+    });
+
+    it('should call verifyRegistrationResponse', async () => {
+      const { verifyRegistrationResponse } = await import('@simplewebauthn/server');
+      const opts = { expectedOrigin: 'test' } as unknown as VerifyRegistrationResponseOpts;
+      await verifyPasskeyRegistration(opts);
+      expect(verifyRegistrationResponse).toHaveBeenCalledWith(opts);
+    });
+
+    it('should call generateAuthenticationOptions', async () => {
+      const { generateAuthenticationOptions } = await import('@simplewebauthn/server');
+      const opts = { rpID: 'test' } as GenerateAuthenticationOptionsOpts;
+      await getPasskeyLoginOptions(opts);
+      expect(generateAuthenticationOptions).toHaveBeenCalledWith(opts);
+    });
+
+    it('should call verifyAuthenticationResponse', async () => {
+      const { verifyAuthenticationResponse } = await import('@simplewebauthn/server');
+      const opts = { expectedRPID: 'test' } as unknown as VerifyAuthenticationResponseOpts;
+      await verifyPasskeyLogin(opts);
+      expect(verifyAuthenticationResponse).toHaveBeenCalledWith(opts);
     });
   });
 });

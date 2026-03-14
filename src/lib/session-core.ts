@@ -1,4 +1,4 @@
-import { SignJWT, jwtVerify } from 'jose';
+import { SignJWT, jwtVerify, importJWK } from 'jose';
 
 function getSecretKey() {
     const secretKey = process.env.JWT_SECRET;
@@ -8,11 +8,19 @@ function getSecretKey() {
         }
         console.warn('WARNING: JWT_SECRET is not set. Using insecure development fallback.');
     }
-    return new TextEncoder().encode(secretKey || 'development_secret_only');
+    // HS256 requires exactly 32 bytes (256 bits).
+    const secret = (secretKey || 'dev_fallback_secret_32_chars_now').slice(0, 32);
+    return new TextEncoder().encode(secret);
 }
 
 export async function encrypt(payload: Record<string, unknown>) {
-    const key = getSecretKey();
+    const rawKey = getSecretKey();
+    const key = await importJWK({
+        kty: 'oct',
+        k: Buffer.from(rawKey).toString('base64url'),
+        alg: 'HS256'
+    }, 'HS256');
+
     return await new SignJWT(payload)
         .setProtectedHeader({ alg: 'HS256' })
         .setIssuedAt()
@@ -21,7 +29,13 @@ export async function encrypt(payload: Record<string, unknown>) {
 }
 
 export async function decrypt(input: string) {
-    const key = getSecretKey();
+    const rawKey = getSecretKey();
+    const key = await importJWK({
+        kty: 'oct',
+        k: Buffer.from(rawKey).toString('base64url'),
+        alg: 'HS256'
+    }, 'HS256');
+
     const { payload } = await jwtVerify(input, key, {
         algorithms: ['HS256'],
     });

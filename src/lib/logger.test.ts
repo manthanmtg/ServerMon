@@ -92,4 +92,32 @@ describe('logger', () => {
       expect(output.trim()).toMatch(/plain message$/);
     });
   });
+
+  describe('LOG_LEVEL environment', () => {
+    it('should respect LOG_LEVEL=warn', async () => {
+      vi.stubEnv('LOG_LEVEL', 'warn');
+      vi.resetModules();
+      const { createLogger: createLoggerAtWarn } = await import('./logger');
+      const log = createLoggerAtWarn('warn-test');
+      
+      log.info('should not show');
+      log.warn('should show');
+      
+      expect(console.info).not.toHaveBeenCalled();
+      expect(console.warn).toHaveBeenCalled();
+      vi.unstubAllEnvs();
+    });
+
+    it('should allow debug logs when LOG_LEVEL is debug', async () => {
+      vi.stubEnv('LOG_LEVEL', 'debug');
+      vi.resetModules();
+      const { createLogger } = await import('./logger');
+      const logger = createLogger('test');
+      const debugSpy = vi.spyOn(console, 'debug').mockImplementation(() => {});
+      
+      logger.debug('test debug');
+      expect(debugSpy).toHaveBeenCalled();
+      vi.unstubAllEnvs();
+    });
+  });
 });

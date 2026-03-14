@@ -24,7 +24,7 @@ vi.mock('qrcode', () => ({
 
 import argon2 from 'argon2';
 import { generateSecret, verifySync } from 'otplib';
-import { hashPassword, verifyPassword, generateTOTPSecret, verifyTOTPToken } from './auth-utils';
+import { hashPassword, verifyPassword, generateTOTPSecret, verifyTOTPToken, generateQRCode } from './auth-utils';
 
 const mockedArgon2 = vi.mocked(argon2);
 const mockedGenerateSecret = vi.mocked(generateSecret);
@@ -123,6 +123,33 @@ describe('auth-utils', () => {
       verifyTOTPToken('654321', 'MYSECRET');
 
       expect(mockedVerifySync).toHaveBeenCalledWith({ token: '654321', secret: 'MYSECRET' });
+    });
+  });
+
+  describe('generateQRCode', () => {
+    it('should generate a QR code data URL', async () => {
+      const { generateURI } = await import('otplib');
+      const qrcode = (await import('qrcode')).default;
+      
+      vi.mocked(generateURI).mockReturnValue('otpauth://totp/ServerMon:test-user?secret=JBSWY3DPEHPK3PXP&issuer=ServerMon');
+      vi.mocked(qrcode.toDataURL).mockImplementation(async () => 'data:image/png;base64,mock');
+
+      const result = await generateQRCode('test-user', 'JBSWY3DPEHPK3PXP');
+
+      expect(generateURI).toHaveBeenCalledWith({
+        issuer: 'ServerMon',
+        label: 'test-user',
+        secret: 'JBSWY3DPEHPK3PXP',
+      });
+      expect(qrcode.toDataURL).toHaveBeenCalledWith('otpauth://totp/ServerMon:test-user?secret=JBSWY3DPEHPK3PXP&issuer=ServerMon');
+      expect(result).toBe('data:image/png;base64,mock');
+    });
+
+    it('should propagate errors from qrcode.toDataURL', async () => {
+      const qrcode = (await import('qrcode')).default;
+      vi.mocked(qrcode.toDataURL).mockRejectedValue(new Error('QR error'));
+
+      await expect(generateQRCode('user', 'secret')).rejects.toThrow('QR error');
     });
   });
 });
