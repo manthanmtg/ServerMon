@@ -105,7 +105,6 @@ describe('nginxService', () => {
             const originalPlatform = process.platform;
             Object.defineProperty(process, 'platform', { value: 'linux', configurable: true });
 
-            let callIndex = 0;
             (execFile as unknown as ReturnType<typeof vi.fn>).mockImplementation(
                 (_cmd: unknown, args: unknown, opts: unknown, callback: unknown) => {
                     const cb = (typeof opts === 'function' ? opts : callback) as (
@@ -113,7 +112,6 @@ describe('nginxService', () => {
                         result: { stdout: string; stderr: string }
                     ) => void;
                     const argList = args as string[];
-                    callIndex++;
 
                     // nginx -v → version
                     if (argList.includes('-v')) {
@@ -139,7 +137,7 @@ describe('nginxService', () => {
                 }
             );
 
-            vi.mocked(readdir).mockResolvedValue([] as unknown as string[]);
+            vi.mocked(readdir).mockResolvedValue([] as never);
 
             const { nginxService } = await import('./service');
             const snapshot = await nginxService.getSnapshot();
@@ -178,16 +176,16 @@ describe('nginxService', () => {
 
             vi.mocked(readdir).mockImplementation(async (path: unknown) => {
                 if (String(path) === '/etc/nginx/sites-available') {
-                    return ['mysite'] as unknown as string[];
+                    return ['mysite'] as never;
                 }
                 if (String(path) === '/etc/nginx/sites-enabled') {
-                    return ['mysite'] as unknown as string[];
+                    return ['mysite'] as never;
                 }
-                return [] as unknown as string[];
+                return [] as never;
             });
 
             vi.mocked(readFile).mockResolvedValue(
-                'server {\n  listen 443 ssl;\n  server_name example.com www.example.com;\n  root /var/www/html;\n  ssl_certificate /etc/ssl/cert.pem;\n  proxy_pass http://127.0.0.1:3000;\n}\n' as unknown as Buffer
+                'server {\n  listen 443 ssl;\n  server_name example.com www.example.com;\n  root /var/www/html;\n  ssl_certificate /etc/ssl/cert.pem;\n  proxy_pass http://127.0.0.1:3000;\n}\n' as never
             );
 
             const { nginxService } = await import('./service');
@@ -230,13 +228,13 @@ describe('nginxService', () => {
                     throw new Error('ENOENT: no such file or directory');
                 }
                 if (String(path) === '/etc/nginx/conf.d') {
-                    return ['default.conf'] as unknown as string[];
+                    return ['default.conf'] as never;
                 }
-                return [] as unknown as string[];
+                return [] as never;
             });
 
             vi.mocked(readFile).mockResolvedValue(
-                'server {\n  listen 80;\n  server_name conf-site.example.com;\n}\n' as unknown as Buffer
+                'server {\n  listen 80;\n  server_name conf-site.example.com;\n}\n' as never
             );
 
             const { nginxService } = await import('./service');
@@ -269,13 +267,13 @@ describe('nginxService', () => {
                     throw new Error('ENOENT');
                 }
                 if (String(path) === '/etc/nginx/conf.d') {
-                    return ['site.conf', 'README', 'backup.bak'] as unknown as string[];
+                    return ['site.conf', 'README', 'backup.bak'] as never;
                 }
-                return [] as unknown as string[];
+                return [] as never;
             });
 
             vi.mocked(readFile).mockResolvedValue(
-                'server { listen 80; server_name test.com; }\n' as unknown as Buffer
+                'server { listen 80; server_name test.com; }\n' as never
             );
 
             const { nginxService } = await import('./service');

@@ -1,5 +1,5 @@
 /** @vitest-environment node */
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { executeWebhook } from './webhook-executor';
 import type { ICustomEndpoint } from '@/models/CustomEndpoint';
 import type { ExecutionInput } from './executor';
