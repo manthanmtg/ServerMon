@@ -909,7 +909,7 @@ export default function EndpointsPage() {
                     </div>
 
                     {/* Tab Content */}
-                    <div className="flex-1 overflow-y-auto p-5 space-y-5">
+                    <div className="flex-1 overflow-y-auto p-5 space-y-5 pb-24">
                         {/* ---- Configure Tab ---- */}
                         {detailTab === 'configure' && (
                             <div className="space-y-5 animate-in fade-in duration-200">
@@ -985,9 +985,6 @@ export default function EndpointsPage() {
                                                         active ? "scale-110" : "group-hover:scale-110 opacity-50"
                                                     )} />
                                                     <span className="capitalize tracking-tight">{t}</span>
-                                                    {active && (
-                                                        <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-primary shadow-[0_0_10px_rgba(var(--primary),0.8)]" />
-                                                    )}
                                                 </button>
                                             );
                                         })}
