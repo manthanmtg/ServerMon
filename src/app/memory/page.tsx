@@ -1,7 +1,12 @@
 'use client';
 
 import MemoryPage from '@/modules/memory/ui/MemoryPage';
+import { MetricsProvider } from '@/lib/MetricsContext';
 
 export default function Page() {
-    return <MemoryPage />;
+    return (
+        <MetricsProvider>
+            <MemoryPage />
+        </MetricsProvider>
+    );
 }
