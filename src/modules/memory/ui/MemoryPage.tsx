@@ -32,6 +32,7 @@ interface MemoryStats {
 interface MemoryProcess {
     pid: number;
     name: string;
+    user: string;
     mem: number;
     memRss: number;
     memVsz: number;
@@ -149,27 +150,31 @@ export default function MemoryPage() {
                             </div>
                         </div>
                         <div className="h-[280px] -mx-4">
-                            <ResponsiveContainer width="100%" height="100%" minHeight={200}>
-                                <AreaChart data={history}>
+                            <ResponsiveContainer width="100%" height="100%">
+                                <AreaChart data={history} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
                                     <defs>
                                         <linearGradient id="memGradMain" x1="0" y1="0" x2="0" y2="1">
-                                            <stop offset="5%" stopColor="var(--primary)" stopOpacity={0.25} />
+                                            <stop offset="5%" stopColor="var(--primary)" stopOpacity={0.3} />
                                             <stop offset="95%" stopColor="var(--primary)" stopOpacity={0} />
                                         </linearGradient>
                                     </defs>
-                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" opacity={0.5} />
+                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" opacity={0.3} />
                                     <XAxis 
                                         dataKey="timestamp" 
-                                        hide={false} 
+                                        hide={true} 
+                                    />
+                                    <YAxis 
+                                        domain={[0, 100]} 
                                         axisLine={false} 
                                         tickLine={false} 
-                                        tick={false}
-                                        height={0}
+                                        tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }} 
+                                        unit="%" 
+                                        width={40}
                                     />
-                                    <YAxis domain={[0, 100]} axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }} unit="%" />
                                     <Tooltip 
                                         contentStyle={{ backgroundColor: 'var(--card)', borderRadius: '12px', border: '1px solid var(--border)', fontSize: '12px', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
                                         itemStyle={{ color: 'var(--primary)', fontWeight: 'bold' }}
+                                        labelStyle={{ color: 'var(--muted-foreground)', marginBottom: '4px' }}
                                     />
                                     <Area 
                                         type="monotone" 
@@ -177,7 +182,7 @@ export default function MemoryPage() {
                                         stroke="var(--primary)" 
                                         strokeWidth={3} 
                                         fill="url(#memGradMain)" 
-                                        animationDuration={1000}
+                                        isAnimationActive={false}
                                     />
                                 </AreaChart>
                             </ResponsiveContainer>
@@ -279,6 +284,7 @@ export default function MemoryPage() {
                             <thead>
                                 <tr className="border-b border-border/50">
                                     <th className="pb-3 text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Process</th>
+                                    <th className="pb-3 text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Owner</th>
                                     <th className="pb-3 text-[11px] font-bold text-muted-foreground uppercase tracking-wider text-right">PID</th>
                                     <th className="pb-3 text-[11px] font-bold text-muted-foreground uppercase tracking-wider text-center px-4">Usage</th>
                                     <th className="pb-3 text-[11px] font-bold text-muted-foreground uppercase tracking-wider text-right">RSS</th>
@@ -289,31 +295,38 @@ export default function MemoryPage() {
                             <tbody className="divide-y divide-border/30">
                                 {topProcs.map((proc) => (
                                     <tr key={proc.pid} className="group hover:bg-accent/30 transition-colors">
-                                        <td className="py-4 font-semibold text-sm">
+                                        <td className="py-4">
                                             <div className="flex items-center gap-3">
-                                                <div className="w-8 h-8 rounded-lg bg-accent/50 flex items-center justify-center text-[10px] font-bold">
+                                                <div className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center text-[10px] font-bold">
                                                     {proc.name[0].toUpperCase()}
                                                 </div>
-                                                <span className="truncate max-w-[150px] md:max-w-none">{proc.name}</span>
+                                                <div className="flex flex-col">
+                                                    <span className="text-sm font-bold truncate max-w-[200px]">{proc.name}</span>
+                                                </div>
                                             </div>
                                         </td>
+                                        <td className="py-4">
+                                            <span className="px-2 py-0.5 rounded-md bg-accent/40 text-[10px] font-mono font-bold text-muted-foreground">
+                                                {proc.user}
+                                            </span>
+                                        </td>
                                         <td className="py-4 text-xs font-mono text-muted-foreground text-right">{proc.pid}</td>
-                                        <td className="py-4 px-4 min-w-[140px]">
+                                        <td className="py-4 px-4 min-w-[160px]">
                                             <div className="space-y-1.5">
                                                 <div className="flex justify-between items-center text-[10px] font-bold px-0.5">
                                                     <span className={cn(
-                                                        proc.mem > 15 ? "text-destructive" : "text-emerald-500"
+                                                        proc.mem > 5 ? "text-primary" : "text-emerald-500"
                                                     )}>
                                                         {proc.mem.toFixed(1)}%
                                                     </span>
                                                 </div>
-                                                <div className="h-1.5 w-full rounded-full bg-accent/30 overflow-hidden">
+                                                <div className="h-2 w-full rounded-full bg-accent/20 overflow-hidden border border-border/10 p-[1px]">
                                                     <div 
                                                         className={cn(
-                                                            "h-full transition-all duration-700",
-                                                            proc.mem > 15 ? "bg-destructive" : "bg-emerald-500"
+                                                            "h-full rounded-full transition-all duration-700 min-w-[2px]",
+                                                            proc.mem > 10 ? "bg-primary" : "bg-emerald-500"
                                                         )}
-                                                        style={{ width: `${Math.min(proc.mem * 4, 100)}%` }}
+                                                        style={{ width: `${Math.max(proc.mem * 2, 2)}%` }}
                                                     />
                                                 </div>
                                             </div>
