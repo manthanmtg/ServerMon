@@ -20,6 +20,7 @@ import { nginxModule } from './nginx/module';
 import { securityModule } from './security/module';
 import { memoryModule } from './memory/module';
 import { usersModule } from './users/module';
+import { endpointsModule } from './endpoints/module';
 
 // For now, we will manually register modules here.
 // In the future, this could be a dynamic scan of the modules directory.
@@ -45,4 +46,5 @@ export const coreModules: Module[] = [
     securityModule,
     memoryModule,
     usersModule,
+    endpointsModule,
 ];

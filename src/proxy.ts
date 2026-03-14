@@ -7,7 +7,8 @@ const publicApiRoutes = [
     '/api/auth/logout', // Allow logouts without strict session if session is already dead
     '/api/auth/passkey',
     '/api/auth/verify',
-    '/api/setup'
+    '/api/setup',
+    '/api/endpoints', // Custom endpoints handle their own auth via tokens
 ];
 
 export default async function middleware(req: NextRequest) {

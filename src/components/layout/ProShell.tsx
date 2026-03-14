@@ -31,6 +31,7 @@ import {
     LoaderCircle,
     Brain,
     Users as UsersIcon,
+    Waypoints,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/components/ui/toast';
@@ -71,6 +72,7 @@ const navGroups = [
             { label: 'Security', href: '/security', icon: Shield },
             { label: 'Users & Permissions', href: '/users', icon: UsersIcon },
             { label: 'Memory', href: '/memory', icon: Brain },
+            { label: 'Endpoints', href: '/endpoints', icon: Waypoints },
         ],
     },
 ];

@@ -83,6 +83,10 @@ const UsersWidget = dynamic(() => import('@/modules/users/ui/UsersWidget'), {
     loading: WidgetLoader,
 });
 
+const EndpointsWidget = dynamic(() => import('@/modules/endpoints/ui/EndpointsWidget'), {
+    loading: WidgetLoader,
+});
+
 const widgetMap: Record<string, { component: React.ComponentType<Record<string, unknown>>; name: string }> = {
     HealthWidget: { component: HealthWidget, name: 'System Health' },
     ProcessWidget: { component: ProcessWidget, name: 'Processes' },
@@ -102,6 +106,7 @@ const widgetMap: Record<string, { component: React.ComponentType<Record<string, 
     SecurityWidget: { component: SecurityWidget, name: 'Security' },
     MemoryWidget: { component: MemoryWidget, name: 'Memory Health' },
     UsersWidget: { component: UsersWidget, name: 'Users & Access' },
+    EndpointsWidget: { component: EndpointsWidget, name: 'Custom Endpoints' },
 };
 
 export function renderWidget(componentName: string, props: Record<string, unknown> = {}) {
