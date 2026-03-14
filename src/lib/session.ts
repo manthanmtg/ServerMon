@@ -1,24 +1,8 @@
-import { SignJWT, jwtVerify } from 'jose';
 import { cookies } from 'next/headers';
 import { NextRequest, NextResponse } from 'next/server';
+import { encrypt, decrypt } from './session-core';
 
-const secretKey = process.env.JWT_SECRET || 'development_secret_only';
-const key = new TextEncoder().encode(secretKey);
-
-export async function encrypt(payload: Record<string, unknown>) {
-    return await new SignJWT(payload)
-        .setProtectedHeader({ alg: 'HS256' })
-        .setIssuedAt()
-        .setExpirationTime('2h')
-        .sign(key);
-}
-
-export async function decrypt(input: string) {
-    const { payload } = await jwtVerify(input, key, {
-        algorithms: ['HS256'],
-    });
-    return payload;
-}
+export { encrypt, decrypt };
 
 export async function login(user: { id: string; username: string; role: string }) {
     // Create the session

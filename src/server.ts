@@ -6,6 +6,7 @@ import { Server } from 'socket.io';
 import * as pty from 'node-pty';
 import os from 'os';
 import { createLogger } from './lib/logger';
+import { decrypt } from './lib/session-core';
 
 const log = createLogger('server');
 const dev = process.env.NODE_ENV !== 'production';
@@ -67,6 +68,49 @@ app.prepare().then(async () => {
     const io = new Server(server, {
         path: '/api/socket',
     });
+
+    // socket.io authentication middleware
+    io.use(async (socket, next) => {
+        try {
+            const cookieHeader = socket.handshake.headers.cookie;
+            if (!cookieHeader) {
+                log.warn('Socket connection rejected: No cookies present');
+                return next(new Error('Authentication error: Session cookie missing'));
+            }
+
+            const sessionCookie = cookieHeader
+                .split(';')
+                .find(c => c.trim().startsWith('session='))
+                ?.split('=')[1];
+
+            if (!sessionCookie) {
+                log.warn('Socket connection rejected: Session cookie not found');
+                return next(new Error('Authentication error: Session cookie not found'));
+            }
+
+            const session = (await decrypt(sessionCookie).catch(() => null)) as unknown as SessionPayload;
+            if (!session || !session.user) {
+                log.warn('Socket connection rejected: Invalid or expired session');
+                return next(new Error('Authentication error: Invalid session'));
+            }
+
+            // Attach user info to socket
+            (socket as unknown as { user: SessionPayload['user'] }).user = session.user;
+            next();
+        } catch (err) {
+            log.error('Socket authentication middleware error', err);
+            next(new Error('Internal authentication error'));
+        }
+    });
+
+    interface SessionPayload {
+        user: {
+            id: string;
+            username: string;
+            role: string;
+        };
+        expires: string;
+    }
 
     // Persistent PTY sessions
     interface ptySession {
