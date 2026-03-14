@@ -76,9 +76,10 @@ const LANGUAGES: ScriptLanguage[] = ['python', 'bash', 'node'];
 
 // ---- Resizable panel handle ----
 
-function ResizeHandle({ onDrag }: { onDrag: (clientX: number) => void }) {
+function ResizeHandle({ onDrag, onDragStart, onDragEnd }: { onDrag: (clientX: number) => void; onDragStart?: () => void; onDragEnd?: () => void }) {
     const handleMouseDown = (e: React.MouseEvent) => {
         e.preventDefault();
+        onDragStart?.();
 
         const onMouseMove = (ev: MouseEvent) => {
             onDrag(ev.clientX);
@@ -89,6 +90,7 @@ function ResizeHandle({ onDrag }: { onDrag: (clientX: number) => void }) {
             document.removeEventListener('mouseup', onMouseUp);
             document.body.style.cursor = '';
             document.body.style.userSelect = '';
+            onDragEnd?.();
         };
 
         document.body.style.cursor = 'col-resize';
@@ -245,6 +247,7 @@ export default function EndpointsPage() {
 
     // Resizable list panel (left side)
     const [listWidth, setListWidth] = useState(340);
+    const [isResizing, setIsResizing] = useState(false);
     const containerRef = useRef<HTMLDivElement>(null);
 
     // Close menu when clicking outside
@@ -690,8 +693,9 @@ export default function EndpointsPage() {
             {/* ---- Left Panel: Endpoint List ---- */}
             <div 
                 className={cn(
-                    'flex flex-col min-w-0 transition-all duration-300',
+                    'flex flex-col min-w-0',
                     showDetail ? 'shrink-0 hidden lg:flex' : 'flex-1',
+                    !isResizing && 'transition-all duration-300',
                 )}
                 style={showDetail ? { width: listWidth } : undefined}
             >
@@ -859,11 +863,15 @@ export default function EndpointsPage() {
 
             {/* ---- Resize Handle ---- */}
             {showDetail && (
-                <ResizeHandle onDrag={(clientX) => {
-                    const containerLeft = containerRef.current?.getBoundingClientRect().left ?? 0;
-                    const newWidth = Math.max(280, Math.min(500, clientX - containerLeft));
-                    setListWidth(newWidth);
-                }} />
+                <ResizeHandle
+                    onDragStart={() => setIsResizing(true)}
+                    onDragEnd={() => setIsResizing(false)}
+                    onDrag={(clientX) => {
+                        const containerLeft = containerRef.current?.getBoundingClientRect().left ?? 0;
+                        const newWidth = Math.max(280, Math.min(500, clientX - containerLeft));
+                        setListWidth(newWidth);
+                    }}
+                />
             )}
 
             {/* ---- Right Panel: Detail/Editor ---- */}
@@ -875,9 +883,9 @@ export default function EndpointsPage() {
                     )}
                 >
                     {/* Detail Header */}
-                    <div className="flex items-center gap-3 px-5 py-3.5 border-b border-border/40 bg-card/60">
-                        <button onClick={closeDetail} className="lg:hidden p-1.5 rounded-lg hover:bg-accent text-muted-foreground">
-                            <X className="w-4 h-4" />
+                    <div className="flex items-center gap-2 sm:gap-3 px-3 sm:px-5 py-3 border-b border-border/40 bg-card/60">
+                        <button onClick={closeDetail} className="lg:hidden p-1.5 rounded-lg hover:bg-accent text-muted-foreground shrink-0">
+                            <ChevronRight className="w-4 h-4 rotate-180" />
                         </button>
                         <div className="flex-1 min-w-0">
                             <input
@@ -885,11 +893,11 @@ export default function EndpointsPage() {
                                 value={form.name}
                                 onChange={(e) => updateForm('name', e.target.value)}
                                 placeholder="Endpoint name..."
-                                className="text-base font-bold text-foreground bg-transparent border-none outline-none w-full placeholder:text-muted-foreground/40"
+                                className="text-sm sm:text-base font-bold text-foreground bg-transparent border-none outline-none w-full placeholder:text-muted-foreground/40"
                             />
                             {form.slug && (
                                 <div className="flex items-center gap-1.5 mt-0.5">
-                                    <code className="text-[11px] font-mono text-muted-foreground truncate">
+                                    <code className="text-[10px] sm:text-[11px] font-mono text-muted-foreground truncate">
                                         /api/endpoints/{form.slug}
                                     </code>
                                     <button onClick={copySlug} className="shrink-0 text-muted-foreground hover:text-foreground transition-colors">
@@ -898,69 +906,68 @@ export default function EndpointsPage() {
                                 </div>
                             )}
                         </div>
-                        <div className="flex items-center gap-2 shrink-0">
+                        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
                             {!isCreating && selectedId && (
-                                <>
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={handleTest}
-                                        disabled={testLoading}
-                                        className="h-8 gap-1.5 rounded-lg text-xs"
-                                    >
-                                        {testLoading ? <LoaderCircle className="w-3 h-3 animate-spin" /> : <Play className="w-3 h-3" />}
-                                        Test
-                                    </Button>
-                                </>
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={handleTest}
+                                    disabled={testLoading}
+                                    className="h-8 w-8 sm:w-auto p-0 sm:px-3 sm:gap-1.5 rounded-lg text-xs"
+                                >
+                                    {testLoading ? <LoaderCircle className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />}
+                                    <span className="hidden sm:inline">Test</span>
+                                </Button>
                             )}
                             <Button
                                 size="sm"
                                 onClick={handleSave}
                                 disabled={saving || !form.name || (!isCreating && !isDirty)}
-                                className="h-8 gap-1.5 rounded-lg text-xs font-semibold"
+                                className="h-8 w-8 sm:w-auto p-0 sm:px-3 sm:gap-1.5 rounded-lg text-xs font-semibold"
                             >
-                                {saving ? <LoaderCircle className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
-                                {isCreating ? 'Create' : 'Save'}
+                                {saving ? <LoaderCircle className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                                <span className="hidden sm:inline">{isCreating ? 'Create' : 'Save'}</span>
                             </Button>
                             <Button
                                 variant="outline"
                                 size="sm"
                                 onClick={closeDetail}
-                                className="h-8 gap-1.5 rounded-lg text-xs"
+                                className="h-8 w-8 p-0 rounded-lg hidden sm:flex sm:w-auto sm:px-3 sm:gap-1.5 text-xs"
                             >
                                 <X className="w-3.5 h-3.5 text-muted-foreground" />
-                                Close
+                                <span className="hidden sm:inline">Close</span>
                             </Button>
                         </div>
                     </div>
 
                     {/* Tabs */}
-                    <div className="flex items-center gap-0.5 px-5 pt-2 border-b border-border/40 bg-card/30">
+                    <div className="flex items-center gap-0.5 px-3 sm:px-5 pt-2 border-b border-border/40 bg-card/30 overflow-x-auto scrollbar-none">
                         {([
-                            { id: 'configure', label: 'Configure', icon: Settings },
-                            { id: 'code', label: form.endpointType === 'webhook' ? 'Webhook' : form.endpointType === 'logic' ? 'Logic' : 'Code', icon: TYPE_ICONS[form.endpointType || 'script'] },
-                            { id: 'auth', label: 'Auth & Tokens', icon: Key },
-                            { id: 'logs', label: 'Logs', icon: FileText },
-                            { id: 'settings', label: 'Settings', icon: Settings },
-                        ] as Array<{ id: DetailTab; label: string; icon: typeof Settings }>).map((tab) => (
+                            { id: 'configure', label: 'Configure', shortLabel: 'Config', icon: Settings },
+                            { id: 'code', label: form.endpointType === 'webhook' ? 'Webhook' : form.endpointType === 'logic' ? 'Logic' : 'Code', shortLabel: form.endpointType === 'webhook' ? 'Hook' : form.endpointType === 'logic' ? 'Logic' : 'Code', icon: TYPE_ICONS[form.endpointType || 'script'] },
+                            { id: 'auth', label: 'Auth & Tokens', shortLabel: 'Auth', icon: Key },
+                            { id: 'logs', label: 'Logs', shortLabel: 'Logs', icon: FileText },
+                            { id: 'settings', label: 'Settings', shortLabel: 'Settings', icon: Settings },
+                        ] as Array<{ id: DetailTab; label: string; shortLabel: string; icon: typeof Settings }>).map((tab) => (
                             <button
                                 key={tab.id}
                                 onClick={() => setDetailTab(tab.id)}
                                 className={cn(
-                                    'flex items-center gap-1.5 px-3 py-2.5 text-xs font-medium rounded-t-lg transition-colors border-b-2',
+                                    'flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-2.5 text-[11px] sm:text-xs font-medium rounded-t-lg transition-colors border-b-2 whitespace-nowrap shrink-0',
                                     detailTab === tab.id
                                         ? 'text-primary border-primary bg-primary/5'
                                         : 'text-muted-foreground border-transparent hover:text-foreground hover:bg-accent/50',
                                 )}
                             >
                                 <tab.icon className="w-3.5 h-3.5" />
-                                {tab.label}
+                                <span className="hidden sm:inline">{tab.label}</span>
+                                <span className="sm:hidden">{tab.shortLabel}</span>
                             </button>
                         ))}
                     </div>
 
                     {/* Tab Content */}
-                    <div className="flex-1 overflow-y-auto p-5 space-y-5 pb-80">
+                    <div className="flex-1 overflow-y-auto p-3 sm:p-5 space-y-4 sm:space-y-5 pb-40 sm:pb-80">
                         {/* ---- Configure Tab ---- */}
                         {detailTab === 'configure' && (
                             <div className="space-y-5 animate-in fade-in duration-200">
