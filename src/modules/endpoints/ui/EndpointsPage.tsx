@@ -763,11 +763,9 @@ export default function EndpointsPage() {
                         {([
                             { id: 'configure', label: 'Configure', icon: Settings },
                             { id: 'code', label: form.endpointType === 'webhook' ? 'Webhook' : form.endpointType === 'logic' ? 'Logic' : 'Code', icon: TYPE_ICONS[form.endpointType || 'script'] },
-                            ...(!isCreating ? [
-                                { id: 'auth', label: 'Auth & Tokens', icon: Key },
-                                { id: 'logs', label: 'Logs', icon: FileText },
-                                { id: 'settings', label: 'Settings', icon: Settings },
-                            ] : []),
+                            { id: 'auth', label: 'Auth & Tokens', icon: Key },
+                            { id: 'logs', label: 'Logs', icon: FileText },
+                            { id: 'settings', label: 'Settings', icon: Settings },
                         ] as Array<{ id: DetailTab; label: string; icon: typeof Settings }>).map((tab) => (
                             <button
                                 key={tab.id}
@@ -1138,8 +1136,17 @@ export default function EndpointsPage() {
                                         </button>
                                     </div>
                                 </div>
+                                {isCreating && (
+                                    <div className="flex flex-col items-center py-8 text-center bg-muted/20 rounded-xl border border-dashed border-border/60">
+                                        <Key className="w-8 h-8 text-muted-foreground/30 mb-3" />
+                                        <p className="text-sm font-medium text-muted-foreground">Tokens require a saved endpoint</p>
+                                        <p className="text-[11px] text-muted-foreground/60 max-w-[240px]">
+                                            You can configure the authentication type now, but token generation will be available after you save the endpoint.
+                                        </p>
+                                    </div>
+                                )}
 
-                                {form.auth === 'token' && (
+                                {!isCreating && form.auth === 'token' && (
                                     <>
                                         {/* Generated token display */}
                                         {generatedToken && (
@@ -1229,6 +1236,12 @@ export default function EndpointsPage() {
                                 {logsLoading ? (
                                     <div className="flex justify-center py-12">
                                         <LoaderCircle className="w-5 h-5 animate-spin text-primary" />
+                                    </div>
+                                ) : isCreating ? (
+                                    <div className="flex flex-col items-center py-12 text-center">
+                                        <FileText className="w-8 h-8 text-muted-foreground/40 mb-3" />
+                                        <p className="text-sm text-muted-foreground">No execution logs yet</p>
+                                        <p className="text-[11px] text-muted-foreground/70">Logs will appear here after the endpoint is created and called.</p>
                                     </div>
                                 ) : logs.length === 0 ? (
                                     <div className="flex flex-col items-center py-12 text-center">
