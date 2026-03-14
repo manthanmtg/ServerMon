@@ -1,9 +1,6 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  experimental: {
-    ppr: false,
-  },
   serverExternalPackages: ["speedtest-net"],
   webpack: (config, { isServer }) => {
     if (!isServer) {
