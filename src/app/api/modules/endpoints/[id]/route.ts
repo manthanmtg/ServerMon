@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createLogger } from '@/lib/logger';
 import connectDB from '@/lib/db';
-import CustomEndpoint, { CustomEndpointZodSchema } from '@/models/CustomEndpoint';
+import CustomEndpoint, { CustomEndpointZodSchema, ICustomEndpointDTO } from '@/models/CustomEndpoint';
 
 export const dynamic = 'force-dynamic';
 
@@ -44,16 +44,12 @@ export async function PUT(
             return NextResponse.json({ error: 'Endpoint not found' }, { status: 404 });
         }
 
-        const merged = {
+        const merged: Partial<ICustomEndpointDTO> = {
             name: body.name ?? existing.name,
             slug: body.slug ?? existing.slug,
             description: body.description ?? existing.description,
             method: body.method ?? existing.method,
             endpointType: body.endpointType ?? existing.endpointType,
-            scriptLang: body.scriptLang ?? existing.scriptLang,
-            scriptContent: body.scriptContent ?? existing.scriptContent,
-            logicConfig: body.logicConfig ?? existing.logicConfig,
-            webhookConfig: body.webhookConfig ?? existing.webhookConfig,
             envVars: body.envVars ?? (existing.envVars instanceof Map ? Object.fromEntries(existing.envVars) : existing.envVars),
             auth: body.auth ?? existing.auth,
             tags: body.tags ?? existing.tags,
@@ -61,6 +57,24 @@ export async function PUT(
             timeout: body.timeout ?? existing.timeout,
             responseHeaders: body.responseHeaders ?? (existing.responseHeaders instanceof Map ? Object.fromEntries(existing.responseHeaders) : existing.responseHeaders),
         };
+
+        // Handle type-specific fields and clear others to avoid validation conflicts
+        if (merged.endpointType === 'script') {
+            merged.scriptLang = body.scriptLang ?? existing.scriptLang;
+            merged.scriptContent = body.scriptContent ?? existing.scriptContent;
+            merged.logicConfig = undefined;
+            merged.webhookConfig = undefined;
+        } else if (merged.endpointType === 'logic') {
+            merged.logicConfig = body.logicConfig ?? existing.logicConfig;
+            merged.scriptLang = undefined;
+            merged.scriptContent = undefined;
+            merged.webhookConfig = undefined;
+        } else if (merged.endpointType === 'webhook') {
+            merged.webhookConfig = body.webhookConfig ?? existing.webhookConfig;
+            merged.scriptLang = undefined;
+            merged.scriptContent = undefined;
+            merged.logicConfig = undefined;
+        }
 
         const parsed = CustomEndpointZodSchema.safeParse(merged);
         if (!parsed.success) {

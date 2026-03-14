@@ -351,14 +351,43 @@ export default function EndpointsPage() {
     const handleSave = useCallback(async () => {
         setSaving(true);
         try {
+            // Sanitize form data before sending
+            const sanitizedForm = { ...form };
+            
+            // Fix timeout
+            if (typeof sanitizedForm.timeout !== 'number' || isNaN(sanitizedForm.timeout)) {
+                sanitizedForm.timeout = 30000;
+            }
+
+            // Remove irrelevant configs based on endpoint type
+            if (sanitizedForm.endpointType === 'script') {
+                delete sanitizedForm.webhookConfig;
+                delete sanitizedForm.logicConfig;
+            } else if (sanitizedForm.endpointType === 'webhook') {
+                delete sanitizedForm.scriptContent;
+                delete sanitizedForm.scriptLang;
+                delete sanitizedForm.logicConfig;
+                // Ensure targetUrl is trimmed and handled
+                if (sanitizedForm.webhookConfig) {
+                    sanitizedForm.webhookConfig.targetUrl = sanitizedForm.webhookConfig.targetUrl?.trim() || '';
+                }
+            } else if (sanitizedForm.endpointType === 'logic') {
+                delete sanitizedForm.scriptContent;
+                delete sanitizedForm.scriptLang;
+                delete sanitizedForm.webhookConfig;
+            }
+
             if (isCreating) {
                 const res = await fetch('/api/modules/endpoints/create', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(form),
+                    body: JSON.stringify(sanitizedForm),
                 });
                 const data = await res.json();
-                if (!res.ok) throw new Error(data.error || 'Failed to create');
+                if (!res.ok) {
+                    const details = data.details ? Object.entries(data.details).map(([k, v]) => `${k}: ${(v as string[]).join(', ')}`).join('; ') : '';
+                    throw new Error(data.error + (details ? `: ${details}` : '') || 'Failed to create');
+                }
                 toast({ title: 'Endpoint created', description: data.name, variant: 'success' });
                 setIsCreating(false);
                 setSelectedId(data._id);
@@ -367,10 +396,13 @@ export default function EndpointsPage() {
                 const res = await fetch(`/api/modules/endpoints/${selectedId}`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(form),
+                    body: JSON.stringify(sanitizedForm),
                 });
                 const data = await res.json();
-                if (!res.ok) throw new Error(data.error || 'Failed to update');
+                if (!res.ok) {
+                    const details = data.details ? Object.entries(data.details).map(([k, v]) => `${k}: ${(v as string[]).join(', ')}`).join('; ') : '';
+                    throw new Error(data.error + (details ? `: ${details}` : '') || 'Failed to update');
+                }
                 toast({ title: 'Endpoint saved', variant: 'success' });
                 await loadEndpoints();
             }
@@ -394,7 +426,10 @@ export default function EndpointsPage() {
         try {
             const res = await fetch(`/api/modules/endpoints/${id}/duplicate`, { method: 'POST' });
             const data = await res.json();
-            if (!res.ok) throw new Error(data.error);
+            if (!res.ok) {
+                const details = data.details ? Object.entries(data.details).map(([k, v]) => `${k}: ${(v as string[]).join(', ')}`).join('; ') : '';
+                throw new Error(data.error + (details ? `: ${details}` : ''));
+            }
             toast({ title: 'Endpoint duplicated', description: data.name, variant: 'success' });
             await loadEndpoints();
         } catch (err: unknown) {
