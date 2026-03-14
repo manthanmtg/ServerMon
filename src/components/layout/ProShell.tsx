@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useTheme } from '@/lib/ThemeContext';
+import { useBrand } from '@/lib/BrandContext';
 import ThemeSelector from './ThemeSelector';
 import {
     LayoutDashboard,
@@ -82,6 +83,7 @@ function SidebarNav({ pathname, onNavigate, onLogout }: {
     onNavigate?: () => void;
     onLogout: () => void;
 }) {
+    const { settings } = useBrand();
     const navRef = React.useRef<HTMLElement>(null);
 
     // Restore scroll position
@@ -100,10 +102,17 @@ function SidebarNav({ pathname, onNavigate, onLogout }: {
     return (
         <div className="flex flex-col h-full">
             <div className="h-14 flex items-center gap-2.5 px-5 border-b border-sidebar-border shrink-0">
-                <div className="w-7 h-7 rounded-lg bg-primary flex items-center justify-center">
-                    <Activity className="w-4 h-4 text-primary-foreground" />
+                <div className="w-7 h-7 rounded-lg overflow-hidden flex items-center justify-center">
+                    {settings.logoBase64 ? (
+                        /* eslint-disable-next-line @next/next/no-img-element */
+                        <img src={settings.logoBase64} alt="Logo" className="w-full h-full object-cover" />
+                    ) : (
+                        <div className="w-full h-full bg-primary flex items-center justify-center">
+                            <Activity className="w-4 h-4 text-primary-foreground" />
+                        </div>
+                    )}
                 </div>
-                <span className="text-sm font-bold text-foreground tracking-tight">ServerMon</span>
+                <span className="text-sm font-bold text-foreground tracking-tight">{settings.pageTitle}</span>
             </div>
 
             <nav 
@@ -183,11 +192,21 @@ function SidebarNav({ pathname, onNavigate, onLogout }: {
 export default function ProShell({ children, title, subtitle, headerContent }: ProShellProps) {
     useTheme();
     const pathname = usePathname();
+    const { settings } = useBrand();
     const router = useRouter();
     const [sidebarOpen, setSidebarOpen] = useState(false);
     const { toast } = useToast();
     const [showRebootConfirm, setShowRebootConfirm] = useState(false);
     const [isRebooting, setIsRebooting] = useState(false);
+
+    // Update document title
+    useEffect(() => {
+        const originalTitle = document.title;
+        if (settings.pageTitle) {
+            document.title = `${title} | ${settings.pageTitle}`;
+        }
+        return () => { document.title = originalTitle; };
+    }, [title, settings.pageTitle]);
 
     // Close sidebar on route change and lock body scroll when open
     useEffect(() => {

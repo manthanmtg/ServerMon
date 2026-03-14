@@ -2,8 +2,9 @@
 
 import React, { useEffect, useState } from 'react';
 import { useTheme } from '@/lib/ThemeContext';
-import { Palette, Box, Shield, Check, RefreshCcw, LoaderCircle, History } from 'lucide-react';
+import { Palette, Box, Shield, Check, RefreshCcw, LoaderCircle, History, Layout, Upload, Image as ImageIcon, Type, X } from 'lucide-react';
 import ProShell from '@/components/layout/ProShell';
+import { useBrand } from '@/lib/BrandContext';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import PasskeySettings from '@/modules/security/ui/PasskeySettings';
@@ -19,11 +20,22 @@ interface ModuleInfo {
 
 export default function SettingsPage() {
     const { theme, setTheme, availableThemes } = useTheme();
+    const { settings: brandSettings, updateSettings: updateBrandSettings } = useBrand();
     const { toast } = useToast();
     const [modules, setModules] = useState<ModuleInfo[]>([]);
     const [updating, setUpdating] = useState(false);
     const [showHistory, setShowHistory] = useState(false);
     const [showUpdateConfirm, setShowUpdateConfirm] = useState(false);
+
+    // Branding state
+    const [pageTitle, setPageTitle] = useState(brandSettings.pageTitle);
+    const [logoBase64, setLogoBase64] = useState(brandSettings.logoBase64);
+    const [isSavingBrand, setIsSavingBrand] = useState(false);
+
+    useEffect(() => {
+        setPageTitle(brandSettings.pageTitle);
+        setLogoBase64(brandSettings.logoBase64);
+    }, [brandSettings]);
 
     useEffect(() => {
         fetch('/api/modules')
@@ -58,6 +70,34 @@ export default function SettingsPage() {
             setUpdating(false);
         }
     }
+
+    const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        if (file.size > 1024 * 1024) { // 1MB limit
+            toast({ title: 'Error', description: 'Logo size should be less than 1MB', variant: 'destructive' });
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onloadend = () => {
+            setLogoBase64(reader.result as string);
+        };
+        reader.readAsDataURL(file);
+    };
+
+    const handleSaveBranding = async () => {
+        setIsSavingBrand(true);
+        try {
+            await updateBrandSettings({ pageTitle, logoBase64 });
+            toast({ title: 'Branding Updated', description: 'Branding settings have been saved successfully', variant: 'success' });
+        } catch (_err) {
+            toast({ title: 'Error', description: 'Failed to update branding settings', variant: 'destructive' });
+        } finally {
+            setIsSavingBrand(false);
+        }
+    };
 
     return (
         <ProShell title="Settings" subtitle="Configuration">
@@ -176,6 +216,77 @@ export default function SettingsPage() {
                                         <span className="text-sm font-medium text-foreground">2 hours</span>
                                     </div>
                                 </div>
+                            </CardContent>
+                        </Card>
+
+                        {/* Branding */}
+                        <Card>
+                            <CardHeader>
+                                <div className="flex items-center gap-3">
+                                    <div className="p-2 rounded-lg bg-primary/10">
+                                        <Layout className="w-4 h-4 text-primary" />
+                                    </div>
+                                    <div>
+                                        <CardTitle className="text-base">Branding</CardTitle>
+                                        <CardDescription>Customize logo and title</CardDescription>
+                                    </div>
+                                </div>
+                            </CardHeader>
+                            <CardContent className="space-y-6">
+                                <div className="space-y-3">
+                                    <div className="flex items-center gap-2 text-xs font-bold text-muted-foreground uppercase tracking-widest">
+                                        <Type className="w-3 h-3" />
+                                        <span>Page Title</span>
+                                    </div>
+                                    <input 
+                                        type="text" 
+                                        value={pageTitle}
+                                        onChange={(e) => setPageTitle(e.target.value)}
+                                        placeholder="e.g. MyServer"
+                                        className="w-full px-3 py-2 bg-accent/20 border border-border rounded-lg text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all font-medium"
+                                    />
+                                </div>
+
+                                <div className="space-y-3">
+                                    <div className="flex items-center gap-2 text-xs font-bold text-muted-foreground uppercase tracking-widest">
+                                        <ImageIcon className="w-3 h-3" />
+                                        <span>Logo</span>
+                                    </div>
+                                    <div className="flex items-center gap-4">
+                                        <div className="w-16 h-16 rounded-xl border border-border bg-accent/20 flex items-center justify-center overflow-hidden shrink-0 group relative">
+                                            {logoBase64 ? (
+                                                /* eslint-disable-next-line @next/next/no-img-element */
+                                                <img src={logoBase64} alt="Preview" className="w-full h-full object-cover" />
+                                            ) : (
+                                                <ImageIcon className="w-6 h-6 text-muted-foreground" />
+                                            )}
+                                            {logoBase64 && (
+                                                <button 
+                                                    onClick={() => setLogoBase64('')}
+                                                    className="absolute inset-0 bg-destructive/80 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity"
+                                                >
+                                                    <X className="w-5 h-5 text-white" />
+                                                </button>
+                                            )}
+                                        </div>
+                                        <div className="flex-1 space-y-2">
+                                            <label className="flex items-center justify-center gap-2 w-full h-10 px-4 py-2 bg-primary/10 text-primary hover:bg-primary/20 rounded-lg text-xs font-bold transition-all cursor-pointer">
+                                                <Upload className="w-3.5 h-3.5" />
+                                                <span>Upload Image</span>
+                                                <input type="file" className="hidden" accept="image/*" onChange={handleLogoUpload} />
+                                            </label>
+                                            <p className="text-[10px] text-muted-foreground text-center">PNG, JPG or SVG (Max 1MB)</p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <button 
+                                    onClick={handleSaveBranding}
+                                    disabled={isSavingBrand}
+                                    className="w-full h-11 flex items-center justify-center bg-primary text-primary-foreground rounded-xl text-sm font-bold shadow-lg shadow-primary/20 hover:shadow-primary/30 transition-all disabled:opacity-50"
+                                >
+                                    {isSavingBrand ? <LoaderCircle className="w-4 h-4 animate-spin" /> : 'Save Branding Changes'}
+                                </button>
                             </CardContent>
                         </Card>
 
