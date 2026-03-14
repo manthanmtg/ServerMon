@@ -1,5 +1,7 @@
 'use client';
 
+export const dynamic = 'force-dynamic';
+
 import ProShell from '@/components/layout/ProShell';
 import HardwarePage from '@/modules/hardware/ui/HardwarePage';
 

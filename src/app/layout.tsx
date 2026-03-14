@@ -1,8 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
-import { ThemeProvider } from "@/lib/ThemeContext";
-import { BrandProvider } from "@/lib/BrandContext";
-import { ToastProvider } from "@/components/ui/toast";
+import Providers from "./providers";
+
+export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
     title: "ServerMon",
@@ -36,13 +36,9 @@ export default function RootLayout({
     return (
         <html lang="en" suppressHydrationWarning>
             <body className="antialiased" suppressHydrationWarning>
-                <ThemeProvider>
-                    <BrandProvider>
-                        <ToastProvider>
-                            {children}
-                        </ToastProvider>
-                    </BrandProvider>
-                </ThemeProvider>
+                <Providers>
+                    {children}
+                </Providers>
             </body>
         </html>
     );
