@@ -8,6 +8,7 @@ const publicApiRoutes = [
     '/api/auth/passkey',
     '/api/auth/verify',
     '/api/setup',
+    '/api/settings/branding', // Allow logo/title to persist on login page after logout
     '/api/endpoints', // Custom endpoints handle their own auth via tokens
     '/api/metrics/stream', // Allow metrics stream in proxy and send credentials in MetricsContext.
 ];
