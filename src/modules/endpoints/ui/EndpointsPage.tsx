@@ -605,6 +605,15 @@ export default function EndpointsPage() {
                         <RefreshCcw className={cn('w-4 h-4', refreshing && 'animate-spin')} />
                     </Button>
                     <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => { loadTemplates(); setShowTemplates(true); }}
+                        className="h-10 gap-1.5 rounded-xl font-semibold px-4"
+                    >
+                        <Sparkles className="w-4 h-4" />
+                        <span className="hidden sm:inline">From Template</span>
+                    </Button>
+                    <Button
                         size="sm"
                         onClick={startCreate}
                         className="h-10 gap-1.5 rounded-xl font-semibold px-4"
