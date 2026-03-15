@@ -6,7 +6,6 @@ import {
     Bot,
     CircleDot,
     Clock,
-    Cpu,
     FileCode,
     FolderGit2,
     GitBranch,
@@ -27,7 +26,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/components/ui/toast';
 import { AutoscrollButton } from '@/components/ui/AutoscrollButton';
-import { cn, formatBytes } from '@/lib/utils';
+import { cn } from '@/lib/utils';
 import type { AgentSession, AgentsSnapshot, AgentType, SessionStatus } from '../types';
 
 type FilterStatus = 'all' | SessionStatus;
@@ -256,19 +255,6 @@ function SessionDetail({
                         <div className="flex items-center gap-1.5">
                             <Timer className="w-3 h-3 text-muted-foreground shrink-0" />
                             <span>Duration: {formatDuration(session.lifecycle.durationSeconds)}</span>
-                        </div>
-                    </CardContent>
-                </Card>
-                <Card className="border-border/60">
-                    <CardContent className="p-3 space-y-1.5 text-xs">
-                        <p className="font-medium text-muted-foreground uppercase text-[10px] tracking-wider">Resources</p>
-                        <div className="flex items-center gap-1.5">
-                            <Cpu className="w-3 h-3 text-muted-foreground shrink-0" />
-                            <span>CPU: {session.resources.cpuPercent.toFixed(1)}%</span>
-                        </div>
-                        <div className="flex items-center gap-1.5">
-                            <Square className="w-3 h-3 text-muted-foreground shrink-0" />
-                            <span>Memory: {formatBytes(session.resources.memoryBytes)} ({session.resources.memoryPercent.toFixed(1)}%)</span>
                         </div>
                     </CardContent>
                 </Card>

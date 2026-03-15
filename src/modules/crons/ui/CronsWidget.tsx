@@ -106,6 +106,10 @@ export default function CronsWidget() {
                         </span>
                     </div>
                 )}
+                <div className="mt-3 flex items-center justify-between text-[10px] text-muted-foreground pt-3 border-t border-border/40">
+                    <span>{snapshot?.summary.total ?? 0} total</span>
+                    <span>{snapshot?.summary.userCrons ?? 0} user · {snapshot?.summary.systemCrons ?? 0} sys</span>
+                </div>
             </CardContent>
         </Card>
     );

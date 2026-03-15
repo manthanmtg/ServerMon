@@ -173,7 +173,9 @@ export default function ProcessWidget() {
             <div className="space-y-4 animate-fade-in">
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                     {Array.from({ length: 4 }).map((_, i) => (
-                        <SkeletonCard key={i} />
+                        <div key={i} data-testid={`skeleton-card-${i}`}>
+                            <SkeletonCard />
+                        </div>
                     ))}
                 </div>
                 <SkeletonTable rows={8} />

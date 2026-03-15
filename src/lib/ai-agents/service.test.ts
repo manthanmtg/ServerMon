@@ -13,24 +13,27 @@ const { mockClaudeDetect, mockCodexDetect, mockOpenCodeDetect, mockKillProcess }
 }));
 
 vi.mock('./adapters/claude-code', () => ({
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    ClaudeCodeAdapter: function(this: any) {
-        this.displayName = 'Claude Code';
-        this.detect = mockClaudeDetect;
+    // Paired explanation: using unknown and casting to avoid explicit any in mock constructor
+    ClaudeCodeAdapter: function(this: unknown) {
+        const self = this as { displayName: string; detect: typeof mockClaudeDetect };
+        self.displayName = 'Claude Code';
+        self.detect = mockClaudeDetect;
     },
 }));
 vi.mock('./adapters/codex', () => ({
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    CodexAdapter: function(this: any) {
-        this.displayName = 'Codex';
-        this.detect = mockCodexDetect;
+    // Paired explanation: using unknown and casting to avoid explicit any in mock constructor
+    CodexAdapter: function(this: unknown) {
+        const self = this as { displayName: string; detect: typeof mockClaudeDetect };
+        self.displayName = 'Codex';
+        self.detect = mockCodexDetect;
     },
 }));
 vi.mock('./adapters/opencode', () => ({
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    OpenCodeAdapter: function(this: any) {
-        this.displayName = 'OpenCode';
-        this.detect = mockOpenCodeDetect;
+    // Paired explanation: using unknown and casting to avoid explicit any in mock constructor
+    OpenCodeAdapter: function(this: unknown) {
+        const self = this as { displayName: string; detect: typeof mockClaudeDetect };
+        self.displayName = 'OpenCode';
+        self.detect = mockOpenCodeDetect;
     },
 }));
 vi.mock('./process-utils', () => ({

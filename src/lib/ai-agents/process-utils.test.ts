@@ -20,10 +20,11 @@ import * as fs from 'fs';
 import { getProcessResourceUsage, detectGitInfo, killProcess, discoverHomeDirs } from './process-utils';
 
 function mockExec(stdout: string, error: Error | null = null) {
-    (exec as unknown as ReturnType<typeof vi.fn>).mockImplementation(
-        (_cmd: string, _opts: unknown, cb: (err: Error | null, stdout: string, stderr: string) => void) => {
+    vi.mocked(exec).mockImplementation(
+        // Paired explanation: using unknown and casting for child_process.exec mock
+        ((_cmd: string, _opts: unknown, cb: (err: Error | null, stdout: string, stderr: string) => void) => {
             cb(error, stdout, '');
-        }
+        }) as never
     );
 }
 
@@ -75,12 +76,13 @@ describe('process-utils', () => {
 
         it('parses repository and branch from git output', async () => {
             let callCount = 0;
-            (exec as unknown as ReturnType<typeof vi.fn>).mockImplementation(
-                (_cmd: string, _opts: unknown, cb: (err: Error | null, stdout: string, stderr: string) => void) => {
+            vi.mocked(exec).mockImplementation(
+                // Paired explanation: using unknown and casting for child_process.exec mock
+                ((_cmd: string, _opts: unknown, cb: (err: Error | null, stdout: string, stderr: string) => void) => {
                     callCount++;
                     if (callCount === 1) cb(null, '/home/user/my-repo\n', '');
                     else cb(null, 'feature/test\n', '');
-                }
+                }) as never
             );
 
             const info = await detectGitInfo('/home/user/my-repo');
@@ -124,27 +126,27 @@ describe('process-utils', () => {
 
     describe('discoverHomeDirs()', () => {
         it('includes current user home directory', () => {
-            (fs.existsSync as ReturnType<typeof vi.fn>).mockReturnValue(true);
-            (fs.readdirSync as ReturnType<typeof vi.fn>).mockReturnValue([]);
+            vi.mocked(fs.existsSync).mockReturnValue(true);
+            vi.mocked(fs.readdirSync).mockReturnValue([]);
 
             const dirs = discoverHomeDirs();
             expect(dirs.some(d => d.username === 'testuser' && d.homeDir === '/home/testuser')).toBe(true);
         });
 
         it('skips non-existent directories', () => {
-            (fs.existsSync as ReturnType<typeof vi.fn>).mockReturnValue(false);
-            (fs.readdirSync as ReturnType<typeof vi.fn>).mockReturnValue([]);
+            vi.mocked(fs.existsSync).mockReturnValue(false);
+            vi.mocked(fs.readdirSync).mockReturnValue([]);
 
             const dirs = discoverHomeDirs();
             expect(dirs).toHaveLength(0);
         });
 
         it('skips dot-prefixed entries', () => {
-            (fs.existsSync as ReturnType<typeof vi.fn>).mockImplementation((p: string) => {
+            vi.mocked(fs.existsSync).mockImplementation(((p: string) => {
                 // Only /home exists and /home/user, skip /home/.hidden
                 return p === '/home' || p === '/home/testuser' || p === '/home/user';
-            });
-            (fs.readdirSync as ReturnType<typeof vi.fn>).mockReturnValue(['.hidden', 'user']);
+            }) as never);
+            vi.mocked(fs.readdirSync).mockReturnValue(['.hidden', 'user'] as never);
 
             const dirs = discoverHomeDirs();
             const hidden = dirs.find(d => d.username === '.hidden');
@@ -152,9 +154,9 @@ describe('process-utils', () => {
         });
 
         it('de-duplicates home directories', () => {
-            (fs.existsSync as ReturnType<typeof vi.fn>).mockReturnValue(true);
+            vi.mocked(fs.existsSync).mockReturnValue(true);
             // Return testuser in /home/testuser to match the current user's home
-            (fs.readdirSync as ReturnType<typeof vi.fn>).mockReturnValue(['testuser']);
+            vi.mocked(fs.readdirSync).mockReturnValue(['testuser'] as never);
 
             const dirs = discoverHomeDirs();
             const dupes = dirs.filter(d => d.homeDir === '/home/testuser');

@@ -307,7 +307,7 @@ export default function EndpointsPage() {
             const res = await fetch(`/api/modules/endpoints/${endpointId}/logs?limit=50`);
             if (res.ok) {
                 const data = await res.json();
-                setLogs(data.logs);
+                setLogs(data.logs || []);
             }
         } catch { /* ignore */ }
         finally { setLogsLoading(false); }
@@ -319,7 +319,7 @@ export default function EndpointsPage() {
             const res = await fetch(`/api/modules/endpoints/${endpointId}/tokens`);
             if (res.ok) {
                 const data = await res.json();
-                setTokens(data.tokens);
+                setTokens(data.tokens || []);
             }
         } catch { /* ignore */ }
         finally { setTokensLoading(false); }
@@ -733,6 +733,7 @@ export default function EndpointsPage() {
                         size="sm"
                         onClick={startCreate}
                         className="h-10 gap-1.5 rounded-xl font-semibold px-4"
+                        data-testid="new-endpoint-button"
                     >
                         <Plus className="w-4 h-4" />
                         <span className="hidden sm:inline">New</span>
@@ -801,7 +802,7 @@ export default function EndpointsPage() {
                 </div>
 
                 {/* Endpoint List */}
-                <div className="flex-1 overflow-y-auto space-y-1.5 pr-1">
+                <div className="flex-1 overflow-y-auto space-y-1.5 pr-1" data-testid="endpoints-list">
                     {endpoints.length === 0 && !loading ? (
                         <EmptyState
                             onCreateNew={startCreate}
@@ -811,6 +812,7 @@ export default function EndpointsPage() {
                         endpoints.map((ep) => (
                             <button
                                 key={ep._id}
+                                data-testid="endpoint-list-item"
                                 onClick={() => selectEndpoint(ep)}
                                 className={cn(
                                     'w-full text-left p-3 rounded-xl border transition-all group',
@@ -825,6 +827,7 @@ export default function EndpointsPage() {
                                     <span
                                         role="button"
                                         tabIndex={0}
+                                        data-testid="endpoint-toggle"
                                         onClick={(e) => { e.stopPropagation(); handleToggle(ep._id); }}
                                         onKeyDown={(e) => { if (e.key === 'Enter') { e.stopPropagation(); handleToggle(ep._id); } }}
                                         title={ep.enabled ? 'Disable' : 'Enable'}
@@ -881,6 +884,7 @@ export default function EndpointsPage() {
                         'flex flex-col min-w-0 flex-1 bg-card/40 rounded-2xl border border-border/40 overflow-hidden',
                         'animate-in slide-in-from-right-4 fade-in duration-300',
                     )}
+                    data-testid="endpoint-detail"
                 >
                     {/* Detail Header */}
                     <div className="flex items-center gap-2 sm:gap-3 px-3 sm:px-5 py-3 border-b border-border/40 bg-card/60">
@@ -911,6 +915,7 @@ export default function EndpointsPage() {
                                 <Button
                                     variant="outline"
                                     size="sm"
+                                    data-testid="test-endpoint-button"
                                     onClick={handleTest}
                                     disabled={testLoading}
                                     className="h-8 w-8 sm:w-auto p-0 sm:px-3 sm:gap-1.5 rounded-lg text-xs"
@@ -921,6 +926,7 @@ export default function EndpointsPage() {
                             )}
                             <Button
                                 size="sm"
+                                data-testid="save-endpoint-button"
                                 onClick={handleSave}
                                 disabled={saving || !form.name || (!isCreating && !isDirty)}
                                 className="h-8 w-8 sm:w-auto p-0 sm:px-3 sm:gap-1.5 rounded-lg text-xs font-semibold"
@@ -952,6 +958,7 @@ export default function EndpointsPage() {
                             <button
                                 key={tab.id}
                                 onClick={() => setDetailTab(tab.id)}
+                                data-testid={`tab-${tab.id}`}
                                 className={cn(
                                     'flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-2.5 text-[11px] sm:text-xs font-medium rounded-t-lg transition-colors border-b-2 whitespace-nowrap shrink-0',
                                     detailTab === tab.id
@@ -1006,6 +1013,7 @@ export default function EndpointsPage() {
                                                 <button
                                                     key={m}
                                                     onClick={() => updateForm('method', m)}
+                                                    data-testid={`method-${m}`}
                                                     className={cn(
                                                         'px-3 py-2 rounded-xl text-xs font-mono font-bold border transition-all min-h-[44px]',
                                                         active

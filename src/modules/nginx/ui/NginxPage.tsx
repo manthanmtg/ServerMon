@@ -53,9 +53,10 @@ export default function NginxPage() {
         try {
             const res = await fetch('/api/modules/nginx/test', { method: 'POST' });
             const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Config test failed');
             setTestResult(data);
-        } catch {
-            setTestResult({ success: false, output: 'Request failed' });
+        } catch (err) {
+            setTestResult({ success: false, output: err instanceof Error ? err.message : 'Request failed' });
         } finally {
             setTesting(false);
         }
@@ -67,10 +68,11 @@ export default function NginxPage() {
         try {
             const res = await fetch('/api/modules/nginx/reload', { method: 'POST' });
             const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Reload failed');
             setReloadResult(data);
             if (data.success) load();
-        } catch {
-            setReloadResult({ success: false, output: 'Request failed' });
+        } catch (err) {
+            setReloadResult({ success: false, output: err instanceof Error ? err.message : 'Request failed' });
         } finally {
             setReloading(false);
         }
@@ -94,7 +96,7 @@ export default function NginxPage() {
                             </div>
                             <div>
                                 <p className="text-sm font-semibold">{snapshot.status.running ? 'Running' : 'Stopped'}</p>
-                                <p className="text-xs text-muted-foreground">PID: {snapshot.status.pid || 'N/A'}</p>
+                                <p className="text-xs text-muted-foreground">PID: {snapshot.status.pid ?? 'N/A'}</p>
                             </div>
                         </div>
                     </CardContent>

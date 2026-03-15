@@ -80,7 +80,7 @@ describe('SpeedtestService', () => {
         it('includes final result in last progress event', async () => {
             const service = resetService(true);
             let finalProgress: { type: string; speed?: number; ping_ms?: number } | null = null;
-            const resultPromise = service.runTest((p) => { finalProgress = p; });
+            const resultPromise = service.runTest((p) => { finalProgress = p as { type: string; speed?: number; ping_ms?: number }; });
             await vi.runAllTimersAsync();
             await resultPromise;
 
@@ -156,7 +156,6 @@ describe('SpeedtestService', () => {
             } as unknown as ReturnType<typeof spawn>);
 
             // Also make Ookla npm lib throw so we fall through to system CLI
-            const _ooklaModule = { default: null };
             vi.doMock('speedtest-net', () => { throw new Error('not available'); });
 
             const testPromise = service.runTest();
@@ -191,7 +190,7 @@ describe('SpeedtestService', () => {
             const service = resetService(true);
             const downloadEvents: { type: string; speed?: number }[] = [];
             const resultPromise = service.runTest((p) => {
-                if (p.type === 'download') downloadEvents.push(p);
+                if (p.type === 'download') downloadEvents.push(p as { type: string; speed?: number });
             });
             await vi.runAllTimersAsync();
             await resultPromise;

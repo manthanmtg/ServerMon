@@ -234,6 +234,7 @@ export default function UsersPage() {
                                                 </div>
                                             ) : (
                                                 <button 
+                                                    data-testid="toggle-sudo-btn"
                                                     onClick={() => handleToggleSudo((user as OSUser).username, (user as OSUser).hasSudo)}
                                                     className={cn(
                                                         "flex items-center gap-1.5 px-2 py-1 rounded-lg border transition-all",
@@ -263,6 +264,7 @@ export default function UsersPage() {
                                         <td className="px-6 py-4 text-right">
                                             <div className="flex items-center justify-end gap-1">
                                                 <button 
+                                                    data-testid="delete-user-btn"
                                                     onClick={() => handleDeleteUser(activeTab, 'id' in user ? user.id : user.username)}
                                                     className="p-2 rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-all"
                                                 >

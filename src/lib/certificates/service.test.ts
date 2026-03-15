@@ -18,7 +18,10 @@ vi.mock('node:util', async (importOriginal) => {
             return async (...args: unknown[]) => {
                 const { execFile } = await import('node:child_process');
                 return new Promise((resolve, reject) => {
-                    (execFile as unknown as (...a: unknown[]) => void)(...args, (err: Error | null, stdout: string) => {
+                    const typedExecFile = execFile as unknown as (
+                        ...a: unknown[]
+                    ) => void;
+                    typedExecFile(...args, (err: Error | null, stdout: string) => {
                         if (err) reject(err);
                         else resolve({ stdout });
                     });
@@ -46,13 +49,14 @@ describe('certificatesService', () => {
     describe('getMockData / fallback behavior', () => {
         it('returns mock data when certbot is not available', async () => {
             // Make certbot detection fail
-            (execFile as unknown as ReturnType<typeof vi.fn>).mockImplementation(
-                (...args: unknown[]) => {
+            vi.mocked(execFile).mockImplementation(
+                // Paired explanation: using unknown[] and casting for mock implementation of child_process.execFile
+                ((...args: unknown[]) => {
                     const cb = args[args.length - 1] as (err: Error) => void;
                     cb(new Error('not found'));
-                }
+                }) as never
             );
-            (access as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('ENOENT'));
+            vi.mocked(access).mockRejectedValue(new Error('ENOENT'));
 
             const { certificatesService } = await import('./service');
             const snapshot = await certificatesService.getSnapshot();
@@ -64,13 +68,14 @@ describe('certificatesService', () => {
         });
 
         it('mock data has correct expiry classifications', async () => {
-            (execFile as unknown as ReturnType<typeof vi.fn>).mockImplementation(
-                (...args: unknown[]) => {
+            vi.mocked(execFile).mockImplementation(
+                // Paired explanation: using unknown[] and casting for mock implementation of child_process.execFile
+                ((...args: unknown[]) => {
                     const cb = args[args.length - 1] as (err: Error) => void;
                     cb(new Error('not found'));
-                }
+                }) as never
             );
-            (access as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('ENOENT'));
+            vi.mocked(access).mockRejectedValue(new Error('ENOENT'));
 
             const { certificatesService } = await import('./service');
             const snapshot = await certificatesService.getSnapshot();
@@ -88,13 +93,14 @@ describe('certificatesService', () => {
     describe('renewCertificate', () => {
         it('returns success false and error message when certbot path is not initialized', async () => {
             // certbot not found, so certbotPath stays null
-            (execFile as unknown as ReturnType<typeof vi.fn>).mockImplementation(
-                (...args: unknown[]) => {
+            vi.mocked(execFile).mockImplementation(
+                // Paired explanation: using unknown[] and casting for mock implementation of child_process.execFile
+                ((...args: unknown[]) => {
                     const cb = args[args.length - 1] as (err: Error) => void;
                     cb(new Error('not found'));
-                }
+                }) as never
             );
-            (access as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('ENOENT'));
+            vi.mocked(access).mockRejectedValue(new Error('ENOENT'));
 
             const { certificatesService } = await import('./service');
             // First call to getSnapshot sets certbotChecked=true with null path

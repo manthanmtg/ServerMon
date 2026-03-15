@@ -888,6 +888,7 @@ export default function CronsPage() {
                                         return (
                                             <Fragment key={job.id}>
                                                 <tr
+                                                    data-testid="cron-job-row"
                                                     className={cn(
                                                         'border-t border-border/60 transition-colors hover:bg-muted/10',
                                                         isExpanded && 'bg-muted/10',

@@ -61,10 +61,12 @@ function SkeletonTable({ rows = 4 }: { rows?: number }) {
 /** Generic module page loading skeleton: stat cards row + content block. */
 function PageSkeleton({ statCards = 4, showTable = true }: { statCards?: number; showTable?: boolean }) {
     return (
-        <div className="space-y-6 animate-fade-in">
+        <div className="space-y-6 animate-fade-in" data-testid="page-skeleton">
             <div className={statCards === 4 ? 'grid grid-cols-2 md:grid-cols-4 gap-4' : 'grid grid-cols-2 lg:grid-cols-4 gap-4'}>
                 {Array.from({ length: statCards }).map((_, i) => (
-                    <SkeletonCard key={i} />
+                    <div key={i} data-testid={`skeleton-card-${i}`}>
+                        <SkeletonCard />
+                    </div>
                 ))}
             </div>
             {showTable && <SkeletonTable rows={5} />}
