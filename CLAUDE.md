@@ -11,6 +11,7 @@ ServerMon is a self-hosted server monitoring platform built with Next.js 16 (App
 Before considering any change complete, **all** of these must pass:
 
 ```bash
+pnpm format      # Prettier — apply formatting
 pnpm lint        # ESLint — zero errors, zero warnings
 pnpm typecheck   # TypeScript — zero errors
 pnpm build       # Next.js production build — must succeed

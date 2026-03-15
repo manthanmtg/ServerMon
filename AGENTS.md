@@ -6,12 +6,13 @@ This file defines rules and expectations for any automated agent, CI pipeline, o
 
 Every pull request and every commit to `main` must satisfy:
 
-| Check | Command          | Expectation          |
-| ----- | ---------------- | -------------------- |
-| Lint  | `pnpm lint`      | 0 errors, 0 warnings |
-| Types | `pnpm typecheck` | 0 errors             |
-| Build | `pnpm build`     | Exit code 0          |
-| Tests | `pnpm test`      | Exit code 0          |
+| Check  | Command          | Expectation          |
+| ------ | ---------------- | -------------------- |
+| Format | `pnpm format`    | 0 changes needed     |
+| Lint   | `pnpm lint`      | 0 errors, 0 warnings |
+| Types  | `pnpm typecheck` | 0 errors             |
+| Build  | `pnpm build`     | Exit code 0          |
+| Tests  | `pnpm test`      | Exit code 0          |
 
 Combined: `pnpm check` runs all of the above in order. **A failure in any step blocks the merge.**
 
