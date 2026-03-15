@@ -7,7 +7,7 @@ import type { AgentAdapter, AgentSession, AgentsSnapshot, AgentsSummary } from '
 
 const log = createLogger('ai-agents');
 
-class AIAgentsService {
+export class AIAgentsService {
     private adapters: AgentAdapter[] = [];
     private sessionCache: AgentSession[] = [];
     private lastScanTime = 0;
