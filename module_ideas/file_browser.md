@@ -1,6 +1,7 @@
 # 🗂️ File Browser Module Requirements
 
 ## 🧭 Overview
+
 A graphical filesystem explorer for **ServerMon**, enabling administrators to navigate and manage server files through a secure web interface.
 
 ---
@@ -12,7 +13,6 @@ A graphical filesystem explorer for **ServerMon**, enabling administrators to na
 
 - 🧭 **Topbar Shortcuts**  
   Quick-access shortcuts displayed in the **top navigation bar**.
-
   - Configurable via **File Browser module settings** (similar to how the **Terminal module settings** are configured).
   - **Default shortcuts:**
     - **Root** (`/`)
@@ -33,6 +33,7 @@ A graphical filesystem explorer for **ServerMon**, enabling administrators to na
 ## 🛠️ Core Features (Phase 1)
 
 ### 📁 Directory Browsing
+
 - Display files and folders in a structured list/grid.
 - Show metadata:
   - 📦 **File Size**
@@ -40,6 +41,7 @@ A graphical filesystem explorer for **ServerMon**, enabling administrators to na
   - 🔐 **Permissions**
 
 ### ⬇️ Secure File Download
+
 - Stream files directly from the server.
 - Large file support using chunked streaming.
 
@@ -80,12 +82,15 @@ A graphical filesystem explorer for **ServerMon**, enabling administrators to na
 ## 📄 File Modes
 
 ### 👁️ Open Files
+
 - Syntax‑highlighted viewer for supported file types.
 
 ### 🔒 Read‑Only Mode
+
 - Files can be viewed but **not modified**.
 
 ### ✏️ Edit Mode
+
 - Inline editor for modifying files.
 - Save changes directly to the server.
 - Requires proper user permissions.
@@ -95,12 +100,14 @@ A graphical filesystem explorer for **ServerMon**, enabling administrators to na
 ## ✨ Additional Features
 
 ### 📤 File Upload
+
 - Drag & drop file uploads directly into the current directory.
 - Multiple file upload support.
 - Upload progress indicator.
 - Support for large files via chunked uploads.
 
 ### 📦 Archive Support
+
 - Download directories as **ZIP archives**.
 - Extract common archive formats:
   - `zip`
@@ -109,7 +116,9 @@ A graphical filesystem explorer for **ServerMon**, enabling administrators to na
 - Optional preview of archive contents before extraction.
 
 ### 📋 Inline File Actions
+
 Quick actions available directly in the file list:
+
 - ✏️ Rename
 - ⬇️ Download
 - 📋 Copy path
@@ -117,23 +126,29 @@ Quick actions available directly in the file list:
 - 👁 Preview
 
 ### 📋 Copy Absolute Path
+
 - One‑click **Copy Path** button for files and directories.
 - Useful for quickly referencing paths in the **Terminal module**.
 
 ### 🔄 Directory Refresh
+
 - Manual refresh button.
 - Optional **auto‑refresh** for frequently changing directories.
 
 ### 📊 Human‑Readable File Sizes
+
 Display file sizes in readable formats:
+
 - KB
 - MB
 - GB
 
 ### 🧩 File Type Icons
+
 Visual icons based on file type for quick recognition.
 
 Examples:
+
 - 📄 Text files
 - ⚙️ Configuration files
 - 🐍 Scripts
@@ -142,13 +157,17 @@ Examples:
 - 📜 Log files
 
 ### 🧾 Live Log Streaming
+
 Enhanced log viewer capabilities:
+
 - Real‑time streaming similar to `tail -f`
 - Pause / resume streaming
 - Auto scroll to latest log entry
 
 ### 🧹 File Operations
+
 Basic filesystem management actions:
+
 - Rename files
 - Delete files
 - Move files
@@ -157,26 +176,33 @@ Basic filesystem management actions:
 - Create new file
 
 ### 🧭 Directory History
+
 Navigation similar to a web browser:
+
 - Back to previous directory
 - Forward navigation
 
 ### 🔗 Terminal Integration
+
 Integration with the **ServerMon Terminal module**.
 
 Examples:
+
 - Open file in terminal editor
 - Run commands like:
   - `nano <file>`
   - `tail -f <log>`
 
 ### 🧠 Context-Aware Smart Actions
+
 The file browser should detect special project environments and surface relevant tools automatically.
 
 #### 🧬 Git Repository Detection
+
 If the opened directory contains a `.git` folder, the UI should automatically display a **Git Action Bar** below the top navigation bar.
 
 Capabilities may include:
+
 - ⬇️ **Pull** latest changes
 - ⬆️ **Push** commits
 - ✏️ **Commit changes** with message input
@@ -186,6 +212,7 @@ Capabilities may include:
 - 🔄 **Fetch updates**
 
 UI behavior:
+
 - The **Git bar appears only when inside a Git repository**.
 - Displays current branch (e.g., `main`, `dev`, `feature/x`).
 - Provides quick actions without leaving the file browser.
@@ -194,18 +221,22 @@ UI behavior:
 This makes the file browser more intelligent and useful for **project directories and deployments**.
 
 ### ⭐ Favorite / Pinned Directories
+
 - Pin frequently used directories.
 - Appear in the **Topbar shortcuts** for quick access.
 
 ### 🔍 Advanced File Filters
+
 Filter files using patterns such as:
+
 - `*.log`
 - `*.conf`
 - `*.yaml`
 
 ### 🧾 File Version History (Future)
+
 Optional file history support for tracking changes to important files.
 
 ### 🔍 Global File Search (Future)
-Search across multiple directories instead of only the current directory.
 
+Search across multiple directories instead of only the current directory.

@@ -99,10 +99,10 @@ describe('logger', () => {
       vi.resetModules();
       const { createLogger: createLoggerAtWarn } = await import('./logger');
       const log = createLoggerAtWarn('warn-test');
-      
+
       log.info('should not show');
       log.warn('should show');
-      
+
       expect(console.info).not.toHaveBeenCalled();
       expect(console.warn).toHaveBeenCalled();
       vi.unstubAllEnvs();
@@ -114,7 +114,7 @@ describe('logger', () => {
       const { createLogger } = await import('./logger');
       const logger = createLogger('test');
       const debugSpy = vi.spyOn(console, 'debug').mockImplementation(() => {});
-      
+
       logger.debug('test debug');
       expect(debugSpy).toHaveBeenCalled();
       vi.unstubAllEnvs();

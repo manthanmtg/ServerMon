@@ -35,17 +35,33 @@ vi.mock('lucide-react', async () => {
 
 // Mock ScriptEditor component
 vi.mock('./components/ScriptEditor', () => ({
-  default: ({ value, onChange, onRun, onSave }: { value: string, onChange: (v: string) => void, onRun?: () => void, onSave: () => void }) => (
+  default: ({
+    value,
+    onChange,
+    onRun,
+    onSave,
+  }: {
+    value: string;
+    onChange: (v: string) => void;
+    onRun?: () => void;
+    onSave: () => void;
+  }) => (
     <div data-testid="mock-script-editor">
-      <textarea 
+      <textarea
         data-testid="script-content-input"
-        value={value} 
-        onChange={(e) => onChange(e.target.value)} 
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
       />
-      {onRun && <button data-testid="run-script-btn" onClick={onRun}>Run</button>}
-      <button data-testid="save-script-btn" onClick={onSave}>Save</button>
+      {onRun && (
+        <button data-testid="run-script-btn" onClick={onRun}>
+          Run
+        </button>
+      )}
+      <button data-testid="save-script-btn" onClick={onSave}>
+        Save
+      </button>
     </div>
-  )
+  ),
 }));
 
 describe('EndpointsPage', () => {
@@ -60,7 +76,7 @@ describe('EndpointsPage', () => {
       executionCount: 5,
       lastExecutedAt: new Date().toISOString(),
       tags: ['test', 'prod'],
-      auth: 'public'
+      auth: 'public',
     },
     {
       _id: 'ep-2',
@@ -71,8 +87,8 @@ describe('EndpointsPage', () => {
       enabled: false,
       executionCount: 10,
       tags: ['webhook'],
-      auth: 'token'
-    }
+      auth: 'token',
+    },
   ];
 
   beforeEach(() => {
@@ -87,15 +103,29 @@ describe('EndpointsPage', () => {
       if (url.includes('/api/modules/endpoints/ep-1/tokens')) {
         return Promise.resolve({ ok: true, json: async () => ({ tokens: [] }) });
       }
-      if (url.includes('/api/modules/endpoints') && !url.includes('/run') && !url.includes('/tokens') && !url.includes('/logs') && !url.includes('/test') && !url.includes('/templates')) {
-        return Promise.resolve({ ok: true, json: async () => ({ endpoints: mockEndpoints, total: 2 }) });
+      if (
+        url.includes('/api/modules/endpoints') &&
+        !url.includes('/run') &&
+        !url.includes('/tokens') &&
+        !url.includes('/logs') &&
+        !url.includes('/test') &&
+        !url.includes('/templates')
+      ) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({ endpoints: mockEndpoints, total: 2 }),
+        });
       }
       return Promise.resolve({ ok: true, json: async () => ({}) });
     });
   });
 
   const renderPage = async () => {
-    Object.defineProperty(window, 'innerWidth', { writable: true, configurable: true, value: 1280 });
+    Object.defineProperty(window, 'innerWidth', {
+      writable: true,
+      configurable: true,
+      value: 1280,
+    });
     window.dispatchEvent(new Event('resize'));
     let result!: ReturnType<typeof render>;
     await act(async () => {
@@ -122,9 +152,12 @@ describe('EndpointsPage', () => {
     await act(async () => {
       fireEvent.change(searchInput, { target: { value: 'webhook' } });
     });
-    
+
     await waitFor(() => {
-      expect(global.fetch).toHaveBeenCalledWith(expect.stringContaining('search=webhook'), expect.any(Object));
+      expect(global.fetch).toHaveBeenCalledWith(
+        expect.stringContaining('search=webhook'),
+        expect.any(Object)
+      );
     });
   });
 
@@ -135,9 +168,12 @@ describe('EndpointsPage', () => {
     await act(async () => {
       fireEvent.click(postFilter);
     });
-    
+
     await waitFor(() => {
-      expect(global.fetch).toHaveBeenCalledWith(expect.stringContaining('method=POST'), expect.any(Object));
+      expect(global.fetch).toHaveBeenCalledWith(
+        expect.stringContaining('method=POST'),
+        expect.any(Object)
+      );
     });
   });
 
@@ -147,7 +183,7 @@ describe('EndpointsPage', () => {
     await act(async () => {
       fireEvent.click(newBtn);
     });
-    
+
     await waitFor(() => {
       expect(screen.getByTestId('endpoint-detail')).toBeDefined();
       expect(screen.getByPlaceholderText('Endpoint name...')).toHaveValue('');
@@ -160,14 +196,14 @@ describe('EndpointsPage', () => {
     await act(async () => {
       fireEvent.click(newBtn);
     });
-    
+
     await waitFor(() => screen.getByTestId('endpoint-detail'), { timeout: 3000 });
     const detail = screen.getByTestId('endpoint-detail');
     const nameInput = await waitFor(() => within(detail).getByPlaceholderText('Endpoint name...'));
     await act(async () => {
       fireEvent.change(nameInput, { target: { value: 'My New API' } });
     });
-    
+
     // Check if slugified name appears in the input with placeholder "my-endpoint"
     const slugInput = await waitFor(() => within(detail).getByPlaceholderText('my-endpoint'));
     await waitFor(() => {
@@ -182,7 +218,7 @@ describe('EndpointsPage', () => {
     await act(async () => {
       fireEvent.click(item);
     });
-    
+
     await waitFor(() => {
       expect(screen.getByTestId('endpoint-detail')).toBeDefined();
       expect(screen.getByPlaceholderText('Endpoint name...')).toHaveValue('Test Endpoint');
@@ -196,20 +232,20 @@ describe('EndpointsPage', () => {
     await act(async () => {
       fireEvent.click(item);
     });
-    
+
     await waitFor(() => screen.getByTestId('endpoint-detail'));
     const codeTab = await waitFor(() => screen.getByTestId('tab-code'));
     await act(async () => {
       fireEvent.click(codeTab);
     });
-    
+
     await waitFor(() => expect(screen.getByTestId('mock-script-editor')).toBeDefined());
-    
+
     const authTab = await waitFor(() => screen.getByTestId('tab-auth'));
     await act(async () => {
       fireEvent.click(authTab);
     });
-    
+
     await waitFor(() => expect(screen.queryByText('Authentication')).not.toBeNull());
   });
 
@@ -220,9 +256,12 @@ describe('EndpointsPage', () => {
     await act(async () => {
       fireEvent.click(toggle);
     });
-    
+
     await waitFor(() => {
-      expect(global.fetch).toHaveBeenCalledWith(expect.stringContaining('/api/modules/endpoints/ep-1/toggle'), expect.objectContaining({ method: 'PATCH' }));
+      expect(global.fetch).toHaveBeenCalledWith(
+        expect.stringContaining('/api/modules/endpoints/ep-1/toggle'),
+        expect.objectContaining({ method: 'PATCH' })
+      );
     });
   });
 
@@ -232,23 +271,26 @@ describe('EndpointsPage', () => {
     await act(async () => {
       fireEvent.click(screen.getAllByTestId('endpoint-list-item')[0]);
     });
-    
+
     await waitFor(() => screen.getByTestId('endpoint-detail'));
     const nameInput = screen.getByPlaceholderText('Endpoint name...');
     await act(async () => {
       fireEvent.change(nameInput, { target: { value: 'Updated Name' } });
     });
-    
+
     const saveBtn = screen.getByTestId('save-endpoint-button');
     await act(async () => {
       fireEvent.click(saveBtn);
     });
-    
+
     await waitFor(() => {
-      expect(global.fetch).toHaveBeenCalledWith(expect.stringContaining('/api/modules/endpoints/ep-1'), expect.objectContaining({
-        method: 'PUT',
-        body: expect.stringContaining('"name":"Updated Name"')
-      }));
+      expect(global.fetch).toHaveBeenCalledWith(
+        expect.stringContaining('/api/modules/endpoints/ep-1'),
+        expect.objectContaining({
+          method: 'PUT',
+          body: expect.stringContaining('"name":"Updated Name"'),
+        })
+      );
     });
   });
 
@@ -258,13 +300,13 @@ describe('EndpointsPage', () => {
     await act(async () => {
       fireEvent.click(screen.getAllByTestId('endpoint-list-item')[0]);
     });
-    
+
     await waitFor(() => screen.getByTestId('endpoint-detail'));
     const testBtn = screen.getByTestId('test-endpoint-button');
     await act(async () => {
       fireEvent.click(testBtn);
     });
-    
+
     await waitFor(() => {
       expect(screen.getByText('Test Console')).toBeDefined();
     });
@@ -276,26 +318,29 @@ describe('EndpointsPage', () => {
     await act(async () => {
       fireEvent.click(screen.getAllByTestId('endpoint-list-item')[0]);
     });
-    
+
     await waitFor(() => screen.getByTestId('endpoint-detail'));
-    
+
     // Method buttons in detail form
     const detailPanel = screen.getByTestId('endpoint-detail');
     const putBtn = await waitFor(() => within(detailPanel).getByTestId('method-PUT'));
     await act(async () => {
       fireEvent.click(putBtn);
     });
-    
+
     const saveBtn = screen.getByTestId('save-endpoint-button');
     await act(async () => {
       fireEvent.click(saveBtn);
     });
-    
+
     await waitFor(() => {
-      expect(global.fetch).toHaveBeenCalledWith(expect.stringContaining('/api/modules/endpoints/ep-1'), expect.objectContaining({
-        method: 'PUT',
-        body: expect.stringContaining('"method":"PUT"')
-      }));
+      expect(global.fetch).toHaveBeenCalledWith(
+        expect.stringContaining('/api/modules/endpoints/ep-1'),
+        expect.objectContaining({
+          method: 'PUT',
+          body: expect.stringContaining('"method":"PUT"'),
+        })
+      );
     });
   });
 
@@ -305,26 +350,29 @@ describe('EndpointsPage', () => {
     await act(async () => {
       fireEvent.click(screen.getAllByTestId('endpoint-list-item')[1]);
     });
-    
+
     await waitFor(() => screen.getByTestId('endpoint-detail'));
     const authTab = await waitFor(() => screen.getByTestId('tab-auth'));
     await act(async () => {
       fireEvent.click(authTab);
     });
-    
+
     await waitFor(() => screen.getByPlaceholderText(/Token name/i));
     const tokenInput = screen.getByPlaceholderText(/Token name/i);
     await act(async () => {
       fireEvent.change(tokenInput, { target: { value: 'New Token' } });
     });
-    
+
     const generateBtn = screen.getByRole('button', { name: /Generate/i });
     await act(async () => {
       fireEvent.click(generateBtn);
     });
-    
+
     await waitFor(() => {
-      expect(global.fetch).toHaveBeenCalledWith(expect.stringContaining('/api/modules/endpoints/ep-2/tokens'), expect.any(Object));
+      expect(global.fetch).toHaveBeenCalledWith(
+        expect.stringContaining('/api/modules/endpoints/ep-2/tokens'),
+        expect.any(Object)
+      );
     });
   });
 
@@ -335,14 +383,16 @@ describe('EndpointsPage', () => {
       fireEvent.click(screen.getAllByTestId('endpoint-list-item')[0]);
     });
     await waitFor(() => screen.getByTestId('endpoint-detail'));
-    
+
     const logsButton = await waitFor(() => screen.getByTestId('tab-logs'));
     await act(async () => {
       fireEvent.click(logsButton);
     });
-    
+
     await waitFor(() => {
-      expect(global.fetch).toHaveBeenCalledWith(expect.stringContaining('/api/modules/endpoints/ep-1/logs'));
+      expect(global.fetch).toHaveBeenCalledWith(
+        expect.stringContaining('/api/modules/endpoints/ep-1/logs')
+      );
     });
   });
 
@@ -352,18 +402,18 @@ describe('EndpointsPage', () => {
     await act(async () => {
       fireEvent.click(screen.getAllByTestId('endpoint-list-item')[0]);
     });
-    
+
     const detailPanel = await waitFor(() => screen.getByTestId('endpoint-detail'));
     const methodSelect = await waitFor(() => within(detailPanel).getByTestId('method-GET'));
     await act(async () => {
       fireEvent.click(methodSelect);
     });
-    
+
     const postOption = await waitFor(() => within(detailPanel).getByTestId('method-POST'));
     await act(async () => {
       fireEvent.click(postOption);
     });
-    
+
     await waitFor(() => {
       const btn = within(detailPanel).getByTestId('method-POST');
       expect(btn.className).toContain('text-primary');
@@ -373,7 +423,7 @@ describe('EndpointsPage', () => {
   it('handles fetch error on load', async () => {
     global.fetch = vi.fn().mockRejectedValue(new Error('Fetch failed'));
     await renderPage();
-    
+
     await waitFor(() => {
       expect(screen.queryByText('Test Endpoint')).toBeNull();
     });
@@ -381,11 +431,11 @@ describe('EndpointsPage', () => {
 
   it('responds to keyboard shortcuts', async () => {
     await renderPage();
-    
+
     await act(async () => {
       fireEvent.keyDown(window, { metaKey: true, key: 'n' });
     });
-    
+
     await waitFor(() => {
       expect(screen.getByTestId('endpoint-detail')).toBeDefined();
     });

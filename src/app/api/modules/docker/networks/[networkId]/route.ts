@@ -7,15 +7,15 @@ export const dynamic = 'force-dynamic';
 const log = createLogger('api:docker:networks');
 
 export async function DELETE(
-    _request: Request,
-    context: { params: Promise<{ networkId: string }> }
+  _request: Request,
+  context: { params: Promise<{ networkId: string }> }
 ) {
-    try {
-        const { networkId } = await context.params;
-        const result = await dockerService.removeNetwork(networkId);
-        return NextResponse.json(result);
-    } catch (error) {
-        log.error('Failed to remove docker network', error);
-        return NextResponse.json({ error: 'Failed to remove network' }, { status: 500 });
-    }
+  try {
+    const { networkId } = await context.params;
+    const result = await dockerService.removeNetwork(networkId);
+    return NextResponse.json(result);
+  } catch (error) {
+    log.error('Failed to remove docker network', error);
+    return NextResponse.json({ error: 'Failed to remove network' }, { status: 500 });
+  }
 }

@@ -8,11 +8,11 @@ The system is intentionally designed with a **modular architecture**, allowing f
 
 ServerMon prioritizes:
 
-* Strong security
-* Simple deployment
-* Extensibility
-* Real‑time monitoring
-* Lightweight architecture
+- Strong security
+- Simple deployment
+- Extensibility
+- Real‑time monitoring
+- Lightweight architecture
 
 The application runs locally on the server and exposes a secure web interface.
 
@@ -32,19 +32,19 @@ The application runs locally on the server and exposes a secure web interface.
 
 Frontend + Backend (Monolithic App)
 
-* **NextJS (Latest)**
-* **TypeScript (strict mode)**
-* **MongoDB**
-* **Node.js (LTS)**
+- **NextJS (Latest)**
+- **TypeScript (strict mode)**
+- **MongoDB**
+- **Node.js (LTS)**
 
 Libraries (Recommended)
 
-* **Zod** for schema validation and strongly typed data contracts across API routes, modules, and database models
-* mongoose / mongodb native driver with typed models
-* socket.io / ws for realtime streams
-* node-pty for terminal module
-* bcrypt / argon2 for password hashing
-* speakeasy or otplib for TOTP
+- **Zod** for schema validation and strongly typed data contracts across API routes, modules, and database models
+- mongoose / mongodb native driver with typed models
+- socket.io / ws for realtime streams
+- node-pty for terminal module
+- bcrypt / argon2 for password hashing
+- speakeasy or otplib for TOTP
 
 ---
 
@@ -74,9 +74,9 @@ MONGO_URI=mongodb://127.0.0.1:27017/servermon
 
 This allows flexible deployment scenarios:
 
-* Local MongoDB
-* Remote MongoDB cluster
-* Managed MongoDB services
+- Local MongoDB
+- Remote MongoDB cluster
+- Managed MongoDB services
 
 ---
 
@@ -86,10 +86,10 @@ ServerMon must support **easy localhost development and testing**.
 
 Development environment requirements:
 
-* Run using `localhost`
-* Connect to local MongoDB instance
-* No nginx required
-* No SSL required
+- Run using `localhost`
+- Connect to local MongoDB instance
+- No nginx required
+- No SSL required
 
 Example dev access:
 
@@ -99,10 +99,10 @@ http://localhost:8912
 
 This enables:
 
-* rapid module development
-* debugging
-* analytics validation
-* UI testing
+- rapid module development
+- debugging
+- analytics validation
+- UI testing
 
 ---
 
@@ -112,9 +112,9 @@ ServerMon runs continuously as a **system service**.
 
 ### Service Configuration
 
-* Managed using **systemctl (systemd)**
-* Automatically restarts on crash
-* Logs available via `journalctl`
+- Managed using **systemctl (systemd)**
+- Automatically restarts on crash
+- Logs available via `journalctl`
 
 Example service name:
 
@@ -149,10 +149,10 @@ Credentials are stored in MongoDB.
 
 Security requirements:
 
-* Passwords hashed using **Argon2 or bcrypt**
-* Salting required
-* No plaintext storage
-* Rate limiting on login attempts
+- Passwords hashed using **Argon2 or bcrypt**
+- Salting required
+- No plaintext storage
+- Rate limiting on login attempts
 
 Admin can change credentials via **System Settings**.
 
@@ -162,22 +162,22 @@ Admin can change credentials via **System Settings**.
 
 Second factor authentication using:
 
-* **Google Authenticator compatible TOTP**
+- **Google Authenticator compatible TOTP**
 
 Features:
 
-* QR code enrollment
-* Secret stored securely in database
-* Optional recovery codes
+- QR code enrollment
+- Secret stored securely in database
+- Optional recovery codes
 
 ---
 
 ## 5.4 Optional Security Enhancements (Future)
 
-* IP allowlist
-* Session expiry
-* Login audit logs
-* Reverse proxy enforcement
+- IP allowlist
+- Session expiry
+- Login audit logs
+- Reverse proxy enforcement
 
 ---
 
@@ -216,9 +216,9 @@ The dashboard is the primary landing page.
 
 Features:
 
-* Displays widgets from modules
-* Live updating metrics
-* Configurable widget layout
+- Displays widgets from modules
+- Live updating metrics
+- Configurable widget layout
 
 Widgets are **registered by modules**.
 
@@ -230,11 +230,11 @@ Static core section located in the **left navigation pane**.
 
 Capabilities:
 
-* Change Basic Auth credentials
-* Configure TOTP
-* **Appearance: Extensible Theme System (Supports wide variety of presets like Light, Dark, Solarized, Monokai, Synthwave, etc., mimicking VS Code's variety)**
-* Manage modules
-* View system status
+- Change Basic Auth credentials
+- Configure TOTP
+- **Appearance: Extensible Theme System (Supports wide variety of presets like Light, Dark, Solarized, Monokai, Synthwave, etc., mimicking VS Code's variety)**
+- Manage modules
+- View system status
 
 ---
 
@@ -244,15 +244,15 @@ Responsible for discovering and loading modules at runtime.
 
 Responsibilities:
 
-* Detect installed modules
-* Initialize module
-* Register module components
+- Detect installed modules
+- Initialize module
+- Register module components
 
 Modules register:
 
-* Dashboard widgets
-* Navigation entries
-* Settings panels
+- Dashboard widgets
+- Navigation entries
+- Settings panels
 
 ---
 
@@ -262,10 +262,10 @@ A centralized registry storing module metadata.
 
 Tracks:
 
-* module id
-* module version
-* enabled/disabled state
-* registered widgets
+- module id
+- module version
+- enabled/disabled state
+- registered widgets
 
 ---
 
@@ -275,9 +275,9 @@ Allows modules to communicate with the core system.
 
 Example events:
 
-* system.metrics.updated
-* module.loaded
-* module.error
+- system.metrics.updated
+- module.loaded
+- module.error
 
 ---
 
@@ -287,10 +287,10 @@ Modules extend the system.
 
 Each module can provide:
 
-* Dashboard widgets
-* UI pages
-* Background services
-* Settings configuration
+- Dashboard widgets
+- UI pages
+- Background services
+- Settings configuration
 
 Modules are **self contained**.
 
@@ -352,9 +352,9 @@ Modules must support various environments whenever possible.
 
 Supported environments include:
 
-* Linux (Ubuntu, Debian, etc.)
-* macOS
-* Windows
+- Linux (Ubuntu, Debian, etc.)
+- macOS
+- Windows
 
 Modules should avoid OS‑specific logic unless necessary.
 
@@ -376,9 +376,9 @@ if (platform === "win32") {
 
 Architecture targets include:
 
-* x86_64
-* ARM64
-* cloud VM environments
+- x86_64
+- ARM64
+- cloud VM environments
 
 Modules should rely on **Node.js APIs or cross-platform libraries** to maintain compatibility.
 
@@ -411,22 +411,22 @@ Provides a **web-based terminal interface** for the host machine.
 
 ### Features
 
-* Interactive shell
-* PTY based terminal
-* WebSocket streaming
-* Multiple sessions
+- Interactive shell
+- PTY based terminal
+- WebSocket streaming
+- Multiple sessions
 
 ### Implementation
 
 Uses:
 
-* node-pty
-* WebSocket transport
+- node-pty
+- WebSocket transport
 
 Security:
 
-* Auth required
-* Session isolation
+- Auth required
+- Session isolation
 
 ---
 
@@ -436,16 +436,16 @@ Provides visibility and control of running processes.
 
 ### Features
 
-* List active processes
-* CPU usage
-* Memory usage
-* Kill process
+- List active processes
+- CPU usage
+- Memory usage
+- Kill process
 
 Possible integrations:
 
-* ps
-* top
-* pid usage APIs
+- ps
+- top
+- pid usage APIs
 
 ---
 
@@ -453,10 +453,10 @@ Possible integrations:
 
 All schemas must be **strongly typed** and defined using **Zod**. Zod schemas act as the single source of truth for:
 
-* API request/response validation
-* MongoDB document validation
-* module configuration schemas
-* analytics event payloads
+- API request/response validation
+- MongoDB document validation
+- module configuration schemas
+- analytics event payloads
 
 TypeScript types should be **derived from Zod schemas** to maintain full runtime + compile-time safety.
 
@@ -468,15 +468,14 @@ Recommended using **TypeScript + schema validation**.
 
 ServerMon follows an **admin‑first user model**.
 
-* The system is initialized with a **primary administrator account**.
-* The **admin can create additional users** from System Settings.
-* Only admin users can:
-
-  * create users
-  * delete users
-  * reset credentials
-  * manage modules
-  * modify system settings
+- The system is initialized with a **primary administrator account**.
+- The **admin can create additional users** from System Settings.
+- Only admin users can:
+  - create users
+  - delete users
+  - reset credentials
+  - manage modules
+  - modify system settings
 
 Future versions may introduce **RBAC**, but the initial version will support **Admin and Standard User roles**.
 
@@ -500,10 +499,10 @@ users
 
 Notes:
 
-* `passwordHash` uses **Argon2 or bcrypt**.
-* `totpSecret` stored securely and used for Google Authenticator.
-* `createdBy` references the admin who created the user.
-* `isActive` allows disabling accounts without deletion.
+- `passwordHash` uses **Argon2 or bcrypt**.
+- `totpSecret` stored securely and used for Google Authenticator.
+- `createdBy` references the admin who created the user.
+- `isActive` allows disabling accounts without deletion.
 
 ---
 
@@ -574,9 +573,9 @@ Auto‑generated configuration.
 
 Responsibilities:
 
-* reverse proxy to port 8912
-* TLS termination
-* compression
+- reverse proxy to port 8912
+- TLS termination
+- compression
 
 ---
 
@@ -586,8 +585,8 @@ Uses **Certbot**.
 
 Installer will:
 
-* request certificate
-* configure renewal
+- request certificate
+- configure renewal
 
 ---
 
@@ -595,9 +594,9 @@ Installer will:
 
 User documentation will include:
 
-* DNS setup
-* domain pointing
-* SSL setup
+- DNS setup
+- domain pointing
+- SSL setup
 
 ---
 
@@ -607,12 +606,12 @@ ServerMon must provide a **rich, modern, and highly interactive user interface**
 
 Design goals:
 
-* visually clean and modern
-* highly responsive
-* real‑time updates
-* minimal latency
-* keyboard friendly
-* **Extensible Color Theme System: Support for a wide variety of interactive color themes (Light, Dark, High Contrast, and community-style presets like Monokai, Nord, etc.) to allow deep personalization of the monitoring workspace, similar to VS Code.**
+- visually clean and modern
+- highly responsive
+- real‑time updates
+- minimal latency
+- keyboard friendly
+- **Extensible Color Theme System: Support for a wide variety of interactive color themes (Light, Dark, High Contrast, and community-style presets like Monokai, Nord, etc.) to allow deep personalization of the monitoring workspace, similar to VS Code.**
 
 The interface should prioritize **clarity of system information** and **ease of control**.
 
@@ -622,19 +621,19 @@ The interface should prioritize **clarity of system information** and **ease of 
 
 The UI should follow these principles:
 
-* **Information density without clutter**
-* **Real‑time feedback for actions**
-* **Consistent design system across modules**
-* **Clear visual hierarchy**
-* **Fast navigation between modules**
+- **Information density without clutter**
+- **Real‑time feedback for actions**
+- **Consistent design system across modules**
+- **Clear visual hierarchy**
+- **Fast navigation between modules**
 
 Recommended UI capabilities:
 
-* animated transitions
-* loading skeletons
-* toast notifications
-* real-time charts
-* interactive tables
+- animated transitions
+- loading skeletons
+- toast notifications
+- real-time charts
+- interactive tables
 
 ---
 
@@ -646,18 +645,18 @@ UI consists of three primary regions.
 
 Static elements:
 
-* Dashboard
-* System Settings
+- Dashboard
+- System Settings
 
 Dynamic elements:
 
-* Module navigation entries
+- Module navigation entries
 
 Capabilities:
 
-* collapsible sidebar
-* module icons
-* active module highlighting
+- collapsible sidebar
+- module icons
+- active module highlighting
 
 ---
 
@@ -665,15 +664,15 @@ Capabilities:
 
 Displays:
 
-* Dashboard widgets
-* Module pages
-* Analytics views
+- Dashboard widgets
+- Module pages
+- Analytics views
 
 The main panel should support:
 
-* smooth page transitions
-* dynamic content loading
-* responsive layouts
+- smooth page transitions
+- dynamic content loading
+- responsive layouts
 
 ---
 
@@ -681,10 +680,10 @@ The main panel should support:
 
 Optional top bar may include:
 
-* current user
-* quick actions
-* notifications
-* system status indicators
+- current user
+- quick actions
+- notifications
+- system status indicators
 
 ---
 
@@ -694,17 +693,17 @@ Widgets should be **interactive and visually rich**.
 
 Capabilities:
 
-* drag & drop layout
-* resize support
-* real-time data updates
-* charts and graphs
+- drag & drop layout
+- resize support
+- real-time data updates
+- charts and graphs
 
 Examples:
 
-* CPU usage chart
-* Memory usage graph
-* Active process count
-* Network activity
+- CPU usage chart
+- Memory usage graph
+- Active process count
+- Network activity
 
 ---
 
@@ -714,24 +713,24 @@ All modules must follow a **consistent UI standard** provided by the core system
 
 Modules should:
 
-* **Full Theme Compliance: All modules must honor the active color theme across all UI components and pages using core system variables.**
-* use shared UI components
-* follow the same layout conventions
-* maintain consistent styling
+- **Full Theme Compliance: All modules must honor the active color theme across all UI components and pages using core system variables.**
+- use shared UI components
+- follow the same layout conventions
+- maintain consistent styling
 
 Examples of module UI features:
 
 Terminal module:
 
-* full interactive terminal view
-* session tabs
-* command history
+- full interactive terminal view
+- session tabs
+- command history
 
 Process monitor module:
 
-* sortable process table
-* live CPU usage graphs
-* quick kill actions
+- sortable process table
+- live CPU usage graphs
+- quick kill actions
 
 ---
 
@@ -741,10 +740,10 @@ ServerMon UI should heavily leverage **WebSockets for live updates**.
 
 Examples:
 
-* terminal streaming
-* live system metrics
-* process updates
-* analytics event streams
+- terminal streaming
+- live system metrics
+- process updates
+- analytics event streams
 
 This ensures the UI always reflects **current server state**.
 
@@ -756,15 +755,15 @@ This ensures the UI always reflects **current server state**.
 
 ServerMon logs:
 
-* module events
-* authentication events
-* system errors
-* deployment events
+- module events
+- authentication events
+- system errors
+- deployment events
 
 Logs accessible via:
 
-* system logs
-* UI log viewer (future)
+- system logs
+- UI log viewer (future)
 
 ---
 
@@ -774,10 +773,10 @@ ServerMon includes a **comprehensive internal analytics system** used to track s
 
 The goal is to provide:
 
-* operational insights
-* debugging visibility
-* module usage metrics
-* auditability of actions
+- operational insights
+- debugging visibility
+- module usage metrics
+- auditability of actions
 
 All meaningful actions within ServerMon should emit **analytics events**.
 
@@ -787,14 +786,14 @@ All meaningful actions within ServerMon should emit **analytics events**.
 
 Core application events tracked include:
 
-* user login
-* user logout
-* dashboard opened
-* settings modified
-* module enabled / disabled
-* module installed
-* module removed
-* authentication failures
+- user login
+- user logout
+- dashboard opened
+- settings modified
+- module enabled / disabled
+- module installed
+- module removed
+- authentication failures
 
 Example event structure:
 
@@ -831,14 +830,14 @@ Examples:
 
 Terminal Module:
 
-* terminal.session.started
-* terminal.session.closed
-* terminal.command.executed
+- terminal.session.started
+- terminal.session.closed
+- terminal.command.executed
 
 Process Monitor Module:
 
-* process.list.opened
-* process.killed
+- process.list.opened
+- process.killed
 
 These events allow modules to expose their own **usage insights**.
 
@@ -859,9 +858,9 @@ analytics.track({
 
 Responsibilities of analytics system:
 
-* store events in MongoDB
-* provide future dashboard insights
-* allow debugging and auditing
+- store events in MongoDB
+- provide future dashboard insights
+- allow debugging and auditing
 
 ---
 
@@ -869,10 +868,10 @@ Responsibilities of analytics system:
 
 Future versions may include a built-in **analytics dashboard** showing:
 
-* most used modules
-* module usage frequency
-* system activity timeline
-* user activity history
+- most used modules
+- module usage frequency
+- system activity timeline
+- user activity history
 
 ---
 
@@ -884,10 +883,10 @@ A **clear onboarding guide** will be provided.
 
 Includes:
 
-* module structure
-* API interfaces
-* widget registration
-* settings schema
+- module structure
+- API interfaces
+- widget registration
+- settings schema
 
 Goal: allow developers to create modules quickly.
 
@@ -897,11 +896,11 @@ Goal: allow developers to create modules quickly.
 
 Potential modules include:
 
-* Disk usage monitor
-* Docker manager
-* Network monitor
-* Log viewer
-* File manager
+- Disk usage monitor
+- Docker manager
+- Network monitor
+- Log viewer
+- File manager
 
 ---
 
@@ -939,15 +938,15 @@ Some modules expose powerful system capabilities. A permission model ensures con
 
 Example permissions:
 
-* terminal.access
-* process.kill
-* module.install
-* settings.modify
+- terminal.access
+- process.kill
+- module.install
+- settings.modify
 
 User roles initially supported:
 
-* admin
-* user
+- admin
+- user
 
 Future versions may introduce full **RBAC**.
 
@@ -973,12 +972,12 @@ The core system exposes runtime information about the host server.
 
 Capabilities include:
 
-* operating system
-* CPU cores
-* RAM
-* disk capacity
-* architecture
-* Node.js version
+- operating system
+- CPU cores
+- RAM
+- disk capacity
+- architecture
+- Node.js version
 
 Modules can access this information via a shared system context.
 
@@ -1022,8 +1021,8 @@ Tracks user behavior and application interactions.
 
 Examples:
 
-* module.opened
-* terminal.session.started
+- module.opened
+- terminal.session.started
 
 Metrics:
 
@@ -1031,10 +1030,10 @@ Tracks real system performance.
 
 Examples:
 
-* cpu.usage
-* memory.used
-* disk.io
-* network.traffic
+- cpu.usage
+- memory.used
+- disk.io
+- network.traffic
 
 Metrics power dashboards and monitoring widgets.
 
@@ -1066,20 +1065,20 @@ This improves usability for first‑time installations.
 
 Performance
 
-* low CPU overhead
-* efficient websocket streams
+- low CPU overhead
+- efficient websocket streams
 
 Reliability
 
-* service auto restart
+- service auto restart
 
 Security
 
-* encrypted authentication data
+- encrypted authentication data
 
 Extensibility
 
-* modular architecture
+- modular architecture
 
 ---
 
@@ -1087,16 +1086,16 @@ Extensibility
 
 Possible roadmap items:
 
-* RBAC user roles
-* multi server monitoring
-* alerting system
-* notification integrations
+- RBAC user roles
+- multi server monitoring
+- alerting system
+- notification integrations
 
 Examples:
 
-* Slack
-* Email
-* Webhooks
+- Slack
+- Email
+- Webhooks
 
 ---
 

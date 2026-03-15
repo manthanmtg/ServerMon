@@ -1,9 +1,11 @@
 # Disk Module
 
 ## Purpose
+
 The Disk module monitors disk usage, I/O performance, and storage health across all mounted filesystems. It helps administrators prevent disk space exhaustion, identify I/O bottlenecks, and plan capacity upgrades.
 
 ## Metrics/Charts
+
 - **Disk Usage (Gauge Chart)**: Percentage used for each mount point with color-coded thresholds
 - **Usage Over Time (Area Chart)**: Disk usage percentage trend for selected filesystem
 - **I/O Throughput (Line Chart)**: Read/write MB/s for each disk device
@@ -13,6 +15,7 @@ The Disk module monitors disk usage, I/O performance, and storage health across 
 - **Disk Health Cards**: SMART status, temperature, rotation speed for SSDs/HDDs
 
 ## Data Sources
+
 - `df -h` - Filesystem usage (mounted filesystems, space and inodes)
 - `df -i` - Inode usage per filesystem
 - `/proc/diskstats` - Disk I/O statistics (reads, writes, time spent)
@@ -23,6 +26,7 @@ The Disk module monitors disk usage, I/O performance, and storage health across 
 - `pvs`, `vgs`, `lvs` - LVM physical volumes, volume groups, logical volumes
 
 ## UI
+
 - **Header**: Module title, filesystem/device filter, refresh interval
 - **Main Area**:
   - Disk usage gauges grid (all mounted filesystems)
@@ -33,6 +37,7 @@ The Disk module monitors disk usage, I/O performance, and storage health across 
 - **Terminal**: Embedded xterm.js for disk tools (`fdisk`, `parted`, `lsblk`, `smartctl`)
 
 ## Alerts/Integration
+
 - **Thresholds**:
   - Disk usage > 80% (warning), > 90% (critical), > 95% (emergency)
   - Inode usage > 80% (warning), > 90% (critical)
@@ -41,6 +46,7 @@ The Disk module monitors disk usage, I/O performance, and storage health across 
 - **Integration**: Alert events stored in MongoDB, displayed in Alerts module dashboard
 
 ## Impl Notes
+
 - Poll `df` and `/proc/diskstats` every 5-30 seconds
 - Cache directory scan results (run `du` on demand, not continuously)
 - Use `iostat` with limited interval to avoid overhead

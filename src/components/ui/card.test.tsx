@@ -32,7 +32,7 @@ describe('Card Components', () => {
 
     const card = screen.getByText('Title').closest('.custom-card');
     const header = screen.getByText('Title').closest('.custom-header');
-    
+
     expect(card).toBeDefined();
     expect(header).toBeDefined();
     expect(screen.getByText('Title').className).toContain('custom-title');

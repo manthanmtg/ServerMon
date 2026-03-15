@@ -21,333 +21,347 @@ import TerminalHistory from './models/TerminalHistory';
 import TerminalSession from './models/TerminalSession';
 
 async function cleanupStaleSessions() {
-    try {
-        await connectDB();
-        log.info('Checking for stale terminal sessions on startup...');
-        
-        // Find all sessions that were "Active" but the server just started
-        // These sessions are now dead because the PTY processes are gone
-        const sessions = await TerminalSession.find().lean();
-        
-        if (sessions.length > 0) {
-            log.info(`Found ${sessions.length} stale sessions. Cleaning up...`);
-            
-            for (const session of sessions) {
-                const history = await TerminalHistory.findOne({ 
-                    sessionId: session.sessionId, 
-                    closedAt: { $exists: false } 
-                });
-                if (history) {
-                    history.closedAt = new Date();
-                    history.closedBy = 'server-restart';
-                    await history.save().catch(err => log.error(`Failed to save history for stale session ${session.sessionId}`, err));
-                }
-            }
-            
-            await TerminalSession.deleteMany({});
-            log.info('Stale sessions cleaned up.');
+  try {
+    await connectDB();
+    log.info('Checking for stale terminal sessions on startup...');
+
+    // Find all sessions that were "Active" but the server just started
+    // These sessions are now dead because the PTY processes are gone
+    const sessions = await TerminalSession.find().lean();
+
+    if (sessions.length > 0) {
+      log.info(`Found ${sessions.length} stale sessions. Cleaning up...`);
+
+      for (const session of sessions) {
+        const history = await TerminalHistory.findOne({
+          sessionId: session.sessionId,
+          closedAt: { $exists: false },
+        });
+        if (history) {
+          history.closedAt = new Date();
+          history.closedBy = 'server-restart';
+          await history
+            .save()
+            .catch((err) =>
+              log.error(`Failed to save history for stale session ${session.sessionId}`, err)
+            );
         }
-    } catch (err) {
-        log.error('Failed to cleanup stale sessions on startup', err);
+      }
+
+      await TerminalSession.deleteMany({});
+      log.info('Stale sessions cleaned up.');
     }
+  } catch (err) {
+    log.error('Failed to cleanup stale sessions on startup', err);
+  }
 }
 
 app.prepare().then(async () => {
-    await cleanupStaleSessions();
-    const server = createServer((req, res) => {
-        const parsedUrl = parse(req.url!, true);
-        const { pathname } = parsedUrl;
+  await cleanupStaleSessions();
+  const server = createServer((req, res) => {
+    const parsedUrl = parse(req.url!, true);
+    const { pathname } = parsedUrl;
 
-        if (pathname?.startsWith('/api/socket')) {
-            return;
-        }
-
-        handle(req, res, parsedUrl);
-    });
-
-    const io = new Server(server, {
-        path: '/api/socket',
-    });
-
-    // socket.io authentication middleware
-    io.use(async (socket, next) => {
-        try {
-            const cookieHeader = socket.handshake.headers.cookie;
-            if (!cookieHeader) {
-                log.warn('Socket connection rejected: No cookies present');
-                return next(new Error('Authentication error: Session cookie missing'));
-            }
-
-            const sessionCookie = cookieHeader
-                .split(';')
-                .find(c => c.trim().startsWith('session='))
-                ?.split('=')[1];
-
-            if (!sessionCookie) {
-                log.warn('Socket connection rejected: Session cookie not found');
-                return next(new Error('Authentication error: Session cookie not found'));
-            }
-
-            const session = (await decrypt(sessionCookie).catch(() => null)) as unknown as SessionPayload;
-            if (!session || !session.user) {
-                log.warn('Socket connection rejected: Invalid or expired session');
-                return next(new Error('Authentication error: Invalid session'));
-            }
-
-            // Attach user info to socket
-            (socket as unknown as { user: SessionPayload['user'] }).user = session.user;
-            next();
-        } catch (err) {
-            log.error('Socket authentication middleware error', err);
-            next(new Error('Internal authentication error'));
-        }
-    });
-
-    interface SessionPayload {
-        user: {
-            id: string;
-            username: string;
-            role: string;
-        };
-        expires: string;
+    if (pathname?.startsWith('/api/socket')) {
+      return;
     }
 
-    // Persistent PTY sessions
-    interface ptySession {
-        ptyProcess: pty.IPty;
-        buffer: string[];
-        lastActive: number;
-        sockets: Set<string>;
-        label: string;
-        createdBy: string;
+    handle(req, res, parsedUrl);
+  });
+
+  const io = new Server(server, {
+    path: '/api/socket',
+  });
+
+  // socket.io authentication middleware
+  io.use(async (socket, next) => {
+    try {
+      const cookieHeader = socket.handshake.headers.cookie;
+      if (!cookieHeader) {
+        log.warn('Socket connection rejected: No cookies present');
+        return next(new Error('Authentication error: Session cookie missing'));
+      }
+
+      const sessionCookie = cookieHeader
+        .split(';')
+        .find((c) => c.trim().startsWith('session='))
+        ?.split('=')[1];
+
+      if (!sessionCookie) {
+        log.warn('Socket connection rejected: Session cookie not found');
+        return next(new Error('Authentication error: Session cookie not found'));
+      }
+
+      const session = (await decrypt(sessionCookie).catch(() => null)) as unknown as SessionPayload;
+      if (!session || !session.user) {
+        log.warn('Socket connection rejected: Invalid or expired session');
+        return next(new Error('Authentication error: Invalid session'));
+      }
+
+      // Attach user info to socket
+      (socket as unknown as { user: SessionPayload['user'] }).user = session.user;
+      next();
+    } catch (err) {
+      log.error('Socket authentication middleware error', err);
+      next(new Error('Internal authentication error'));
     }
-    const ptySessions = new Map<string, ptySession>();
-    const BUFFER_SIZE = 1000;
+  });
 
-    // Cleanup idle sessions
-    setInterval(async () => {
-        const now = Date.now();
-        
-        // Fetch current timeout setting (default to 30 mins if not found)
-        let timeoutMs = 30 * 60 * 1000;
+  interface SessionPayload {
+    user: {
+      id: string;
+      username: string;
+      role: string;
+    };
+    expires: string;
+  }
+
+  // Persistent PTY sessions
+  interface ptySession {
+    ptyProcess: pty.IPty;
+    buffer: string[];
+    lastActive: number;
+    sockets: Set<string>;
+    label: string;
+    createdBy: string;
+  }
+  const ptySessions = new Map<string, ptySession>();
+  const BUFFER_SIZE = 1000;
+
+  // Cleanup idle sessions
+  setInterval(async () => {
+    const now = Date.now();
+
+    // Fetch current timeout setting (default to 30 mins if not found)
+    let timeoutMs = 30 * 60 * 1000;
+    try {
+      await connectDB();
+      const settings = await TerminalSettings.findById('terminal-settings').lean();
+      if (settings?.idleTimeoutMinutes) {
+        timeoutMs = settings.idleTimeoutMinutes * 60 * 1000;
+      }
+    } catch (err) {
+      log.error('Failed to fetch terminal settings for cleanup', err);
+    }
+
+    for (const [sessionId, session] of ptySessions.entries()) {
+      if (session.sockets.size === 0 && now - session.lastActive > timeoutMs) {
+        log.info(`Cleaning up idle terminal session: ${sessionId}`);
+
         try {
-            await connectDB();
-            const settings = await TerminalSettings.findById('terminal-settings').lean();
-            if (settings?.idleTimeoutMinutes) {
-                timeoutMs = settings.idleTimeoutMinutes * 60 * 1000;
-            }
+          await connectDB();
+          const history = await TerminalHistory.findOne({
+            sessionId,
+            closedAt: { $exists: false },
+          });
+          if (history) {
+            history.closedAt = new Date();
+            history.closedBy = 'timeout-autokill';
+            await history.save();
+          }
+          await TerminalSession.deleteOne({ sessionId });
         } catch (err) {
-            log.error('Failed to fetch terminal settings for cleanup', err);
+          log.error(`Failed to update history/db for timed out session ${sessionId}`, err);
         }
 
-        for (const [sessionId, session] of ptySessions.entries()) {
-            if (session.sockets.size === 0 && now - session.lastActive > timeoutMs) {
-                log.info(`Cleaning up idle terminal session: ${sessionId}`);
-                
-                try {
-                    await connectDB();
-                    const history = await TerminalHistory.findOne({ 
-                        sessionId, 
-                        closedAt: { $exists: false } 
-                    });
-                    if (history) {
-                        history.closedAt = new Date();
-                        history.closedBy = 'timeout-autokill';
-                        await history.save();
-                    }
-                    await TerminalSession.deleteOne({ sessionId });
-                } catch (err) {
-                    log.error(`Failed to update history/db for timed out session ${sessionId}`, err);
-                }
+        session.ptyProcess.kill();
+        ptySessions.delete(sessionId);
+      }
+    }
+  }, 60000);
 
-                session.ptyProcess.kill();
-                ptySessions.delete(sessionId);
-            }
+  io.on('connection', (socket) => {
+    log.info('New socket connection: ' + socket.id);
+
+    let activeSessionId: string | null = null;
+
+    socket.on(
+      'terminal:start',
+      async (options: {
+        sessionId: string;
+        label?: string;
+        username?: string;
+        cols?: number;
+        rows?: number;
+        initialCommand?: string;
+      }) => {
+        const { sessionId, label, username } = options;
+        if (!sessionId) {
+          socket.emit('terminal:error', 'sessionId is required');
+          return;
         }
-    }, 60000);
 
-    io.on('connection', (socket) => {
-        log.info('New socket connection: ' + socket.id);
+        try {
+          activeSessionId = sessionId;
+          let session = ptySessions.get(sessionId);
 
-        let activeSessionId: string | null = null;
+          if (session) {
+            log.info(`Re-attaching to PTY session: ${sessionId}`);
+            session.sockets.add(socket.id);
+            session.lastActive = Date.now();
 
-        socket.on('terminal:start', async (options: { sessionId: string; label?: string; username?: string; cols?: number; rows?: number; initialCommand?: string }) => {
-            const { sessionId, label, username } = options;
-            if (!sessionId) {
-                socket.emit('terminal:error', 'sessionId is required');
-                return;
+            // Send buffer to re-synced terminal
+            if (session.buffer.length > 0) {
+              socket.emit('terminal:data', session.buffer.join(''));
             }
 
-            try {
-                activeSessionId = sessionId;
-                let session = ptySessions.get(sessionId);
+            // Resize if requested
+            if (options.cols && options.rows) {
+              session.ptyProcess.resize(options.cols, options.rows);
+            }
+            if (options.initialCommand) {
+              session.ptyProcess.write(options.initialCommand);
+            }
+          } else {
+            let shell = '';
+            let args: string[] = [];
 
-                if (session) {
-                    log.info(`Re-attaching to PTY session: ${sessionId}`);
-                    session.sockets.add(socket.id);
-                    session.lastActive = Date.now();
+            // Fetch settings for loginAsUser
+            await connectDB().catch((e) => log.error('DB Connection failed in server.ts', e));
+            const settings = await TerminalSettings.findById('terminal-settings')
+              .lean()
+              .catch(() => null);
+            const loginAsUser = settings?.loginAsUser;
 
-                    // Send buffer to re-synced terminal
-                    if (session.buffer.length > 0) {
-                        socket.emit('terminal:data', session.buffer.join(''));
+            if (loginAsUser && os.platform() !== 'win32') {
+              shell = 'su';
+              args = ['-', loginAsUser];
+              log.info(`Spawning PTY for session ${sessionId} as user ${loginAsUser}`);
+            } else {
+              if (os.platform() === 'win32') {
+                shell = 'powershell.exe';
+              } else {
+                shell = process.env.SHELL || '';
+
+                if (!shell) {
+                  const fs = await import('fs');
+                  const fallbacks = ['/bin/zsh', '/bin/bash', '/bin/sh'];
+                  for (const fb of fallbacks) {
+                    if (fs.existsSync(fb)) {
+                      shell = fb;
+                      break;
                     }
-
-                    // Resize if requested
-                    if (options.cols && options.rows) {
-                        session.ptyProcess.resize(options.cols, options.rows);
-                    }
-                    if (options.initialCommand) {
-                        session.ptyProcess.write(options.initialCommand);
-                    }
-                } else {
-                    let shell = '';
-                    let args: string[] = [];
-
-                    // Fetch settings for loginAsUser
-                    await connectDB().catch(e => log.error('DB Connection failed in server.ts', e));
-                    const settings = await TerminalSettings.findById('terminal-settings').lean().catch(() => null);
-                    const loginAsUser = settings?.loginAsUser;
-
-                    if (loginAsUser && os.platform() !== 'win32') {
-                        shell = 'su';
-                        args = ['-', loginAsUser];
-                        log.info(`Spawning PTY for session ${sessionId} as user ${loginAsUser}`);
-                    } else {
-                        if (os.platform() === 'win32') {
-                            shell = 'powershell.exe';
-                        } else {
-                            shell = process.env.SHELL || '';
-                            
-                            if (!shell) {
-                                const fs = await import('fs');
-                                const fallbacks = ['/bin/zsh', '/bin/bash', '/bin/sh'];
-                                for (const fb of fallbacks) {
-                                    if (fs.existsSync(fb)) {
-                                        shell = fb;
-                                        break;
-                                    }
-                                }
-                            }
-                            
-                            if (!shell) shell = 'sh';
-                        }
-                        log.info(`Spawning PTY for session ${sessionId} (shell: ${shell})`);
-                    }
-                    
-                    const cwd = process.cwd(); 
-
-                    const ptyProcess = pty.spawn(shell, args, {
-                        name: 'xterm-color',
-                        cols: options.cols || 80,
-                        rows: options.rows || 24,
-                        cwd,
-                        env: process.env as Record<string, string>,
-                    });
-
-                    // Log history entry and update session with PID
-                    const pid = ptyProcess.pid;
-                    TerminalHistory.create({
-                        sessionId,
-                        label: label || 'Terminal',
-                        createdBy: username || 'unknown',
-                        pid,
-                    }).catch(err => log.error(`Failed to create history for session ${sessionId}`, err));
-
-                    TerminalSession.findOneAndUpdate(
-                        { sessionId },
-                        { $set: { pid } }
-                    ).catch(err => log.error(`Failed to update session PID for ${sessionId}`, err));
-
-                    session = {
-                        ptyProcess,
-                        buffer: [],
-                        lastActive: Date.now(),
-                        sockets: new Set([socket.id]),
-                        label: label || 'Terminal',
-                        createdBy: username || 'unknown',
-                    };
-                    ptySessions.set(sessionId, session);
-
-                    ptyProcess.onData((data) => {
-                        // Update buffer
-                        session!.buffer.push(data);
-                        if (session!.buffer.length > BUFFER_SIZE) {
-                            session!.buffer.shift();
-                        }
-                        
-                        // Broadcast to all sockets attached to this session
-                        for (const sid of session!.sockets) {
-                            io.to(sid).emit('terminal:data', data);
-                        }
-                    });
-
-                    ptyProcess.onExit(async ({ exitCode, signal }) => {
-                        log.info(`Terminal process for session ${sessionId} exited (${exitCode})`);
-                        
-                        try {
-                            await connectDB();
-                            const history = await TerminalHistory.findOne({ 
-                                sessionId, 
-                                closedAt: { $exists: false } 
-                            });
-                            if (history) {
-                                history.closedAt = new Date();
-                                history.exitCode = exitCode;
-                                history.signal = signal ? String(signal) : undefined;
-                                history.closedBy = 'process-exit';
-                                await history.save();
-                            }
-                        } catch (err) {
-                            log.error(`Failed to update history for exited session ${sessionId}`, err);
-                        }
-
-                        for (const sid of session!.sockets) {
-                            io.to(sid).emit('terminal:exit', { exitCode, signal });
-                        }
-                        ptySessions.delete(sessionId);
-                    });
-
-                    if (options.initialCommand) {
-                        ptyProcess.write(options.initialCommand);
-                    }
+                  }
                 }
-            } catch (err: unknown) {
-                log.error(`Failed to start/attach terminal session ${sessionId}`, err);
-                socket.emit('terminal:error', 'Failed to start terminal');
-            }
-        });
 
-        socket.on('terminal:data', (data: string) => {
-            if (activeSessionId) {
-                const session = ptySessions.get(activeSessionId);
-                session?.ptyProcess.write(data);
-                if (session) session.lastActive = Date.now();
+                if (!shell) shell = 'sh';
+              }
+              log.info(`Spawning PTY for session ${sessionId} (shell: ${shell})`);
             }
-        });
 
-        socket.on('terminal:resize', (size: { cols: number; rows: number }) => {
-            if (activeSessionId) {
-                const session = ptySessions.get(activeSessionId);
-                session?.ptyProcess.resize(size.cols, size.rows);
-                if (session) session.lastActive = Date.now();
-            }
-        });
+            const cwd = process.cwd();
 
-        socket.on('disconnect', () => {
-            log.info('Socket disconnected: ' + socket.id);
-            if (activeSessionId) {
-                const session = ptySessions.get(activeSessionId);
-                if (session) {
-                    session.sockets.delete(socket.id);
-                    session.lastActive = Date.now();
+            const ptyProcess = pty.spawn(shell, args, {
+              name: 'xterm-color',
+              cols: options.cols || 80,
+              rows: options.rows || 24,
+              cwd,
+              env: process.env as Record<string, string>,
+            });
+
+            // Log history entry and update session with PID
+            const pid = ptyProcess.pid;
+            TerminalHistory.create({
+              sessionId,
+              label: label || 'Terminal',
+              createdBy: username || 'unknown',
+              pid,
+            }).catch((err) => log.error(`Failed to create history for session ${sessionId}`, err));
+
+            TerminalSession.findOneAndUpdate({ sessionId }, { $set: { pid } }).catch((err) =>
+              log.error(`Failed to update session PID for ${sessionId}`, err)
+            );
+
+            session = {
+              ptyProcess,
+              buffer: [],
+              lastActive: Date.now(),
+              sockets: new Set([socket.id]),
+              label: label || 'Terminal',
+              createdBy: username || 'unknown',
+            };
+            ptySessions.set(sessionId, session);
+
+            ptyProcess.onData((data) => {
+              // Update buffer
+              session!.buffer.push(data);
+              if (session!.buffer.length > BUFFER_SIZE) {
+                session!.buffer.shift();
+              }
+
+              // Broadcast to all sockets attached to this session
+              for (const sid of session!.sockets) {
+                io.to(sid).emit('terminal:data', data);
+              }
+            });
+
+            ptyProcess.onExit(async ({ exitCode, signal }) => {
+              log.info(`Terminal process for session ${sessionId} exited (${exitCode})`);
+
+              try {
+                await connectDB();
+                const history = await TerminalHistory.findOne({
+                  sessionId,
+                  closedAt: { $exists: false },
+                });
+                if (history) {
+                  history.closedAt = new Date();
+                  history.exitCode = exitCode;
+                  history.signal = signal ? String(signal) : undefined;
+                  history.closedBy = 'process-exit';
+                  await history.save();
                 }
-            }
-        });
+              } catch (err) {
+                log.error(`Failed to update history for exited session ${sessionId}`, err);
+              }
 
+              for (const sid of session!.sockets) {
+                io.to(sid).emit('terminal:exit', { exitCode, signal });
+              }
+              ptySessions.delete(sessionId);
+            });
+
+            if (options.initialCommand) {
+              ptyProcess.write(options.initialCommand);
+            }
+          }
+        } catch (err: unknown) {
+          log.error(`Failed to start/attach terminal session ${sessionId}`, err);
+          socket.emit('terminal:error', 'Failed to start terminal');
+        }
+      }
+    );
+
+    socket.on('terminal:data', (data: string) => {
+      if (activeSessionId) {
+        const session = ptySessions.get(activeSessionId);
+        session?.ptyProcess.write(data);
+        if (session) session.lastActive = Date.now();
+      }
     });
 
-    server.listen(port, (err?: Error) => {
-        if (err) throw err;
-        log.info(`> Ready on http://localhost:${port}`);
+    socket.on('terminal:resize', (size: { cols: number; rows: number }) => {
+      if (activeSessionId) {
+        const session = ptySessions.get(activeSessionId);
+        session?.ptyProcess.resize(size.cols, size.rows);
+        if (session) session.lastActive = Date.now();
+      }
     });
+
+    socket.on('disconnect', () => {
+      log.info('Socket disconnected: ' + socket.id);
+      if (activeSessionId) {
+        const session = ptySessions.get(activeSessionId);
+        if (session) {
+          session.sockets.delete(socket.id);
+          session.lastActive = Date.now();
+        }
+      }
+    });
+  });
+
+  server.listen(port, (err?: Error) => {
+    if (err) throw err;
+    log.info(`> Ready on http://localhost:${port}`);
+  });
 });

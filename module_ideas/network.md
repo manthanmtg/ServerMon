@@ -1,9 +1,11 @@
 # Network Module
 
 ## Purpose
+
 The Network module provides real-time monitoring of server network interfaces, bandwidth usage, connections, and network health. It helps administrators track network performance, identify bottlenecks, detect unusual traffic patterns, and ensure network services are running optimally.
 
 ## Metrics/Charts
+
 - **Bandwidth Usage (Line Chart)**: Real-time upload/download throughput in Mbps for each interface
 - **Network I/O (Area Chart)**: Bytes sent/received over time with stacked areas
 - **Connections by State (Pie Chart)**: Distribution of TCP connections by state (ESTABLISHED, TIME_WAIT, CLOSE_WAIT, etc.)
@@ -13,6 +15,7 @@ The Network module provides real-time monitoring of server network interfaces, b
 - **Top Talkers (Bar Chart)**: Top 10 IP addresses by bandwidth usage (in/out combined)
 
 ## Data Sources
+
 - `/proc/net/dev` - Network interface statistics (bytes, packets, errors, drops)
 - `/proc/net/tcp` and `/proc/net/tcp6` - TCP connection details
 - `ss -tunapl` - Socket statistics (alternative to netstat)
@@ -22,6 +25,7 @@ The Network module provides real-time monitoring of server network interfaces, b
 - `hostname -I` - IP addresses
 
 ## UI
+
 - **Header**: Module title, interface selector dropdown, refresh interval control
 - **Main Area**:
   - Interface status cards grid (2-4 per row depending on viewport)
@@ -32,6 +36,7 @@ The Network module provides real-time monitoring of server network interfaces, b
 - **Terminal**: Embedded xterm.js terminal for running network diagnostics (`tcpdump`, `nethogs`, `iptraf`, `nmap`)
 
 ## Alerts/Integration
+
 - **Thresholds**:
   - Bandwidth > 80% of interface speed (warning), > 95% (critical)
   - Packet error rate > 1% (warning), > 5% (critical)
@@ -40,6 +45,7 @@ The Network module provides real-time monitoring of server network interfaces, b
 - **Integration**: Alert events stored in MongoDB, displayed in Alerts module dashboard
 
 ## Impl Notes
+
 - Poll `/proc/net/` files every 1-5 seconds (configurable)
 - Use `ss` command for connection data (parse output, not raw socket reading)
 - Store historical data in MongoDB (1-minute aggregates for 7 days, 5-minute for 30 days)

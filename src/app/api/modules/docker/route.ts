@@ -7,11 +7,11 @@ export const dynamic = 'force-dynamic';
 const log = createLogger('api:docker');
 
 export async function GET() {
-    try {
-        const snapshot = await dockerService.getSnapshot();
-        return NextResponse.json(snapshot);
-    } catch (error) {
-        log.error('Failed to fetch docker snapshot', error);
-        return NextResponse.json({ error: 'Failed to fetch docker snapshot' }, { status: 500 });
-    }
+  try {
+    const snapshot = await dockerService.getSnapshot();
+    return NextResponse.json(snapshot);
+  } catch (error) {
+    log.error('Failed to fetch docker snapshot', error);
+    return NextResponse.json({ error: 'Failed to fetch docker snapshot' }, { status: 500 });
+  }
 }

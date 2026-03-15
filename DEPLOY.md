@@ -6,14 +6,14 @@ This guide covers every way to deploy ServerMon — from a quick one-liner to a 
 
 ## Prerequisites
 
-| Requirement | Minimum |
-|---|---|
-| OS | Ubuntu 22.04+ or Debian 11+ |
-| Architecture | x86_64 or ARM64 |
-| RAM | 512 MB |
-| Disk | 1 GB free |
-| Access | Root or sudo |
-| Ports | 8912 (app), 80/443 (if using Nginx) |
+| Requirement  | Minimum                             |
+| ------------ | ----------------------------------- |
+| OS           | Ubuntu 22.04+ or Debian 11+         |
+| Architecture | x86_64 or ARM64                     |
+| RAM          | 512 MB                              |
+| Disk         | 1 GB free                           |
+| Access       | Root or sudo                        |
+| Ports        | 8912 (app), 80/443 (if using Nginx) |
 
 MongoDB and Node.js are installed automatically if not present.
 
@@ -64,6 +64,7 @@ sudo ./scripts/install.sh
 ```
 
 When prompted:
+
 - **Port**: press Enter for default `8912`
 - **MongoDB URI**: press Enter for local `mongodb://localhost:27017/servermon`
 - **Domain**: press Enter (leave empty)
@@ -92,6 +93,7 @@ sudo ./scripts/install.sh --domain mon.example.com --ssl
 ```
 
 **Before running:**
+
 1. Point DNS A record for `mon.example.com` to your server's public IP
 2. Ensure ports 80 and 443 are open in your firewall
 
@@ -148,23 +150,23 @@ sudo ./scripts/install.sh \
 
 Step by step, the installer:
 
-| Step | What happens |
-|---|---|
-| 1 | Installs base packages (`curl`, `git`, `build-essential`, `lsof`) |
-| 2 | Installs Node.js 20 LTS and pnpm (skips if already present) |
-| 3 | Installs MongoDB 7.0 and starts it (skipped with `--skip-mongo`) |
-| 4 | Copies source to `/opt/servermon`, runs `pnpm install` and `pnpm build` |
-| 5 | Generates `/etc/servermon/env` with JWT secret, creates systemd service |
-| 6 | *(optional)* Installs Nginx, generates reverse proxy config, sets up SSL |
+| Step | What happens                                                             |
+| ---- | ------------------------------------------------------------------------ |
+| 1    | Installs base packages (`curl`, `git`, `build-essential`, `lsof`)        |
+| 2    | Installs Node.js 20 LTS and pnpm (skips if already present)              |
+| 3    | Installs MongoDB 7.0 and starts it (skipped with `--skip-mongo`)         |
+| 4    | Copies source to `/opt/servermon`, runs `pnpm install` and `pnpm build`  |
+| 5    | Generates `/etc/servermon/env` with JWT secret, creates systemd service  |
+| 6    | _(optional)_ Installs Nginx, generates reverse proxy config, sets up SSL |
 
 Files created:
 
-| Path | Purpose |
-|---|---|
-| `/opt/servermon/` | Application directory |
-| `/etc/servermon/env` | Environment config (secrets, MongoDB URI, port) |
-| `/etc/systemd/system/servermon.service` | Systemd service unit |
-| `/etc/nginx/sites-available/servermon` | Nginx config (if using Nginx) |
+| Path                                    | Purpose                                         |
+| --------------------------------------- | ----------------------------------------------- |
+| `/opt/servermon/`                       | Application directory                           |
+| `/etc/servermon/env`                    | Environment config (secrets, MongoDB URI, port) |
+| `/etc/systemd/system/servermon.service` | Systemd service unit                            |
+| `/etc/nginx/sites-available/servermon`  | Nginx config (if using Nginx)                   |
 
 ---
 
@@ -191,6 +193,7 @@ sudo ./scripts/install.sh
 ```
 
 The upgrade:
+
 - Preserves your `/etc/servermon/env` (JWT secret, MongoDB URI)
 - Preserves your MongoDB data
 - Rebuilds the application from the latest source
@@ -207,6 +210,7 @@ sudo ./scripts/install.sh --uninstall
 ```
 
 This removes:
+
 - The systemd service
 - `/opt/servermon/` (application files)
 - `/etc/servermon/` (config)
@@ -214,6 +218,7 @@ This removes:
 - Nginx site config (if it exists)
 
 It does **not** remove:
+
 - MongoDB (or your database data)
 - Nginx itself
 - Node.js
@@ -264,12 +269,12 @@ After editing this file, restart the service:
 sudo systemctl restart servermon
 ```
 
-| Variable | Description | Default |
-|---|---|---|
-| `PORT` | HTTP port the app listens on | `8912` |
-| `MONGO_URI` | MongoDB connection string | `mongodb://localhost:27017/servermon` |
-| `JWT_SECRET` | Secret for signing session tokens (auto-generated) | — |
-| `NODE_ENV` | Runtime mode | `production` |
+| Variable     | Description                                        | Default                               |
+| ------------ | -------------------------------------------------- | ------------------------------------- |
+| `PORT`       | HTTP port the app listens on                       | `8912`                                |
+| `MONGO_URI`  | MongoDB connection string                          | `mongodb://localhost:27017/servermon` |
+| `JWT_SECRET` | Secret for signing session tokens (auto-generated) | —                                     |
+| `NODE_ENV`   | Runtime mode                                       | `production`                          |
 
 ---
 
@@ -492,6 +497,7 @@ Example output:
 ```
 
 Context tags tell you which subsystem produced the log:
+
 - `metrics` — system metric polling
 - `sse` — SSE stream connections
 - `api:processes` — process list API
@@ -507,22 +513,22 @@ curl -s http://localhost:8912/api/health | python3 -m json.tool
 
 ```json
 {
-    "status": "ok",
-    "uptime": 86400,
-    "database": "connected",
-    "metrics": { "cpu": 12.5, "memory": 45.2 },
-    "sseConnections": 2,
-    "timestamp": "2026-03-11T10:30:00.000Z"
+  "status": "ok",
+  "uptime": 86400,
+  "database": "connected",
+  "metrics": { "cpu": 12.5, "memory": 45.2 },
+  "sseConnections": 2,
+  "timestamp": "2026-03-11T10:30:00.000Z"
 }
 ```
 
-| Field | Meaning |
-|---|---|
-| `status` | `ok` (HTTP 200) or `degraded` (HTTP 503) |
-| `uptime` | Seconds since the process started |
-| `database` | `connected`, `disconnected`, or `error` |
-| `metrics` | Latest CPU/memory reading, or `null` if not yet available |
-| `sseConnections` | Number of active SSE streams (max 20) |
+| Field            | Meaning                                                   |
+| ---------------- | --------------------------------------------------------- |
+| `status`         | `ok` (HTTP 200) or `degraded` (HTTP 503)                  |
+| `uptime`         | Seconds since the process started                         |
+| `database`       | `connected`, `disconnected`, or `error`                   |
+| `metrics`        | Latest CPU/memory reading, or `null` if not yet available |
+| `sseConnections` | Number of active SSE streams (max 20)                     |
 
 Use this for external monitoring (UptimeRobot, Pingdom, etc.) — alert when status is not `200`.
 
@@ -530,12 +536,12 @@ Use this for external monitoring (UptimeRobot, Pingdom, etc.) — alert when sta
 
 The systemd service enforces memory limits to prevent runaway usage:
 
-| Setting | Value | Effect |
-|---|---|---|
-| `MemoryHigh` | 384 MB | Kernel starts reclaiming memory |
-| `MemoryMax` | 512 MB | Hard kill if exceeded |
-| `StartLimitBurst` | 5 in 300s | Prevents restart loops |
-| `RestartSec` | 5s | Delay between restarts |
+| Setting           | Value     | Effect                          |
+| ----------------- | --------- | ------------------------------- |
+| `MemoryHigh`      | 384 MB    | Kernel starts reclaiming memory |
+| `MemoryMax`       | 512 MB    | Hard kill if exceeded           |
+| `StartLimitBurst` | 5 in 300s | Prevents restart loops          |
+| `RestartSec`      | 5s        | Delay between restarts          |
 
 To check current memory usage:
 

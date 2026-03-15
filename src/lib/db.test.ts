@@ -23,7 +23,7 @@ describe('connectDB', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     process.env.MONGO_URI = MONGO_URI;
-    
+
     // Clear the cached connection in the global object for testing
     if (global.mongoose) {
       global.mongoose.conn = null;
@@ -31,14 +31,16 @@ describe('connectDB', () => {
     }
   });
 
-    it('should throw an error if MONGO_URI is not defined', async () => {
-      vi.resetModules();
-      const originalUri = process.env.MONGO_URI;
-      delete process.env.MONGO_URI;
-      const { default: connect } = await import('./db');
-      await expect(connect()).rejects.toThrow('Please define the MONGO_URI environment variable inside .env.local');
-      process.env.MONGO_URI = originalUri;
-    });
+  it('should throw an error if MONGO_URI is not defined', async () => {
+    vi.resetModules();
+    const originalUri = process.env.MONGO_URI;
+    delete process.env.MONGO_URI;
+    const { default: connect } = await import('./db');
+    await expect(connect()).rejects.toThrow(
+      'Please define the MONGO_URI environment variable inside .env.local'
+    );
+    process.env.MONGO_URI = originalUri;
+  });
 
   it('should successfully connect to MongoDB', async () => {
     const mockMongoose = {
@@ -73,7 +75,7 @@ describe('connectDB', () => {
     vi.mocked(mongoose.connect).mockRejectedValueOnce(error);
 
     await expect(connectDB()).rejects.toThrow('Connection failed');
-    
+
     // Check if promise was reset
     expect(global.mongoose?.promise).toBeNull();
   });
@@ -84,7 +86,9 @@ describe('connectDB', () => {
     };
     vi.mocked(mongoose.connect).mockResolvedValue(mockMongoose as unknown as typeof mongoose);
 
-    const result = await connectDB() as unknown as { connection: { db: { getCollection: (name: string) => unknown } } };
+    const result = (await connectDB()) as unknown as {
+      connection: { db: { getCollection: (name: string) => unknown } };
+    };
     expect(result.connection.db).toBeDefined();
     expect(result.connection.db.getCollection('test')).toBeNull();
   });

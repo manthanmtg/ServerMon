@@ -6,7 +6,11 @@ import React from 'react';
 const TestTrigger = () => {
   const { toast } = useToast();
   return (
-    <button onClick={() => toast({ title: 'Test Toast', description: 'Test Description', variant: 'default' })}>
+    <button
+      onClick={() =>
+        toast({ title: 'Test Toast', description: 'Test Description', variant: 'default' })
+      }
+    >
       Show Toast
     </button>
   );

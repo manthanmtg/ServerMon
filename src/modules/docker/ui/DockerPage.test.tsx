@@ -81,30 +81,65 @@ const mockSnapshot = {
       blockWriteBytes: 0,
       networkInBytes: 0,
       networkOutBytes: 0,
-    }
+    },
   ],
   images: [
-    { id: 'image-1', repository: 'nginx', tag: 'latest', sizeBytes: 1000000, createdAt: new Date().toISOString(), containersUsing: 1 }
+    {
+      id: 'image-1',
+      repository: 'nginx',
+      tag: 'latest',
+      sizeBytes: 1000000,
+      createdAt: new Date().toISOString(),
+      containersUsing: 1,
+    },
   ],
   volumes: [
-    { name: 'db-data', driver: 'local', mountpoint: '/var/lib/docker/volumes/db-data/_data', scope: 'local' }
+    {
+      name: 'db-data',
+      driver: 'local',
+      mountpoint: '/var/lib/docker/volumes/db-data/_data',
+      scope: 'local',
+    },
   ],
-  networks: [
-    { id: 'net-1', name: 'bridge', driver: 'bridge', scope: 'local' }
-  ],
+  networks: [{ id: 'net-1', name: 'bridge', driver: 'bridge', scope: 'local' }],
   events: [
-    { id: 'event-1', time: new Date().toISOString(), action: 'start', type: 'container', actor: 'container-1', attributes: {} }
+    {
+      id: 'event-1',
+      time: new Date().toISOString(),
+      action: 'start',
+      type: 'container',
+      actor: 'container-1',
+      attributes: {},
+    },
   ],
   alerts: [
-    { id: 'alert-1', severity: 'warning', title: 'High CPU', message: 'Container web-server is using 90% CPU', source: 'docker', active: true, firstSeenAt: new Date().toISOString(), lastSeenAt: new Date().toISOString() }
+    {
+      id: 'alert-1',
+      severity: 'warning',
+      title: 'High CPU',
+      message: 'Container web-server is using 90% CPU',
+      source: 'docker',
+      active: true,
+      firstSeenAt: new Date().toISOString(),
+      lastSeenAt: new Date().toISOString(),
+    },
   ],
   history: [
     {
       timestamp: new Date().toISOString(),
       containers: [
-        { id: 'container-1', name: 'web-server', cpuPercent: 5.5, memoryPercent: 12.0, blockReadBytes: 1024, blockWriteBytes: 2048, networkInBytes: 512, networkOutBytes: 256 }
-      ]
-    }
+        {
+          id: 'container-1',
+          name: 'web-server',
+          cpuPercent: 5.5,
+          memoryPercent: 12.0,
+          blockReadBytes: 1024,
+          blockWriteBytes: 2048,
+          networkInBytes: 512,
+          networkOutBytes: 256,
+        },
+      ],
+    },
   ],
   timestamp: new Date().toISOString(),
 };
@@ -140,9 +175,12 @@ describe('DockerPage', () => {
 
   it('renders loading state initially', async () => {
     let resolveFetch: (value: Response) => void;
-    global.fetch = vi.fn().mockImplementation(() => new Promise<Response>((resolve) => {
-      resolveFetch = (value) => resolve(value);
-    }));
+    global.fetch = vi.fn().mockImplementation(
+      () =>
+        new Promise<Response>((resolve) => {
+          resolveFetch = (value) => resolve(value);
+        })
+    );
 
     await act(async () => {
       render(
@@ -151,14 +189,16 @@ describe('DockerPage', () => {
         </ToastProvider>
       );
     });
-    
+
     await waitFor(() => expect(screen.getByTestId('skeleton-card-0')).toBeDefined());
-    
+
     await act(async () => {
       resolveFetch({ ok: true, json: async () => mockSnapshot } as Response);
     });
-    
-    await waitFor(() => expect(screen.queryByTestId('page-skeleton')).toBeNull(), { timeout: 5000 });
+
+    await waitFor(() => expect(screen.queryByTestId('page-skeleton')).toBeNull(), {
+      timeout: 5000,
+    });
   });
 
   it('renders daemon status and source', async () => {
@@ -171,12 +211,16 @@ describe('DockerPage', () => {
   it('renders state summary cards', async () => {
     await renderPage();
     await waitFor(() => screen.getByText('Running'));
-    
-    const runningCard = screen.getAllByText('Running').find(el => el.tagName === 'P' && el.closest('.rounded-xl')) as HTMLElement;
+
+    const runningCard = screen
+      .getAllByText('Running')
+      .find((el) => el.tagName === 'P' && el.closest('.rounded-xl')) as HTMLElement;
     const stoppedCard = screen.getByText('Stopped').closest('.rounded-xl') as HTMLElement;
     const pausedCard = screen.getByText('Paused').closest('.rounded-xl') as HTMLElement;
 
-    expect(within(runningCard!.closest('.rounded-xl') as HTMLElement).getAllByText('2').length).toBeGreaterThan(0);
+    expect(
+      within(runningCard!.closest('.rounded-xl') as HTMLElement).getAllByText('2').length
+    ).toBeGreaterThan(0);
     expect(within(stoppedCard).getAllByText('1').length).toBeGreaterThan(0);
     expect(within(pausedCard).getAllByText('0').length).toBeGreaterThan(0);
   });
@@ -184,7 +228,7 @@ describe('DockerPage', () => {
   it('renders containers table with correct data', async () => {
     await renderPage();
     await waitFor(() => screen.getByText('Docker operations center'));
-    
+
     const tableContainer = screen.getByTestId('docker-containers-table');
     expect(within(tableContainer).getByText('web-server')).toBeDefined();
     expect(within(tableContainer).getByText('nginx:latest')).toBeDefined();
@@ -195,13 +239,13 @@ describe('DockerPage', () => {
   it('expands container row to show details', async () => {
     await renderPage();
     await waitFor(() => screen.getByText('Docker operations center'));
-    
+
     const tableContainer = screen.getByTestId('docker-containers-table');
     const expandButton = within(tableContainer).getByRole('button', { name: /web-server/i });
     await act(async () => {
       fireEvent.click(expandButton);
     });
-    
+
     expect(screen.getByText('Live usage')).toBeDefined();
     expect(screen.getByText(/CPU: 5.5%/)).toBeDefined();
     expect(screen.getByText(/Memory: 12.0%/)).toBeDefined();
@@ -211,17 +255,17 @@ describe('DockerPage', () => {
   it('switches between Image/Volumes/Networks tabs', async () => {
     await renderPage();
     await waitFor(() => screen.getByTestId('docker-assets'));
-    
+
     // Default is images
     expect(screen.getByTestId('docker-images-table')).toBeDefined();
-    
+
     // Switch to volumes
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: /volumes/i }));
     });
     expect(screen.getByTestId('docker-volumes-table')).toBeDefined();
     expect(screen.getByText('db-data')).toBeDefined();
-    
+
     // Switch to networks
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: /networks/i }));
@@ -234,13 +278,13 @@ describe('DockerPage', () => {
   it('triggers container action: stop', async () => {
     await renderPage();
     await waitFor(() => screen.getByText('Docker operations center'));
-    
+
     const tableContainer = screen.getByTestId('docker-containers-table');
     const stopButton = within(tableContainer).getAllByRole('button', { name: /Stop/i })[0];
     await act(async () => {
       fireEvent.click(stopButton);
     });
-    
+
     expect(global.fetch).toHaveBeenCalledWith(
       '/api/modules/docker/container-1/action',
       expect.objectContaining({
@@ -253,14 +297,14 @@ describe('DockerPage', () => {
   it('triggers container action: start', async () => {
     await renderPage();
     await waitFor(() => screen.getByText('Docker operations center'));
-    
+
     const containersTable = await waitFor(() => screen.getByTestId('docker-containers-table'));
     const container2Row = within(containersTable).getByText('db-server').closest('tr')!;
     const startButton = within(container2Row).getByRole('button', { name: 'Start' });
     await act(async () => {
       fireEvent.click(startButton);
     });
-    
+
     expect(global.fetch).toHaveBeenCalledWith(
       '/api/modules/docker/container-2/action',
       expect.objectContaining({
@@ -273,12 +317,14 @@ describe('DockerPage', () => {
   it('triggers asset deletion (image)', async () => {
     await renderPage();
     await waitFor(() => screen.getByTestId('docker-images-table'));
-    
+
     const imageTable = screen.getByTestId('docker-images-table');
-    const deleteButton = within(imageTable).getAllByRole('button').find(b => b.innerHTML.includes('lucide-trash2'));
+    const deleteButton = within(imageTable)
+      .getAllByRole('button')
+      .find((b) => b.innerHTML.includes('lucide-trash2'));
     if (!deleteButton) throw new Error('Delete button not found');
     fireEvent.click(deleteButton);
-    
+
     expect(window.confirm).toHaveBeenCalled();
     expect(global.fetch).toHaveBeenCalledWith(
       '/api/modules/docker/images/image-1',
@@ -316,7 +362,7 @@ describe('DockerPage', () => {
     await waitFor(() => screen.getByText('Embedded Docker terminal'));
     fireEvent.click(screen.getByText('Images'));
     expect(screen.getByText('docker images')).toBeDefined();
-    
+
     fireEvent.click(screen.getByText('Compose'));
     expect(screen.getByText('docker compose ps')).toBeDefined();
   });
@@ -326,7 +372,7 @@ describe('DockerPage', () => {
       ok: false,
       json: async () => ({ error: 'API Error' }),
     });
-    
+
     await renderPage();
     await waitFor(() => screen.queryByTestId('page-skeleton') === null);
   });
@@ -334,7 +380,7 @@ describe('DockerPage', () => {
   it('changes container for IO chart', async () => {
     await renderPage();
     await waitFor(() => screen.getByTestId('docker-io-chart'));
-    
+
     const chartCard = screen.getByTestId('docker-io-chart');
     const select = within(chartCard).getByRole('combobox');
     await act(async () => {

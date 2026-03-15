@@ -1,6 +1,7 @@
 # 🤖 AI Agents Module (Module Idea)
 
 ## 🧭 Overview
+
 The **AI Agents module** provides visibility, monitoring, and operational control over **AI coding agents running on a server**. It acts as a centralized dashboard for observing agent sessions, tracking actions performed by AI, and managing AI-driven development workflows.
 
 This module is designed for environments where developers run tools such as:
@@ -400,7 +401,7 @@ Detect risky behaviors:
 
 ## 🧠 Submodule Philosophy
 
-Each AI tool within this module should be implemented as its own **submodule**. 
+Each AI tool within this module should be implemented as its own **submodule**.
 
 This architectural decision is driven by the fact that **each tool has a different working philosophy** and interaction model. By treating each agent (Claude Code, Codex, OpenCode, etc.) as an independent submodule, the system becomes:
 
@@ -409,6 +410,7 @@ This architectural decision is driven by the fact that **each tool has a differe
 - **Scalable**: New agents can be added by creating a new submodule without touching existing ones.
 
 To start with, this submodule approach will be implemented for:
+
 - **Claude Code**
 - **Codex**
 - **OpenCode**
@@ -728,4 +730,3 @@ Instead of treating AI tools as opaque black boxes, this module provides:
 - operational control
 
 for modern AI coding agents running on the server.
-

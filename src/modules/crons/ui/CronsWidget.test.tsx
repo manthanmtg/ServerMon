@@ -5,15 +5,15 @@ import CronsWidget from './CronsWidget';
 const mockCronsSnapshot = {
   summary: { active: 5, total: 10, disabled: 5, userCrons: 3, systemCrons: 7 },
   crontabAvailable: true,
-  source: 'crontab'
+  source: 'crontab',
 };
 
 describe('CronsWidget', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    global.fetch = vi.fn().mockImplementation(() => 
-      Promise.resolve({ ok: true, json: async () => mockCronsSnapshot })
-    );
+    global.fetch = vi
+      .fn()
+      .mockImplementation(() => Promise.resolve({ ok: true, json: async () => mockCronsSnapshot }));
   });
 
   it('renders active crons count', async () => {
@@ -35,7 +35,7 @@ describe('CronsWidget', () => {
   });
 
   it('shows loading state initially', () => {
-     render(<CronsWidget />);
-     // Spinner uses LoaderCircle which we can find or just check for initialLoad logic
+    render(<CronsWidget />);
+    // Spinner uses LoaderCircle which we can find or just check for initialLoad logic
   });
 });

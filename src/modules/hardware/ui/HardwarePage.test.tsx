@@ -6,37 +6,88 @@ const mockHardwareSnapshot = {
   source: 'live',
   uptime: 3600,
   system: { manufacturer: 'Apple', model: 'MacBook Pro' },
-  os: { hostname: 'server-1', platform: 'darwin', kernel: '23.4.0', arch: 'arm64', distro: 'macOS', release: '14.4' },
-  cpu: { manufacturer: 'Apple', brand: 'M2 Max', speed: 3.5, cores: 12, physicalCores: 12, cache: { l3: 0 } },
-  memory: { total: 34359738368, used: 17179869184, available: 17179869184, swaptotal: 0, swapused: 0 },
+  os: {
+    hostname: 'server-1',
+    platform: 'darwin',
+    kernel: '23.4.0',
+    arch: 'arm64',
+    distro: 'macOS',
+    release: '14.4',
+  },
+  cpu: {
+    manufacturer: 'Apple',
+    brand: 'M2 Max',
+    speed: 3.5,
+    cores: 12,
+    physicalCores: 12,
+    cache: { l3: 0 },
+  },
+  memory: {
+    total: 34359738368,
+    used: 17179869184,
+    available: 17179869184,
+    swaptotal: 0,
+    swapused: 0,
+  },
   cpuTemperature: { main: 45, cores: [42, 43, 45, 44], max: 48 },
   memoryLayout: [
-    { bank: 'BANK 0', size: 17179869184, type: 'LPDDR5', clockSpeed: 6400, manufacturer: 'Apple', partNum: 'M2-1' },
-    { bank: 'BANK 1', size: 17179869184, type: 'LPDDR5', clockSpeed: 6400, manufacturer: 'Apple', partNum: 'M2-2' }
+    {
+      bank: 'BANK 0',
+      size: 17179869184,
+      type: 'LPDDR5',
+      clockSpeed: 6400,
+      manufacturer: 'Apple',
+      partNum: 'M2-1',
+    },
+    {
+      bank: 'BANK 1',
+      size: 17179869184,
+      type: 'LPDDR5',
+      clockSpeed: 6400,
+      manufacturer: 'Apple',
+      partNum: 'M2-2',
+    },
   ],
   disks: [
-    { device: '/dev/disk0', name: 'APPLE SSD', type: 'SSD', size: 1000204886016, interfaceType: 'PCIe', smartStatus: 'OK', temperature: 35 }
+    {
+      device: '/dev/disk0',
+      name: 'APPLE SSD',
+      type: 'SSD',
+      size: 1000204886016,
+      interfaceType: 'PCIe',
+      smartStatus: 'OK',
+      temperature: 35,
+    },
   ],
   gpus: [
-    { vendor: 'Apple', model: 'M2 Max', vram: 0, driver: 'Apple', temperatureGpu: 40, utilizationGpu: 10 }
+    {
+      vendor: 'Apple',
+      model: 'M2 Max',
+      vram: 0,
+      driver: 'Apple',
+      temperatureGpu: 40,
+      utilizationGpu: 10,
+    },
   ],
-  usb: [
-    { name: 'USB-C Keyboard', bus: 1, type: 'HID' }
-  ],
+  usb: [{ name: 'USB-C Keyboard', bus: 1, type: 'HID' }],
   bios: { vendor: 'Apple', version: '10151', releaseDate: '2024-01-01' },
-  baseboard: { manufacturer: 'Apple', model: 'MacBookPro18,2', memSlots: 0 }
+  baseboard: { manufacturer: 'Apple', model: 'MacBookPro18,2', memSlots: 0 },
 };
 
 vi.mock('@/components/layout/ProShell', () => ({
-  default: ({ children }: { children: React.ReactNode }) => <div data-testid="pro-shell">{children}</div>
+  default: ({ children }: { children: React.ReactNode }) => (
+    <div data-testid="pro-shell">{children}</div>
+  ),
 }));
 
 describe('HardwarePage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    global.fetch = vi.fn().mockImplementation(() => 
-      Promise.resolve({ ok: true, json: async () => mockHardwareSnapshot })
-    );
+    global.fetch = vi
+      .fn()
+      .mockImplementation(() =>
+        Promise.resolve({ ok: true, json: async () => mockHardwareSnapshot })
+      );
   });
 
   const renderPage = async () => {

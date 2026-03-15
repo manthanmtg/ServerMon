@@ -38,7 +38,7 @@ const mockNginxSnapshot = {
       enabled: false,
       root: '/var/www/api',
       filename: '/etc/nginx/sites-enabled/api.example.com',
-    }
+    },
   ],
   source: 'live',
 };
@@ -46,7 +46,7 @@ const mockNginxSnapshot = {
 describe('NginxPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    global.fetch = vi.fn().mockImplementation(() => 
+    global.fetch = vi.fn().mockImplementation(() =>
       Promise.resolve({
         ok: true,
         json: async () => mockNginxSnapshot,
@@ -61,21 +61,26 @@ describe('NginxPage', () => {
   it('renders loading state initially', async () => {
     // Mock fetch to delay resolution
     let resolveFetch: (value: Response) => void;
-    global.fetch = vi.fn().mockImplementation(() => new Promise<Response>((resolve) => {
-      resolveFetch = resolve;
-    }));
+    global.fetch = vi.fn().mockImplementation(
+      () =>
+        new Promise<Response>((resolve) => {
+          resolveFetch = resolve;
+        })
+    );
 
     await act(async () => {
       render(<NginxPage />);
     });
-    
+
     await waitFor(() => expect(screen.getByTestId('skeleton-card-0')).toBeDefined());
-    
+
     await act(async () => {
       resolveFetch({ ok: true, json: async () => mockNginxSnapshot } as Response);
     });
-    
-    await waitFor(() => expect(screen.queryByTestId('page-skeleton')).toBeNull(), { timeout: 5000 });
+
+    await waitFor(() => expect(screen.queryByTestId('page-skeleton')).toBeNull(), {
+      timeout: 5000,
+    });
   });
 
   it('renders status and summary cards', async () => {
@@ -86,13 +91,19 @@ describe('NginxPage', () => {
     expect(screen.getByText('Running')).toBeDefined();
     expect(screen.getByText('PID: 1234')).toBeDefined();
     expect(screen.getByText('v1.18.0')).toBeDefined();
-    
+
     // Use more specific selectors for stat cards to avoid matching table headers
-    const vhostsLabel = screen.getAllByText('Virtual Hosts').find(el => el.tagName === 'P') as HTMLElement;
+    const vhostsLabel = screen
+      .getAllByText('Virtual Hosts')
+      .find((el) => el.tagName === 'P') as HTMLElement;
     const sslLabel = screen.getByText('SSL Enabled') as HTMLElement;
-    
-    expect(within(vhostsLabel.closest('div') as HTMLElement).getAllByText('2').length).toBeGreaterThan(0);
-    expect(within(sslLabel.closest('div') as HTMLElement).getAllByText('1').length).toBeGreaterThan(0);
+
+    expect(
+      within(vhostsLabel.closest('div') as HTMLElement).getAllByText('2').length
+    ).toBeGreaterThan(0);
+    expect(within(sslLabel.closest('div') as HTMLElement).getAllByText('1').length).toBeGreaterThan(
+      0
+    );
   });
 
   it('renders live connections', async () => {
@@ -100,8 +111,10 @@ describe('NginxPage', () => {
       render(<NginxPage />);
     });
     await waitFor(() => screen.getByText('Live Connections'));
-    
-    const connectionsCard = screen.getByText('Live Connections').closest('.rounded-xl') as HTMLElement;
+
+    const connectionsCard = screen
+      .getByText('Live Connections')
+      .closest('.rounded-xl') as HTMLElement;
     expect(within(connectionsCard).getAllByText('10').length).toBeGreaterThan(0);
     expect(within(connectionsCard).getAllByText('1').length).toBeGreaterThan(0);
     expect(within(connectionsCard).getAllByText('2').length).toBeGreaterThan(0);
@@ -124,7 +137,7 @@ describe('NginxPage', () => {
     });
     await waitFor(() => screen.getByText('example.com'));
     fireEvent.click(screen.getByText('example.com'));
-    
+
     expect(screen.getByText('Listen:')).toBeDefined();
     expect(screen.getByText('80, 443')).toBeDefined();
     expect(screen.getByText('Root:')).toBeDefined();
@@ -138,7 +151,7 @@ describe('NginxPage', () => {
     });
     await waitFor(() => screen.getByText('example.com'));
     fireEvent.click(screen.getByText('example.com'));
-    
+
     const summary = screen.getByText('View config');
     expect(summary).toBeDefined();
     expect(screen.getByText('server { listen 80; ... }')).toBeDefined();
@@ -151,7 +164,10 @@ describe('NginxPage', () => {
       if (urlString === '/api/modules/nginx/test') {
         return Promise.resolve({ ok: true, json: async () => testMock } as unknown as Response);
       }
-      return Promise.resolve({ ok: true, json: async () => mockNginxSnapshot } as unknown as Response);
+      return Promise.resolve({
+        ok: true,
+        json: async () => mockNginxSnapshot,
+      } as unknown as Response);
     });
 
     await act(async () => {
@@ -159,7 +175,7 @@ describe('NginxPage', () => {
     });
     await waitFor(() => screen.getByText('Test Config'));
     fireEvent.click(screen.getByText('Test Config'));
-    
+
     await waitFor(() => screen.getByText('Config test passed'));
     expect(screen.getByText('syntax is ok')).toBeDefined();
   });
@@ -171,7 +187,10 @@ describe('NginxPage', () => {
       if (urlString === '/api/modules/nginx/reload') {
         return Promise.resolve({ ok: true, json: async () => reloadMock } as unknown as Response);
       }
-      return Promise.resolve({ ok: true, json: async () => mockNginxSnapshot } as unknown as Response);
+      return Promise.resolve({
+        ok: true,
+        json: async () => mockNginxSnapshot,
+      } as unknown as Response);
     });
 
     await act(async () => {
@@ -179,7 +198,7 @@ describe('NginxPage', () => {
     });
     await waitFor(() => screen.getByText('Reload Nginx'));
     fireEvent.click(screen.getByText('Reload Nginx'));
-    
+
     await waitFor(() => screen.getByText('reloaded successfully'));
     expect(screen.getByText('reloaded successfully')).toBeDefined();
   });
@@ -217,9 +236,15 @@ describe('NginxPage', () => {
     vi.mocked(global.fetch).mockImplementation((url) => {
       const urlString = url.toString();
       if (urlString === '/api/modules/nginx/test') {
-        return Promise.resolve({ ok: false, json: async () => ({ error: 'Syntax error on line 10' }) } as unknown as Response);
+        return Promise.resolve({
+          ok: false,
+          json: async () => ({ error: 'Syntax error on line 10' }),
+        } as unknown as Response);
       }
-      return Promise.resolve({ ok: true, json: async () => mockNginxSnapshot } as unknown as Response);
+      return Promise.resolve({
+        ok: true,
+        json: async () => mockNginxSnapshot,
+      } as unknown as Response);
     });
 
     await act(async () => {
@@ -229,7 +254,7 @@ describe('NginxPage', () => {
     await act(async () => {
       fireEvent.click(screen.getByText('Test Config'));
     });
-    
+
     await waitFor(() => screen.getByText('Config test failed'));
   });
 
@@ -237,9 +262,15 @@ describe('NginxPage', () => {
     vi.mocked(global.fetch).mockImplementation((url) => {
       const urlString = url.toString();
       if (urlString === '/api/modules/nginx/reload') {
-        return Promise.resolve({ ok: false, json: async () => ({ error: 'Reload failed' }) } as unknown as Response);
+        return Promise.resolve({
+          ok: false,
+          json: async () => ({ error: 'Reload failed' }),
+        } as unknown as Response);
       }
-      return Promise.resolve({ ok: true, json: async () => mockNginxSnapshot } as unknown as Response);
+      return Promise.resolve({
+        ok: true,
+        json: async () => mockNginxSnapshot,
+      } as unknown as Response);
     });
 
     await act(async () => {
@@ -249,7 +280,7 @@ describe('NginxPage', () => {
     await act(async () => {
       fireEvent.click(screen.getByText('Reload Nginx'));
     });
-    
+
     await waitFor(() => expect(screen.getByText(/Reload failed|Request failed/i)).toBeDefined());
   });
 
@@ -259,7 +290,7 @@ describe('NginxPage', () => {
       ok: true,
       json: async () => emptySnapshot,
     });
-    
+
     await act(async () => {
       render(<NginxPage />);
     });
@@ -267,16 +298,21 @@ describe('NginxPage', () => {
   });
 
   it('renders status correctly when stopped', async () => {
-    const stoppedSnapshot = { ...mockNginxSnapshot, status: { ...mockNginxSnapshot.status, running: false, pid: 0 } };
+    const stoppedSnapshot = {
+      ...mockNginxSnapshot,
+      status: { ...mockNginxSnapshot.status, running: false, pid: 0 },
+    };
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,
       json: async () => stoppedSnapshot,
     });
-    
+
     await act(async () => {
       render(<NginxPage />);
     });
     await waitFor(() => screen.getByText('Stopped'));
-    expect(within(screen.getByText('Stopped').closest('.flex') as HTMLElement).getByText('PID: 0')).toBeDefined();
+    expect(
+      within(screen.getByText('Stopped').closest('.flex') as HTMLElement).getByText('PID: 0')
+    ).toBeDefined();
   });
 });

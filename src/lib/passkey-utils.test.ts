@@ -14,7 +14,7 @@ import {
   getPasskeyRegistrationOptions,
   verifyPasskeyRegistration,
   getPasskeyLoginOptions,
-  verifyPasskeyLogin
+  verifyPasskeyLogin,
 } from './passkey-utils';
 import type {
   GenerateRegistrationOptionsOpts,

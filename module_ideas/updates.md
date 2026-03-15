@@ -1,9 +1,11 @@
 # Updates Module
 
 ## Purpose
+
 The Updates module monitors available system and package updates, tracks update history, and helps administrators manage the update lifecycle. It integrates with package managers to provide a unified view of update status across the system.
 
 ## Metrics/Charts
+
 - **Update Status Cards**: Security updates, regular updates, pending restarts count
 - **Available Updates (Table)**: Package name, current version, new version, severity, repo
 - **Updates Over Time (Area Chart)**: Installed/removed packages over time
@@ -13,6 +15,7 @@ The Updates module monitors available system and package updates, tracks update 
 - **Update Timeline (Gantt Chart)**: Scheduled update windows and execution
 
 ## Data Sources
+
 - `apt list --upgradable` - APT upgradable packages (Debian/Ubuntu)
 - `apt-get upgrade --dry-run` - Simulate upgrades
 - `yum check-update` or `dnf check-update` - RHEL/CentOS/Fedora
@@ -26,6 +29,7 @@ The Updates module monitors available system and package updates, tracks update 
 - `unattended-upgrades --dry-run` - Unattended upgrade simulation
 
 ## UI
+
 - **Header**: Module title, OS detection badge, check for updates button, auto-check toggle
 - **Main Area**:
   - Update status cards (security, regular, optional counts)
@@ -38,6 +42,7 @@ The Updates module monitors available system and package updates, tracks update 
 - **Terminal**: Embedded xterm.js for package management (`apt`, `yum`, `dnf`, `pip`)
 
 ## Alerts/Integration
+
 - **Thresholds**:
   - Security updates available (warning immediately)
   - Critical updates available (critical immediately)
@@ -47,6 +52,7 @@ The Updates module monitors available system and package updates, tracks update 
 - **Integration**: Alert events stored in MongoDB, displayed in Alerts module dashboard
 
 ## Impl Notes
+
 - Poll package managers every 1-6 hours (configurable)
 - Cache apt/dnf metadata to reduce network overhead
 - Parse changelogs from apt cache or package metadata

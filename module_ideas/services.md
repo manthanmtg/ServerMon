@@ -1,9 +1,11 @@
 # Services Module
 
 ## Purpose
+
 The Services module monitors system services/daemons, their status, resource usage, and uptime. It provides a centralized view of all running services, enabling quick identification of failed or unresponsive services.
 
 ## Metrics/Charts
+
 - **Service Status (Status Badges)**: Running, stopped, failed, activating for each service
 - **CPU/Memory by Service (Stacked Bar Chart)**: Resource usage grouped by service
 - **Uptime Table**: Service name, status, PID, uptime, restart count
@@ -12,6 +14,7 @@ The Services module monitors system services/daemons, their status, resource usa
 - **Resource Ranking (Horizontal Bar Chart)**: Top 10 services by CPU or memory
 
 ## Data Sources
+
 - `systemctl list-units --type=service --all --no-pager --no-legend` - Service unit listing
 - `systemctl status <service>` - Detailed service status
 - `systemctl show <service>` - Service properties (MainPID, ActiveState, SubState, etc.)
@@ -22,6 +25,7 @@ The Services module monitors system services/daemons, their status, resource usa
 - `service --status-all` - SysVinit services (fallback for non-systemd)
 
 ## UI
+
 - **Header**: Module title, filter dropdown (all/running/failed), search input
 - **Main Area**:
   - Status summary cards (running, stopped, failed counts)
@@ -32,6 +36,7 @@ The Services module monitors system services/daemons, their status, resource usa
 - **Terminal**: Embedded xterm.js for service management (`systemctl`, `service`, `journalctl`)
 
 ## Alerts/Integration
+
 - **Thresholds**:
   - Service enters failed state (critical)
   - Service stops unexpectedly (critical)
@@ -41,6 +46,7 @@ The Services module monitors system services/daemons, their status, resource usa
 - **Integration**: Alert events stored in MongoDB, displayed in Alerts module dashboard
 
 ## Impl Notes
+
 - Poll `systemctl` every 5-10 seconds for status changes
 - Parse `systemctl show` JSON output where available
 - Cache service list, update incrementally on status changes

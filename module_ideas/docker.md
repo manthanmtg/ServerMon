@@ -1,9 +1,11 @@
 # Docker Module
 
 ## Purpose
+
 The Docker module monitors Docker containers, images, volumes, networks, and overall Docker daemon health. It provides real-time visibility into container performance and resource usage.
 
 ## Metrics/Charts
+
 - **Container Status (Status Badges)**: Running, stopped, paused, restarting for each container
 - **Container Resource Usage (Stacked Bar Chart)**: CPU% and Memory% per container
 - **Container I/O (Line Chart)**: Read/write bytes per second per container
@@ -14,6 +16,7 @@ The Docker module monitors Docker containers, images, volumes, networks, and ove
 - **Container Events (Live Feed)**: Real-time container start/stop/die events
 
 ## Data Sources
+
 - `docker ps -a --format json` - All containers with details
 - `docker stats --no-stream --format json` - Real-time container stats
 - `docker images --format json` - Container images
@@ -26,6 +29,7 @@ The Docker module monitors Docker containers, images, volumes, networks, and ove
 - `crictl ps -a` - CRI-compatible container runtime (fallback for containerd)
 
 ## UI
+
 - **Header**: Module title, Docker daemon selector (if multiple hosts), refresh interval
 - **Main Area**:
   - Container status summary cards (running, stopped, paused counts)
@@ -37,6 +41,7 @@ The Docker module monitors Docker containers, images, volumes, networks, and ove
 - **Terminal**: Embedded xterm.js for Docker CLI (`docker`, `docker-compose`, `crictl`)
 
 ## Alerts/Integration
+
 - **Thresholds**:
   - Container stopped unexpectedly (critical)
   - Container restart loop (> 3 restarts in 5 minutes) (critical)
@@ -47,6 +52,7 @@ The Docker module monitors Docker containers, images, volumes, networks, and ove
 - **Integration**: Alert events stored in MongoDB, displayed in Alerts module dashboard
 
 ## Impl Notes
+
 - Poll `docker stats` every 2-5 seconds; use `--no-stream` to avoid SSE conflict
 - Use Docker socket (`/var/run/docker.sock`) for API access
 - Require `docker` group membership or socket permissions

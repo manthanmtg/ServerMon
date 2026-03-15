@@ -41,7 +41,9 @@ vi.mock('@/lib/MetricsContext', async () => {
   return {
     ...actual,
     useMetrics: () => currentMetrics,
-    MetricsProvider: ({ children }: { children: React.ReactNode }) => <div data-testid="metrics-provider">{children}</div>,
+    MetricsProvider: ({ children }: { children: React.ReactNode }) => (
+      <div data-testid="metrics-provider">{children}</div>
+    ),
   };
 });
 
@@ -73,31 +75,31 @@ describe('DashboardPage', () => {
 
   it('renders all stat cards with correct data', async () => {
     await renderPage();
-    
+
     // CPU Card
     expect(screen.getByText('CPU')).toBeDefined();
     expect(screen.getByText('25.5%')).toBeDefined();
     expect(screen.getByText('8 Cores')).toBeDefined();
-    
+
     // Memory Card
     expect(screen.getByText('Memory')).toBeDefined();
     expect(screen.getByText('45.2%')).toBeDefined();
     expect(screen.getByText('8.0 of 16.0 GB')).toBeDefined();
-    
+
     // Uptime Card
     expect(screen.getByText('Uptime')).toBeDefined();
     expect(screen.getByText('1d 5h')).toBeDefined();
-    
+
     // Latency Card
     expect(screen.getByText('Data Latency')).toBeDefined();
-    
+
     // Ping Card
     expect(screen.getByText('Ping')).toBeDefined();
   });
 
   it('renders all chart and info cards', async () => {
     await renderPage();
-    
+
     expect(screen.getByText('CPU Usage')).toBeDefined();
     expect(screen.getByText('Memory Usage')).toBeDefined();
     expect(screen.getByText('Recent Activity')).toBeDefined();
@@ -106,7 +108,7 @@ describe('DashboardPage', () => {
 
   it('renders widgets from registry', async () => {
     await renderPage();
-    
+
     expect(screen.getByTestId('widget-CPUChartWidget')).toBeDefined();
     expect(screen.getByTestId('widget-MemoryChartWidget')).toBeDefined();
     expect(screen.getByTestId('widget-LogsWidget')).toBeDefined();
@@ -120,38 +122,38 @@ describe('DashboardPage', () => {
 
   it('handles offline state correctly', async () => {
     currentMetrics = { ...mockMetrics, connected: false };
-    
+
     await renderPage();
     await waitFor(() => expect(screen.queryByText('Offline')).not.toBeNull());
     expect(screen.getByText('Reconnecting...')).toBeDefined();
   });
 
   it('renders uptime for hours/minutes correctly', async () => {
-     currentMetrics = { 
-       ...mockMetrics, 
-       latest: { ...mockMetrics.latest, uptime: 3600 * 2 + 60 * 30 } // 2h 30m
-     };
-     
-     await renderPage();
-     await waitFor(() => expect(screen.queryByText('2h 30m')).not.toBeNull());
+    currentMetrics = {
+      ...mockMetrics,
+      latest: { ...mockMetrics.latest, uptime: 3600 * 2 + 60 * 30 }, // 2h 30m
+    };
+
+    await renderPage();
+    await waitFor(() => expect(screen.queryByText('2h 30m')).not.toBeNull());
   });
 
   it('renders uptime for minutes/seconds correctly', async () => {
-     currentMetrics = { 
-       ...mockMetrics, 
-       latest: { ...mockMetrics.latest, uptime: 60 * 5 + 45 } // 5m 45s
-     };
-     
-     await renderPage();
-     await waitFor(() => expect(screen.queryByText('5m 45s')).not.toBeNull());
+    currentMetrics = {
+      ...mockMetrics,
+      latest: { ...mockMetrics.latest, uptime: 60 * 5 + 45 }, // 5m 45s
+    };
+
+    await renderPage();
+    await waitFor(() => expect(screen.queryByText('5m 45s')).not.toBeNull());
   });
 
   it('shows warning status when CPU is high', async () => {
-    currentMetrics = { 
-      ...mockMetrics, 
-      latest: { ...mockMetrics.latest, cpu: 95 } 
+    currentMetrics = {
+      ...mockMetrics,
+      latest: { ...mockMetrics.latest, cpu: 95 },
     };
-    
+
     await renderPage();
     await waitFor(() => {
       const cpuValue = screen.getByText('95.0%');
@@ -160,11 +162,11 @@ describe('DashboardPage', () => {
   });
 
   it('shows warning status when Memory is high', async () => {
-    currentMetrics = { 
-      ...mockMetrics, 
-      latest: { ...mockMetrics.latest, memory: 85 } 
+    currentMetrics = {
+      ...mockMetrics,
+      latest: { ...mockMetrics.latest, memory: 85 },
     };
-    
+
     await renderPage();
     await waitFor(() => {
       const memValue = screen.getByText('85.0%');

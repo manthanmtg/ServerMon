@@ -7,15 +7,15 @@ export const dynamic = 'force-dynamic';
 const log = createLogger('api:docker:volumes');
 
 export async function DELETE(
-    _request: Request,
-    context: { params: Promise<{ volumeName: string }> }
+  _request: Request,
+  context: { params: Promise<{ volumeName: string }> }
 ) {
-    try {
-        const { volumeName } = await context.params;
-        const result = await dockerService.removeVolume(volumeName);
-        return NextResponse.json(result);
-    } catch (error) {
-        log.error('Failed to remove docker volume', error);
-        return NextResponse.json({ error: 'Failed to remove volume' }, { status: 500 });
-    }
+  try {
+    const { volumeName } = await context.params;
+    const result = await dockerService.removeVolume(volumeName);
+    return NextResponse.json(result);
+  } catch (error) {
+    log.error('Failed to remove docker volume', error);
+    return NextResponse.json({ error: 'Failed to remove volume' }, { status: 500 });
+  }
 }

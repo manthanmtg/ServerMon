@@ -21,7 +21,7 @@ const mockSnapshot: ServicesSnapshot = {
       restartCount: 0,
       enabled: true,
       unitFileState: 'enabled',
-      fragmentPath: '/lib/systemd/system/nginx.service'
+      fragmentPath: '/lib/systemd/system/nginx.service',
     },
     {
       name: 'mongodb.service',
@@ -38,8 +38,8 @@ const mockSnapshot: ServicesSnapshot = {
       restartCount: 0,
       enabled: false,
       unitFileState: 'disabled',
-      fragmentPath: '/lib/systemd/system/mongodb.service'
-    }
+      fragmentPath: '/lib/systemd/system/mongodb.service',
+    },
   ],
   systemdAvailable: true,
   source: 'systemd',
@@ -51,12 +51,12 @@ const mockSnapshot: ServicesSnapshot = {
     inactive: 1,
     enabled: 1,
     disabled: 1,
-    healthScore: 100
+    healthScore: 100,
   },
   timers: [],
   alerts: [],
   history: [],
-  timestamp: new Date().toISOString()
+  timestamp: new Date().toISOString(),
 };
 
 describe('ServicesPage', () => {
@@ -64,24 +64,43 @@ describe('ServicesPage', () => {
     vi.clearAllMocks();
     global.fetch = vi.fn().mockImplementation((url: string, options?: RequestInit) => {
       if (url.includes('/api/modules/services/nginx.service/logs')) {
-        return Promise.resolve({ ok: true, json: async () => ({ logs: [{ timestamp: new Date().toISOString(), priority: 'info', message: 'Test log', unit: 'nginx.service' }] }) });
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            logs: [
+              {
+                timestamp: new Date().toISOString(),
+                priority: 'info',
+                message: 'Test log',
+                unit: 'nginx.service',
+              },
+            ],
+          }),
+        });
       }
       if (url.endsWith('/api/modules/services')) {
         return Promise.resolve({ ok: true, json: async () => mockSnapshot });
       }
       if (url.includes('/api/modules/services/') && url.includes('/action')) {
-        const body = JSON.parse(options?.body as string || '{}');
-        return Promise.resolve({ ok: true, json: async () => ({ status: 'ok', message: `Action ${body.action} executed` }) });
+        const body = JSON.parse((options?.body as string) || '{}');
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({ status: 'ok', message: `Action ${body.action} executed` }),
+        });
       }
-      return Promise.resolve({ ok: true, json: async () => ({ status: 'ok', message: 'Action executed' }) });
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({ status: 'ok', message: 'Action executed' }),
+      });
     });
   });
 
-  const renderPage = () => render(
-    <ToastProvider>
-      <ServicesPage />
-    </ToastProvider>
-  );
+  const renderPage = () =>
+    render(
+      <ToastProvider>
+        <ServicesPage />
+      </ToastProvider>
+    );
 
   it('renders loading state initially', async () => {
     vi.mocked(global.fetch).mockImplementation(() => new Promise(() => {})); // Never resolves
@@ -108,10 +127,10 @@ describe('ServicesPage', () => {
       renderPage();
     });
     await waitFor(() => expect(screen.queryByText('Services operations center')).not.toBeNull());
-    
+
     const searchInput = screen.getByPlaceholderText('Search services...');
     fireEvent.change(searchInput, { target: { value: 'nginx' } });
-    
+
     expect(screen.getByText('nginx.service')).toBeDefined();
     expect(screen.queryByText('mongodb.service')).toBeNull();
   });
@@ -121,10 +140,10 @@ describe('ServicesPage', () => {
       renderPage();
     });
     await waitFor(() => expect(screen.queryByText('Services operations center')).not.toBeNull());
-    
+
     const filterSelect = screen.getByLabelText(/Filter/i);
     fireEvent.change(filterSelect, { target: { value: 'inactive' } });
-    
+
     expect(screen.getByText('mongodb.service')).toBeDefined();
     expect(screen.queryByText('nginx.service')).toBeNull();
   });
@@ -134,18 +153,18 @@ describe('ServicesPage', () => {
       renderPage();
     });
     await waitFor(() => expect(screen.queryByText('mongodb.service')).not.toBeNull());
-    
+
     const row = screen.getByText('mongodb.service').closest('tr')!;
     const startButton = within(row).getByTitle('Start');
     await act(async () => {
       fireEvent.click(startButton);
     });
-    
+
     expect(global.fetch).toHaveBeenCalledWith(
       expect.stringContaining('/api/modules/services/mongodb.service/action'),
       expect.objectContaining({
         method: 'POST',
-        body: expect.stringContaining('"action":"start"')
+        body: expect.stringContaining('"action":"start"'),
       })
     );
   });
@@ -155,18 +174,18 @@ describe('ServicesPage', () => {
       renderPage();
     });
     await waitFor(() => expect(screen.queryByText('nginx.service')).not.toBeNull());
-    
+
     const row = screen.getByText('nginx.service').closest('tr')!;
     const stopButton = within(row).getByTitle('Stop');
     await act(async () => {
       fireEvent.click(stopButton);
     });
-    
+
     expect(global.fetch).toHaveBeenCalledWith(
       expect.stringContaining('/api/modules/services/nginx.service/action'),
       expect.objectContaining({
         method: 'POST',
-        body: expect.stringContaining('"action":"stop"')
+        body: expect.stringContaining('"action":"stop"'),
       })
     );
   });
@@ -176,18 +195,18 @@ describe('ServicesPage', () => {
       renderPage();
     });
     await waitFor(() => expect(screen.queryByText('nginx.service')).not.toBeNull());
-    
+
     const row = screen.getByText('nginx.service').closest('tr')!;
     const restartButton = within(row).getByTitle('Restart');
     await act(async () => {
       fireEvent.click(restartButton);
     });
-    
+
     expect(global.fetch).toHaveBeenCalledWith(
       expect.stringContaining('/api/modules/services/nginx.service/action'),
       expect.objectContaining({
         method: 'POST',
-        body: expect.stringContaining('"action":"restart"')
+        body: expect.stringContaining('"action":"restart"'),
       })
     );
   });
@@ -197,18 +216,18 @@ describe('ServicesPage', () => {
       renderPage();
     });
     await waitFor(() => expect(screen.queryByText('nginx.service')).not.toBeNull());
-    
+
     const row = screen.getByText('nginx.service').closest('tr')!;
     const disableButton = within(row).getByTitle('Disable');
     await act(async () => {
       fireEvent.click(disableButton);
     });
-    
+
     expect(global.fetch).toHaveBeenCalledWith(
       expect.stringContaining('/api/modules/services/nginx.service/action'),
       expect.objectContaining({
         method: 'POST',
-        body: expect.stringContaining('"action":"disable"')
+        body: expect.stringContaining('"action":"disable"'),
       })
     );
   });
@@ -218,18 +237,18 @@ describe('ServicesPage', () => {
       renderPage();
     });
     await waitFor(() => expect(screen.queryByText('nginx.service')).not.toBeNull());
-    
+
     const row = screen.getByText('nginx.service').closest('tr')!;
     // Find the expand button (the first button in the first cell)
     const expandButton = within(row).getAllByRole('button')[0];
-    
+
     await act(async () => {
       fireEvent.click(expandButton);
     });
-    
+
     await waitFor(() => expect(screen.queryByText(/Recent logs/i)).not.toBeNull());
     expect(screen.getByText('Test log')).toBeDefined();
-    
+
     expect(global.fetch).toHaveBeenCalledWith(
       expect.stringContaining('/api/modules/services/nginx.service/logs'),
       expect.anything()
@@ -251,16 +270,25 @@ describe('ServicesPage', () => {
   it('handles empty services list', async () => {
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,
-      json: async () => ({ 
-        services: [], 
+      json: async () => ({
+        services: [],
         timers: [],
-        alerts: [], 
-        history: [], 
-        systemdAvailable: true, 
-        source: 'systemd', 
-        summary: { total: 0, running: 0, exited: 0, failed: 0, inactive: 0, enabled: 0, disabled: 0, healthScore: 0 },
-        timestamp: new Date().toISOString()
-      })
+        alerts: [],
+        history: [],
+        systemdAvailable: true,
+        source: 'systemd',
+        summary: {
+          total: 0,
+          running: 0,
+          exited: 0,
+          failed: 0,
+          inactive: 0,
+          enabled: 0,
+          disabled: 0,
+          healthScore: 0,
+        },
+        timestamp: new Date().toISOString(),
+      }),
     });
     await act(async () => {
       renderPage();
@@ -273,7 +301,10 @@ describe('ServicesPage', () => {
     vi.mocked(global.fetch).mockImplementation((url) => {
       const urlString = url.toString();
       if (urlString.includes('/action')) {
-        return Promise.resolve({ ok: false, json: async () => ({ error: 'Action failed' }) } as unknown as Response);
+        return Promise.resolve({
+          ok: false,
+          json: async () => ({ error: 'Action failed' }),
+        } as unknown as Response);
       }
       return Promise.resolve({ ok: true, json: async () => mockSnapshot } as unknown as Response);
     });
@@ -282,13 +313,13 @@ describe('ServicesPage', () => {
       renderPage();
     });
     await waitFor(() => expect(screen.queryByText('nginx.service')).not.toBeNull());
-    
+
     const row = screen.getByText('nginx.service').closest('tr')!;
     const restartButton = within(row).getByTitle('Restart');
     await act(async () => {
       fireEvent.click(restartButton);
     });
-    
+
     await waitFor(() => expect(screen.queryByText(/Action failed/i)).not.toBeNull());
   });
 
@@ -296,7 +327,10 @@ describe('ServicesPage', () => {
     vi.mocked(global.fetch).mockImplementation((url) => {
       const urlString = url.toString();
       if (urlString.includes('/logs')) {
-        return Promise.resolve({ ok: false, json: async () => ({ error: 'Logs error' }) } as unknown as Response);
+        return Promise.resolve({
+          ok: false,
+          json: async () => ({ error: 'Logs error' }),
+        } as unknown as Response);
       }
       return Promise.resolve({ ok: true, json: async () => mockSnapshot } as unknown as Response);
     });
@@ -305,14 +339,14 @@ describe('ServicesPage', () => {
       renderPage();
     });
     await waitFor(() => expect(screen.queryByText('nginx.service')).not.toBeNull());
-    
+
     const row = screen.getByText('nginx.service').closest('tr')!;
     const expandButton = within(row).getAllByRole('button')[0];
-    
+
     await act(async () => {
       fireEvent.click(expandButton);
     });
-    
+
     await waitFor(() => expect(screen.queryByText(/No logs available/i)).not.toBeNull());
   });
 
@@ -331,9 +365,9 @@ describe('ServicesPage', () => {
   });
 
   it('shows correct health score color', async () => {
-    const poorHealthSnapshot = { 
-      ...mockSnapshot, 
-      summary: { ...mockSnapshot.summary, healthScore: 45 } 
+    const poorHealthSnapshot = {
+      ...mockSnapshot,
+      summary: { ...mockSnapshot.summary, healthScore: 45 },
     };
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,

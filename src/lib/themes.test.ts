@@ -3,12 +3,30 @@ import { themes } from './themes';
 import type { Theme, ThemeColors } from './themes';
 
 const REQUIRED_COLOR_KEYS: (keyof ThemeColors)[] = [
-  'background', 'foreground', 'card', 'cardForeground',
-  'popover', 'popoverForeground', 'primary', 'primaryForeground',
-  'secondary', 'secondaryForeground', 'muted', 'mutedForeground',
-  'accent', 'accentForeground', 'destructive', 'destructiveForeground',
-  'border', 'input', 'ring', 'success', 'warning',
-  'sidebar', 'sidebarForeground', 'sidebarBorder',
+  'background',
+  'foreground',
+  'card',
+  'cardForeground',
+  'popover',
+  'popoverForeground',
+  'primary',
+  'primaryForeground',
+  'secondary',
+  'secondaryForeground',
+  'muted',
+  'mutedForeground',
+  'accent',
+  'accentForeground',
+  'destructive',
+  'destructiveForeground',
+  'border',
+  'input',
+  'ring',
+  'success',
+  'warning',
+  'sidebar',
+  'sidebarForeground',
+  'sidebarBorder',
 ];
 
 function isHexColor(value: string): boolean {
@@ -53,10 +71,9 @@ describe('themes', () => {
     for (const theme of themes) {
       for (const key of REQUIRED_COLOR_KEYS) {
         const value = theme.colors[key];
-        expect(
-          isHexColor(value),
-          `${theme.id}.${key} = "${value}" is not a valid hex color`
-        ).toBe(true);
+        expect(isHexColor(value), `${theme.id}.${key} = "${value}" is not a valid hex color`).toBe(
+          true
+        );
       }
     }
   });

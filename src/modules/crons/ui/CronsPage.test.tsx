@@ -5,46 +5,48 @@ import { ToastProvider } from '@/components/ui/toast';
 
 const mockCronsSnapshot = {
   jobs: [
-    { 
-      id: 'job1', 
-      user: 'root', 
-      minute: '0', 
-      hour: '0', 
-      dayOfMonth: '*', 
-      month: '*', 
-      dayOfWeek: '*', 
-      command: 'echo "hello"', 
-      source: 'user', 
-      enabled: true, 
-      expression: '0 0 * * *', 
+    {
+      id: 'job1',
+      user: 'root',
+      minute: '0',
+      hour: '0',
+      dayOfMonth: '*',
+      month: '*',
+      dayOfWeek: '*',
+      command: 'echo "hello"',
+      source: 'user',
+      enabled: true,
+      expression: '0 0 * * *',
       nextRuns: [new Date(Date.now() + 60000).toISOString()],
-      comment: 'Test job'
+      comment: 'Test job',
     },
-    { 
-      id: 'job2', 
-      user: 'www-data', 
-      minute: '*/5', 
-      hour: '*', 
-      dayOfMonth: '*', 
-      month: '*', 
-      dayOfWeek: '*', 
-      command: 'php artisan schedule:run', 
-      source: 'user', 
-      enabled: true, 
-      expression: '*/5 * * * *', 
-      nextRuns: [new Date(Date.now() + 300000).toISOString()] 
-    }
+    {
+      id: 'job2',
+      user: 'www-data',
+      minute: '*/5',
+      hour: '*',
+      dayOfMonth: '*',
+      month: '*',
+      dayOfWeek: '*',
+      command: 'php artisan schedule:run',
+      source: 'user',
+      enabled: true,
+      expression: '*/5 * * * *',
+      nextRuns: [new Date(Date.now() + 300000).toISOString()],
+    },
   ],
   summary: { total: 2, active: 2, disabled: 0, userCrons: 2, systemCrons: 0 },
   systemDirs: [],
   recentLogs: [],
   crontabAvailable: true,
   source: 'crontab',
-  cronRuns: []
+  cronRuns: [],
 };
 
 vi.mock('@/components/layout/ProShell', () => ({
-  default: ({ children }: { children: React.ReactNode }) => <div data-testid="pro-shell">{children}</div>
+  default: ({ children }: { children: React.ReactNode }) => (
+    <div data-testid="pro-shell">{children}</div>
+  ),
 }));
 
 describe('CronsPage', () => {
@@ -59,7 +61,10 @@ describe('CronsPage', () => {
       }
       return Promise.resolve({ ok: true, json: async () => ({}) });
     });
-    vi.stubGlobal('confirm', vi.fn(() => true));
+    vi.stubGlobal(
+      'confirm',
+      vi.fn(() => true)
+    );
   });
 
   const renderPage = async () => {
@@ -122,7 +127,9 @@ describe('CronsPage', () => {
       fireEvent.click(toggleBtn);
     });
     // Click confirm in modal
-    const confirmBtn = await waitFor(() => within(screen.getByRole('dialog')).getByRole('button', { name: 'Disable' }));
+    const confirmBtn = await waitFor(() =>
+      within(screen.getByRole('dialog')).getByRole('button', { name: 'Disable' })
+    );
     await act(async () => {
       fireEvent.click(confirmBtn);
     });
@@ -141,7 +148,9 @@ describe('CronsPage', () => {
       fireEvent.click(deleteBtn);
     });
     // Click confirm in modal
-    const confirmBtn = await waitFor(() => within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete' }));
+    const confirmBtn = await waitFor(() =>
+      within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete' })
+    );
     await act(async () => {
       fireEvent.click(confirmBtn);
     });
@@ -180,8 +189,12 @@ describe('CronsPage', () => {
 
   it('renders presets in builder', async () => {
     await renderPage();
-    await act(async () => { fireEvent.click(screen.getByText('New Job')); });
-    await act(async () => { fireEvent.click(screen.getByText('Presets')); });
+    await act(async () => {
+      fireEvent.click(screen.getByText('New Job'));
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByText('Presets'));
+    });
     expect(screen.getByText('Every minute')).toBeDefined();
   });
 

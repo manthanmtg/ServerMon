@@ -6,21 +6,21 @@ import User from '@/models/User';
 export const dynamic = 'force-dynamic';
 
 export default async function RootPage() {
-    try {
-        await connectDB();
-        const userCount = await User.countDocuments();
+  try {
+    await connectDB();
+    const userCount = await User.countDocuments();
 
-        if (userCount === 0) {
-            redirect('/setup');
-        }
-    } catch {
-        redirect('/setup');
+    if (userCount === 0) {
+      redirect('/setup');
     }
+  } catch {
+    redirect('/setup');
+  }
 
-    const session = await getSession();
-    if (session) {
-        redirect('/dashboard');
-    }
+  const session = await getSession();
+  if (session) {
+    redirect('/dashboard');
+  }
 
-    redirect('/login');
+  redirect('/login');
 }

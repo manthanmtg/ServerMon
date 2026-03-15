@@ -1,9 +1,11 @@
 # Users Module
 
 ## Purpose
+
 The Users module monitors logged-in users, user sessions, authentication events, and user account status. It helps administrators track user activity, detect unauthorized access, and manage user sessions.
 
 ## Metrics/Charts
+
 - **Currently Logged In Users (User List)**: Username, TTY, IP address, login time, idle time
 - **Session Timeline (Gantt Chart)**: Visual timeline of user sessions over past 24 hours
 - **Login Events (Table)**: Recent login/logout events with timestamp, user, source IP
@@ -13,6 +15,7 @@ The Users module monitors logged-in users, user sessions, authentication events,
 - **User Types Distribution (Pie Chart)**: System users vs regular users vs root
 
 ## Data Sources
+
 - `who` or `w` - Currently logged in users
 - `last` - Recent login/logout history (parsed from /var/log/wtmp)
 - `lastlog` - Last login time for all users
@@ -24,6 +27,7 @@ The Users module monitors logged-in users, user sessions, authentication events,
 - `ps -u <uid>` - Processes running as specific user
 
 ## UI
+
 - **Header**: Module title, time range selector (live/1h/24h/7d), refresh control
 - **Main Area**:
   - Current sessions card grid with user avatars/initials
@@ -34,6 +38,7 @@ The Users module monitors logged-in users, user sessions, authentication events,
 - **Terminal**: Embedded xterm.js for user management (`useradd`, `usermod`, `passwd`, `su`)
 
 ## Alerts/Integration
+
 - **Thresholds**:
   - Root login from unexpected IP (critical)
   - Failed login attempts > 5 in 10 minutes (warning), > 10 (critical)
@@ -43,6 +48,7 @@ The Users module monitors logged-in users, user sessions, authentication events,
 - **Integration**: Alert events stored in MongoDB, displayed in Alerts module dashboard
 
 ## Impl Notes
+
 - Poll `who` and `w` every 5 seconds for real-time session tracking
 - Parse `last` output for login history (may need logrotate consideration)
 - Use `utmpdump` for reliable utmp parsing

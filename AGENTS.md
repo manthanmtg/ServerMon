@@ -6,12 +6,12 @@ This file defines rules and expectations for any automated agent, CI pipeline, o
 
 Every pull request and every commit to `main` must satisfy:
 
-| Check | Command | Expectation |
-|---|---|---|
-| Lint | `pnpm lint` | 0 errors, 0 warnings |
-| Types | `pnpm typecheck` | 0 errors |
-| Build | `pnpm build` | Exit code 0 |
-| Tests | `pnpm test` | Exit code 0 |
+| Check | Command          | Expectation          |
+| ----- | ---------------- | -------------------- |
+| Lint  | `pnpm lint`      | 0 errors, 0 warnings |
+| Types | `pnpm typecheck` | 0 errors             |
+| Build | `pnpm build`     | Exit code 0          |
+| Tests | `pnpm test`      | Exit code 0          |
 
 Combined: `pnpm check` runs all of the above in order. **A failure in any step blocks the merge.**
 
@@ -50,14 +50,14 @@ Combined: `pnpm check` runs all of the above in order. **A failure in any step b
 
 ### Naming
 
-| Type | Convention | Example |
-|---|---|---|
-| Pages | `page.tsx` in route folder | `src/app/dashboard/page.tsx` |
-| API routes | `route.ts` in API folder | `src/app/api/health/route.ts` |
-| Components | PascalCase `.tsx` | `ProShell.tsx`, `Button.tsx` |
-| Utilities | camelCase `.ts` | `utils.ts`, `logger.ts` |
-| Types | PascalCase interface, camelCase file | `module.ts` → `Module` interface |
-| Modules | lowercase folder name | `src/modules/terminal/` |
+| Type       | Convention                           | Example                          |
+| ---------- | ------------------------------------ | -------------------------------- |
+| Pages      | `page.tsx` in route folder           | `src/app/dashboard/page.tsx`     |
+| API routes | `route.ts` in API folder             | `src/app/api/health/route.ts`    |
+| Components | PascalCase `.tsx`                    | `ProShell.tsx`, `Button.tsx`     |
+| Utilities  | camelCase `.ts`                      | `utils.ts`, `logger.ts`          |
+| Types      | PascalCase interface, camelCase file | `module.ts` → `Module` interface |
+| Modules    | lowercase folder name                | `src/modules/terminal/`          |
 
 ### New Component Checklist
 
@@ -100,7 +100,7 @@ Tests are implemented using **Vitest** for unit/integration tests and **Playwrig
 
 - **Unit Tests**: Place tests next to the file they test or in a `__tests__` folder: `file.test.ts` or `ui/Component.test.tsx`.
 - **Runner**: Use `vitest`.
-- **Execution**: 
+- **Execution**:
   - `pnpm test`: Run all unit tests once (included in `pnpm check`).
   - `pnpm test:watch`: Run unit tests in watch mode.
   - `pnpm test:ui`: Open Vitest UI.
@@ -113,13 +113,13 @@ Tests are implemented using **Vitest** for unit/integration tests and **Playwrig
 
 Required at runtime (set in `/etc/servermon/env` or `.env.local`):
 
-| Variable | Required | Description |
-|---|---|---|
-| `MONGO_URI` | Yes | MongoDB connection string |
-| `JWT_SECRET` | Yes | Secret for signing session JWTs |
-| `PORT` | No | App port (default: 8912) |
-| `NODE_ENV` | No | `development` or `production` |
-| `LOG_LEVEL` | No | `debug`, `info`, `warn`, `error` (default: `info`) |
+| Variable     | Required | Description                                        |
+| ------------ | -------- | -------------------------------------------------- |
+| `MONGO_URI`  | Yes      | MongoDB connection string                          |
+| `JWT_SECRET` | Yes      | Secret for signing session JWTs                    |
+| `PORT`       | No       | App port (default: 8912)                           |
+| `NODE_ENV`   | No       | `development` or `production`                      |
+| `LOG_LEVEL`  | No       | `debug`, `info`, `warn`, `error` (default: `info`) |
 
 ## Architecture Decisions
 

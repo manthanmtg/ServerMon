@@ -2,7 +2,12 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { execPromise, detectGitInfo, discoverHomeDirs } from '../process-utils';
 import { createLogger } from '@/lib/logger';
-import type { AgentAdapter, AgentSession, AgentType, ConversationEntry } from '@/modules/ai-agents/types';
+import type {
+  AgentAdapter,
+  AgentSession,
+  AgentType,
+  ConversationEntry,
+} from '@/modules/ai-agents/types';
 
 const log = createLogger('ai-agents:claude-code');
 
@@ -10,180 +15,193 @@ const log = createLogger('ai-agents:claude-code');
 const ACTIVE_THRESHOLD_MS = 120_000;
 
 export class ClaudeCodeAdapter implements AgentAdapter {
-    readonly agentType: AgentType = 'claude-code';
-    readonly displayName = 'Claude Code';
+  readonly agentType: AgentType = 'claude-code';
+  readonly displayName = 'Claude Code';
 
-    async detect(): Promise<AgentSession[]> {
-        const sessions: AgentSession[] = [];
+  async detect(): Promise<AgentSession[]> {
+    const sessions: AgentSession[] = [];
 
-        for (const { username, homeDir } of discoverHomeDirs()) {
-            const projectsDir = path.join(homeDir, '.claude/projects');
-            try {
-                if (!fs.existsSync(projectsDir)) continue;
+    for (const { username, homeDir } of discoverHomeDirs()) {
+      const projectsDir = path.join(homeDir, '.claude/projects');
+      try {
+        if (!fs.existsSync(projectsDir)) continue;
 
-                const projectFolders = fs.readdirSync(projectsDir)
-                    .filter(f => fs.statSync(path.join(projectsDir, f)).isDirectory())
-                    .map(f => ({ name: f, time: fs.statSync(path.join(projectsDir, f)).mtime.getTime() }))
-                    .sort((a, b) => b.time - a.time)
-                    .slice(0, 20);
+        const projectFolders = fs
+          .readdirSync(projectsDir)
+          .filter((f) => fs.statSync(path.join(projectsDir, f)).isDirectory())
+          .map((f) => ({ name: f, time: fs.statSync(path.join(projectsDir, f)).mtime.getTime() }))
+          .sort((a, b) => b.time - a.time)
+          .slice(0, 20);
 
-                for (const folder of projectFolders) {
-                    try {
-                        const session = await this.buildSession(folder.name, projectsDir, username);
-                        if (session) sessions.push(session);
-                    } catch (err) {
-                        log.debug(`Failed to build session for ${username}:${folder.name}`, err);
-                    }
-                }
-            } catch (err) {
-                log.debug(`Claude Code detection failed for user ${username}`, err);
-            }
+        for (const folder of projectFolders) {
+          try {
+            const session = await this.buildSession(folder.name, projectsDir, username);
+            if (session) sessions.push(session);
+          } catch (err) {
+            log.debug(`Failed to build session for ${username}:${folder.name}`, err);
+          }
         }
-        return sessions;
+      } catch (err) {
+        log.debug(`Claude Code detection failed for user ${username}`, err);
+      }
     }
+    return sessions;
+  }
 
-    private async buildSession(projectFolderName: string, projectsDir: string, username: string): Promise<AgentSession | null> {
-        const historyData = await this.extractSessionData(projectFolderName, projectsDir);
-        if (historyData.conversation.length === 0) return null;
+  private async buildSession(
+    projectFolderName: string,
+    projectsDir: string,
+    username: string
+  ): Promise<AgentSession | null> {
+    const historyData = await this.extractSessionData(projectFolderName, projectsDir);
+    if (historyData.conversation.length === 0) return null;
 
-        const cwd = this.recoverPath(projectFolderName);
-        const gitInfo = cwd ? await detectGitInfo(cwd) : {};
-        const now = new Date().toISOString();
-        const isActive = historyData.fileModifiedAt
-            ? (Date.now() - historyData.fileModifiedAt) < ACTIVE_THRESHOLD_MS
-            : false;
+    const cwd = this.recoverPath(projectFolderName);
+    const gitInfo = cwd ? await detectGitInfo(cwd) : {};
+    const now = new Date().toISOString();
+    const isActive = historyData.fileModifiedAt
+      ? Date.now() - historyData.fileModifiedAt < ACTIVE_THRESHOLD_MS
+      : false;
 
-        return {
-            id: `claude-code-${username}-${projectFolderName}`,
-            agent: {
-                type: 'claude-code',
-                displayName: 'Claude Code',
-                model: historyData.model || 'Claude',
-            },
-            owner: {
-                user: username,
-                pid: 0,
-            },
-            environment: {
-                workingDirectory: cwd || projectFolderName,
-                repository: gitInfo.repository,
-                gitBranch: gitInfo.branch,
-                host: (await execPromise('hostname').catch(() => ({ stdout: 'localhost' }))).stdout.trim(),
-            },
-            lifecycle: {
-                startTime: historyData.startTime || now,
-                lastActivity: historyData.lastActivity || now,
-                durationSeconds: historyData.durationSeconds || 0,
-            },
-            status: isActive ? 'running' : 'idle',
-            currentActivity: isActive
-                ? (historyData.summary || 'Active conversation')
-                : `Past: ${cwd || projectFolderName}`,
-            resources: { cpuPercent: 0, memoryBytes: 0, memoryPercent: 0 },
-            filesModified: [],
-            commandsExecuted: [],
-            conversation: historyData.conversation,
-            timeline: [],
-            logs: [],
-        };
+    return {
+      id: `claude-code-${username}-${projectFolderName}`,
+      agent: {
+        type: 'claude-code',
+        displayName: 'Claude Code',
+        model: historyData.model || 'Claude',
+      },
+      owner: {
+        user: username,
+        pid: 0,
+      },
+      environment: {
+        workingDirectory: cwd || projectFolderName,
+        repository: gitInfo.repository,
+        gitBranch: gitInfo.branch,
+        host: (await execPromise('hostname').catch(() => ({ stdout: 'localhost' }))).stdout.trim(),
+      },
+      lifecycle: {
+        startTime: historyData.startTime || now,
+        lastActivity: historyData.lastActivity || now,
+        durationSeconds: historyData.durationSeconds || 0,
+      },
+      status: isActive ? 'running' : 'idle',
+      currentActivity: isActive
+        ? historyData.summary || 'Active conversation'
+        : `Past: ${cwd || projectFolderName}`,
+      resources: { cpuPercent: 0, memoryBytes: 0, memoryPercent: 0 },
+      filesModified: [],
+      commandsExecuted: [],
+      conversation: historyData.conversation,
+      timeline: [],
+      logs: [],
+    };
+  }
+
+  /** Attempt to recover the original path from a Claude project folder name.
+   *  Claude encodes paths by replacing all non-alphanumeric chars with '-'.
+   *  We try replacing '-' with '/' and validate with fs.existsSync. */
+  private recoverPath(folderName: string): string | null {
+    const candidate = folderName.replace(/-/g, '/');
+    try {
+      if (fs.existsSync(candidate)) return candidate;
+    } catch {
+      /* ignore */
     }
+    return null;
+  }
 
-    /** Attempt to recover the original path from a Claude project folder name.
-     *  Claude encodes paths by replacing all non-alphanumeric chars with '-'.
-     *  We try replacing '-' with '/' and validate with fs.existsSync. */
-    private recoverPath(folderName: string): string | null {
-        const candidate = folderName.replace(/-/g, '/');
+  private async extractSessionData(
+    projectFolderName: string,
+    projectsDir: string
+  ): Promise<{
+    conversation: ConversationEntry[];
+    summary?: string;
+    model?: string;
+    startTime?: string;
+    lastActivity?: string;
+    durationSeconds?: number;
+    fileModifiedAt?: number;
+  }> {
+    const data: {
+      conversation: ConversationEntry[];
+      summary?: string;
+      model?: string;
+      startTime?: string;
+      lastActivity?: string;
+      durationSeconds?: number;
+      fileModifiedAt?: number;
+    } = {
+      conversation: [],
+    };
+
+    try {
+      const projectPath = path.join(projectsDir, projectFolderName);
+
+      if (!fs.existsSync(projectPath)) return data;
+
+      // Find latest .jsonl file
+      const files = fs
+        .readdirSync(projectPath)
+        .filter((f) => f.endsWith('.jsonl'))
+        .map((f) => ({ name: f, time: fs.statSync(path.join(projectPath, f)).mtime.getTime() }))
+        .sort((a, b) => b.time - a.time);
+
+      if (files.length === 0) return data;
+
+      data.fileModifiedAt = files[0].time;
+
+      const latestFile = path.join(projectPath, files[0].name);
+      const content = fs.readFileSync(latestFile, 'utf8');
+      const conversation: ConversationEntry[] = [];
+
+      for (const line of content.trim().split('\n')) {
+        if (!line.trim()) continue;
         try {
-            if (fs.existsSync(candidate)) return candidate;
-        } catch { /* ignore */ }
-        return null;
-    }
+          const item = JSON.parse(line);
+          if (item.type === 'user' || item.type === 'assistant') {
+            const msg = item.message;
+            let text = '';
 
-    private async extractSessionData(projectFolderName: string, projectsDir: string): Promise<{
-        conversation: ConversationEntry[];
-        summary?: string;
-        model?: string;
-        startTime?: string;
-        lastActivity?: string;
-        durationSeconds?: number;
-        fileModifiedAt?: number;
-    }> {
-        const data: {
-            conversation: ConversationEntry[];
-            summary?: string;
-            model?: string;
-            startTime?: string;
-            lastActivity?: string;
-            durationSeconds?: number;
-            fileModifiedAt?: number;
-        } = {
-            conversation: [],
-        };
-
-        try {
-            const projectPath = path.join(projectsDir, projectFolderName);
-
-            if (!fs.existsSync(projectPath)) return data;
-
-            // Find latest .jsonl file
-            const files = fs.readdirSync(projectPath)
-                .filter(f => f.endsWith('.jsonl'))
-                .map(f => ({ name: f, time: fs.statSync(path.join(projectPath, f)).mtime.getTime() }))
-                .sort((a, b) => b.time - a.time);
-
-            if (files.length === 0) return data;
-
-            data.fileModifiedAt = files[0].time;
-
-            const latestFile = path.join(projectPath, files[0].name);
-            const content = fs.readFileSync(latestFile, 'utf8');
-            const conversation: ConversationEntry[] = [];
-
-            for (const line of content.trim().split('\n')) {
-                if (!line.trim()) continue;
-                try {
-                    const item = JSON.parse(line);
-                    if (item.type === 'user' || item.type === 'assistant') {
-                        const msg = item.message;
-                        let text = '';
-                        
-                        if (typeof msg.content === 'string') {
-                            text = msg.content;
-                        } else if (Array.isArray(msg.content)) {
-                            text = (msg.content as Array<{ type: string; text?: string }>)
-                                .map(c => c.type === 'text' ? (c.text || '') : '')
-                                .join('\n')
-                                .trim();
-                        }
-
-                        if (text) {
-                            conversation.push({
-                                role: (item.type === 'user' ? 'user' : 'assistant'),
-                                content: text,
-                                timestamp: item.timestamp || new Date().toISOString(),
-                            });
-                        }
-
-                        if (item.type === 'assistant' && msg.model && !data.model) {
-                            data.model = msg.model;
-                        }
-                    }
-                } catch { /* ignore parse errors */ }
+            if (typeof msg.content === 'string') {
+              text = msg.content;
+            } else if (Array.isArray(msg.content)) {
+              text = (msg.content as Array<{ type: string; text?: string }>)
+                .map((c) => (c.type === 'text' ? c.text || '' : ''))
+                .join('\n')
+                .trim();
             }
 
-            data.conversation = conversation;
-            if (conversation.length > 0) {
-                data.startTime = conversation[0].timestamp;
-                data.lastActivity = conversation[conversation.length - 1].timestamp;
-                data.durationSeconds = Math.floor(
-                    (new Date(data.lastActivity).getTime() - new Date(data.startTime).getTime()) / 1000
-                );
-                data.summary = 'Active conversation';
+            if (text) {
+              conversation.push({
+                role: item.type === 'user' ? 'user' : 'assistant',
+                content: text,
+                timestamp: item.timestamp || new Date().toISOString(),
+              });
             }
-        } catch (err) {
-            log.debug(`Failed to extract Claude Code session data for ${projectFolderName}`, err);
+
+            if (item.type === 'assistant' && msg.model && !data.model) {
+              data.model = msg.model;
+            }
+          }
+        } catch {
+          /* ignore parse errors */
         }
+      }
 
-        return data;
+      data.conversation = conversation;
+      if (conversation.length > 0) {
+        data.startTime = conversation[0].timestamp;
+        data.lastActivity = conversation[conversation.length - 1].timestamp;
+        data.durationSeconds = Math.floor(
+          (new Date(data.lastActivity).getTime() - new Date(data.startTime).getTime()) / 1000
+        );
+        data.summary = 'Active conversation';
+      }
+    } catch (err) {
+      log.debug(`Failed to extract Claude Code session data for ${projectFolderName}`, err);
     }
+
+    return data;
+  }
 }

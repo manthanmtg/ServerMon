@@ -1,9 +1,11 @@
 # Alerts Module
 
 ## Purpose
+
 The Alerts module is the central alerting and notification system for ServerMon. It aggregates alerts from all modules, provides alert management (acknowledge, snooze, resolve), and delivers notifications via multiple channels.
 
 ## Metrics/Charts
+
 - **Active Alerts (Alert List)**: Severity, source module, message, timestamp, status
 - **Alert Count by Severity (Donut Chart)**: Critical, Warning, Info counts
 - **Alerts Over Time (Line Chart)**: Alert volume trend (hourly/daily)
@@ -13,6 +15,7 @@ The Alerts module is the central alerting and notification system for ServerMon.
 - **Alert History Table**: Full history with filters, pagination
 
 ## Data Sources
+
 - MongoDB `alerts` collection - All alert documents
 - MongoDB `alertConfig` collection - Alert threshold configurations
 - MongoDB `alertRules` collection - Custom alert rules
@@ -21,6 +24,7 @@ The Alerts module is the central alerting and notification system for ServerMon.
 - API endpoints from all modules for metric data
 
 ## UI
+
 - **Header**: Module title, filter controls (severity, source, status), time range
 - **Main Area**:
   - Alert summary cards (active, acknowledged, resolved counts)
@@ -37,6 +41,7 @@ The Alerts module is the central alerting and notification system for ServerMon.
 - **Terminal**: Not applicable for this module
 
 ## Alerts/Integration
+
 - **Self-Alerting**:
   - Alert module itself monitors all other modules
   - Alerts when alert delivery fails (critical)
@@ -47,6 +52,7 @@ The Alerts module is the central alerting and notification system for ServerMon.
   - Triggers notification webhooks on new critical alerts
 
 ## Impl Notes
+
 - Evaluate thresholds on incoming SSE metric data in real-time
 - Store alert configs in MongoDB with per-module, per-metric thresholds
 - Use MongoDB change streams for alert state changes

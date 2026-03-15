@@ -24,7 +24,13 @@ vi.mock('qrcode', () => ({
 
 import argon2 from 'argon2';
 import { generateSecret, verifySync } from 'otplib';
-import { hashPassword, verifyPassword, generateTOTPSecret, verifyTOTPToken, generateQRCode } from './auth-utils';
+import {
+  hashPassword,
+  verifyPassword,
+  generateTOTPSecret,
+  verifyTOTPToken,
+  generateQRCode,
+} from './auth-utils';
 
 const mockedArgon2 = vi.mocked(argon2);
 const mockedGenerateSecret = vi.mocked(generateSecret);
@@ -105,7 +111,10 @@ describe('auth-utils', () => {
       const result = verifyTOTPToken('123456', 'JBSWY3DPEHPK3PXP');
 
       expect(mockedVerifySync).toHaveBeenCalledOnce();
-      expect(mockedVerifySync).toHaveBeenCalledWith({ token: '123456', secret: 'JBSWY3DPEHPK3PXP' });
+      expect(mockedVerifySync).toHaveBeenCalledWith({
+        token: '123456',
+        secret: 'JBSWY3DPEHPK3PXP',
+      });
       expect(result).toBe(true);
     });
 
@@ -130,8 +139,10 @@ describe('auth-utils', () => {
     it('should generate a QR code data URL', async () => {
       const { generateURI } = await import('otplib');
       const qrcode = (await import('qrcode')).default;
-      
-      vi.mocked(generateURI).mockReturnValue('otpauth://totp/ServerMon:test-user?secret=JBSWY3DPEHPK3PXP&issuer=ServerMon');
+
+      vi.mocked(generateURI).mockReturnValue(
+        'otpauth://totp/ServerMon:test-user?secret=JBSWY3DPEHPK3PXP&issuer=ServerMon'
+      );
       vi.mocked(qrcode.toDataURL).mockImplementation(async () => 'data:image/png;base64,mock');
 
       const result = await generateQRCode('test-user', 'JBSWY3DPEHPK3PXP');
@@ -141,7 +152,9 @@ describe('auth-utils', () => {
         label: 'test-user',
         secret: 'JBSWY3DPEHPK3PXP',
       });
-      expect(qrcode.toDataURL).toHaveBeenCalledWith('otpauth://totp/ServerMon:test-user?secret=JBSWY3DPEHPK3PXP&issuer=ServerMon');
+      expect(qrcode.toDataURL).toHaveBeenCalledWith(
+        'otpauth://totp/ServerMon:test-user?secret=JBSWY3DPEHPK3PXP&issuer=ServerMon'
+      );
       expect(result).toBe('data:image/png;base64,mock');
     });
 
