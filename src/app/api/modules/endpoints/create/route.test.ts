@@ -14,8 +14,8 @@ vi.mock('@/lib/logger', () => ({
 
 // We need to mock the Zod schema too. The safeParse method validates input.
 // Easiest: mock the whole model module including the schema.
-vi.mock('@/models/CustomEndpoint', () => {
-    const { z } = require('zod');
+vi.mock('@/models/CustomEndpoint', async () => {
+    const { z } = await import('zod');
     const CustomEndpointZodSchema = z.object({
         name: z.string().min(1),
         slug: z.string().min(1),

@@ -156,7 +156,7 @@ describe('SpeedtestService', () => {
             } as unknown as ReturnType<typeof spawn>);
 
             // Also make Ookla npm lib throw so we fall through to system CLI
-            const ooklaModule = { default: null };
+            const _ooklaModule = { default: null };
             vi.doMock('speedtest-net', () => { throw new Error('not available'); });
 
             const testPromise = service.runTest();

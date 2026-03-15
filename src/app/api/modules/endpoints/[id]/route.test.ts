@@ -14,8 +14,8 @@ vi.mock('@/lib/logger', () => ({
     createLogger: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }),
 }));
 
-vi.mock('@/models/CustomEndpoint', () => {
-    const { z } = require('zod');
+vi.mock('@/models/CustomEndpoint', async () => {
+    const { z } = await import('zod');
     const CustomEndpointZodSchema = z.object({
         name: z.string().min(1),
         slug: z.string().min(1),
