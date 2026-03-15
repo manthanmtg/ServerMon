@@ -26,12 +26,12 @@ vi.mock('@/models/CustomEndpoint', async () => {
         scriptContent: z.string().optional(),
         logicConfig: z.unknown().optional(),
         webhookConfig: z.unknown().optional(),
-        envVars: z.record(z.string()).optional(),
+        envVars: z.record(z.string(), z.string()).optional(),
         auth: z.unknown().optional(),
         tags: z.array(z.string()).optional(),
         enabled: z.boolean().default(true),
         timeout: z.number().optional(),
-        responseHeaders: z.record(z.string()).optional(),
+        responseHeaders: z.record(z.string(), z.string()).optional(),
     });
 
     return {

@@ -120,9 +120,9 @@ describe('SpeedtestService', () => {
             (service as unknown as { isRunning: boolean }).isRunning = true;
 
             let errorProgress: { type: string; error?: string } | null = null;
-            await service.runTest((p) => { errorProgress = p; }).catch(() => {});
-            expect(errorProgress?.type).toBe('error');
-            expect(errorProgress?.error).toContain('already in progress');
+            await service.runTest((p) => { errorProgress = p as { type: string; error?: string }; }).catch(() => {});
+            expect((errorProgress as { type: string; error?: string } | null)?.type).toBe('error');
+            expect((errorProgress as { type: string; error?: string } | null)?.error).toContain('already in progress');
         });
     });
 
@@ -163,8 +163,8 @@ describe('SpeedtestService', () => {
 
             // Simulate CLI output
             await new Promise(r => setTimeout(r, 10));
-            if (stdoutCallback) stdoutCallback(Buffer.from(resultJson + '\n'));
-            if (closeCallback) closeCallback(0);
+            if (stdoutCallback) (stdoutCallback as (data: Buffer) => void)(Buffer.from(resultJson + '\n'));
+            if (closeCallback) (closeCallback as (code: number) => void)(0);
 
             const result = await testPromise;
             expect(result.ping).toBeCloseTo(15.2);
