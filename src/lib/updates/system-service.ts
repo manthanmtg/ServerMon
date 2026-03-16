@@ -109,14 +109,17 @@ class SystemUpdateService {
             const content = await readFile(join(logDir, f), 'utf-8');
             const metadata = JSON.parse(content) as UpdateRunStatus;
 
+            let changed = false;
+            const logFile = `${f.replace('.json', '.log')}`;
+            const logPath = join(logDir, logFile);
+
             if (
               metadata.status === 'running' &&
               metadata.pid > 0 &&
               !this.isProcessRunning(metadata.pid)
             ) {
               metadata.status = 'completed';
-              const logFile = `${f.replace('.json', '.log')}`;
-              const logPath = join(logDir, logFile);
+              changed = true;
               if (existsSync(logPath)) {
                 try {
                   const s = await stat(logPath);
@@ -127,6 +130,25 @@ class SystemUpdateService {
               } else {
                 metadata.finishedAt = new Date().toISOString();
               }
+            } else if (
+              metadata.status === 'completed' &&
+              metadata.finishedAt &&
+              existsSync(logPath)
+            ) {
+              try {
+                const s = await stat(logPath);
+                const storedFinished = new Date(metadata.finishedAt).getTime();
+                const logMtime = s.mtime.getTime();
+                if (storedFinished - logMtime > 60000) {
+                  metadata.finishedAt = s.mtime.toISOString();
+                  changed = true;
+                }
+              } catch {
+                /* ignore */
+              }
+            }
+
+            if (changed) {
               await writeFile(join(logDir, f), JSON.stringify(metadata, null, 2));
             }
 
@@ -186,8 +208,10 @@ class SystemUpdateService {
 
     if (!run) return null;
 
+    let changed = false;
     if (run.status === 'running' && run.pid > 0 && !this.isProcessRunning(run.pid)) {
       run.status = 'completed';
+      changed = true;
       if (existsSync(logPath)) {
         try {
           const s = await stat(logPath);
@@ -198,6 +222,21 @@ class SystemUpdateService {
       } else {
         run.finishedAt = new Date().toISOString();
       }
+    } else if (run.status === 'completed' && run.finishedAt && existsSync(logPath)) {
+      try {
+        const s = await stat(logPath);
+        const storedFinished = new Date(run.finishedAt).getTime();
+        const logMtime = s.mtime.getTime();
+        if (storedFinished - logMtime > 60000) {
+          run.finishedAt = s.mtime.toISOString();
+          changed = true;
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+
+    if (changed) {
       try {
         await writeFile(
           metadataPath,

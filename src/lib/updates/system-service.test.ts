@@ -224,6 +224,43 @@ describe('SystemUpdateService', () => {
       killSpy.mockRestore();
     });
 
+    it('should retroactively fix completed runs with suspiciously long durations', async () => {
+      vi.mocked(readdir).mockResolvedValue(['servermon_update_777.json'] as never);
+      const startedAt = new Date(Date.now() - 3600000).toISOString();
+      // Stored finish at is 1 hour later (suspicious)
+      const suspiciousFinishedAt = new Date(Date.now()).toISOString();
+      vi.mocked(readFile).mockResolvedValue(
+        JSON.stringify({
+          runId: '777',
+          timestamp: startedAt,
+          status: 'completed',
+          pid: 0,
+          startedAt: startedAt,
+          finishedAt: suspiciousFinishedAt,
+        })
+      );
+
+      // Actual log mtime is only 5 mins after start
+      const mtime = new Date(new Date(startedAt).getTime() + 300000);
+      vi.mocked(stat).mockImplementation(async (p: unknown) => {
+        if (String(p).endsWith('.log')) return { mtime } as Stats;
+        return { mtime: new Date() } as Stats;
+      });
+      vi.mocked(existsSync).mockImplementation(((p: unknown) => {
+        if (typeof p === 'string') {
+          if (p.endsWith('.log')) return true;
+          if (p.endsWith('.json')) return true;
+        }
+        return false;
+      }) as (p: unknown) => boolean);
+
+      const runs = await systemUpdateService.listUpdateRuns();
+      const run = runs[0] as UpdateRunStatus;
+      expect(run.status).toBe('completed');
+      expect(run.finishedAt).toBe(mtime.toISOString());
+      expect(writeFile).toHaveBeenCalled();
+    });
+
     it('should handle corrupt metadata files', async () => {
       vi.mocked(readdir).mockResolvedValue(['servermon_update_corrupt.json'] as never);
       vi.mocked(readFile).mockResolvedValue('invalid-json');
