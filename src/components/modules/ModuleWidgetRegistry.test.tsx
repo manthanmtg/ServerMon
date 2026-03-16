@@ -3,7 +3,7 @@ import { render, screen } from '@testing-library/react';
 
 // Mock next/dynamic to return a simple stub component
 vi.mock('next/dynamic', () => ({
-  default: (loader: () => Promise<{ default: React.ComponentType }>) => {
+  default: (_loader: () => Promise<{ default: React.ComponentType }>) => {
     // Return a simple placeholder for each dynamically imported component
     const MockComponent = ({ 'data-testid': testId }: { 'data-testid'?: string }) => (
       <div data-testid={testId ?? 'dynamic-widget'}>MockWidget</div>

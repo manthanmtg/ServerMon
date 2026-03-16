@@ -31,12 +31,22 @@ describe('ThemeContext', () => {
 
   beforeEach(() => {
     localStorageMock = {};
-    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(
-      (key) => localStorageMock[key] ?? null
-    );
-    vi.spyOn(Storage.prototype, 'setItem').mockImplementation((key, value) => {
-      localStorageMock[key] = String(value);
-    });
+    const mockStorage = {
+      getItem: vi.fn((key) => localStorageMock[key] ?? null),
+      setItem: vi.fn((key, value) => {
+        localStorageMock[key] = String(value);
+      }),
+      removeItem: vi.fn((key) => {
+        delete localStorageMock[key];
+      }),
+      clear: vi.fn(() => {
+        localStorageMock = {};
+      }),
+      length: 0,
+      key: vi.fn(),
+    };
+    vi.stubGlobal('localStorage', mockStorage);
+
     // Stub document.documentElement.style.setProperty
     vi.spyOn(document.documentElement.style, 'setProperty').mockImplementation(() => {});
     vi.spyOn(document.documentElement, 'setAttribute').mockImplementation(() => {});
@@ -44,6 +54,7 @@ describe('ThemeContext', () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
   });
 
   it('provides the default dark theme when localStorage has no entry', () => {
