@@ -1,6 +1,6 @@
 'use client';
 
-import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import {
   Bar,
   BarChart,
@@ -158,6 +158,8 @@ function HealthGauge({ score }: { score: number }) {
 
 function ServiceLogPanel({ serviceName }: { serviceName: string }) {
   const [logs, setLogs] = useState<ServiceLogEntry[] | null>(null);
+  const [autoScroll, setAutoScroll] = useState(true);
+  const logContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let active = true;
@@ -176,6 +178,12 @@ function ServiceLogPanel({ serviceName }: { serviceName: string }) {
     };
   }, [serviceName]);
 
+  useEffect(() => {
+    if (autoScroll && logContainerRef.current) {
+      logContainerRef.current.scrollTop = logContainerRef.current.scrollHeight;
+    }
+  }, [logs, autoScroll]);
+
   const loading = logs === null;
 
   if (loading) {
@@ -191,27 +199,51 @@ function ServiceLogPanel({ serviceName }: { serviceName: string }) {
   }
 
   return (
-    <div className="max-h-[240px] overflow-y-auto space-y-1 font-mono text-xs">
-      {logs.map((entry, i) => (
-        <div key={i} className="flex items-start gap-2 py-0.5">
-          <Badge
-            variant={logPriorityVariant(entry.priority)}
-            className="shrink-0 text-[10px] px-1.5 py-0 min-w-[48px] justify-center"
-          >
-            {entry.priority}
-          </Badge>
-          <span className="text-muted-foreground shrink-0 w-[140px]">
-            {new Date(entry.timestamp).toLocaleString([], {
-              hour: '2-digit',
-              minute: '2-digit',
-              second: '2-digit',
-              month: 'short',
-              day: 'numeric',
-            })}
-          </span>
-          <span className="text-foreground break-all">{entry.message}</span>
-        </div>
-      ))}
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+          <Activity className="w-3 h-3" /> Recent logs
+        </p>
+        <button
+          onClick={() => setAutoScroll(!autoScroll)}
+          className={cn(
+            'flex items-center gap-1.5 px-2 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all border',
+            autoScroll
+              ? 'bg-primary/10 text-primary border-primary/20'
+              : 'bg-muted/50 text-muted-foreground border-border/60 hover:bg-muted'
+          )}
+        >
+          <RotateCcw
+            className={cn('w-3 h-3 transition-transform', autoScroll && 'animate-spin-slow')}
+          />
+          {autoScroll ? 'Autoscroll: ON' : 'Autoscroll: OFF'}
+        </button>
+      </div>
+      <div
+        ref={logContainerRef}
+        className="max-h-[240px] overflow-y-auto space-y-1 font-mono text-xs custom-scrollbar scroll-smooth p-2 rounded-xl bg-black/20 border border-border/40"
+      >
+        {logs.map((entry, i) => (
+          <div key={i} className="flex items-start gap-2 py-0.5">
+            <Badge
+              variant={logPriorityVariant(entry.priority)}
+              className="shrink-0 text-[10px] px-1.5 py-0 min-w-[48px] justify-center"
+            >
+              {entry.priority}
+            </Badge>
+            <span className="text-muted-foreground shrink-0 w-[140px]">
+              {new Date(entry.timestamp).toLocaleString([], {
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+                month: 'short',
+                day: 'numeric',
+              })}
+            </span>
+            <span className="text-foreground break-all">{entry.message}</span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -1000,10 +1032,7 @@ export default function ServicesPage() {
                                   </div>
                                 )}
                                 <div>
-                                  <p className="text-xs font-semibold text-muted-foreground mb-1 flex items-center gap-1">
-                                    <Activity className="w-3 h-3" /> Recent logs
-                                  </p>
-                                  <ServiceLogPanel serviceName={svc.name} />
+                                <ServiceLogPanel serviceName={svc.name} />
                                 </div>
                               </div>
                             </td>
