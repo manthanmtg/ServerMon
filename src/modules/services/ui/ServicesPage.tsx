@@ -163,18 +163,26 @@ function ServiceLogPanel({ serviceName }: { serviceName: string }) {
 
   useEffect(() => {
     let active = true;
-    fetch(`/api/modules/services/${encodeURIComponent(serviceName)}/logs?lines=30`, {
-      cache: 'no-store',
-    })
-      .then((r) => r.json())
-      .then((data) => {
-        if (active) setLogs(data.logs || []);
+
+    function fetchLogs() {
+      fetch(`/api/modules/services/${encodeURIComponent(serviceName)}/logs?lines=30`, {
+        cache: 'no-store',
       })
-      .catch(() => {
-        if (active) setLogs([]);
-      });
+        .then((r) => r.json())
+        .then((data) => {
+          if (active) setLogs(data.logs || []);
+        })
+        .catch(() => {
+          if (active) setLogs([]);
+        });
+    }
+
+    fetchLogs();
+    const interval = setInterval(fetchLogs, 5000);
+
     return () => {
       active = false;
+      clearInterval(interval);
     };
   }, [serviceName]);
 
