@@ -12,7 +12,9 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
     reporters: ['default', 'junit'],
-    outputFile: 'test-report.junit.xml',
+    outputFile: {
+      junit: 'junit.xml',
+    },
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'json-summary', 'html', 'lcov', 'clover'],
