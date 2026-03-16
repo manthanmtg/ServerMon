@@ -1,9 +1,10 @@
 /** @vitest-environment node */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { spawn, execFile } from 'node:child_process';
-import { existsSync, openSync } from 'node:fs';
-import { readdir, readFile, writeFile, mkdir } from 'node:fs/promises';
+import { existsSync, openSync, Stats } from 'node:fs';
+import { readdir, readFile, writeFile, mkdir, stat, unlink } from 'node:fs/promises';
 import { EventEmitter } from 'node:events';
+import { join } from 'node:path';
 
 // Mock child_process
 vi.mock('node:child_process', () => ({
@@ -69,14 +70,16 @@ describe('SystemUpdateService', () => {
   });
 
   const mockChild = (pid: number) => {
-    const ee = new EventEmitter() as unknown as {
+    const ee = new EventEmitter();
+    const child = ee as unknown as {
       pid: number;
       unref: () => void;
       on: (e: string, cb: (c: number | null) => void) => void;
+      emit: (e: string, ...args: unknown[]) => boolean;
     };
-    ee.pid = pid;
-    ee.unref = vi.fn();
-    return ee;
+    child.pid = pid;
+    child.unref = vi.fn();
+    return child;
   };
 
   describe('triggerUpdate', () => {
@@ -126,6 +129,41 @@ describe('SystemUpdateService', () => {
       const lastCall = vi.mocked(spawn).mock.calls.at(-1)!;
       expect(lastCall[0]).toBe('sudo');
     });
+
+    it('should handle process exit and update metadata', async () => {
+      const child = mockChild(999);
+      vi.mocked(spawn).mockReturnValue(child as unknown as ReturnType<typeof spawn>);
+
+      await systemUpdateService.triggerUpdate();
+
+      // Trigger exit
+      child.emit('exit', 0);
+      expect(writeFile).toHaveBeenCalled();
+      const lastWrite = vi.mocked(writeFile).mock.calls.at(-1)!;
+      expect(lastWrite[1]).toContain('"status": "completed"');
+    });
+
+    it('should handle process error and update metadata', async () => {
+      const child = mockChild(888);
+      vi.mocked(spawn).mockReturnValue(child as unknown as ReturnType<typeof spawn>);
+
+      await systemUpdateService.triggerUpdate();
+
+      // Trigger error
+      child.emit('error', new Error('spawn failed'));
+      expect(writeFile).toHaveBeenCalled();
+      const lastWrite = vi.mocked(writeFile).mock.calls.at(-1)!;
+      expect(lastWrite[1]).toContain('"status": "failed"');
+    });
+
+    it('should return failure if spawn fails to return pid', async () => {
+      const child = { unref: vi.fn() } as unknown as ReturnType<typeof spawn>;
+      vi.mocked(spawn).mockReturnValue(child);
+
+      const result = await systemUpdateService.triggerUpdate();
+      expect(result.success).toBe(false);
+      expect(result.message).toBe('Failed to get PID');
+    });
   });
 
   describe('listUpdateRuns', () => {
@@ -168,6 +206,14 @@ describe('SystemUpdateService', () => {
       expect(writeFile).toHaveBeenCalled();
       killSpy.mockRestore();
     });
+
+    it('should handle corrupt metadata files', async () => {
+      vi.mocked(readdir).mockResolvedValue(['servermon_update_corrupt.json'] as never);
+      vi.mocked(readFile).mockResolvedValue('invalid-json');
+
+      const runs = await systemUpdateService.listUpdateRuns();
+      expect(runs).toHaveLength(0);
+    });
   });
 
   describe('getUpdateRunDetails', () => {
@@ -191,6 +237,74 @@ describe('SystemUpdateService', () => {
       const details = await systemUpdateService.getUpdateRunDetails('789');
       expect((details as { runId: string })?.runId).toBe('789');
       expect((details as { logContent: string })?.logContent).toBe('Log output here');
+    });
+
+    it('should truncate log content if it exceeds MAX_OUTPUT_BYTES', async () => {
+      const largeLog = 'a'.repeat(128 * 1024 + 100);
+      vi.mocked(existsSync).mockReturnValue(true);
+      vi.mocked(readFile).mockImplementation(((path: string | Buffer | URL | number) => {
+        if (path.toString().endsWith('.json')) return Promise.resolve(JSON.stringify({ runId: 'large' }));
+        return Promise.resolve(largeLog);
+      }) as unknown as typeof readFile);
+
+      const details = await systemUpdateService.getUpdateRunDetails('large');
+      expect(details).not.toBeNull();
+      const run = details as { logContent?: string };
+      expect(run.logContent).toContain('... [truncated]');
+      expect(run.logContent?.length).toBeLessThan(largeLog.length);
+    });
+
+    it('should handle missing log file gracefully', async () => {
+      vi.mocked(existsSync).mockImplementation(((path: string | Buffer | URL) => {
+        if (path.toString().endsWith('.json')) return true;
+        if (path.toString().endsWith('.log')) return false;
+        return false;
+      }) as unknown as typeof existsSync);
+      vi.mocked(readFile).mockResolvedValue(JSON.stringify({ runId: 'no-log' }));
+
+      const details = await systemUpdateService.getUpdateRunDetails('no-log');
+      expect(details).not.toBeNull();
+      const run = details as { logContent?: string };
+      expect(run.logContent).toBeUndefined();
+    });
+  });
+
+  describe('Private Methods (via casting)', () => {
+    it('ensureLogDir should fallback to tmpdir on failure', async () => {
+      vi.mocked(existsSync).mockReturnValue(false);
+      vi.mocked(mkdir).mockRejectedValue(new Error('Permission denied'));
+      const internal = systemUpdateService as unknown as { ensureLogDir: () => Promise<string> };
+      const dir = await internal.ensureLogDir();
+      expect(dir).toBeDefined();
+      expect(dir).not.toBe('/tmp/logs'); // It should be os.tmpdir()
+    });
+
+    it('pruneOldRuns should delete oldest files', async () => {
+      const internal = systemUpdateService as unknown as {
+        pruneOldRuns: (dir: string) => Promise<void>;
+      };
+      const logDir = '/tmp/logs';
+      const files: string[] = [];
+      const stats = new Map<string, { mtime: Date }>();
+
+      // Create 55 files (exceeding 50 limit)
+      for (let i = 1; i <= 55; i++) {
+        const name = `servermon_update_${i}.json`;
+        files.push(name);
+        files.push(`servermon_update_${i}.log`);
+        stats.set(join(logDir, name), { mtime: new Date(2026, 0, i) });
+      }
+
+      vi.mocked(readdir).mockResolvedValue(files as unknown as Awaited<ReturnType<typeof readdir>>);
+      vi.mocked(stat).mockImplementation(async (p: unknown) => stats.get(String(p)) as unknown as Stats);
+      vi.mocked(unlink).mockResolvedValue(undefined);
+
+      await internal.pruneOldRuns(logDir);
+
+      // Should delete 5 oldest runs (10 files: 5 json + 5 log)
+      expect(vi.mocked(unlink)).toHaveBeenCalledTimes(10);
+      const firstDelete = vi.mocked(unlink).mock.calls[0][0].toString();
+      expect(firstDelete).toContain('servermon_update_1.json');
     });
   });
 });
