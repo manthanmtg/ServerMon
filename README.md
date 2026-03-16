@@ -11,6 +11,7 @@ Real-time metrics · Web terminal · Docker management · File browser · AI age
 [![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![MongoDB](https://img.shields.io/badge/MongoDB-7.0-47A248?logo=mongodb&logoColor=white)](https://www.mongodb.com/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4-06B6D4?logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
+[![codecov](https://codecov.io/gh/manthanmtg/ServerMon/graph/badge.svg?token=94SEBA831Y)](https://codecov.io/gh/manthanmtg/ServerMon)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 </div>
