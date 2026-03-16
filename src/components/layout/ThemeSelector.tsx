@@ -6,7 +6,7 @@ import { Check, ChevronDown, Moon, Sun, Zap, Palette, Cloud, Terminal } from 'lu
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 
-const themeIcons: Record<string, React.ElementType> = {
+const themeIcons: Record<string, React.ComponentType<{ className?: string }>> = {
   'light-default': Sun,
   'dark-default': Moon,
   monokai: Terminal,
