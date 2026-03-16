@@ -5,6 +5,7 @@ import { existsSync, openSync, Stats } from 'node:fs';
 import { readdir, readFile, writeFile, mkdir, stat, unlink } from 'node:fs/promises';
 import { EventEmitter } from 'node:events';
 import { join } from 'node:path';
+import { UpdateRunStatus } from '@/types/updates';
 
 // Mock child_process
 vi.mock('node:child_process', () => ({
@@ -184,17 +185,31 @@ describe('SystemUpdateService', () => {
       expect((runs[0] as { runId: string }).runId).toBe('123');
     });
 
-    it('should update status to completed if process is no longer running', async () => {
+    it('should update status to completed and infer finishedAt from log mtime if process is stale', async () => {
       vi.mocked(readdir).mockResolvedValue(['servermon_update_456.json'] as never);
+      const startedAt = new Date(Date.now() - 3600000).toISOString();
       vi.mocked(readFile).mockResolvedValue(
         JSON.stringify({
           runId: '456',
-          timestamp: new Date().toISOString(),
+          timestamp: startedAt,
           status: 'running',
           pid: 9999,
-          startedAt: new Date().toISOString(),
+          startedAt: startedAt,
         })
       );
+
+      const mtime = new Date(Date.now() - 3300000);
+      vi.mocked(stat).mockImplementation(async (p: unknown) => {
+        if (String(p).endsWith('.log')) return { mtime } as Stats;
+        return { mtime: new Date() } as Stats;
+      });
+      vi.mocked(existsSync).mockImplementation(((p: unknown) => {
+        if (typeof p === 'string') {
+          if (p.endsWith('.log')) return true;
+          if (p.endsWith('.json')) return true;
+        }
+        return false;
+      }) as (p: unknown) => boolean);
 
       const killSpy = vi.spyOn(process, 'kill').mockImplementation((pid: number) => {
         if (pid === 9999) throw new Error('ESRCH');
@@ -202,7 +217,9 @@ describe('SystemUpdateService', () => {
       });
 
       const runs = await systemUpdateService.listUpdateRuns();
-      expect((runs[0] as { status: string }).status).toBe('completed');
+      const run = runs[0] as UpdateRunStatus;
+      expect(run.status).toBe('completed');
+      expect(run.finishedAt).toBe(mtime.toISOString());
       expect(writeFile).toHaveBeenCalled();
       killSpy.mockRestore();
     });

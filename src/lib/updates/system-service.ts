@@ -115,7 +115,18 @@ class SystemUpdateService {
               !this.isProcessRunning(metadata.pid)
             ) {
               metadata.status = 'completed';
-              metadata.finishedAt = new Date().toISOString();
+              const logFile = `${f.replace('.json', '.log')}`;
+              const logPath = join(logDir, logFile);
+              if (existsSync(logPath)) {
+                try {
+                  const s = await stat(logPath);
+                  metadata.finishedAt = s.mtime.toISOString();
+                } catch {
+                  metadata.finishedAt = new Date().toISOString();
+                }
+              } else {
+                metadata.finishedAt = new Date().toISOString();
+              }
               await writeFile(join(logDir, f), JSON.stringify(metadata, null, 2));
             }
 
@@ -177,7 +188,16 @@ class SystemUpdateService {
 
     if (run.status === 'running' && run.pid > 0 && !this.isProcessRunning(run.pid)) {
       run.status = 'completed';
-      run.finishedAt = new Date().toISOString();
+      if (existsSync(logPath)) {
+        try {
+          const s = await stat(logPath);
+          run.finishedAt = s.mtime.toISOString();
+        } catch {
+          run.finishedAt = new Date().toISOString();
+        }
+      } else {
+        run.finishedAt = new Date().toISOString();
+      }
       try {
         await writeFile(
           metadataPath,
