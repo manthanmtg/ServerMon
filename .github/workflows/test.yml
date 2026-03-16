@@ -26,15 +26,7 @@ jobs:
           cache: "pnpm"
 
       - name: Install dependencies
-        run: pnpm install --no-frozen-lockfile
-
-      - name: Run checks
-        run: pnpm run check
-        env:
-          MONGO_URI: "mongodb://localhost:27017/dummy"
-          JWT_SECRET: "dummy_secret_for_ci_build"
-          PORT: 8912
-          NODE_ENV: development
+        run: pnpm install --frozen-lockfile
 
       - name: Run tests with coverage
         run: pnpm test:coverage
