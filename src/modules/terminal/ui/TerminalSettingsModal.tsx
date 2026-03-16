@@ -10,6 +10,7 @@ interface TermSettings {
   maxSessions: number;
   fontSize: number;
   loginAsUser: string;
+  defaultDirectory: string;
 }
 
 interface Props {
@@ -135,6 +136,16 @@ export default function TerminalSettingsModal({ settings, onClose, onSaved }: Pr
               value={form.loginAsUser}
               onChange={(e) => setForm({ ...form, loginAsUser: e.target.value })}
               className="w-32 h-8 rounded-md border border-input bg-background px-2 text-sm text-foreground outline-none focus:ring-2 focus:ring-ring/40"
+            />
+          </SettingRow>
+
+          <SettingRow label="Default directory" description="Working directory when terminal opens">
+            <input
+              type="text"
+              placeholder="Server root"
+              value={form.defaultDirectory}
+              onChange={(e) => setForm({ ...form, defaultDirectory: e.target.value })}
+              className="w-44 h-8 rounded-md border border-input bg-background px-2 text-sm text-foreground font-mono outline-none focus:ring-2 focus:ring-ring/40"
             />
           </SettingRow>
         </div>

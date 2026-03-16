@@ -222,6 +222,7 @@ app.prepare().then(async () => {
               .lean()
               .catch(() => null);
             const loginAsUser = settings?.loginAsUser;
+            const defaultDirectory = settings?.defaultDirectory;
 
             if (loginAsUser && os.platform() !== 'win32') {
               shell = 'su';
@@ -249,7 +250,15 @@ app.prepare().then(async () => {
               log.info(`Spawning PTY for session ${sessionId} (shell: ${shell})`);
             }
 
-            const cwd = process.cwd();
+            let cwd = process.cwd();
+            if (defaultDirectory) {
+              const fs = await import('fs');
+              if (fs.existsSync(defaultDirectory)) {
+                cwd = defaultDirectory;
+              } else {
+                log.warn(`Default directory "${defaultDirectory}" does not exist, using ${cwd}`);
+              }
+            }
 
             const ptyProcess = pty.spawn(shell, args, {
               name: 'xterm-color',

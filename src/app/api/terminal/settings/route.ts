@@ -53,6 +53,9 @@ export async function PUT(request: Request) {
     if (body.loginAsUser !== undefined) {
       update.loginAsUser = String(body.loginAsUser).trim();
     }
+    if (body.defaultDirectory !== undefined) {
+      update.defaultDirectory = String(body.defaultDirectory).trim();
+    }
 
     const settings = await TerminalSettings.findByIdAndUpdate(
       SETTINGS_ID,

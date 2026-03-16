@@ -1,7 +1,16 @@
 'use client';
 
 import React, { useEffect, useState, useCallback, useRef } from 'react';
-import { Plus, X, Settings as SettingsIcon, RotateCcw, Pencil, Check, History } from 'lucide-react';
+import {
+  Plus,
+  X,
+  Settings as SettingsIcon,
+  RotateCcw,
+  Pencil,
+  Check,
+  History,
+  Bookmark,
+} from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -10,6 +19,7 @@ import { cn } from '@/lib/utils';
 import TerminalUI from './TerminalUI';
 import TerminalSettingsModal from './TerminalSettingsModal';
 import TerminalHistoryModal from './TerminalHistoryModal';
+import SavedCommandsModal from './SavedCommandsModal';
 
 interface SessionTab {
   sessionId: string;
@@ -24,6 +34,7 @@ interface TermSettings {
   maxSessions: number;
   fontSize: number;
   loginAsUser: string;
+  defaultDirectory: string;
 }
 
 export default function TerminalPage() {
@@ -35,10 +46,13 @@ export default function TerminalPage() {
     maxSessions: 8,
     fontSize: 14,
     loginAsUser: '',
+    defaultDirectory: '',
   });
   const [showSettings, setShowSettings] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  const [showSavedCommands, setShowSavedCommands] = useState(false);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [pendingCommand, setPendingCommand] = useState<string | null>(null);
   const [currentUser, setCurrentUser] = useState<string>('unknown');
   const [editingTabId, setEditingTabId] = useState<string | null>(null);
   const [editLabel, setEditLabel] = useState('');
@@ -344,6 +358,15 @@ export default function TerminalPage() {
             variant="ghost"
             size="icon"
             className="h-9 w-9 text-muted-foreground hover:text-primary"
+            onClick={() => setShowSavedCommands(true)}
+            title="Saved commands"
+          >
+            <Bookmark className="w-4 h-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-9 w-9 text-muted-foreground hover:text-primary"
             onClick={() => setShowHistory(true)}
             title="Session history"
           >
@@ -417,6 +440,9 @@ export default function TerminalPage() {
                 username={currentUser}
                 fontSize={settings.fontSize}
                 onStatusChange={(status) => updateTabStatus(tab.sessionId, status)}
+                initialCommand={
+                  tab.sessionId === activeTabId && pendingCommand ? pendingCommand : undefined
+                }
               />
             </div>
           ))}
@@ -449,6 +475,17 @@ export default function TerminalPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Saved Commands Modal */}
+      {showSavedCommands && (
+        <SavedCommandsModal
+          onClose={() => setShowSavedCommands(false)}
+          onRunCommand={(cmd) => {
+            setPendingCommand(cmd);
+            setTimeout(() => setPendingCommand(null), 100);
+          }}
+        />
       )}
 
       {/* History Modal */}

@@ -52,6 +52,8 @@ export default function TerminalUI({
   useEffect(() => {
     if (!containerRef.current) return;
 
+    const isMobile = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+
     const term = new Terminal({
       cursorBlink: true,
       fontFamily: 'Menlo, Monaco, "Courier New", monospace',
@@ -59,6 +61,7 @@ export default function TerminalUI({
       theme: buildTheme(theme.colors as unknown as Record<string, string>),
       allowProposedApi: true,
       scrollback: 5000,
+      rightClickSelectsWord: isMobile,
     });
 
     const fitAddon = new FitAddon();
@@ -118,6 +121,28 @@ export default function TerminalUI({
       socket.emit('terminal:resize', { cols: size.cols, rows: size.rows });
     });
 
+    // Mobile: handle paste from clipboard via browser paste event
+    const handlePaste = (e: ClipboardEvent) => {
+      if (!isMobile) return;
+      const text = e.clipboardData?.getData('text');
+      if (text) {
+        e.preventDefault();
+        socket.emit('terminal:data', text);
+      }
+    };
+    containerRef.current.addEventListener('paste', handlePaste);
+
+    // Mobile: handle copy via selection
+    const handleCopy = (e: ClipboardEvent) => {
+      if (!isMobile) return;
+      const selection = term.getSelection();
+      if (selection) {
+        e.preventDefault();
+        e.clipboardData?.setData('text/plain', selection);
+      }
+    };
+    containerRef.current.addEventListener('copy', handleCopy);
+
     const handleResize = () => fitAddon.fit();
     window.addEventListener('resize', handleResize);
 
@@ -126,8 +151,11 @@ export default function TerminalUI({
     });
     resizeObserver.observe(containerRef.current);
 
+    const container = containerRef.current;
     return () => {
       window.removeEventListener('resize', handleResize);
+      container?.removeEventListener('paste', handlePaste);
+      container?.removeEventListener('copy', handleCopy);
       resizeObserver.disconnect();
       socket.disconnect();
       term.dispose();

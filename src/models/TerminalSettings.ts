@@ -5,6 +5,7 @@ export interface ITerminalSettings extends Document {
   maxSessions: number;
   fontSize: number;
   loginAsUser: string;
+  defaultDirectory: string;
   updatedAt: Date;
 }
 
@@ -15,6 +16,7 @@ const TerminalSettingsSchema: Schema = new Schema(
     maxSessions: { type: Number, default: 8, min: 1, max: 20 },
     fontSize: { type: Number, default: 14, min: 10, max: 24 },
     loginAsUser: { type: String, default: '' },
+    defaultDirectory: { type: String, default: '' },
   },
   { timestamps: true }
 );
