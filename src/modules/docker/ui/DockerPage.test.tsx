@@ -294,6 +294,65 @@ describe('DockerPage', () => {
     );
   });
 
+  it('triggers container action: restart', async () => {
+    await renderPage();
+    await waitFor(() => screen.getByText('Docker operations center'));
+
+    const tableContainer = screen.getByTestId('docker-containers-table');
+    const restartButton = within(tableContainer).getAllByRole('button', { name: /Restart/i })[0];
+    await act(async () => {
+      fireEvent.click(restartButton);
+    });
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      '/api/modules/docker/container-1/action',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ action: 'restart' }),
+      })
+    );
+  });
+
+  it('triggers container action: remove', async () => {
+    await renderPage();
+    await waitFor(() => screen.getByText('Docker operations center'));
+
+    const tableContainer = screen.getByTestId('docker-containers-table');
+    const removeButtons = within(tableContainer).getAllByRole('button').filter(b => b.querySelector('svg.lucide-trash2') || b.innerHTML.includes('lucide-trash2'));
+    
+    await act(async () => {
+      fireEvent.click(removeButtons[0]);
+    });
+
+    expect(window.confirm).toHaveBeenCalledWith('Are you sure you want to remove this container?');
+    expect(global.fetch).toHaveBeenCalledWith(
+      '/api/modules/docker/container-1/action',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ action: 'remove' }),
+      })
+    );
+  });
+
+  it('triggers container logs and exec commands', async () => {
+    await renderPage();
+    await waitFor(() => screen.getByText('Docker operations center'));
+
+    const containersTable = screen.getByTestId('docker-containers-table');
+    const logsButton = within(containersTable).getAllByRole('button', { name: 'Logs' })[0];
+    const execButton = within(containersTable).getAllByRole('button', { name: 'Exec' })[0];
+
+    await act(async () => {
+      fireEvent.click(logsButton);
+    });
+    expect(screen.getByText('docker logs -f web-server')).toBeDefined();
+
+    await act(async () => {
+      fireEvent.click(execButton);
+    });
+    expect(screen.getByText('docker exec -it web-server sh')).toBeDefined();
+  });
+
   it('triggers container action: start', async () => {
     await renderPage();
     await waitFor(() => screen.getByText('Docker operations center'));
@@ -360,11 +419,19 @@ describe('DockerPage', () => {
   it('terminal presets change command', async () => {
     await renderPage();
     await waitFor(() => screen.getByText('Embedded Docker terminal'));
-    fireEvent.click(screen.getByText('Images'));
+    const terminalCard = screen.getByTestId('docker-terminal');
+
+    fireEvent.click(within(terminalCard).getByText('Images'));
     expect(screen.getByText('docker images')).toBeDefined();
 
-    fireEvent.click(screen.getByText('Compose'));
+    fireEvent.click(within(terminalCard).getByText('Compose'));
     expect(screen.getByText('docker compose ps')).toBeDefined();
+
+    fireEvent.click(within(terminalCard).getByText('Containers'));
+    expect(screen.getByText('docker ps -a')).toBeDefined();
+
+    fireEvent.click(within(terminalCard).getByText('CRI'));
+    expect(screen.getByText('crictl ps -a')).toBeDefined();
   });
 
   it('handles fetch error gracefully', async () => {
