@@ -23,6 +23,7 @@ import { Badge } from '@/components/ui/badge';
 import PasskeySettings from '@/modules/security/ui/PasskeySettings';
 import { useToast } from '@/components/ui/toast';
 import UpdateHistoryModal from '@/components/settings/UpdateHistoryModal';
+import QuickAccessSettings from '@/components/settings/QuickAccessSettings';
 import ConfirmationModal from '@/components/ui/ConfirmationModal';
 
 interface ModuleInfo {
@@ -190,6 +191,9 @@ export default function SettingsPage() {
                 </div>
               </CardContent>
             </Card>
+
+            {/* Quick Access */}
+            <QuickAccessSettings />
 
             {/* Modules */}
             <Card>
