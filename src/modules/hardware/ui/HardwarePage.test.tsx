@@ -80,9 +80,6 @@ vi.mock('@/components/layout/ProShell', () => ({
   ),
 }));
 
-vi.mock('./HardwareScene', () => ({
-  default: () => <div data-testid="hardware-scene">3D Scene Mock</div>,
-}));
 
 describe('HardwarePage', () => {
   beforeEach(() => {

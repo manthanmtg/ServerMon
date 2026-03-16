@@ -16,7 +16,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { cn, formatBytes } from '@/lib/utils';
 import type { HardwareSnapshot } from '../types';
-import HardwareScene from './HardwareScene';
 
 function formatUptime(seconds: number): string {
   const d = Math.floor(seconds / 86400);
@@ -94,8 +93,6 @@ export default function HardwarePage() {
 
   return (
     <div className="space-y-6">
-      {/* 3D Hardware Matrix View */}
-      <HardwareScene />
 
       {/* System Overview */}
       <div className="flex items-center justify-between">
