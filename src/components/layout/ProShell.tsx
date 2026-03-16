@@ -37,6 +37,7 @@ import {
 import { cn } from '@/lib/utils';
 import { useToast } from '@/components/ui/toast';
 import ConfirmationModal from '@/components/ui/ConfirmationModal';
+import QuickAccessBar from '@/components/layout/QuickAccessBar';
 
 interface ProShellProps {
   children: React.ReactNode;
@@ -339,6 +340,9 @@ export default function ProShell({ children, title, subtitle, headerContent }: P
             </div>
           </div>
         </header>
+
+        {/* Quick Access Bar */}
+        <QuickAccessBar />
 
         {/* Content */}
         <main className="flex-1 p-3 sm:p-4 lg:p-6 overflow-y-auto pb-[max(1rem,env(safe-area-inset-bottom))]">
