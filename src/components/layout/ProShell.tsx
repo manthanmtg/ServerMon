@@ -342,7 +342,7 @@ export default function ProShell({ children, title, subtitle, headerContent }: P
         </header>
 
         {/* Quick Access Bar */}
-        <QuickAccessBar />
+        {pathname === '/dashboard' && <QuickAccessBar />}
 
         {/* Content */}
         <main className="flex-1 p-3 sm:p-4 lg:p-6 overflow-y-auto pb-[max(1rem,env(safe-area-inset-bottom))]">

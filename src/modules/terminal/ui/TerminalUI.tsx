@@ -179,7 +179,11 @@ export default function TerminalUI({
   }, [fontSize]);
 
   useEffect(() => {
-    if (!initialCommand || initialCommand === lastCommandRef.current) {
+    if (!initialCommand) {
+      lastCommandRef.current = undefined;
+      return;
+    }
+    if (initialCommand === lastCommandRef.current) {
       return;
     }
     lastCommandRef.current = initialCommand;
