@@ -1,7 +1,7 @@
 import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
-  serverExternalPackages: ['speedtest-net'],
+  serverExternalPackages: [],
   webpack: (config, { isServer }) => {
     if (!isServer) {
       config.resolve.fallback = {

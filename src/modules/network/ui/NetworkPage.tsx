@@ -27,7 +27,6 @@ import {
   Shield,
   TerminalSquare,
   Zap,
-  Gauge,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -36,7 +35,6 @@ import { useToast } from '@/components/ui/toast';
 import { cn, formatBytes } from '@/lib/utils';
 import type { NetworkSnapshot } from '../types';
 import TerminalUI from '@/modules/terminal/ui/TerminalUI';
-import SpeedtestModal from './SpeedtestModal';
 
 const chartColors = [
   'var(--primary)',
@@ -73,7 +71,6 @@ export default function NetworkPage() {
   const [selectedIface, setSelectedIface] = useState<string>('all');
   const [sessionId] = useState(() => `network-${crypto.randomUUID()}`);
   const [terminalCommand, setTerminalCommand] = useState('ip addr\n');
-  const [isSpeedtestOpen, setIsSpeedtestOpen] = useState(false);
 
   const loadSnapshot = useCallback(async () => {
     try {
@@ -208,14 +205,7 @@ export default function NetworkPage() {
               </select>
             </label>
             <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => setIsSpeedtestOpen(true)}
-                className="flex min-h-[44px] flex-1 items-center justify-center gap-2 rounded-xl border border-primary/20 bg-primary/10 px-4 py-2 text-sm font-bold text-primary transition-all hover:bg-primary/20 hover:scale-[1.02] active:scale-[0.98]"
-              >
-                <Gauge className="h-4 w-4" />
-                Speedtest
-              </button>
+
               <button
                 type="button"
                 onClick={() => loadSnapshot()}
@@ -229,7 +219,7 @@ export default function NetworkPage() {
         </div>
       </section>
 
-      <SpeedtestModal isOpen={isSpeedtestOpen} onClose={() => setIsSpeedtestOpen(false)} />
+
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {snapshot?.interfaces

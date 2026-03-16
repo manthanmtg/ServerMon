@@ -362,15 +362,7 @@ echo ""
 
 # ── Step 1: System Dependencies ──────────────────────────
 step "1/${TOTAL_STEPS}" "Installing system dependencies"
-# Fix for broken ookla speedtest-cli repo on some systems (especially Ubuntu Noble)
-if grep -q "ookla/speedtest-cli" /etc/apt/sources.list.d/*.list 2>/dev/null; then
-    log_info "Found existing Ookla speedtest-cli repository. Checking for compatibility..."
-    if ! apt-get update -o Dir::Etc::sourcelist="sources.list.d/speedtest.list" -o Dir::Etc::sourceparts="-" -o APT::Get::List-Cleanup="0" -qq 2>/dev/null; then
-        log_warn "Ookla repository looks broken (common on Ubuntu Noble). Disabling it to allow installation..."
-        rm -v -f /etc/apt/sources.list.d/speedtest.list | xargs -I {} log_info "Removed {}"
-        rm -v -f /etc/apt/sources.list.d/ookla_speedtest-cli.list | xargs -I {} log_info "Removed {}"
-    fi
-fi
+
 
 log_info "Updating package lists..."
 apt-get update -y || { 
@@ -384,13 +376,7 @@ log_info "Installing core packages: curl, git, build-essential, lsof, liblzma-de
 apt-get install -y curl git build-essential lsof liblzma-dev pkg-config snapd || { log_err "Failed to install system dependencies"; exit 1; }
 log "Installed core build and system tools"
 
-# Install official speedtest via snap as a robust alternative to apt repo
-if ! command -v speedtest &> /dev/null; then
-    log_info "Installing official Speedtest CLI via snap..."
-    snap install speedtest --classic || log_warn "Snap installation failed. Will fall back to npm-based execution."
-else
-    log "Speedtest CLI already present"
-fi
+
 
 log "Base packages and tools installed"
 
