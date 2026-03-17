@@ -275,4 +275,229 @@ describe('Mongoose Models', () => {
       expect(mod.default).toBeDefined();
     });
   });
+
+  describe('QuickAccessSettings model', () => {
+    it('exports a model', async () => {
+      const mod = await import('./QuickAccessSettings');
+      expect(mod.default).toBeDefined();
+    });
+  });
+});
+
+// ── Extended Zod schema tests ──────────────────────────────────────────────────
+
+describe('UserZodSchema — extended validation', () => {
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  it('applies default totpEnabled=false', async () => {
+    const { UserZodSchema } = await import('./User');
+    const result = UserZodSchema.safeParse({
+      username: 'admin',
+      passwordHash: 'hash',
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.totpEnabled).toBe(false);
+    }
+  });
+
+  it('applies default isActive=true', async () => {
+    const { UserZodSchema } = await import('./User');
+    const result = UserZodSchema.safeParse({
+      username: 'admin',
+      passwordHash: 'hash',
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.isActive).toBe(true);
+    }
+  });
+
+  it('rejects username longer than 20 characters', async () => {
+    const { UserZodSchema } = await import('./User');
+    const result = UserZodSchema.safeParse({
+      username: 'a'.repeat(21),
+      passwordHash: 'hash',
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('accepts both admin and user roles', async () => {
+    const { UserZodSchema } = await import('./User');
+    for (const role of ['admin', 'user'] as const) {
+      const result = UserZodSchema.safeParse({
+        username: 'testuser',
+        passwordHash: 'hash',
+        role,
+      });
+      expect(result.success).toBe(true);
+    }
+  });
+
+  it('accepts an empty passkeys array', async () => {
+    const { UserZodSchema } = await import('./User');
+    const result = UserZodSchema.safeParse({
+      username: 'admin',
+      passwordHash: 'hash',
+      passkeys: [],
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.passkeys).toEqual([]);
+    }
+  });
+});
+
+describe('CustomEndpointZodSchema — extended validation', () => {
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  it('accepts a valid webhook endpoint config', async () => {
+    const { CustomEndpointZodSchema } = await import('./CustomEndpoint');
+    const result = CustomEndpointZodSchema.safeParse({
+      name: 'Webhook Endpoint',
+      slug: 'webhook-endpoint',
+      method: 'POST',
+      endpointType: 'webhook',
+      webhookConfig: {
+        targetUrl: 'https://example.com/hook',
+        method: 'POST',
+        forwardHeaders: true,
+      },
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects a webhook config with an invalid targetUrl', async () => {
+    const { CustomEndpointZodSchema } = await import('./CustomEndpoint');
+    const result = CustomEndpointZodSchema.safeParse({
+      name: 'Bad Webhook',
+      slug: 'bad-webhook',
+      method: 'POST',
+      endpointType: 'webhook',
+      webhookConfig: {
+        targetUrl: 'not-a-url',
+      },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('accepts a valid logic endpoint config', async () => {
+    const { CustomEndpointZodSchema } = await import('./CustomEndpoint');
+    const result = CustomEndpointZodSchema.safeParse({
+      name: 'Logic Endpoint',
+      slug: 'logic-endpoint',
+      method: 'POST',
+      endpointType: 'logic',
+      logicConfig: {
+        handlerCode: 'return { status: "ok" }',
+      },
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('applies default auth=public', async () => {
+    const { CustomEndpointZodSchema } = await import('./CustomEndpoint');
+    const result = CustomEndpointZodSchema.safeParse({
+      name: 'Test',
+      slug: 'test',
+      method: 'GET',
+      endpointType: 'script',
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.auth).toBe('public');
+    }
+  });
+
+  it('applies default enabled=true', async () => {
+    const { CustomEndpointZodSchema } = await import('./CustomEndpoint');
+    const result = CustomEndpointZodSchema.safeParse({
+      name: 'Test',
+      slug: 'test',
+      method: 'GET',
+      endpointType: 'script',
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.enabled).toBe(true);
+    }
+  });
+
+  it('rejects tags array exceeding 20 items', async () => {
+    const { CustomEndpointZodSchema } = await import('./CustomEndpoint');
+    const result = CustomEndpointZodSchema.safeParse({
+      name: 'Test',
+      slug: 'test',
+      method: 'GET',
+      endpointType: 'script',
+      tags: Array.from({ length: 21 }, (_, i) => `tag-${i}`),
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('accepts all valid HTTP methods', async () => {
+    const { CustomEndpointZodSchema } = await import('./CustomEndpoint');
+    for (const method of ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'] as const) {
+      const result = CustomEndpointZodSchema.safeParse({
+        name: `${method} Endpoint`,
+        slug: `${method.toLowerCase()}-endpoint`,
+        method,
+        endpointType: 'script',
+      });
+      expect(result.success).toBe(true);
+    }
+  });
+
+  it('accepts all valid script languages', async () => {
+    const { CustomEndpointZodSchema } = await import('./CustomEndpoint');
+    for (const lang of ['python', 'bash', 'node'] as const) {
+      const result = CustomEndpointZodSchema.safeParse({
+        name: 'Script',
+        slug: 'script',
+        method: 'POST',
+        endpointType: 'script',
+        scriptLang: lang,
+      });
+      expect(result.success).toBe(true);
+    }
+  });
+
+  it('rejects an invalid script language', async () => {
+    const { CustomEndpointZodSchema } = await import('./CustomEndpoint');
+    const result = CustomEndpointZodSchema.safeParse({
+      name: 'Script',
+      slug: 'script',
+      method: 'POST',
+      endpointType: 'script',
+      scriptLang: 'ruby',
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects name longer than 100 characters', async () => {
+    const { CustomEndpointZodSchema } = await import('./CustomEndpoint');
+    const result = CustomEndpointZodSchema.safeParse({
+      name: 'a'.repeat(101),
+      slug: 'test',
+      method: 'GET',
+      endpointType: 'script',
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('accepts envVars as a record', async () => {
+    const { CustomEndpointZodSchema } = await import('./CustomEndpoint');
+    const result = CustomEndpointZodSchema.safeParse({
+      name: 'Test',
+      slug: 'test',
+      method: 'GET',
+      endpointType: 'script',
+      envVars: { API_KEY: 'secret', BASE_URL: 'https://example.com' },
+    });
+    expect(result.success).toBe(true);
+  });
 });
