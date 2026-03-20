@@ -248,9 +248,21 @@ function setupFetchMock() {
       return Promise.resolve({ ok: true, json: async () => ({ result: '' }) });
     }
     if (url.includes('/file-browser') && url.includes('mode=tree')) {
+      // Return a node whose path matches the requested path so loadTreeRoot's
+      // guard (tree.some(node => node.path === rootPath)) is satisfied and the
+      // effect does not re-fire indefinitely.
+      const urlObj = new URL(url, 'http://localhost');
+      const treePath = urlObj.searchParams.get('path') || '/';
       return Promise.resolve({
         ok: true,
-        json: async () => ({ tree: mockTreeNode }),
+        json: async () => ({
+          tree: {
+            path: treePath,
+            name: treePath === '/' ? '/' : treePath.split('/').filter(Boolean).pop() || treePath,
+            isDirectory: true,
+            children: [],
+          },
+        }),
       });
     }
     if (url.includes('/file-browser')) {
@@ -634,7 +646,19 @@ describe('FileBrowserPage', () => {
         return Promise.resolve({ ok: true, json: async () => ({ settings: mockSettings }) });
       }
       if (url.includes('/api/modules/file-browser') && url.includes('mode=tree')) {
-        return Promise.resolve({ ok: true, json: async () => ({ tree: mockTreeNode }) });
+        const urlObj = new URL(url, 'http://localhost');
+        const treePath = urlObj.searchParams.get('path') || '/';
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            tree: {
+              path: treePath,
+              name: treePath === '/' ? '/' : treePath.split('/').filter(Boolean).pop() || treePath,
+              isDirectory: true,
+              children: [],
+            },
+          }),
+        });
       }
       if (url.includes('/api/modules/file-browser')) {
         return Promise.resolve({
