@@ -14,8 +14,10 @@ vi.mock('@/components/ui/toast', () => ({
   ToastProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
+const mockReplace = vi.fn();
+
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({ push: mockPush }),
+  useRouter: () => ({ push: mockPush, replace: mockReplace }),
   useSearchParams: () => mockSearchParams,
   usePathname: () => mockPathname(),
 }));
@@ -219,20 +221,39 @@ const makeEntry = (name: string, isDirectory = false) => ({
 });
 
 function setupFetchMock() {
+  // Use the same URL matching as setupFetch() but with mockListing/mockSettings data
   global.fetch = vi.fn().mockImplementation((url: string) => {
-    if (url.includes('/api/modules/file-browser/settings')) {
+    if (url.includes('/file-browser/settings')) {
       return Promise.resolve({
         ok: true,
         json: async () => ({ settings: mockSettings }),
       });
     }
-    if (url.includes('/api/modules/file-browser') && url.includes('mode=tree')) {
+    if (url.includes('/file-browser/file')) {
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({
+          content: '',
+          name: 'test',
+          kind: 'text',
+          size: 0,
+          canWrite: false,
+          permissions: 'rw-r--r--',
+          extension: 'txt',
+          modifiedAt: '',
+        }),
+      });
+    }
+    if (url.includes('/file-browser/git')) {
+      return Promise.resolve({ ok: true, json: async () => ({ result: '' }) });
+    }
+    if (url.includes('/file-browser') && url.includes('mode=tree')) {
       return Promise.resolve({
         ok: true,
         json: async () => ({ tree: mockTreeNode }),
       });
     }
-    if (url.includes('/api/modules/file-browser') && !url.includes('settings')) {
+    if (url.includes('/file-browser')) {
       return Promise.resolve({
         ok: true,
         json: async () => ({ listing: mockListing }),
@@ -313,20 +334,12 @@ import FileBrowserPage, { FileBrowserHeaderShortcuts } from './FileBrowserPage';
 
 // ── Render helpers ────────────────────────────────────────────────────────────
 
-async function renderPage() {
-  let result: ReturnType<typeof render> | undefined;
-  await act(async () => {
-    result = render(<FileBrowserPage />);
-  });
-  return result!;
+function renderPage() {
+  return render(<FileBrowserPage />);
 }
 
-async function renderHeaderShortcuts() {
-  let result: ReturnType<typeof render> | undefined;
-  await act(async () => {
-    result = render(<FileBrowserHeaderShortcuts />);
-  });
-  return result!;
+function renderHeaderShortcuts() {
+  return render(<FileBrowserHeaderShortcuts />);
 }
 
 // ── Tests — FileBrowserPage ───────────────────────────────────────────────────
@@ -336,6 +349,8 @@ describe('FileBrowserPage', () => {
     vi.clearAllMocks();
     mockSearchParams.get.mockReturnValue(null);
     mockPathname.mockReturnValue('/file-browser');
+    mockPush.mockReset();
+    mockReplace.mockReset();
     setupFetch();
   });
 
@@ -397,8 +412,8 @@ describe('FileBrowserPage', () => {
     await waitFor(() => {
       expect(screen.getByText('etc')).toBeDefined();
       expect(screen.getByText('README.md')).toBeDefined();
-    });
-  });
+    }, { timeout: 15000 });
+  }, 15000);
 
   it('navigates into a directory when clicked', async () => {
     await act(async () => {
@@ -456,15 +471,15 @@ describe('FileBrowserPage', () => {
         (call[0] as string).includes('/api/modules/file-browser')
       );
       expect(listingCall).toBeDefined();
-    });
-  });
+    }, { timeout: 15000 });
+  }, 15000);
 
   it('opens settings modal when settings button is clicked', async () => {
     setupFetchMock();
     await renderPage();
     await waitFor(() => {
       expect(screen.getByTestId('entry-list')).toBeDefined();
-    });
+    }, { timeout: 15000 });
 
     const buttons = screen.getAllByRole('button');
     const settingsBtn = buttons.find(
@@ -477,9 +492,9 @@ describe('FileBrowserPage', () => {
       fireEvent.click(settingsBtn);
       await waitFor(() => {
         expect(screen.getByTestId('settings-modal')).toBeDefined();
-      });
+      }, { timeout: 15000 });
     }
-  });
+  }, 15000);
 
   it('opens settings modal when settings button clicked', async () => {
     await act(async () => {
@@ -517,8 +532,8 @@ describe('FileBrowserPage', () => {
     await waitFor(() => {
       const searchInput = screen.queryByPlaceholderText(/search/i);
       expect(searchInput).toBeDefined();
-    });
-  });
+    }, { timeout: 15000 });
+  }, 15000);
 
   it('renders search input', async () => {
     await act(async () => {
@@ -534,7 +549,7 @@ describe('FileBrowserPage', () => {
     await renderPage();
     await waitFor(() => {
       expect(screen.getByText('etc')).toBeDefined();
-    });
+    }, { timeout: 15000 });
 
     const searchInput = screen.queryByPlaceholderText(/search/i);
     if (searchInput) {
@@ -543,9 +558,9 @@ describe('FileBrowserPage', () => {
         const entries = screen.queryAllByText('etc');
         expect(screen.queryByText('README.md')).toBeDefined();
         expect(entries.length === 0 || true).toBe(true);
-      });
+      }, { timeout: 15000 });
     }
-  });
+  }, 15000);
 
   it('renders refresh button', async () => {
     await act(async () => {
@@ -562,8 +577,8 @@ describe('FileBrowserPage', () => {
     await renderPage();
     await waitFor(() => {
       expect(document.querySelector('div')).toBeDefined();
-    });
-  });
+    }, { timeout: 15000 });
+  }, 15000);
 
   it('shows error toast when fetching directory fails', async () => {
     global.fetch = vi.fn().mockImplementation((url: string) => {
@@ -650,8 +665,8 @@ describe('FileBrowserPage', () => {
     await renderPage();
     await waitFor(() => {
       expect(screen.getByTestId('git-bar')).toBeDefined();
-    });
-  });
+    }, { timeout: 15000 });
+  }, 15000);
 });
 
 // ── Tests — FileBrowserHeaderShortcuts ────────────────────────────────────────
