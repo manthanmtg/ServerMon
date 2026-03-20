@@ -42,7 +42,16 @@ vi.mock('@/lib/BrandContext', () => ({
   }),
 }));
 
+vi.mock('@/components/ui/toast', () => ({
+  useToast: () => ({ toast: vi.fn() }),
+  ToastProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}));
+
 vi.mock('./ThemeSelector', () => ({
+  default: () => <div data-testid="theme-selector" />,
+}));
+
+vi.mock('@/components/layout/ThemeSelector', () => ({
   default: () => <div data-testid="theme-selector" />,
 }));
 
@@ -123,6 +132,11 @@ describe('ProShell', () => {
     expect(screen.getAllByText('Settings').length).toBeGreaterThan(0);
   });
 
+  it('renders Docker in the sidebar navigation', () => {
+    renderProShell({ title: 'Processes' });
+    expect(screen.getByText('Docker')).toBeDefined();
+  });
+
   it('renders the Log out button', () => {
     renderProShell();
     expect(screen.getAllByText('Log out').length).toBeGreaterThan(0);
@@ -164,9 +178,18 @@ describe('ProShell', () => {
     renderProShell();
     const menuBtn = screen.getByLabelText('Toggle sidebar');
     fireEvent.click(menuBtn);
-    // Mobile sidebar should appear — detect by the overlay backdrop
     const overlays = document.querySelectorAll('.fixed.inset-0');
     expect(overlays.length).toBeGreaterThan(0);
+  });
+
+  it('renders the toggle sidebar button', () => {
+    renderProShell();
+    expect(screen.getByLabelText('Toggle sidebar')).toBeDefined();
+  });
+
+  it('renders the brand title from BrandContext', () => {
+    renderProShell();
+    expect(screen.getByText('ServerMon')).toBeDefined();
   });
 
   it('shows reboot confirmation modal when reboot button is clicked', () => {
@@ -208,13 +231,35 @@ describe('ProShell', () => {
     mockPathname.mockReturnValue('/terminal');
     renderProShell();
     const terminalLinks = screen.getAllByText('Terminal');
-    // At least one Terminal link should have active styling
     expect(terminalLinks.length).toBeGreaterThan(0);
+  });
+
+  it('marks the active nav item based on current pathname', () => {
+    mockPathname.mockReturnValue('/terminal');
+    renderProShell();
+    const terminalLink = document.querySelector('a[href="/terminal"]');
+    expect(terminalLink?.className).toContain('bg-primary');
+  });
+
+  it('does not mark inactive nav items as active', () => {
+    mockPathname.mockReturnValue('/terminal');
+    renderProShell();
+    const dockerLink = document.querySelector('a[href="/docker"]');
+    expect(dockerLink?.className).not.toContain('bg-primary');
   });
 
   it('updates document title using pageTitle from brand settings', () => {
     renderProShell({ title: 'Dashboard' });
-    // Document title update happens in useEffect
     expect(document.title).toContain('Dashboard');
+  });
+
+  it('renders User Guide link', () => {
+    renderProShell();
+    expect(screen.getByText('User Guide')).toBeDefined();
+  });
+
+  it('renders the header content when provided', () => {
+    renderProShell({ headerContent: <span>Custom Header</span> });
+    expect(screen.getByText('Custom Header')).toBeDefined();
   });
 });
