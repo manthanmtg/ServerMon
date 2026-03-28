@@ -123,4 +123,10 @@ export class AIAgentsService {
   }
 }
 
-export const aiAgentsService = new AIAgentsService();
+let _aiAgentsService: AIAgentsService | null = null;
+export function getAIAgentsService(): AIAgentsService {
+  if (!_aiAgentsService) {
+    _aiAgentsService = new AIAgentsService();
+  }
+  return _aiAgentsService;
+}

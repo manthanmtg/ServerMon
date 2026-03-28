@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createLogger } from '@/lib/logger';
-import { aiAgentsService } from '@/lib/ai-agents/service';
+import { getAIAgentsService } from '@/lib/ai-agents/service';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,7 +12,7 @@ export async function GET(
 ) {
   try {
     const { sessionId } = await params;
-    const session = await aiAgentsService.getSession(sessionId);
+    const session = await getAIAgentsService().getSession(sessionId);
     if (!session) {
       return NextResponse.json({ error: 'Session not found' }, { status: 404 });
     }
@@ -29,7 +29,7 @@ export async function DELETE(
 ) {
   try {
     const { sessionId } = await params;
-    const result = await aiAgentsService.terminateSession(sessionId);
+    const result = await getAIAgentsService().terminateSession(sessionId);
     if (!result) {
       return NextResponse.json(
         { error: 'Session not found or could not be terminated' },

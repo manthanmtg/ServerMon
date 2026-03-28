@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createLogger } from '@/lib/logger';
-import { aiAgentsService } from '@/lib/ai-agents/service';
+import { getAIAgentsService } from '@/lib/ai-agents/service';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,7 +12,7 @@ export async function POST(
 ) {
   try {
     const { sessionId } = await params;
-    const result = await aiAgentsService.killSession(sessionId);
+    const result = await getAIAgentsService().killSession(sessionId);
     if (!result) {
       return NextResponse.json(
         { error: 'Session not found or could not be killed' },

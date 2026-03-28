@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createLogger } from '@/lib/logger';
-import { aiAgentsService } from '@/lib/ai-agents/service';
+import { getAIAgentsService } from '@/lib/ai-agents/service';
 
 export const dynamic = 'force-dynamic';
 
@@ -8,7 +8,7 @@ const log = createLogger('api:ai-agents');
 
 export async function GET() {
   try {
-    const snapshot = await aiAgentsService.getSnapshot();
+    const snapshot = await getAIAgentsService().getSnapshot();
     return NextResponse.json(snapshot);
   } catch (error) {
     log.error('Failed to fetch AI agents snapshot', error);

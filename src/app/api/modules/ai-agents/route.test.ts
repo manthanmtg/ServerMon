@@ -6,7 +6,7 @@ const { mockGetSnapshot } = vi.hoisted(() => ({
 }));
 
 vi.mock('@/lib/ai-agents/service', () => ({
-  aiAgentsService: { getSnapshot: mockGetSnapshot },
+  getAIAgentsService: () => ({ getSnapshot: mockGetSnapshot }),
 }));
 vi.mock('@/lib/logger', () => ({
   createLogger: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }),

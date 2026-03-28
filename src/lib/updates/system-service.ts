@@ -23,7 +23,7 @@ class SystemUpdateService {
   >();
 
   private constructor() {
-    this.checkSystemdRun().catch(() => {});
+    // checkSystemdRun is called lazily by triggerUpdate/triggerSystemPackageUpdate
   }
 
   public static getInstance(): SystemUpdateService {

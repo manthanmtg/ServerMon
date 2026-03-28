@@ -8,10 +8,10 @@ const { mockGetSession, mockTerminateSession } = vi.hoisted(() => ({
 }));
 
 vi.mock('@/lib/ai-agents/service', () => ({
-  aiAgentsService: {
+  getAIAgentsService: () => ({
     getSession: mockGetSession,
     terminateSession: mockTerminateSession,
-  },
+  }),
 }));
 vi.mock('@/lib/logger', () => ({
   createLogger: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }),
