@@ -1,23 +1,28 @@
 'use client';
 
-import React, { useEffect, useState, useMemo } from 'react';
-import dynamic from 'next/dynamic';
+import React, { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import {
   AlertTriangle,
   ArrowRight,
   Box,
   Boxes,
   CheckCircle2,
+  ChevronDown,
   Clock,
   Cpu,
+  Download,
   History,
   Info,
+  Loader2,
   Package,
+  Play,
   RefreshCcw,
   RotateCcw,
+  ScrollText,
   ShieldAlert,
   ShieldCheck,
-  TerminalSquare,
+  Terminal,
+  XCircle,
   Zap,
 } from 'lucide-react';
 import {
@@ -34,10 +39,12 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Spinner } from '@/components/ui/spinner';
 import { useToast } from '@/components/ui/toast';
+import ConfirmationModal from '@/components/ui/ConfirmationModal';
 import { cn } from '@/lib/utils';
 import type { UpdateSnapshot } from '../types';
+import type { UpdateRunStatus } from '@/types/updates';
 
-const TerminalUI = dynamic(() => import('@/modules/terminal/ui/TerminalUI'), { ssr: false });
+type UpdatePhase = 'idle' | 'confirming' | 'running' | 'completed' | 'failed';
 
 export default function UpdatePage() {
   const [snapshot, setSnapshot] = useState<UpdateSnapshot | null>(null);
@@ -45,7 +52,17 @@ export default function UpdatePage() {
   const [checking, setChecking] = useState(false);
   const { toast } = useToast();
 
-  const loadSnapshot = React.useCallback(
+  // Update run state
+  const [phase, setPhase] = useState<UpdatePhase>('idle');
+  const [activeRunId, setActiveRunId] = useState<string | null>(null);
+  const [activeRun, setActiveRun] = useState<UpdateRunStatus | null>(null);
+  const [runHistory, setRunHistory] = useState<UpdateRunStatus[]>([]);
+  const [showHistory, setShowHistory] = useState(false);
+  const [selectedHistoryRun, setSelectedHistoryRun] = useState<UpdateRunStatus | null>(null);
+  const logEndRef = useRef<HTMLDivElement>(null);
+  const [autoScroll, setAutoScroll] = useState(true);
+
+  const loadSnapshot = useCallback(
     async (force: boolean = false) => {
       try {
         const res = await fetch('/api/modules/updates', {
@@ -75,9 +92,109 @@ export default function UpdatePage() {
     loadSnapshot();
   }, [loadSnapshot]);
 
+  // Load run history
+  const loadRunHistory = useCallback(async () => {
+    try {
+      const res = await fetch('/api/modules/updates/run');
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.runs) setRunHistory(data.runs);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  useEffect(() => {
+    loadRunHistory();
+  }, [loadRunHistory]);
+
+  // Poll active run status
+  useEffect(() => {
+    if (!activeRunId || phase === 'idle' || phase === 'confirming') return;
+
+    const pollStatus = async () => {
+      try {
+        const res = await fetch(`/api/modules/updates/run?runId=${activeRunId}`);
+        if (!res.ok) return;
+        const data: UpdateRunStatus = await res.json();
+        setActiveRun(data);
+
+        if (data.status === 'completed') {
+          setPhase('completed');
+          loadSnapshot(true);
+          loadRunHistory();
+        } else if (data.status === 'failed') {
+          setPhase('failed');
+          loadRunHistory();
+        }
+      } catch {
+        /* ignore polling errors */
+      }
+    };
+
+    pollStatus();
+    const interval = setInterval(pollStatus, 2000);
+    return () => clearInterval(interval);
+  }, [activeRunId, phase, loadSnapshot, loadRunHistory]);
+
+  // Auto-scroll log viewer
+  useEffect(() => {
+    if (autoScroll && logEndRef.current) {
+      logEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [activeRun?.logContent, autoScroll]);
+
   const handleCheckUpdates = () => {
     setChecking(true);
     loadSnapshot(true);
+  };
+
+  const handleTriggerUpdate = async () => {
+    setPhase('running');
+    try {
+      const res = await fetch('/api/modules/updates/run', { method: 'POST' });
+      const data = await res.json();
+
+      if (data.success && data.runId) {
+        setActiveRunId(data.runId);
+        toast({
+          title: 'Update started',
+          description: 'Tracking progress in real-time...',
+          variant: 'success',
+        });
+      } else {
+        setPhase('failed');
+        toast({
+          title: 'Failed to start update',
+          description: data.error || 'Unknown error',
+          variant: 'destructive',
+        });
+      }
+    } catch (error) {
+      setPhase('failed');
+      toast({
+        title: 'Failed to start update',
+        description: error instanceof Error ? error.message : 'Network error',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleViewHistoryRun = async (runId: string) => {
+    try {
+      const res = await fetch(`/api/modules/updates/run?runId=${runId}`);
+      if (!res.ok) return;
+      const data: UpdateRunStatus = await res.json();
+      setSelectedHistoryRun(data);
+    } catch {
+      /* ignore */
+    }
+  };
+
+  const handleDismissProgress = () => {
+    setPhase('idle');
+    setActiveRunId(null);
+    setActiveRun(null);
   };
 
   const historyData = useMemo(() => {
@@ -88,6 +205,16 @@ export default function UpdatePage() {
       success: h.success ? 1 : 0,
     }));
   }, [snapshot]);
+
+  const formatElapsed = (startedAt: string, finishedAt?: string) => {
+    const start = new Date(startedAt).getTime();
+    const end = finishedAt ? new Date(finishedAt).getTime() : Date.now();
+    const secs = Math.floor((end - start) / 1000);
+    if (secs < 60) return `${secs}s`;
+    const mins = Math.floor(secs / 60);
+    const remSecs = secs % 60;
+    return `${mins}m ${remSecs}s`;
+  };
 
   if (loading && !snapshot) {
     return (
@@ -101,8 +228,27 @@ export default function UpdatePage() {
   const counts = snapshot?.counts || { security: 0, regular: 0, optional: 0, language: 0 };
   const totalUpdates = counts.security + counts.regular + counts.optional + counts.language;
 
+  const isRunning = phase === 'running' && activeRun?.status === 'running';
+
   return (
     <div className="space-y-6 container mx-auto py-6 animate-in fade-in duration-500">
+      {/* Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={phase === 'confirming'}
+        onConfirm={handleTriggerUpdate}
+        onCancel={() => setPhase('idle')}
+        title="Install System Updates"
+        message={`This will install ${totalUpdates} package update${totalUpdates !== 1 ? 's' : ''} on the system. The process runs in the background and you can monitor its progress in real-time.`}
+        description={
+          counts.security > 0
+            ? `Includes ${counts.security} security update${counts.security !== 1 ? 's' : ''} (recommended)`
+            : undefined
+        }
+        confirmLabel="Install Updates"
+        cancelLabel="Cancel"
+        variant="warning"
+      />
+
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-card/50 backdrop-blur-sm p-6 rounded-2xl border border-border/50">
         <div className="space-y-1">
@@ -126,6 +272,18 @@ export default function UpdatePage() {
         </div>
         <div className="flex items-center gap-3">
           <Button
+            variant="ghost"
+            size="sm"
+            className="gap-2 h-10 px-3 rounded-xl text-muted-foreground hover:text-foreground"
+            onClick={() => {
+              setShowHistory(!showHistory);
+              if (!showHistory) loadRunHistory();
+            }}
+          >
+            <History className="w-4 h-4" />
+            History
+          </Button>
+          <Button
             variant="outline"
             size="sm"
             className="gap-2 h-10 px-4 rounded-xl hover:bg-primary/5 hover:text-primary transition-all active:scale-95"
@@ -135,8 +293,244 @@ export default function UpdatePage() {
             <RefreshCcw className={cn('w-4 h-4', checking && 'animate-spin')} />
             {checking ? 'Checking...' : 'Check for Updates'}
           </Button>
+          {totalUpdates > 0 && (
+            <Button
+              size="sm"
+              className="gap-2 h-10 px-5 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg shadow-primary/25 transition-all active:scale-95"
+              onClick={() => setPhase('confirming')}
+              disabled={isRunning}
+            >
+              {isRunning ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Updating...
+                </>
+              ) : (
+                <>
+                  <Download className="w-4 h-4" />
+                  Update All
+                </>
+              )}
+            </Button>
+          )}
         </div>
       </div>
+
+      {/* Live Progress Panel */}
+      {(phase === 'running' || phase === 'completed' || phase === 'failed') && activeRun && (
+        <Card
+          className={cn(
+            'overflow-hidden border-2 animate-in slide-in-from-top-2 duration-500',
+            phase === 'running'
+              ? 'border-primary/30 shadow-lg shadow-primary/10'
+              : phase === 'completed'
+                ? 'border-success/30 shadow-lg shadow-success/10'
+                : 'border-destructive/30 shadow-lg shadow-destructive/10'
+          )}
+        >
+          <div
+            className={cn(
+              'px-6 py-4 flex items-center justify-between',
+              phase === 'running'
+                ? 'bg-primary/5'
+                : phase === 'completed'
+                  ? 'bg-success/5'
+                  : 'bg-destructive/5'
+            )}
+          >
+            <div className="flex items-center gap-3">
+              {phase === 'running' && (
+                <div className="relative">
+                  <Loader2 className="w-5 h-5 text-primary animate-spin" />
+                  <div className="absolute inset-0 bg-primary/20 blur-md rounded-full animate-pulse" />
+                </div>
+              )}
+              {phase === 'completed' && <CheckCircle2 className="w-5 h-5 text-success" />}
+              {phase === 'failed' && <XCircle className="w-5 h-5 text-destructive" />}
+              <div>
+                <h3 className="text-sm font-bold">
+                  {phase === 'running'
+                    ? 'Installing Updates...'
+                    : phase === 'completed'
+                      ? 'Updates Installed Successfully'
+                      : 'Update Failed'}
+                </h3>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {phase === 'running' ? (
+                    <span className="flex items-center gap-1.5">
+                      <span className="inline-block w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+                      Running for {formatElapsed(activeRun.startedAt)}
+                    </span>
+                  ) : (
+                    <span>
+                      Completed in{' '}
+                      {formatElapsed(activeRun.startedAt, activeRun.finishedAt)}
+                      {activeRun.exitCode !== null && activeRun.exitCode !== 0 && (
+                        <span className="ml-2 text-destructive">
+                          (exit code {activeRun.exitCode})
+                        </span>
+                      )}
+                    </span>
+                  )}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              {phase === 'running' && (
+                <Badge className="bg-primary/20 text-primary border-primary/30 text-[10px] uppercase font-bold tracking-wider animate-pulse">
+                  Live
+                </Badge>
+              )}
+              {phase !== 'running' && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 px-3 text-xs rounded-lg"
+                  onClick={handleDismissProgress}
+                >
+                  Dismiss
+                </Button>
+              )}
+            </div>
+          </div>
+
+          {/* Progress bar for running state */}
+          {phase === 'running' && (
+            <div className="h-1 bg-muted/30 overflow-hidden">
+              <div className="h-full bg-primary rounded-full animate-progress-indeterminate" />
+            </div>
+          )}
+
+          {/* Log Output */}
+          {activeRun.logContent && (
+            <div className="relative">
+              <div className="max-h-[300px] overflow-auto bg-black/90 p-4 font-mono text-xs leading-relaxed">
+                <pre className="text-green-400/90 whitespace-pre-wrap break-all">
+                  {activeRun.logContent}
+                </pre>
+                <div ref={logEndRef} />
+              </div>
+              {phase === 'running' && (
+                <button
+                  className={cn(
+                    'absolute bottom-3 right-3 p-1.5 rounded-lg bg-card/80 backdrop-blur border border-border/50 text-muted-foreground hover:text-foreground transition-all',
+                    autoScroll && 'text-primary'
+                  )}
+                  onClick={() => setAutoScroll(!autoScroll)}
+                  title={autoScroll ? 'Disable auto-scroll' : 'Enable auto-scroll'}
+                >
+                  <ChevronDown className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Waiting for output */}
+          {phase === 'running' && !activeRun.logContent && (
+            <div className="flex items-center justify-center gap-3 py-8 bg-black/90">
+              <Loader2 className="w-4 h-4 text-muted-foreground animate-spin" />
+              <span className="text-xs text-muted-foreground">
+                Waiting for output...
+              </span>
+            </div>
+          )}
+        </Card>
+      )}
+
+      {/* Run History Panel */}
+      {showHistory && (
+        <Card className="animate-in slide-in-from-top-2 duration-300 border-border/50">
+          <CardHeader className="px-6 py-4 border-b border-border/50">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <ScrollText className="w-4 h-4 text-primary" />
+                <CardTitle className="text-base font-bold">Update Run History</CardTitle>
+              </div>
+              <Badge variant="outline" className="text-[10px] uppercase text-muted-foreground">
+                {runHistory.length} run{runHistory.length !== 1 ? 's' : ''}
+              </Badge>
+            </div>
+          </CardHeader>
+          <CardContent className="p-0">
+            {runHistory.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+                <Terminal className="w-8 h-8 mb-2 opacity-40" />
+                <p className="text-sm">No update runs recorded yet</p>
+              </div>
+            ) : (
+              <div className="divide-y divide-border/20 max-h-[300px] overflow-auto">
+                {runHistory.map((run) => (
+                  <button
+                    key={run.runId}
+                    className={cn(
+                      'w-full flex items-center justify-between px-6 py-3 hover:bg-muted/30 transition-all text-left cursor-pointer',
+                      selectedHistoryRun?.runId === run.runId && 'bg-primary/5'
+                    )}
+                    onClick={() => handleViewHistoryRun(run.runId)}
+                  >
+                    <div className="flex items-center gap-3">
+                      {run.status === 'completed' && (
+                        <CheckCircle2 className="w-4 h-4 text-success shrink-0" />
+                      )}
+                      {run.status === 'failed' && (
+                        <XCircle className="w-4 h-4 text-destructive shrink-0" />
+                      )}
+                      {run.status === 'running' && (
+                        <Loader2 className="w-4 h-4 text-primary animate-spin shrink-0" />
+                      )}
+                      <div>
+                        <p className="text-sm font-medium">
+                          {new Date(run.startedAt).toLocaleString()}
+                        </p>
+                        <p className="text-[10px] text-muted-foreground mt-0.5">
+                          PID {run.pid}
+                          {run.finishedAt &&
+                            ` \u00B7 ${formatElapsed(run.startedAt, run.finishedAt)}`}
+                        </p>
+                      </div>
+                    </div>
+                    <Badge
+                      variant="outline"
+                      className={cn(
+                        'text-[10px] uppercase font-bold tracking-wider',
+                        run.status === 'completed'
+                          ? 'border-success/30 text-success'
+                          : run.status === 'failed'
+                            ? 'border-destructive/30 text-destructive'
+                            : 'border-primary/30 text-primary'
+                      )}
+                    >
+                      {run.status}
+                    </Badge>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Selected history run log */}
+            {selectedHistoryRun?.logContent && (
+              <div className="border-t border-border/50">
+                <div className="px-6 py-3 flex items-center justify-between bg-muted/20">
+                  <span className="text-xs font-medium text-muted-foreground">
+                    Log output for {new Date(selectedHistoryRun.startedAt).toLocaleString()}
+                  </span>
+                  <button
+                    className="text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                    onClick={() => setSelectedHistoryRun(null)}
+                  >
+                    Close
+                  </button>
+                </div>
+                <div className="max-h-[250px] overflow-auto bg-black/90 p-4 font-mono text-xs leading-relaxed">
+                  <pre className="text-green-400/90 whitespace-pre-wrap break-all">
+                    {selectedHistoryRun.logContent}
+                  </pre>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Status Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -263,20 +657,21 @@ export default function UpdatePage() {
               <Badge className="bg-primary/20 text-primary border-primary/30 font-bold px-3 py-1">
                 {totalUpdates} Total
               </Badge>
-              <Button
-                size="sm"
-                className="h-9 gap-2 bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg shadow-primary/20 transition-all active:scale-95"
-                onClick={() => {
-                  toast({
-                    title: 'Starting updates...',
-                    description: 'Update process initiated in the package manager terminal.',
-                    variant: 'default',
-                  });
-                }}
-              >
-                <Zap className="w-4 h-4" />
-                Update All
-              </Button>
+              {totalUpdates > 0 && (
+                <Button
+                  size="sm"
+                  className="h-9 gap-2 bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg shadow-primary/20 transition-all active:scale-95"
+                  onClick={() => setPhase('confirming')}
+                  disabled={isRunning}
+                >
+                  {isRunning ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Zap className="w-4 h-4" />
+                  )}
+                  {isRunning ? 'Updating...' : 'Update All'}
+                </Button>
+              )}
             </div>
           </CardHeader>
           <CardContent className="p-0 flex-1 overflow-auto bg-black/5">
@@ -448,24 +843,81 @@ export default function UpdatePage() {
             </CardContent>
           </Card>
 
-          {/* Diagnostics Terminal Card */}
-          <Card className="bg-card/30 backdrop-blur-md border border-border/50 flex flex-col h-[350px]">
-            <CardHeader className="px-6 py-4 flex flex-row items-center justify-between">
-              <div className="flex items-center gap-2">
-                <TerminalSquare className="w-4 h-4 text-primary" />
-                <CardTitle className="text-base font-bold">Package Manager</CardTitle>
+          {/* Recent Runs Quick View */}
+          <Card className="bg-card/30 backdrop-blur-md border border-border/50">
+            <CardHeader className="px-6 py-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Play className="w-4 h-4 text-primary" />
+                  <CardTitle className="text-base font-bold">Recent Runs</CardTitle>
+                </div>
+                {runHistory.length > 0 && (
+                  <button
+                    className="text-[10px] uppercase font-bold tracking-wider text-primary hover:text-primary/80 transition-colors cursor-pointer"
+                    onClick={() => {
+                      setShowHistory(true);
+                      loadRunHistory();
+                    }}
+                  >
+                    View All
+                  </button>
+                )}
               </div>
-              <Badge
-                variant="outline"
-                className="text-[10px] uppercase border-primary/20 text-primary"
-              >
-                Live
-              </Badge>
             </CardHeader>
-            <CardContent className="p-0 flex-1 overflow-hidden">
-              <div className="h-full w-full bg-black/40">
-                <TerminalUI sessionId="updates-diag" initialCommand="apt list --upgradable" />
-              </div>
+            <CardContent className="px-6 pb-4">
+              {runHistory.length === 0 ? (
+                <div className="text-center py-6">
+                  <Terminal className="w-6 h-6 text-muted-foreground/30 mx-auto mb-2" />
+                  <p className="text-xs text-muted-foreground">No runs yet</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {runHistory.slice(0, 5).map((run) => (
+                    <button
+                      key={run.runId}
+                      className="w-full flex items-center gap-3 p-2.5 rounded-xl hover:bg-muted/30 transition-all text-left cursor-pointer"
+                      onClick={() => {
+                        setShowHistory(true);
+                        handleViewHistoryRun(run.runId);
+                      }}
+                    >
+                      {run.status === 'completed' && (
+                        <CheckCircle2 className="w-3.5 h-3.5 text-success shrink-0" />
+                      )}
+                      {run.status === 'failed' && (
+                        <XCircle className="w-3.5 h-3.5 text-destructive shrink-0" />
+                      )}
+                      {run.status === 'running' && (
+                        <Loader2 className="w-3.5 h-3.5 text-primary animate-spin shrink-0" />
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-medium truncate">
+                          {new Date(run.startedAt).toLocaleDateString([], {
+                            month: 'short',
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}
+                        </p>
+                      </div>
+                      <span
+                        className={cn(
+                          'text-[9px] font-bold uppercase tracking-wider',
+                          run.status === 'completed'
+                            ? 'text-success'
+                            : run.status === 'failed'
+                              ? 'text-destructive'
+                              : 'text-primary'
+                        )}
+                      >
+                        {run.status === 'running'
+                          ? formatElapsed(run.startedAt)
+                          : formatElapsed(run.startedAt, run.finishedAt)}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>

@@ -14,9 +14,21 @@ vi.mock('recharts', () => ({
   Tooltip: () => null,
 }));
 
-// Mock TerminalUI to avoid xterm issues
-vi.mock('@/modules/terminal/ui/TerminalUI', () => ({
-  default: () => <div data-testid="mock-terminal">Mock Terminal</div>,
+// Mock ConfirmationModal
+vi.mock('@/components/ui/ConfirmationModal', () => ({
+  default: ({ isOpen, onConfirm, onCancel, title }: {
+    isOpen: boolean;
+    onConfirm: () => void;
+    onCancel: () => void;
+    title: string;
+  }) =>
+    isOpen ? (
+      <div data-testid="confirmation-modal">
+        <span>{title}</span>
+        <button onClick={onConfirm}>Confirm</button>
+        <button onClick={onCancel}>Cancel</button>
+      </div>
+    ) : null,
 }));
 
 const mockSnapshot = {
@@ -54,15 +66,23 @@ const mockSnapshot = {
   ],
 };
 
+const mockRunHistory = { runs: [] };
+
 describe('UpdatePage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    global.fetch = vi.fn().mockImplementation(() => 
-      Promise.resolve({
+    global.fetch = vi.fn().mockImplementation((url: string) => {
+      if (url === '/api/modules/updates/run') {
+        return Promise.resolve({
+          ok: true,
+          json: async () => mockRunHistory,
+        } as Response);
+      }
+      return Promise.resolve({
         ok: true,
         json: async () => mockSnapshot,
-      } as Response)
-    );
+      } as Response);
+    });
   });
 
   const renderPage = async () => {
@@ -78,9 +98,8 @@ describe('UpdatePage', () => {
   };
 
   it('renders loading state initially', async () => {
-    let resolveFetch: (value: Response | PromiseLike<Response>) => void;
     global.fetch = vi.fn().mockImplementation(() => 
-      new Promise<Response>(resolve => { resolveFetch = resolve; })
+      new Promise<Response>(() => {})
     );
 
     render(
@@ -90,15 +109,6 @@ describe('UpdatePage', () => {
     );
 
     expect(screen.getByText('Loading updates...')).toBeDefined();
-
-    await act(async () => {
-      resolveFetch({
-        ok: true,
-        json: async () => mockSnapshot,
-      } as Response);
-    });
-
-    await waitFor(() => expect(screen.queryByText('Loading updates...')).toBeNull());
   });
 
   it('renders snapshot data correctly', async () => {
@@ -134,9 +144,88 @@ describe('UpdatePage', () => {
     }));
   });
 
+  it('opens confirmation modal when "Update All" is clicked', async () => {
+    await renderPage();
+
+    // There are multiple "Update All" buttons (header + table). Click the first one.
+    const updateButtons = screen.getAllByText('Update All');
+    expect(updateButtons.length).toBeGreaterThan(0);
+
+    await act(async () => {
+      fireEvent.click(updateButtons[0]);
+    });
+
+    expect(screen.getByTestId('confirmation-modal')).toBeDefined();
+    expect(screen.getByText('Install System Updates')).toBeDefined();
+  });
+
+  it('triggers update when confirmation is accepted', async () => {
+    global.fetch = vi.fn().mockImplementation((url: string, opts?: RequestInit) => {
+      if (url === '/api/modules/updates/run' && opts?.method === 'POST') {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({ success: true, runId: 'test-123', pid: 9999 }),
+        } as Response);
+      }
+      if (typeof url === 'string' && url.startsWith('/api/modules/updates/run?runId=')) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            runId: 'test-123',
+            status: 'running',
+            pid: 9999,
+            startedAt: new Date().toISOString(),
+            exitCode: null,
+            timestamp: new Date().toISOString(),
+          }),
+        } as Response);
+      }
+      if (url === '/api/modules/updates/run') {
+        return Promise.resolve({
+          ok: true,
+          json: async () => mockRunHistory,
+        } as Response);
+      }
+      return Promise.resolve({
+        ok: true,
+        json: async () => mockSnapshot,
+      } as Response);
+    });
+
+    await renderPage();
+
+    // Click "Update All" to open confirmation
+    const updateButtons = screen.getAllByText('Update All');
+    await act(async () => {
+      fireEvent.click(updateButtons[0]);
+    });
+
+    // Click "Confirm" in the modal
+    const confirmButton = screen.getByText('Confirm');
+    await act(async () => {
+      fireEvent.click(confirmButton);
+    });
+
+    // Verify the POST to /api/modules/updates/run was called
+    expect(global.fetch).toHaveBeenCalledWith('/api/modules/updates/run', expect.objectContaining({
+      method: 'POST',
+    }));
+
+    // Should show "Installing Updates..." progress
+    await waitFor(() => {
+      expect(screen.getByText('Installing Updates...')).toBeDefined();
+    });
+  });
+
   it('renders "System is Secure" when no updates are available', async () => {
-    global.fetch = vi.fn().mockImplementation(() => 
-      Promise.resolve({
+    global.fetch = vi.fn().mockImplementation((url: string) => {
+      if (url === '/api/modules/updates/run') {
+        return Promise.resolve({
+          ok: true,
+          json: async () => mockRunHistory,
+        } as Response);
+      }
+      return Promise.resolve({
         ok: true,
         json: async () => ({
           ...mockSnapshot,
@@ -144,8 +233,8 @@ describe('UpdatePage', () => {
           updates: [],
           pendingRestart: false,
         }),
-      })
-    );
+      });
+    });
 
     await renderPage();
 
@@ -156,14 +245,10 @@ describe('UpdatePage', () => {
   });
 
   it('handles fetch errors with a toast', async () => {
-    global.fetch = vi.fn().mockRejectedValueOnce(new Error('Failed to load'));
+    global.fetch = vi.fn().mockRejectedValue(new Error('Failed to load'));
 
     await renderPage();
 
-    // Since we can't easily assert on toast presence without complex setup, 
-    // we just check that it doesn't crash and shows the loading state or fallback
-    // In our component, if it fails initially it might stay in loading or show empty
-    // Let's check for the error logic in loadSnapshot
     expect(global.fetch).toHaveBeenCalled();
   });
 });

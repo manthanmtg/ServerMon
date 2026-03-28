@@ -8,6 +8,33 @@ export const dynamic = 'force-dynamic';
 
 const log = createLogger('api:updates:run');
 
+// GET — list runs or get details for a specific run
+export async function GET(request: Request) {
+  try {
+    const session = await getSession();
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { searchParams } = new URL(request.url);
+    const runId = searchParams.get('runId');
+
+    if (runId) {
+      const details = await systemUpdateService.getUpdateRunDetails(runId);
+      if (!details) {
+        return NextResponse.json({ error: 'Run not found' }, { status: 404 });
+      }
+      return NextResponse.json(details);
+    }
+
+    const runs = await systemUpdateService.listUpdateRuns();
+    return NextResponse.json({ runs });
+  } catch (error) {
+    log.error('Failed to fetch update runs', error);
+    return NextResponse.json({ error: 'Failed to fetch update runs' }, { status: 500 });
+  }
+}
+
 // POST — trigger a manual system update
 export async function POST() {
   try {
@@ -24,6 +51,7 @@ export async function POST() {
         success: true,
         message: result.message,
         pid: result.pid,
+        runId: result.runId,
       });
     } else {
       return NextResponse.json(
