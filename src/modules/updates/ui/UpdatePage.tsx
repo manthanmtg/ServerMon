@@ -59,7 +59,7 @@ export default function UpdatePage() {
   const [runHistory, setRunHistory] = useState<UpdateRunStatus[]>([]);
   const [showHistory, setShowHistory] = useState(false);
   const [selectedHistoryRun, setSelectedHistoryRun] = useState<UpdateRunStatus | null>(null);
-  const logEndRef = useRef<HTMLDivElement>(null);
+  const logContainerRef = useRef<HTMLDivElement>(null);
   const [autoScroll, setAutoScroll] = useState(true);
 
   const loadSnapshot = useCallback(
@@ -137,10 +137,10 @@ export default function UpdatePage() {
     return () => clearInterval(interval);
   }, [activeRunId, phase, loadSnapshot, loadRunHistory]);
 
-  // Auto-scroll log viewer
+  // Auto-scroll log viewer (only within log container)
   useEffect(() => {
-    if (autoScroll && logEndRef.current) {
-      logEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    if (autoScroll && logContainerRef.current) {
+      logContainerRef.current.scrollTop = logContainerRef.current.scrollHeight;
     }
   }, [activeRun?.logContent, autoScroll]);
 
@@ -404,11 +404,10 @@ export default function UpdatePage() {
           {/* Log Output */}
           {activeRun.logContent && (
             <div className="relative">
-              <div className="max-h-[300px] overflow-auto bg-black/90 p-4 font-mono text-xs leading-relaxed">
+              <div ref={logContainerRef} className="max-h-80 overflow-y-auto p-4 font-mono text-xs leading-relaxed scrollbar-none bg-gradient-to-b from-black/80 to-black/60">
                 <pre className="text-green-400/90 whitespace-pre-wrap break-all">
                   {activeRun.logContent}
                 </pre>
-                <div ref={logEndRef} />
               </div>
               {phase === 'running' && (
                 <button
