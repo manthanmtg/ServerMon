@@ -23,7 +23,9 @@ class SystemUpdateService {
   >();
 
   private constructor() {
-    this.checkSystemdRun().catch(() => {});
+    if (process.env.SERVERMON_BUILDING !== '1') {
+      this.checkSystemdRun().catch(() => {});
+    }
   }
 
   public static getInstance(): SystemUpdateService {

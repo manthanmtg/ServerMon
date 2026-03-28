@@ -484,10 +484,12 @@ log_info "Building application (allocating 4GB memory)..."
 export NODE_OPTIONS="--max-old-space-size=4096"
 export JWT_SECRET="${JWT_SECRET:-build_time_temporary_secret}"
 export MONGO_URI="${MONGO_URI:-mongodb://localhost:27017/servermon}"
+export SERVERMON_BUILDING=1
 pnpm run build 2>&1 | tail -5 || { 
     log_err "Build failed. This might be due to OOM even with 4GB limit or environment issues."
     exit 1; 
 }
+unset SERVERMON_BUILDING
 log "Application built successfully"
 
 # ── Environment Configuration ────────────────────────────

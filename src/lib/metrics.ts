@@ -49,6 +49,11 @@ class MetricsService extends EventEmitter {
 
   private constructor() {
     super();
+    // Skip system polling during next build — si calls hang in the build environment
+    if (process.env.SERVERMON_BUILDING === '1') {
+      log.info('Build phase detected — skipping metrics polling');
+      return;
+    }
     this.initStaticInfo().then(() => this.startPolling());
   }
 
