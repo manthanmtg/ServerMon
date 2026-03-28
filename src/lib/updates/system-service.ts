@@ -280,13 +280,6 @@ class SystemUpdateService {
     message: string;
     runId?: string;
   }> {
-    const scriptBase = process.env.SERVERMON_REPO_DIR || '/opt/servermon/repo';
-    const updateScript = `${scriptBase}/scripts/update-servermon.sh`;
-
-    if (!existsSync(updateScript)) {
-      return { success: false, message: `Update script not found at ${updateScript}` };
-    }
-
     const logDir = await this.ensureLogDir();
     const runIdBase = String(Date.now());
     const runId = `${this.LOG_PREFIX}${runIdBase}`;
@@ -297,15 +290,22 @@ class SystemUpdateService {
     try {
       const logFd = openSync(logFile, 'w');
       const useSystemd = await this.checkSystemdRun();
+      const upgradeCmd = 'bash';
+      const upgradeScript =
+        'set -e; echo "=== System Package Update ===" ; ' +
+        'echo "Refreshing package lists..." ; apt-get update -y ; ' +
+        'echo "Installing upgrades..." ; apt-get upgrade -y ; ' +
+        'echo "Cleaning up..." ; apt-get autoremove -y ; apt-get autoclean -y ; ' +
+        'echo "=== Update Complete ==="';
       const spawnCmd = useSystemd ? 'systemd-run' : 'sudo';
       const spawnArgs = useSystemd
-        ? ['--scope', '--quiet', '--', 'sudo', updateScript]
-        : [updateScript];
+        ? ['--scope', '--quiet', '--', 'sudo', upgradeCmd, '-c', upgradeScript]
+        : [upgradeCmd, '-c', upgradeScript];
 
       const child = spawn(spawnCmd, spawnArgs, {
         detached: true,
         stdio: ['ignore', logFd, logFd],
-        env: { ...process.env },
+        env: { ...process.env, DEBIAN_FRONTEND: 'noninteractive' },
       });
 
       closeSync(logFd);
