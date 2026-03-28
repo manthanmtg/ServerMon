@@ -10,6 +10,7 @@ const mockCanAcceptConnection = vi.fn();
 const mockRegisterConnection = vi.fn();
 const mockUnregisterConnection = vi.fn();
 const mockGetCurrent = vi.fn();
+const mockGetHistory = vi.fn();
 
 vi.mock('@/lib/metrics', () => ({
   metricsService: {
@@ -19,6 +20,7 @@ vi.mock('@/lib/metrics', () => ({
     on: mockOn,
     off: mockOff,
     getCurrent: mockGetCurrent,
+    getHistory: mockGetHistory,
   },
 }));
 
@@ -56,6 +58,7 @@ describe('GET /api/metrics/stream', () => {
     vi.clearAllMocks();
     mockCanAcceptConnection.mockReturnValue(true);
     mockGetCurrent.mockReturnValue(null);
+    mockGetHistory.mockReturnValue([]);
   });
 
   it('returns 429 when connection limit is reached', async () => {
@@ -100,7 +103,7 @@ describe('GET /api/metrics/stream', () => {
 
   it('sends the current metric immediately if one is available', async () => {
     const metric = makeMetric();
-    mockGetCurrent.mockReturnValue(metric);
+    mockGetHistory.mockReturnValue([metric]);
 
     const { GET } = await import('./route');
     const response = await GET();

@@ -28,9 +28,21 @@ export async function GET() {
 
       metricsService.on('metric', onMetric);
 
-      // Send latest immediately on connect
-      const latest = metricsService.getCurrent();
-      if (latest) onMetric(latest);
+      // Send full history on connect so charts populate immediately
+      const history = metricsService.getHistory();
+      if (history.length > 0) {
+        for (const metric of history) {
+          try {
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify(metric)}\n\n`));
+          } catch {
+            cleanup();
+            return;
+          }
+        }
+      } else {
+        const latest = metricsService.getCurrent();
+        if (latest) onMetric(latest);
+      }
     },
     cancel() {
       cleanup();

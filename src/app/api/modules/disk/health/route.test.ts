@@ -16,11 +16,12 @@ vi.mock('@/lib/logger', () => ({
   createLogger: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }),
 }));
 
-import { GET } from './route';
+import { GET, _resetCacheForTest } from './route';
 
 describe('GET /api/modules/disk/health', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    _resetCacheForTest();
   });
 
   it('returns disk layout and block devices', async () => {

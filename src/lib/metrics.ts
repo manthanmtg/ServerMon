@@ -103,9 +103,9 @@ class MetricsService extends EventEmitter {
           })),
           io: fsStats
             ? {
-                r_sec: fsStats.rx_sec || 0,
-                w_sec: fsStats.wx_sec || 0,
-                t_sec: (fsStats.rx_sec || 0) + (fsStats.wx_sec || 0),
+                r_sec: Math.max(0, fsStats.rx_sec ?? 0),
+                w_sec: Math.max(0, fsStats.wx_sec ?? 0),
+                t_sec: Math.max(0, fsStats.rx_sec ?? 0) + Math.max(0, fsStats.wx_sec ?? 0),
                 r_wait: 0, // systeminformation doesn't provide wait per device in fsStats easily
                 w_wait: 0,
               }
