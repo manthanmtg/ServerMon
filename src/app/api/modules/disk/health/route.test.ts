@@ -16,7 +16,8 @@ vi.mock('@/lib/logger', () => ({
   createLogger: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }),
 }));
 
-import { GET, _resetCacheForTest } from './route';
+import { GET } from './route';
+import { _resetCacheForTest } from './cache';
 
 describe('GET /api/modules/disk/health', () => {
   beforeEach(() => {
