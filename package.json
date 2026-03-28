@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "tsx watch src/server.ts",
-    "build": "unset TURBOPACK && unset NODE_ENV && NODE_OPTIONS='--max-old-space-size=4096' next build --webpack",
+    "build": "unset TURBOPACK && unset NODE_ENV && next build --webpack",
     "start": "NODE_ENV=production tsx src/server.ts",
     "lint": "eslint src/",
     "lint:fix": "eslint src/ --fix",

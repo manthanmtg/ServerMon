@@ -479,15 +479,30 @@ pnpm config set only-built-dependencies --json '["lzma-native", "node-pty", "arg
 
 pnpm install --frozen-lockfile 2>&1 | tail -5 || pnpm install 2>&1 | tail -5
 
-log_info "Building application (allocating 4GB memory)..."
+# Calculate optimal Node memory based on available system RAM
+TOTAL_RAM_MB=$(free -m 2>/dev/null | awk '/^Mem:/{print $2}' || echo "4096")
+if [ "$TOTAL_RAM_MB" -ge 8192 ]; then
+    NODE_MEM=4096
+elif [ "$TOTAL_RAM_MB" -ge 4096 ]; then
+    NODE_MEM=3072
+elif [ "$TOTAL_RAM_MB" -ge 2048 ]; then
+    NODE_MEM=1536
+else
+    NODE_MEM=1024
+fi
+
+CPU_CORES=$(nproc 2>/dev/null || echo "2")
+log_info "Building application (Node memory: ${NODE_MEM}MB, CPUs: ${CPU_CORES})..."
+log_info "This may take 2-10 minutes depending on your server's CPU and RAM."
+
 # Inject temporary environment for build time to satisfy Next.js static analysis/checks
-export NODE_OPTIONS="--max-old-space-size=4096"
+export NODE_OPTIONS="--max-old-space-size=${NODE_MEM}"
 export JWT_SECRET="${JWT_SECRET:-build_time_temporary_secret}"
 export MONGO_URI="${MONGO_URI:-mongodb://localhost:27017/servermon}"
 export SERVERMON_BUILDING=1
-pnpm run build 2>&1 | tail -5 || { 
-    log_err "Build failed. This might be due to OOM even with 4GB limit or environment issues."
-    exit 1; 
+pnpm run build 2>&1 || {
+    log_err "Build failed. Check above output for errors."
+    exit 1;
 }
 unset SERVERMON_BUILDING
 log "Application built successfully"
