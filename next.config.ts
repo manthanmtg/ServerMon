@@ -1,18 +1,20 @@
 import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
-  serverExternalPackages: ['systeminformation'],
-  webpack: (config, { isServer }) => {
-    if (!isServer) {
-      config.resolve.fallback = {
-        ...config.resolve.fallback,
-        fs: false,
-        child_process: false,
-        net: false,
-        tls: false,
-      };
-    }
-    return config;
+  serverExternalPackages: [
+    'systeminformation',
+    'node-pty',
+    'lzma-native',
+    'argon2',
+    'mongoose',
+  ],
+  turbopack: {
+    resolveAlias: {
+      fs: { browser: '' },
+      child_process: { browser: '' },
+      net: { browser: '' },
+      tls: { browser: '' },
+    },
   },
 };
 
