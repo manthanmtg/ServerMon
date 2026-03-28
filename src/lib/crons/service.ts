@@ -726,8 +726,11 @@ const MAX_OUTPUT_BYTES = 128 * 1024; // Increased to 128KB
 const RUN_LOG_DIR = process.env.CRON_RUN_LOG_DIR || '/var/log/servermon_cron_manual_run';
 const activeRuns = new Map<string, CronRunStatus & { logFile: string; metadataFile: string }>();
 
-// Ensure log directory exists
+// Ensure log directory exists (called lazily on first use, not at import time)
+let logDirReady = false;
 function ensureLogDir() {
+  if (logDirReady) return;
+  logDirReady = true;
   try {
     if (!existsSync(RUN_LOG_DIR)) {
       mkdirSync(RUN_LOG_DIR, { recursive: true, mode: 0o755 });
@@ -735,10 +738,8 @@ function ensureLogDir() {
     }
   } catch (err) {
     log.error(`Failed to create log directory ${RUN_LOG_DIR}. Falling back to tmp.`, err);
-    // Fallback handled in the path definition if needed, but for now we just try
   }
 }
-ensureLogDir();
 
 async function pruneOldRuns() {
   try {
@@ -804,8 +805,8 @@ async function checkSystemdRun(): Promise<boolean> {
   return systemdRunAvailable;
 }
 
-// Fire-and-forget the check at module load
-checkSystemdRun().catch(() => {});
+// checkSystemdRun is called lazily on first use — not at module load time
+// to avoid spawning child processes during next build.
 
 function runJobNow(jobId: string, command: string): CronRunStatus {
   const runId = `${jobId}-${Date.now()}`;

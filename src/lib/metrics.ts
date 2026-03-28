@@ -47,17 +47,15 @@ class MetricsService extends EventEmitter {
   private cpuCores = 0;
   private memTotal = 0;
 
+  private initialized = false;
+
   private constructor() {
     super();
-    // Skip system polling during next build — si calls hang in the build environment
-    if (process.env.SERVERMON_BUILDING === '1') {
-      log.info('Build phase detected — skipping metrics polling');
-      return;
-    }
-    this.initStaticInfo().then(() => this.startPolling());
   }
 
-  private async initStaticInfo() {
+  private async ensureInitialized() {
+    if (this.initialized) return;
+    this.initialized = true;
     try {
       const [cpu, mem] = await Promise.all([si.cpu(), si.mem()]);
       this.cpuCores = cpu.cores;
@@ -65,6 +63,7 @@ class MetricsService extends EventEmitter {
     } catch (err) {
       log.error('Failed to get static system info', err);
     }
+    this.startPolling();
   }
 
   public static getInstance(): MetricsService {
@@ -146,6 +145,7 @@ class MetricsService extends EventEmitter {
 
   public registerConnection(): void {
     this.activeConnections++;
+    this.ensureInitialized();
     log.debug(`SSE connection opened (active: ${this.activeConnections})`);
   }
 
