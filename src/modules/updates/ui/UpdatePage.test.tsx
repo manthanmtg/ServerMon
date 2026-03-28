@@ -206,9 +206,10 @@ describe('UpdatePage', () => {
       fireEvent.click(confirmButton);
     });
 
-    // Verify the POST to /api/modules/updates/run was called
+    // Verify the POST to /api/modules/updates/run was called with type: packages
     expect(global.fetch).toHaveBeenCalledWith('/api/modules/updates/run', expect.objectContaining({
       method: 'POST',
+      body: JSON.stringify({ type: 'packages' }),
     }));
 
     // Should show "Installing Updates..." progress

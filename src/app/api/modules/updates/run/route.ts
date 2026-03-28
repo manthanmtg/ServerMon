@@ -35,16 +35,28 @@ export async function GET(request: Request) {
   }
 }
 
-// POST — trigger a manual system update
-export async function POST() {
+// POST — trigger an update
+// Body: { type: "packages" } for system package update, omit or "servermon" for ServerMon self-update
+export async function POST(request: Request) {
   try {
     const session = await getSession();
     if (!session) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    log.info('Manual update triggered via API');
-    const result = await systemUpdateService.triggerUpdate();
+    let type = 'servermon';
+    try {
+      const body = await request.json();
+      if (body?.type === 'packages') type = 'packages';
+    } catch {
+      // no body — default to servermon
+    }
+
+    log.info(`Manual ${type} update triggered via API`);
+    const result =
+      type === 'packages'
+        ? await systemUpdateService.triggerSystemPackageUpdate()
+        : await systemUpdateService.triggerUpdate();
 
     if (result.success) {
       return NextResponse.json({

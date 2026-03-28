@@ -152,7 +152,11 @@ export default function UpdatePage() {
   const handleTriggerUpdate = async () => {
     setPhase('running');
     try {
-      const res = await fetch('/api/modules/updates/run', { method: 'POST' });
+      const res = await fetch('/api/modules/updates/run', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'packages' }),
+      });
       const data = await res.json();
 
       if (data.success && data.runId) {

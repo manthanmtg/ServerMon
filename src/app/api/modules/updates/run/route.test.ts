@@ -1,18 +1,25 @@
 /** @vitest-environment node */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-const { mockGetSession, mockTriggerUpdate, mockListUpdateRuns, mockGetUpdateRunDetails } =
-  vi.hoisted(() => ({
-    mockGetSession: vi.fn(),
-    mockTriggerUpdate: vi.fn(),
-    mockListUpdateRuns: vi.fn(),
-    mockGetUpdateRunDetails: vi.fn(),
-  }));
+const {
+  mockGetSession,
+  mockTriggerUpdate,
+  mockTriggerSystemPackageUpdate,
+  mockListUpdateRuns,
+  mockGetUpdateRunDetails,
+} = vi.hoisted(() => ({
+  mockGetSession: vi.fn(),
+  mockTriggerUpdate: vi.fn(),
+  mockTriggerSystemPackageUpdate: vi.fn(),
+  mockListUpdateRuns: vi.fn(),
+  mockGetUpdateRunDetails: vi.fn(),
+}));
 
 vi.mock('@/lib/session', () => ({ getSession: mockGetSession }));
 vi.mock('@/lib/updates/system-service', () => ({
   systemUpdateService: {
     triggerUpdate: mockTriggerUpdate,
+    triggerSystemPackageUpdate: mockTriggerSystemPackageUpdate,
     listUpdateRuns: mockListUpdateRuns,
     getUpdateRunDetails: mockGetUpdateRunDetails,
   },
@@ -83,27 +90,47 @@ describe('POST /api/modules/updates/run', () => {
 
   it('returns 401 when not authenticated', async () => {
     mockGetSession.mockResolvedValue(null);
-    const res = await POST();
+    const req = new Request('http://localhost/api/modules/updates/run', { method: 'POST' });
+    const res = await POST(req);
     expect(res.status).toBe(401);
     const json = await res.json();
     expect(json.error).toBe('Unauthorized');
   });
 
-  it('returns success with runId when update triggered', async () => {
+  it('defaults to servermon update when no body', async () => {
     mockGetSession.mockResolvedValue({ user: { role: 'admin' } });
     mockTriggerUpdate.mockResolvedValue({ success: true, message: 'Update started', pid: 1234, runId: 'run-1' });
-    const res = await POST();
+    const req = new Request('http://localhost/api/modules/updates/run', { method: 'POST' });
+    const res = await POST(req);
     expect(res.status).toBe(200);
     const json = await res.json();
     expect(json.success).toBe(true);
-    expect(json.pid).toBe(1234);
     expect(json.runId).toBe('run-1');
+    expect(mockTriggerUpdate).toHaveBeenCalled();
+    expect(mockTriggerSystemPackageUpdate).not.toHaveBeenCalled();
+  });
+
+  it('calls triggerSystemPackageUpdate when type is packages', async () => {
+    mockGetSession.mockResolvedValue({ user: { role: 'admin' } });
+    mockTriggerSystemPackageUpdate.mockResolvedValue({ success: true, message: 'Update started', pid: 5678, runId: 'pkg-1' });
+    const req = new Request('http://localhost/api/modules/updates/run', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'packages' }),
+    });
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.runId).toBe('pkg-1');
+    expect(mockTriggerSystemPackageUpdate).toHaveBeenCalled();
+    expect(mockTriggerUpdate).not.toHaveBeenCalled();
   });
 
   it('returns 500 when update trigger fails', async () => {
     mockGetSession.mockResolvedValue({ user: { role: 'admin' } });
     mockTriggerUpdate.mockResolvedValue({ success: false, message: 'Already running' });
-    const res = await POST();
+    const req = new Request('http://localhost/api/modules/updates/run', { method: 'POST' });
+    const res = await POST(req);
     expect(res.status).toBe(500);
     const json = await res.json();
     expect(json.success).toBe(false);
@@ -113,7 +140,8 @@ describe('POST /api/modules/updates/run', () => {
   it('returns 500 when service throws', async () => {
     mockGetSession.mockResolvedValue({ user: { role: 'admin' } });
     mockTriggerUpdate.mockRejectedValue(new Error('unexpected'));
-    const res = await POST();
+    const req = new Request('http://localhost/api/modules/updates/run', { method: 'POST' });
+    const res = await POST(req);
     expect(res.status).toBe(500);
     const json = await res.json();
     expect(json.error).toBe('Internal server error while triggering update');

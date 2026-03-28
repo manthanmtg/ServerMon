@@ -274,12 +274,11 @@ class SystemUpdateService {
     return run;
   }
 
-  public async triggerUpdate(): Promise<{
-    success: boolean;
-    pid?: number;
-    message: string;
-    runId?: string;
-  }> {
+  private async spawnTrackedRun(
+    cmd: string,
+    args: string[],
+    env?: Record<string, string>
+  ): Promise<{ success: boolean; pid?: number; message: string; runId?: string }> {
     const logDir = await this.ensureLogDir();
     const runIdBase = String(Date.now());
     const runId = `${this.LOG_PREFIX}${runIdBase}`;
@@ -289,23 +288,11 @@ class SystemUpdateService {
 
     try {
       const logFd = openSync(logFile, 'w');
-      const useSystemd = await this.checkSystemdRun();
-      const upgradeCmd = 'bash';
-      const upgradeScript =
-        'set -e; echo "=== System Package Update ===" ; ' +
-        'echo "Refreshing package lists..." ; apt-get update -y ; ' +
-        'echo "Installing upgrades..." ; apt-get upgrade -y ; ' +
-        'echo "Cleaning up..." ; apt-get autoremove -y ; apt-get autoclean -y ; ' +
-        'echo "=== Update Complete ==="';
-      const spawnCmd = useSystemd ? 'systemd-run' : 'sudo';
-      const spawnArgs = useSystemd
-        ? ['--scope', '--quiet', '--', 'sudo', upgradeCmd, '-c', upgradeScript]
-        : [upgradeCmd, '-c', upgradeScript];
 
-      const child = spawn(spawnCmd, spawnArgs, {
+      const child = spawn(cmd, args, {
         detached: true,
         stdio: ['ignore', logFd, logFd],
-        env: { ...process.env, DEBIAN_FRONTEND: 'noninteractive' },
+        env: { ...process.env, ...env },
       });
 
       closeSync(logFd);
@@ -378,6 +365,50 @@ class SystemUpdateService {
       log.error('Failed to trigger update', _err);
       return { success: false, message: _err instanceof Error ? _err.message : 'Unknown error' };
     }
+  }
+
+  public async triggerUpdate(): Promise<{
+    success: boolean;
+    pid?: number;
+    message: string;
+    runId?: string;
+  }> {
+    const scriptBase = process.env.SERVERMON_REPO_DIR || '/opt/servermon/repo';
+    const updateScript = `${scriptBase}/scripts/update-servermon.sh`;
+
+    if (!existsSync(updateScript)) {
+      return { success: false, message: `Update script not found at ${updateScript}` };
+    }
+
+    const useSystemd = await this.checkSystemdRun();
+    const spawnCmd = useSystemd ? 'systemd-run' : 'sudo';
+    const spawnArgs = useSystemd
+      ? ['--scope', '--quiet', '--', 'sudo', updateScript]
+      : [updateScript];
+
+    return this.spawnTrackedRun(spawnCmd, spawnArgs);
+  }
+
+  public async triggerSystemPackageUpdate(): Promise<{
+    success: boolean;
+    pid?: number;
+    message: string;
+    runId?: string;
+  }> {
+    const upgradeScript =
+      'set -e; echo "=== System Package Update ===" ; ' +
+      'echo "Refreshing package lists..." ; apt-get update -y ; ' +
+      'echo "Installing upgrades..." ; apt-get upgrade -y ; ' +
+      'echo "Cleaning up..." ; apt-get autoremove -y ; apt-get autoclean -y ; ' +
+      'echo "=== Update Complete ==="';
+
+    const useSystemd = await this.checkSystemdRun();
+    const spawnCmd = useSystemd ? 'systemd-run' : 'sudo';
+    const spawnArgs = useSystemd
+      ? ['--scope', '--quiet', '--', 'sudo', 'bash', '-c', upgradeScript]
+      : ['bash', '-c', upgradeScript];
+
+    return this.spawnTrackedRun(spawnCmd, spawnArgs, { DEBIAN_FRONTEND: 'noninteractive' });
   }
 }
 
