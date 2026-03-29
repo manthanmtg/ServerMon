@@ -1,170 +1,136 @@
-# CLAUDE.md — Agent Instructions for ServerMon
+# CLAUDE.md — Unified Project Guidelines for ServerMon
 
-This file provides instructions for AI agents (Claude, Cursor, Copilot, etc.) working on this codebase.
+This file is the single source of truth for all project rules, coding conventions, and automated agent requirements.
+
+## Mandatory Checks & Pre-merge Requirements
+
+Every change (PR or commit to `main`) **must** satisfy these requirements:
+
+| Check  | Command          | Expectation          |
+| ------ | ---------------- | -------------------- |
+| Format | `pnpm format`    | 0 changes needed     |
+| Lint   | `pnpm lint`      | 0 errors, 0 warnings |
+| Types  | `pnpm typecheck` | 0 errors             |
+| Build  | `pnpm build`     | Exit code 0          |
+| Tests  | `pnpm test`      | Exit code 0          |
+
+Shortcut: `pnpm check` runs all of the above in sequence. **A failure in any step blocks the merge.**
+
+---
 
 ## Project Overview
 
 ServerMon is a self-hosted server monitoring platform built with Next.js 16 (App Router), TypeScript, MongoDB, and Tailwind CSS 4. It follows a modular architecture where features (terminal, processes, logs, metrics) are independent modules that register into a core shell.
 
-## Mandatory Checks
+---
 
-Before considering any change complete, **all** of these must pass:
+## Repository Health Rules
 
-```bash
-pnpm format      # Prettier — apply formatting
-pnpm lint        # ESLint — zero errors, zero warnings
-pnpm typecheck   # TypeScript — zero errors
-pnpm build       # Next.js production build — must succeed
-pnpm test        # Tests — runs module tests (node:test + tsx)
-```
+### No Ignored Errors
+- Do not add `eslint-disable` comments without a paired explanation comment.
+- Do not add `@ts-ignore` or `@ts-expect-error`. Fix the type issue instead.
+- Do not add `any` types. Use `unknown` and narrow with type guards.
 
-Shortcut: `pnpm check` runs lint + typecheck + build in sequence.
+### No Dead Code
+- Remove unused imports, variables, functions, and files.
+- Do not comment out code and commit it. Use Git history instead.
 
-**Never** submit code that introduces lint warnings, type errors, or build failures. If a pre-existing issue blocks your work, fix it as part of the same change.
+### No Secrets
+- Never commit `.env`, `.env.local`, credentials, API keys, or tokens.
+- `.env.example` is the only env file that should be tracked.
 
-## Project Structure
+### No Large Files
+- `.pnpm-store/`, `node_modules/`, `.next/`, and build artifacts must never be committed.
+- These are in `.gitignore`. If git tries to track them, something is wrong.
 
-```
-src/
-├── app/                    # Next.js App Router pages and API routes
-│   ├── api/                # Server-side API endpoints
-│   │   ├── auth/           # Login, verify, logout
-│   │   ├── health/         # Health check endpoint
-│   │   ├── metrics/        # SSE metrics stream
-│   │   ├── modules/        # Module data APIs
-│   │   ├── analytics/      # Audit log queries
-│   │   └── setup/          # First-time setup
-│   ├── dashboard/          # Dashboard page
-│   ├── terminal/           # Terminal page
-│   ├── processes/          # Process list page
-│   ├── logs/               # Audit logs page
-│   ├── settings/           # Settings page
-│   ├── login/              # Login page
-│   ├── setup/              # Setup wizard
-│   ├── layout.tsx          # Root layout (fonts, ThemeProvider, ToastProvider)
-│   ├── page.tsx            # Root redirect (→ setup, login, or dashboard)
-│   └── globals.css         # Tailwind v4 @theme, CSS variable definitions
-├── components/
-│   ├── ui/                 # Reusable primitives (Button, Input, Card, Badge, etc.)
-│   ├── layout/             # ProShell (sidebar + header shell)
-│   └── modules/            # ModuleWidgetRegistry
-├── lib/                    # Shared utilities and providers
-│   ├── ThemeContext.tsx     # Theme provider + useTheme hook
-│   ├── MetricsContext.tsx   # SSE metrics provider + useMetrics hook
-│   ├── logger.ts           # Structured logger (createLogger)
-│   ├── utils.ts            # cn() class merge utility
-│   ├── db.ts               # MongoDB connection (singleton)
-│   ├── session.ts          # JWT session management
-│   ├── metrics.ts          # MetricsService (system info polling)
-│   ├── analytics.ts        # Analytics event tracking
-│   ├── themes.ts           # Theme definitions (colors, types)
-│   └── modules/            # Module system (registry, loader, event bus)
-├── modules/                # Feature modules
-│   ├── health/             # System health widget
-│   ├── metrics/            # CPU + memory chart widgets
-│   ├── terminal/           # Web terminal (xterm.js)
-│   ├── processes/          # Process list
-│   └── logs/               # Audit log widgets + page
-├── models/                 # Mongoose models (User, AnalyticsEvent)
-└── types/                  # Shared TypeScript types (Module interface)
-```
+### Dependency Hygiene
+- Use `pnpm` exclusively. Do not use npm or yarn.
+- Do not add dependencies without a clear need.
+- Pin major versions in `package.json`. Use `^` for minor/patch.
 
-## Code Conventions
+---
 
-### TypeScript
+## File Conventions & Component Checklists
 
-- Strict mode is enabled. Never use `any` — use `unknown` and narrow.
-- Prefer `interface` over `type` for object shapes.
-- Use Zod schemas as the source of truth for validation; derive TS types with `z.infer`.
-- Prefix unused parameters with `_` (configured in ESLint).
+### Naming
+| Type       | Convention                           | Example                          |
+| ---------- | ------------------------------------ | -------------------------------- |
+| Pages      | `page.tsx` in route folder           | `src/app/dashboard/page.tsx`     |
+| API routes | `route.ts` in API folder             | `src/app/api/health/route.ts`    |
+| Components | PascalCase `.tsx`                    | `ProShell.tsx`, `Button.tsx`     |
+| Utilities  | camelCase `.ts`                      | `utils.ts`, `logger.ts`          |
+| Types      | PascalCase interface, camelCase file | `module.ts` → `Module` interface |
+| Modules    | lowercase folder name                | `src/modules/terminal/`          |
 
-### React / Next.js
+### New Component Checklist (`src/components/ui/`)
+1. Use `forwardRef` for elements that accept refs.
+2. Accept a `className` prop and merge with `cn()`.
+3. Use semantic theme tokens — **never hardcode colors** (e.g. `bg-slate-900`).
+4. Export the component and its props type.
+5. Ensure minimum 44px touch target (`min-h-[44px]`).
 
-- Use App Router conventions. Pages are in `src/app/<route>/page.tsx`.
-- Client components must have `'use client'` at the top.
-- API routes are in `src/app/api/<path>/route.ts` and export `GET`, `POST`, etc.
-- Use `export const dynamic = 'force-dynamic'` for routes that access databases or runtime state.
-- Server components are the default. Only add `'use client'` when you need hooks, event handlers, or browser APIs.
+### New Module Checklist (`src/modules/<name>/`)
+1. Create `module.ts` with the `Module` interface.
+2. Create UI in `ui/` subfolder.
+3. Register the widget in `src/components/modules/ModuleWidgetRegistry.tsx`.
+4. Add the nav entry in `src/components/layout/ProShell.tsx` `navGroups`.
+5. Create the page route in `src/app/<name>/page.tsx` wrapped in `<ProShell>`.
+6. Run `pnpm check` to verify.
 
-### Styling
+### New API Route Checklist
+1. Wrap handler body in try/catch.
+2. Use `createLogger('api:<name>')`.
+3. Return `{ error: "message" }` on failures with proper HTTP status.
+4. Add `export const dynamic = 'force-dynamic'` if accessing DB or runtime state.
+5. Validate input with Zod if accepting a request body.
+6. **Security**: Ensure all routes require authentication via `getSession()`.
 
-- **Use Tailwind classes exclusively.** No inline styles, no CSS modules, no styled-components.
-- **Use semantic color classes** that map to CSS variables: `bg-background`, `text-foreground`, `bg-card`, `text-muted-foreground`, `bg-primary`, `text-primary-foreground`, `border-border`, `bg-secondary`, `text-destructive`, `bg-success`, `text-warning`, etc.
-- **Never hardcode colors** like `bg-slate-900`, `text-indigo-400`, `#6366f1`. All colors must come from the theme system so theme switching works.
-- The theme token mapping is defined in `src/app/globals.css` under `@theme inline`.
-- Available tokens: `background`, `foreground`, `card`, `card-foreground`, `primary`, `primary-foreground`, `secondary`, `secondary-foreground`, `muted`, `muted-foreground`, `accent`, `accent-foreground`, `destructive`, `destructive-foreground`, `border`, `input`, `ring`, `success`, `warning`, `sidebar`, `sidebar-foreground`, `sidebar-border`.
+---
 
-### UI Components
+## Testing Guidelines
 
-- Use the shared primitives from `src/components/ui/` — `Button`, `Input`, `Card`, `Badge`, `Spinner`, `Skeleton`.
-- Use `WidgetErrorBoundary` around any widget that could throw.
-- Use `useToast()` for user-facing feedback messages.
-- Use `cn()` from `src/lib/utils.ts` for conditional class merging.
-- All interactive elements must have a minimum touch target of 44px (`min-h-[44px]`).
-- Use `dvh` instead of `vh` for viewport height on mobile-facing layouts.
+Tests use **Vitest** for unit/integration and **Playwright** for E2E.
 
-### Logging
+- **Unit Tests**: Place tests next to the file: `file.test.ts` or `ui/Component.test.tsx`.
+- **Mocking**: Use `vi.mock()` for dependency injection.
+- **Coverage**: Aim for high coverage on core utility logic and API handlers.
 
-- Use `createLogger('context-name')` from `src/lib/logger.ts`.
-- Never use bare `console.log` / `console.error` in API routes or services.
-- Log levels: `debug` (development), `info` (normal events), `warn` (recoverable), `error` (failures).
-- Include relevant data as the second argument: `log.error('Failed to fetch', error)`.
-
-### API Routes
-
-- Always wrap handler bodies in try/catch.
-- Return structured JSON errors: `{ error: "Human-readable message" }` with proper HTTP status codes.
-- Cap unbounded queries (e.g., `Math.min(limit, 500)`).
-- Use the logger, not console.
-
-### Modules
-
-Each module lives in `src/modules/<name>/` and follows this structure:
-
-```
-modules/<name>/
-├── module.ts              # Module registration (id, name, widgets, lifecycle)
-├── ui/
-│   ├── <Name>Widget.tsx   # Dashboard widget component
-│   └── <Name>Page.tsx     # Full page component (optional)
-└── api/                   # Module-specific API routes (optional)
-```
-
-Widgets must be registered in `src/components/modules/ModuleWidgetRegistry.tsx` with a `WidgetErrorBoundary` wrapper.
-
-New module pages need a route in `src/app/<name>/page.tsx` that wraps content in `<ProShell>`.
-
-New modules need a nav entry in `src/components/layout/ProShell.tsx` in the `navGroups` array.
+---
 
 ## Security Rules
 
-- **Default Authentication**: All routes (UI and API) are protected by default via middleware (`src/middleware.ts`). Only an explicit whitelisted set of public routes (e.g., `/login`, `/api/auth/login`) are unauthenticated.
-- **WebSocket Security**: All Socket.io connections **must** be authenticated using the session cookie. Use the authentication middleware in `src/server.ts`.
-- **API Hardening**: Critical API routes (settings, system updates, user management) **must** double-check the session using `getSession()` and enforce role-based access control where appropriate.
-- **Manual Verification**: Never trust that middleware alone covers all cases. Proactively verify session existence in sensitive API handlers.
-- **Secrets Management**: JWT secrets come from environment variables. Never hardcode secrets or provide insecure fallbacks in production.
-- **Input Validation**: Validate all user input with Zod before processing.
+- **Default Authentication**: All routes are protected by default via `src/middleware.ts`.
+- **WebSocket Security**: Connections **must** be authenticated using the session cookie.
+- **Manual Verification**: Proactively verify session existence (`getSession()`) in sensitive API handlers.
+- **Input Validation**: Always validate user input with Zod before processing.
 
-## Mobile / Responsive Requirements
+---
 
-- All layouts must work on 320px–1440px+ viewports.
-- Tables must have a card-based mobile layout (`sm:hidden` / `hidden sm:block` pattern).
-- Use `min-h-[44px]` for all interactive elements (Apple HIG touch target).
-- Use `env(safe-area-inset-bottom)` for bottom-anchored elements.
-- Use `100dvh` not `100vh` for full-height layouts.
-- Test responsive breakpoints: `sm` (640px), `md` (768px), `lg` (1024px), `xl` (1280px).
+## Architecture Decisions
 
-## Common Pitfalls
+- **Single SSE connection**: `MetricsProvider` creates one `EventSource`. Never create instances in widgets.
+- **CSS variable theming**: All colors flow through variables defined in `src/app/globals.css`.
+- **Error boundaries**: `ModuleWidgetRegistry` wraps each widget automatically. 
+- **Structured logging**: Use `createLogger()` from `src/lib/logger.ts`. Never use `console.log`.
 
-- **Don't create duplicate SSE connections.** Use `MetricsProvider` + `useMetrics()` hook. Never create `new EventSource` in widget components directly.
-- **Don't skip error boundaries.** All widgets rendered via `ModuleWidgetRegistry` are wrapped automatically. If you render a widget outside the registry, wrap it in `<WidgetErrorBoundary>`.
-- **Don't use `import { connectDB }` (named).** It's a default export: `import connectDB from '@/lib/db'`.
-- **Don't use `vh` units.** Use `dvh` for dynamic viewport height.
-- **Don't forget `export const dynamic = 'force-dynamic'`** on API routes or server pages that access the database.
+---
+
+## Environment Variables
+
+Required at runtime (set in `.env.local` or `/etc/servermon/env`):
+
+| Variable     | Required | Description                        |
+| ------------ | -------- | ---------------------------------- |
+| `MONGO_URI`  | Yes      | MongoDB connection string          |
+| `JWT_SECRET` | Yes      | Secret for signing session JWTs    |
+| `PORT`       | No       | App port (default: 8912)           |
+| `NODE_ENV`   | No       | `development` or `production`      |
+| `LOG_LEVEL`  | No       | `debug`, `info`, `warn`, `error`   |
+
+---
 
 ## Commit Standards
 
 - Run `pnpm check` before committing.
 - Write imperative commit messages: "Add health endpoint" not "Added health endpoint".
-- First line ≤ 72 characters. Add detail in the body if needed.
-- Group related changes in one commit. Don't mix unrelated fixes.
+- Group related changes in one commit.
