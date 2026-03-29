@@ -96,8 +96,13 @@ export function FileBrowserGitBar({ git, onRefresh }: Props) {
   const [showCommit, setShowCommit] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [commitMsg, setCommitMsg] = useState('');
+  const [mounted, setMounted] = useState(false);
   const branchBtnRef = useRef<HTMLButtonElement>(null);
   const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0 });
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     if (showBranches && branchBtnRef.current) {
@@ -297,7 +302,14 @@ export function FileBrowserGitBar({ git, onRefresh }: Props) {
           )}
           <button
             type="button"
-            onClick={() => setShowHistory(true)}
+            onClick={() => {
+              setShowHistory(true);
+              toast({
+                title: 'Git History',
+                description: 'Loading repository log...',
+                variant: 'success',
+              });
+            }}
             className="flex items-center gap-1.5 rounded-xl border border-border/60 bg-background px-3 py-1.5 font-bold text-[10px] uppercase tracking-wider text-muted-foreground transition-all hover:bg-accent hover:text-foreground hover:shadow-sm active:scale-95"
           >
             <History className="w-3.5 h-3.5" />
@@ -517,9 +529,12 @@ export function FileBrowserGitBar({ git, onRefresh }: Props) {
         </div>
       )}
 
-      {showHistory && (
-        <GitHistoryModal root={git.root} onClose={() => setShowHistory(false)} />
-      )}
+      {showHistory &&
+        mounted &&
+        createPortal(
+          <GitHistoryModal root={git.root} onClose={() => setShowHistory(false)} />,
+          document.body
+        )}
     </div>
   );
 }

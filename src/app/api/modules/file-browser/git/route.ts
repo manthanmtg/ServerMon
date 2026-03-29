@@ -106,7 +106,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true, result });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Git operation failed';
-    log.error('Git operation failed', error);
-    return NextResponse.json({ error: message }, { status: 500 });
+    log.error('Git operation failed', { error, stack: error instanceof Error ? error.stack : undefined });
+    return NextResponse.json({ error: message, details: error }, { status: 500 });
   }
 }

@@ -13,6 +13,7 @@ interface Props {
 }
 
 export default function GitHistoryModal({ root, onClose }: Props) {
+  console.log('GitHistoryModal mounted with root:', root);
   const [commits, setCommits] = useState<GitCommitInfo[]>([]);
   const [selectedHash, setSelectedHash] = useState<string | null>(null);
   const [diff, setDiff] = useState<string | null>(null);
@@ -86,8 +87,8 @@ export default function GitHistoryModal({ root, onClose }: Props) {
   };
 
   return (
-    <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 sm:p-8 bg-background/80 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="relative w-full max-w-5xl h-full max-h-[800px] flex flex-col bg-card border border-border rounded-3xl shadow-2xl overflow-hidden ring-1 ring-border/5">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-8 bg-black/60 backdrop-blur-md">
+      <div className="relative w-full max-w-5xl h-full max-h-[800px] flex flex-col bg-slate-900 border border-border rounded-3xl shadow-2xl overflow-hidden shadow-black/50">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-card/50">
           <div className="flex items-center gap-3">
