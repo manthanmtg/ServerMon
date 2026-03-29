@@ -216,18 +216,22 @@ export default function GitHistoryModal({ root, onClose }: Props) {
 
       <style jsx global>{`
         .custom-scrollbar::-webkit-scrollbar {
-          width: 6px;
-          height: 6px;
+          width: 8px;
+          height: 8px;
         }
         .custom-scrollbar::-webkit-scrollbar-track {
           background: transparent;
         }
         .custom-scrollbar::-webkit-scrollbar-thumb {
-          background: hsl(var(--border) / 0.3);
-          border-radius: 10px;
+          background: hsl(var(--muted-foreground) / 0.5);
+          border-radius: 20px;
+          border: 2px solid transparent;
+          background-clip: content-box;
+          min-height: 40px;
         }
         .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-          background: hsl(var(--border) / 0.5);
+          background: hsl(var(--muted-foreground) / 0.8);
+          background-clip: content-box;
         }
       `}</style>
     </div>
