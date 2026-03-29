@@ -21,6 +21,8 @@ const TIME_RANGES = [
   { label: 'All Time', value: 'all' },
 ];
 
+const LIMIT_OPTIONS = [50, 100, 250, 500, 1000];
+
 export default function GitHistoryModal({ root, onClose }: Props) {
   const [commits, setCommits] = useState<GitCommitInfo[]>([]);
   const [selectedHash, setSelectedHash] = useState<string | null>(null);
@@ -28,6 +30,7 @@ export default function GitHistoryModal({ root, onClose }: Props) {
   const [loading, setLoading] = useState(true);
   const [loadingDiff, setLoadingDiff] = useState(false);
   const [since, setSince] = useState('30 days ago');
+  const [limit, setLimit] = useState(100);
   const [searchQuery, setSearchQuery] = useState('');
   const [copied, setCopied] = useState(false);
   const { toast } = useToast();
@@ -38,7 +41,7 @@ export default function GitHistoryModal({ root, onClose }: Props) {
       const res = await fetch('/api/modules/file-browser/git', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ root, action: 'log', limit: 100, since }),
+        body: JSON.stringify({ root, action: 'log', limit, since }),
       });
       const data = await res.json();
       if (data.success) {
@@ -49,7 +52,7 @@ export default function GitHistoryModal({ root, onClose }: Props) {
     } finally {
       setLoading(false);
     }
-  }, [root, since]);
+  }, [root, since, limit]);
 
   const fetchDiff = useCallback(async (hash: string) => {
     setLoadingDiff(true);
@@ -149,23 +152,49 @@ export default function GitHistoryModal({ root, onClose }: Props) {
               </div>
             </div>
             
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-4">
+              {/* Limit Selector */}
+              <div className="flex items-center gap-2">
+                <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider">Show:</span>
+                <div className="flex items-center bg-muted/30 p-1 rounded-xl border border-border/50">
+                  {LIMIT_OPTIONS.map((opt) => (
+                    <button
+                      key={opt}
+                      onClick={() => setLimit(opt)}
+                      className={cn(
+                        "px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-lg transition-all duration-200",
+                        limit === opt 
+                          ? "bg-primary text-primary-foreground shadow-sm" 
+                          : "text-muted-foreground hover:text-foreground hover:bg-accent"
+                      )}
+                    >
+                      {opt}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="h-4 w-px bg-border/50" />
+
               {/* Time Range Selector */}
-              <div className="flex items-center bg-muted/30 p-1 rounded-xl border border-border/50">
-                {TIME_RANGES.map((range) => (
-                  <button
-                    key={range.value}
-                    onClick={() => setSince(range.value)}
-                    className={cn(
-                      "px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider rounded-lg transition-all duration-200",
-                      since === range.value 
-                        ? "bg-primary text-primary-foreground shadow-lg" 
-                        : "text-muted-foreground hover:text-foreground hover:bg-accent"
-                    )}
-                  >
-                    {range.label}
-                  </button>
-                ))}
+              <div className="flex items-center gap-2">
+                <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider">Range:</span>
+                <div className="flex items-center bg-muted/30 p-1 rounded-xl border border-border/50">
+                  {TIME_RANGES.map((range) => (
+                    <button
+                      key={range.value}
+                      onClick={() => setSince(range.value)}
+                      className={cn(
+                        "px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-lg transition-all duration-200",
+                        since === range.value 
+                          ? "bg-primary text-primary-foreground shadow-sm" 
+                          : "text-muted-foreground hover:text-foreground hover:bg-accent"
+                      )}
+                    >
+                      {range.label}
+                    </button>
+                  ))}
+                </div>
               </div>
               
               <div className="h-8 w-px bg-border/50 mx-1" />
