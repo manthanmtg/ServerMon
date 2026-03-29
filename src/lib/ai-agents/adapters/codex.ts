@@ -110,7 +110,7 @@ export class CodexAdapter implements AgentAdapter {
       commandsExecuted: historyData.commandsExecuted,
       conversation: historyData.conversation,
       timeline: historyData.timeline,
-      logs: [],
+      logs: historyData.logs,
     };
   }
 
@@ -123,6 +123,7 @@ export class CodexAdapter implements AgentAdapter {
     filesModified: string[];
     commandsExecuted: string[];
     usage: { inputTokens: number; outputTokens: number; totalTokens: number };
+    logs: string[];
     summary?: string;
     model?: string;
     cwd?: string;
@@ -136,6 +137,7 @@ export class CodexAdapter implements AgentAdapter {
       filesModified: string[];
       commandsExecuted: string[];
       usage: { inputTokens: number; outputTokens: number; totalTokens: number };
+      logs: string[];
       summary?: string;
       model?: string;
       cwd?: string;
@@ -148,6 +150,7 @@ export class CodexAdapter implements AgentAdapter {
       filesModified: [],
       commandsExecuted: [],
       usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+      logs: [],
     };
 
     try {
@@ -177,6 +180,7 @@ export class CodexAdapter implements AgentAdapter {
       const content = fs.readFileSync(rolloutPath, 'utf8');
       const conversation: ConversationEntry[] = [];
       const timeline: any[] = [];
+      const logs: string[] = [];
       const filesModified = new Set<string>();
       const commandsExecuted = new Set<string>();
 
@@ -185,6 +189,11 @@ export class CodexAdapter implements AgentAdapter {
         try {
           const evt = JSON.parse(line);
           const timestamp = evt.timestamp || new Date().toISOString();
+
+          // Log every event
+          if (evt.type) {
+            logs.push(`[${timestamp}] ${evt.type}`);
+          }
 
           if (evt.type === 'session_meta') {
             if (evt.payload.cwd) data.cwd = evt.payload.cwd;
@@ -239,6 +248,7 @@ export class CodexAdapter implements AgentAdapter {
 
       data.conversation = conversation;
       data.timeline = timeline;
+      data.logs = logs;
       data.filesModified = Array.from(filesModified);
       data.commandsExecuted = Array.from(commandsExecuted);
       data.usage.totalTokens = data.usage.inputTokens + data.usage.outputTokens;

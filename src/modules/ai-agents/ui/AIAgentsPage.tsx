@@ -32,6 +32,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/components/ui/toast';
 import { AutoscrollButton } from '@/components/ui/AutoscrollButton';
+import { useAutoScroll } from './useAutoScroll';
 import { cn } from '@/lib/utils';
 import type { AgentSession, AgentsSnapshot, AgentType, SessionStatus } from '../types';
 
@@ -204,40 +205,47 @@ function SessionDetail({
   actionLoading: boolean;
 }) {
   const [activeTab, setActiveTab] = useState<DetailTab>('conversation');
-  const [autoScroll, setAutoScroll] = useState(true);
+  const [autoScrollConv, setAutoScrollConv] = useState(true);
+  const [autoScrollTimeline, setAutoScrollTimeline] = useState(true);
+  const [autoScrollLogs, setAutoScrollLogs] = useState(true);
 
   const tabs: Array<{ id: DetailTab; label: string; icon: React.ReactNode; count?: number }> = [
     {
-      id: 'conversation',
+      id: 'conversation' as DetailTab,
       label: 'Conversation',
       icon: <MessageSquare className="w-3.5 h-3.5" />,
       count: session.conversation.length,
     },
     {
-      id: 'timeline',
+      id: 'timeline' as DetailTab,
       label: 'Timeline',
       icon: <Timer className="w-3.5 h-3.5" />,
       count: session.timeline.length,
     },
     {
-      id: 'files',
+      id: 'files' as DetailTab,
       label: 'Files',
       icon: <FileCode className="w-3.5 h-3.5" />,
       count: session.filesModified.length,
     },
     {
-      id: 'commands',
+      id: 'commands' as DetailTab,
       label: 'Commands',
       icon: <Terminal className="w-3.5 h-3.5" />,
       count: session.commandsExecuted.length,
     },
     {
-      id: 'logs',
+      id: 'logs' as DetailTab,
       label: 'Logs',
       icon: <Square className="w-3.5 h-3.5" />,
       count: session.logs.length,
     },
-  ];
+  ].filter((tab) => {
+    // Always show conversation
+    if (tab.id === 'conversation') return true;
+    // Show if running (might get data) or if it has any data
+    return session.status === 'running' || (tab.count ?? 0) > 0;
+  });
 
   return (
     <div className="space-y-4">
@@ -369,8 +377,22 @@ function SessionDetail({
             </div>
             {activeTab === 'conversation' && (
               <AutoscrollButton
-                enabled={autoScroll}
-                onToggle={setAutoScroll}
+                enabled={autoScrollConv}
+                onToggle={setAutoScrollConv}
+                className="h-9 px-3"
+              />
+            )}
+            {activeTab === 'timeline' && (
+              <AutoscrollButton
+                enabled={autoScrollTimeline}
+                onToggle={setAutoScrollTimeline}
+                className="h-9 px-3"
+              />
+            )}
+            {activeTab === 'logs' && (
+              <AutoscrollButton
+                enabled={autoScrollLogs}
+                onToggle={setAutoScrollLogs}
                 className="h-9 px-3"
               />
             )}
@@ -378,12 +400,14 @@ function SessionDetail({
         </CardHeader>
         <CardContent className="p-3">
           {activeTab === 'conversation' && (
-            <ConversationPanel conversation={session.conversation} autoScroll={autoScroll} />
+            <ConversationPanel conversation={session.conversation} autoScroll={autoScrollConv} />
           )}
-          {activeTab === 'timeline' && <TimelinePanel timeline={session.timeline} />}
+          {activeTab === 'timeline' && (
+            <TimelinePanel timeline={session.timeline} autoScroll={autoScrollTimeline} />
+          )}
           {activeTab === 'files' && <FilesPanel files={session.filesModified} />}
           {activeTab === 'commands' && <CommandsPanel commands={session.commandsExecuted} />}
-          {activeTab === 'logs' && <LogsPanel logs={session.logs} />}
+          {activeTab === 'logs' && <LogsPanel logs={session.logs} autoScroll={autoScrollLogs} />}
         </CardContent>
       </Card>
     </div>
@@ -398,13 +422,7 @@ function ConversationPanel({
   conversation: AgentSession['conversation'];
   autoScroll: boolean;
 }) {
-  const scrollRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (autoScroll && scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
-  }, [conversation, autoScroll]);
+  const scrollRef = useAutoScroll([conversation], autoScroll);
 
   if (conversation.length === 0) {
     return <EmptyState label="No conversation data available" />;
@@ -430,12 +448,20 @@ function ConversationPanel({
   );
 }
 
-function TimelinePanel({ timeline }: { timeline: AgentSession['timeline'] }) {
+function TimelinePanel({
+  timeline,
+  autoScroll,
+}: {
+  timeline: AgentSession['timeline'];
+  autoScroll: boolean;
+}) {
+  const scrollRef = useAutoScroll([timeline], autoScroll);
+
   if (timeline.length === 0) {
     return <EmptyState label="No activity recorded in timeline" />;
   }
   return (
-    <div className="space-y-4 max-h-[400px] overflow-y-auto pr-1">
+    <div ref={scrollRef} className="space-y-4 max-h-[400px] overflow-y-auto pr-1 scroll-smooth">
       <div className="relative ml-2 pl-6 border-l-2 border-primary/20 space-y-6 py-2">
         {timeline.map((entry, i) => (
           <div key={i} className="relative">
@@ -498,12 +524,23 @@ function CommandsPanel({ commands }: { commands: string[] }) {
   );
 }
 
-function LogsPanel({ logs }: { logs: string[] }) {
+function LogsPanel({
+  logs,
+  autoScroll,
+}: {
+  logs: string[];
+  autoScroll: boolean;
+}) {
+  const scrollRef = useAutoScroll([logs], autoScroll);
+
   if (logs.length === 0) {
     return <EmptyState label="No logs captured for this session" />;
   }
   return (
-    <div className="max-h-[400px] overflow-y-auto rounded-md bg-secondary/30 p-3">
+    <div
+      ref={scrollRef}
+      className="max-h-[400px] overflow-y-auto rounded-md bg-secondary/30 p-3 scroll-smooth"
+    >
       <pre className="text-xs font-mono whitespace-pre-wrap text-muted-foreground">
         {logs.join('\n')}
       </pre>

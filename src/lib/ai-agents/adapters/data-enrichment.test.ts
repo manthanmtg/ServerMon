@@ -55,9 +55,13 @@ describe('AI Agents Data Enrichment', () => {
     mockExistsSync.mockReturnValue(true);
     mockReaddirSync.mockImplementation((p: string) => {
       if (p === '/home/user1/.claude/projects') return ['proj'];
-      return ['session.jsonl'];
+      if (p === '/home/user1/.claude/projects/proj') return ['session.jsonl'];
+      return [];
     });
-    mockStatSync.mockReturnValue({ isDirectory: () => true, mtime: { getTime: () => now } });
+    mockStatSync.mockImplementation((p: string) => ({
+      isDirectory: () => !(p as string).endsWith('.jsonl'),
+      mtime: { getTime: () => now }
+    }));
 
     const jsonl = [
       JSON.stringify({
@@ -100,6 +104,10 @@ describe('AI Agents Data Enrichment', () => {
     // History
     expect(session.filesModified).toContain('test.ts');
     expect(session.commandsExecuted).toContain('ls');
+
+    // Logs
+    expect(session.logs.length).toBeGreaterThan(0);
+    expect(session.logs[0]).toContain('[2024-01-01T10:00:00Z] user');
   });
 
   it('ClaudeCodeAdapter detects active PID if process found', async () => {

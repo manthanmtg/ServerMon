@@ -105,7 +105,7 @@ export class ClaudeCodeAdapter implements AgentAdapter {
       commandsExecuted: historyData.commandsExecuted,
       conversation: historyData.conversation,
       timeline: historyData.timeline,
-      logs: [],
+      logs: historyData.logs,
     };
   }
 
@@ -131,6 +131,7 @@ export class ClaudeCodeAdapter implements AgentAdapter {
     filesModified: string[];
     commandsExecuted: string[];
     usage: { inputTokens: number; outputTokens: number; totalTokens: number };
+    logs: string[];
     summary?: string;
     model?: string;
     startTime?: string;
@@ -144,6 +145,7 @@ export class ClaudeCodeAdapter implements AgentAdapter {
       filesModified: string[];
       commandsExecuted: string[];
       usage: { inputTokens: number; outputTokens: number; totalTokens: number };
+      logs: string[];
       summary?: string;
       model?: string;
       startTime?: string;
@@ -156,6 +158,7 @@ export class ClaudeCodeAdapter implements AgentAdapter {
       filesModified: [],
       commandsExecuted: [],
       usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+      logs: [],
     };
 
     try {
@@ -178,14 +181,28 @@ export class ClaudeCodeAdapter implements AgentAdapter {
       const content = fs.readFileSync(latestFile, 'utf8');
       const conversation: ConversationEntry[] = [];
       const timeline: any[] = [];
+      const logs: string[] = [];
       const filesModified = new Set<string>();
       const commandsExecuted = new Set<string>();
 
-      for (const line of content.trim().split('\n')) {
+      const lines = content.trim().split('\n');
+      for (const line of lines) {
         if (!line.trim()) continue;
         try {
           const item = JSON.parse(line);
           const timestamp = item.timestamp || new Date().toISOString();
+
+          // Log every event
+          let logMsg = `[${timestamp}] ${item.type}`;
+          if (item.message?.model) logMsg += ` (${item.message.model})`;
+          logs.push(logMsg);
+
+          if (item.message?.content) {
+            const contentSnippet = typeof item.message.content === 'string' 
+              ? item.message.content 
+              : JSON.stringify(item.message.content);
+            logs.push(`  > ${contentSnippet.substring(0, 80)}${contentSnippet.length > 80 ? '...' : ''}`);
+          }
 
           if (item.type === 'user' || item.type === 'assistant') {
             const msg = item.message;
@@ -243,6 +260,7 @@ export class ClaudeCodeAdapter implements AgentAdapter {
 
       data.conversation = conversation;
       data.timeline = timeline;
+      data.logs = logs;
       data.filesModified = Array.from(filesModified);
       data.commandsExecuted = Array.from(commandsExecuted);
       data.usage.totalTokens = data.usage.inputTokens + data.usage.outputTokens;

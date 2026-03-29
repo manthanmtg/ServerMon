@@ -109,7 +109,7 @@ export class OpenCodeAdapter implements AgentAdapter {
       commandsExecuted: detailData.commandsExecuted,
       conversation: detailData.conversation,
       timeline: detailData.timeline,
-      logs: [],
+      logs: detailData.logs,
     };
   }
 
@@ -122,6 +122,7 @@ export class OpenCodeAdapter implements AgentAdapter {
     filesModified: string[];
     commandsExecuted: string[];
     usage: { inputTokens: number; outputTokens: number; totalTokens: number };
+    logs: string[];
     model?: string;
   }> {
     const data: {
@@ -130,6 +131,7 @@ export class OpenCodeAdapter implements AgentAdapter {
       filesModified: string[];
       commandsExecuted: string[];
       usage: { inputTokens: number; outputTokens: number; totalTokens: number };
+      logs: string[];
       model?: string;
     } = {
       conversation: [],
@@ -137,6 +139,7 @@ export class OpenCodeAdapter implements AgentAdapter {
       filesModified: [],
       commandsExecuted: [],
       usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+      logs: [],
     };
 
     try {
@@ -154,6 +157,7 @@ export class OpenCodeAdapter implements AgentAdapter {
         const rows = JSON.parse(msgOut);
         const conversation: ConversationEntry[] = [];
         const timeline: any[] = [];
+        const logs: string[] = [];
         const filesModified = new Set<string>();
         const commandsExecuted = new Set<string>();
 
@@ -177,6 +181,12 @@ export class OpenCodeAdapter implements AgentAdapter {
 
           try {
             const partData = JSON.parse(row.part_data);
+            
+            // Add to logs
+            if (partData.type) {
+              logs.push(`[${timestamp}] ${partData.type}`);
+            }
+
             if (partData.type === 'text' && partData.text) {
               conversation.push({
                 role,
@@ -206,6 +216,7 @@ export class OpenCodeAdapter implements AgentAdapter {
         }
         data.conversation = conversation;
         data.timeline = timeline;
+        data.logs = logs;
         data.filesModified = Array.from(filesModified);
         data.commandsExecuted = Array.from(commandsExecuted);
         data.usage.totalTokens = data.usage.inputTokens + data.usage.outputTokens;
