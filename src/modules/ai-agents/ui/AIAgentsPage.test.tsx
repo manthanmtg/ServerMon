@@ -32,7 +32,11 @@ const makeSession = (overrides: Partial<(typeof mockSnapshot)['sessions'][0]> = 
   },
   status: 'running' as const,
   currentActivity: 'Editing files',
-  resources: { cpuPercent: 5, memoryBytes: 128000000, memoryPercent: 1.5 },
+  usage: {
+    inputTokens: 100,
+    outputTokens: 50,
+    totalTokens: 150,
+  },
   filesModified: ['src/index.ts', 'package.json'],
   commandsExecuted: ['npm install', 'npm test'],
   conversation: [

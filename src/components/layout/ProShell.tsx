@@ -91,15 +91,19 @@ function SidebarNav({
 
   // Restore scroll position
   useEffect(() => {
-    const savedScroll = localStorage.getItem('sidebar-scroll');
-    if (savedScroll && navRef.current) {
-      navRef.current.scrollTop = parseInt(savedScroll, 10);
+    if (typeof window !== 'undefined' && typeof localStorage !== 'undefined') {
+      const savedScroll = localStorage.getItem('sidebar-scroll');
+      if (savedScroll && navRef.current) {
+        navRef.current.scrollTop = parseInt(savedScroll, 10);
+      }
     }
   }, []);
 
   // Save scroll position
   const handleScroll = (e: React.UIEvent<HTMLElement>) => {
-    localStorage.setItem('sidebar-scroll', e.currentTarget.scrollTop.toString());
+    if (typeof window !== 'undefined' && typeof localStorage !== 'undefined') {
+      localStorage.setItem('sidebar-scroll', e.currentTarget.scrollTop.toString());
+    }
   };
 
   return (

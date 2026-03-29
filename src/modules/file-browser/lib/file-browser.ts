@@ -762,25 +762,30 @@ export async function gitPull(root: string): Promise<string> {
 }
 
 export async function gitLog(root: string, limit = 50): Promise<GitCommitInfo[]> {
+  const commitMarker = '@@@COMMITSTART@@@';
+  const separator = '@@@GITLOGSEG@@@';
+  
   const { stdout } = await execFileAsync('git', [
     '-C',
     root,
     'log',
     `-${limit}`,
-    '--pretty=format:%H|%an|%ai|%s|%b',
+    `--pretty=format:${commitMarker}%H${separator}%an${separator}%ai${separator}%s${separator}%b`,
   ]);
 
+  if (!stdout.trim()) return [];
+
   return stdout
-    .split('\n')
+    .split(commitMarker)
     .filter(Boolean)
-    .map((line) => {
-      const [hash, author, date, subject, body] = line.split('|');
+    .map((block) => {
+      const [hash, author, date, subject, ...bodyParts] = block.split(separator);
       return {
-        hash,
-        author,
-        date,
-        subject: subject || '',
-        body: body || '',
+        hash: hash?.trim() || '',
+        author: author?.trim() || '',
+        date: date?.trim() || '',
+        subject: subject?.trim() || '',
+        body: bodyParts.join(separator).trim(),
       };
     });
 }

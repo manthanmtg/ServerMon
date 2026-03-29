@@ -1,20 +1,15 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ArrowLeft,
   Bot,
   CircleDot,
   Clock,
-  Cpu,
-  Database,
   FileCode,
   FolderGit2,
   GitBranch,
   History,
-  Info,
-  Layers,
-  LoaderCircle,
   MessageSquare,
   RefreshCcw,
   Search,
@@ -556,7 +551,7 @@ function EmptyState({ label }: { label: string }) {
       </div>
       <p className="font-medium opacity-60">{label}</p>
       <p className="text-[10px] opacity-40 mt-1 max-w-[200px] text-center">
-        This agent hasn't generated any data for this category yet.
+        This agent hasn&apos;t generated any data for this category yet.
       </p>
     </div>
   );
@@ -688,7 +683,7 @@ export default function AIAgentsPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-24">
-        <LoaderCircle className="h-6 w-6 animate-spin text-primary" />
+        <RefreshCcw className="h-6 w-6 animate-spin text-primary" />
       </div>
     );
   }

@@ -1,7 +1,5 @@
 /** @vitest-environment node */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import * as fs from 'fs';
-import * as path from 'path';
 
 vi.mock('@/lib/logger', () => ({
   createLogger: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }),
@@ -92,9 +90,9 @@ describe('AI Agents Data Enrichment', () => {
     const session = sessions[0];
     
     // Tokens
-    expect(session.usage.inputTokens).toBe(100);
-    expect(session.usage.outputTokens).toBe(50);
-    expect(session.usage.totalTokens).toBe(150);
+    expect(session.usage!.inputTokens).toBe(100);
+    expect(session.usage!.outputTokens).toBe(50);
+    expect(session.usage!.totalTokens).toBe(150);
 
     // Timeline
     expect(session.timeline).toHaveLength(2);
@@ -172,7 +170,7 @@ describe('AI Agents Data Enrichment', () => {
     const sessions = await adapter.detect();
 
     expect(sessions).toHaveLength(1);
-    expect(sessions[0].usage.totalTokens).toBe(75);
+    expect(sessions[0].usage!.totalTokens).toBe(75);
     expect(sessions[0].timeline).toHaveLength(1);
     expect(sessions[0].filesModified).toContain('f.txt');
   });
@@ -211,8 +209,8 @@ describe('AI Agents Data Enrichment', () => {
     const sessions = await adapter.detect();
 
     expect(sessions).toHaveLength(1);
-    expect(sessions[0].usage.inputTokens).toBe(200);
-    expect(sessions[0].usage.outputTokens).toBe(100);
+    expect(sessions[0].usage!.inputTokens).toBe(200);
+    expect(sessions[0].usage!.outputTokens).toBe(100);
     expect(sessions[0].timeline).toHaveLength(1);
     expect(sessions[0].timeline[0].action).toBe('Tool Call: write_file');
     expect(sessions[0].filesModified).toContain('a.js');

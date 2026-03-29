@@ -790,23 +790,7 @@ function isProcessRunning(pid: number): boolean {
   }
 }
 
-// Detect systemd-run availability once at startup
-let systemdRunAvailable: boolean | null = null;
-async function checkSystemdRun(): Promise<boolean> {
-  if (systemdRunAvailable !== null) return systemdRunAvailable;
-  try {
-    await execFileAsync('systemd-run', ['--version'], { timeout: 3000 });
-    systemdRunAvailable = true;
-    log.info('systemd-run available — cron runs will escape service cgroup');
-  } catch {
-    systemdRunAvailable = false;
-    log.info('systemd-run not available — cron runs will use plain detached spawn');
-  }
-  return systemdRunAvailable;
-}
 
-// checkSystemdRun is called lazily on first use — not at module load time
-// to avoid spawning child processes during next build.
 
 function runJobNow(jobId: string, command: string): CronRunStatus {
   const runId = `${jobId}-${Date.now()}`;
@@ -830,11 +814,8 @@ function runJobNow(jobId: string, command: string): CronRunStatus {
     logFd = openSync(logFile, 'w');
   }
 
-  const useSystemd = systemdRunAvailable === true;
-  const spawnCmd = useSystemd ? 'systemd-run' : 'sh';
-  const spawnArgs = useSystemd
-    ? ['--scope', '--quiet', '--', 'sh', '-c', command]
-    : ['-c', command];
+  const spawnCmd = 'sh';
+  const spawnArgs = ['-c', command];
 
   const child = spawn(spawnCmd, spawnArgs, {
     detached: true,

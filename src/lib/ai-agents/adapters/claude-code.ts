@@ -7,6 +7,7 @@ import type {
   AgentSession,
   AgentType,
   ConversationEntry,
+  ActionTimelineEntry,
 } from '@/modules/ai-agents/types';
 
 const log = createLogger('ai-agents:claude-code');
@@ -127,7 +128,7 @@ export class ClaudeCodeAdapter implements AgentAdapter {
     projectsDir: string
   ): Promise<{
     conversation: ConversationEntry[];
-    timeline: any[];
+    timeline: ActionTimelineEntry[];
     filesModified: string[];
     commandsExecuted: string[];
     usage: { inputTokens: number; outputTokens: number; totalTokens: number };
@@ -141,7 +142,7 @@ export class ClaudeCodeAdapter implements AgentAdapter {
   }> {
     const data: {
       conversation: ConversationEntry[];
-      timeline: any[];
+      timeline: ActionTimelineEntry[];
       filesModified: string[];
       commandsExecuted: string[];
       usage: { inputTokens: number; outputTokens: number; totalTokens: number };
@@ -180,7 +181,7 @@ export class ClaudeCodeAdapter implements AgentAdapter {
       const latestFile = path.join(projectPath, files[0].name);
       const content = fs.readFileSync(latestFile, 'utf8');
       const conversation: ConversationEntry[] = [];
-      const timeline: any[] = [];
+      const timeline: ActionTimelineEntry[] = [];
       const logs: string[] = [];
       const filesModified = new Set<string>();
       const commandsExecuted = new Set<string>();

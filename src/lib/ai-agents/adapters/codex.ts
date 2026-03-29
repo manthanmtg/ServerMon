@@ -7,6 +7,7 @@ import type {
   AgentSession,
   AgentType,
   ConversationEntry,
+  ActionTimelineEntry,
 } from '@/modules/ai-agents/types';
 
 const log = createLogger('ai-agents:codex');
@@ -119,7 +120,7 @@ export class CodexAdapter implements AgentAdapter {
     codexDir: string
   ): Promise<{
     conversation: ConversationEntry[];
-    timeline: any[];
+    timeline: ActionTimelineEntry[];
     filesModified: string[];
     commandsExecuted: string[];
     usage: { inputTokens: number; outputTokens: number; totalTokens: number };
@@ -133,7 +134,7 @@ export class CodexAdapter implements AgentAdapter {
   }> {
     const data: {
       conversation: ConversationEntry[];
-      timeline: any[];
+      timeline: ActionTimelineEntry[];
       filesModified: string[];
       commandsExecuted: string[];
       usage: { inputTokens: number; outputTokens: number; totalTokens: number };
@@ -179,7 +180,7 @@ export class CodexAdapter implements AgentAdapter {
 
       const content = fs.readFileSync(rolloutPath, 'utf8');
       const conversation: ConversationEntry[] = [];
-      const timeline: any[] = [];
+      const timeline: ActionTimelineEntry[] = [];
       const logs: string[] = [];
       const filesModified = new Set<string>();
       const commandsExecuted = new Set<string>();

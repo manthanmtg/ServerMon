@@ -103,6 +103,24 @@ describe('ProShell', () => {
     vi.clearAllMocks();
     mockPathname.mockReturnValue('/dashboard');
     global.fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({}) });
+
+    // Mock localStorage
+    const mockStorage: Record<string, string> = {};
+    Object.defineProperty(global, 'localStorage', {
+      value: {
+        getItem: vi.fn((key) => mockStorage[key] || null),
+        setItem: vi.fn((key, value) => {
+          mockStorage[key] = value.toString();
+        }),
+        clear: vi.fn(() => {
+          for (const key in mockStorage) delete mockStorage[key];
+        }),
+        removeItem: vi.fn((key) => delete mockStorage[key]),
+        length: 0,
+        key: vi.fn(),
+      },
+      writable: true,
+    });
   });
 
   it('renders the title in the header', () => {

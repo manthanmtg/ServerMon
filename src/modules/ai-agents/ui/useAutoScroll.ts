@@ -9,7 +9,7 @@ import { useEffect, useRef } from 'react';
  * @param enabled - Whether autoscroll is currently active
  * @returns A ref to be attached to the scrollable container
  */
-export function useAutoScroll(dependencies: any[], enabled: boolean = true) {
+export function useAutoScroll(dependencies: unknown[], enabled: boolean = true) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { X, GitCommit, User, Calendar, Hash, ChevronRight, LoaderCircle, ArrowLeft, Terminal } from 'lucide-react';
+import { X, GitCommit, User, Calendar, Hash, LoaderCircle, ArrowLeft, Terminal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
@@ -69,6 +69,21 @@ export default function GitHistoryModal({ root, onClose }: Props) {
     }
   }, [selectedHash, fetchDiff]);
 
+  const formatDate = (dateStr: string) => {
+    try {
+      if (!dateStr) return 'No date';
+      const d = new Date(dateStr);
+      if (isNaN(d.getTime())) return 'Invalid Date';
+      return d.toLocaleDateString(undefined, { 
+        year: 'numeric', 
+        month: 'short', 
+        day: '2-digit' 
+      });
+    } catch {
+      return 'Invalid Date';
+    }
+  };
+
   const formatDiff = (rawDiff: string) => {
     return rawDiff.split('\n').map((line, i) => {
       let colorClass = 'text-foreground/70';
@@ -86,17 +101,17 @@ export default function GitHistoryModal({ root, onClose }: Props) {
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-8 bg-black/60 backdrop-blur-md">
-      <div className="relative w-full max-w-5xl h-full max-h-[800px] flex flex-col bg-slate-900 border border-border rounded-3xl shadow-2xl overflow-hidden shadow-black/50">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-8 bg-black/40 backdrop-blur-sm animate-in fade-in duration-300">
+      <div className="relative w-full max-w-5xl h-full max-h-[800px] flex flex-col bg-background border border-border rounded-3xl shadow-2xl overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-card/50">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-card/50 backdrop-blur-xl shrink-0">
           <div className="flex items-center gap-3">
             <div className="p-2 rounded-xl bg-primary/10 text-primary">
               <GitCommit className="w-5 h-5" />
             </div>
             <div>
               <h2 className="text-base font-bold text-foreground">Git Repository History</h2>
-              <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-widest">{root}</p>
+              <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-widest truncate max-w-[300px]">{root}</p>
             </div>
           </div>
           <Button variant="ghost" size="icon" className="rounded-xl h-10 w-10 text-muted-foreground hover:text-foreground hover:bg-accent" onClick={onClose}>
@@ -105,10 +120,10 @@ export default function GitHistoryModal({ root, onClose }: Props) {
         </div>
 
         {/* Content Area */}
-        <div className="flex-1 flex min-h-0 divide-x divide-border">
+        <div className="flex-1 flex min-h-0 divide-x divide-border overflow-hidden">
           {/* Commit List */}
           <div className={cn(
-            "flex flex-col min-h-0 transition-all duration-300",
+            "flex flex-col min-h-0 transition-all duration-300 bg-muted/5",
             selectedHash ? "w-1/3" : "w-full"
           )}>
             <div className="flex-1 overflow-y-auto px-2 py-4 space-y-1 custom-scrollbar">
@@ -131,7 +146,7 @@ export default function GitHistoryModal({ root, onClose }: Props) {
                       "group w-full text-left p-3 rounded-2xl transition-all duration-200 border border-transparent",
                       selectedHash === c.hash 
                         ? "bg-primary/10 border-primary/20 shadow-sm" 
-                        : "hover:bg-accent hover:border-border/50"
+                        : "hover:bg-accent/50 hover:border-border/50"
                     )}
                   >
                     <div className="flex items-start justify-between gap-3 mb-1.5">
@@ -141,7 +156,7 @@ export default function GitHistoryModal({ root, onClose }: Props) {
                       )}>
                         {c.subject}
                       </span>
-                      <Badge variant="outline" className="h-5 px-1.5 font-mono text-[9px] shrink-0 border-border/50 bg-background/50">
+                      <Badge variant="outline" className="h-5 px-1.5 font-mono text-[9px] shrink-0 border-border/50 bg-background/50 text-muted-foreground">
                         {c.hash.slice(0, 7)}
                       </Badge>
                     </div>
@@ -152,7 +167,7 @@ export default function GitHistoryModal({ root, onClose }: Props) {
                       </div>
                       <div className="flex items-center gap-1.5 shrink-0 ml-auto">
                         <Calendar className="w-3 h-3" />
-                        <span>{new Date(c.date).toLocaleDateString()}</span>
+                        <span>{formatDate(c.date)}</span>
                       </div>
                     </div>
                   </button>
@@ -163,22 +178,22 @@ export default function GitHistoryModal({ root, onClose }: Props) {
 
           {/* Diff View */}
           {selectedHash && (
-            <div className="flex-1 flex flex-col min-h-0 bg-background/30 animate-in slide-in-from-right-4 fade-in duration-300">
-              <div className="flex items-center justify-between px-6 py-3 border-b border-border/50 bg-card/30 shrink-0">
+            <div className="flex-1 flex flex-col min-h-0 bg-muted/10 animate-in slide-in-from-right-4 fade-in duration-300">
+              <div className="flex items-center justify-between px-6 py-3 border-b border-border bg-card/50 shrink-0">
                 <div className="flex items-center gap-3">
                   <Button variant="ghost" size="sm" className="h-8 px-2 gap-1.5 -ml-2 text-muted-foreground hover:text-foreground" onClick={() => setSelectedHash(null)}>
                     <ArrowLeft className="w-3.5 h-3.5" />
                     <span className="text-[10px] font-bold uppercase tracking-widest">Back</span>
                   </Button>
-                  <div className="h-4 w-px bg-border/50" />
+                  <div className="h-4 w-px bg-border" />
                   <div className="flex items-center gap-2">
                     <Hash className="w-3 h-3 text-primary/70" />
-                    <span className="text-[11px] font-mono font-bold text-primary">{selectedHash}</span>
+                    <span className="text-[11px] font-mono font-bold text-primary">{selectedHash.slice(0, 12)}</span>
                   </div>
                 </div>
               </div>
               
-              <div className="flex-1 overflow-y-auto py-4 custom-scrollbar bg-accent/5">
+              <div className="flex-1 overflow-y-auto py-4 custom-scrollbar bg-card/20">
                 {loadingDiff ? (
                   <div className="flex flex-col items-center justify-center h-full gap-3 text-muted-foreground">
                     <LoaderCircle className="w-6 h-6 animate-spin text-primary" />
@@ -208,11 +223,11 @@ export default function GitHistoryModal({ root, onClose }: Props) {
           background: transparent;
         }
         .custom-scrollbar::-webkit-scrollbar-thumb {
-          background: var(--border);
+          background: hsl(var(--border) / 0.3);
           border-radius: 10px;
         }
         .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-          background: var(--muted-foreground);
+          background: hsl(var(--border) / 0.5);
         }
       `}</style>
     </div>

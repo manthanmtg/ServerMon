@@ -7,6 +7,7 @@ import type {
   AgentSession,
   AgentType,
   ConversationEntry,
+  ActionTimelineEntry,
 } from '@/modules/ai-agents/types';
 
 const log = createLogger('ai-agents:opencode');
@@ -118,7 +119,7 @@ export class OpenCodeAdapter implements AgentAdapter {
     dbPath: string
   ): Promise<{
     conversation: ConversationEntry[];
-    timeline: any[];
+    timeline: ActionTimelineEntry[];
     filesModified: string[];
     commandsExecuted: string[];
     usage: { inputTokens: number; outputTokens: number; totalTokens: number };
@@ -127,7 +128,7 @@ export class OpenCodeAdapter implements AgentAdapter {
   }> {
     const data: {
       conversation: ConversationEntry[];
-      timeline: any[];
+      timeline: ActionTimelineEntry[];
       filesModified: string[];
       commandsExecuted: string[];
       usage: { inputTokens: number; outputTokens: number; totalTokens: number };
@@ -156,7 +157,7 @@ export class OpenCodeAdapter implements AgentAdapter {
       if (msgOut.trim()) {
         const rows = JSON.parse(msgOut);
         const conversation: ConversationEntry[] = [];
-        const timeline: any[] = [];
+        const timeline: ActionTimelineEntry[] = [];
         const logs: string[] = [];
         const filesModified = new Set<string>();
         const commandsExecuted = new Set<string>();

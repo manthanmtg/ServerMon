@@ -54,7 +54,7 @@ export interface AgentSession {
   lifecycle: SessionLifecycle;
   status: SessionStatus;
   currentActivity?: string;
-  usage: {
+  usage?: {
     inputTokens: number;
     outputTokens: number;
     totalTokens: number;
