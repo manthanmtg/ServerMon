@@ -761,17 +761,32 @@ export async function gitPull(root: string): Promise<string> {
   return (stdout + stderr).trim();
 }
 
-export async function gitLog(root: string, limit = 50): Promise<GitCommitInfo[]> {
+export interface GitCommitInfo {
+  hash: string;
+  author: string;
+  authorEmail: string;
+  date: string;
+  subject: string;
+  body: string;
+}
+
+export async function gitLog(root: string, limit = 50, since?: string): Promise<GitCommitInfo[]> {
   const commitMarker = '@@@COMMITSTART@@@';
   const separator = '@@@GITLOGSEG@@@';
   
-  const { stdout } = await execFileAsync('git', [
+  const args = [
     '-C',
     root,
     'log',
     `-${limit}`,
-    `--pretty=format:${commitMarker}%H${separator}%an${separator}%ai${separator}%s${separator}%b`,
-  ]);
+    `--pretty=format:${commitMarker}%H${separator}%an${separator}%ae${separator}%ai${separator}%s${separator}%b`,
+  ];
+
+  if (since && since !== 'all') {
+    args.push(`--since=${since}`);
+  }
+
+  const { stdout } = await execFileAsync('git', args);
 
   if (!stdout.trim()) return [];
 
@@ -779,10 +794,11 @@ export async function gitLog(root: string, limit = 50): Promise<GitCommitInfo[]>
     .split(commitMarker)
     .filter(Boolean)
     .map((block) => {
-      const [hash, author, date, subject, ...bodyParts] = block.split(separator);
+      const [hash, author, email, date, subject, ...bodyParts] = block.split(separator);
       return {
         hash: hash?.trim() || '',
         author: author?.trim() || '',
+        authorEmail: email?.trim() || '',
         date: date?.trim() || '',
         subject: subject?.trim() || '',
         body: bodyParts.join(separator).trim(),

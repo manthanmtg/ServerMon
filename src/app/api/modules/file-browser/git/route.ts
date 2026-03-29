@@ -41,6 +41,7 @@ const actionSchema = z.object({
   message: z.string().optional(),
   hash: z.string().optional(),
   limit: z.number().optional(),
+  since: z.string().optional(),
 });
 
 export async function POST(request: NextRequest) {
@@ -94,7 +95,7 @@ export async function POST(request: NextRequest) {
         result = await gitPull(root);
         break;
       case 'log':
-        const logs = await gitLog(root, body.limit);
+        const logs = await gitLog(root, body.limit, body.since);
         return NextResponse.json({ success: true, result: logs });
       case 'diff':
         if (!body.hash) return NextResponse.json({ error: 'hash required' }, { status: 400 });
