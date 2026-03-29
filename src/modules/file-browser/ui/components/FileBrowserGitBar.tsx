@@ -11,6 +11,7 @@ import {
   FileText,
   GitBranch,
   GitCommit,
+  History,
   LoaderCircle,
   Minus,
   Plus,
@@ -23,6 +24,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/toast';
 import { cn } from '@/lib/utils';
+import GitHistoryModal from './GitHistoryModal';
 
 interface GitFileStatus {
   path: string;
@@ -92,6 +94,7 @@ export function FileBrowserGitBar({ git, onRefresh }: Props) {
   const [busy, setBusy] = useState<string | null>(null);
   const [showBranches, setShowBranches] = useState(false);
   const [showCommit, setShowCommit] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
   const [commitMsg, setCommitMsg] = useState('');
   const branchBtnRef = useRef<HTMLButtonElement>(null);
   const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0 });
@@ -292,6 +295,14 @@ export function FileBrowserGitBar({ git, onRefresh }: Props) {
               <span className="hidden sm:inline ml-1">Reset</span>
             </Button>
           )}
+          <button
+            type="button"
+            onClick={() => setShowHistory(true)}
+            className="flex items-center gap-1.5 rounded-xl border border-border/60 bg-background px-3 py-1.5 font-bold text-[10px] uppercase tracking-wider text-muted-foreground transition-all hover:bg-accent hover:text-foreground hover:shadow-sm active:scale-95"
+          >
+            <History className="w-3.5 h-3.5" />
+            History
+          </button>
           <button
             type="button"
             disabled={busy === 'fetch'}
@@ -504,6 +515,10 @@ export function FileBrowserGitBar({ git, onRefresh }: Props) {
             </div>
           )}
         </div>
+      )}
+
+      {showHistory && (
+        <GitHistoryModal root={git.root} onClose={() => setShowHistory(false)} />
       )}
     </div>
   );

@@ -12,6 +12,8 @@ import {
   gitFetch,
   gitCommit,
   gitPull,
+  gitLog,
+  gitDiff,
 } from '@/modules/file-browser/lib/file-browser';
 
 export const dynamic = 'force-dynamic';
@@ -31,10 +33,14 @@ const actionSchema = z.object({
     'fetch',
     'commit',
     'pull',
+    'log',
+    'diff',
   ]),
   path: z.string().optional(),
   branch: z.string().optional(),
   message: z.string().optional(),
+  hash: z.string().optional(),
+  limit: z.number().optional(),
 });
 
 export async function POST(request: NextRequest) {
@@ -86,6 +92,13 @@ export async function POST(request: NextRequest) {
         break;
       case 'pull':
         result = await gitPull(root);
+        break;
+      case 'log':
+        const logs = await gitLog(root, body.limit);
+        return NextResponse.json({ success: true, result: logs });
+      case 'diff':
+        if (!body.hash) return NextResponse.json({ error: 'hash required' }, { status: 400 });
+        result = await gitDiff(root, body.hash);
         break;
     }
 

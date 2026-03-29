@@ -137,6 +137,14 @@ export interface GitInfo {
   behind: number;
 }
 
+export interface GitCommitInfo {
+  hash: string;
+  author: string;
+  date: string;
+  subject: string;
+  body: string;
+}
+
 export class FileBrowserError extends Error {
   status: number;
 
@@ -751,4 +759,37 @@ export async function gitCommit(root: string, message: string): Promise<string> 
 export async function gitPull(root: string): Promise<string> {
   const { stdout, stderr } = await execFileAsync('git', ['-C', root, 'pull']);
   return (stdout + stderr).trim();
+}
+
+export async function gitLog(root: string, limit = 50): Promise<GitCommitInfo[]> {
+  const { stdout } = await execFileAsync('git', [
+    '-C',
+    root,
+    'log',
+    `-${limit}`,
+    '--pretty=format:%H|%an|%ai|%s|%b',
+  ]);
+
+  return stdout
+    .split('\n')
+    .filter(Boolean)
+    .map((line) => {
+      const [hash, author, date, subject, body] = line.split('|');
+      return {
+        hash,
+        author,
+        date,
+        subject: subject || '',
+        body: body || '',
+      };
+    });
+}
+
+export async function gitDiff(root: string, hash: string): Promise<string> {
+  if (hash === 'staged') {
+    const { stdout } = await execFileAsync('git', ['-C', root, 'diff', '--staged']);
+    return stdout;
+  }
+  const { stdout } = await execFileAsync('git', ['-C', root, 'show', '--format=', hash]);
+  return stdout;
 }
