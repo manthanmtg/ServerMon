@@ -54,7 +54,11 @@ export interface AgentSession {
   lifecycle: SessionLifecycle;
   status: SessionStatus;
   currentActivity?: string;
-  resources: SessionResourceUsage;
+  usage: {
+    inputTokens: number;
+    outputTokens: number;
+    totalTokens: number;
+  };
   filesModified: string[];
   commandsExecuted: string[];
   conversation: ConversationEntry[];

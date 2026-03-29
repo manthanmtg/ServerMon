@@ -6,9 +6,14 @@ import {
   Bot,
   CircleDot,
   Clock,
+  Cpu,
+  Database,
   FileCode,
   FolderGit2,
   GitBranch,
+  History,
+  Info,
+  Layers,
   LoaderCircle,
   MessageSquare,
   RefreshCcw,
@@ -17,6 +22,7 @@ import {
   Square,
   Terminal,
   Timer,
+  TrendingUp,
   User,
   X,
   XCircle,
@@ -257,7 +263,18 @@ function SessionDetail({
             </Badge>
           </div>
           <p className="text-xs text-muted-foreground">
-            PID {session.owner.pid} &middot; {session.owner.user}
+            {session.owner.pid > 0 ? (
+              <span className="flex items-center gap-1">
+                <CircleDot className="w-2.5 h-2.5 text-success animate-pulse" />
+                Active PID {session.owner.pid}
+              </span>
+            ) : (
+              <span className="flex items-center gap-1">
+                <History className="w-2.5 h-2.5 opacity-60" />
+                Historical Session
+              </span>
+            )}
+            &middot; {session.owner.user}
           </p>
         </div>
         {session.status === 'running' && (
@@ -296,18 +313,24 @@ function SessionDetail({
             )}
           </CardContent>
         </Card>
-        <Card className="border-border/60">
-          <CardContent className="p-3 space-y-1.5 text-xs">
-            <p className="font-medium text-muted-foreground uppercase text-[10px] tracking-wider">
-              Lifecycle
+        <Card className="border-border/60 overflow-hidden">
+          <CardContent className="p-3 space-y-1.5 text-xs relative">
+            <div className="absolute top-0 right-0 w-16 h-16 bg-primary/5 rounded-bl-full -mr-4 -mt-4" />
+            <p className="font-medium text-muted-foreground uppercase text-[10px] tracking-wider flex items-center gap-1">
+              <TrendingUp className="w-3 h-3" />
+              Usage Metrics
             </p>
-            <div className="flex items-center gap-1.5">
-              <Clock className="w-3 h-3 text-muted-foreground shrink-0" />
-              <span>Started {relativeTime(session.lifecycle.startTime)}</span>
+            <div className="flex items-center justify-between gap-1.5">
+              <span className="text-muted-foreground">Input Tokens</span>
+              <span className="font-mono tabular-nums">{session.usage?.inputTokens?.toLocaleString() ?? 0}</span>
             </div>
-            <div className="flex items-center gap-1.5">
-              <Timer className="w-3 h-3 text-muted-foreground shrink-0" />
-              <span>Duration: {formatDuration(session.lifecycle.durationSeconds)}</span>
+            <div className="flex items-center justify-between gap-1.5">
+              <span className="text-muted-foreground">Output Tokens</span>
+              <span className="font-mono tabular-nums">{session.usage?.outputTokens?.toLocaleString() ?? 0}</span>
+            </div>
+            <div className="pt-1 border-t border-border/40 flex items-center justify-between font-semibold">
+              <span>Total</span>
+              <span className="text-primary tabular-nums">{(session.usage?.totalTokens ?? 0).toLocaleString()}</span>
             </div>
           </CardContent>
         </Card>
@@ -409,20 +432,30 @@ function ConversationPanel({
 
 function TimelinePanel({ timeline }: { timeline: AgentSession['timeline'] }) {
   if (timeline.length === 0) {
-    return <EmptyState label="No timeline data available" />;
+    return <EmptyState label="No activity recorded in timeline" />;
   }
   return (
-    <div className="space-y-1 max-h-[400px] overflow-y-auto">
-      {timeline.map((entry, i) => (
-        <div key={i} className="flex items-start gap-3 px-2 py-1.5 text-xs">
-          <div className="w-1.5 h-1.5 rounded-full bg-primary mt-1.5 shrink-0" />
-          <div>
-            <span className="font-medium">{entry.action}</span>
-            {entry.detail && <span className="text-muted-foreground ml-1">- {entry.detail}</span>}
-            <p className="text-[10px] text-muted-foreground">{relativeTime(entry.timestamp)}</p>
+    <div className="space-y-4 max-h-[400px] overflow-y-auto pr-1">
+      <div className="relative ml-2 pl-6 border-l-2 border-primary/20 space-y-6 py-2">
+        {timeline.map((entry, i) => (
+          <div key={i} className="relative">
+            <div className="absolute -left-[31px] top-1.5 w-4 h-4 rounded-full border-2 border-background bg-primary shadow-sm" />
+            <div className="space-y-1">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold">{entry.action}</span>
+                <span className="text-[10px] text-muted-foreground bg-secondary px-1.5 py-0.5 rounded">
+                  {relativeTime(entry.timestamp)}
+                </span>
+              </div>
+              {entry.detail && (
+                <div className="p-2 rounded bg-muted/40 text-[10px] font-mono whitespace-pre-wrap break-all border border-border/40">
+                  {entry.detail}
+                </div>
+              )}
+            </div>
           </div>
-        </div>
-      ))}
+        ))}
+      </div>
     </div>
   );
 }
@@ -480,9 +513,14 @@ function LogsPanel({ logs }: { logs: string[] }) {
 
 function EmptyState({ label }: { label: string }) {
   return (
-    <div className="flex flex-col items-center justify-center py-8 text-muted-foreground text-xs">
-      <Bot className="w-6 h-6 mb-2 opacity-40" />
-      {label}
+    <div className="flex flex-col items-center justify-center py-16 text-muted-foreground text-xs">
+      <div className="w-12 h-12 rounded-full bg-secondary/30 flex items-center justify-center mb-3">
+        <Bot className="w-6 h-6 opacity-30" />
+      </div>
+      <p className="font-medium opacity-60">{label}</p>
+      <p className="text-[10px] opacity-40 mt-1 max-w-[200px] text-center">
+        This agent hasn't generated any data for this category yet.
+      </p>
     </div>
   );
 }

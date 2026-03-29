@@ -69,6 +69,17 @@ export class OpenCodeAdapter implements AgentAdapter {
     const detailData = await this.extractSessionDetail(dbSes.id, dbPath);
     const isActive = Date.now() - dbSes.time_updated < ACTIVE_THRESHOLD_MS;
 
+    // Attempt to find PID if active
+    let pid = 0;
+    if (isActive && dbSes.directory) {
+      try {
+        const { stdout } = await execPromise(`ps aux | grep "opencode" | grep "${dbSes.directory}" | grep -v grep | awk '{print $2}' | head -n 1`);
+        if (stdout.trim()) {
+          pid = parseInt(stdout.trim(), 10);
+        }
+      } catch { /* ignore */ }
+    }
+
     return {
       id: `opencode-${username}-${dbSes.id}`,
       agent: {
@@ -78,7 +89,7 @@ export class OpenCodeAdapter implements AgentAdapter {
       },
       owner: {
         user: username,
-        pid: 0,
+        pid,
       },
       environment: {
         workingDirectory: dbSes.directory,
@@ -93,11 +104,11 @@ export class OpenCodeAdapter implements AgentAdapter {
       },
       status: isActive ? 'running' : 'idle',
       currentActivity: dbSes.title || dbSes.slug || (isActive ? 'Active session' : 'Past session'),
-      resources: { cpuPercent: 0, memoryBytes: 0, memoryPercent: 0 },
+      usage: detailData.usage,
       filesModified: detailData.filesModified,
-      commandsExecuted: [],
+      commandsExecuted: detailData.commandsExecuted,
       conversation: detailData.conversation,
-      timeline: [],
+      timeline: detailData.timeline,
       logs: [],
     };
   }
@@ -107,16 +118,25 @@ export class OpenCodeAdapter implements AgentAdapter {
     dbPath: string
   ): Promise<{
     conversation: ConversationEntry[];
-    model?: string;
+    timeline: any[];
     filesModified: string[];
+    commandsExecuted: string[];
+    usage: { inputTokens: number; outputTokens: number; totalTokens: number };
+    model?: string;
   }> {
     const data: {
       conversation: ConversationEntry[];
-      model?: string;
+      timeline: any[];
       filesModified: string[];
+      commandsExecuted: string[];
+      usage: { inputTokens: number; outputTokens: number; totalTokens: number };
+      model?: string;
     } = {
       conversation: [],
+      timeline: [],
       filesModified: [],
+      commandsExecuted: [],
+      usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
     };
 
     try {
@@ -133,9 +153,13 @@ export class OpenCodeAdapter implements AgentAdapter {
       if (msgOut.trim()) {
         const rows = JSON.parse(msgOut);
         const conversation: ConversationEntry[] = [];
+        const timeline: any[] = [];
+        const filesModified = new Set<string>();
+        const commandsExecuted = new Set<string>();
 
         for (const row of rows) {
           let role: 'user' | 'assistant' | 'system' = 'system';
+          const timestamp = new Date(row.time_created).toISOString();
 
           if (row.msg_data) {
             try {
@@ -148,9 +172,7 @@ export class OpenCodeAdapter implements AgentAdapter {
                   data.model = msgData.model.modelID;
                 }
               }
-            } catch {
-              /* ignore */
-            }
+            } catch { /* ignore */ }
           }
 
           try {
@@ -159,14 +181,34 @@ export class OpenCodeAdapter implements AgentAdapter {
               conversation.push({
                 role,
                 content: partData.text,
-                timestamp: new Date(row.time_created).toISOString(),
+                timestamp,
               });
+            } else if (partData.type === 'step-finish' && partData.tokens) {
+              data.usage.inputTokens += partData.tokens.input || 0;
+              data.usage.outputTokens += partData.tokens.output || 0;
+            } else if (partData.type === 'tool') {
+              const toolName = partData.tool_name || partData.name;
+              const toolInput = partData.input || {};
+              
+              timeline.push({
+                timestamp,
+                action: `Tool Call: ${toolName}`,
+                detail: JSON.stringify(toolInput),
+              });
+
+              if (toolName === 'write_file' || toolName === 'edit_file') {
+                if (toolInput.path) filesModified.add(toolInput.path);
+              } else if (toolName === 'terminal' || toolName === 'shell') {
+                if (toolInput.command) commandsExecuted.add(toolInput.command);
+              }
             }
-          } catch {
-            /* ignore */
-          }
+          } catch { /* ignore */ }
         }
         data.conversation = conversation;
+        data.timeline = timeline;
+        data.filesModified = Array.from(filesModified);
+        data.commandsExecuted = Array.from(commandsExecuted);
+        data.usage.totalTokens = data.usage.inputTokens + data.usage.outputTokens;
       }
     } catch (err) {
       log.debug('Failed to extract OpenCode session detail', err);

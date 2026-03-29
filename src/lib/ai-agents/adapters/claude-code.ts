@@ -63,6 +63,17 @@ export class ClaudeCodeAdapter implements AgentAdapter {
       ? Date.now() - historyData.fileModifiedAt < ACTIVE_THRESHOLD_MS
       : false;
 
+    // Attempt to find PID if active
+    let pid = 0;
+    if (isActive && cwd) {
+      try {
+        const { stdout } = await execPromise(`ps aux | grep "claude" | grep "${cwd}" | grep -v grep | awk '{print $2}' | head -n 1`);
+        if (stdout.trim()) {
+          pid = parseInt(stdout.trim(), 10);
+        }
+      } catch { /* ignore */ }
+    }
+
     return {
       id: `claude-code-${username}-${projectFolderName}`,
       agent: {
@@ -72,7 +83,7 @@ export class ClaudeCodeAdapter implements AgentAdapter {
       },
       owner: {
         user: username,
-        pid: 0,
+        pid,
       },
       environment: {
         workingDirectory: cwd || projectFolderName,
@@ -89,11 +100,11 @@ export class ClaudeCodeAdapter implements AgentAdapter {
       currentActivity: isActive
         ? historyData.summary || 'Active conversation'
         : `Past: ${cwd || projectFolderName}`,
-      resources: { cpuPercent: 0, memoryBytes: 0, memoryPercent: 0 },
-      filesModified: [],
-      commandsExecuted: [],
+      usage: historyData.usage,
+      filesModified: historyData.filesModified,
+      commandsExecuted: historyData.commandsExecuted,
       conversation: historyData.conversation,
-      timeline: [],
+      timeline: historyData.timeline,
       logs: [],
     };
   }
@@ -116,6 +127,10 @@ export class ClaudeCodeAdapter implements AgentAdapter {
     projectsDir: string
   ): Promise<{
     conversation: ConversationEntry[];
+    timeline: any[];
+    filesModified: string[];
+    commandsExecuted: string[];
+    usage: { inputTokens: number; outputTokens: number; totalTokens: number };
     summary?: string;
     model?: string;
     startTime?: string;
@@ -125,6 +140,10 @@ export class ClaudeCodeAdapter implements AgentAdapter {
   }> {
     const data: {
       conversation: ConversationEntry[];
+      timeline: any[];
+      filesModified: string[];
+      commandsExecuted: string[];
+      usage: { inputTokens: number; outputTokens: number; totalTokens: number };
       summary?: string;
       model?: string;
       startTime?: string;
@@ -133,6 +152,10 @@ export class ClaudeCodeAdapter implements AgentAdapter {
       fileModifiedAt?: number;
     } = {
       conversation: [],
+      timeline: [],
+      filesModified: [],
+      commandsExecuted: [],
+      usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
     };
 
     try {
@@ -154,11 +177,16 @@ export class ClaudeCodeAdapter implements AgentAdapter {
       const latestFile = path.join(projectPath, files[0].name);
       const content = fs.readFileSync(latestFile, 'utf8');
       const conversation: ConversationEntry[] = [];
+      const timeline: any[] = [];
+      const filesModified = new Set<string>();
+      const commandsExecuted = new Set<string>();
 
       for (const line of content.trim().split('\n')) {
         if (!line.trim()) continue;
         try {
           const item = JSON.parse(line);
+          const timestamp = item.timestamp || new Date().toISOString();
+
           if (item.type === 'user' || item.type === 'assistant') {
             const msg = item.message;
             let text = '';
@@ -166,22 +194,46 @@ export class ClaudeCodeAdapter implements AgentAdapter {
             if (typeof msg.content === 'string') {
               text = msg.content;
             } else if (Array.isArray(msg.content)) {
-              text = (msg.content as Array<{ type: string; text?: string }>)
-                .map((c) => (c.type === 'text' ? c.text || '' : ''))
-                .join('\n')
-                .trim();
+              for (const part of msg.content) {
+                if (part.type === 'text') {
+                  text += (part.text || '') + '\n';
+                } else if (part.type === 'tool_use') {
+                  const toolName = part.name;
+                  const toolInput = part.input || {};
+                  
+                  timeline.push({
+                    timestamp,
+                    action: `Tool Call: ${toolName}`,
+                    detail: JSON.stringify(toolInput),
+                  });
+
+                  if (toolName === 'write_to_file' || toolName === 'replace_file_content') {
+                    if (toolInput.path) filesModified.add(toolInput.path);
+                    else if (toolInput.TargetFile) filesModified.add(toolInput.TargetFile);
+                  } else if (toolName === 'run_command') {
+                    if (toolInput.command) commandsExecuted.add(toolInput.command);
+                    else if (toolInput.CommandLine) commandsExecuted.add(toolInput.CommandLine);
+                  }
+                }
+              }
+              text = text.trim();
             }
 
             if (text) {
               conversation.push({
                 role: item.type === 'user' ? 'user' : 'assistant',
                 content: text,
-                timestamp: item.timestamp || new Date().toISOString(),
+                timestamp,
               });
             }
 
             if (item.type === 'assistant' && msg.model && !data.model) {
               data.model = msg.model;
+            }
+
+            if (item.type === 'assistant' && msg.usage) {
+              data.usage.inputTokens += msg.usage.input_tokens || 0;
+              data.usage.outputTokens += msg.usage.output_tokens || 0;
             }
           }
         } catch {
@@ -190,6 +242,11 @@ export class ClaudeCodeAdapter implements AgentAdapter {
       }
 
       data.conversation = conversation;
+      data.timeline = timeline;
+      data.filesModified = Array.from(filesModified);
+      data.commandsExecuted = Array.from(commandsExecuted);
+      data.usage.totalTokens = data.usage.inputTokens + data.usage.outputTokens;
+
       if (conversation.length > 0) {
         data.startTime = conversation[0].timestamp;
         data.lastActivity = conversation[conversation.length - 1].timestamp;

@@ -67,6 +67,18 @@ export class CodexAdapter implements AgentAdapter {
     const fileMtime = fs.statSync(rolloutPath).mtime.getTime();
     const isActive = Date.now() - fileMtime < ACTIVE_THRESHOLD_MS;
 
+    // Attempt to find PID if active
+    let pid = 0;
+    if (isActive && (cwd || path.basename(rolloutPath))) {
+      try {
+        const searchPattern = cwd ? cwd : path.basename(rolloutPath);
+        const { stdout } = await execPromise(`ps aux | grep "codex" | grep "${searchPattern}" | grep -v grep | awk '{print $2}' | head -n 1`);
+        if (stdout.trim()) {
+          pid = parseInt(stdout.trim(), 10);
+        }
+      } catch { /* ignore */ }
+    }
+
     return {
       id: `codex-${username}-${path.basename(rolloutPath)}`,
       agent: {
@@ -76,7 +88,7 @@ export class CodexAdapter implements AgentAdapter {
       },
       owner: {
         user: username,
-        pid: 0,
+        pid,
       },
       environment: {
         workingDirectory: cwd || 'unknown',
@@ -93,11 +105,11 @@ export class CodexAdapter implements AgentAdapter {
       currentActivity: isActive
         ? historyData.summary || 'Active session'
         : historyData.summary || `Past: ${cwd || path.basename(rolloutPath)}`,
-      resources: { cpuPercent: 0, memoryBytes: 0, memoryPercent: 0 },
-      filesModified: [],
-      commandsExecuted: [],
+      usage: historyData.usage,
+      filesModified: historyData.filesModified,
+      commandsExecuted: historyData.commandsExecuted,
       conversation: historyData.conversation,
-      timeline: [],
+      timeline: historyData.timeline,
       logs: [],
     };
   }
@@ -107,6 +119,10 @@ export class CodexAdapter implements AgentAdapter {
     codexDir: string
   ): Promise<{
     conversation: ConversationEntry[];
+    timeline: any[];
+    filesModified: string[];
+    commandsExecuted: string[];
+    usage: { inputTokens: number; outputTokens: number; totalTokens: number };
     summary?: string;
     model?: string;
     cwd?: string;
@@ -116,6 +132,10 @@ export class CodexAdapter implements AgentAdapter {
   }> {
     const data: {
       conversation: ConversationEntry[];
+      timeline: any[];
+      filesModified: string[];
+      commandsExecuted: string[];
+      usage: { inputTokens: number; outputTokens: number; totalTokens: number };
       summary?: string;
       model?: string;
       cwd?: string;
@@ -124,6 +144,10 @@ export class CodexAdapter implements AgentAdapter {
       durationSeconds?: number;
     } = {
       conversation: [],
+      timeline: [],
+      filesModified: [],
+      commandsExecuted: [],
+      usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
     };
 
     try {
@@ -152,24 +176,45 @@ export class CodexAdapter implements AgentAdapter {
 
       const content = fs.readFileSync(rolloutPath, 'utf8');
       const conversation: ConversationEntry[] = [];
+      const timeline: any[] = [];
+      const filesModified = new Set<string>();
+      const commandsExecuted = new Set<string>();
 
       for (const line of content.trim().split('\n')) {
         if (!line.trim()) continue;
         try {
           const evt = JSON.parse(line);
+          const timestamp = evt.timestamp || new Date().toISOString();
+
           if (evt.type === 'session_meta') {
             if (evt.payload.cwd) data.cwd = evt.payload.cwd;
             if (evt.payload.model_provider) data.model = evt.payload.model_provider.toUpperCase();
           } else if (evt.type === 'response_item' && evt.payload.type === 'message') {
             const payload = evt.payload;
-            if (payload.role === 'developer') continue; // Skip system-like prompt messages
+            if (payload.role === 'developer') continue;
 
             let text = '';
             if (Array.isArray(payload.content)) {
-              text = (payload.content as Array<{ text?: string }>)
-                .map((c) => c.text || '')
-                .join('\n')
-                .trim();
+              for (const part of payload.content) {
+                if (part.text) {
+                  text += part.text + '\n';
+                }
+                if (part.type === 'tool_use' || part.tool_call) {
+                  const tool = part.tool_call || part;
+                  timeline.push({
+                    timestamp,
+                    action: `Action: ${tool.name || 'tool'}`,
+                    detail: JSON.stringify(tool.input || {}),
+                  });
+                  // Extract files/commands if possible
+                  if (tool.name === 'write' || tool.name === 'edit') {
+                    if (tool.input?.path) filesModified.add(tool.input.path);
+                  } else if (tool.name === 'shell' || tool.name === 'run') {
+                    if (tool.input?.command) commandsExecuted.add(tool.input.command);
+                  }
+                }
+              }
+              text = text.trim();
             } else if (typeof payload.content === 'string') {
               text = payload.content;
             }
@@ -178,8 +223,13 @@ export class CodexAdapter implements AgentAdapter {
               conversation.push({
                 role: payload.role === 'user' ? 'user' : 'assistant',
                 content: text,
-                timestamp: evt.timestamp || new Date().toISOString(),
+                timestamp,
               });
+            }
+
+            if (evt.usage) {
+              data.usage.inputTokens += evt.usage.prompt_tokens || 0;
+              data.usage.outputTokens += evt.usage.completion_tokens || 0;
             }
           }
         } catch {
@@ -188,6 +238,11 @@ export class CodexAdapter implements AgentAdapter {
       }
 
       data.conversation = conversation;
+      data.timeline = timeline;
+      data.filesModified = Array.from(filesModified);
+      data.commandsExecuted = Array.from(commandsExecuted);
+      data.usage.totalTokens = data.usage.inputTokens + data.usage.outputTokens;
+
       if (conversation.length > 0) {
         data.startTime = conversation[0].timestamp;
         data.lastActivity = conversation[conversation.length - 1].timestamp;
