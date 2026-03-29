@@ -13,7 +13,6 @@ interface Props {
 }
 
 export default function GitHistoryModal({ root, onClose }: Props) {
-  console.log('GitHistoryModal mounted with root:', root);
   const [commits, setCommits] = useState<GitCommitInfo[]>([]);
   const [selectedHash, setSelectedHash] = useState<string | null>(null);
   const [diff, setDiff] = useState<string | null>(null);
