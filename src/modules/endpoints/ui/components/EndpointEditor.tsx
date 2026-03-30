@@ -1,6 +1,6 @@
 'use client';
 
-import { LoaderCircle, X, Plus, Terminal, Link, Braces, Sparkles } from 'lucide-react';
+import { LoaderCircle, X, Plus, Terminal, Link, Braces, Sparkles, Globe } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import { cn } from '@/lib/utils';
 import { LANGUAGES, METHODS } from './common/constants';
@@ -29,22 +29,23 @@ export function EndpointEditor({ form, onUpdateForm, onRun, onSave }: EndpointEd
       {form.endpointType === 'script' && (
         <div className="space-y-6">
           <div className="flex items-center justify-between bg-muted/20 p-2 rounded-2xl border border-border/40 backdrop-blur-md">
-            <div className="flex items-center gap-2">
-              {LANGUAGES.map((lang) => (
-                <button
-                  key={lang}
-                  onClick={() => onUpdateForm('scriptLang', lang as ScriptLanguage)}
-                  className={cn(
-                    'px-4 py-2 rounded-xl text-xs font-bold capitalize transition-all duration-300',
-                    form.scriptLang === lang
-                      ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/20 scale-[1.05]'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-white/5'
-                  )}
-                >
-                  {lang}
-                </button>
-              ))}
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-1.5 p-1 bg-background/40 rounded-xl border border-border/20">
+                {LANGUAGES.map((lang) => (
+                  <button
+                    key={lang}
+                    onClick={() => onUpdateForm('scriptLang', lang as ScriptLanguage)}
+                    className={cn(
+                      'px-4 py-1.5 rounded-lg text-[10px] font-bold capitalize transition-all duration-300',
+                      form.scriptLang === lang
+                        ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/20 scale-[1.02]'
+                        : 'text-muted-foreground hover:text-foreground hover:bg-white/5'
+                    )}
+                  >
+                    {lang}
+                  </button>
+                ))}
+              </div>
                {!form.scriptContent && (
                   <button
                     onClick={() => {
@@ -53,15 +54,15 @@ export function EndpointEditor({ form, onUpdateForm, onRun, onSave }: EndpointEd
                       const bp = SCRIPT_BOILERPLATES[lang][method] || SCRIPT_BOILERPLATES[lang]['GET'];
                       onUpdateForm('scriptContent', bp.content);
                     }}
-                    className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-primary/5 border border-primary/20 text-[10px] font-black text-primary uppercase tracking-tighter hover:bg-primary/10 transition-all active:scale-95"
+                    className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-primary/10 border border-primary/20 text-[9px] font-black text-primary uppercase tracking-widest hover:bg-primary/20 transition-all active:scale-95 animate-in slide-in-from-left-2"
                   >
-                    <Sparkles className="w-3 h-3" />
+                    <Sparkles className="w-3 h-3 animate-pulse" />
                     Load {form.scriptLang} Boilerplate
                   </button>
                )}
-              <div className="px-4 py-1 rounded-xl bg-white/5 border border-white/5 text-[10px] font-mono text-muted-foreground/60 uppercase tracking-widest hidden sm:block">
-                {form.scriptLang} interpreter
-              </div>
+            </div>
+            <div className="px-4 py-1.5 rounded-xl bg-white/5 border border-white/10 text-[9px] font-mono text-muted-foreground/40 uppercase tracking-[0.2em] hidden sm:block">
+              {form.scriptLang}/interpreter
             </div>
           </div>
 
@@ -75,8 +76,6 @@ export function EndpointEditor({ form, onUpdateForm, onRun, onSave }: EndpointEd
                 onRun={onRun}
                 onSave={onSave}
               />
-            </div>
-            
             </div>
           </div>
 
