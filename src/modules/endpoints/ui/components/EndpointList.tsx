@@ -1,6 +1,6 @@
 'use client';
 
-import { Search, RefreshCcw, Sparkles, Plus, Terminal, Braces, Globe } from 'lucide-react';
+import { Search, RefreshCcw, Sparkles, Plus, Terminal, Braces, Globe, Lock, LockOpen } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn, relativeTime } from '@/lib/utils';
 import { MethodBadge } from './common/MethodBadge';
@@ -239,6 +239,19 @@ export function EndpointList({
                 <span className="text-sm font-bold text-foreground truncate flex-1 group-hover:text-primary transition-colors">
                   {ep.name}
                 </span>
+                {ep.auth === 'token' ? (
+                  <span title="Protected: Requires Bearer Token">
+                    <Lock 
+                      className="w-3.5 h-3.5 text-success/80 shrink-0 drop-shadow-[0_0_8px_rgba(var(--success-rgb),0.4)]" 
+                    />
+                  </span>
+                ) : (
+                  <span title="Public: Accessible without authentication">
+                    <LockOpen 
+                      className="w-3.5 h-3.5 text-destructive/70 shrink-0 drop-shadow-[0_0_8px_rgba(var(--destructive-rgb),0.3)]" 
+                    />
+                  </span>
+                )}
                 <span
                   role="button"
                   tabIndex={0}
