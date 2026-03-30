@@ -109,11 +109,14 @@ export interface EndpointTestResult {
   error?: string;
 }
 
+export type TemplateCategory = 'monitoring' | 'security' | 'devops' | 'integrations' | 'data' | 'networking';
+
 export interface EndpointTemplate {
   id: string;
   name: string;
   description: string;
   icon: string;
+  category: TemplateCategory;
   method: HttpMethod;
   endpointType: EndpointType;
   scriptLang?: ScriptLanguage;
