@@ -74,9 +74,9 @@ export function EndpointDetail({
       icon: TYPE_ICONS[form.endpointType || 'script'],
     },
     { id: 'auth' as const, label: 'Auth & Tokens', shortLabel: 'Auth', icon: Key },
-    { id: 'logs' as const, label: 'Logs', shortLabel: 'Logs', icon: FileText },
+    !isCreating && { id: 'logs' as const, label: 'Logs', shortLabel: 'Logs', icon: FileText },
     { id: 'settings' as const, label: 'Settings', shortLabel: 'Settings', icon: Settings },
-  ];
+  ].filter(Boolean) as { id: DetailTab; label: string; shortLabel: string; icon: any }[];
 
   return (
     <div
