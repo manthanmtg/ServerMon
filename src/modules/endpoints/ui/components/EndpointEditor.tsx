@@ -46,20 +46,21 @@ export function EndpointEditor({ form, onUpdateForm, onRun, onSave }: EndpointEd
                   </button>
                 ))}
               </div>
-               {!form.scriptContent && (
-                  <button
-                    onClick={() => {
-                      const lang = form.scriptLang || 'python';
-                      const method = (form.method as string) === 'POST' ? 'POST' : 'GET';
-                      const bp = SCRIPT_BOILERPLATES[lang][method] || SCRIPT_BOILERPLATES[lang]['GET'];
-                      onUpdateForm('scriptContent', bp.content);
-                    }}
-                    className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-primary/10 border border-primary/20 text-[9px] font-black text-primary uppercase tracking-widest hover:bg-primary/20 transition-all active:scale-95 animate-in slide-in-from-left-2"
-                  >
-                    <Sparkles className="w-3 h-3 animate-pulse" />
-                    Load {form.scriptLang} Boilerplate
-                  </button>
-               )}
+                <button
+                  onClick={() => {
+                    if (form.scriptContent && !window.confirm('Warning: This will replace all existing code. Proceed?')) {
+                      return;
+                    }
+                    const lang = form.scriptLang || 'python';
+                    const method = (form.method as string) === 'POST' ? 'POST' : 'GET';
+                    const bp = SCRIPT_BOILERPLATES[lang][method] || SCRIPT_BOILERPLATES[lang]['GET'];
+                    onUpdateForm('scriptContent', bp.content);
+                  }}
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-primary/10 border border-primary/20 text-[9px] font-black text-primary uppercase tracking-widest hover:bg-primary/20 transition-all active:scale-95 animate-in slide-in-from-left-2"
+                >
+                  <Sparkles className="w-3 h-3 animate-pulse" />
+                  Load {form.scriptLang} Boilerplate
+                </button>
             </div>
             <div className="px-4 py-1.5 rounded-xl bg-white/5 border border-white/10 text-[9px] font-mono text-muted-foreground/40 uppercase tracking-[0.2em] hidden sm:block">
               {form.scriptLang}/interpreter
@@ -72,7 +73,7 @@ export function EndpointEditor({ form, onUpdateForm, onRun, onSave }: EndpointEd
                <ScriptEditor
                 value={form.scriptContent || ''}
                 onChange={(val) => onUpdateForm('scriptContent', val)}
-                language={form.scriptLang || 'bash'}
+                language={form.scriptLang || 'python'}
                 onRun={onRun}
                 onSave={onSave}
               />
