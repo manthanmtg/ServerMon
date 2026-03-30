@@ -1,6 +1,6 @@
 'use client';
 
-import { Search, RefreshCcw, Sparkles, Plus } from 'lucide-react';
+import { Search, RefreshCcw, Sparkles, Plus, Terminal, Braces, Globe } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn, relativeTime } from '@/lib/utils';
 import { MethodBadge } from './common/MethodBadge';
@@ -264,7 +264,27 @@ export function EndpointList({
               </div>
               <div className="flex items-center gap-3 text-[11px] text-muted-foreground/70">
                 <code className="truncate flex-1 font-mono bg-muted/30 px-1.5 py-0.5 rounded leading-none">/api/endpoints/{ep.slug}</code>
-                <span className="shrink-0 font-medium">{ep.executionCount.toLocaleString()} hits</span>
+                <div className="flex items-center gap-2 shrink-0">
+                  <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-lg bg-background/50 border border-border/40 font-bold uppercase tracking-tighter text-[9px] text-muted-foreground/80">
+                    {ep.endpointType === 'script' ? (
+                      <div className="flex items-center gap-1">
+                        <Terminal className="w-2.5 h-2.5 text-primary/60" />
+                        <span>{ep.scriptLang}</span>
+                      </div>
+                    ) : ep.endpointType === 'logic' ? (
+                      <div className="flex items-center gap-1">
+                        <Braces className="w-2.5 h-2.5 text-success/60" />
+                        <span>Logic</span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1">
+                        <Globe className="w-2.5 h-2.5 text-warning/60" />
+                        <span>Webhook</span>
+                      </div>
+                    )}
+                  </div>
+                  <span className="font-medium">{ep.executionCount.toLocaleString()} hits</span>
+                </div>
               </div>
               {ep.lastExecutedAt && (
                 <div className="text-[10px] text-muted-foreground/50 mt-2 flex items-center justify-between border-t border-border/20 pt-2">

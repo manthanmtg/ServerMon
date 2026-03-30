@@ -44,9 +44,24 @@ export function EndpointEditor({ form, onUpdateForm, onRun, onSave }: EndpointEd
                   {lang}
                 </button>
               ))}
-            </div>
-            <div className="px-4 py-1 rounded-xl bg-white/5 border border-white/5 text-[10px] font-mono text-muted-foreground/60 uppercase tracking-widest hidden sm:block">
-              {form.scriptLang} interpreter
+            <div className="flex items-center gap-3">
+               {!form.scriptContent && (
+                  <button
+                    onClick={() => {
+                      const lang = form.scriptLang || 'python';
+                      const method = (form.method as string) === 'POST' ? 'POST' : 'GET';
+                      const bp = SCRIPT_BOILERPLATES[lang][method] || SCRIPT_BOILERPLATES[lang]['GET'];
+                      onUpdateForm('scriptContent', bp.content);
+                    }}
+                    className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-primary/5 border border-primary/20 text-[10px] font-black text-primary uppercase tracking-tighter hover:bg-primary/10 transition-all active:scale-95"
+                  >
+                    <Sparkles className="w-3 h-3" />
+                    Load {form.scriptLang} Boilerplate
+                  </button>
+               )}
+              <div className="px-4 py-1 rounded-xl bg-white/5 border border-white/5 text-[10px] font-mono text-muted-foreground/60 uppercase tracking-widest hidden sm:block">
+                {form.scriptLang} interpreter
+              </div>
             </div>
           </div>
 
@@ -62,28 +77,7 @@ export function EndpointEditor({ form, onUpdateForm, onRun, onSave }: EndpointEd
               />
             </div>
             
-            {/* Load Boilerplate Overlay */}
-            {!form.scriptContent && (
-               <div className="absolute inset-0 z-20 flex items-center justify-center p-6 bg-background/20 backdrop-blur-[2px] rounded-[2rem] animate-in fade-in duration-700 pointer-events-none">
-                  <button
-                    onClick={() => {
-                      const lang = form.scriptLang || 'python';
-                      const method = (form.method as string) === 'POST' ? 'POST' : 'GET';
-                      const bp = SCRIPT_BOILERPLATES[lang][method] || SCRIPT_BOILERPLATES[lang]['GET'];
-                      onUpdateForm('scriptContent', bp.content);
-                    }}
-                    className="group/bp flex items-center gap-4 px-8 py-5 rounded-[2rem] bg-card/80 border border-primary/30 shadow-2xl hover:bg-primary hover:border-primary transition-all duration-500 scale-100 hover:scale-105 active:scale-95 pointer-events-auto ring-1 ring-primary/20 hover:ring-primary/40"
-                  >
-                    <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center group-hover/bp:bg-white/20 transition-colors">
-                       <Sparkles className="w-6 h-6 text-primary group-hover/bp:text-white transition-colors animate-pulse" />
-                    </div>
-                    <div className="text-left">
-                      <div className="text-sm font-black uppercase tracking-widest text-foreground group-hover/bp:text-white">Load Standard {form.scriptLang} Boilerplate</div>
-                      <div className="text-[10px] text-muted-foreground font-medium group-hover/bp:text-white/70">Context-aware starter code for {form.method} requests</div>
-                    </div>
-                  </button>
-               </div>
-            )}
+            </div>
           </div>
 
           {/* Env Vars */}
