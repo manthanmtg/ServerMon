@@ -105,6 +105,8 @@ const CustomEndpointSchema: Schema = new Schema(
   }
 );
 
+CustomEndpointSchema.index({ 'tokens.hashedToken': 1 });
+
 const CustomEndpoint: Model<ICustomEndpoint> =
   mongoose.models.CustomEndpoint ||
   mongoose.model<ICustomEndpoint>('CustomEndpoint', CustomEndpointSchema);

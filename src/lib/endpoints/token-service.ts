@@ -48,7 +48,9 @@ export async function verifyToken(endpointId: string, rawToken: string): Promise
   const endpoint = await CustomEndpoint.findOne({
     _id: endpointId,
     'tokens.hashedToken': hashedToken,
-  });
+  })
+    .select('tokens')
+    .lean();
 
   if (!endpoint) return false;
 
@@ -75,7 +77,9 @@ export async function verifyTokenBySlug(slug: string, rawToken: string): Promise
   const endpoint = await CustomEndpoint.findOne({
     slug,
     'tokens.hashedToken': hashedToken,
-  });
+  })
+    .select('tokens')
+    .lean();
 
   if (!endpoint) return false;
 

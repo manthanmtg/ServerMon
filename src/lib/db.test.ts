@@ -53,7 +53,14 @@ describe('connectDB', () => {
     vi.mocked(mongoose.connect).mockResolvedValue(mockMongoose as unknown as typeof mongoose);
 
     const result = await connectDB();
-    expect(mongoose.connect).toHaveBeenCalledWith(MONGO_URI, { bufferCommands: false });
+    expect(mongoose.connect).toHaveBeenCalledWith(MONGO_URI, {
+      bufferCommands: false,
+      maxPoolSize: 10,
+      minPoolSize: 5,
+      connectTimeoutMS: 10000,
+      socketTimeoutMS: 45000,
+      serverSelectionTimeoutMS: 5000,
+    });
     expect(result).toBe(mockMongoose);
   });
 

@@ -45,6 +45,7 @@ const EndpointExecutionLogSchema: Schema = new Schema(
 
 EndpointExecutionLogSchema.index({ createdAt: 1 }, { expireAfterSeconds: 30 * 24 * 60 * 60 });
 EndpointExecutionLogSchema.index({ endpointId: 1, createdAt: -1 });
+EndpointExecutionLogSchema.index({ endpointId: 1, statusCode: 1 });
 
 const EndpointExecutionLog: Model<IEndpointExecutionLog> =
   mongoose.models.EndpointExecutionLog ||

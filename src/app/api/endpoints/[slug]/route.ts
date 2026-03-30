@@ -15,7 +15,10 @@ async function handleRequest(req: NextRequest, { params }: { params: Promise<{ s
     await connectDB();
     const { slug } = await params;
 
-    const endpoint = await CustomEndpoint.findOne({ slug });
+    const endpoint = await CustomEndpoint.findOne({ slug })
+      .select('enabled method auth endpointType scriptLang scriptContent logicConfig webhookConfig responseHeaders timeout')
+      .lean();
+
     if (!endpoint) {
       return NextResponse.json({ error: 'Endpoint not found' }, { status: 404 });
     }
