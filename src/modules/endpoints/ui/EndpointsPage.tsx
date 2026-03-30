@@ -101,6 +101,14 @@ export default function EndpointsPage() {
   const [showCopyRequestMenu, setShowCopyRequestMenu] = useState(false);
   const copyRequestMenuRef = useRef<HTMLDivElement>(null);
 
+  const handleCopySnippet = useCallback(
+    (code: string) => {
+      navigator.clipboard.writeText(code);
+      toast({ title: 'Copied to clipboard', variant: 'success' });
+    },
+    [toast]
+  );
+
   // Resizable list panel (left side)
   const [listWidth, setListWidth] = useState(360);
   const [isResizing, setIsResizing] = useState(false);
@@ -299,40 +307,65 @@ export default function EndpointsPage() {
     setInitialForm(null);
   }, []);
 
-  const generateCopySnippet = useCallback(
-    (format: 'url' | 'curl' | 'powershell' | 'fetch' | 'node' | 'python') => {
+  const generateCopySnippetForEndpoint = useCallback(
+    (ep: CustomEndpointDTO, format: 'url' | 'curl' | 'powershell' | 'fetch' | 'node' | 'python') => {
       const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
-      const url = `${baseUrl}/api/endpoints/${form.slug}`;
+      const url = `${baseUrl}/api/endpoints/${ep.slug}`;
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-      if (form.auth === 'token') {
+      if (ep.auth === 'token') {
         headers['Authorization'] = 'Bearer YOUR_TOKEN';
       }
 
-      const safeBody = testBody || '{}';
+      // For the list, we don't have the test body, so we use a placeholder or empty
+      const safeBody = '{}';
 
       switch (format) {
         case 'url':
           return url;
         case 'curl':
-          return `curl -X ${form.method} "${url}" \\\n  ${Object.entries(headers)
+          return `curl -X ${ep.method} "${url}" \\\n  ${Object.entries(headers)
             .map(([k, v]) => `-H "${k}: ${v}"`)
             .join(' \\\n  ')} \\\n  -d '${safeBody}'`;
         case 'powershell':
           const psHeaders = Object.entries(headers)
             .map(([k, v]) => `"${k}"="${v}"`)
             .join('; ');
-          return `Invoke-RestMethod -Uri "${url}" -Method ${form.method} -Headers @{${psHeaders}} -Body '${safeBody}'`;
+          return `Invoke-RestMethod -Uri "${url}" -Method ${ep.method} -Headers @{${psHeaders}} -Body '${safeBody}'`;
         case 'fetch':
-          return `fetch("${url}", {\n  method: "${form.method}",\n  headers: ${JSON.stringify(headers, null, 2)},\n  body: ${testBody ? `JSON.stringify(${testBody})` : 'null'}\n});`;
+          return `fetch("${url}", {\n  method: "${ep.method}",\n  headers: ${JSON.stringify(headers, null, 2)},\n  body: null\n});`;
         case 'node':
-          return `const response = await fetch("${url}", {\n  method: "${form.method}",\n  headers: ${JSON.stringify(headers, null, 2)},\n  body: ${testBody ? `JSON.stringify(${testBody})` : 'null'}\n});\nconst data = await response.json();`;
+          return `const response = await fetch("${url}", {\n  method: "${ep.method}",\n  headers: ${JSON.stringify(headers, null, 2)},\n  body: null\n});\nconst data = await response.json();`;
         case 'python':
-          return `import requests\n\nurl = "${url}"\nheaders = ${JSON.stringify(headers, null, 2)}\nresponse = requests.${form.method.toLowerCase()}(url, headers=headers, json=${testBody || '{}'})\nprint(response.json())`;
+          return `import requests\n\nurl = "${url}"\nheaders = ${JSON.stringify(headers, null, 2)}\nresponse = requests.${ep.method.toLowerCase()}(url, headers=headers, json={})\nprint(response.json())`;
         default:
           return '';
       }
     },
-    [form, testBody]
+    []
+  );
+
+  const generateCopySnippet = useCallback(
+    (format: 'url' | 'curl' | 'powershell' | 'fetch' | 'node' | 'python') => {
+      // Create a temporary DTO from form for compatibility
+      const ep = { 
+        slug: form.slug, 
+        method: form.method, 
+        auth: form.auth 
+      } as CustomEndpointDTO;
+      
+      const snippet = generateCopySnippetForEndpoint(ep, format);
+      
+      // Inject test body if it's not the generic version
+      if (testBody && testBody !== '{}') {
+        if (format === 'curl') return snippet.replace("-d '{}'", `-d '${testBody}'`);
+        if (format === 'powershell') return snippet.replace("-Body '{}'", `-Body '${testBody}'`);
+        if (format === 'fetch' || format === 'node') return snippet.replace('body: null', `body: JSON.stringify(${testBody})`);
+        if (format === 'python') return snippet.replace('json={}', `json=${testBody}`);
+      }
+      
+      return snippet;
+    },
+    [form, testBody, generateCopySnippetForEndpoint]
   );
 
   const handleSave = useCallback(async () => {
@@ -603,6 +636,8 @@ export default function EndpointsPage() {
             setShowTemplates(true);
           }}
           onToggle={handleToggle}
+          onCopySnippet={handleCopySnippet}
+          generateCopySnippet={generateCopySnippetForEndpoint}
           isResizing={isResizing}
         />
       </div>
@@ -672,10 +707,7 @@ export default function EndpointsPage() {
               onSetNewTokenName={setNewTokenName}
               exampleTab={exampleTab}
               onSetExampleTab={setExampleTab}
-              onCopySnippet={(code) => {
-                navigator.clipboard.writeText(code);
-                toast({ title: 'Copied to clipboard', variant: 'success' });
-              }}
+              onCopySnippet={handleCopySnippet}
             />
           )}
 
