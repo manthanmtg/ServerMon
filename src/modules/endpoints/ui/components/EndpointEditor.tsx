@@ -1,9 +1,10 @@
 'use client';
 
-import { LoaderCircle, X, Plus, Terminal, Link, Braces } from 'lucide-react';
+import { LoaderCircle, X, Plus, Terminal, Link, Braces, Sparkles } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import { cn } from '@/lib/utils';
 import { LANGUAGES, METHODS } from './common/constants';
+import { SCRIPT_BOILERPLATES, WEBHOOK_BOILERPLATES, LOGIC_BOILERPLATES } from './common/boilerplates';
 import type { EndpointCreateRequest, HttpMethod, ScriptLanguage } from '../../types';
 
 const ScriptEditor = dynamic(() => import('./ScriptEditor'), {
@@ -60,6 +61,29 @@ export function EndpointEditor({ form, onUpdateForm, onRun, onSave }: EndpointEd
                 onSave={onSave}
               />
             </div>
+            
+            {/* Load Boilerplate Overlay */}
+            {!form.scriptContent && (
+               <div className="absolute inset-0 z-20 flex items-center justify-center p-6 bg-background/20 backdrop-blur-[2px] rounded-[2rem] animate-in fade-in duration-700 pointer-events-none">
+                  <button
+                    onClick={() => {
+                      const lang = form.scriptLang || 'python';
+                      const method = (form.method as string) === 'POST' ? 'POST' : 'GET';
+                      const bp = SCRIPT_BOILERPLATES[lang][method] || SCRIPT_BOILERPLATES[lang]['GET'];
+                      onUpdateForm('scriptContent', bp.content);
+                    }}
+                    className="group/bp flex items-center gap-4 px-8 py-5 rounded-[2rem] bg-card/80 border border-primary/30 shadow-2xl hover:bg-primary hover:border-primary transition-all duration-500 scale-100 hover:scale-105 active:scale-95 pointer-events-auto ring-1 ring-primary/20 hover:ring-primary/40"
+                  >
+                    <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center group-hover/bp:bg-white/20 transition-colors">
+                       <Sparkles className="w-6 h-6 text-primary group-hover/bp:text-white transition-colors animate-pulse" />
+                    </div>
+                    <div className="text-left">
+                      <div className="text-sm font-black uppercase tracking-widest text-foreground group-hover/bp:text-white">Load Standard {form.scriptLang} Boilerplate</div>
+                      <div className="text-[10px] text-muted-foreground font-medium group-hover/bp:text-white/70">Context-aware starter code for {form.method} requests</div>
+                    </div>
+                  </button>
+               </div>
+            )}
           </div>
 
           {/* Env Vars */}
@@ -136,11 +160,22 @@ export function EndpointEditor({ form, onUpdateForm, onRun, onSave }: EndpointEd
       {form.endpointType === 'webhook' && (
         <div className="space-y-6">
           <div className="space-y-3">
-             <div className="flex items-center gap-2 ml-1">
-              <Link className="w-4 h-4 text-primary" />
-              <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-[0.2em]">
-                Target Upstream URL
-              </label>
+             <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2 ml-1">
+                <Link className="w-4 h-4 text-primary" />
+                <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-[0.2em]">
+                  Target Upstream URL
+                </label>
+              </div>
+              {!form.webhookConfig?.transformBody && (
+                <button
+                    onClick={() => onUpdateForm('webhookConfig', { ...form.webhookConfig, targetUrl: form.webhookConfig?.targetUrl || '', transformBody: WEBHOOK_BOILERPLATES.transform })}
+                    className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-primary/5 border border-primary/20 text-[10px] font-black text-primary uppercase tracking-tighter hover:bg-primary/10 transition-all active:scale-95"
+                >
+                  <Sparkles className="w-3 h-3" />
+                  Magic Transform
+                </button>
+              )}
             </div>
             <input
               type="url"
@@ -244,11 +279,22 @@ export function EndpointEditor({ form, onUpdateForm, onRun, onSave }: EndpointEd
       {form.endpointType === 'logic' && (
         <div className="space-y-8">
            <div className="space-y-4">
-            <div className="flex items-center gap-2 ml-1">
-              <Braces className="w-4 h-4 text-primary" />
-              <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-[0.2em]">
-                Contract Schema (JSON)
-              </label>
+            <div className="flex items-center justify-between ml-1">
+              <div className="flex items-center gap-2">
+                <Braces className="w-4 h-4 text-primary" />
+                <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-[0.2em]">
+                  Contract Schema (JSON)
+                </label>
+              </div>
+              {!form.logicConfig?.requestSchema && (
+                <button
+                   onClick={() => onUpdateForm('logicConfig', { ...form.logicConfig, requestSchema: LOGIC_BOILERPLATES.schema, handlerCode: LOGIC_BOILERPLATES.handler, responseMapping: LOGIC_BOILERPLATES.mapping })}
+                   className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-primary/5 border border-primary/20 text-[10px] font-black text-primary uppercase tracking-tighter hover:bg-primary/10 transition-all"
+                >
+                  <Sparkles className="w-3 h-3" />
+                  Apply Standard Logic Template
+                </button>
+              )}
             </div>
             <div className="rounded-2xl overflow-hidden border border-border/40 bg-[#1e1e2e] shadow-xl">
               <textarea

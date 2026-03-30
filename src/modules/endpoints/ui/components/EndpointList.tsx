@@ -107,6 +107,17 @@ export function EndpointList({
       {/* Filters */}
       <div className="flex items-center gap-2 mb-6 flex-wrap overflow-x-auto pb-1 scrollbar-none">
         <div className="flex items-center gap-1.5 p-1 bg-muted/20 rounded-xl border border-border/40">
+          <button
+            onClick={() => onFilterMethod('')}
+            className={cn(
+              'px-2.5 py-1 rounded-lg text-[10px] font-bold border transition-all uppercase tracking-widest',
+              filterMethod === ''
+                ? 'bg-card text-foreground border-border shadow-sm'
+                : 'border-transparent text-muted-foreground hover:bg-accent'
+            )}
+          >
+            All
+          </button>
           {METHODS.map((m) => {
             const colors = METHOD_COLORS[m];
             const active = filterMethod === m;
@@ -128,6 +139,17 @@ export function EndpointList({
         </div>
         
         <div className="flex items-center gap-1.5 p-1 bg-muted/20 rounded-xl border border-border/40">
+          <button
+            onClick={() => onFilterType('')}
+            className={cn(
+              'px-2.5 py-1 rounded-lg text-[10px] font-bold border transition-all uppercase tracking-widest',
+              filterType === ''
+                ? 'bg-card text-foreground border-border shadow-sm'
+                : 'border-transparent text-muted-foreground hover:bg-accent'
+            )}
+          >
+            All
+          </button>
           {TYPES.map((t) => {
             const active = filterType === t;
             const Icon = TYPE_ICONS[t];
@@ -150,6 +172,17 @@ export function EndpointList({
         </div>
 
         <div className="flex items-center gap-1.5 p-1 bg-muted/20 rounded-xl border border-border/40">
+          <button
+            onClick={() => onFilterEnabled('')}
+            className={cn(
+              'px-2.5 py-1 rounded-lg text-[10px] font-bold border transition-all uppercase tracking-widest',
+              filterEnabled === ''
+                ? 'bg-card text-foreground border-border shadow-sm'
+                : 'border-transparent text-muted-foreground hover:bg-accent'
+            )}
+          >
+            All
+          </button>
           {(['true', 'false'] as const).map((val) => {
             const active = filterEnabled === val;
             return (
