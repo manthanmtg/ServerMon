@@ -10,7 +10,8 @@ import {
   Settings,
   Key,
   FileText,
-  ChevronDown
+  ChevronDown,
+  BookOpen
 } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
@@ -100,6 +101,7 @@ export function EndpointDetail({
             : 'Code',
       icon: TYPE_ICONS[form.endpointType || 'script'],
     },
+    { id: 'docs' as const, label: 'Docs', shortLabel: 'Docs', icon: BookOpen },
     { id: 'auth' as const, label: 'Auth & Tokens', shortLabel: 'Auth', icon: Key },
     !isCreating && { id: 'logs' as const, label: 'Logs', shortLabel: 'Logs', icon: FileText },
     { id: 'settings' as const, label: 'Settings', shortLabel: 'Settings', icon: Settings },

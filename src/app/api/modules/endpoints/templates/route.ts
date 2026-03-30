@@ -31,6 +31,32 @@ cat <<EOF
   "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 }
 EOF`,
+    docs: `# Health Check Endpoint
+
+A lightweight health probe that returns the server's current status.
+
+## Response
+
+| Field | Type | Description |
+|-------|------|-------------|
+| \`status\` | string | Always \`"healthy"\` if the server responds |
+| \`hostname\` | string | Machine hostname |
+| \`uptime_seconds\` | number | Seconds since last boot |
+| \`load_1m\` | number | 1-minute load average |
+| \`timestamp\` | string | ISO 8601 UTC timestamp |
+
+## Usage
+
+\`\`\`bash
+curl https://your-server/api/endpoints/health-check
+\`\`\`
+
+## Notes
+
+- Reads from \`/proc/uptime\` and \`/proc/loadavg\` (Linux only).
+- Returns \`"N/A"\` on non-Linux systems.
+- Ideal for uptime monitors like UptimeRobot, Pingdom, or Kubernetes liveness probes.
+`,
     tags: ['monitoring', 'health'],
   },
   {
@@ -63,6 +89,32 @@ const status = {
 };
 
 console.log(JSON.stringify(status, null, 2));`,
+    docs: `# Status Page JSON
+
+A comprehensive status page endpoint that aggregates CPU, memory, disk, and network info into a single JSON payload.
+
+## Response Fields
+
+| Section | Fields |
+|---------|--------|
+| **memory** | total, free, usedPercent |
+| **cpu** | cores, model, loadAvg (1m, 5m, 15m) |
+| **network** | interfaces with addresses |
+
+## Integration
+
+Feed this into a status page dashboard like Cachet or Instatus:
+
+\`\`\`bash
+curl -s https://your-server/api/endpoints/status-page | jq .
+\`\`\`
+
+## Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| \`STATUS_NAME\` | My Server | Display name in the response |
+`,
     tags: ['monitoring', 'status'],
   },
   {
@@ -77,6 +129,28 @@ console.log(JSON.stringify(status, null, 2));`,
     scriptContent: `#!/bin/bash
 # Disk Usage — returns JSON with space info
 df -h / | awk 'NR==2 {printf "{\\\"total\\\": \\\"%s\\\", \\\"used\\\": \\\"%s\\\", \\\"available\\\": \\\"%s\\\", \\\"percent\\\": \\\"%s\\\"}", $2, $3, $4, $5}'`,
+    docs: `# Disk Usage
+
+Reports disk usage for the root partition (\`/\`) as structured JSON.
+
+## Response
+
+| Field | Example | Description |
+|-------|---------|-------------|
+| \`total\` | \`"50G"\` | Total disk space |
+| \`used\` | \`"32G"\` | Used disk space |
+| \`available\` | \`"16G"\` | Available space |
+| \`percent\` | \`"68%"\` | Usage percentage |
+
+## Alerts
+
+Pair with a cron job or monitoring integration to alert when usage exceeds a threshold:
+
+\`\`\`bash
+PCT=$(curl -s .../disk-usage | jq -r '.percent' | tr -d '%')
+[ "$PCT" -gt 90 ] && echo "Disk alert!"
+\`\`\`
+`,
     tags: ['monitoring', 'disk'],
   },
   {
@@ -91,6 +165,27 @@ df -h / | awk 'NR==2 {printf "{\\\"total\\\": \\\"%s\\\", \\\"used\\\": \\\"%s\\
     scriptContent: `#!/bin/bash
 # Memory Stats — returns JSON from /proc/meminfo
 grep -E 'MemTotal|MemFree|MemAvailable|Buffers|Cached' /proc/meminfo | awk '{printf "\\\"%s\\\": \\\"%s %s\\\",", substr($1, 1, length($1)-1), $2, $3}' | sed 's/,$//' | awk '{print "{" $0 "}"}'`,
+    docs: `# Memory Stats
+
+Reads \`/proc/meminfo\` and returns key memory metrics as JSON.
+
+## Response
+
+| Field | Type | Description |
+|-------|------|-------------|
+| \`MemTotal\` | string | Total physical memory |
+| \`MemFree\` | string | Free memory |
+| \`MemAvailable\` | string | Available memory (includes cache) |
+| \`Buffers\` | string | Kernel buffer memory |
+| \`Cached\` | string | Page cache memory |
+| \`SwapTotal\` | string | Total swap space |
+| \`SwapFree\` | string | Free swap space |
+
+## Notes
+
+- Linux only — reads directly from \`/proc/meminfo\`.
+- Values include the unit suffix (e.g. \`"8042132 kB"\`).
+`,
     tags: ['monitoring', 'memory'],
   },
   {
@@ -124,6 +219,25 @@ exec('ps aux --sort=-%mem | head -n 6', (err, stdout) => {
   });
   console.log(JSON.stringify({ processes }));
 });`,
+    docs: `# Top Processes
+
+Returns the top 5 memory-consuming processes with CPU, memory percentage, and PID.
+
+## Response
+
+An array of process objects:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| \`pid\` | string | Process ID |
+| \`cpu\` | string | CPU usage % |
+| \`mem\` | string | Memory usage % |
+| \`command\` | string | Process command name |
+
+## Customization
+
+Modify the \`head -5\` value in the script to change how many processes are returned. Change \`--sort=-%mem\` to \`--sort=-%cpu\` to rank by CPU instead.
+`,
     tags: ['monitoring', 'processes'],
   },
   {
@@ -161,6 +275,24 @@ result = {
     "unit": "celsius"
 }
 print(json.dumps(result))`,
+    docs: `# CPU Temperature
+
+Reads thermal zone sensors and returns CPU temperatures.
+
+## Response
+
+| Field | Type | Description |
+|-------|------|-------------|
+| \`zone\` | string | Thermal zone name (e.g. \`thermal_zone0\`) |
+| \`type\` | string | Sensor type (e.g. \`x86_pkg_temp\`) |
+| \`temp_celsius\` | number | Temperature in degrees Celsius |
+
+## Requirements
+
+- Linux with \`/sys/class/thermal/\` available.
+- May require root access depending on the system.
+- Returns an empty array on systems without thermal sensors (e.g. VMs).
+`,
     tags: ['monitoring', 'temperature', 'hardware'],
   },
   {
@@ -186,6 +318,25 @@ for DISK in sda sdb nvme0n1 vda; do
   fi
 done
 echo "]"`,
+    docs: `# I/O Statistics
+
+Reads disk I/O metrics from \`/proc/diskstats\` for physical block devices.
+
+## Response
+
+An array of device objects:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| \`device\` | string | Block device name (e.g. \`sda\`, \`nvme0n1\`) |
+| \`reads_completed\` | number | Total completed read operations |
+| \`writes_completed\` | number | Total completed write operations |
+
+## Notes
+
+- Filters to physical devices only (\`sd*\`, \`nvme*\`, \`vd*\`).
+- Take two samples over time to compute throughput rates.
+`,
     tags: ['monitoring', 'disk', 'io'],
   },
 
@@ -236,6 +387,33 @@ except Exception as e:
     result = {"error": str(e), "domain": hostname}
 
 print(json.dumps(result))`,
+    docs: `# SSL Expiry Checker
+
+Checks the TLS certificate expiration date for any domain.
+
+## Request Body
+
+\`\`\`json
+{ "domain": "example.com" }
+\`\`\`
+
+## Response
+
+| Field | Type | Description |
+|-------|------|-------------|
+| \`domain\` | string | Checked domain |
+| \`expiry\` | string | Certificate expiry date |
+| \`days_remaining\` | number | Days until expiration |
+| \`status\` | string | \`"valid"\` or \`"expiring soon"\` (< 30 days) |
+
+## Automation
+
+Schedule daily checks and alert when \`days_remaining < 14\`:
+
+\`\`\`bash
+curl -s -X POST -d '{"domain":"mysite.com"}' .../ssl-expiry | jq .days_remaining
+\`\`\`
+`,
     tags: ['security', 'ssl'],
   },
   {
@@ -260,6 +438,23 @@ elif command -v iptables &>/dev/null; then
 else
   echo '{"firewall":"none","status":"no firewall detected"}'
 fi`,
+    docs: `# Firewall Status
+
+Returns the current firewall configuration. Checks UFW first, falls back to iptables.
+
+## Response
+
+| Field | Type | Description |
+|-------|------|-------------|
+| \`firewall\` | string | \`"ufw"\`, \`"iptables"\`, or \`"none"\` |
+| \`status\` | string | Active/inactive status |
+| \`rules\` | string | Pipe-delimited rule summary (UFW) |
+
+## Notes
+
+- Requires appropriate permissions to read firewall rules.
+- On systems without a firewall, returns \`"no firewall detected"\`.
+`,
     tags: ['security', 'firewall'],
   },
   {
@@ -295,6 +490,24 @@ result = {
     "top_offenders": top_offenders,
 }
 print(json.dumps(result))`,
+    docs: `# Failed Login Attempts
+
+Parses \`/var/log/auth.log\` for failed SSH password attempts.
+
+## Response
+
+| Field | Type | Description |
+|-------|------|-------------|
+| \`total_failed\` | number | Total failed attempts found |
+| \`unique_ips\` | number | Number of distinct source IPs |
+| \`top_offenders\` | array | Top 10 IPs by attempt count |
+
+## Security Tips
+
+- Use this with a cron job to auto-ban repeat offenders via \`fail2ban\`.
+- Requires read access to \`/var/log/auth.log\`.
+- On CentOS/RHEL, the log may be at \`/var/log/secure\` instead.
+`,
     tags: ['security', 'ssh', 'audit'],
   },
   {
@@ -329,6 +542,30 @@ exec('ss -tlnp 2>/dev/null || netstat -tlnp 2>/dev/null', (err, stdout) => {
 
   console.log(JSON.stringify({ listening: ports, count: ports.length }));
 });`,
+    docs: `# Open Ports Scanner
+
+Lists all TCP ports in LISTEN state with their associated process.
+
+## Response
+
+| Field | Type | Description |
+|-------|------|-------------|
+| \`listening\` | array | Array of port objects |
+| \`count\` | number | Total open ports |
+
+Each port object:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| \`address\` | string | Bind address and port |
+| \`port\` | number | Port number |
+| \`process\` | string | Process name/PID |
+
+## Notes
+
+- Uses \`ss\` (preferred) with \`netstat\` as fallback.
+- May require root to see process names.
+`,
     tags: ['security', 'network', 'ports'],
   },
   {
@@ -375,6 +612,31 @@ for filepath in files:
     results.append(entry)
 
 print(json.dumps({"files": results, "checked": len(results)}))`,
+    docs: `# File Integrity Check
+
+Computes SHA-256 checksums of critical system files to detect tampering.
+
+## Request Body (optional)
+
+\`\`\`json
+{ "files": ["/etc/passwd", "/etc/ssh/sshd_config"] }
+\`\`\`
+
+Defaults to \`/etc/passwd\`, \`/etc/shadow\`, \`/etc/ssh/sshd_config\`, \`/etc/hosts\`.
+
+## Response
+
+| Field | Type | Description |
+|-------|------|-------------|
+| \`file\` | string | File path |
+| \`sha256\` | string | SHA-256 hex digest |
+| \`size\` | number | File size in bytes |
+| \`status\` | string | \`"ok"\`, \`"not_found"\`, or \`"permission_denied"\` |
+
+## Usage
+
+Store baseline checksums and compare on subsequent runs to detect unauthorized changes.
+`,
     tags: ['security', 'integrity', 'audit'],
   },
 
@@ -413,6 +675,33 @@ else
   echo "{\\\"error\\\": \\\"Failed to restart $SERVICE\\\"}"
   exit 1
 fi`,
+    docs: `# Service Restart
+
+Restarts a systemd service by name, with an allowlist for safety.
+
+## Request Body
+
+\`\`\`json
+{ "service": "nginx" }
+\`\`\`
+
+## Allowed Services
+
+\`nginx\`, \`apache2\`, \`mysql\`, \`postgresql\`, \`redis\`
+
+Edit the \`ALLOWED\` variable in the script to customize.
+
+## Response
+
+| Field | Type | Description |
+|-------|------|-------------|
+| \`service\` | string | Service name |
+| \`status\` | string | \`"restarted"\` or error message |
+
+## Security
+
+> **Warning**: This endpoint triggers \`systemctl restart\`. Use token auth and restrict the allowlist in production.
+`,
     tags: ['service', 'management'],
   },
   {
@@ -457,6 +746,34 @@ rl.on('line', (line) => {
 rl.on('close', () => {
   console.log(JSON.stringify({ file, pattern, matches: results }));
 });`,
+    docs: `# Log Searcher
+
+Searches any log file for a pattern and returns matching lines.
+
+## Request Body
+
+\`\`\`json
+{
+  "file": "/var/log/syslog",
+  "pattern": "error",
+  "limit": 50
+}
+\`\`\`
+
+## Response
+
+| Field | Type | Description |
+|-------|------|-------------|
+| \`file\` | string | Searched file path |
+| \`pattern\` | string | Search pattern used |
+| \`matches\` | array | Array of \`{ line, text }\` objects |
+
+## Notes
+
+- Case-insensitive search.
+- Defaults to 100 result limit.
+- Only reads files — no write operations.
+`,
     tags: ['logs', 'search'],
   },
   {
@@ -490,6 +807,32 @@ exec(\`docker ps -a --format '\${format}'\`, (err, stdout) => {
     running: containers.filter(c => c.state === 'running').length,
   }));
 });`,
+    docs: `# Docker Containers
+
+Lists all Docker containers with their status, image, and state.
+
+## Response
+
+| Field | Type | Description |
+|-------|------|-------------|
+| \`containers\` | array | Container objects |
+| \`total\` | number | Total containers |
+| \`running\` | number | Currently running |
+
+Each container:
+
+| Field | Description |
+|-------|-------------|
+| \`id\` | Short container ID |
+| \`name\` | Container name |
+| \`image\` | Image name |
+| \`state\` | \`running\`, \`exited\`, etc. |
+| \`status\` | Human-readable status |
+
+## Requirements
+
+- Docker must be installed and the executing user needs Docker socket access.
+`,
     tags: ['docker', 'containers', 'devops'],
   },
   {
@@ -536,6 +879,32 @@ cat <<EOF
   "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 }
 EOF`,
+    docs: `# Deploy Trigger
+
+Triggers a deployment by running a configurable deploy script.
+
+## Request Body
+
+\`\`\`json
+{ "ref": "main" }
+\`\`\`
+
+## Workflow
+
+1. Reads the git ref from the request body (defaults to \`main\`).
+2. Runs \`git fetch\` and \`git checkout\` in the deploy directory.
+3. Returns deployment status with commit hash and timestamp.
+
+## Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| \`DEPLOY_DIR\` | \`/opt/app\` | Directory to deploy into |
+
+## Security
+
+> **Important**: Always use token auth. Restrict who can trigger deployments.
+`,
     tags: ['deploy', 'git', 'devops'],
   },
   {
@@ -577,6 +946,24 @@ for cron_dir in ["/etc/cron.d", "/etc/cron.daily", "/etc/cron.hourly"]:
 
 result["total_user"] = len(result["user_crons"])
 print(json.dumps(result))`,
+    docs: `# Cron Jobs List
+
+Returns all cron jobs for the current user and system-wide schedules.
+
+## Response
+
+| Field | Type | Description |
+|-------|------|-------------|
+| \`user_crons\` | array | Current user's crontab entries |
+| \`system_crons\` | array | Files in \`/etc/cron.d/\` |
+| \`total_user\` | number | Count of user cron entries |
+
+## Notes
+
+- Filters out comments and empty lines.
+- System crons listed are filenames only, not contents.
+- Requires read access to \`/etc/cron.d/\`.
+`,
     tags: ['cron', 'scheduling', 'devops'],
   },
   {
@@ -597,6 +984,26 @@ systemctl list-units --type=service --state=active --no-pager --no-legend 2>/dev
   printf '{"unit":"%s","load":"%s","active":"%s","sub":"%s"}' "$UNIT" "$LOAD" "$ACTIVE" "$SUB"
 done
 echo "]"`,
+    docs: `# Systemd Services
+
+Lists all active systemd services with load and sub-state.
+
+## Response
+
+An array of service objects:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| \`unit\` | string | Service unit name |
+| \`load\` | string | Load state (\`loaded\`, etc.) |
+| \`active\` | string | Active state (\`active\`, \`inactive\`) |
+| \`sub\` | string | Sub-state (\`running\`, \`exited\`, etc.) |
+
+## Notes
+
+- Uses \`systemctl list-units --type=service --state=active\`.
+- Only shows currently active services.
+`,
     tags: ['systemd', 'services', 'devops'],
   },
 
@@ -633,6 +1040,30 @@ process.stdin.on('end', () => {
 
   console.log(JSON.stringify(result));
 });`,
+    docs: `# Webhook Receiver
+
+A general-purpose webhook receiver that accepts POST payloads, logs them, and returns a confirmation.
+
+## How It Works
+
+1. Reads the incoming JSON body from stdin.
+2. Logs the payload to stdout for the execution log.
+3. Returns a confirmation with the received fields and a timestamp.
+
+## Response
+
+| Field | Type | Description |
+|-------|------|-------------|
+| \`received\` | boolean | Always \`true\` |
+| \`fields\` | array | Keys found in the payload |
+| \`timestamp\` | string | ISO 8601 timestamp |
+
+## Use Cases
+
+- GitHub / GitLab webhook target
+- Stripe event receiver
+- Generic event sink for debugging
+`,
     tags: ['webhook', 'integration'],
   },
   {
@@ -649,6 +1080,25 @@ process.stdin.on('end', () => {
       forwardHeaders: false,
       transformBody: `return { text: input.message || 'Notification from ServerMon' };`,
     },
+    docs: `# Slack Notifier
+
+Forwards a message to a Slack channel via an Incoming Webhook URL.
+
+## Setup
+
+1. Create a [Slack Incoming Webhook](https://api.slack.com/messaging/webhooks).
+2. Set the webhook URL as the **Target URL** in the webhook config.
+
+## Request Body
+
+\`\`\`json
+{ "message": "Deployment complete!" }
+\`\`\`
+
+## Transform
+
+The body transformer maps \`input.message\` to Slack's \`text\` field. Customize to add blocks, attachments, or mentions.
+`,
     tags: ['notification', 'slack'],
   },
   {
@@ -665,6 +1115,26 @@ process.stdin.on('end', () => {
       forwardHeaders: false,
       transformBody: `return { content: input.message || 'Notification from ServerMon' };`,
     },
+    docs: `# Discord Notifier
+
+Sends a message to a Discord channel via a webhook URL.
+
+## Setup
+
+1. In your Discord server, go to **Channel Settings > Integrations > Webhooks**.
+2. Create a webhook and copy the URL.
+3. Set it as the **Target URL**.
+
+## Request Body
+
+\`\`\`json
+{ "message": "Server alert: high CPU usage" }
+\`\`\`
+
+## Transform
+
+Maps \`input.message\` to Discord's \`content\` field. Extend the transformer to add embeds for richer notifications.
+`,
     tags: ['notification', 'discord'],
   },
   {
@@ -681,6 +1151,27 @@ process.stdin.on('end', () => {
       forwardHeaders: false,
       transformBody: `return { chat_id: input.chat_id || 'YOUR_CHAT_ID', text: input.message || 'Alert from ServerMon', parse_mode: 'Markdown' };`,
     },
+    docs: `# Telegram Bot
+
+Sends messages to a Telegram chat using the Bot API.
+
+## Setup
+
+1. Create a bot via [@BotFather](https://t.me/BotFather) and get your bot token.
+2. Set the target URL to: \`https://api.telegram.org/bot<TOKEN>/sendMessage\`
+3. Replace \`YOUR_CHAT_ID\` in the transformer with your chat ID.
+
+## Request Body
+
+\`\`\`json
+{ "message": "Disk usage at 92%", "chat_id": "123456789" }
+\`\`\`
+
+## Notes
+
+- Supports Markdown formatting via \`parse_mode\`.
+- Get your chat ID by messaging [@userinfobot](https://t.me/userinfobot).
+`,
     tags: ['notification', 'telegram'],
   },
   {
@@ -705,6 +1196,30 @@ process.stdin.on('end', () => {
   }
 };`,
     },
+    docs: `# PagerDuty Alert
+
+Triggers an incident in PagerDuty via their Events API v2.
+
+## Setup
+
+1. Create a PagerDuty service and get a **routing key** (integration key).
+2. Set the target URL to \`https://events.pagerduty.com/v2/enqueue\`.
+
+## Request Body
+
+\`\`\`json
+{
+  "summary": "High CPU on web-01",
+  "severity": "critical",
+  "source": "ServerMon",
+  "routing_key": "your-routing-key"
+}
+\`\`\`
+
+## Severity Levels
+
+\`critical\`, \`error\`, \`warning\`, \`info\`
+`,
     tags: ['alerting', 'pagerduty', 'incident'],
   },
   {
@@ -761,6 +1276,38 @@ const req = https.request(options, (res) => {
 req.on('error', (e) => console.log(JSON.stringify({ error: e.message })));
 req.write(payload);
 req.end();`,
+    docs: `# GitHub Commit Status
+
+Posts a commit status check to a GitHub repository.
+
+## Environment Variables
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| \`GITHUB_TOKEN\` | Yes | Personal access token with \`repo:status\` scope |
+
+## Request Body
+
+\`\`\`json
+{
+  "owner": "your-org",
+  "repo": "your-repo",
+  "sha": "abc123",
+  "state": "success",
+  "description": "All checks passed",
+  "context": "ServerMon/deploy"
+}
+\`\`\`
+
+## States
+
+\`pending\`, \`success\`, \`failure\`, \`error\`
+
+## Notes
+
+- Uses GitHub REST API v3.
+- The \`context\` field appears as the check name in the PR.
+`,
     tags: ['github', 'ci', 'integration'],
   },
 
@@ -801,6 +1348,29 @@ result = {
 }
 
 print(json.dumps(result))`,
+    docs: `# DB Query
+
+Runs a read-only SQL query against a PostgreSQL or MySQL database and returns results as JSON.
+
+## Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| \`DB_HOST\` | \`localhost\` | Database host |
+| \`DB_NAME\` | \`postgres\` | Database name |
+| \`DB_USER\` | \`postgres\` | Database user |
+| \`DB_PASS\` | \`\` | Database password |
+
+## Request Body
+
+\`\`\`json
+{ "query": "SELECT id, name FROM users LIMIT 10" }
+\`\`\`
+
+## Security
+
+> **Warning**: Always validate queries server-side. This template is for read-only use. Never expose write access via a public endpoint.
+`,
     tags: ['database', 'query'],
   },
   {
@@ -839,6 +1409,31 @@ cat <<EOF
   "port": $REDIS_PORT
 }
 EOF`,
+    docs: `# Redis Info
+
+Fetches Redis server information including memory, clients, and keyspace stats.
+
+## Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| \`REDIS_HOST\` | \`127.0.0.1\` | Redis host |
+| \`REDIS_PORT\` | \`6379\` | Redis port |
+
+## Response
+
+| Field | Type | Description |
+|-------|------|-------------|
+| \`version\` | string | Redis server version |
+| \`connected_clients\` | string | Number of connected clients |
+| \`used_memory_human\` | string | Human-readable memory usage |
+| \`total_keys\` | number | Total keys across all databases |
+
+## Notes
+
+- Uses \`redis-cli INFO\` under the hood.
+- Requires \`redis-cli\` to be installed on the server.
+`,
     tags: ['redis', 'database', 'cache'],
   },
   {
@@ -882,6 +1477,30 @@ return {
   timestamp: new Date().toISOString()
 };`,
     },
+    docs: `# JSON Transform
+
+A logic endpoint that validates, transforms, and reshapes JSON payloads using custom mapping rules.
+
+## How It Works
+
+1. Incoming JSON is validated against the **Contract Schema**.
+2. The **Edge Handler** applies transformation logic.
+3. The result is returned with the **Response Mapping** headers.
+
+## Request Body
+
+\`\`\`json
+{
+  "name": "Jane Doe",
+  "email": "jane@example.com",
+  "age": 30
+}
+\`\`\`
+
+## Customization
+
+Edit the handler code to add field renaming, filtering, default values, or computed fields.
+`,
     tags: ['json', 'transform', 'logic'],
   },
   {
@@ -914,6 +1533,33 @@ result = {
     "columns": list(rows[0].keys()) if rows else [],
 }
 print(json.dumps(result))`,
+    docs: `# CSV to JSON
+
+Converts CSV data posted in the request body to a JSON array of objects.
+
+## Request Body
+
+Send raw CSV text:
+
+\`\`\`
+name,age,city
+Alice,30,NYC
+Bob,25,LA
+\`\`\`
+
+## Response
+
+| Field | Type | Description |
+|-------|------|-------------|
+| \`rows\` | array | Array of row objects |
+| \`count\` | number | Total rows parsed |
+| \`columns\` | array | Column header names |
+
+## Notes
+
+- Uses Python's \`csv.DictReader\` for robust parsing.
+- Handles quoted fields, commas in values, and newlines.
+`,
     tags: ['csv', 'json', 'data'],
   },
   {
@@ -973,6 +1619,41 @@ return {
   checkedFields: Object.keys(rules).length,
 };`,
     },
+    docs: `# Request Validator
+
+A logic endpoint that validates incoming JSON payloads against a defined schema and returns detailed errors.
+
+## How It Works
+
+1. The **Contract Schema** defines required fields and their types.
+2. The **Edge Handler** checks each field against the rules.
+3. Returns \`valid: true\` or a list of validation errors.
+
+## Example Request
+
+\`\`\`json
+{
+  "email": "not-an-email",
+  "age": "not-a-number"
+}
+\`\`\`
+
+## Example Error Response
+
+\`\`\`json
+{
+  "valid": false,
+  "errors": [
+    "email: invalid format",
+    "age: expected number"
+  ]
+}
+\`\`\`
+
+## Customization
+
+Edit the handler code to add regex patterns, enum validation, or nested object checks.
+`,
     tags: ['validation', 'schema', 'logic'],
   },
 
@@ -1009,6 +1690,32 @@ LOSS=$(echo "$RESULT" | grep -oP '\\d+(?=% packet loss)')
 echo "$RESULT" | tail -1 | awk -F'/' -v host="$HOST" -v loss="$LOSS" '{
   printf "{\\\"host\\\": \\\"%s\\\", \\\"reachable\\\": true, \\\"packet_loss\\\": \\\"%s%%\\\", \\\"min_ms\\\": \\\"%s\\\", \\\"avg_ms\\\": \\\"%s\\\", \\\"max_ms\\\": \\\"%s\\\"}", host, loss, $4, $5, $6
 }'`,
+    docs: `# Ping Check
+
+Pings a host and returns latency statistics.
+
+## Request Body
+
+\`\`\`json
+{ "host": "8.8.8.8", "count": 4 }
+\`\`\`
+
+## Response
+
+| Field | Type | Description |
+|-------|------|-------------|
+| \`host\` | string | Target host |
+| \`reachable\` | boolean | Whether the host responded |
+| \`packet_loss\` | string | Packet loss percentage |
+| \`min_ms\` | string | Minimum round-trip time |
+| \`avg_ms\` | string | Average round-trip time |
+| \`max_ms\` | string | Maximum round-trip time |
+
+## Notes
+
+- Uses the system \`ping\` command.
+- Defaults to 4 packets if \`count\` is not specified.
+`,
     tags: ['networking', 'ping', 'latency'],
   },
   {
@@ -1060,6 +1767,30 @@ except Exception:
     result["records"]["MX"] = []
 
 print(json.dumps(result))`,
+    docs: `# DNS Lookup
+
+Performs DNS resolution for a domain and returns A, AAAA, and MX records.
+
+## Request Body
+
+\`\`\`json
+{ "domain": "example.com" }
+\`\`\`
+
+## Response
+
+| Field | Type | Description |
+|-------|------|-------------|
+| \`domain\` | string | Queried domain |
+| \`records.A\` | array | IPv4 addresses |
+| \`records.AAAA\` | array | IPv6 addresses |
+| \`records.MX\` | array | Mail exchange records |
+
+## Requirements
+
+- \`dig\` command for MX lookups (falls back gracefully).
+- Python \`socket\` module for A/AAAA resolution.
+`,
     tags: ['networking', 'dns'],
   },
   {
@@ -1119,6 +1850,33 @@ req.on('error', (e) => {
 });
 
 req.end();`,
+    docs: `# HTTP Probe
+
+Probes an HTTP endpoint and returns status code, headers, response time, and TLS info.
+
+## Request Body
+
+\`\`\`json
+{ "url": "https://example.com", "timeout": 10000 }
+\`\`\`
+
+## Response
+
+| Field | Type | Description |
+|-------|------|-------------|
+| \`url\` | string | Probed URL |
+| \`statusCode\` | number | HTTP status code |
+| \`statusMessage\` | string | HTTP status message |
+| \`responseTime\` | string | Total response time |
+| \`bodyLength\` | number | Response body size in bytes |
+| \`tls\` | boolean | Whether HTTPS was used |
+
+## Use Cases
+
+- Uptime monitoring
+- SSL verification
+- Response time benchmarking
+`,
     tags: ['networking', 'http', 'probe'],
   },
   {
@@ -1168,6 +1926,30 @@ for line in output.splitlines()[1:]:
         hops.append({"hop": hop_num, "detail": rest})
 
 print(json.dumps({"host": host, "hops": hops, "total_hops": len(hops)}))`,
+    docs: `# Traceroute
+
+Traces the network path to a target host, returning each hop as structured JSON.
+
+## Request Body
+
+\`\`\`json
+{ "host": "8.8.8.8", "max_hops": 15 }
+\`\`\`
+
+## Response
+
+| Field | Type | Description |
+|-------|------|-------------|
+| \`host\` | string | Target host |
+| \`hops\` | array | Array of \`{ hop, detail }\` objects |
+| \`total_hops\` | number | Number of hops traced |
+
+## Requirements
+
+- \`traceroute\` must be installed on the server.
+- May take up to 30 seconds depending on network conditions.
+- Some hops may show \`* * *\` if they don't respond to probes.
+`,
     tags: ['networking', 'traceroute', 'diagnostics'],
   },
   {
@@ -1207,6 +1989,32 @@ https.get(testUrl, (res) => {
 }).on('error', (e) => {
   console.log(JSON.stringify({ error: e.message }));
 });`,
+    docs: `# Bandwidth Test
+
+Measures download speed by fetching a test file and calculating throughput.
+
+## Response
+
+| Field | Type | Description |
+|-------|------|-------------|
+| \`bytes\` | number | Total bytes downloaded |
+| \`megabytes\` | string | Downloaded size in MB |
+| \`duration_ms\` | number | Download duration |
+| \`speed_mbps\` | number | Speed in megabits per second |
+| \`test_url\` | string | URL used for the test |
+
+## Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| \`SPEED_TEST_URL\` | Cloudflare 1MB test | URL to download for speed measurement |
+
+## Notes
+
+- Downloads ~1MB by default via Cloudflare's speed test CDN.
+- Results vary based on server location and network conditions.
+- For accurate results, run multiple tests and average.
+`,
     tags: ['networking', 'bandwidth', 'speed'],
   },
 ];

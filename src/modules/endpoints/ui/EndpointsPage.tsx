@@ -26,6 +26,7 @@ import { EndpointEditor } from './components/EndpointEditor';
 import { EndpointAuth } from './components/EndpointAuth';
 import { EndpointLogs } from './components/EndpointLogs';
 import { EndpointSettings } from './components/EndpointSettings';
+import { EndpointDocs } from './components/EndpointDocs';
 import { EndpointTestConsole } from './components/EndpointTestConsole';
 import { TemplateGallery } from './components/TemplateGallery';
 import { ResizeHandle } from './components/common/ResizeHandle';
@@ -232,6 +233,7 @@ export default function EndpointsPage() {
       tags: ep.tags,
       enabled: ep.enabled,
       timeout: ep.timeout,
+      docs: ep.docs,
       responseHeaders: ep.responseHeaders,
     };
     setForm(f);
@@ -279,6 +281,7 @@ export default function EndpointsPage() {
       scriptContent: tmpl.scriptContent,
       webhookConfig: tmpl.webhookConfig,
       logicConfig: tmpl.logicConfig,
+      docs: tmpl.docs,
       auth: 'public',
       tags: tmpl.tags,
       enabled: true,
@@ -699,6 +702,14 @@ export default function EndpointsPage() {
                 form={form}
                 onUpdateForm={updateForm}
                 onRun={!isCreating && selectedId ? handleTest : undefined}
+                onSave={handleSave}
+              />
+            )}
+
+            {detailTab === 'docs' && (
+              <EndpointDocs
+                form={form}
+                onUpdateForm={updateForm}
                 onSave={handleSave}
               />
             )}

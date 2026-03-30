@@ -34,6 +34,7 @@ export const CustomEndpointZodSchema = z.object({
   tags: z.array(z.string().max(50)).max(20).default([]),
   enabled: z.boolean().default(true),
   timeout: z.number().min(1000).max(120_000).default(30_000),
+  docs: z.string().max(100_000).optional(),
   responseHeaders: z.record(z.string(), z.string()).optional(),
 });
 
@@ -95,6 +96,7 @@ const CustomEndpointSchema: Schema = new Schema(
     tags: [{ type: String, trim: true }],
     enabled: { type: Boolean, default: true },
     timeout: { type: Number, default: 30_000, min: 1000, max: 120_000 },
+    docs: { type: String },
     responseHeaders: { type: Map, of: String },
     lastExecutedAt: { type: Date },
     executionCount: { type: Number, default: 0 },

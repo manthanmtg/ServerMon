@@ -2,7 +2,7 @@ export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 export type EndpointType = 'script' | 'logic' | 'webhook';
 export type ScriptLanguage = 'python' | 'bash' | 'node';
 export type EndpointAuth = 'public' | 'token';
-export type DetailTab = 'configure' | 'code' | 'auth' | 'logs' | 'settings';
+export type DetailTab = 'configure' | 'code' | 'docs' | 'auth' | 'logs' | 'settings';
 
 export interface EndpointToken {
   _id: string;
@@ -43,6 +43,7 @@ export interface CustomEndpointDTO {
   tags: string[];
   enabled: boolean;
   timeout: number;
+  docs?: string;
   responseHeaders?: Record<string, string>;
   lastExecutedAt?: string;
   executionCount: number;
@@ -83,6 +84,7 @@ export interface EndpointCreateRequest {
   webhookConfig?: WebhookConfig;
   envVars?: Record<string, string>;
   auth?: EndpointAuth;
+  docs?: string;
   tags?: string[];
   enabled?: boolean;
   timeout?: number;
@@ -123,6 +125,7 @@ export interface EndpointTemplate {
   scriptContent?: string;
   logicConfig?: LogicConfig;
   webhookConfig?: WebhookConfig;
+  docs?: string;
   tags: string[];
 }
 
