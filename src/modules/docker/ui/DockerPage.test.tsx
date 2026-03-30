@@ -246,9 +246,11 @@ describe('DockerPage', () => {
       fireEvent.click(expandButton);
     });
 
-    expect(screen.getByText('Live usage')).toBeDefined();
-    expect(screen.getByText(/CPU: 5.5%/)).toBeDefined();
-    expect(screen.getByText(/Memory: 12.0%/)).toBeDefined();
+    expect(screen.getByRole('heading', { name: /Live metrics/i })).toBeDefined();
+    expect(screen.getByText(/CPU usage/i)).toBeDefined();
+    expect(screen.getByText(/^5\.5%$/)).toBeDefined();
+    expect(screen.getByText(/Memory %/i)).toBeDefined();
+    expect(screen.getByText(/^12\.0%$/)).toBeDefined();
     expect(screen.getByText('NODE_ENV=production')).toBeDefined();
   });
 
