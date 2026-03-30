@@ -7,10 +7,12 @@ import {
   Play, 
   LoaderCircle, 
   X, 
-  Settings, 
-  Key, 
-  FileText 
+  Settings,
+  Key,
+  FileText,
+  ChevronDown
 } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { TYPE_ICONS } from './common/constants';
@@ -32,6 +34,8 @@ interface EndpointDetailProps {
   onSave: () => void;
   onTest: () => void;
   onTabChange: (tab: DetailTab) => void;
+  onCopySnippet: (code: string) => void;
+  generateCopySnippet: (format: 'url' | 'curl' | 'powershell' | 'fetch' | 'node' | 'python') => string;
   showTestConsole: boolean;
   children: React.ReactNode;
 }
@@ -52,9 +56,32 @@ export function EndpointDetail({
   onSave,
   onTest,
   onTabChange,
+  onCopySnippet,
+  generateCopySnippet,
   showTestConsole,
   children,
 }: EndpointDetailProps) {
+  const [showCopyDropdown, setShowCopyDropdown] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setShowCopyDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const copyOptions = [
+    { id: 'url', label: 'Copy URL', format: 'url' },
+    { id: 'curl', label: 'Copy as cURL', format: 'curl' },
+    { id: 'powershell', label: 'Copy as PowerShell', format: 'powershell' },
+    { id: 'fetch', label: 'Copy as fetch', format: 'fetch' },
+    { id: 'node', label: 'Copy as fetch (Node.js)', format: 'node' },
+    { id: 'python', label: 'Copy as Python', format: 'python' },
+  ] as const;
   const tabs = [
     { id: 'configure' as const, label: 'Configure', shortLabel: 'Config', icon: Settings },
     {
@@ -107,17 +134,54 @@ export function EndpointDetail({
               <code className="text-[11px] sm:text-xs font-mono text-primary/70 bg-primary/5 px-2 py-0.5 rounded-full border border-primary/10 truncate">
                 /api/endpoints/{form.slug}
               </code>
-              <button
-                onClick={onCopySlug}
-                className="shrink-0 text-muted-foreground hover:text-primary transition-colors p-1"
-                title="Copy full URL"
-              >
-                {copiedSlug ? (
-                  <Check className="w-3.5 h-3.5 text-success" />
-                ) : (
-                  <Copy className="w-3.5 h-3.5" />
+              <div className="flex items-center bg-background/40 rounded-xl border border-border/40 overflow-hidden shadow-sm relative ml-1">
+                <button
+                  onClick={onCopySlug}
+                  className="shrink-0 text-muted-foreground hover:text-primary transition-colors p-1.5 border-r border-border/40"
+                  title="Copy full URL"
+                >
+                  {copiedSlug ? (
+                    <Check className="w-3.5 h-3.5 text-success" />
+                  ) : (
+                    <Copy className="w-3.5 h-3.5" />
+                  )}
+                </button>
+                <button
+                  onClick={() => setShowCopyDropdown(!showCopyDropdown)}
+                  className={cn(
+                    "p-1.5 hover:bg-accent/50 text-muted-foreground/40 hover:text-primary transition-all",
+                    showCopyDropdown && "bg-primary/10 text-primary"
+                  )}
+                >
+                  <ChevronDown className={cn("w-3.5 h-3.5 transition-transform duration-300", showCopyDropdown && "rotate-180")} />
+                </button>
+
+                {/* Dropdown Menu */}
+                {showCopyDropdown && (
+                  <div 
+                    ref={dropdownRef}
+                    className="absolute top-full right-0 mt-2 w-56 rounded-2xl border border-border/40 bg-card/90 backdrop-blur-xl shadow-2xl py-2 z-[60] animate-in fade-in zoom-in-95 slide-in-from-top-2 duration-200"
+                  >
+                    <div className="px-4 py-2 mb-1 border-b border-border/10">
+                      <span className="text-[10px] font-black text-muted-foreground/40 uppercase tracking-widest">Integration Manifest</span>
+                    </div>
+                    {copyOptions.map((opt) => (
+                      <button
+                        key={opt.id}
+                        onClick={() => {
+                          const snippet = generateCopySnippet(opt.format as any);
+                          onCopySnippet(snippet);
+                          setShowCopyDropdown(false);
+                        }}
+                        className="w-full text-left px-4 py-2.5 text-xs font-bold text-muted-foreground hover:text-primary hover:bg-primary/5 transition-colors flex items-center justify-between group/opt"
+                      >
+                        {opt.label}
+                        <ChevronDown className="w-3 h-3 opacity-0 group-hover/opt:opacity-40 -rotate-90" />
+                      </button>
+                    ))}
+                  </div>
                 )}
-              </button>
+              </div>
             </div>
           )}
         </div>

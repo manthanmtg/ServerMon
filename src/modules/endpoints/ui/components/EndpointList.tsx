@@ -30,7 +30,6 @@ interface EndpointListProps {
   onShowTemplates: () => void;
   onToggle: (id: string) => void;
   onCopySnippet: (code: string) => void;
-  generateCopySnippet: (ep: CustomEndpointDTO, format: 'url' | 'curl' | 'powershell' | 'fetch' | 'node' | 'python') => string;
   isResizing: boolean;
 }
 
@@ -54,31 +53,8 @@ export function EndpointList({
   onCreate,
   onShowTemplates,
   onToggle,
-  onCopySnippet,
-  generateCopySnippet,
   isResizing,
 }: EndpointListProps) {
-  const [activeDropdownId, setActiveDropdownId] = useState<string | null>(null);
-  const dropdownRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setActiveDropdownId(null);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  const copyOptions = [
-    { id: 'url', label: 'Copy URL', format: 'url' },
-    { id: 'curl', label: 'Copy as cURL', format: 'curl' },
-    { id: 'powershell', label: 'Copy as PowerShell', format: 'powershell' },
-    { id: 'fetch', label: 'Copy as fetch', format: 'fetch' },
-    { id: 'node', label: 'Copy as fetch (Node.js)', format: 'node' },
-    { id: 'python', label: 'Copy as Python', format: 'python' },
-  ] as const;
 
   return (
     <div
@@ -311,58 +287,6 @@ export function EndpointList({
               </div>
               <div className="flex items-center gap-2 text-[11px] text-muted-foreground/70">
                 <code className="truncate flex-1 font-mono bg-muted/30 px-1.5 py-0.5 rounded leading-none">/api/endpoints/{ep.slug}</code>
-                
-                <div className="flex items-center bg-background/40 rounded-lg border border-border/40 overflow-hidden shadow-sm relative">
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onCopySnippet(ep.slug); // Default to URL or just slug for now as per current logic
-                    }}
-                    title="Copy URL"
-                    className="p-1 hover:bg-accent/50 text-muted-foreground/60 hover:text-primary transition-colors border-r border-border/40"
-                  >
-                    <Copy className="w-3 h-3" />
-                  </button>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setActiveDropdownId(activeDropdownId === ep._id ? null : ep._id);
-                    }}
-                    className={cn(
-                      "p-1 hover:bg-accent/50 text-muted-foreground/40 hover:text-primary transition-all",
-                      activeDropdownId === ep._id && "bg-primary/10 text-primary"
-                    )}
-                  >
-                    <ChevronDown className={cn("w-3 h-3 transition-transform duration-300", activeDropdownId === ep._id && "rotate-180")} />
-                  </button>
-
-                  {/* Dropdown Menu */}
-                  {activeDropdownId === ep._id && (
-                    <div 
-                      ref={dropdownRef}
-                      className="absolute bottom-full right-0 mb-2 w-48 rounded-2xl border border-border/40 bg-card/90 backdrop-blur-xl shadow-2xl py-2 z-[60] animate-in fade-in zoom-in-95 slide-in-from-bottom-2 duration-200"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <div className="px-3 py-1.5 mb-1 border-b border-border/10">
-                        <span className="text-[9px] font-black text-muted-foreground/40 uppercase tracking-widest">Integration Options</span>
-                      </div>
-                      {copyOptions.map((opt) => (
-                        <button
-                          key={opt.id}
-                          onClick={() => {
-                            const snippet = generateCopySnippet(ep, opt.format as any);
-                            onCopySnippet(snippet);
-                            setActiveDropdownId(null);
-                          }}
-                          className="w-full text-left px-3 py-2 text-[10px] font-bold text-muted-foreground hover:text-primary hover:bg-primary/5 transition-colors flex items-center justify-between group/opt"
-                        >
-                          {opt.label}
-                          <ChevronDown className="w-2.5 h-2.5 opacity-0 group-hover/opt:opacity-40 -rotate-90" />
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
               </div>
               <div className="flex items-center gap-3 text-[11px] text-muted-foreground/70 mt-2">
                 <div className="flex items-center gap-2 shrink-0">

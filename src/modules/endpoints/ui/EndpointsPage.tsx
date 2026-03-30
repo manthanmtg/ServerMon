@@ -640,7 +640,6 @@ export default function EndpointsPage() {
           }}
           onToggle={handleToggle}
           onCopySnippet={handleCopySnippet}
-          generateCopySnippet={generateCopySnippetForEndpoint}
           isResizing={isResizing}
         />
       </div>
@@ -683,6 +682,8 @@ export default function EndpointsPage() {
             onSave={handleSave}
             onTest={handleTest}
             onTabChange={setDetailTab}
+            onCopySnippet={handleCopySnippet}
+            generateCopySnippet={(format) => generateCopySnippetForEndpoint(selectedEndpoint!, format)}
             showTestConsole={showTestConsole}
           >
             {detailTab === 'configure' && (
