@@ -134,10 +134,10 @@ export function EndpointDetail({
               <code className="text-[11px] sm:text-xs font-mono text-primary/70 bg-primary/5 px-2 py-0.5 rounded-full border border-primary/10 truncate">
                 /api/endpoints/{form.slug}
               </code>
-              <div className="flex items-center bg-background/40 rounded-xl border border-border/40 overflow-hidden shadow-sm relative ml-1">
+              <div className="flex items-center bg-background/40 rounded-xl border border-border/40 shadow-sm relative ml-1">
                 <button
                   onClick={onCopySlug}
-                  className="shrink-0 text-muted-foreground hover:text-primary transition-colors p-1.5 border-r border-border/40"
+                  className="shrink-0 text-muted-foreground hover:text-primary transition-colors p-1.5 border-r border-border/40 rounded-l-xl"
                   title="Copy full URL"
                 >
                   {copiedSlug ? (
@@ -149,7 +149,7 @@ export function EndpointDetail({
                 <button
                   onClick={() => setShowCopyDropdown(!showCopyDropdown)}
                   className={cn(
-                    "p-1.5 hover:bg-accent/50 text-muted-foreground/40 hover:text-primary transition-all",
+                    "p-1.5 hover:bg-accent/50 text-muted-foreground/40 hover:text-primary transition-all rounded-r-xl",
                     showCopyDropdown && "bg-primary/10 text-primary"
                   )}
                 >
