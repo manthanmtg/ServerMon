@@ -160,10 +160,10 @@ export function EndpointDetail({
                 {showCopyDropdown && (
                   <div 
                     ref={dropdownRef}
-                    className="absolute top-full right-0 mt-2 w-56 rounded-2xl border border-border/40 bg-card/90 backdrop-blur-xl shadow-2xl py-2 z-[60] animate-in fade-in zoom-in-95 slide-in-from-top-2 duration-200"
+                    className="absolute top-full right-0 mt-2 w-56 rounded-2xl border border-border/60 bg-card shadow-2xl py-2 z-[60] animate-in fade-in zoom-in-95 slide-in-from-top-2 duration-200 ring-1 ring-black/5"
                   >
                     <div className="px-4 py-2 mb-1 border-b border-border/10">
-                      <span className="text-[10px] font-black text-muted-foreground/40 uppercase tracking-widest">Integration Manifest</span>
+                      <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Integration Manifest</span>
                     </div>
                     {copyOptions.map((opt) => (
                       <button
@@ -173,7 +173,7 @@ export function EndpointDetail({
                           onCopySnippet(snippet);
                           setShowCopyDropdown(false);
                         }}
-                        className="w-full text-left px-4 py-2.5 text-xs font-bold text-muted-foreground hover:text-primary hover:bg-primary/5 transition-colors flex items-center justify-between group/opt"
+                        className="w-full text-left px-4 py-2.5 text-xs font-bold text-foreground/80 hover:text-primary hover:bg-primary/5 transition-colors flex items-center justify-between group/opt"
                       >
                         {opt.label}
                         <ChevronDown className="w-3 h-3 opacity-0 group-hover/opt:opacity-40 -rotate-90" />
