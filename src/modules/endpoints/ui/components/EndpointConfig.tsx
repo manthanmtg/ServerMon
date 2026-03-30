@@ -92,7 +92,7 @@ export function EndpointConfig({ form, onUpdateForm, autoSlugRef }: EndpointConf
                 key={t}
                 onClick={() => onUpdateForm('endpointType', t)}
                 className={cn(
-                  'flex flex-col items-center justify-center gap-2 py-4 px-4 rounded-2xl text-[11px] font-bold transition-all duration-300 relative group',
+                  'flex flex-col items-center justify-center gap-1.5 py-2.5 px-4 rounded-2xl text-[11px] font-bold transition-all duration-300 relative group',
                   active
                     ? 'bg-primary text-primary-foreground shadow-2xl shadow-primary/30 scale-[1.02]'
                     : 'text-muted-foreground/60 hover:text-foreground hover:bg-white/5 border border-transparent'
