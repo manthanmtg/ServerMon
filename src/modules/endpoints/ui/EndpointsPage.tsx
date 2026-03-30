@@ -97,7 +97,7 @@ export default function EndpointsPage() {
   const [saving, setSaving] = useState(false);
   const [copiedSlug, setCopiedSlug] = useState(false);
   const [showDiscardModal, setShowDiscardModal] = useState(false);
-  const [exampleTab, setExampleTab] = useState<'curl' | 'fetch'>('curl');
+  const [exampleTab, setExampleTab] = useState<'curl' | 'fetch' | 'python' | 'node'>('curl');
   const [showCopyRequestMenu, setShowCopyRequestMenu] = useState(false);
   const copyRequestMenuRef = useRef<HTMLDivElement>(null);
 

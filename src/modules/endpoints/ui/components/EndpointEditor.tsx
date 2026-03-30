@@ -1,11 +1,13 @@
 'use client';
 
+import { useState } from 'react';
 import { LoaderCircle, X, Plus, Terminal, Link, Braces, Sparkles, Globe } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import { cn } from '@/lib/utils';
 import { LANGUAGES, METHODS } from './common/constants';
 import { SCRIPT_BOILERPLATES, WEBHOOK_BOILERPLATES, LOGIC_BOILERPLATES } from './common/boilerplates';
 import type { EndpointCreateRequest, HttpMethod, ScriptLanguage } from '../../types';
+import ConfirmationModal from '@/components/ui/ConfirmationModal';
 
 const ScriptEditor = dynamic(() => import('./ScriptEditor'), {
   ssr: false,
@@ -24,6 +26,16 @@ interface EndpointEditorProps {
 }
 
 export function EndpointEditor({ form, onUpdateForm, onRun, onSave }: EndpointEditorProps) {
+  const [showBoilerplateConfirm, setShowBoilerplateConfirm] = useState(false);
+
+  const handleLoadBoilerplate = () => {
+    const lang = form.scriptLang || 'python';
+    const method = (form.method as string) === 'POST' ? 'POST' : 'GET';
+    const bp = SCRIPT_BOILERPLATES[lang as ScriptLanguage][method] || SCRIPT_BOILERPLATES[lang as ScriptLanguage]['GET'];
+    onUpdateForm('scriptContent', bp.content);
+    setShowBoilerplateConfirm(false);
+  };
+
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-500">
       {form.endpointType === 'script' && (
@@ -48,13 +60,11 @@ export function EndpointEditor({ form, onUpdateForm, onRun, onSave }: EndpointEd
               </div>
                 <button
                   onClick={() => {
-                    if (form.scriptContent && !window.confirm('Warning: This will replace all existing code. Proceed?')) {
+                    if (form.scriptContent) {
+                      setShowBoilerplateConfirm(true);
                       return;
                     }
-                    const lang = form.scriptLang || 'python';
-                    const method = (form.method as string) === 'POST' ? 'POST' : 'GET';
-                    const bp = SCRIPT_BOILERPLATES[lang][method] || SCRIPT_BOILERPLATES[lang]['GET'];
-                    onUpdateForm('scriptContent', bp.content);
+                    handleLoadBoilerplate();
                   }}
                   className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-primary/10 border border-primary/20 text-[9px] font-black text-primary uppercase tracking-widest hover:bg-primary/20 transition-all active:scale-95 animate-in slide-in-from-left-2"
                 >
@@ -356,6 +366,17 @@ export function EndpointEditor({ form, onUpdateForm, onRun, onSave }: EndpointEd
           </div>
         </div>
       )}
+
+      <ConfirmationModal
+        isOpen={showBoilerplateConfirm}
+        onConfirm={handleLoadBoilerplate}
+        onCancel={() => setShowBoilerplateConfirm(false)}
+        title="Overwriting Content"
+        message="Loading this boilerplate will replace all existing code in the editor. Are you sure you want to proceed?"
+        confirmLabel="Replace Code"
+        cancelLabel="Keep Current"
+        variant="warning"
+      />
     </div>
   );
 }

@@ -27,8 +27,8 @@ interface EndpointAuthProps {
   onGenerateToken: () => void;
   onRevokeToken: (tokenId: string) => void;
   onSetNewTokenName: (val: string) => void;
-  exampleTab: 'curl' | 'fetch';
-  onSetExampleTab: (tab: 'curl' | 'fetch') => void;
+  exampleTab: 'curl' | 'fetch' | 'python' | 'node';
+  onSetExampleTab: (tab: 'curl' | 'fetch' | 'python' | 'node') => void;
   onCopySnippet: (code: string) => void;
 }
 
@@ -60,6 +60,33 @@ export function EndpointAuth({
     "Authorization": "Bearer YOUR_TOKEN"
   }
 });`;
+
+  const nodeSnippet = `const response = await fetch("${url}", {
+  method: "${form.method}",
+  headers: {
+    "Authorization": "Bearer YOUR_TOKEN"
+  }
+});
+const data = await response.json();`;
+
+  const pythonSnippet = `import requests
+
+url = "${url}"
+headers = {
+    "Authorization": "Bearer YOUR_TOKEN"
+}
+response = requests.${form.method.toLowerCase()}(url, headers=headers)
+print(response.json())`;
+
+  const getActiveSnippet = () => {
+    switch (exampleTab) {
+      case 'curl': return curlSnippet;
+      case 'fetch': return fetchSnippet;
+      case 'node': return nodeSnippet;
+      case 'python': return pythonSnippet;
+      default: return curlSnippet;
+    }
+  };
 
   return (
     <div className="space-y-10 animate-in fade-in slide-in-from-bottom-2 duration-500">
@@ -257,7 +284,7 @@ export function EndpointAuth({
                 </div>
               </div>
               <div className="flex p-0.5 bg-muted/40 rounded-[1rem] border border-border/40">
-                {(['curl', 'fetch'] as const).map((tab) => (
+                {(['curl', 'fetch', 'python', 'node'] as const).map((tab) => (
                   <button
                     key={tab}
                     onClick={() => onSetExampleTab(tab)}
@@ -277,22 +304,22 @@ export function EndpointAuth({
             <div className="relative group">
               <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity z-10">
                 <button
-                  onClick={() => onCopySnippet(exampleTab === 'curl' ? curlSnippet : fetchSnippet)}
+                  onClick={() => onCopySnippet(getActiveSnippet())}
                   className="p-3 rounded-xl bg-white/5 hover:bg-white/10 text-muted-foreground hover:text-foreground backdrop-blur-md border border-white/10 shadow-2xl transition-all active:scale-95"
                 >
                   <Copy className="w-4 h-4" />
                 </button>
               </div>
-              <pre className="p-6 rounded-[2rem] bg-[#0d0d0d] border border-white/5 text-[11px] font-mono leading-relaxed overflow-x-auto text-blue-400 select-all shadow-2xl ring-1 ring-white/5">
-                {exampleTab === 'curl' ? (
+              <pre className="p-6 rounded-[2rem] bg-[#0d0d0d] border border-white/5 text-[11px] font-mono leading-relaxed overflow-x-auto text-blue-400 select-all shadow-2xl ring-1 ring-white/5 min-h-[160px]">
+                {exampleTab === 'curl' && (
                   <>
                     <span className="text-purple-400 font-bold">curl</span>{' '}
-                    <span className="text-orange-400">-X</span> {form.method}{' '}
+                    <span className="text-orange-400 font-medium">-X</span> {form.method}{' '}
                     <span className="text-green-400">
                       &quot;{url}&quot;
                     </span>{' '}
                     \<br />
-                    &nbsp;&nbsp;<span className="text-orange-400">-H</span>{' '}
+                    &nbsp;&nbsp;<span className="text-orange-400 font-medium">-H</span>{' '}
                     <span className="text-green-400">
                       &quot;Authorization: Bearer{' '}
                       <span className="bg-primary/20 text-primary px-1.5 py-0.5 rounded font-bold border border-primary/20">
@@ -301,7 +328,8 @@ export function EndpointAuth({
                       &quot;
                     </span>
                   </>
-                ) : (
+                )}
+                {exampleTab === 'fetch' && (
                   <>
                     <span className="text-purple-400 font-bold">fetch</span>(
                     <span className="text-green-400">
@@ -329,6 +357,41 @@ export function EndpointAuth({
                     &nbsp;&nbsp;&#125;
                     <br />
                     &#125;);
+                  </>
+                )}
+                {exampleTab === 'node' && (
+                  <>
+                    <span className="text-purple-400 font-bold text-xs">const</span> response = <span className="text-purple-400 font-bold">await fetch</span>(
+                    <span className="text-green-400">&quot;{url}&quot;</span>, &#123;
+                    <br />
+                    &nbsp;&nbsp;method: <span className="text-green-400">&quot;{form.method}&quot;</span>,
+                    <br />
+                    &nbsp;&nbsp;headers: &#123;
+                    <br />
+                    &nbsp;&nbsp;&nbsp;&nbsp;<span className="text-green-400 font-bold">&quot;Authorization&quot;</span>: <span className="text-green-400">&quot;Bearer <span className="bg-primary/20 text-primary px-1.5 py-0.5 rounded font-bold border border-primary/20">YOUR_TOKEN</span>&quot;</span>
+                    <br />
+                    &nbsp;&nbsp;&#125;
+                    <br />
+                    &#125;);
+                    <br />
+                    <span className="text-purple-400 font-bold text-xs">const</span> data = <span className="text-purple-400 font-bold">await</span> response.<span className="text-orange-400">json</span>();
+                  </>
+                )}
+                {exampleTab === 'python' && (
+                  <>
+                    <span className="text-purple-400 font-bold text-xs">import</span> requests
+                    <br /><br />
+                    url = <span className="text-green-400">&quot;{url}&quot;</span>
+                    <br />
+                    headers = &#123;
+                    <br />
+                    &nbsp;&nbsp;<span className="text-green-400 font-bold">&quot;Authorization&quot;</span>: <span className="text-green-400">&quot;Bearer <span className="bg-primary/20 text-primary px-1.5 py-0.5 rounded font-bold border border-primary/20">YOUR_TOKEN</span>&quot;</span>
+                    <br />
+                    &#125;
+                    <br />
+                    response = requests.<span className="text-purple-400 font-bold">{form.method.toLowerCase()}</span>(url, headers=headers)
+                    <br />
+                    <span className="text-purple-400 font-bold text-xs">print</span>(response.<span className="text-orange-400">json</span>())
                   </>
                 )}
               </pre>
