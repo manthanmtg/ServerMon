@@ -283,13 +283,13 @@ print(response.json())`;
                   <p className="text-[10px] text-muted-foreground font-medium">Code snippets for programmatic interaction</p>
                 </div>
               </div>
-              <div className="flex p-0.5 bg-muted/40 rounded-[1rem] border border-border/40">
+              <div className="flex flex-wrap p-0.5 bg-muted/40 rounded-[1rem] border border-border/40 gap-1 sm:gap-0">
                 {(['curl', 'fetch', 'python', 'node'] as const).map((tab) => (
                   <button
                     key={tab}
                     onClick={() => onSetExampleTab(tab)}
                     className={cn(
-                      'px-5 py-2 rounded-[0.8rem] text-[10px] font-black uppercase tracking-widest transition-all duration-300',
+                      'px-3 sm:px-5 py-2 rounded-[0.8rem] text-[9px] sm:text-[10px] font-black uppercase tracking-widest transition-all duration-300 flex-1 sm:flex-none text-center',
                       exampleTab === tab
                         ? 'bg-card text-primary shadow-lg scale-105'
                         : 'text-muted-foreground/60 hover:text-foreground'

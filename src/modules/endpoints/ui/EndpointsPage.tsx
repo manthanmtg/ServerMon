@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useToast } from '@/components/ui/toast';
 import ConfirmationModal from '@/components/ui/ConfirmationModal';
-import { slugify } from '@/lib/utils';
+import { cn, slugify } from '@/lib/utils';
 
 // Types
 import type {
@@ -607,11 +607,14 @@ export default function EndpointsPage() {
   const showDetail = isCreating || selectedId !== null;
 
   return (
-    <div ref={containerRef} className="flex gap-6 h-[calc(100vh-8.5rem)] relative overflow-hidden">
+    <div ref={containerRef} className="flex gap-6 h-[calc(100vh-6.5rem)] sm:h-[calc(100vh-6rem)] relative overflow-hidden">
       {/* List Panel */}
       <div 
-        className="flex flex-col min-w-0 h-full"
-        style={showDetail ? { width: listWidth } : { flex: 1 }}
+        className={cn(
+          "flex flex-col min-w-0 h-full",
+          showDetail ? "hidden lg:flex" : "flex-1"
+        )}
+        style={showDetail && !isResizing ? { width: listWidth } : { flex: 1 }}
       >
         <EndpointList
           endpoints={endpoints}
@@ -657,109 +660,117 @@ export default function EndpointsPage() {
 
       {/* Detail/Editor Panel */}
       {showDetail && (
-        <EndpointDetail
-          form={form}
-          initialForm={initialForm}
-          selectedId={selectedId}
-          isCreating={isCreating}
-          isDirty={isDirty}
-          saving={saving}
-          testLoading={testLoading}
-          detailTab={detailTab}
-          copiedSlug={copiedSlug}
-          onUpdateForm={updateForm}
-          onCopySlug={copySlugUrl}
-          onCloseDetail={closeDetail}
-          onSave={handleSave}
-          onTest={handleTest}
-          onTabChange={setDetailTab}
-          showTestConsole={showTestConsole}
+        <div 
+          className={cn(
+            "flex-1 flex flex-col min-w-0 h-full z-50 lg:z-auto transition-all duration-500 ease-in-out",
+            "fixed inset-0 bg-background lg:relative lg:inset-auto lg:bg-transparent",
+            "animate-in slide-in-from-right-full lg:animate-none"
+          )}
         >
-          {detailTab === 'configure' && (
-            <EndpointConfig 
-              form={form} 
-              onUpdateForm={updateForm} 
-              autoSlugRef={autoSlugRef} 
-            />
-          )}
+          <EndpointDetail
+            form={form}
+            initialForm={initialForm}
+            selectedId={selectedId}
+            isCreating={isCreating}
+            isDirty={isDirty}
+            saving={saving}
+            testLoading={testLoading}
+            detailTab={detailTab}
+            copiedSlug={copiedSlug}
+            onUpdateForm={updateForm}
+            onCopySlug={() => handleCopySnippet(`${typeof window !== 'undefined' ? window.location.origin : ''}/api/endpoints/${form.slug}`)}
+            onCloseDetail={closeDetail}
+            onSave={handleSave}
+            onTest={handleTest}
+            onTabChange={setDetailTab}
+            showTestConsole={showTestConsole}
+          >
+            {detailTab === 'configure' && (
+              <EndpointConfig 
+                form={form} 
+                onUpdateForm={updateForm} 
+                autoSlugRef={autoSlugRef} 
+              />
+            )}
 
-          {detailTab === 'code' && (
-            <EndpointEditor
-              form={form}
-              onUpdateForm={updateForm}
-              onRun={!isCreating && selectedId ? handleTest : undefined}
-              onSave={handleSave}
-            />
-          )}
+            {detailTab === 'code' && (
+              <EndpointEditor
+                form={form}
+                onUpdateForm={updateForm}
+                onRun={!isCreating && selectedId ? handleTest : undefined}
+                onSave={handleSave}
+              />
+            )}
 
-          {detailTab === 'auth' && (
-            <EndpointAuth
-              form={form}
-              selectedId={selectedId}
-              isCreating={isCreating}
-              tokens={tokens}
-              tokensLoading={tokensLoading}
-              newTokenName={newTokenName}
-              generatedToken={generatedToken}
-              onUpdateForm={updateForm}
-              onGenerateToken={handleGenerateToken}
-              onRevokeToken={handleRevokeToken}
-              onSetNewTokenName={setNewTokenName}
-              exampleTab={exampleTab}
-              onSetExampleTab={setExampleTab}
-              onCopySnippet={handleCopySnippet}
-            />
-          )}
+            {detailTab === 'auth' && (
+              <EndpointAuth
+                form={form}
+                selectedId={selectedId}
+                isCreating={isCreating}
+                tokens={tokens}
+                tokensLoading={tokensLoading}
+                newTokenName={newTokenName}
+                generatedToken={generatedToken}
+                onUpdateForm={updateForm}
+                onGenerateToken={handleGenerateToken}
+                onRevokeToken={handleRevokeToken}
+                onSetNewTokenName={setNewTokenName}
+                exampleTab={exampleTab}
+                onSetExampleTab={setExampleTab}
+                onCopySnippet={handleCopySnippet}
+              />
+            )}
 
-          {detailTab === 'logs' && (
-            <EndpointLogs 
-              logs={logs} 
-              logsLoading={logsLoading} 
-              isCreating={isCreating} 
-            />
-          )}
+            {detailTab === 'logs' && (
+              <EndpointLogs 
+                logs={logs} 
+                logsLoading={logsLoading} 
+                isCreating={isCreating} 
+              />
+            )}
 
-          {detailTab === 'settings' && (
-            <EndpointSettings
-              form={form}
-              selectedEndpoint={selectedEndpoint}
-              selectedId={selectedId}
-              isCreating={isCreating}
-              onUpdateForm={updateForm}
-              onDuplicate={handleDuplicate}
-              onDelete={setDeleteTarget}
-            />
-          )}
+            {detailTab === 'settings' && (
+              <EndpointSettings
+                form={form}
+                selectedEndpoint={selectedEndpoint}
+                selectedId={selectedId}
+                isCreating={isCreating}
+                onUpdateForm={updateForm}
+                onDuplicate={handleDuplicate}
+                onDelete={setDeleteTarget}
+              />
+            )}
 
-          {showTestConsole && (
-             <div className="fixed bottom-0 right-0 left-0 lg:left-[auto] lg:w-[calc(100%-listWidth-3rem)] pointer-events-none">
-                <div className="pointer-events-auto">
-                    <EndpointTestConsole
-                      testBody={testBody}
-                      testResult={testResult}
-                      testLoading={testLoading}
-                      showCopyRequestMenu={showCopyRequestMenu}
-                      copyRequestMenuRef={copyRequestMenuRef}
-                      onSetTestBody={setTestBody}
-                      onToggleCopyMenu={() => setShowCopyRequestMenu(!showCopyRequestMenu)}
-                      onClose={() => setShowTestConsole(false)}
-                      onCopySnippet={(format) => {
-                        navigator.clipboard.writeText(generateCopySnippet(format));
-                        toast({ title: 'Copied to clipboard', variant: 'success' });
-                        setShowCopyRequestMenu(false);
-                      }}
-                      onCopyResponse={() => {
-                        if (testResult) {
-                          navigator.clipboard.writeText(testResult.body);
-                          toast({ title: 'Response copied', variant: 'success' });
-                        }
-                      }}
-                      onRun={handleTest}
-                    />
-                </div>
-             </div>
-          )}
-        </EndpointDetail>
+            {showTestConsole && (
+               <div className="fixed bottom-0 right-0 left-0 lg:left-[auto] lg:w-[calc(100%-listWidth-3rem)] pointer-events-none">
+                  <div className="pointer-events-auto">
+                      <EndpointTestConsole
+                        testBody={testBody}
+                        testResult={testResult}
+                        testLoading={testLoading}
+                        showCopyRequestMenu={showCopyRequestMenu}
+                        copyRequestMenuRef={copyRequestMenuRef}
+                        onSetTestBody={setTestBody}
+                        onToggleCopyMenu={() => setShowCopyRequestMenu(!showCopyRequestMenu)}
+                        onClose={() => setShowTestConsole(false)}
+                        onCopySnippet={(format) => {
+                          navigator.clipboard.writeText(generateCopySnippet(format));
+                          toast({ title: 'Copied to clipboard', variant: 'success' });
+                          setShowCopyRequestMenu(false);
+                        }}
+                        onCopyResponse={() => {
+                          if (testResult) {
+                            navigator.clipboard.writeText(testResult.body);
+                            toast({ title: 'Response copied', variant: 'success' });
+                          }
+                        }}
+                        onRun={handleTest}
+                      />
+                  </div>
+               </div>
+            )}
+          </EndpointDetail>
+        </div>
       )}
 
       {/* Template Gallery Modal */}

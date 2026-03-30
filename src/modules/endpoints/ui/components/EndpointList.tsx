@@ -100,13 +100,13 @@ export function EndpointList({
             className="w-full h-11 pl-10 pr-4 rounded-2xl border border-border/40 bg-background/50 text-sm outline-none focus:ring-2 focus:ring-primary/20 transition-all placeholder:text-muted-foreground/40 shadow-sm"
           />
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 w-full sm:w-auto">
           <Button
             variant="outline"
             size="sm"
             onClick={onRefresh}
             disabled={refreshing}
-            className="h-11 w-11 p-0 rounded-2xl border-border/40 hover:bg-accent/50"
+            className="h-11 w-11 p-0 rounded-2xl border-border/40 hover:bg-accent/50 shrink-0"
           >
             <RefreshCcw className={cn('w-4 h-4 text-muted-foreground', refreshing && 'animate-spin')} />
           </Button>
@@ -114,19 +114,19 @@ export function EndpointList({
             variant="outline"
             size="sm"
             onClick={onShowTemplates}
-            className="h-11 gap-2 rounded-2xl font-bold px-5 border-border/40 hover:bg-accent/50 text-foreground"
+            className="h-11 flex-1 sm:flex-none gap-2 rounded-2xl font-bold px-4 sm:px-5 border-border/40 hover:bg-accent/50 text-foreground"
           >
             <Sparkles className="w-4 h-4 text-primary" />
-            <span className="hidden sm:inline">Templates</span>
+            <span className="inline">Templates</span>
           </Button>
           <Button
             size="sm"
             data-testid="new-endpoint-button"
             onClick={onCreate}
-            className="h-11 gap-2 rounded-2xl font-bold px-6 shadow-lg shadow-primary/20 transition-transform hover:scale-[1.02] active:scale-[0.98]"
+            className="h-11 flex-1 sm:flex-none gap-2 rounded-2xl font-bold px-4 sm:px-6 shadow-lg shadow-primary/20 transition-transform hover:scale-[1.02] active:scale-[0.98]"
           >
             <Plus className="w-4 h-4" />
-            <span className="hidden sm:inline">New</span>
+            <span className="inline">New</span>
           </Button>
         </div>
       </div>
