@@ -32,6 +32,7 @@ interface EndpointDetailProps {
   onSave: () => void;
   onTest: () => void;
   onTabChange: (tab: DetailTab) => void;
+  showTestConsole: boolean;
   children: React.ReactNode;
 }
 
@@ -51,6 +52,7 @@ export function EndpointDetail({
   onSave,
   onTest,
   onTabChange,
+  showTestConsole,
   children,
 }: EndpointDetailProps) {
   const tabs = [
@@ -188,7 +190,12 @@ export function EndpointDetail({
       </div>
 
       {/* Tab Content */}
-      <div className="flex-1 overflow-y-auto p-4 sm:p-8 space-y-6 sm:space-y-8 pb-40 sm:pb-80 custom-scrollbar">
+      <div 
+        className={cn(
+          "flex-1 overflow-y-auto p-4 sm:p-8 space-y-6 sm:space-y-8 custom-scrollbar transition-all",
+          showTestConsole && "pb-60 sm:pb-96"
+        )}
+      >
         {children}
       </div>
     </div>

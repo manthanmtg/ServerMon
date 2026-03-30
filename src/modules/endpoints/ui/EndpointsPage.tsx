@@ -638,6 +638,7 @@ export default function EndpointsPage() {
           onSave={handleSave}
           onTest={handleTest}
           onTabChange={setDetailTab}
+          showTestConsole={showTestConsole}
         >
           {detailTab === 'configure' && (
             <EndpointConfig 
