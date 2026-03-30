@@ -205,7 +205,7 @@ describe('EndpointsPage', () => {
     });
 
     // Check if slugified name appears in the input with placeholder "my-endpoint"
-    const slugInput = await waitFor(() => within(detail).getByPlaceholderText('my-endpoint'));
+    const slugInput = await waitFor(() => within(detail).getByPlaceholderText('my-awesome-endpoint'));
     await waitFor(() => {
       expect(slugInput).toHaveValue('my-new-api');
     });
@@ -246,7 +246,7 @@ describe('EndpointsPage', () => {
       fireEvent.click(authTab);
     });
 
-    await waitFor(() => expect(screen.queryByText('Authentication')).not.toBeNull());
+    await waitFor(() => expect(screen.queryByText(/Security Protocol/i)).not.toBeNull());
   });
 
   it('toggles endpoint enabled state', async () => {
@@ -308,7 +308,7 @@ describe('EndpointsPage', () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByText('Test Console')).toBeDefined();
+      expect(screen.getByText(/Interactive Test Console/i)).toBeDefined();
     });
   });
 
@@ -357,8 +357,8 @@ describe('EndpointsPage', () => {
       fireEvent.click(authTab);
     });
 
-    await waitFor(() => screen.getByPlaceholderText(/Token name/i));
-    const tokenInput = screen.getByPlaceholderText(/Token name/i);
+    await waitFor(() => screen.getByPlaceholderText(/Identifiable label/i));
+    const tokenInput = screen.getByPlaceholderText(/Identifiable label/i);
     await act(async () => {
       fireEvent.change(tokenInput, { target: { value: 'New Token' } });
     });

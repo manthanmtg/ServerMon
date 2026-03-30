@@ -2,6 +2,7 @@ export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 export type EndpointType = 'script' | 'logic' | 'webhook';
 export type ScriptLanguage = 'python' | 'bash' | 'node';
 export type EndpointAuth = 'public' | 'token';
+export type DetailTab = 'configure' | 'code' | 'auth' | 'logs' | 'settings';
 
 export interface EndpointToken {
   _id: string;

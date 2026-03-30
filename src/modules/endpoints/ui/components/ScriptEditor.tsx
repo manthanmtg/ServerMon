@@ -189,19 +189,21 @@ export default function ScriptEditor({
   }, [value]);
 
   return (
-    <div className={cn('rounded-xl overflow-hidden border border-border/50', className)}>
+    <div className={cn('rounded-2xl overflow-hidden border border-border/40 bg-[#1e1e2e] shadow-xl', className)}>
       <div ref={containerRef} className="[&_.cm-editor]:outline-none" />
-      <div className="flex items-center justify-between px-3 py-1.5 bg-[#1e1e2e] border-t border-white/5 text-[10px] text-white/40">
-        <div className="flex items-center gap-3">
-          <span className="capitalize">{language}</span>
-          <span>
+      <div className="flex items-center justify-between px-4 py-2 bg-[#1a1a26] border-t border-white/5 text-[10px] font-bold text-white/40 uppercase tracking-widest">
+        <div className="flex items-center gap-4">
+          <span className="text-primary/60">{language}</span>
+          <span className="font-mono">
             Ln {cursorPos.line}, Col {cursorPos.col}
           </span>
         </div>
-        <div className="flex items-center gap-3">
-          <span>{charCount.toLocaleString()} chars</span>
-          {onRun && <span className="text-white/25">Cmd+Enter to test</span>}
-          {onSave && <span className="text-white/25">Cmd+S to save</span>}
+        <div className="flex items-center gap-4">
+          <span className="font-mono">{charCount.toLocaleString()} chars</span>
+          <div className="flex items-center gap-3">
+             {onRun && <span className="text-white/20 hover:text-white/40 transition-colors cursor-help" title="Module+Enter">Test Available</span>}
+             {onSave && <span className="text-white/20 hover:text-white/40 transition-colors cursor-help" title="Module+S">Save Ready</span>}
+          </div>
         </div>
       </div>
     </div>
