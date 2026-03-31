@@ -33,6 +33,7 @@ import {
   Brain,
   Users as UsersIcon,
   Waypoints,
+  Zap,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/components/ui/toast';
@@ -73,6 +74,7 @@ const navGroups = [
       { label: 'Users & Permissions', href: '/users', icon: UsersIcon },
       { label: 'Memory', href: '/memory', icon: Brain },
       { label: 'Endpoints', href: '/endpoints', icon: Waypoints },
+      { label: 'Self Service', href: '/self-service', icon: Zap },
     ],
   },
 ];

@@ -87,6 +87,10 @@ const EndpointsWidget = dynamic(() => import('@/modules/endpoints/ui/EndpointsWi
   loading: WidgetLoader,
 });
 
+const SelfServiceWidget = dynamic(() => import('@/modules/self-service/ui/SelfServiceWidget'), {
+  loading: WidgetLoader,
+});
+
 const widgetMap: Record<
   string,
   { component: React.ComponentType<Record<string, unknown>>; name: string }
@@ -110,6 +114,7 @@ const widgetMap: Record<
   MemoryWidget: { component: MemoryWidget, name: 'Memory Health' },
   UsersWidget: { component: UsersWidget, name: 'Users & Access' },
   EndpointsWidget: { component: EndpointsWidget, name: 'Custom Endpoints' },
+  SelfServiceWidget: { component: SelfServiceWidget, name: 'Self Service' },
 };
 
 export function renderWidget(componentName: string, props: Record<string, unknown> = {}) {
