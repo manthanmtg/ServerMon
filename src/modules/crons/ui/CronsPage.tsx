@@ -117,6 +117,7 @@ function ScheduleBuilder({
         <code className="px-2 py-1 rounded-md bg-muted text-sm font-mono">{expression}</code>
         <div className="relative">
           <Button
+            type="button"
             variant="outline"
             size="sm"
             onClick={() => setShowPresets(!showPresets)}
