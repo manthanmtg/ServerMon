@@ -35,7 +35,8 @@ describe('CronsWidget', () => {
   });
 
   it('shows loading state initially', () => {
-    render(<CronsWidget />);
-    // Spinner uses LoaderCircle which we can find or just check for initialLoad logic
+    global.fetch = vi.fn(() => new Promise(() => {}));
+    const { container } = render(<CronsWidget />);
+    expect(container.querySelector('.animate-spin')).toBeTruthy();
   });
 });

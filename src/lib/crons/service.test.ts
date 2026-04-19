@@ -49,7 +49,7 @@ vi.mock('@/lib/logger', () => ({
   }),
 }));
 
-import { cronsService } from './service';
+import { computeNextRuns, cronsService } from './service';
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
@@ -83,6 +83,47 @@ describe('CronsService', () => {
       expect(typeof cronsService.runJobNow).toBe('function');
       expect(typeof cronsService.getRunStatus).toBe('function');
       expect(typeof cronsService.listRuns).toBe('function');
+    });
+  });
+
+  describe('computeNextRuns()', () => {
+    it('uses OR semantics when both day-of-month and day-of-week are restricted', () => {
+      const base = new Date(2026, 3, 15, 10, 0, 0);
+      const [nextRun] = computeNextRuns('0', '0', '1', '*', '0', 1, base);
+
+      expect(nextRun).toBeDefined();
+      if (!nextRun) {
+        throw new Error('Expected a next run');
+      }
+      const diffDays = (new Date(nextRun).getTime() - base.getTime()) / 86_400_000;
+      expect(diffDays).toBeLessThan(10);
+    });
+
+    it('treats 7 as Sunday in day-of-week expressions', () => {
+      const [nextRun] = computeNextRuns('0', '0', '*', '*', '7', 1, new Date(2026, 3, 18, 10));
+
+      expect(nextRun).toBeDefined();
+      if (!nextRun) {
+        throw new Error('Expected a next run');
+      }
+      const next = new Date(nextRun);
+      expect(next.getDay()).toBe(0);
+      expect(next.getHours()).toBe(0);
+      expect(next.getMinutes()).toBe(0);
+    });
+
+    it('supports named month and weekday fields', () => {
+      const [nextRun] = computeNextRuns('0', '9', '*', 'jan', 'mon', 1, new Date(2026, 0, 1));
+
+      expect(nextRun).toBeDefined();
+      if (!nextRun) {
+        throw new Error('Expected a next run');
+      }
+      const next = new Date(nextRun);
+      expect(next.getMonth()).toBe(0);
+      expect(next.getDay()).toBe(1);
+      expect(next.getHours()).toBe(9);
+      expect(next.getMinutes()).toBe(0);
     });
   });
 

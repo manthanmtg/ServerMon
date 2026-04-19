@@ -6,21 +6,12 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import type { CronsSnapshot } from '../types';
-
-function relativeTime(iso: string): string {
-  const diff = new Date(iso).getTime() - Date.now();
-  if (diff < 0) return 'overdue';
-  const minutes = Math.round(diff / 60_000);
-  if (minutes < 1) return '< 1m';
-  if (minutes < 60) return `${minutes}m`;
-  const hours = Math.round(minutes / 60);
-  if (hours < 24) return `${hours}h`;
-  return `${Math.round(hours / 24)}d`;
-}
+import { formatCountdown, useRealtimeNow } from './time';
 
 export default function CronsWidget() {
   const [snapshot, setSnapshot] = useState<CronsSnapshot | null>(null);
   const [initialLoad, setInitialLoad] = useState(true);
+  const now = useRealtimeNow();
 
   const load = useCallback(async () => {
     try {
@@ -98,7 +89,9 @@ export default function CronsWidget() {
             <Clock className={cn('w-3.5 h-3.5 text-primary shrink-0')} />
             <span className="text-foreground">
               Next: <span className="font-medium">{s.nextRunJob || 'job'}</span>
-              <span className="text-muted-foreground ml-1">in {relativeTime(s.nextRunTime)}</span>
+              <span className="text-muted-foreground ml-1 font-mono whitespace-nowrap">
+                {formatCountdown(s.nextRunTime, now)}
+              </span>
             </span>
           </div>
         )}

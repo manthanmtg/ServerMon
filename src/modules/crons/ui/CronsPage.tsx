@@ -32,33 +32,13 @@ import { useToast } from '@/components/ui/toast';
 import ConfirmationModal from '@/components/ui/ConfirmationModal';
 import { cn } from '@/lib/utils';
 import type { CronJob, CronRunStatus, CronsSnapshot } from '../types';
+import { formatCountdown, formatPastTime, useRealtimeNow } from './time';
 
 type FilterSource = 'all' | 'user' | 'system';
 type FilterStatus = 'all' | 'active' | 'disabled';
 type SortField = 'command' | 'expression' | 'user' | 'source' | 'nextRun';
 type SortDir = 'asc' | 'desc';
 type ViewTab = 'jobs' | 'system' | 'manual' | 'logs';
-
-function relativeTime(iso: string): string {
-  const diff = new Date(iso).getTime() - Date.now();
-  if (diff < 0) return 'overdue';
-  const minutes = Math.round(diff / 60_000);
-  if (minutes < 1) return '< 1m';
-  if (minutes < 60) return `in ${minutes}m`;
-  const hours = Math.round(minutes / 60);
-  if (hours < 24) return `in ${hours}h`;
-  return `in ${Math.round(hours / 24)}d`;
-}
-
-function pastTime(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime();
-  const minutes = Math.max(0, Math.round(diff / 60_000));
-  if (minutes < 1) return 'just now';
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.round(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  return `${Math.round(hours / 24)}d ago`;
-}
 
 // ---- Schedule Builder ----
 
@@ -365,6 +345,8 @@ function CronFormModal({ mode, initial, onClose, onSubmit }: CronFormModalProps)
 // ---- Next Runs Panel ----
 
 function NextRunsPanel({ job }: { job: CronJob }) {
+  const now = useRealtimeNow();
+
   if (!job.enabled || job.nextRuns.length === 0) {
     return (
       <p className="text-xs text-muted-foreground py-2">
@@ -392,7 +374,9 @@ function NextRunsPanel({ job }: { job: CronJob }) {
               minute: '2-digit',
             })}
           </span>
-          <span className="text-muted-foreground ml-auto">{relativeTime(run)}</span>
+          <span className="text-muted-foreground ml-auto font-mono whitespace-nowrap">
+            {formatCountdown(run, now)}
+          </span>
         </div>
       ))}
     </div>
@@ -521,6 +505,7 @@ export default function CronsPage() {
   const { toast } = useToast();
   const [snapshot, setSnapshot] = useState<CronsSnapshot | null>(null);
   const [loading, setLoading] = useState(true);
+  const now = useRealtimeNow();
   const [refreshMs, setRefreshMs] = useState(30000);
   const [filterSource, setFilterSource] = useState<FilterSource>('all');
   const [filterStatus, setFilterStatus] = useState<FilterStatus>('all');
@@ -950,8 +935,8 @@ export default function CronsPage() {
               </p>
               <p className="text-sm font-semibold text-foreground">
                 {snapshot.summary.nextRunJob || 'Unknown job'}
-                <span className="text-muted-foreground font-normal ml-2">
-                  {relativeTime(snapshot.summary.nextRunTime)}
+                <span className="text-muted-foreground font-normal ml-2 font-mono whitespace-nowrap">
+                  {formatCountdown(snapshot.summary.nextRunTime, now)}
                 </span>
               </p>
               <p className="text-xs text-muted-foreground mt-0.5">
@@ -1148,8 +1133,8 @@ export default function CronsPage() {
                           </td>
                           <td className="py-3 px-4 text-xs">
                             {job.nextRuns[0] ? (
-                              <span className="text-foreground">
-                                {relativeTime(job.nextRuns[0])}
+                              <span className="text-foreground font-mono whitespace-nowrap">
+                                {formatCountdown(job.nextRuns[0], now)}
                               </span>
                             ) : (
                               <span className="text-muted-foreground">-</span>
@@ -1359,7 +1344,7 @@ export default function CronsPage() {
                     className="flex items-start gap-3 py-1.5 px-2 rounded hover:bg-muted/20"
                   >
                     <span className="text-muted-foreground shrink-0 w-[80px]">
-                      {pastTime(entry.timestamp)}
+                      {formatPastTime(entry.timestamp, now)}
                     </span>
                     <Badge variant="secondary" className="text-[10px] shrink-0">
                       PID {entry.pid}

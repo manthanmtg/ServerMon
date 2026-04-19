@@ -60,16 +60,41 @@ function makeId(user: string, expression: string, command: string): string {
   return hash.slice(0, 12);
 }
 
-function computeNextRuns(
+const MONTH_ALIASES: Record<string, number> = {
+  jan: 1,
+  feb: 2,
+  mar: 3,
+  apr: 4,
+  may: 5,
+  jun: 6,
+  jul: 7,
+  aug: 8,
+  sep: 9,
+  oct: 10,
+  nov: 11,
+  dec: 12,
+};
+
+const DAY_ALIASES: Record<string, number> = {
+  sun: 0,
+  mon: 1,
+  tue: 2,
+  wed: 3,
+  thu: 4,
+  fri: 5,
+  sat: 6,
+};
+
+export function computeNextRuns(
   minute: string,
   hour: string,
   dom: string,
   month: string,
   dow: string,
-  count = 5
+  count = 5,
+  now = new Date()
 ): string[] {
   const runs: string[] = [];
-  const now = new Date();
   const cursor = new Date(now.getTime());
   cursor.setSeconds(0, 0);
   cursor.setMinutes(cursor.getMinutes() + 1);
@@ -79,12 +104,23 @@ function computeNextRuns(
 
   while (runs.length < count && iterations < maxIterations) {
     iterations++;
+    const dayOfMonthMatches = matchesCronField(dom, cursor.getDate(), 1, 31);
+    const monthMatches = matchesCronField(month, cursor.getMonth() + 1, 1, 12, MONTH_ALIASES);
+    const dayOfWeekMatches = matchesCronField(dow, cursor.getDay(), 0, 7, DAY_ALIASES);
+    const dayMatches =
+      dom === '*' && dow === '*'
+        ? true
+        : dom === '*'
+          ? dayOfWeekMatches
+          : dow === '*'
+            ? dayOfMonthMatches
+            : dayOfMonthMatches || dayOfWeekMatches;
+
     if (
       matchesCronField(minute, cursor.getMinutes(), 0, 59) &&
       matchesCronField(hour, cursor.getHours(), 0, 23) &&
-      matchesCronField(dom, cursor.getDate(), 1, 31) &&
-      matchesCronField(month, cursor.getMonth() + 1, 1, 12) &&
-      matchesCronField(dow, cursor.getDay(), 0, 7)
+      monthMatches &&
+      dayMatches
     ) {
       runs.push(cursor.toISOString());
     }
@@ -94,74 +130,81 @@ function computeNextRuns(
   return runs;
 }
 
-function matchesCronField(field: string, value: number, min: number, max: number): boolean {
+function parseCronAtom(token: string, aliases?: Record<string, number>): number | null {
+  const normalized = token.trim().toLowerCase();
+  if (!normalized) return null;
+  if (aliases && normalized in aliases) return aliases[normalized] ?? null;
+
+  const parsed = Number.parseInt(normalized, 10);
+  return Number.isNaN(parsed) ? null : parsed;
+}
+
+function matchesCronField(
+  field: string,
+  value: number,
+  min: number,
+  max: number,
+  aliases?: Record<string, number>
+): boolean {
   if (field === '*') return true;
 
+  const isDayOfWeek = min === 0 && max === 7;
+  const normalizedValue = isDayOfWeek && value === 7 ? 0 : value;
   const parts = field.split(',');
-  for (const part of parts) {
+  for (const rawPart of parts) {
+    const part = rawPart.trim();
+    if (!part) continue;
+
+    let rangePart = part;
+    let step = 1;
+
     if (part.includes('/')) {
       const [range, stepStr] = part.split('/');
-      const step = parseInt(stepStr, 10);
-      if (isNaN(step) || step <= 0) continue;
-      let start = min;
-      let end = max;
-      if (range !== '*') {
-        if (range.includes('-')) {
-          const [s, e] = range.split('-').map(Number);
-          start = s;
-          end = e;
-        } else {
-          start = parseInt(range, 10);
-        }
+      const parsedStep = Number.parseInt(stepStr, 10);
+      if (Number.isNaN(parsedStep) || parsedStep <= 0) continue;
+      rangePart = range;
+      step = parsedStep;
+    }
+
+    let start = min;
+    let end = max;
+
+    if (rangePart !== '*') {
+      if (rangePart.includes('-')) {
+        const [startToken, endToken] = rangePart.split('-');
+        const parsedStart = parseCronAtom(startToken, aliases);
+        const parsedEnd = parseCronAtom(endToken, aliases);
+        if (parsedStart === null || parsedEnd === null) continue;
+        start = parsedStart;
+        end = parsedEnd;
+      } else {
+        const parsed = parseCronAtom(rangePart, aliases);
+        if (parsed === null) continue;
+        start = parsed;
+        end = parsed;
       }
-      for (let i = start; i <= end; i += step) {
-        if (i === value) return true;
-      }
-    } else if (part.includes('-')) {
-      const [s, e] = part.split('-').map(Number);
-      if (value >= s && value <= e) return true;
-    } else {
-      const num = parseInt(part, 10);
-      if (num === value) return true;
-      if (field === '7' && value === 0) return true;
-      if (field === '0' && value === 7) return true;
+    }
+
+    for (let candidate = start; candidate <= end; candidate += step) {
+      if (candidate < min || candidate > max) continue;
+      if (candidate === normalizedValue) return true;
+      if (isDayOfWeek && candidate === 7 && normalizedValue === 0) return true;
     }
   }
+
   return false;
 }
 
-function parseCrontabLine(
-  line: string,
-  user: string,
-  source: CronSource,
-  sourceFile?: string
-): CronJob | null {
-  const trimmed = line.trim();
-  if (!trimmed || (trimmed.startsWith('#') && !trimmed.startsWith('#!'))) {
-    if (trimmed.startsWith('#') && trimmed.length > 1) {
-      const uncommented = trimmed.slice(1).trim();
-      const job = parseCronExpression(uncommented, user, source, sourceFile);
-      if (job) {
-        job.enabled = false;
-        job.comment = trimmed;
-        return job;
-      }
-    }
-    return null;
-  }
-
-  if (trimmed.includes('=') && !trimmed.match(/^\S+\s+\S+\s+\S+\s+\S+\s+\S+\s+/)) {
-    return null;
-  }
-
-  return parseCronExpression(trimmed, user, source, sourceFile);
+interface ParseCronExpressionOptions {
+  hasSystemUserField?: boolean;
 }
 
 function parseCronExpression(
   line: string,
-  user: string,
+  fallbackUser: string,
   source: CronSource,
-  sourceFile?: string
+  sourceFile?: string,
+  options?: ParseCronExpressionOptions
 ): CronJob | null {
   // Handle @reboot, @hourly, etc.
   const specialMap: Record<string, string> = {
@@ -183,15 +226,34 @@ function parseCronExpression(
     command: string;
 
   const firstToken = line.split(/\s+/)[0];
+  let resolvedUser = fallbackUser;
+
   if (firstToken && specialMap[firstToken]) {
     const expanded = specialMap[firstToken].split(' ');
     [minute, hour, dayOfMonth, month, dayOfWeek] = expanded;
-    command = line.slice(firstToken.length).trim();
+
+    const remainder = line.slice(firstToken.length).trim();
+    if (options?.hasSystemUserField) {
+      const remainderParts = remainder.split(/\s+/);
+      if (remainderParts.length < 2) return null;
+      resolvedUser = remainderParts[0] || fallbackUser;
+      command = remainderParts.slice(1).join(' ');
+    } else {
+      command = remainder;
+    }
   } else {
     const parts = line.split(/\s+/);
-    if (parts.length < 6) return null;
+    const minimumPartCount = options?.hasSystemUserField ? 7 : 6;
+    if (parts.length < minimumPartCount) return null;
+
     [minute, hour, dayOfMonth, month, dayOfWeek] = parts;
-    command = parts.slice(5).join(' ');
+
+    if (options?.hasSystemUserField) {
+      resolvedUser = parts[5] || fallbackUser;
+      command = parts.slice(6).join(' ');
+    } else {
+      command = parts.slice(5).join(' ');
+    }
   }
 
   if (!command) return null;
@@ -201,7 +263,7 @@ function parseCronExpression(
     minute === '-' ? [] : computeNextRuns(minute, hour, dayOfMonth, month, dayOfWeek);
 
   return {
-    id: makeId(user, expression, command),
+    id: makeId(resolvedUser, expression, command),
     minute,
     hour,
     dayOfMonth,
@@ -209,13 +271,44 @@ function parseCronExpression(
     dayOfWeek,
     command,
     expression,
-    user,
+    user: resolvedUser,
     source,
     sourceFile,
     enabled: true,
     nextRuns,
     description: describeSchedule(minute, hour, dayOfMonth, month, dayOfWeek),
   };
+}
+
+function parseCrontabLine(
+  line: string,
+  user: string,
+  source: CronSource,
+  sourceFile?: string
+): CronJob | null {
+  const trimmed = line.trim();
+  const parseOptions: ParseCronExpressionOptions = {
+    hasSystemUserField: source === 'etc-cron.d',
+  };
+
+  if (!trimmed || (trimmed.startsWith('#') && !trimmed.startsWith('#!'))) {
+    if (trimmed.startsWith('#') && trimmed.length > 1) {
+      const uncommented = trimmed.slice(1).trim();
+      const job = parseCronExpression(uncommented, user, source, sourceFile, parseOptions);
+      if (job) {
+        job.enabled = false;
+        job.comment = trimmed;
+        return job;
+      }
+    }
+    return null;
+  }
+
+  if (trimmed.includes('=') && !trimmed.match(/^\S+\s+\S+\s+\S+\s+\S+\s+\S+\s+/)) {
+    return null;
+  }
+
+  return parseCronExpression(trimmed, user, source, sourceFile, parseOptions);
 }
 
 function describeSchedule(
@@ -789,8 +882,6 @@ function isProcessRunning(pid: number): boolean {
     return false;
   }
 }
-
-
 
 function runJobNow(jobId: string, command: string): CronRunStatus {
   const runId = `${jobId}-${Date.now()}`;
