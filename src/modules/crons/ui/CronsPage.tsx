@@ -374,7 +374,18 @@ function NextRunsPanel({ job }: { job: CronJob }) {
               minute: '2-digit',
             })}
           </span>
-          <span className="text-muted-foreground ml-auto font-mono whitespace-nowrap">
+          <span
+            className="text-muted-foreground ml-auto font-mono whitespace-nowrap cursor-help underline decoration-dashed decoration-muted-foreground/50 underline-offset-4"
+            title={new Date(run).toLocaleString(undefined, {
+              weekday: 'short',
+              month: 'short',
+              day: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit',
+              second: '2-digit',
+              timeZoneName: 'short',
+            })}
+          >
             {formatCountdown(run, now)}
           </span>
         </div>
@@ -935,7 +946,18 @@ export default function CronsPage() {
               </p>
               <p className="text-sm font-semibold text-foreground">
                 {snapshot.summary.nextRunJob || 'Unknown job'}
-                <span className="text-muted-foreground font-normal ml-2 font-mono whitespace-nowrap">
+                <span
+                  className="text-muted-foreground font-normal ml-2 font-mono whitespace-nowrap cursor-help underline decoration-dashed decoration-border underline-offset-4"
+                  title={new Date(snapshot.summary.nextRunTime).toLocaleString(undefined, {
+                    weekday: 'short',
+                    month: 'short',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit',
+                    timeZoneName: 'short',
+                  })}
+                >
                   {formatCountdown(snapshot.summary.nextRunTime, now)}
                 </span>
               </p>
@@ -1133,7 +1155,18 @@ export default function CronsPage() {
                           </td>
                           <td className="py-3 px-4 text-xs">
                             {job.nextRuns[0] ? (
-                              <span className="text-foreground font-mono whitespace-nowrap">
+                              <span
+                                className="text-foreground font-mono whitespace-nowrap cursor-help underline decoration-dashed decoration-border/50 underline-offset-4"
+                                title={new Date(job.nextRuns[0]).toLocaleString(undefined, {
+                                  weekday: 'short',
+                                  month: 'short',
+                                  day: 'numeric',
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                  second: '2-digit',
+                                  timeZoneName: 'short',
+                                })}
+                              >
                                 {formatCountdown(job.nextRuns[0], now)}
                               </span>
                             ) : (
