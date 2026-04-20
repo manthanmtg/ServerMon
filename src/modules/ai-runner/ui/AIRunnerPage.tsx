@@ -322,6 +322,35 @@ function humanizeCron(expression: string): string {
   return `Custom cron: ${expression}`;
 }
 
+function getScheduleModeLabel(expression: string): string {
+  const parsed = parseScheduleBuilder(expression);
+  if (parsed.mode === 'every') return 'Interval';
+  if (parsed.mode === 'hourly') return 'Hourly';
+  if (parsed.mode === 'daily') return 'Daily';
+  if (parsed.mode === 'weekly') return 'Weekly';
+  if (parsed.mode === 'monthly') return 'Monthly';
+  return 'Advanced';
+}
+
+function getScheduleStatusVariant(
+  status?: AIRunnerScheduleDTO['lastRunStatus']
+): 'success' | 'warning' | 'destructive' | 'outline' {
+  if (status === 'completed') return 'success';
+  if (status === 'failed' || status === 'timeout' || status === 'killed') return 'destructive';
+  if (status === 'running' || status === 'queued') return 'warning';
+  return 'outline';
+}
+
+function formatScheduleDate(iso?: string): string {
+  if (!iso) return 'Not scheduled';
+  return new Date(iso).toLocaleString([], {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
+
 function slugifyValue(input: string): string {
   return input
     .trim()
@@ -429,6 +458,29 @@ function ScheduleBuilder({
       : 9;
   const weeklyDays = parsed.mode === 'weekly' ? parsed.days : [1, 2, 3, 4, 5];
   const monthlyDay = parsed.mode === 'monthly' ? parsed.dayOfMonth : 1;
+  const modeLabel = getScheduleModeLabel(cronExpression);
+  const timeLabel =
+    parsed.mode === 'daily' || parsed.mode === 'weekly' || parsed.mode === 'monthly'
+      ? formatTimeLabel(parsed.hour, parsed.minute)
+      : parsed.mode === 'hourly'
+        ? `:${padCronNumber(parsed.minute)} each hour`
+        : parsed.mode === 'every'
+          ? parsed.interval === 1
+            ? 'Every minute'
+            : `Every ${parsed.interval} minutes`
+          : 'Custom cadence';
+  const patternLabel =
+    parsed.mode === 'weekly'
+      ? describeWeekdays(parsed.days)
+      : parsed.mode === 'monthly'
+        ? `Day ${parsed.dayOfMonth} of the month`
+        : parsed.mode === 'daily'
+          ? 'Every day'
+          : parsed.mode === 'hourly'
+            ? 'Hourly pulse'
+            : parsed.mode === 'every'
+              ? 'Interval loop'
+              : 'Manual cron control';
 
   const updateExpression = (nextExpression: string, nextMode = mode) => {
     setModeState({ expression: nextExpression, mode: nextMode });
@@ -481,212 +533,291 @@ function ScheduleBuilder({
   };
 
   return (
-    <div className="space-y-4">
-      <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-        {[
-          {
-            id: 'every' as const,
-            label: 'Every X Minutes',
-            description: 'Fast recurring checks like queue sweeps or watch loops.',
-          },
-          {
-            id: 'hourly' as const,
-            label: 'Hourly',
-            description: 'Run at the same minute every hour.',
-          },
-          {
-            id: 'daily' as const,
-            label: 'Daily',
-            description: 'One clean daily run at a specific time.',
-          },
-          {
-            id: 'weekly' as const,
-            label: 'Weekly',
-            description: 'Pick specific weekdays and a run time.',
-          },
-          {
-            id: 'monthly' as const,
-            label: 'Monthly',
-            description: 'Run on a specific day of the month.',
-          },
-          {
-            id: 'advanced' as const,
-            label: 'Advanced Cron',
-            description: 'Edit the raw 5-field cron expression directly.',
-          },
-        ].map((option) => (
-          <button
-            key={option.id}
-            type="button"
-            onClick={() => setModeAndExpression(option.id)}
-            className={cn(
-              'rounded-xl border px-4 py-3 text-left transition-colors',
-              mode === option.id
-                ? 'border-primary/40 bg-primary/5 shadow-sm'
-                : 'border-border/60 bg-card hover:bg-accent/30'
-            )}
-          >
-            <p className="text-sm font-semibold">{option.label}</p>
-            <p className="mt-1 text-xs text-muted-foreground">{option.description}</p>
-          </button>
-        ))}
-      </div>
-
-      {mode === 'every' && (
-        <div className="rounded-xl border border-border/60 bg-card/50 p-4">
-          <div className="flex flex-wrap items-center gap-3">
-            <span className="text-sm font-medium">Run every</span>
-            <input
-              type="number"
-              min={1}
-              max={59}
-              value={parsed.mode === 'every' ? parsed.interval : 15}
-              onChange={(event) => {
-                const interval = Math.min(Math.max(Number(event.target.value) || 1, 1), 59);
-                updateExpression(interval === 1 ? '* * * * *' : `*/${interval} * * * *`);
-              }}
-              className="h-10 w-24 rounded-lg border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring/40"
-            />
-            <span className="text-sm text-muted-foreground">minutes</span>
+    <div className="relative overflow-hidden rounded-[28px] border border-primary/20 bg-gradient-to-br from-primary/10 via-background to-warning/10 p-5 shadow-[0_24px_90px_-55px_rgba(99,102,241,0.55)]">
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-28 bg-[radial-gradient(circle_at_top_left,rgba(99,102,241,0.18),transparent_55%)]" />
+      <div className="pointer-events-none absolute right-0 top-8 h-40 w-40 rounded-full bg-primary/10 blur-3xl" />
+      <div className="pointer-events-none absolute bottom-0 left-8 h-28 w-28 rounded-full bg-warning/10 blur-3xl" />
+      <div className="relative space-y-5">
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+          <div className="max-w-2xl">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-primary/80">
+              Cadence Studio
+            </p>
+            <h3 className="mt-2 text-xl font-semibold tracking-tight">
+              Design exactly when this automation wakes up
+            </h3>
+            <p className="mt-2 text-sm leading-6 text-muted-foreground">
+              Build a rhythm that feels intentional: quick pulse loops, polished daily launches,
+              weekly workday routines, or fully custom cron logic when you want total control.
+            </p>
           </div>
-        </div>
-      )}
-
-      {mode === 'hourly' && (
-        <div className="rounded-xl border border-border/60 bg-card/50 p-4">
-          <div className="flex flex-wrap items-center gap-3">
-            <span className="text-sm font-medium">Run every hour at</span>
-            <select
-              value={parsed.mode === 'hourly' ? parsed.minute : 0}
-              onChange={(event) => updateTimeBasedExpression(hour, Number(event.target.value))}
-              className="h-10 rounded-lg border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring/40"
-            >
-              {MINUTE_OPTIONS.map((value) => (
-                <option key={value} value={value}>
-                  :{padCronNumber(value)}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-      )}
-
-      {(mode === 'daily' || mode === 'weekly' || mode === 'monthly') && (
-        <div className="rounded-xl border border-border/60 bg-card/50 p-4 space-y-4">
-          {mode === 'weekly' && (
-            <div className="space-y-2">
-              <p className="text-sm font-medium">Run on</p>
-              <div className="flex flex-wrap gap-2">
-                {WEEKDAY_OPTIONS.map((option) => {
-                  const selected = weeklyDays.includes(option.value);
-                  return (
-                    <button
-                      key={option.value}
-                      type="button"
-                      onClick={() => {
-                        const nextDays = selected
-                          ? weeklyDays.filter((value) => value !== option.value)
-                          : [...weeklyDays, option.value];
-                        const safeDays = nextDays.length > 0 ? nextDays : [1];
-                        updateExpression(`${minute} ${hour} * * ${formatDayOfWeekField(safeDays)}`);
-                      }}
-                      className={cn(
-                        'rounded-lg border px-3 py-2 text-sm transition-colors',
-                        selected
-                          ? 'border-primary/40 bg-primary/5 text-foreground'
-                          : 'border-border/60 bg-background text-muted-foreground hover:bg-accent/30'
-                      )}
-                    >
-                      {option.label}
-                    </button>
-                  );
-                })}
-              </div>
+          <div className="grid gap-2 sm:grid-cols-3 xl:min-w-[360px] xl:grid-cols-1">
+            <div className="rounded-2xl border border-primary/20 bg-background/80 px-4 py-3 backdrop-blur">
+              <p className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">
+                Cadence
+              </p>
+              <p className="mt-1 text-sm font-semibold">{modeLabel}</p>
             </div>
-          )}
+            <div className="rounded-2xl border border-border/60 bg-background/80 px-4 py-3 backdrop-blur">
+              <p className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">
+                Launch Window
+              </p>
+              <p className="mt-1 text-sm font-semibold">{timeLabel}</p>
+            </div>
+            <div className="rounded-2xl border border-border/60 bg-background/80 px-4 py-3 backdrop-blur">
+              <p className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">
+                Pattern
+              </p>
+              <p className="mt-1 text-sm font-semibold">{patternLabel}</p>
+            </div>
+          </div>
+        </div>
 
-          {mode === 'monthly' && (
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {[
+            {
+              id: 'every' as const,
+              label: 'Every X Minutes',
+              description: 'Fast recurring checks like queue sweeps or watch loops.',
+            },
+            {
+              id: 'hourly' as const,
+              label: 'Hourly',
+              description: 'Run at the same minute every hour.',
+            },
+            {
+              id: 'daily' as const,
+              label: 'Daily',
+              description: 'One clean daily run at a specific time.',
+            },
+            {
+              id: 'weekly' as const,
+              label: 'Weekly',
+              description: 'Pick specific weekdays and a run time.',
+            },
+            {
+              id: 'monthly' as const,
+              label: 'Monthly',
+              description: 'Run on a specific day of the month.',
+            },
+            {
+              id: 'advanced' as const,
+              label: 'Advanced Cron',
+              description: 'Edit the raw 5-field cron expression directly.',
+            },
+          ].map((option) => (
+            <button
+              key={option.id}
+              type="button"
+              onClick={() => setModeAndExpression(option.id)}
+              className={cn(
+                'rounded-[24px] border px-4 py-4 text-left transition-all duration-200',
+                mode === option.id
+                  ? 'border-primary/40 bg-background/90 shadow-[0_20px_45px_-28px_rgba(99,102,241,0.55)]'
+                  : 'border-border/60 bg-background/75 hover:border-primary/20 hover:bg-background'
+              )}
+            >
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-sm font-semibold">{option.label}</p>
+                <span
+                  className={cn(
+                    'h-2.5 w-2.5 rounded-full',
+                    mode === option.id
+                      ? 'bg-primary shadow-[0_0_0_6px_rgba(99,102,241,0.15)]'
+                      : 'bg-border'
+                  )}
+                />
+              </div>
+              <p className="mt-2 text-xs leading-5 text-muted-foreground">{option.description}</p>
+            </button>
+          ))}
+        </div>
+
+        {mode === 'every' && (
+          <div className="rounded-[24px] border border-border/60 bg-background/80 p-5 backdrop-blur">
             <div className="flex flex-wrap items-center gap-3">
-              <span className="text-sm font-medium">Day of month</span>
+              <span className="text-sm font-medium">Run every</span>
               <input
                 type="number"
                 min={1}
-                max={31}
-                value={monthlyDay}
+                max={59}
+                value={parsed.mode === 'every' ? parsed.interval : 15}
                 onChange={(event) => {
-                  const nextDay = Math.min(Math.max(Number(event.target.value) || 1, 1), 31);
-                  updateExpression(`${minute} ${hour} ${nextDay} * *`);
+                  const interval = Math.min(Math.max(Number(event.target.value) || 1, 1), 59);
+                  updateExpression(interval === 1 ? '* * * * *' : `*/${interval} * * * *`);
                 }}
                 className="h-10 w-24 rounded-lg border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring/40"
               />
+              <span className="text-sm text-muted-foreground">minutes</span>
             </div>
-          )}
+            <p className="mt-3 text-xs text-muted-foreground">
+              Great for watchdogs, tiny cleanup jobs, or any agent you want pulsing throughout the
+              day.
+            </p>
+          </div>
+        )}
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            <label className="space-y-1.5">
-              <span className="block text-sm font-medium">Hour</span>
+        {mode === 'hourly' && (
+          <div className="rounded-[24px] border border-border/60 bg-background/80 p-5 backdrop-blur">
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="text-sm font-medium">Run every hour at</span>
               <select
-                value={hour}
-                onChange={(event) => updateTimeBasedExpression(Number(event.target.value), minute)}
-                className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring/40"
-              >
-                {HOUR_OPTIONS.map((value) => (
-                  <option key={value} value={value}>
-                    {padCronNumber(value)}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="space-y-1.5">
-              <span className="block text-sm font-medium">Minute</span>
-              <select
-                value={minute}
+                value={parsed.mode === 'hourly' ? parsed.minute : 0}
                 onChange={(event) => updateTimeBasedExpression(hour, Number(event.target.value))}
-                className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring/40"
+                className="h-10 rounded-lg border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring/40"
               >
                 {MINUTE_OPTIONS.map((value) => (
                   <option key={value} value={value}>
-                    {padCronNumber(value)}
+                    :{padCronNumber(value)}
                   </option>
                 ))}
               </select>
-            </label>
+            </div>
+            <p className="mt-3 text-xs text-muted-foreground">
+              Use hourly launches for recurring review passes or regular health sweeps on a stable
+              minute mark.
+            </p>
           </div>
-        </div>
-      )}
+        )}
 
-      {mode === 'advanced' && (
-        <div className="rounded-xl border border-border/60 bg-card/50 p-4 space-y-3">
-          <label className="space-y-1.5">
-            <span className="block text-sm font-medium">Cron Expression</span>
-            <input
-              value={cronExpression}
-              onChange={(event) => updateExpression(event.target.value, 'advanced')}
-              className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm font-mono outline-none focus:ring-2 focus:ring-ring/40"
-              placeholder="0 9 * * 1-5"
-            />
-          </label>
-          <div className="grid grid-cols-5 gap-2 text-[11px] text-muted-foreground">
-            {['Minute', 'Hour', 'Day', 'Month', 'Weekday'].map((label) => (
-              <div
-                key={label}
-                className="rounded-lg border border-border/50 bg-background px-2 py-2 text-center"
-              >
-                {label}
+        {(mode === 'daily' || mode === 'weekly' || mode === 'monthly') && (
+          <div className="rounded-[24px] border border-border/60 bg-background/80 p-5 space-y-4 backdrop-blur">
+            {mode === 'weekly' && (
+              <div className="space-y-2">
+                <p className="text-sm font-medium">Run on</p>
+                <div className="flex flex-wrap gap-2">
+                  {WEEKDAY_OPTIONS.map((option) => {
+                    const selected = weeklyDays.includes(option.value);
+                    return (
+                      <button
+                        key={option.value}
+                        type="button"
+                        onClick={() => {
+                          const nextDays = selected
+                            ? weeklyDays.filter((value) => value !== option.value)
+                            : [...weeklyDays, option.value];
+                          const safeDays = nextDays.length > 0 ? nextDays : [1];
+                          updateExpression(
+                            `${minute} ${hour} * * ${formatDayOfWeekField(safeDays)}`
+                          );
+                        }}
+                        className={cn(
+                          'rounded-full border px-3 py-2 text-sm transition-colors',
+                          selected
+                            ? 'border-primary/40 bg-primary/5 text-foreground'
+                            : 'border-border/60 bg-background text-muted-foreground hover:bg-accent/30'
+                        )}
+                      >
+                        {option.label}
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Choose the days this automation should appear on your calendar.
+                </p>
               </div>
-            ))}
-          </div>
-        </div>
-      )}
+            )}
 
-      <div className="grid gap-3 lg:grid-cols-[1.2fr_0.8fr]">
-        <div className="rounded-xl border border-primary/20 bg-primary/5 px-4 py-3">
-          <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Schedule</p>
-          <p className="mt-2 text-sm font-medium">{humanizeCron(cronExpression)}</p>
-        </div>
-        <div className="rounded-xl border border-border/60 bg-card/50 px-4 py-3">
-          <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Raw Cron</p>
-          <p className="mt-2 text-sm font-mono">{cronExpression}</p>
+            {mode === 'monthly' && (
+              <div className="flex flex-wrap items-center gap-3">
+                <span className="text-sm font-medium">Day of month</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={31}
+                  value={monthlyDay}
+                  onChange={(event) => {
+                    const nextDay = Math.min(Math.max(Number(event.target.value) || 1, 1), 31);
+                    updateExpression(`${minute} ${hour} ${nextDay} * *`);
+                  }}
+                  className="h-10 w-24 rounded-lg border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring/40"
+                />
+              </div>
+            )}
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <label className="space-y-1.5">
+                <span className="block text-sm font-medium">Hour</span>
+                <select
+                  value={hour}
+                  onChange={(event) =>
+                    updateTimeBasedExpression(Number(event.target.value), minute)
+                  }
+                  className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring/40"
+                >
+                  {HOUR_OPTIONS.map((value) => (
+                    <option key={value} value={value}>
+                      {padCronNumber(value)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="space-y-1.5">
+                <span className="block text-sm font-medium">Minute</span>
+                <select
+                  value={minute}
+                  onChange={(event) => updateTimeBasedExpression(hour, Number(event.target.value))}
+                  className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring/40"
+                >
+                  {MINUTE_OPTIONS.map((value) => (
+                    <option key={value} value={value}>
+                      {padCronNumber(value)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+          </div>
+        )}
+
+        {mode === 'advanced' && (
+          <div className="rounded-[24px] border border-border/60 bg-background/80 p-5 space-y-3 backdrop-blur">
+            <label className="space-y-1.5">
+              <span className="block text-sm font-medium">Cron Expression</span>
+              <input
+                value={cronExpression}
+                onChange={(event) => updateExpression(event.target.value, 'advanced')}
+                className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm font-mono outline-none focus:ring-2 focus:ring-ring/40"
+                placeholder="0 9 * * 1-5"
+              />
+            </label>
+            <div className="grid grid-cols-5 gap-2 text-[11px] text-muted-foreground">
+              {['Minute', 'Hour', 'Day', 'Month', 'Weekday'].map((label) => (
+                <div
+                  key={label}
+                  className="rounded-lg border border-border/50 bg-background px-2 py-2 text-center"
+                >
+                  {label}
+                </div>
+              ))}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Advanced mode stays raw on purpose. If you paste a custom cron, the preview still
+              helps you keep your bearings.
+            </p>
+          </div>
+        )}
+
+        <div className="grid gap-3 lg:grid-cols-[1.1fr_0.9fr]">
+          <div className="rounded-[24px] border border-primary/20 bg-background/85 px-4 py-4 backdrop-blur">
+            <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Narrative</p>
+            <p className="mt-2 text-base font-semibold tracking-tight">
+              {humanizeCron(cronExpression)}
+            </p>
+            <p className="mt-2 text-xs leading-5 text-muted-foreground">
+              This is the human version of the cadence your cron string currently describes.
+            </p>
+          </div>
+          <div className="rounded-[24px] border border-border/60 bg-slate-950/95 px-4 py-4 text-slate-50 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
+            <div className="flex items-center justify-between">
+              <p className="text-xs uppercase tracking-[0.16em] text-slate-400">Raw Cron</p>
+              <Badge variant="outline" className="border-slate-700 text-slate-300">
+                5 fields
+              </Badge>
+            </div>
+            <p className="mt-3 font-mono text-sm">{cronExpression}</p>
+          </div>
         </div>
       </div>
     </div>
@@ -883,9 +1014,32 @@ export default function AIRunnerPage() {
   const activeRunCount = runs.filter((run) => run.status === 'running').length;
   const enabledScheduleCount = schedules.filter((schedule) => schedule.enabled).length;
   const successfulRuns = runs.filter((run) => run.status === 'completed').length;
+  const pausedScheduleCount = schedules.length - enabledScheduleCount;
+  const recentlyActiveScheduleCount = schedules.filter((schedule) => {
+    if (!schedule.lastRunAt) return false;
+    return Date.now() - new Date(schedule.lastRunAt).getTime() < 24 * 60 * 60 * 1000;
+  }).length;
+  const scheduleModeCount = new Set(
+    schedules.map((schedule) => getScheduleModeLabel(schedule.cronExpression))
+  ).size;
   const nextSchedule = schedules
     .filter((schedule) => schedule.enabled && schedule.nextRunTime)
     .sort((a, b) => new Date(a.nextRunTime!).getTime() - new Date(b.nextRunTime!).getTime())[0];
+  const sortedSchedules = [...schedules].sort((left, right) => {
+    if (left.enabled !== right.enabled) return left.enabled ? -1 : 1;
+    if (left.nextRunTime && right.nextRunTime) {
+      return new Date(left.nextRunTime).getTime() - new Date(right.nextRunTime).getTime();
+    }
+    if (left.nextRunTime) return -1;
+    if (right.nextRunTime) return 1;
+    return new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime();
+  });
+  const scheduleFormPromptName = scheduleForm.promptId
+    ? promptMap[scheduleForm.promptId]?.name || 'Unknown prompt'
+    : 'Choose a saved prompt';
+  const scheduleFormProfileName = scheduleForm.agentProfileId
+    ? profileMap[scheduleForm.agentProfileId]?.name || 'Unknown profile'
+    : 'Choose an agent profile';
 
   const profileAgentType = profileMap[runForm.agentProfileId]?.agentType;
 
@@ -1921,206 +2075,447 @@ export default function AIRunnerPage() {
           )}
 
           {activeTab === 'schedules' && (
-            <div className="grid gap-5 lg:grid-cols-[360px_1fr]">
-              <Card className="border-border/60">
-                <CardHeader>
-                  <CardTitle className="text-sm">
-                    {editingScheduleId ? 'Edit Schedule' : 'Create Schedule'}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <Input
-                    label="Name"
-                    value={scheduleForm.name}
-                    onChange={(event) =>
-                      setScheduleForm((current) => ({ ...current, name: event.target.value }))
-                    }
-                  />
-                  <label className="space-y-1.5">
-                    <span className="block text-sm font-medium">Saved Prompt</span>
-                    <select
-                      value={scheduleForm.promptId}
-                      onChange={(event) =>
-                        setScheduleForm((current) => ({ ...current, promptId: event.target.value }))
-                      }
-                      className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring/40"
-                    >
-                      <option value="">Select a prompt</option>
-                      {prompts.map((prompt) => (
-                        <option key={prompt._id} value={prompt._id}>
-                          {prompt.name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="space-y-1.5">
-                    <span className="block text-sm font-medium">Agent Profile</span>
-                    <select
-                      value={scheduleForm.agentProfileId}
-                      onChange={(event) => {
-                        const profile = profileMap[event.target.value];
-                        setScheduleForm((current) => ({
-                          ...current,
-                          agentProfileId: event.target.value,
-                          timeout: profile?.defaultTimeout ?? current.timeout,
-                        }));
-                      }}
-                      className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring/40"
-                    >
-                      <option value="">Select a profile</option>
-                      {profiles
-                        .filter((profile) => profile.enabled)
-                        .map((profile) => (
-                          <option key={profile._id} value={profile._id}>
-                            {profile.name}
-                          </option>
-                        ))}
-                    </select>
-                  </label>
-                  <div className="grid gap-4 md:grid-cols-[1fr_160px]">
-                    <div className="space-y-1.5">
-                      <label htmlFor="schedule-directory" className="block text-sm font-medium">
-                        Working Directory
-                      </label>
-                      <input
-                        id="schedule-directory"
-                        list="runner-directories"
-                        value={scheduleForm.workingDirectory}
-                        onChange={(event) =>
-                          setScheduleForm((current) => ({
-                            ...current,
-                            workingDirectory: event.target.value,
-                          }))
-                        }
-                        className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring/40"
-                        placeholder="/srv/repos/project"
-                      />
-                    </div>
-                    <Input
-                      label="Timeout"
-                      type="number"
-                      value={scheduleForm.timeout}
-                      onChange={(event) =>
-                        setScheduleForm((current) => ({
-                          ...current,
-                          timeout: Number(event.target.value) || 1,
-                        }))
-                      }
-                      min={1}
-                    />
-                  </div>
-                  <ScheduleBuilder
-                    cronExpression={scheduleForm.cronExpression}
-                    onChange={(value) =>
-                      setScheduleForm((current) => ({ ...current, cronExpression: value }))
-                    }
-                  />
-                  <label className="flex items-center gap-2 text-sm">
-                    <input
-                      type="checkbox"
-                      checked={scheduleForm.enabled}
-                      onChange={(event) =>
-                        setScheduleForm((current) => ({
-                          ...current,
-                          enabled: event.target.checked,
-                        }))
-                      }
-                    />
-                    Enabled
-                  </label>
-                  <div className="flex gap-2">
-                    <Button onClick={() => void submitSchedule()}>
-                      <CalendarClock className="w-4 h-4" />
-                      {editingScheduleId ? 'Update' : 'Create'}
-                    </Button>
-                    <Button variant="outline" onClick={resetScheduleForm}>
-                      Reset
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="border-border/60">
-                <CardHeader>
-                  <CardTitle className="text-sm">Schedules</CardTitle>
-                  <CardDescription>
-                    {enabledScheduleCount} enabled • next run{' '}
+            <div className="space-y-5">
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                <div className="rounded-[28px] border border-primary/20 bg-gradient-to-br from-primary/15 via-background to-primary/5 p-5 shadow-[0_22px_80px_-55px_rgba(99,102,241,0.55)]">
+                  <p className="text-[11px] uppercase tracking-[0.22em] text-primary/80">
+                    Live Automations
+                  </p>
+                  <p className="mt-3 text-3xl font-semibold tracking-tight">
+                    {enabledScheduleCount}
+                  </p>
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    Active schedules currently ready to wake up and run.
+                  </p>
+                </div>
+                <div className="rounded-[28px] border border-warning/20 bg-gradient-to-br from-warning/15 via-background to-warning/5 p-5 shadow-[0_22px_80px_-55px_rgba(234,179,8,0.45)]">
+                  <p className="text-[11px] uppercase tracking-[0.22em] text-warning">
+                    Next Launch
+                  </p>
+                  <p className="mt-3 text-lg font-semibold tracking-tight">
                     {nextSchedule?.nextRunTime
-                      ? formatRelative(nextSchedule.nextRunTime)
-                      : 'not scheduled'}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  {schedules.map((schedule) => (
-                    <div
-                      key={schedule._id}
-                      className="rounded-xl border border-border/60 bg-card/60 p-4 space-y-3"
-                    >
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div className="space-y-1">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <h3 className="text-sm font-semibold">{schedule.name}</h3>
-                            <Badge variant={schedule.enabled ? 'success' : 'secondary'}>
-                              {schedule.enabled ? 'enabled' : 'disabled'}
-                            </Badge>
-                            {schedule.lastRunStatus && (
-                              <Badge variant="outline">{schedule.lastRunStatus}</Badge>
-                            )}
-                          </div>
-                          <p className="text-xs text-muted-foreground">
-                            {promptMap[schedule.promptId]?.name || 'Unknown prompt'} •{' '}
-                            {humanizeCron(schedule.cronExpression)}
+                      ? formatScheduleDate(nextSchedule.nextRunTime)
+                      : 'No launch queued'}
+                  </p>
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    {nextSchedule?.nextRunTime
+                      ? `${nextSchedule.name} goes live ${formatRelative(nextSchedule.nextRunTime)}`
+                      : 'Enable a schedule to see the next launch window.'}
+                  </p>
+                </div>
+                <div className="rounded-[28px] border border-success/20 bg-gradient-to-br from-success/15 via-background to-success/5 p-5 shadow-[0_22px_80px_-55px_rgba(34,197,94,0.4)]">
+                  <p className="text-[11px] uppercase tracking-[0.22em] text-success">
+                    Recently Active
+                  </p>
+                  <p className="mt-3 text-3xl font-semibold tracking-tight">
+                    {recentlyActiveScheduleCount}
+                  </p>
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    Schedules that have run within the last 24 hours.
+                  </p>
+                </div>
+                <div className="rounded-[28px] border border-border/60 bg-gradient-to-br from-card via-background to-secondary/40 p-5">
+                  <p className="text-[11px] uppercase tracking-[0.22em] text-muted-foreground">
+                    Design Surface
+                  </p>
+                  <p className="mt-3 text-3xl font-semibold tracking-tight">{scheduleModeCount}</p>
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    Scheduling modes represented right now, with {pausedScheduleCount} paused.
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid gap-5 xl:grid-cols-[minmax(0,430px)_minmax(0,1fr)]">
+                <Card className="overflow-hidden border-primary/20 bg-gradient-to-br from-card via-background to-primary/5 shadow-[0_28px_90px_-60px_rgba(99,102,241,0.55)]">
+                  <CardHeader className="border-b border-border/60 bg-background/70 backdrop-blur">
+                    <div className="space-y-4">
+                      <div>
+                        <p className="text-[11px] uppercase tracking-[0.26em] text-primary/80">
+                          Automation Studio
+                        </p>
+                        <CardTitle className="mt-2 text-xl tracking-tight">
+                          {editingScheduleId ? 'Refine this schedule' : 'Compose a new automation'}
+                        </CardTitle>
+                        <CardDescription className="mt-2 leading-6">
+                          Pair a reusable prompt with an agent profile, shape the runtime context,
+                          and craft a cadence that feels deliberate.
+                        </CardDescription>
+                      </div>
+                      <div className="grid gap-3 sm:grid-cols-3">
+                        <div className="rounded-2xl border border-border/60 bg-background/85 px-4 py-3">
+                          <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
+                            Prompt
                           </p>
-                          <p className="text-xs text-muted-foreground">
-                            {profileMap[schedule.agentProfileId]?.name || 'Unknown profile'} •{' '}
-                            {schedule.workingDirectory || 'No directory'} • {schedule.timeout} min
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            Next run:{' '}
-                            {schedule.nextRunTime
-                              ? new Date(schedule.nextRunTime).toLocaleString()
-                              : '—'}
-                          </p>
+                          <p className="mt-1 text-sm font-semibold">{scheduleFormPromptName}</p>
                         </div>
-                        <div className="flex flex-wrap gap-2">
-                          <Button size="sm" onClick={() => void runScheduleNow(schedule)}>
-                            <Play className="w-4 h-4" />
-                            Run Now
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => void toggleSchedule(schedule._id)}
-                          >
-                            <Clock3 className="w-4 h-4" />
-                            {schedule.enabled ? 'Disable' : 'Enable'}
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => selectScheduleForEdit(schedule)}
-                          >
-                            Edit
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="destructive"
-                            onClick={() => void deleteSchedule(schedule._id)}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                            Delete
-                          </Button>
+                        <div className="rounded-2xl border border-border/60 bg-background/85 px-4 py-3">
+                          <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
+                            Profile
+                          </p>
+                          <p className="mt-1 text-sm font-semibold">{scheduleFormProfileName}</p>
+                        </div>
+                        <div className="rounded-2xl border border-border/60 bg-background/85 px-4 py-3">
+                          <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
+                            Cadence
+                          </p>
+                          <p className="mt-1 text-sm font-semibold">
+                            {humanizeCron(scheduleForm.cronExpression)}
+                          </p>
                         </div>
                       </div>
                     </div>
-                  ))}
-                  {schedules.length === 0 && (
-                    <div className="rounded-xl border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
-                      No schedules created yet
+                  </CardHeader>
+                  <CardContent className="space-y-5 pt-5">
+                    <div className="rounded-[24px] border border-border/60 bg-background/80 p-4 space-y-4">
+                      <div>
+                        <p className="text-sm font-semibold">Identity</p>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          Give this automation a clear name and pair it with the right prompt and
+                          execution profile.
+                        </p>
+                      </div>
+                      <Input
+                        label="Name"
+                        value={scheduleForm.name}
+                        onChange={(event) =>
+                          setScheduleForm((current) => ({ ...current, name: event.target.value }))
+                        }
+                        placeholder="Weekday backlog triage"
+                      />
+                      <label className="space-y-1.5">
+                        <span className="block text-sm font-medium">Saved Prompt</span>
+                        <select
+                          value={scheduleForm.promptId}
+                          onChange={(event) =>
+                            setScheduleForm((current) => ({
+                              ...current,
+                              promptId: event.target.value,
+                            }))
+                          }
+                          className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring/40"
+                        >
+                          <option value="">Select a prompt</option>
+                          {prompts.map((prompt) => (
+                            <option key={prompt._id} value={prompt._id}>
+                              {prompt.name}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label className="space-y-1.5">
+                        <span className="block text-sm font-medium">Agent Profile</span>
+                        <select
+                          value={scheduleForm.agentProfileId}
+                          onChange={(event) => {
+                            const profile = profileMap[event.target.value];
+                            setScheduleForm((current) => ({
+                              ...current,
+                              agentProfileId: event.target.value,
+                              timeout: profile?.defaultTimeout ?? current.timeout,
+                            }));
+                          }}
+                          className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring/40"
+                        >
+                          <option value="">Select a profile</option>
+                          {profiles
+                            .filter((profile) => profile.enabled)
+                            .map((profile) => (
+                              <option key={profile._id} value={profile._id}>
+                                {profile.name}
+                              </option>
+                            ))}
+                        </select>
+                      </label>
                     </div>
-                  )}
-                </CardContent>
-              </Card>
+
+                    <div className="rounded-[24px] border border-border/60 bg-background/80 p-4 space-y-4">
+                      <div>
+                        <p className="text-sm font-semibold">Runtime Scene</p>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          Tell the schedule where to run and how long it is allowed to stay active.
+                        </p>
+                      </div>
+                      <div className="grid gap-4 md:grid-cols-[1fr_160px]">
+                        <div className="space-y-1.5">
+                          <label htmlFor="schedule-directory" className="block text-sm font-medium">
+                            Working Directory
+                          </label>
+                          <input
+                            id="schedule-directory"
+                            list="runner-directories"
+                            value={scheduleForm.workingDirectory}
+                            onChange={(event) =>
+                              setScheduleForm((current) => ({
+                                ...current,
+                                workingDirectory: event.target.value,
+                              }))
+                            }
+                            className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring/40"
+                            placeholder="/srv/repos/project"
+                          />
+                          <datalist id="runner-directories">
+                            {directories.map((directory) => (
+                              <option key={directory} value={directory} />
+                            ))}
+                          </datalist>
+                        </div>
+                        <Input
+                          label="Timeout"
+                          type="number"
+                          value={scheduleForm.timeout}
+                          onChange={(event) =>
+                            setScheduleForm((current) => ({
+                              ...current,
+                              timeout: Number(event.target.value) || 1,
+                            }))
+                          }
+                          min={1}
+                        />
+                      </div>
+                    </div>
+
+                    <ScheduleBuilder
+                      cronExpression={scheduleForm.cronExpression}
+                      onChange={(value) =>
+                        setScheduleForm((current) => ({ ...current, cronExpression: value }))
+                      }
+                    />
+
+                    <div className="rounded-[24px] border border-border/60 bg-background/80 p-4">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <label className="flex items-center gap-3 text-sm font-medium">
+                          <input
+                            type="checkbox"
+                            checked={scheduleForm.enabled}
+                            onChange={(event) =>
+                              setScheduleForm((current) => ({
+                                ...current,
+                                enabled: event.target.checked,
+                              }))
+                            }
+                            className="h-4 w-4 rounded border-input"
+                          />
+                          Keep this schedule enabled after saving
+                        </label>
+                        <Badge variant={scheduleForm.enabled ? 'success' : 'warning'}>
+                          {scheduleForm.enabled ? 'Auto-run on' : 'Saved as paused'}
+                        </Badge>
+                      </div>
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        <Button onClick={() => void submitSchedule()}>
+                          <CalendarClock className="w-4 h-4" />
+                          {editingScheduleId ? 'Update automation' : 'Create automation'}
+                        </Button>
+                        <Button variant="outline" onClick={resetScheduleForm}>
+                          Reset
+                        </Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <div className="space-y-5">
+                  <Card className="overflow-hidden border-border/60 bg-gradient-to-br from-card via-background to-secondary/30">
+                    <CardHeader className="border-b border-border/60">
+                      <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+                        <div>
+                          <p className="text-[11px] uppercase tracking-[0.24em] text-muted-foreground">
+                            Schedule Board
+                          </p>
+                          <CardTitle className="mt-2 text-xl tracking-tight">
+                            A richer view of every automation
+                          </CardTitle>
+                          <CardDescription className="mt-2 leading-6">
+                            Track cadence, next launches, execution context, and last-run health in
+                            one place.
+                          </CardDescription>
+                        </div>
+                        <div className="flex flex-wrap gap-2 text-xs">
+                          <Badge variant="success">{enabledScheduleCount} enabled</Badge>
+                          <Badge variant="warning">{pausedScheduleCount} paused</Badge>
+                          <Badge variant="outline">{scheduleModeCount} modes in play</Badge>
+                        </div>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="space-y-4 pt-5">
+                      {sortedSchedules.map((schedule, index) => (
+                        <div
+                          key={schedule._id}
+                          className={cn(
+                            'group relative overflow-hidden rounded-[28px] border bg-card/80 p-5 shadow-[0_18px_60px_-48px_rgba(15,23,42,0.45)] transition-transform duration-200 hover:-translate-y-0.5',
+                            schedule.enabled ? 'border-primary/20' : 'border-border/60 bg-muted/20'
+                          )}
+                        >
+                          <div
+                            className={cn(
+                              'absolute inset-y-0 left-0 w-1.5 rounded-r-full',
+                              schedule.enabled ? 'bg-primary/70' : 'bg-warning/60'
+                            )}
+                          />
+                          <div
+                            className={cn(
+                              'pointer-events-none absolute right-0 top-0 h-32 w-32 rounded-full blur-3xl',
+                              schedule.enabled ? 'bg-primary/10' : 'bg-warning/10'
+                            )}
+                          />
+                          <div className="relative space-y-5">
+                            <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                              <div className="min-w-0 space-y-3">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <Badge variant={schedule.enabled ? 'success' : 'warning'}>
+                                    {schedule.enabled ? 'Enabled' : 'Paused'}
+                                  </Badge>
+                                  <Badge variant="outline">
+                                    {getScheduleModeLabel(schedule.cronExpression)}
+                                  </Badge>
+                                  {schedule.lastRunStatus ? (
+                                    <Badge
+                                      variant={getScheduleStatusVariant(schedule.lastRunStatus)}
+                                    >
+                                      {schedule.lastRunStatus}
+                                    </Badge>
+                                  ) : null}
+                                  <span className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
+                                    #{index + 1}
+                                  </span>
+                                </div>
+                                <div>
+                                  <h3 className="text-xl font-semibold tracking-tight">
+                                    {schedule.name}
+                                  </h3>
+                                  <p className="mt-1 text-sm text-muted-foreground">
+                                    {humanizeCron(schedule.cronExpression)}
+                                  </p>
+                                </div>
+                                <div className="flex flex-wrap gap-2">
+                                  <Badge variant="secondary">
+                                    Prompt: {promptMap[schedule.promptId]?.name || 'Unknown prompt'}
+                                  </Badge>
+                                  <Badge variant="outline">
+                                    Profile:{' '}
+                                    {profileMap[schedule.agentProfileId]?.name || 'Unknown profile'}
+                                  </Badge>
+                                  <Badge variant="outline">{schedule.timeout} min runtime</Badge>
+                                </div>
+                              </div>
+                              <div className="grid gap-3 sm:grid-cols-3 xl:min-w-[280px] xl:grid-cols-1">
+                                <div className="rounded-2xl border border-border/60 bg-background/85 px-4 py-3">
+                                  <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
+                                    Next Launch
+                                  </p>
+                                  <p className="mt-1 text-sm font-semibold">
+                                    {formatScheduleDate(schedule.nextRunTime)}
+                                  </p>
+                                  <p className="mt-1 text-xs text-muted-foreground">
+                                    {schedule.nextRunTime
+                                      ? formatRelative(schedule.nextRunTime)
+                                      : 'Waiting for enablement'}
+                                  </p>
+                                </div>
+                                <div className="rounded-2xl border border-border/60 bg-background/85 px-4 py-3">
+                                  <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
+                                    Last Activity
+                                  </p>
+                                  <p className="mt-1 text-sm font-semibold">
+                                    {schedule.lastRunAt
+                                      ? formatScheduleDate(schedule.lastRunAt)
+                                      : 'No runs yet'}
+                                  </p>
+                                  <p className="mt-1 text-xs text-muted-foreground">
+                                    {schedule.lastRunAt
+                                      ? formatRelative(schedule.lastRunAt)
+                                      : 'Fresh automation'}
+                                  </p>
+                                </div>
+                                <div className="rounded-2xl border border-border/60 bg-background/85 px-4 py-3">
+                                  <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
+                                    Workspace
+                                  </p>
+                                  <p className="mt-1 truncate font-mono text-xs">
+                                    {schedule.workingDirectory || 'No directory'}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="grid gap-3 lg:grid-cols-[1.2fr_0.8fr]">
+                              <div className="rounded-[22px] border border-border/60 bg-background/80 px-4 py-4">
+                                <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
+                                  Cadence Snapshot
+                                </p>
+                                <div className="mt-3 grid gap-3 md:grid-cols-3">
+                                  <div className="rounded-xl border border-border/60 bg-card px-3 py-3">
+                                    <p className="text-xs text-muted-foreground">Mode</p>
+                                    <p className="mt-1 text-sm font-semibold">
+                                      {getScheduleModeLabel(schedule.cronExpression)}
+                                    </p>
+                                  </div>
+                                  <div className="rounded-xl border border-border/60 bg-card px-3 py-3">
+                                    <p className="text-xs text-muted-foreground">Narrative</p>
+                                    <p className="mt-1 text-sm font-semibold">
+                                      {humanizeCron(schedule.cronExpression)}
+                                    </p>
+                                  </div>
+                                  <div className="rounded-xl border border-border/60 bg-card px-3 py-3">
+                                    <p className="text-xs text-muted-foreground">Raw Cron</p>
+                                    <p className="mt-1 font-mono text-xs">
+                                      {schedule.cronExpression}
+                                    </p>
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="flex flex-wrap items-end justify-start gap-2 lg:justify-end">
+                                <Button size="sm" onClick={() => void runScheduleNow(schedule)}>
+                                  <Play className="w-4 h-4" />
+                                  Run Now
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => void toggleSchedule(schedule._id)}
+                                >
+                                  <Clock3 className="w-4 h-4" />
+                                  {schedule.enabled ? 'Pause' : 'Enable'}
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => selectScheduleForEdit(schedule)}
+                                >
+                                  Edit
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="destructive"
+                                  onClick={() => void deleteSchedule(schedule._id)}
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                  Delete
+                                </Button>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+
+                      {sortedSchedules.length === 0 && (
+                        <div className="rounded-[28px] border border-dashed border-primary/25 bg-gradient-to-br from-primary/5 via-background to-warning/5 px-6 py-16 text-center">
+                          <p className="text-[11px] uppercase tracking-[0.24em] text-primary/80">
+                            Schedule Board
+                          </p>
+                          <h3 className="mt-3 text-xl font-semibold tracking-tight">
+                            No automations on the board yet
+                          </h3>
+                          <p className="mt-3 text-sm leading-6 text-muted-foreground">
+                            Create your first schedule on the left and it will appear here with its
+                            cadence, launch window, and runtime scene.
+                          </p>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                </div>
+              </div>
             </div>
           )}
 
