@@ -139,12 +139,187 @@ function formatRelative(iso?: string): string {
   return `${Math.round(hours / 24)}d ago`;
 }
 
+type ScheduleBuilderMode = 'every' | 'hourly' | 'daily' | 'weekly' | 'monthly' | 'advanced';
+
+const MINUTE_OPTIONS = Array.from({ length: 60 }, (_, index) => index);
+const HOUR_OPTIONS = Array.from({ length: 24 }, (_, index) => index);
+const WEEKDAY_OPTIONS = [
+  { label: 'Sun', value: 0 },
+  { label: 'Mon', value: 1 },
+  { label: 'Tue', value: 2 },
+  { label: 'Wed', value: 3 },
+  { label: 'Thu', value: 4 },
+  { label: 'Fri', value: 5 },
+  { label: 'Sat', value: 6 },
+] as const;
+
+function padCronNumber(value: number): string {
+  return value.toString().padStart(2, '0');
+}
+
+function isCronNumber(value: string, min: number, max: number): boolean {
+  if (!/^\d+$/.test(value)) return false;
+  const numeric = Number(value);
+  return numeric >= min && numeric <= max;
+}
+
+function parseDayOfWeekField(field: string): number[] | null {
+  if (!field || field === '*') return null;
+
+  const result = new Set<number>();
+  for (const token of field.split(',')) {
+    const trimmed = token.trim();
+    if (!trimmed) continue;
+
+    if (trimmed.includes('-')) {
+      const [startRaw, endRaw] = trimmed.split('-');
+      if (!isCronNumber(startRaw, 0, 7) || !isCronNumber(endRaw, 0, 7)) return null;
+      const start = Number(startRaw) % 7;
+      const end = Number(endRaw) % 7;
+      if (start > end) return null;
+      for (let value = start; value <= end; value += 1) {
+        result.add(value);
+      }
+      continue;
+    }
+
+    if (!isCronNumber(trimmed, 0, 7)) return null;
+    result.add(Number(trimmed) % 7);
+  }
+
+  return Array.from(result).sort((left, right) => left - right);
+}
+
+function formatDayOfWeekField(values: number[]): string {
+  if (values.length === 0 || values.length === 7) return '*';
+
+  const sorted = Array.from(new Set(values)).sort((left, right) => left - right);
+  const ranges: string[] = [];
+  let rangeStart = sorted[0];
+  let previous = sorted[0];
+
+  for (let index = 1; index <= sorted.length; index += 1) {
+    const value = sorted[index];
+    if (value === previous + 1) {
+      previous = value;
+      continue;
+    }
+
+    ranges.push(rangeStart === previous ? `${rangeStart}` : `${rangeStart}-${previous}`);
+    rangeStart = value;
+    previous = value;
+  }
+
+  return ranges.join(',');
+}
+
+function formatTimeLabel(hour: number, minute: number): string {
+  const date = new Date();
+  date.setHours(hour, minute, 0, 0);
+  return date.toLocaleTimeString([], {
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
+
+function describeWeekdays(days: number[]): string {
+  const sorted = Array.from(new Set(days)).sort((left, right) => left - right);
+  if (sorted.length === 0 || sorted.length === 7) return 'Every day';
+  if (sorted.join(',') === '1,2,3,4,5') return 'Weekdays';
+  if (sorted.join(',') === '0,6') return 'Weekends';
+  return sorted
+    .map((value) => WEEKDAY_OPTIONS.find((option) => option.value === value)?.label ?? `${value}`)
+    .join(', ');
+}
+
+function parseScheduleBuilder(
+  expression: string
+):
+  | { mode: 'every'; interval: number }
+  | { mode: 'hourly'; minute: number }
+  | { mode: 'daily'; hour: number; minute: number }
+  | { mode: 'weekly'; hour: number; minute: number; days: number[] }
+  | { mode: 'monthly'; dayOfMonth: number; hour: number; minute: number }
+  | { mode: 'advanced' } {
+  const [minute = '*', hour = '*', dayOfMonth = '*', month = '*', dayOfWeek = '*', extra] =
+    expression.trim().split(/\s+/);
+
+  if (extra) return { mode: 'advanced' };
+
+  if (hour === '*' && dayOfMonth === '*' && month === '*' && dayOfWeek === '*') {
+    if (minute === '*') {
+      return { mode: 'every', interval: 1 };
+    }
+    if (/^\*\/\d+$/.test(minute)) {
+      const interval = Number(minute.slice(2));
+      if (interval >= 1 && interval <= 59) {
+        return { mode: 'every', interval };
+      }
+    }
+    if (isCronNumber(minute, 0, 59)) {
+      return { mode: 'hourly', minute: Number(minute) };
+    }
+  }
+
+  if (
+    isCronNumber(minute, 0, 59) &&
+    isCronNumber(hour, 0, 23) &&
+    dayOfMonth === '*' &&
+    month === '*' &&
+    dayOfWeek === '*'
+  ) {
+    return { mode: 'daily', hour: Number(hour), minute: Number(minute) };
+  }
+
+  const days = parseDayOfWeekField(dayOfWeek);
+  if (
+    isCronNumber(minute, 0, 59) &&
+    isCronNumber(hour, 0, 23) &&
+    dayOfMonth === '*' &&
+    month === '*' &&
+    days
+  ) {
+    return { mode: 'weekly', hour: Number(hour), minute: Number(minute), days };
+  }
+
+  if (
+    isCronNumber(minute, 0, 59) &&
+    isCronNumber(hour, 0, 23) &&
+    isCronNumber(dayOfMonth, 1, 31) &&
+    month === '*' &&
+    dayOfWeek === '*'
+  ) {
+    return {
+      mode: 'monthly',
+      dayOfMonth: Number(dayOfMonth),
+      hour: Number(hour),
+      minute: Number(minute),
+    };
+  }
+
+  return { mode: 'advanced' };
+}
+
 function humanizeCron(expression: string): string {
-  if (expression === '* * * * *') return 'Every minute';
-  if (expression === '0 * * * *') return 'Every hour';
-  if (expression === '0 0 * * *') return 'Daily at midnight';
-  if (expression === '0 9 * * 1-5') return 'Weekdays at 9:00';
-  return expression;
+  const parsed = parseScheduleBuilder(expression);
+
+  if (parsed.mode === 'every') {
+    return parsed.interval === 1 ? 'Every minute' : `Every ${parsed.interval} minutes`;
+  }
+  if (parsed.mode === 'hourly') {
+    return `Every hour at :${padCronNumber(parsed.minute)}`;
+  }
+  if (parsed.mode === 'daily') {
+    return `Daily at ${formatTimeLabel(parsed.hour, parsed.minute)}`;
+  }
+  if (parsed.mode === 'weekly') {
+    return `${describeWeekdays(parsed.days)} at ${formatTimeLabel(parsed.hour, parsed.minute)}`;
+  }
+  if (parsed.mode === 'monthly') {
+    return `Monthly on day ${parsed.dayOfMonth} at ${formatTimeLabel(parsed.hour, parsed.minute)}`;
+  }
+
+  return `Custom cron: ${expression}`;
 }
 
 function slugifyValue(input: string): string {
@@ -228,53 +403,291 @@ function ScheduleBuilder({
   cronExpression: string;
   onChange: (value: string) => void;
 }) {
-  const fields = cronExpression.trim().split(/\s+/);
-  const [minute, hour, dayOfMonth, month, dayOfWeek] = [
-    fields[0] ?? '*',
-    fields[1] ?? '*',
-    fields[2] ?? '*',
-    fields[3] ?? '*',
-    fields[4] ?? '*',
-  ];
+  const parsed = parseScheduleBuilder(cronExpression);
+  const [modeState, setModeState] = useState<{
+    expression: string;
+    mode: ScheduleBuilderMode;
+  }>({
+    expression: cronExpression,
+    mode: parsed.mode,
+  });
+  const mode = modeState.expression === cronExpression ? modeState.mode : parsed.mode;
 
-  const setField = (index: number, value: string) => {
-    const next = [minute, hour, dayOfMonth, month, dayOfWeek];
-    next[index] = value.trim() || '*';
-    onChange(next.join(' '));
+  const minute =
+    parsed.mode === 'every'
+      ? parsed.interval === 1
+        ? 0
+        : parsed.interval
+      : parsed.mode === 'hourly' || parsed.mode === 'daily' || parsed.mode === 'weekly'
+        ? parsed.minute
+        : parsed.mode === 'monthly'
+          ? parsed.minute
+          : 0;
+  const hour =
+    parsed.mode === 'daily' || parsed.mode === 'weekly' || parsed.mode === 'monthly'
+      ? parsed.hour
+      : 9;
+  const weeklyDays = parsed.mode === 'weekly' ? parsed.days : [1, 2, 3, 4, 5];
+  const monthlyDay = parsed.mode === 'monthly' ? parsed.dayOfMonth : 1;
+
+  const updateExpression = (nextExpression: string, nextMode = mode) => {
+    setModeState({ expression: nextExpression, mode: nextMode });
+    onChange(nextExpression);
+  };
+
+  const setModeAndExpression = (nextMode: ScheduleBuilderMode) => {
+    if (nextMode === 'advanced') {
+      setModeState({ expression: cronExpression, mode: nextMode });
+      return;
+    }
+    if (nextMode === 'every') {
+      updateExpression('*/15 * * * *', nextMode);
+      return;
+    }
+    if (nextMode === 'hourly') {
+      updateExpression('0 * * * *', nextMode);
+      return;
+    }
+    if (nextMode === 'daily') {
+      updateExpression('0 9 * * *', nextMode);
+      return;
+    }
+    if (nextMode === 'weekly') {
+      updateExpression('0 9 * * 1-5', nextMode);
+      return;
+    }
+    if (nextMode === 'monthly') {
+      updateExpression('0 9 1 * *', nextMode);
+      return;
+    }
+  };
+
+  const updateTimeBasedExpression = (nextHour: number, nextMinute: number) => {
+    if (mode === 'hourly') {
+      updateExpression(`${nextMinute} * * * *`);
+      return;
+    }
+    if (mode === 'daily') {
+      updateExpression(`${nextMinute} ${nextHour} * * *`);
+      return;
+    }
+    if (mode === 'weekly') {
+      updateExpression(`${nextMinute} ${nextHour} * * ${formatDayOfWeekField(weeklyDays)}`);
+      return;
+    }
+    if (mode === 'monthly') {
+      updateExpression(`${nextMinute} ${nextHour} ${monthlyDay} * *`);
+    }
   };
 
   return (
-    <div className="space-y-3">
-      <div className="flex flex-wrap items-center gap-2">
+    <div className="space-y-4">
+      <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
         {[
-          { label: 'Every minute', value: '* * * * *' },
-          { label: 'Every hour', value: '0 * * * *' },
-          { label: 'Daily 2 AM', value: '0 2 * * *' },
-          { label: 'Weekdays 9 AM', value: '0 9 * * 1-5' },
-        ].map((preset) => (
-          <Button
-            key={preset.value}
+          {
+            id: 'every' as const,
+            label: 'Every X Minutes',
+            description: 'Fast recurring checks like queue sweeps or watch loops.',
+          },
+          {
+            id: 'hourly' as const,
+            label: 'Hourly',
+            description: 'Run at the same minute every hour.',
+          },
+          {
+            id: 'daily' as const,
+            label: 'Daily',
+            description: 'One clean daily run at a specific time.',
+          },
+          {
+            id: 'weekly' as const,
+            label: 'Weekly',
+            description: 'Pick specific weekdays and a run time.',
+          },
+          {
+            id: 'monthly' as const,
+            label: 'Monthly',
+            description: 'Run on a specific day of the month.',
+          },
+          {
+            id: 'advanced' as const,
+            label: 'Advanced Cron',
+            description: 'Edit the raw 5-field cron expression directly.',
+          },
+        ].map((option) => (
+          <button
+            key={option.id}
             type="button"
-            variant={preset.value === cronExpression ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => onChange(preset.value)}
+            onClick={() => setModeAndExpression(option.id)}
+            className={cn(
+              'rounded-xl border px-4 py-3 text-left transition-colors',
+              mode === option.id
+                ? 'border-primary/40 bg-primary/5 shadow-sm'
+                : 'border-border/60 bg-card hover:bg-accent/30'
+            )}
           >
-            {preset.label}
-          </Button>
+            <p className="text-sm font-semibold">{option.label}</p>
+            <p className="mt-1 text-xs text-muted-foreground">{option.description}</p>
+          </button>
         ))}
       </div>
-      <div className="grid grid-cols-5 gap-2">
-        {[minute, hour, dayOfMonth, month, dayOfWeek].map((value, index) => (
-          <input
-            key={index}
-            value={value}
-            onChange={(event) => setField(index, event.target.value)}
-            className="h-10 rounded-lg border border-input bg-background px-3 text-sm font-mono outline-none focus:ring-2 focus:ring-ring/40"
-          />
-        ))}
-      </div>
-      <div className="rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-xs">
-        {humanizeCron(cronExpression)}
+
+      {mode === 'every' && (
+        <div className="rounded-xl border border-border/60 bg-card/50 p-4">
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="text-sm font-medium">Run every</span>
+            <input
+              type="number"
+              min={1}
+              max={59}
+              value={parsed.mode === 'every' ? parsed.interval : 15}
+              onChange={(event) => {
+                const interval = Math.min(Math.max(Number(event.target.value) || 1, 1), 59);
+                updateExpression(interval === 1 ? '* * * * *' : `*/${interval} * * * *`);
+              }}
+              className="h-10 w-24 rounded-lg border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring/40"
+            />
+            <span className="text-sm text-muted-foreground">minutes</span>
+          </div>
+        </div>
+      )}
+
+      {mode === 'hourly' && (
+        <div className="rounded-xl border border-border/60 bg-card/50 p-4">
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="text-sm font-medium">Run every hour at</span>
+            <select
+              value={parsed.mode === 'hourly' ? parsed.minute : 0}
+              onChange={(event) => updateTimeBasedExpression(hour, Number(event.target.value))}
+              className="h-10 rounded-lg border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring/40"
+            >
+              {MINUTE_OPTIONS.map((value) => (
+                <option key={value} value={value}>
+                  :{padCronNumber(value)}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+      )}
+
+      {(mode === 'daily' || mode === 'weekly' || mode === 'monthly') && (
+        <div className="rounded-xl border border-border/60 bg-card/50 p-4 space-y-4">
+          {mode === 'weekly' && (
+            <div className="space-y-2">
+              <p className="text-sm font-medium">Run on</p>
+              <div className="flex flex-wrap gap-2">
+                {WEEKDAY_OPTIONS.map((option) => {
+                  const selected = weeklyDays.includes(option.value);
+                  return (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() => {
+                        const nextDays = selected
+                          ? weeklyDays.filter((value) => value !== option.value)
+                          : [...weeklyDays, option.value];
+                        const safeDays = nextDays.length > 0 ? nextDays : [1];
+                        updateExpression(`${minute} ${hour} * * ${formatDayOfWeekField(safeDays)}`);
+                      }}
+                      className={cn(
+                        'rounded-lg border px-3 py-2 text-sm transition-colors',
+                        selected
+                          ? 'border-primary/40 bg-primary/5 text-foreground'
+                          : 'border-border/60 bg-background text-muted-foreground hover:bg-accent/30'
+                      )}
+                    >
+                      {option.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {mode === 'monthly' && (
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="text-sm font-medium">Day of month</span>
+              <input
+                type="number"
+                min={1}
+                max={31}
+                value={monthlyDay}
+                onChange={(event) => {
+                  const nextDay = Math.min(Math.max(Number(event.target.value) || 1, 1), 31);
+                  updateExpression(`${minute} ${hour} ${nextDay} * *`);
+                }}
+                className="h-10 w-24 rounded-lg border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring/40"
+              />
+            </div>
+          )}
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <label className="space-y-1.5">
+              <span className="block text-sm font-medium">Hour</span>
+              <select
+                value={hour}
+                onChange={(event) => updateTimeBasedExpression(Number(event.target.value), minute)}
+                className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring/40"
+              >
+                {HOUR_OPTIONS.map((value) => (
+                  <option key={value} value={value}>
+                    {padCronNumber(value)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="space-y-1.5">
+              <span className="block text-sm font-medium">Minute</span>
+              <select
+                value={minute}
+                onChange={(event) => updateTimeBasedExpression(hour, Number(event.target.value))}
+                className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring/40"
+              >
+                {MINUTE_OPTIONS.map((value) => (
+                  <option key={value} value={value}>
+                    {padCronNumber(value)}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+        </div>
+      )}
+
+      {mode === 'advanced' && (
+        <div className="rounded-xl border border-border/60 bg-card/50 p-4 space-y-3">
+          <label className="space-y-1.5">
+            <span className="block text-sm font-medium">Cron Expression</span>
+            <input
+              value={cronExpression}
+              onChange={(event) => updateExpression(event.target.value, 'advanced')}
+              className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm font-mono outline-none focus:ring-2 focus:ring-ring/40"
+              placeholder="0 9 * * 1-5"
+            />
+          </label>
+          <div className="grid grid-cols-5 gap-2 text-[11px] text-muted-foreground">
+            {['Minute', 'Hour', 'Day', 'Month', 'Weekday'].map((label) => (
+              <div
+                key={label}
+                className="rounded-lg border border-border/50 bg-background px-2 py-2 text-center"
+              >
+                {label}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="grid gap-3 lg:grid-cols-[1.2fr_0.8fr]">
+        <div className="rounded-xl border border-primary/20 bg-primary/5 px-4 py-3">
+          <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Schedule</p>
+          <p className="mt-2 text-sm font-medium">{humanizeCron(cronExpression)}</p>
+        </div>
+        <div className="rounded-xl border border-border/60 bg-card/50 px-4 py-3">
+          <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Raw Cron</p>
+          <p className="mt-2 text-sm font-mono">{cronExpression}</p>
+        </div>
       </div>
     </div>
   );
