@@ -41,6 +41,10 @@ describe('coreModules registry', () => {
     expect(coreModules.some((m) => m.id === 'ai-agents')).toBe(true);
   });
 
+  it('includes the ai-runner module', () => {
+    expect(coreModules.some((m) => m.id === 'ai-runner')).toBe(true);
+  });
+
   it('includes the crons-manager module', () => {
     expect(coreModules.some((m) => m.id === 'crons-manager')).toBe(true);
   });
@@ -53,8 +57,8 @@ describe('coreModules registry', () => {
     expect(coreModules.some((m) => m.id === 'endpoints-manager')).toBe(true);
   });
 
-  it('includes exactly 22 modules', () => {
-    expect(coreModules).toHaveLength(22);
+  it('includes exactly 24 modules', () => {
+    expect(coreModules).toHaveLength(24);
   });
 
   it('every module with widgets has valid widget objects', () => {

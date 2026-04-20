@@ -65,6 +65,7 @@ const navGroups = [
       { label: 'Docker', href: '/docker', icon: Container },
       { label: 'Services', href: '/services', icon: Cog },
       { label: 'AI Agents', href: '/ai-agents', icon: Bot },
+      { label: 'AI Runner', href: '/ai-runner', icon: Zap },
       { label: 'Crons', href: '/crons', icon: Clock },
       { label: 'Ports', href: '/ports', icon: Cable },
       { label: 'Hardware', href: '/hardware', icon: Cpu },

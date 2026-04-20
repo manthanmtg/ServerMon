@@ -43,6 +43,10 @@ const AIAgentsWidget = dynamic(() => import('@/modules/ai-agents/ui/AIAgentsWidg
   loading: WidgetLoader,
 });
 
+const AIRunnerWidget = dynamic(() => import('@/modules/ai-runner/ui/AIRunnerWidget'), {
+  loading: WidgetLoader,
+});
+
 const NetworkWidget = dynamic(() => import('@/modules/network/ui/NetworkWidget'), {
   loading: WidgetLoader,
 });
@@ -103,6 +107,7 @@ const widgetMap: Record<
   DiskWidget: { component: DiskWidget, name: 'Disk Usage' },
   ServicesWidget: { component: ServicesWidget, name: 'Services' },
   AIAgentsWidget: { component: AIAgentsWidget, name: 'AI Agents' },
+  AIRunnerWidget: { component: AIRunnerWidget, name: 'AI Runner' },
   NetworkWidget: { component: NetworkWidget, name: 'Network Usage' },
   UpdateWidget: { component: UpdateWidget, name: 'System Updates' },
   CronsWidget: { component: CronsWidget, name: 'Cron Jobs' },
