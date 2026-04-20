@@ -16,8 +16,16 @@ export const profileCreateSchema = z.object({
   slug: z.string().trim().min(1).max(120),
   agentType: agentTypeSchema,
   invocationTemplate: z.string().trim().min(1).max(10_000),
-  defaultTimeout: z.number().int().min(1).max(24 * 60),
-  maxTimeout: z.number().int().min(1).max(24 * 60),
+  defaultTimeout: z
+    .number()
+    .int()
+    .min(1)
+    .max(24 * 60),
+  maxTimeout: z
+    .number()
+    .int()
+    .min(1)
+    .max(24 * 60),
   shell: z.string().trim().min(1).max(260).default('/bin/bash'),
   env: z.record(z.string(), z.string()).default({}),
   enabled: z.boolean().default(true),
@@ -32,7 +40,11 @@ export const promptCreateSchema = z.object({
   type: promptTypeSchema,
   agentProfileId: z.string().trim().min(1),
   workingDirectory: z.string().trim().min(1).max(2000),
-  timeout: z.number().int().min(1).max(24 * 60),
+  timeout: z
+    .number()
+    .int()
+    .min(1)
+    .max(24 * 60),
   tags: z.array(z.string().trim().min(1).max(40)).max(20).default([]),
 });
 
@@ -55,7 +67,12 @@ export const runExecuteSchema = z
     type: promptTypeSchema.optional(),
     agentProfileId: z.string().trim().min(1).optional(),
     workingDirectory: z.string().trim().max(2000).optional(),
-    timeout: z.number().int().min(1).max(24 * 60).optional(),
+    timeout: z
+      .number()
+      .int()
+      .min(1)
+      .max(24 * 60)
+      .optional(),
     scheduleId: z.string().trim().min(1).optional(),
     triggeredBy: z.enum(['manual', 'schedule']).optional(),
   })

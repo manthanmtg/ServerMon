@@ -1,17 +1,20 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import Image from 'next/image';
 import {
   Bot,
   CalendarClock,
   Clock3,
   FolderOpen,
   History,
+  Info,
   Play,
   RefreshCcw,
   Save,
   Search,
   Settings2,
+  Sparkles,
   Square,
   TerminalSquare,
   Trash2,
@@ -47,6 +50,15 @@ type ScheduleFormState = Omit<
   AIRunnerScheduleDTO,
   '_id' | 'createdAt' | 'updatedAt' | 'lastRunId' | 'lastRunStatus' | 'lastRunAt' | 'nextRunTime'
 >;
+type IconPresetKey =
+  | 'bot'
+  | 'zap'
+  | 'terminal'
+  | 'calendar'
+  | 'history'
+  | 'folder'
+  | 'settings'
+  | 'sparkles';
 
 const TAB_META: Array<{ id: ViewTab; label: string; icon: React.ReactNode }> = [
   { id: 'run', label: 'Run', icon: <Play className="w-4 h-4" /> },
@@ -68,6 +80,21 @@ const DEFAULT_PROFILE_FORM: ProfileFormState = {
   enabled: true,
   icon: '',
 };
+
+const ICON_PRESETS: Array<{
+  key: IconPresetKey;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+}> = [
+  { key: 'bot', label: 'Bot', icon: Bot },
+  { key: 'zap', label: 'Zap', icon: Zap },
+  { key: 'terminal', label: 'Terminal', icon: TerminalSquare },
+  { key: 'calendar', label: 'Calendar', icon: CalendarClock },
+  { key: 'history', label: 'History', icon: History },
+  { key: 'folder', label: 'Folder', icon: FolderOpen },
+  { key: 'settings', label: 'Settings', icon: Settings2 },
+  { key: 'sparkles', label: 'Sparkles', icon: Sparkles },
+];
 
 function emptyPromptForm(profileId?: string): PromptFormState {
   return {
@@ -115,6 +142,80 @@ function humanizeCron(expression: string): string {
   if (expression === '0 0 * * *') return 'Daily at midnight';
   if (expression === '0 9 * * 1-5') return 'Weekdays at 9:00';
   return expression;
+}
+
+function slugifyValue(input: string): string {
+  return input
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 120);
+}
+
+function getPresetIcon(icon?: string) {
+  return ICON_PRESETS.find((entry) => entry.key === icon);
+}
+
+function isUploadedIcon(icon?: string): boolean {
+  return Boolean(icon?.startsWith('data:image/'));
+}
+
+function FieldHint({ text }: { text: string }) {
+  return (
+    <span
+      title={text}
+      className="inline-flex h-4 w-4 items-center justify-center rounded-full text-muted-foreground hover:text-foreground cursor-help"
+    >
+      <Info className="h-3.5 w-3.5" />
+    </span>
+  );
+}
+
+function LabelWithHint({ label, hint }: { label: string; hint?: string }) {
+  return (
+    <span className="flex items-center gap-1.5 text-sm font-medium">
+      {label}
+      {hint ? <FieldHint text={hint} /> : null}
+    </span>
+  );
+}
+
+function ProfileIconPreview({
+  icon,
+  name,
+  className,
+}: {
+  icon?: string;
+  name: string;
+  className?: string;
+}) {
+  const preset = getPresetIcon(icon);
+
+  if (isUploadedIcon(icon)) {
+    return (
+      <div
+        className={cn(
+          'relative flex h-10 w-10 items-center justify-center overflow-hidden rounded-xl border border-border bg-card',
+          className
+        )}
+      >
+        <Image src={icon!} alt={`${name} icon`} fill sizes="40px" className="object-cover" />
+      </div>
+    );
+  }
+
+  const Icon = preset?.icon ?? Bot;
+  return (
+    <div
+      className={cn(
+        'flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-secondary text-primary',
+        className
+      )}
+    >
+      <Icon className="h-5 w-5" />
+    </div>
+  );
 }
 
 function ScheduleBuilder({
@@ -214,6 +315,11 @@ export default function AIRunnerPage() {
   const [directories, setDirectories] = useState<string[]>([]);
   const [selectedRun, setSelectedRun] = useState<AIRunnerRunDTO | null>(null);
   const [runSearch, setRunSearch] = useState('');
+  const [promptSearch, setPromptSearch] = useState('');
+  const [promptTypeFilter, setPromptTypeFilter] = useState<'all' | AIRunnerPromptDTO['type']>(
+    'all'
+  );
+  const [selectedPromptId, setSelectedPromptId] = useState<string | null>(null);
   const [runPending, setRunPending] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [editingProfileId, setEditingProfileId] = useState<string | null>(null);
@@ -338,6 +444,25 @@ export default function AIRunnerPage() {
     () => Object.fromEntries(prompts.map((prompt) => [prompt._id, prompt])),
     [prompts]
   );
+  const filteredPrompts = useMemo(() => {
+    return prompts.filter((prompt) => {
+      const matchesType = promptTypeFilter === 'all' || prompt.type === promptTypeFilter;
+      const query = promptSearch.trim().toLowerCase();
+      const matchesSearch =
+        query.length === 0 ||
+        prompt.name.toLowerCase().includes(query) ||
+        prompt.content.toLowerCase().includes(query) ||
+        prompt.workingDirectory.toLowerCase().includes(query) ||
+        prompt.tags.some((tag) => tag.toLowerCase().includes(query));
+      return matchesType && matchesSearch;
+    });
+  }, [promptSearch, promptTypeFilter, prompts]);
+  const selectedPrompt =
+    filteredPrompts.find((prompt) => prompt._id === selectedPromptId) ??
+    prompts.find((prompt) => prompt._id === selectedPromptId) ??
+    filteredPrompts[0] ??
+    prompts[0] ??
+    null;
 
   const activeRunCount = runs.filter((run) => run.status === 'running').length;
   const enabledScheduleCount = schedules.filter((schedule) => schedule.enabled).length;
@@ -366,6 +491,7 @@ export default function AIRunnerPage() {
   };
 
   const selectPromptForEdit = (prompt: AIRunnerPromptDTO) => {
+    setSelectedPromptId(prompt._id);
     setEditingPromptId(prompt._id);
     setPromptForm({
       name: prompt.name,
@@ -928,6 +1054,9 @@ export default function AIRunnerPage() {
                       <Save className="w-4 h-4" />
                       Save Prompt
                     </Button>
+                    <div className="ml-auto rounded-lg border border-border bg-secondary/30 px-3 py-2 text-xs text-muted-foreground">
+                      Best for one-off execution and live output.
+                    </div>
                   </div>
                 </CardContent>
               </Card>
@@ -1023,12 +1152,182 @@ export default function AIRunnerPage() {
           )}
 
           {activeTab === 'prompts' && (
-            <div className="grid gap-5 lg:grid-cols-[360px_1fr]">
+            <div className="grid gap-5 xl:grid-cols-[320px_minmax(0,1.1fr)_380px]">
+              <Card className="border-border/60">
+                <CardHeader>
+                  <CardTitle className="text-sm">Prompt Library</CardTitle>
+                  <CardDescription>
+                    Browse reusable prompt patterns instead of composing one-off runs.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-2 gap-3 text-xs">
+                    <div className="rounded-xl border border-border/60 bg-secondary/20 px-3 py-3">
+                      <p className="text-muted-foreground">Saved</p>
+                      <p className="mt-1 text-lg font-semibold">{prompts.length}</p>
+                    </div>
+                    <div className="rounded-xl border border-border/60 bg-secondary/20 px-3 py-3">
+                      <p className="text-muted-foreground">File-backed</p>
+                      <p className="mt-1 text-lg font-semibold">
+                        {prompts.filter((prompt) => prompt.type === 'file-reference').length}
+                      </p>
+                    </div>
+                  </div>
+                  <Input
+                    label="Search Library"
+                    value={promptSearch}
+                    onChange={(event) => setPromptSearch(event.target.value)}
+                    placeholder="Search by name, tag, directory, or content"
+                    icon={<Search className="w-4 h-4" />}
+                  />
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      size="sm"
+                      variant={promptTypeFilter === 'all' ? 'default' : 'outline'}
+                      onClick={() => setPromptTypeFilter('all')}
+                    >
+                      All
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant={promptTypeFilter === 'inline' ? 'default' : 'outline'}
+                      onClick={() => setPromptTypeFilter('inline')}
+                    >
+                      Inline
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant={promptTypeFilter === 'file-reference' ? 'default' : 'outline'}
+                      onClick={() => setPromptTypeFilter('file-reference')}
+                    >
+                      File-backed
+                    </Button>
+                  </div>
+                  {selectedPrompt ? (
+                    <div className="rounded-xl border border-border/60 bg-secondary/20 p-4 space-y-3">
+                      <div className="space-y-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Badge variant="secondary">{selectedPrompt.type}</Badge>
+                          <Badge variant="outline">
+                            {profileMap[selectedPrompt.agentProfileId]?.name || 'Unknown profile'}
+                          </Badge>
+                        </div>
+                        <h3 className="text-sm font-semibold">{selectedPrompt.name}</h3>
+                        <p className="text-xs text-muted-foreground">
+                          {selectedPrompt.workingDirectory}
+                        </p>
+                      </div>
+                      <p className="line-clamp-5 text-sm text-muted-foreground whitespace-pre-wrap">
+                        {selectedPrompt.content}
+                      </p>
+                      {selectedPrompt.tags.length > 0 ? (
+                        <div className="flex flex-wrap gap-1.5">
+                          {selectedPrompt.tags.map((tag) => (
+                            <Badge key={tag} variant="outline" className="text-[10px]">
+                              {tag}
+                            </Badge>
+                          ))}
+                        </div>
+                      ) : null}
+                      <div className="flex flex-wrap gap-2">
+                        <Button size="sm" onClick={() => void runSavedPrompt(selectedPrompt._id)}>
+                          <Play className="w-4 h-4" />
+                          Run Selected
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => selectPromptForEdit(selectedPrompt)}
+                        >
+                          Edit Selected
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="rounded-xl border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
+                      No prompts match this filter
+                    </div>
+                  )}
+                  <div className="rounded-xl border border-primary/20 bg-primary/5 px-4 py-3 text-xs text-muted-foreground">
+                    The Run tab is for ad-hoc execution. This tab is now your reusable library.
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="border-border/60">
+                <CardHeader>
+                  <CardTitle className="text-sm">Prompt Cards</CardTitle>
+                  <CardDescription>
+                    {filteredPrompts.length} of {prompts.length} prompt(s) visible
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {filteredPrompts.map((prompt) => (
+                    <button
+                      key={prompt._id}
+                      type="button"
+                      onClick={() => setSelectedPromptId(prompt._id)}
+                      className={cn(
+                        'w-full rounded-xl border border-border/60 bg-card/60 p-4 space-y-3 text-left transition-colors hover:bg-accent/30',
+                        selectedPrompt?._id === prompt._id && 'border-primary/40 bg-primary/5'
+                      )}
+                    >
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div className="space-y-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <h3 className="text-sm font-semibold">{prompt.name}</h3>
+                            <Badge variant="secondary">{prompt.type}</Badge>
+                            <Badge variant="outline">
+                              {profileMap[prompt.agentProfileId]?.name || 'Unknown profile'}
+                            </Badge>
+                          </div>
+                          <p className="text-xs text-muted-foreground">{prompt.workingDirectory}</p>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button size="sm" onClick={() => void runSavedPrompt(prompt._id)}>
+                            <Play className="w-4 h-4" />
+                            Run
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => selectPromptForEdit(prompt)}
+                          >
+                            <Save className="w-4 h-4" />
+                            Edit
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            onClick={() => void deletePrompt(prompt._id)}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                            Delete
+                          </Button>
+                        </div>
+                      </div>
+                      <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+                        {prompt.content.slice(0, 220)}
+                        {prompt.content.length > 220 ? '…' : ''}
+                      </p>
+                    </button>
+                  ))}
+                  {filteredPrompts.length === 0 && (
+                    <div className="rounded-xl border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
+                      No saved prompts yet
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
               <Card className="border-border/60">
                 <CardHeader>
                   <CardTitle className="text-sm">
                     {editingPromptId ? 'Edit Prompt' : 'Create Prompt'}
                   </CardTitle>
+                  <CardDescription>
+                    Save polished prompts here, then run or schedule them from the library.
+                  </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <Input
@@ -1131,65 +1430,6 @@ export default function AIRunnerPage() {
                       Reset
                     </Button>
                   </div>
-                </CardContent>
-              </Card>
-
-              <Card className="border-border/60">
-                <CardHeader>
-                  <CardTitle className="text-sm">Saved Prompts</CardTitle>
-                  <CardDescription>{prompts.length} prompt(s) available</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  {prompts.map((prompt) => (
-                    <div
-                      key={prompt._id}
-                      className="rounded-xl border border-border/60 bg-card/60 p-4 space-y-3"
-                    >
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div className="space-y-1">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <h3 className="text-sm font-semibold">{prompt.name}</h3>
-                            <Badge variant="secondary">{prompt.type}</Badge>
-                            <Badge variant="outline">
-                              {profileMap[prompt.agentProfileId]?.name || 'Unknown profile'}
-                            </Badge>
-                          </div>
-                          <p className="text-xs text-muted-foreground">{prompt.workingDirectory}</p>
-                        </div>
-                        <div className="flex gap-2">
-                          <Button size="sm" onClick={() => void runSavedPrompt(prompt._id)}>
-                            <Play className="w-4 h-4" />
-                            Run
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => selectPromptForEdit(prompt)}
-                          >
-                            <Save className="w-4 h-4" />
-                            Edit
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="destructive"
-                            onClick={() => void deletePrompt(prompt._id)}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                            Delete
-                          </Button>
-                        </div>
-                      </div>
-                      <p className="text-sm text-muted-foreground whitespace-pre-wrap">
-                        {prompt.content.slice(0, 220)}
-                        {prompt.content.length > 220 ? '…' : ''}
-                      </p>
-                    </div>
-                  ))}
-                  {prompts.length === 0 && (
-                    <div className="rounded-xl border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
-                      No saved prompts yet
-                    </div>
-                  )}
                 </CardContent>
               </Card>
             </div>
@@ -1471,25 +1711,57 @@ export default function AIRunnerPage() {
                   <CardTitle className="text-sm">
                     {editingProfileId ? 'Edit Agent Profile' : 'Create Agent Profile'}
                   </CardTitle>
+                  <CardDescription>
+                    Define a reusable AI CLI profile once, then use it across runs, prompts, and
+                    schedules.
+                  </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <Input
-                    label="Name"
-                    value={profileForm.name}
-                    onChange={(event) =>
-                      setProfileForm((current) => ({ ...current, name: event.target.value }))
-                    }
-                  />
-                  <Input
-                    label="Slug"
-                    value={profileForm.slug}
-                    onChange={(event) =>
-                      setProfileForm((current) => ({ ...current, slug: event.target.value }))
-                    }
-                  />
+                  <label className="block space-y-1.5">
+                    <LabelWithHint
+                      label="Name"
+                      hint="A human-friendly label shown in dropdowns, cards, and history."
+                    />
+                    <Input
+                      value={profileForm.name}
+                      onChange={(event) => {
+                        const nextName = event.target.value;
+                        setProfileForm((current) => ({
+                          ...current,
+                          name: nextName,
+                          slug:
+                            editingProfileId || current.slug.trim().length > 0
+                              ? current.slug
+                              : slugifyValue(nextName),
+                        }));
+                      }}
+                    />
+                  </label>
+                  <label className="block space-y-1.5">
+                    <LabelWithHint
+                      label="Slug"
+                      hint="A stable machine-friendly identifier. Keep it short, unique, and URL-safe, like codex-dangerous."
+                    />
+                    <Input
+                      value={profileForm.slug}
+                      onChange={(event) =>
+                        setProfileForm((current) => ({
+                          ...current,
+                          slug: slugifyValue(event.target.value),
+                        }))
+                      }
+                      placeholder="codex-dangerous"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Used as the durable ID behind the scenes.
+                    </p>
+                  </label>
                   <div className="grid gap-4 md:grid-cols-2">
                     <label className="space-y-1.5">
-                      <span className="block text-sm font-medium">Agent Type</span>
+                      <LabelWithHint
+                        label="Agent Type"
+                        hint="The AI CLI family this profile belongs to."
+                      />
                       <select
                         value={profileForm.agentType}
                         onChange={(event) =>
@@ -1509,48 +1781,140 @@ export default function AIRunnerPage() {
                         )}
                       </select>
                     </label>
-                    <Input
-                      label="Shell"
-                      value={profileForm.shell}
-                      onChange={(event) =>
-                        setProfileForm((current) => ({ ...current, shell: event.target.value }))
-                      }
-                    />
+                    <label className="block space-y-1.5">
+                      <LabelWithHint
+                        label="Shell"
+                        hint="The shell used to execute the invocation template, usually /bin/bash."
+                      />
+                      <Input
+                        value={profileForm.shell}
+                        onChange={(event) =>
+                          setProfileForm((current) => ({ ...current, shell: event.target.value }))
+                        }
+                      />
+                    </label>
                   </div>
                   <div className="grid gap-4 md:grid-cols-2">
-                    <Input
-                      label="Default Timeout"
-                      type="number"
-                      value={profileForm.defaultTimeout}
-                      onChange={(event) =>
-                        setProfileForm((current) => ({
-                          ...current,
-                          defaultTimeout: Number(event.target.value) || 1,
-                        }))
-                      }
-                    />
-                    <Input
-                      label="Max Timeout"
-                      type="number"
-                      value={profileForm.maxTimeout}
-                      onChange={(event) =>
-                        setProfileForm((current) => ({
-                          ...current,
-                          maxTimeout: Number(event.target.value) || 1,
-                        }))
-                      }
-                    />
+                    <label className="block space-y-1.5">
+                      <LabelWithHint
+                        label="Default Timeout"
+                        hint="How long runs should get by default before the runner stops them."
+                      />
+                      <Input
+                        type="number"
+                        value={profileForm.defaultTimeout}
+                        onChange={(event) =>
+                          setProfileForm((current) => ({
+                            ...current,
+                            defaultTimeout: Number(event.target.value) || 1,
+                          }))
+                        }
+                      />
+                    </label>
+                    <label className="block space-y-1.5">
+                      <LabelWithHint
+                        label="Max Timeout"
+                        hint="The hard safety cap for this profile even if a prompt asks for more."
+                      />
+                      <Input
+                        type="number"
+                        value={profileForm.maxTimeout}
+                        onChange={(event) =>
+                          setProfileForm((current) => ({
+                            ...current,
+                            maxTimeout: Number(event.target.value) || 1,
+                          }))
+                        }
+                      />
+                    </label>
                   </div>
-                  <Input
-                    label="Icon"
-                    value={profileForm.icon ?? ''}
-                    onChange={(event) =>
-                      setProfileForm((current) => ({ ...current, icon: event.target.value }))
-                    }
-                    placeholder="codex"
-                  />
+                  <div className="space-y-3 rounded-xl border border-border/60 bg-secondary/15 p-4">
+                    <div className="flex items-center gap-3">
+                      <ProfileIconPreview
+                        icon={profileForm.icon}
+                        name={profileForm.name || 'Profile'}
+                      />
+                      <div>
+                        <LabelWithHint
+                          label="Icon"
+                          hint="Pick a preset icon or upload a small square image for this profile."
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Presets are quick. Upload works well for team-specific branding.
+                        </p>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-4 gap-2">
+                      {ICON_PRESETS.map((preset) => {
+                        const Icon = preset.icon;
+                        const selected = profileForm.icon === preset.key;
+                        return (
+                          <button
+                            key={preset.key}
+                            type="button"
+                            onClick={() =>
+                              setProfileForm((current) => ({ ...current, icon: preset.key }))
+                            }
+                            className={cn(
+                              'flex min-h-[72px] flex-col items-center justify-center gap-2 rounded-xl border px-2 py-3 text-xs transition-colors',
+                              selected
+                                ? 'border-primary bg-primary/10 text-foreground'
+                                : 'border-border bg-background hover:bg-accent/40'
+                            )}
+                          >
+                            <Icon className="h-4 w-4" />
+                            <span>{preset.label}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <label className="inline-flex cursor-pointer items-center">
+                        <input
+                          type="file"
+                          accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                          className="hidden"
+                          onChange={(event) => {
+                            const file = event.target.files?.[0];
+                            if (!file) return;
+                            if (file.size > 200 * 1024) {
+                              toast({
+                                title: 'Image too large',
+                                description:
+                                  'Please upload an icon under 200 KB so profile cards stay light.',
+                                variant: 'warning',
+                              });
+                              return;
+                            }
+                            const reader = new FileReader();
+                            reader.onload = () => {
+                              const result =
+                                typeof reader.result === 'string' ? reader.result : undefined;
+                              if (!result) return;
+                              setProfileForm((current) => ({ ...current, icon: result }));
+                            };
+                            reader.readAsDataURL(file);
+                            event.target.value = '';
+                          }}
+                        />
+                        <span className="inline-flex h-9 items-center justify-center rounded-lg border border-border bg-background px-4 text-sm font-medium hover:bg-accent/40">
+                          Upload Icon
+                        </span>
+                      </label>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => setProfileForm((current) => ({ ...current, icon: '' }))}
+                      >
+                        Clear Icon
+                      </Button>
+                    </div>
+                  </div>
                   <label className="block space-y-1.5">
-                    <span className="block text-sm font-medium">Invocation Template</span>
+                    <LabelWithHint
+                      label="Invocation Template"
+                      hint="The shell command template used to launch the agent. It must include $PROMPT and can include $WORKING_DIR."
+                    />
                     <textarea
                       value={profileForm.invocationTemplate}
                       onChange={(event) =>
@@ -1602,15 +1966,18 @@ export default function AIRunnerPage() {
                       className="rounded-xl border border-border/60 bg-card/60 p-4 space-y-3"
                     >
                       <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div className="space-y-1">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <h3 className="text-sm font-semibold">{profile.name}</h3>
-                            <Badge variant={profile.enabled ? 'success' : 'secondary'}>
-                              {profile.enabled ? 'enabled' : 'disabled'}
-                            </Badge>
-                            <Badge variant="outline">{profile.agentType}</Badge>
+                        <div className="flex items-start gap-3">
+                          <ProfileIconPreview icon={profile.icon} name={profile.name} />
+                          <div className="space-y-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <h3 className="text-sm font-semibold">{profile.name}</h3>
+                              <Badge variant={profile.enabled ? 'success' : 'secondary'}>
+                                {profile.enabled ? 'enabled' : 'disabled'}
+                              </Badge>
+                              <Badge variant="outline">{profile.agentType}</Badge>
+                            </div>
+                            <p className="text-xs text-muted-foreground">{profile.slug}</p>
                           </div>
-                          <p className="text-xs text-muted-foreground">{profile.slug}</p>
                         </div>
                         <div className="flex flex-wrap gap-2">
                           <Button size="sm" onClick={() => void testProfile(profile._id)}>
