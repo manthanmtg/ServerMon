@@ -34,6 +34,11 @@ export const profileCreateSchema = z.object({
 
 export const profileUpdateSchema = profileCreateSchema.partial();
 
+export const profileValidateSchema = z.object({
+  invocationTemplate: z.string().trim().min(1).max(10_000),
+  shell: z.string().trim().min(1).max(260).default('/bin/bash'),
+});
+
 export const promptCreateSchema = z.object({
   name: z.string().trim().min(1).max(160),
   content: z.string().min(1).max(100_000),

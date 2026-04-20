@@ -631,17 +631,13 @@ export default function AIRunnerPage() {
   };
 
   const validateProfile = async () => {
-    if (!editingProfileId) {
-      toast({
-        title: 'Save first',
-        description: 'Create the profile before running validation.',
-        variant: 'warning',
-      });
-      return;
-    }
-
-    const response = await fetch(`/api/modules/ai-runner/profiles/${editingProfileId}/validate`, {
+    const response = await fetch('/api/modules/ai-runner/profiles/validate', {
       method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        invocationTemplate: profileForm.invocationTemplate,
+        shell: profileForm.shell,
+      }),
     });
     const payload = await response.json();
     toast({
