@@ -18,6 +18,7 @@ import {
   Square,
   TerminalSquare,
   Trash2,
+  X,
   Zap,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -872,6 +873,9 @@ export default function AIRunnerPage() {
   const [editingProfileId, setEditingProfileId] = useState<string | null>(null);
   const [editingPromptId, setEditingPromptId] = useState<string | null>(null);
   const [editingScheduleId, setEditingScheduleId] = useState<string | null>(null);
+  const [profileModalOpen, setProfileModalOpen] = useState(false);
+  const [promptModalOpen, setPromptModalOpen] = useState(false);
+  const [scheduleModalOpen, setScheduleModalOpen] = useState(false);
   const [profileForm, setProfileForm] = useState<ProfileFormState>(DEFAULT_PROFILE_FORM);
   const [promptForm, setPromptForm] = useState<PromptFormState>(emptyPromptForm());
   const [scheduleForm, setScheduleForm] = useState<ScheduleFormState>(emptyScheduleForm());
@@ -1014,6 +1018,9 @@ export default function AIRunnerPage() {
   const activeRunCount = runs.filter((run) => run.status === 'running').length;
   const enabledScheduleCount = schedules.filter((schedule) => schedule.enabled).length;
   const successfulRuns = runs.filter((run) => run.status === 'completed').length;
+  const enabledProfileCount = profiles.filter((profile) => profile.enabled).length;
+  const customProfileCount = profiles.filter((profile) => profile.agentType === 'custom').length;
+  const fileBackedPromptCount = prompts.filter((prompt) => prompt.type === 'file-reference').length;
   const pausedScheduleCount = schedules.length - enabledScheduleCount;
   const recentlyActiveScheduleCount = schedules.filter((schedule) => {
     if (!schedule.lastRunAt) return false;
@@ -1057,6 +1064,7 @@ export default function AIRunnerPage() {
       enabled: profile.enabled,
       icon: profile.icon ?? '',
     });
+    setProfileModalOpen(true);
     setActiveTab('settings');
   };
 
@@ -1069,6 +1077,7 @@ export default function AIRunnerPage() {
       type: prompt.type,
       tags: prompt.tags,
     });
+    setPromptModalOpen(true);
     setActiveTab('prompts');
   };
 
@@ -1083,6 +1092,7 @@ export default function AIRunnerPage() {
       cronExpression: schedule.cronExpression,
       enabled: schedule.enabled,
     });
+    setScheduleModalOpen(true);
     setActiveTab('schedules');
   };
 
@@ -1099,6 +1109,39 @@ export default function AIRunnerPage() {
   const resetScheduleForm = () => {
     setEditingScheduleId(null);
     setScheduleForm(emptyScheduleForm(profiles[0]?._id, directories[0]));
+  };
+
+  const closeScheduleModal = () => {
+    setScheduleModalOpen(false);
+    resetScheduleForm();
+  };
+
+  const closeProfileModal = () => {
+    setProfileModalOpen(false);
+    resetProfileForm();
+  };
+
+  const closePromptModal = () => {
+    setPromptModalOpen(false);
+    resetPromptForm();
+  };
+
+  const openCreateProfileModal = () => {
+    resetProfileForm();
+    setProfileModalOpen(true);
+    setActiveTab('settings');
+  };
+
+  const openCreatePromptModal = () => {
+    resetPromptForm();
+    setPromptModalOpen(true);
+    setActiveTab('prompts');
+  };
+
+  const openCreateScheduleModal = () => {
+    resetScheduleForm();
+    setScheduleModalOpen(true);
+    setActiveTab('schedules');
   };
 
   const submitRun = async () => {
@@ -1210,6 +1253,7 @@ export default function AIRunnerPage() {
         description: 'Agent profile settings were saved.',
         variant: 'success',
       });
+      setProfileModalOpen(false);
       resetProfileForm();
       await loadAll();
     } catch (error) {
@@ -1275,7 +1319,7 @@ export default function AIRunnerPage() {
       return;
     }
     if (editingProfileId === id) {
-      resetProfileForm();
+      closeProfileModal();
     }
     await loadAll();
   };
@@ -1301,6 +1345,7 @@ export default function AIRunnerPage() {
         description: 'Saved prompt is ready to run or schedule.',
         variant: 'success',
       });
+      setPromptModalOpen(false);
       resetPromptForm();
       await loadAll();
     } catch (error) {
@@ -1324,7 +1369,7 @@ export default function AIRunnerPage() {
       return;
     }
     if (editingPromptId === id) {
-      resetPromptForm();
+      closePromptModal();
     }
     await loadAll();
   };
@@ -1350,6 +1395,7 @@ export default function AIRunnerPage() {
         description: 'The schedule is ready to run automatically.',
         variant: 'success',
       });
+      setScheduleModalOpen(false);
       resetScheduleForm();
       await loadAll();
     } catch (error) {
@@ -1389,7 +1435,7 @@ export default function AIRunnerPage() {
       return;
     }
     if (editingScheduleId === id) {
-      resetScheduleForm();
+      closeScheduleModal();
     }
     await loadAll();
   };
@@ -1832,250 +1878,430 @@ export default function AIRunnerPage() {
           )}
 
           {activeTab === 'prompts' && (
-            <div className="grid gap-5 xl:grid-cols-[320px_minmax(0,1.1fr)_380px]">
-              <Card className="border-border/60">
-                <CardHeader>
-                  <CardTitle className="text-sm">Prompt Library</CardTitle>
-                  <CardDescription>
-                    Browse reusable prompt patterns instead of composing one-off runs.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="grid grid-cols-2 gap-3 text-xs">
-                    <div className="rounded-xl border border-border/60 bg-secondary/20 px-3 py-3">
-                      <p className="text-muted-foreground">Saved</p>
-                      <p className="mt-1 text-lg font-semibold">{prompts.length}</p>
-                    </div>
-                    <div className="rounded-xl border border-border/60 bg-secondary/20 px-3 py-3">
-                      <p className="text-muted-foreground">File-backed</p>
-                      <p className="mt-1 text-lg font-semibold">
-                        {prompts.filter((prompt) => prompt.type === 'file-reference').length}
-                      </p>
-                    </div>
-                  </div>
-                  <Input
-                    label="Search Library"
-                    value={promptSearch}
-                    onChange={(event) => setPromptSearch(event.target.value)}
-                    placeholder="Search by name, tag, or content"
-                    icon={<Search className="w-4 h-4" />}
-                  />
-                  <div className="flex flex-wrap gap-2">
-                    <Button
-                      size="sm"
-                      variant={promptTypeFilter === 'all' ? 'default' : 'outline'}
-                      onClick={() => setPromptTypeFilter('all')}
-                    >
-                      All
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant={promptTypeFilter === 'inline' ? 'default' : 'outline'}
-                      onClick={() => setPromptTypeFilter('inline')}
-                    >
-                      Inline
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant={promptTypeFilter === 'file-reference' ? 'default' : 'outline'}
-                      onClick={() => setPromptTypeFilter('file-reference')}
-                    >
-                      File-backed
-                    </Button>
-                  </div>
-                  {selectedPrompt ? (
-                    <div className="rounded-xl border border-border/60 bg-secondary/20 p-4 space-y-3">
-                      <div className="space-y-1">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <Badge variant="secondary">{selectedPrompt.type}</Badge>
-                        </div>
-                        <h3 className="text-sm font-semibold">{selectedPrompt.name}</h3>
-                        <p className="text-xs text-muted-foreground">
-                          Portable prompt definition for manual runs and schedules.
-                        </p>
-                      </div>
-                      <p className="line-clamp-5 text-sm text-muted-foreground whitespace-pre-wrap">
-                        {selectedPrompt.content}
-                      </p>
-                      {selectedPrompt.tags.length > 0 ? (
-                        <div className="flex flex-wrap gap-1.5">
-                          {selectedPrompt.tags.map((tag) => (
-                            <Badge key={tag} variant="outline" className="text-[10px]">
-                              {tag}
-                            </Badge>
-                          ))}
-                        </div>
-                      ) : null}
-                      <div className="flex flex-wrap gap-2">
-                        <Button size="sm" onClick={() => openPromptInRun(selectedPrompt._id)}>
-                          <Play className="w-4 h-4" />
-                          Open in Run
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => selectPromptForEdit(selectedPrompt)}
-                        >
-                          Edit Selected
-                        </Button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="rounded-xl border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
-                      No prompts match this filter
-                    </div>
-                  )}
-                  <div className="rounded-xl border border-primary/20 bg-primary/5 px-4 py-3 text-xs text-muted-foreground">
-                    The Run tab is for ad-hoc execution. This tab is now your reusable library.
-                  </div>
-                </CardContent>
-              </Card>
+            <div className="space-y-5">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+                <div className="max-w-3xl">
+                  <p className="text-[11px] uppercase tracking-[0.24em] text-primary/80">
+                    Prompt Library
+                  </p>
+                  <h2 className="mt-2 text-2xl font-semibold tracking-tight">
+                    Prompt authoring deserves a dedicated studio too
+                  </h2>
+                  <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                    The library stays focused on browsing, selection, and quick launch. Creation and
+                    editing now happen in a wide modal so prompt structure, tags, and content get
+                    proper room.
+                  </p>
+                </div>
+                <Button size="lg" onClick={openCreatePromptModal} className="shrink-0">
+                  <Save className="w-4 h-4" />
+                  Create Prompt
+                </Button>
+              </div>
 
-              <Card className="border-border/60">
-                <CardHeader>
-                  <CardTitle className="text-sm">Prompt Cards</CardTitle>
-                  <CardDescription>
-                    {filteredPrompts.length} of {prompts.length} prompt(s) visible
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  {filteredPrompts.map((prompt) => (
-                    <button
-                      key={prompt._id}
-                      type="button"
-                      onClick={() => setSelectedPromptId(prompt._id)}
-                      className={cn(
-                        'w-full rounded-xl border border-border/60 bg-card/60 p-4 space-y-3 text-left transition-colors hover:bg-accent/30',
-                        selectedPrompt?._id === prompt._id && 'border-primary/40 bg-primary/5'
-                      )}
-                    >
-                      <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                <div className="rounded-[28px] border border-primary/20 bg-gradient-to-br from-primary/15 via-background to-primary/5 p-5 shadow-[0_22px_80px_-55px_rgba(99,102,241,0.55)]">
+                  <p className="text-[11px] uppercase tracking-[0.22em] text-primary/80">Saved</p>
+                  <p className="mt-3 text-3xl font-semibold tracking-tight">{prompts.length}</p>
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    Reusable prompt definitions ready for manual runs and schedules.
+                  </p>
+                </div>
+                <div className="rounded-[28px] border border-success/20 bg-gradient-to-br from-success/15 via-background to-success/5 p-5 shadow-[0_22px_80px_-55px_rgba(34,197,94,0.4)]">
+                  <p className="text-[11px] uppercase tracking-[0.22em] text-success">
+                    File-backed
+                  </p>
+                  <p className="mt-3 text-3xl font-semibold tracking-tight">
+                    {fileBackedPromptCount}
+                  </p>
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    Prompts that point to files instead of storing inline instructions.
+                  </p>
+                </div>
+                <div className="rounded-[28px] border border-warning/20 bg-gradient-to-br from-warning/15 via-background to-warning/5 p-5 shadow-[0_22px_80px_-55px_rgba(234,179,8,0.45)]">
+                  <p className="text-[11px] uppercase tracking-[0.22em] text-warning">
+                    Visible Now
+                  </p>
+                  <p className="mt-3 text-3xl font-semibold tracking-tight">
+                    {filteredPrompts.length}
+                  </p>
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    Prompt cards currently matching your active search and type filter.
+                  </p>
+                </div>
+                <div className="rounded-[28px] border border-border/60 bg-gradient-to-br from-card via-background to-secondary/40 p-5">
+                  <p className="text-[11px] uppercase tracking-[0.22em] text-muted-foreground">
+                    Current Focus
+                  </p>
+                  <p className="mt-3 text-lg font-semibold tracking-tight">
+                    {selectedPrompt?.name || 'Nothing selected'}
+                  </p>
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    {selectedPrompt
+                      ? `${selectedPrompt.type === 'inline' ? 'Inline prompt' : 'File-backed prompt'} with ${
+                          selectedPrompt.tags.length > 0
+                            ? `${selectedPrompt.tags.length} tag${selectedPrompt.tags.length === 1 ? '' : 's'}`
+                            : 'no tags yet'
+                        }.`
+                      : 'Pick a prompt card to inspect its shape and launch options.'}
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid gap-5 xl:grid-cols-[320px_minmax(0,1fr)]">
+                <Card className="border-border/60">
+                  <CardHeader>
+                    <CardTitle className="text-sm">Library Controls</CardTitle>
+                    <CardDescription>
+                      Browse reusable prompt patterns instead of composing one-off runs.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <Input
+                      label="Search Library"
+                      value={promptSearch}
+                      onChange={(event) => setPromptSearch(event.target.value)}
+                      placeholder="Search by name, tag, or content"
+                      icon={<Search className="w-4 h-4" />}
+                    />
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        size="sm"
+                        variant={promptTypeFilter === 'all' ? 'default' : 'outline'}
+                        onClick={() => setPromptTypeFilter('all')}
+                      >
+                        All
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant={promptTypeFilter === 'inline' ? 'default' : 'outline'}
+                        onClick={() => setPromptTypeFilter('inline')}
+                      >
+                        Inline
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant={promptTypeFilter === 'file-reference' ? 'default' : 'outline'}
+                        onClick={() => setPromptTypeFilter('file-reference')}
+                      >
+                        File-backed
+                      </Button>
+                    </div>
+
+                    {selectedPrompt ? (
+                      <div className="rounded-[24px] border border-primary/20 bg-primary/5 p-4 space-y-3">
                         <div className="space-y-1">
                           <div className="flex flex-wrap items-center gap-2">
-                            <h3 className="text-sm font-semibold">{prompt.name}</h3>
-                            <Badge variant="secondary">{prompt.type}</Badge>
+                            <Badge variant="secondary">{selectedPrompt.type}</Badge>
                           </div>
+                          <h3 className="text-base font-semibold">{selectedPrompt.name}</h3>
                           <p className="text-xs text-muted-foreground">
-                            {prompt.tags.length > 0 ? prompt.tags.join(' • ') : 'No tags yet'}
+                            Portable prompt definition for manual runs and schedules.
                           </p>
                         </div>
-                        <div className="flex gap-2">
-                          <Button size="sm" onClick={() => openPromptInRun(prompt._id)}>
+                        <p className="line-clamp-6 text-sm text-muted-foreground whitespace-pre-wrap">
+                          {selectedPrompt.content}
+                        </p>
+                        {selectedPrompt.tags.length > 0 ? (
+                          <div className="flex flex-wrap gap-1.5">
+                            {selectedPrompt.tags.map((tag) => (
+                              <Badge key={tag} variant="outline" className="text-[10px]">
+                                {tag}
+                              </Badge>
+                            ))}
+                          </div>
+                        ) : null}
+                        <div className="flex flex-wrap gap-2">
+                          <Button size="sm" onClick={() => openPromptInRun(selectedPrompt._id)}>
                             <Play className="w-4 h-4" />
                             Open in Run
                           </Button>
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={() => selectPromptForEdit(prompt)}
+                            onClick={() => selectPromptForEdit(selectedPrompt)}
                           >
-                            <Save className="w-4 h-4" />
                             Edit
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="destructive"
-                            onClick={() => void deletePrompt(prompt._id)}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                            Delete
                           </Button>
                         </div>
                       </div>
-                      <p className="text-sm text-muted-foreground whitespace-pre-wrap">
-                        {prompt.content.slice(0, 220)}
-                        {prompt.content.length > 220 ? '…' : ''}
-                      </p>
-                    </button>
-                  ))}
-                  {filteredPrompts.length === 0 && (
-                    <div className="rounded-xl border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
-                      No saved prompts yet
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
+                    ) : (
+                      <div className="rounded-xl border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
+                        No prompts match this filter
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
 
-              <Card className="border-border/60">
-                <CardHeader>
-                  <CardTitle className="text-sm">
-                    {editingPromptId ? 'Edit Prompt' : 'Create Prompt'}
-                  </CardTitle>
-                  <CardDescription>
-                    Save polished prompts here, then run or schedule them from the library.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <Input
-                    label="Name"
-                    value={promptForm.name}
-                    onChange={(event) =>
-                      setPromptForm((current) => ({ ...current, name: event.target.value }))
-                    }
+                <Card className="overflow-hidden border-border/60 bg-gradient-to-br from-card via-background to-secondary/30">
+                  <CardHeader className="border-b border-border/60">
+                    <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+                      <div>
+                        <CardTitle className="text-xl tracking-tight">Prompt Board</CardTitle>
+                        <CardDescription className="mt-2 leading-6">
+                          Your reusable prompt definitions in one place, ready to run, inspect, or
+                          refine.
+                        </CardDescription>
+                      </div>
+                      <Badge variant="outline">{filteredPrompts.length} visible</Badge>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-3 pt-5">
+                    {filteredPrompts.map((prompt) => (
+                      <button
+                        key={prompt._id}
+                        type="button"
+                        onClick={() => setSelectedPromptId(prompt._id)}
+                        className={cn(
+                          'w-full rounded-[24px] border border-border/60 bg-card/70 p-5 space-y-4 text-left transition-colors hover:bg-accent/20',
+                          selectedPrompt?._id === prompt._id && 'border-primary/30 bg-primary/5'
+                        )}
+                      >
+                        <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                          <div className="space-y-2 min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <h3 className="text-lg font-semibold tracking-tight">
+                                {prompt.name}
+                              </h3>
+                              <Badge variant="secondary">{prompt.type}</Badge>
+                            </div>
+                            <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+                              {prompt.content.slice(0, 240)}
+                              {prompt.content.length > 240 ? '…' : ''}
+                            </p>
+                            <div className="flex flex-wrap gap-1.5">
+                              {prompt.tags.length > 0 ? (
+                                prompt.tags.map((tag) => (
+                                  <Badge key={tag} variant="outline" className="text-[10px]">
+                                    {tag}
+                                  </Badge>
+                                ))
+                              ) : (
+                                <span className="text-xs text-muted-foreground">No tags yet</span>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex flex-wrap gap-2 xl:justify-end">
+                            <Button size="sm" onClick={() => openPromptInRun(prompt._id)}>
+                              <Play className="w-4 h-4" />
+                              Open in Run
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => selectPromptForEdit(prompt)}
+                            >
+                              Edit
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              onClick={() => void deletePrompt(prompt._id)}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                              Delete
+                            </Button>
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                    {filteredPrompts.length === 0 && (
+                      <div className="rounded-[28px] border border-dashed border-primary/25 bg-gradient-to-br from-primary/5 via-background to-warning/5 px-6 py-16 text-center">
+                        <p className="text-[11px] uppercase tracking-[0.24em] text-primary/80">
+                          Prompt Board
+                        </p>
+                        <h3 className="mt-3 text-xl font-semibold tracking-tight">
+                          No prompts on the board yet
+                        </h3>
+                        <p className="mt-3 text-sm leading-6 text-muted-foreground">
+                          Create a reusable prompt in the wide studio and it will show up here ready
+                          for launch and scheduling.
+                        </p>
+                        <div className="mt-6">
+                          <Button onClick={openCreatePromptModal}>
+                            <Save className="w-4 h-4" />
+                            Create Prompt
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+
+              {promptModalOpen && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 md:p-6">
+                  <div
+                    className="absolute inset-0 bg-background/80 backdrop-blur-sm animate-in fade-in duration-300"
+                    onClick={closePromptModal}
                   />
-                  <div className="flex gap-2">
-                    <Button
-                      size="sm"
-                      variant={promptForm.type === 'inline' ? 'default' : 'outline'}
-                      onClick={() => setPromptForm((current) => ({ ...current, type: 'inline' }))}
-                    >
-                      Inline
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant={promptForm.type === 'file-reference' ? 'default' : 'outline'}
-                      onClick={() =>
-                        setPromptForm((current) => ({ ...current, type: 'file-reference' }))
-                      }
-                    >
-                      File
-                    </Button>
+                  <div className="relative flex max-h-[92dvh] w-full max-w-5xl flex-col overflow-hidden rounded-[32px] border border-primary/20 bg-card/95 shadow-2xl animate-in fade-in zoom-in-95 slide-in-from-bottom-4 duration-300">
+                    <div className="flex items-center justify-between border-b border-border/60 bg-background/80 px-6 py-5 backdrop-blur">
+                      <div>
+                        <p className="text-[11px] uppercase tracking-[0.26em] text-primary/80">
+                          Prompt Studio
+                        </p>
+                        <h3 className="mt-2 text-2xl font-semibold tracking-tight">
+                          {editingPromptId ? 'Edit prompt' : 'Create prompt'}
+                        </h3>
+                        <p className="mt-2 text-sm text-muted-foreground">
+                          Write the prompt once, tag it clearly, and keep it portable across runs
+                          and schedules.
+                        </p>
+                      </div>
+                      <button
+                        onClick={closePromptModal}
+                        className="flex h-10 w-10 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
+                        aria-label="Close prompt modal"
+                      >
+                        <X className="h-5 w-5" />
+                      </button>
+                    </div>
+                    <div className="overflow-y-auto px-6 py-6">
+                      <div className="grid gap-6 xl:grid-cols-[0.85fr_1.15fr]">
+                        <div className="space-y-6">
+                          <div className="rounded-[24px] border border-border/60 bg-background/80 p-5 space-y-4">
+                            <div>
+                              <p className="text-sm font-semibold">Identity</p>
+                              <p className="mt-1 text-xs text-muted-foreground">
+                                Give this prompt a strong name so it reads clearly in libraries and
+                                launch flows.
+                              </p>
+                            </div>
+                            <Input
+                              label="Name"
+                              value={promptForm.name}
+                              onChange={(event) =>
+                                setPromptForm((current) => ({
+                                  ...current,
+                                  name: event.target.value,
+                                }))
+                              }
+                            />
+                            <Input
+                              label="Tags (comma separated)"
+                              value={promptForm.tags.join(', ')}
+                              onChange={(event) =>
+                                setPromptForm((current) => ({
+                                  ...current,
+                                  tags: event.target.value
+                                    .split(',')
+                                    .map((item) => item.trim())
+                                    .filter(Boolean),
+                                }))
+                              }
+                            />
+                            <div className="rounded-xl border border-primary/20 bg-primary/5 px-4 py-3 text-xs text-muted-foreground">
+                              Execution settings now live in the Run tab and on schedules, so this
+                              prompt stays reusable across profiles and repos.
+                            </div>
+                          </div>
+
+                          <div className="rounded-[24px] border border-border/60 bg-background/80 p-5 space-y-4">
+                            <div>
+                              <p className="text-sm font-semibold">Storage Mode</p>
+                              <p className="mt-1 text-xs text-muted-foreground">
+                                Choose whether this prompt lives inline or points to a file on disk.
+                              </p>
+                            </div>
+                            <div className="flex gap-2">
+                              <Button
+                                size="sm"
+                                variant={promptForm.type === 'inline' ? 'default' : 'outline'}
+                                onClick={() =>
+                                  setPromptForm((current) => ({ ...current, type: 'inline' }))
+                                }
+                              >
+                                Inline
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant={
+                                  promptForm.type === 'file-reference' ? 'default' : 'outline'
+                                }
+                                onClick={() =>
+                                  setPromptForm((current) => ({
+                                    ...current,
+                                    type: 'file-reference',
+                                  }))
+                                }
+                              >
+                                File Reference
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="rounded-[24px] border border-border/60 bg-background/80 p-5 space-y-4">
+                          <div>
+                            <p className="text-sm font-semibold">
+                              {promptForm.type === 'inline' ? 'Prompt Content' : 'Prompt File Path'}
+                            </p>
+                            <p className="mt-1 text-xs text-muted-foreground">
+                              {promptForm.type === 'inline'
+                                ? 'Draft the actual reusable instruction here.'
+                                : 'Reference a prompt file path that should be loaded at run time.'}
+                            </p>
+                          </div>
+                          <textarea
+                            value={promptForm.content}
+                            onChange={(event) =>
+                              setPromptForm((current) => ({
+                                ...current,
+                                content: event.target.value,
+                              }))
+                            }
+                            className="min-h-[420px] w-full rounded-xl border border-input bg-background px-3 py-3 text-sm outline-none focus:ring-2 focus:ring-ring/40"
+                            placeholder={
+                              promptForm.type === 'inline'
+                                ? 'Ask the agent to review code, prepare a changelog, refactor a module, or anything else you want to save for reuse...'
+                                : '/root/repos/project/prompts/release-review.md'
+                            }
+                          />
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex flex-col-reverse gap-3 border-t border-border/60 bg-background/80 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
+                      <Button variant="outline" onClick={closePromptModal}>
+                        Cancel
+                      </Button>
+                      <div className="flex flex-wrap gap-2">
+                        <Button variant="outline" onClick={resetPromptForm}>
+                          Reset
+                        </Button>
+                        <Button onClick={() => void submitPrompt()}>
+                          <Save className="w-4 h-4" />
+                          {editingPromptId ? 'Update prompt' : 'Create prompt'}
+                        </Button>
+                      </div>
+                    </div>
                   </div>
-                  <label className="block space-y-1.5">
-                    <span className="block text-sm font-medium">
-                      {promptForm.type === 'inline' ? 'Prompt Content' : 'Prompt File Path'}
-                    </span>
-                    <textarea
-                      value={promptForm.content}
-                      onChange={(event) =>
-                        setPromptForm((current) => ({ ...current, content: event.target.value }))
-                      }
-                      className="min-h-44 w-full rounded-xl border border-input bg-background px-3 py-3 text-sm outline-none focus:ring-2 focus:ring-ring/40"
-                    />
-                  </label>
-                  <Input
-                    label="Tags (comma separated)"
-                    value={promptForm.tags.join(', ')}
-                    onChange={(event) =>
-                      setPromptForm((current) => ({
-                        ...current,
-                        tags: event.target.value
-                          .split(',')
-                          .map((item) => item.trim())
-                          .filter(Boolean),
-                      }))
-                    }
-                  />
-                  <div className="rounded-xl border border-primary/20 bg-primary/5 px-4 py-3 text-xs text-muted-foreground">
-                    Execution settings now live in the Run tab and on schedules, so this prompt can
-                    stay reusable across profiles and repos.
-                  </div>
-                  <div className="flex gap-2">
-                    <Button onClick={() => void submitPrompt()}>
-                      <Save className="w-4 h-4" />
-                      {editingPromptId ? 'Update' : 'Create'}
-                    </Button>
-                    <Button variant="outline" onClick={resetPromptForm}>
-                      Reset
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
+                </div>
+              )}
             </div>
           )}
 
           {activeTab === 'schedules' && (
             <div className="space-y-5">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+                <div className="max-w-3xl">
+                  <p className="text-[11px] uppercase tracking-[0.24em] text-primary/80">
+                    Automation Control
+                  </p>
+                  <h2 className="mt-2 text-2xl font-semibold tracking-tight">
+                    Schedules should read like a control room, not a cramped form
+                  </h2>
+                  <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                    The board stays focused on what exists and what launches next. Creation and
+                    editing now open a much wider studio so the cadence builder has room to breathe.
+                  </p>
+                </div>
+                <Button size="lg" onClick={openCreateScheduleModal} className="shrink-0">
+                  <CalendarClock className="w-4 h-4" />
+                  Create Schedule
+                </Button>
+              </div>
+
               <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                 <div className="rounded-[28px] border border-primary/20 bg-gradient-to-br from-primary/15 via-background to-primary/5 p-5 shadow-[0_22px_80px_-55px_rgba(99,102,241,0.55)]">
                   <p className="text-[11px] uppercase tracking-[0.22em] text-primary/80">
@@ -2125,397 +2351,434 @@ export default function AIRunnerPage() {
                 </div>
               </div>
 
-              <div className="grid gap-5 xl:grid-cols-[minmax(0,430px)_minmax(0,1fr)]">
-                <Card className="overflow-hidden border-primary/20 bg-gradient-to-br from-card via-background to-primary/5 shadow-[0_28px_90px_-60px_rgba(99,102,241,0.55)]">
-                  <CardHeader className="border-b border-border/60 bg-background/70 backdrop-blur">
-                    <div className="space-y-4">
+              <Card className="overflow-hidden border-border/60 bg-gradient-to-br from-card via-background to-secondary/30">
+                <CardHeader className="border-b border-border/60">
+                  <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+                    <div>
+                      <p className="text-[11px] uppercase tracking-[0.24em] text-muted-foreground">
+                        Schedule Board
+                      </p>
+                      <CardTitle className="mt-2 text-xl tracking-tight">
+                        A richer view of every automation
+                      </CardTitle>
+                      <CardDescription className="mt-2 leading-6">
+                        Track cadence, next launches, execution context, and last-run health in one
+                        place.
+                      </CardDescription>
+                    </div>
+                    <div className="flex flex-wrap gap-2 text-xs">
+                      <Badge variant="success">{enabledScheduleCount} enabled</Badge>
+                      <Badge variant="warning">{pausedScheduleCount} paused</Badge>
+                      <Badge variant="outline">{scheduleModeCount} modes in play</Badge>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-4 pt-5">
+                  {sortedSchedules.map((schedule, index) => (
+                    <div
+                      key={schedule._id}
+                      className={cn(
+                        'group relative overflow-hidden rounded-[28px] border bg-card/80 p-5 shadow-[0_18px_60px_-48px_rgba(15,23,42,0.45)] transition-transform duration-200 hover:-translate-y-0.5',
+                        schedule.enabled ? 'border-primary/20' : 'border-border/60 bg-muted/20'
+                      )}
+                    >
+                      <div
+                        className={cn(
+                          'absolute inset-y-0 left-0 w-1.5 rounded-r-full',
+                          schedule.enabled ? 'bg-primary/70' : 'bg-warning/60'
+                        )}
+                      />
+                      <div
+                        className={cn(
+                          'pointer-events-none absolute right-0 top-0 h-32 w-32 rounded-full blur-3xl',
+                          schedule.enabled ? 'bg-primary/10' : 'bg-warning/10'
+                        )}
+                      />
+                      <div className="relative space-y-5">
+                        <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                          <div className="min-w-0 space-y-3">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <Badge variant={schedule.enabled ? 'success' : 'warning'}>
+                                {schedule.enabled ? 'Enabled' : 'Paused'}
+                              </Badge>
+                              <Badge variant="outline">
+                                {getScheduleModeLabel(schedule.cronExpression)}
+                              </Badge>
+                              {schedule.lastRunStatus ? (
+                                <Badge variant={getScheduleStatusVariant(schedule.lastRunStatus)}>
+                                  {schedule.lastRunStatus}
+                                </Badge>
+                              ) : null}
+                              <span className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
+                                #{index + 1}
+                              </span>
+                            </div>
+                            <div>
+                              <h3 className="text-xl font-semibold tracking-tight">
+                                {schedule.name}
+                              </h3>
+                              <p className="mt-1 text-sm text-muted-foreground">
+                                {humanizeCron(schedule.cronExpression)}
+                              </p>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              <Badge variant="secondary">
+                                Prompt: {promptMap[schedule.promptId]?.name || 'Unknown prompt'}
+                              </Badge>
+                              <Badge variant="outline">
+                                Profile:{' '}
+                                {profileMap[schedule.agentProfileId]?.name || 'Unknown profile'}
+                              </Badge>
+                              <Badge variant="outline">{schedule.timeout} min runtime</Badge>
+                            </div>
+                          </div>
+                          <div className="grid gap-3 sm:grid-cols-3 xl:min-w-[280px] xl:grid-cols-1">
+                            <div className="rounded-2xl border border-border/60 bg-background/85 px-4 py-3">
+                              <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
+                                Next Launch
+                              </p>
+                              <p className="mt-1 text-sm font-semibold">
+                                {formatScheduleDate(schedule.nextRunTime)}
+                              </p>
+                              <p className="mt-1 text-xs text-muted-foreground">
+                                {schedule.nextRunTime
+                                  ? formatRelative(schedule.nextRunTime)
+                                  : 'Waiting for enablement'}
+                              </p>
+                            </div>
+                            <div className="rounded-2xl border border-border/60 bg-background/85 px-4 py-3">
+                              <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
+                                Last Activity
+                              </p>
+                              <p className="mt-1 text-sm font-semibold">
+                                {schedule.lastRunAt
+                                  ? formatScheduleDate(schedule.lastRunAt)
+                                  : 'No runs yet'}
+                              </p>
+                              <p className="mt-1 text-xs text-muted-foreground">
+                                {schedule.lastRunAt
+                                  ? formatRelative(schedule.lastRunAt)
+                                  : 'Fresh automation'}
+                              </p>
+                            </div>
+                            <div className="rounded-2xl border border-border/60 bg-background/85 px-4 py-3">
+                              <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
+                                Workspace
+                              </p>
+                              <p className="mt-1 truncate font-mono text-xs">
+                                {schedule.workingDirectory || 'No directory'}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="grid gap-3 lg:grid-cols-[1.2fr_0.8fr]">
+                          <div className="rounded-[22px] border border-border/60 bg-background/80 px-4 py-4">
+                            <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
+                              Cadence Snapshot
+                            </p>
+                            <div className="mt-3 grid gap-3 md:grid-cols-3">
+                              <div className="rounded-xl border border-border/60 bg-card px-3 py-3">
+                                <p className="text-xs text-muted-foreground">Mode</p>
+                                <p className="mt-1 text-sm font-semibold">
+                                  {getScheduleModeLabel(schedule.cronExpression)}
+                                </p>
+                              </div>
+                              <div className="rounded-xl border border-border/60 bg-card px-3 py-3">
+                                <p className="text-xs text-muted-foreground">Narrative</p>
+                                <p className="mt-1 text-sm font-semibold">
+                                  {humanizeCron(schedule.cronExpression)}
+                                </p>
+                              </div>
+                              <div className="rounded-xl border border-border/60 bg-card px-3 py-3">
+                                <p className="text-xs text-muted-foreground">Raw Cron</p>
+                                <p className="mt-1 font-mono text-xs">{schedule.cronExpression}</p>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex flex-wrap items-end justify-start gap-2 lg:justify-end">
+                            <Button size="sm" onClick={() => void runScheduleNow(schedule)}>
+                              <Play className="w-4 h-4" />
+                              Run Now
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => void toggleSchedule(schedule._id)}
+                            >
+                              <Clock3 className="w-4 h-4" />
+                              {schedule.enabled ? 'Pause' : 'Enable'}
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => selectScheduleForEdit(schedule)}
+                            >
+                              Edit
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              onClick={() => void deleteSchedule(schedule._id)}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                              Delete
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+
+                  {sortedSchedules.length === 0 && (
+                    <div className="rounded-[28px] border border-dashed border-primary/25 bg-gradient-to-br from-primary/5 via-background to-warning/5 px-6 py-16 text-center">
+                      <p className="text-[11px] uppercase tracking-[0.24em] text-primary/80">
+                        Schedule Board
+                      </p>
+                      <h3 className="mt-3 text-xl font-semibold tracking-tight">
+                        No automations on the board yet
+                      </h3>
+                      <p className="mt-3 text-sm leading-6 text-muted-foreground">
+                        Use the create button above to open a wide schedule studio and build your
+                        first automation.
+                      </p>
+                      <div className="mt-6">
+                        <Button onClick={openCreateScheduleModal}>
+                          <CalendarClock className="w-4 h-4" />
+                          Create Schedule
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {scheduleModalOpen && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 md:p-6">
+                  <div
+                    className="absolute inset-0 bg-background/80 backdrop-blur-sm animate-in fade-in duration-300"
+                    onClick={closeScheduleModal}
+                  />
+                  <div className="relative flex max-h-[92dvh] w-full max-w-6xl flex-col overflow-hidden rounded-[32px] border border-primary/20 bg-card/95 shadow-2xl animate-in fade-in zoom-in-95 slide-in-from-bottom-4 duration-300">
+                    <div className="flex items-center justify-between border-b border-border/60 bg-background/80 px-6 py-5 backdrop-blur">
                       <div>
                         <p className="text-[11px] uppercase tracking-[0.26em] text-primary/80">
                           Automation Studio
                         </p>
-                        <CardTitle className="mt-2 text-xl tracking-tight">
-                          {editingScheduleId ? 'Refine this schedule' : 'Compose a new automation'}
-                        </CardTitle>
-                        <CardDescription className="mt-2 leading-6">
-                          Pair a reusable prompt with an agent profile, shape the runtime context,
-                          and craft a cadence that feels deliberate.
-                        </CardDescription>
-                      </div>
-                      <div className="grid gap-3 sm:grid-cols-3">
-                        <div className="rounded-2xl border border-border/60 bg-background/85 px-4 py-3">
-                          <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
-                            Prompt
-                          </p>
-                          <p className="mt-1 text-sm font-semibold">{scheduleFormPromptName}</p>
-                        </div>
-                        <div className="rounded-2xl border border-border/60 bg-background/85 px-4 py-3">
-                          <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
-                            Profile
-                          </p>
-                          <p className="mt-1 text-sm font-semibold">{scheduleFormProfileName}</p>
-                        </div>
-                        <div className="rounded-2xl border border-border/60 bg-background/85 px-4 py-3">
-                          <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
-                            Cadence
-                          </p>
-                          <p className="mt-1 text-sm font-semibold">
-                            {humanizeCron(scheduleForm.cronExpression)}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-5 pt-5">
-                    <div className="rounded-[24px] border border-border/60 bg-background/80 p-4 space-y-4">
-                      <div>
-                        <p className="text-sm font-semibold">Identity</p>
-                        <p className="mt-1 text-xs text-muted-foreground">
-                          Give this automation a clear name and pair it with the right prompt and
-                          execution profile.
+                        <h3 className="mt-2 text-2xl font-semibold tracking-tight">
+                          {editingScheduleId ? 'Edit schedule' : 'Create schedule'}
+                        </h3>
+                        <p className="mt-2 text-sm text-muted-foreground">
+                          A full-width studio for prompt selection, runtime scene, and cadence
+                          design.
                         </p>
                       </div>
-                      <Input
-                        label="Name"
-                        value={scheduleForm.name}
-                        onChange={(event) =>
-                          setScheduleForm((current) => ({ ...current, name: event.target.value }))
-                        }
-                        placeholder="Weekday backlog triage"
-                      />
-                      <label className="space-y-1.5">
-                        <span className="block text-sm font-medium">Saved Prompt</span>
-                        <select
-                          value={scheduleForm.promptId}
-                          onChange={(event) =>
-                            setScheduleForm((current) => ({
-                              ...current,
-                              promptId: event.target.value,
-                            }))
-                          }
-                          className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring/40"
-                        >
-                          <option value="">Select a prompt</option>
-                          {prompts.map((prompt) => (
-                            <option key={prompt._id} value={prompt._id}>
-                              {prompt.name}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                      <label className="space-y-1.5">
-                        <span className="block text-sm font-medium">Agent Profile</span>
-                        <select
-                          value={scheduleForm.agentProfileId}
-                          onChange={(event) => {
-                            const profile = profileMap[event.target.value];
-                            setScheduleForm((current) => ({
-                              ...current,
-                              agentProfileId: event.target.value,
-                              timeout: profile?.defaultTimeout ?? current.timeout,
-                            }));
-                          }}
-                          className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring/40"
-                        >
-                          <option value="">Select a profile</option>
-                          {profiles
-                            .filter((profile) => profile.enabled)
-                            .map((profile) => (
-                              <option key={profile._id} value={profile._id}>
-                                {profile.name}
-                              </option>
-                            ))}
-                        </select>
-                      </label>
+                      <button
+                        onClick={closeScheduleModal}
+                        className="flex h-10 w-10 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
+                        aria-label="Close schedule modal"
+                      >
+                        <X className="h-5 w-5" />
+                      </button>
                     </div>
 
-                    <div className="rounded-[24px] border border-border/60 bg-background/80 p-4 space-y-4">
-                      <div>
-                        <p className="text-sm font-semibold">Runtime Scene</p>
-                        <p className="mt-1 text-xs text-muted-foreground">
-                          Tell the schedule where to run and how long it is allowed to stay active.
-                        </p>
-                      </div>
-                      <div className="grid gap-4 md:grid-cols-[1fr_160px]">
-                        <div className="space-y-1.5">
-                          <label htmlFor="schedule-directory" className="block text-sm font-medium">
-                            Working Directory
-                          </label>
-                          <input
-                            id="schedule-directory"
-                            list="runner-directories"
-                            value={scheduleForm.workingDirectory}
-                            onChange={(event) =>
-                              setScheduleForm((current) => ({
-                                ...current,
-                                workingDirectory: event.target.value,
-                              }))
-                            }
-                            className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring/40"
-                            placeholder="/srv/repos/project"
-                          />
-                          <datalist id="runner-directories">
-                            {directories.map((directory) => (
-                              <option key={directory} value={directory} />
-                            ))}
-                          </datalist>
+                    <div className="overflow-y-auto px-6 py-6">
+                      <div className="space-y-6">
+                        <div className="grid gap-3 sm:grid-cols-3">
+                          <div className="rounded-2xl border border-border/60 bg-background/85 px-4 py-3">
+                            <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
+                              Prompt
+                            </p>
+                            <p className="mt-1 text-sm font-semibold">{scheduleFormPromptName}</p>
+                          </div>
+                          <div className="rounded-2xl border border-border/60 bg-background/85 px-4 py-3">
+                            <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
+                              Profile
+                            </p>
+                            <p className="mt-1 text-sm font-semibold">{scheduleFormProfileName}</p>
+                          </div>
+                          <div className="rounded-2xl border border-border/60 bg-background/85 px-4 py-3">
+                            <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
+                              Cadence
+                            </p>
+                            <p className="mt-1 text-sm font-semibold">
+                              {humanizeCron(scheduleForm.cronExpression)}
+                            </p>
+                          </div>
                         </div>
-                        <Input
-                          label="Timeout"
-                          type="number"
-                          value={scheduleForm.timeout}
-                          onChange={(event) =>
-                            setScheduleForm((current) => ({
-                              ...current,
-                              timeout: Number(event.target.value) || 1,
-                            }))
-                          }
-                          min={1}
-                        />
-                      </div>
-                    </div>
 
-                    <ScheduleBuilder
-                      cronExpression={scheduleForm.cronExpression}
-                      onChange={(value) =>
-                        setScheduleForm((current) => ({ ...current, cronExpression: value }))
-                      }
-                    />
-
-                    <div className="rounded-[24px] border border-border/60 bg-background/80 p-4">
-                      <div className="flex flex-wrap items-center justify-between gap-3">
-                        <label className="flex items-center gap-3 text-sm font-medium">
-                          <input
-                            type="checkbox"
-                            checked={scheduleForm.enabled}
-                            onChange={(event) =>
-                              setScheduleForm((current) => ({
-                                ...current,
-                                enabled: event.target.checked,
-                              }))
-                            }
-                            className="h-4 w-4 rounded border-input"
-                          />
-                          Keep this schedule enabled after saving
-                        </label>
-                        <Badge variant={scheduleForm.enabled ? 'success' : 'warning'}>
-                          {scheduleForm.enabled ? 'Auto-run on' : 'Saved as paused'}
-                        </Badge>
-                      </div>
-                      <div className="mt-4 flex flex-wrap gap-2">
-                        <Button onClick={() => void submitSchedule()}>
-                          <CalendarClock className="w-4 h-4" />
-                          {editingScheduleId ? 'Update automation' : 'Create automation'}
-                        </Button>
-                        <Button variant="outline" onClick={resetScheduleForm}>
-                          Reset
-                        </Button>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <div className="space-y-5">
-                  <Card className="overflow-hidden border-border/60 bg-gradient-to-br from-card via-background to-secondary/30">
-                    <CardHeader className="border-b border-border/60">
-                      <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-                        <div>
-                          <p className="text-[11px] uppercase tracking-[0.24em] text-muted-foreground">
-                            Schedule Board
-                          </p>
-                          <CardTitle className="mt-2 text-xl tracking-tight">
-                            A richer view of every automation
-                          </CardTitle>
-                          <CardDescription className="mt-2 leading-6">
-                            Track cadence, next launches, execution context, and last-run health in
-                            one place.
-                          </CardDescription>
-                        </div>
-                        <div className="flex flex-wrap gap-2 text-xs">
-                          <Badge variant="success">{enabledScheduleCount} enabled</Badge>
-                          <Badge variant="warning">{pausedScheduleCount} paused</Badge>
-                          <Badge variant="outline">{scheduleModeCount} modes in play</Badge>
-                        </div>
-                      </div>
-                    </CardHeader>
-                    <CardContent className="space-y-4 pt-5">
-                      {sortedSchedules.map((schedule, index) => (
-                        <div
-                          key={schedule._id}
-                          className={cn(
-                            'group relative overflow-hidden rounded-[28px] border bg-card/80 p-5 shadow-[0_18px_60px_-48px_rgba(15,23,42,0.45)] transition-transform duration-200 hover:-translate-y-0.5',
-                            schedule.enabled ? 'border-primary/20' : 'border-border/60 bg-muted/20'
-                          )}
-                        >
-                          <div
-                            className={cn(
-                              'absolute inset-y-0 left-0 w-1.5 rounded-r-full',
-                              schedule.enabled ? 'bg-primary/70' : 'bg-warning/60'
-                            )}
-                          />
-                          <div
-                            className={cn(
-                              'pointer-events-none absolute right-0 top-0 h-32 w-32 rounded-full blur-3xl',
-                              schedule.enabled ? 'bg-primary/10' : 'bg-warning/10'
-                            )}
-                          />
-                          <div className="relative space-y-5">
-                            <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-                              <div className="min-w-0 space-y-3">
-                                <div className="flex flex-wrap items-center gap-2">
-                                  <Badge variant={schedule.enabled ? 'success' : 'warning'}>
-                                    {schedule.enabled ? 'Enabled' : 'Paused'}
-                                  </Badge>
-                                  <Badge variant="outline">
-                                    {getScheduleModeLabel(schedule.cronExpression)}
-                                  </Badge>
-                                  {schedule.lastRunStatus ? (
-                                    <Badge
-                                      variant={getScheduleStatusVariant(schedule.lastRunStatus)}
-                                    >
-                                      {schedule.lastRunStatus}
-                                    </Badge>
-                                  ) : null}
-                                  <span className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
-                                    #{index + 1}
-                                  </span>
-                                </div>
-                                <div>
-                                  <h3 className="text-xl font-semibold tracking-tight">
-                                    {schedule.name}
-                                  </h3>
-                                  <p className="mt-1 text-sm text-muted-foreground">
-                                    {humanizeCron(schedule.cronExpression)}
-                                  </p>
-                                </div>
-                                <div className="flex flex-wrap gap-2">
-                                  <Badge variant="secondary">
-                                    Prompt: {promptMap[schedule.promptId]?.name || 'Unknown prompt'}
-                                  </Badge>
-                                  <Badge variant="outline">
-                                    Profile:{' '}
-                                    {profileMap[schedule.agentProfileId]?.name || 'Unknown profile'}
-                                  </Badge>
-                                  <Badge variant="outline">{schedule.timeout} min runtime</Badge>
-                                </div>
+                        <div className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
+                          <div className="space-y-6">
+                            <div className="rounded-[24px] border border-border/60 bg-background/80 p-5 space-y-4">
+                              <div>
+                                <p className="text-sm font-semibold">Identity</p>
+                                <p className="mt-1 text-xs text-muted-foreground">
+                                  Give this automation a clear name and pair it with the right
+                                  prompt and execution profile.
+                                </p>
                               </div>
-                              <div className="grid gap-3 sm:grid-cols-3 xl:min-w-[280px] xl:grid-cols-1">
-                                <div className="rounded-2xl border border-border/60 bg-background/85 px-4 py-3">
-                                  <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
-                                    Next Launch
-                                  </p>
-                                  <p className="mt-1 text-sm font-semibold">
-                                    {formatScheduleDate(schedule.nextRunTime)}
-                                  </p>
-                                  <p className="mt-1 text-xs text-muted-foreground">
-                                    {schedule.nextRunTime
-                                      ? formatRelative(schedule.nextRunTime)
-                                      : 'Waiting for enablement'}
-                                  </p>
-                                </div>
-                                <div className="rounded-2xl border border-border/60 bg-background/85 px-4 py-3">
-                                  <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
-                                    Last Activity
-                                  </p>
-                                  <p className="mt-1 text-sm font-semibold">
-                                    {schedule.lastRunAt
-                                      ? formatScheduleDate(schedule.lastRunAt)
-                                      : 'No runs yet'}
-                                  </p>
-                                  <p className="mt-1 text-xs text-muted-foreground">
-                                    {schedule.lastRunAt
-                                      ? formatRelative(schedule.lastRunAt)
-                                      : 'Fresh automation'}
-                                  </p>
-                                </div>
-                                <div className="rounded-2xl border border-border/60 bg-background/85 px-4 py-3">
-                                  <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
-                                    Workspace
-                                  </p>
-                                  <p className="mt-1 truncate font-mono text-xs">
-                                    {schedule.workingDirectory || 'No directory'}
-                                  </p>
-                                </div>
-                              </div>
+                              <Input
+                                label="Name"
+                                value={scheduleForm.name}
+                                onChange={(event) =>
+                                  setScheduleForm((current) => ({
+                                    ...current,
+                                    name: event.target.value,
+                                  }))
+                                }
+                                placeholder="Weekday backlog triage"
+                              />
+                              <label className="space-y-1.5">
+                                <span className="block text-sm font-medium">Saved Prompt</span>
+                                <select
+                                  value={scheduleForm.promptId}
+                                  onChange={(event) =>
+                                    setScheduleForm((current) => ({
+                                      ...current,
+                                      promptId: event.target.value,
+                                    }))
+                                  }
+                                  className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring/40"
+                                >
+                                  <option value="">Select a prompt</option>
+                                  {prompts.map((prompt) => (
+                                    <option key={prompt._id} value={prompt._id}>
+                                      {prompt.name}
+                                    </option>
+                                  ))}
+                                </select>
+                              </label>
+                              <label className="space-y-1.5">
+                                <span className="block text-sm font-medium">Agent Profile</span>
+                                <select
+                                  value={scheduleForm.agentProfileId}
+                                  onChange={(event) => {
+                                    const profile = profileMap[event.target.value];
+                                    setScheduleForm((current) => ({
+                                      ...current,
+                                      agentProfileId: event.target.value,
+                                      timeout: profile?.defaultTimeout ?? current.timeout,
+                                    }));
+                                  }}
+                                  className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring/40"
+                                >
+                                  <option value="">Select a profile</option>
+                                  {profiles
+                                    .filter((profile) => profile.enabled)
+                                    .map((profile) => (
+                                      <option key={profile._id} value={profile._id}>
+                                        {profile.name}
+                                      </option>
+                                    ))}
+                                </select>
+                              </label>
                             </div>
 
-                            <div className="grid gap-3 lg:grid-cols-[1.2fr_0.8fr]">
-                              <div className="rounded-[22px] border border-border/60 bg-background/80 px-4 py-4">
-                                <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
-                                  Cadence Snapshot
+                            <div className="rounded-[24px] border border-border/60 bg-background/80 p-5 space-y-4">
+                              <div>
+                                <p className="text-sm font-semibold">Runtime Scene</p>
+                                <p className="mt-1 text-xs text-muted-foreground">
+                                  Tell the schedule where to run and how long it is allowed to stay
+                                  active.
                                 </p>
-                                <div className="mt-3 grid gap-3 md:grid-cols-3">
-                                  <div className="rounded-xl border border-border/60 bg-card px-3 py-3">
-                                    <p className="text-xs text-muted-foreground">Mode</p>
-                                    <p className="mt-1 text-sm font-semibold">
-                                      {getScheduleModeLabel(schedule.cronExpression)}
-                                    </p>
-                                  </div>
-                                  <div className="rounded-xl border border-border/60 bg-card px-3 py-3">
-                                    <p className="text-xs text-muted-foreground">Narrative</p>
-                                    <p className="mt-1 text-sm font-semibold">
-                                      {humanizeCron(schedule.cronExpression)}
-                                    </p>
-                                  </div>
-                                  <div className="rounded-xl border border-border/60 bg-card px-3 py-3">
-                                    <p className="text-xs text-muted-foreground">Raw Cron</p>
-                                    <p className="mt-1 font-mono text-xs">
-                                      {schedule.cronExpression}
-                                    </p>
-                                  </div>
-                                </div>
                               </div>
-                              <div className="flex flex-wrap items-end justify-start gap-2 lg:justify-end">
-                                <Button size="sm" onClick={() => void runScheduleNow(schedule)}>
-                                  <Play className="w-4 h-4" />
-                                  Run Now
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => void toggleSchedule(schedule._id)}
-                                >
-                                  <Clock3 className="w-4 h-4" />
-                                  {schedule.enabled ? 'Pause' : 'Enable'}
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => selectScheduleForEdit(schedule)}
-                                >
-                                  Edit
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="destructive"
-                                  onClick={() => void deleteSchedule(schedule._id)}
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                  Delete
-                                </Button>
+                              <div className="grid gap-4 md:grid-cols-[1fr_160px]">
+                                <div className="space-y-1.5">
+                                  <label
+                                    htmlFor="schedule-directory"
+                                    className="block text-sm font-medium"
+                                  >
+                                    Working Directory
+                                  </label>
+                                  <input
+                                    id="schedule-directory"
+                                    list="runner-directories"
+                                    value={scheduleForm.workingDirectory}
+                                    onChange={(event) =>
+                                      setScheduleForm((current) => ({
+                                        ...current,
+                                        workingDirectory: event.target.value,
+                                      }))
+                                    }
+                                    className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring/40"
+                                    placeholder="/srv/repos/project"
+                                  />
+                                  <datalist id="runner-directories">
+                                    {directories.map((directory) => (
+                                      <option key={directory} value={directory} />
+                                    ))}
+                                  </datalist>
+                                </div>
+                                <Input
+                                  label="Timeout"
+                                  type="number"
+                                  value={scheduleForm.timeout}
+                                  onChange={(event) =>
+                                    setScheduleForm((current) => ({
+                                      ...current,
+                                      timeout: Number(event.target.value) || 1,
+                                    }))
+                                  }
+                                  min={1}
+                                />
+                              </div>
+
+                              <div className="rounded-xl border border-border/60 bg-card/70 p-4">
+                                <div className="flex flex-wrap items-center justify-between gap-3">
+                                  <label className="flex items-center gap-3 text-sm font-medium">
+                                    <input
+                                      type="checkbox"
+                                      checked={scheduleForm.enabled}
+                                      onChange={(event) =>
+                                        setScheduleForm((current) => ({
+                                          ...current,
+                                          enabled: event.target.checked,
+                                        }))
+                                      }
+                                      className="h-4 w-4 rounded border-input"
+                                    />
+                                    Keep this schedule enabled after saving
+                                  </label>
+                                  <Badge variant={scheduleForm.enabled ? 'success' : 'warning'}>
+                                    {scheduleForm.enabled ? 'Auto-run on' : 'Saved as paused'}
+                                  </Badge>
+                                </div>
                               </div>
                             </div>
                           </div>
-                        </div>
-                      ))}
 
-                      {sortedSchedules.length === 0 && (
-                        <div className="rounded-[28px] border border-dashed border-primary/25 bg-gradient-to-br from-primary/5 via-background to-warning/5 px-6 py-16 text-center">
-                          <p className="text-[11px] uppercase tracking-[0.24em] text-primary/80">
-                            Schedule Board
-                          </p>
-                          <h3 className="mt-3 text-xl font-semibold tracking-tight">
-                            No automations on the board yet
-                          </h3>
-                          <p className="mt-3 text-sm leading-6 text-muted-foreground">
-                            Create your first schedule on the left and it will appear here with its
-                            cadence, launch window, and runtime scene.
-                          </p>
+                          <div>
+                            <ScheduleBuilder
+                              cronExpression={scheduleForm.cronExpression}
+                              onChange={(value) =>
+                                setScheduleForm((current) => ({
+                                  ...current,
+                                  cronExpression: value,
+                                }))
+                              }
+                            />
+                          </div>
                         </div>
-                      )}
-                    </CardContent>
-                  </Card>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col-reverse gap-3 border-t border-border/60 bg-background/80 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
+                      <Button variant="outline" onClick={closeScheduleModal}>
+                        Cancel
+                      </Button>
+                      <div className="flex flex-wrap gap-2">
+                        <Button variant="outline" onClick={resetScheduleForm}>
+                          Reset
+                        </Button>
+                        <Button onClick={() => void submitSchedule()}>
+                          <CalendarClock className="w-4 h-4" />
+                          {editingScheduleId ? 'Update schedule' : 'Create schedule'}
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           )}
 
@@ -2645,281 +2908,110 @@ export default function AIRunnerPage() {
           )}
 
           {activeTab === 'settings' && (
-            <div className="grid gap-5 lg:grid-cols-[400px_1fr]">
-              <Card className="border-border/60">
-                <CardHeader>
-                  <CardTitle className="text-sm">
-                    {editingProfileId ? 'Edit Agent Profile' : 'Create Agent Profile'}
-                  </CardTitle>
-                  <CardDescription>
-                    Define a reusable AI CLI profile once, then use it across runs, prompts, and
-                    schedules.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <label className="block space-y-1.5">
-                    <LabelWithHint
-                      label="Name"
-                      hint="A human-friendly label shown in dropdowns, cards, and history."
-                    />
-                    <Input
-                      value={profileForm.name}
-                      onChange={(event) => {
-                        const nextName = event.target.value;
-                        setProfileForm((current) => ({
-                          ...current,
-                          name: nextName,
-                          slug:
-                            editingProfileId || current.slug.trim().length > 0
-                              ? current.slug
-                              : slugifyValue(nextName),
-                        }));
-                      }}
-                    />
-                  </label>
-                  <label className="block space-y-1.5">
-                    <LabelWithHint
-                      label="Slug"
-                      hint="A stable machine-friendly identifier. Keep it short, unique, and URL-safe, like codex-dangerous."
-                    />
-                    <Input
-                      value={profileForm.slug}
-                      onChange={(event) =>
-                        setProfileForm((current) => ({
-                          ...current,
-                          slug: slugifyValue(event.target.value),
-                        }))
-                      }
-                      placeholder="codex-dangerous"
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      Used as the durable ID behind the scenes.
-                    </p>
-                  </label>
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <label className="space-y-1.5">
-                      <LabelWithHint
-                        label="Agent Type"
-                        hint="The AI CLI family this profile belongs to."
-                      />
-                      <select
-                        value={profileForm.agentType}
-                        onChange={(event) =>
-                          setProfileForm((current) => ({
-                            ...current,
-                            agentType: event.target.value as ProfileFormState['agentType'],
-                          }))
-                        }
-                        className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring/40"
-                      >
-                        {['codex', 'claude-code', 'opencode', 'aider', 'gemini-cli', 'custom'].map(
-                          (type) => (
-                            <option key={type} value={type}>
-                              {type}
-                            </option>
-                          )
-                        )}
-                      </select>
-                    </label>
-                    <label className="block space-y-1.5">
-                      <LabelWithHint
-                        label="Shell"
-                        hint="The shell used to execute the invocation template, usually /bin/bash."
-                      />
-                      <Input
-                        value={profileForm.shell}
-                        onChange={(event) =>
-                          setProfileForm((current) => ({ ...current, shell: event.target.value }))
-                        }
-                      />
-                    </label>
-                  </div>
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <label className="block space-y-1.5">
-                      <LabelWithHint
-                        label="Default Timeout"
-                        hint="How long runs should get by default before the runner stops them."
-                      />
-                      <Input
-                        type="number"
-                        value={profileForm.defaultTimeout}
-                        onChange={(event) =>
-                          setProfileForm((current) => ({
-                            ...current,
-                            defaultTimeout: Number(event.target.value) || 1,
-                          }))
-                        }
-                      />
-                    </label>
-                    <label className="block space-y-1.5">
-                      <LabelWithHint
-                        label="Max Timeout"
-                        hint="The hard safety cap for this profile even if a prompt asks for more."
-                      />
-                      <Input
-                        type="number"
-                        value={profileForm.maxTimeout}
-                        onChange={(event) =>
-                          setProfileForm((current) => ({
-                            ...current,
-                            maxTimeout: Number(event.target.value) || 1,
-                          }))
-                        }
-                      />
-                    </label>
-                  </div>
-                  <div className="space-y-3 rounded-xl border border-border/60 bg-secondary/15 p-4">
-                    <div className="flex items-center gap-3">
-                      <ProfileIconPreview
-                        icon={profileForm.icon}
-                        name={profileForm.name || 'Profile'}
-                      />
-                      <div>
-                        <LabelWithHint
-                          label="Icon"
-                          hint="Pick a preset icon or upload a small square image for this profile."
-                        />
-                        <p className="text-xs text-muted-foreground">
-                          Presets are quick. Upload works well for team-specific branding.
-                        </p>
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-4 gap-2">
-                      {ICON_PRESETS.map((preset) => {
-                        const Icon = preset.icon;
-                        const selected = profileForm.icon === preset.key;
-                        return (
-                          <button
-                            key={preset.key}
-                            type="button"
-                            onClick={() =>
-                              setProfileForm((current) => ({ ...current, icon: preset.key }))
-                            }
-                            className={cn(
-                              'flex min-h-[72px] flex-col items-center justify-center gap-2 rounded-xl border px-2 py-3 text-xs transition-colors',
-                              selected
-                                ? 'border-primary bg-primary/10 text-foreground'
-                                : 'border-border bg-background hover:bg-accent/40'
-                            )}
-                          >
-                            <Icon className="h-4 w-4" />
-                            <span>{preset.label}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      <label className="inline-flex cursor-pointer items-center">
-                        <input
-                          type="file"
-                          accept="image/png,image/jpeg,image/webp,image/svg+xml"
-                          className="hidden"
-                          onChange={(event) => {
-                            const file = event.target.files?.[0];
-                            if (!file) return;
-                            if (file.size > 200 * 1024) {
-                              toast({
-                                title: 'Image too large',
-                                description:
-                                  'Please upload an icon under 200 KB so profile cards stay light.',
-                                variant: 'warning',
-                              });
-                              return;
-                            }
-                            const reader = new FileReader();
-                            reader.onload = () => {
-                              const result =
-                                typeof reader.result === 'string' ? reader.result : undefined;
-                              if (!result) return;
-                              setProfileForm((current) => ({ ...current, icon: result }));
-                            };
-                            reader.readAsDataURL(file);
-                            event.target.value = '';
-                          }}
-                        />
-                        <span className="inline-flex h-9 items-center justify-center rounded-lg border border-border bg-background px-4 text-sm font-medium hover:bg-accent/40">
-                          Upload Icon
-                        </span>
-                      </label>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => setProfileForm((current) => ({ ...current, icon: '' }))}
-                      >
-                        Clear Icon
-                      </Button>
-                    </div>
-                  </div>
-                  <label className="block space-y-1.5">
-                    <LabelWithHint
-                      label="Invocation Template"
-                      hint="The shell command template used to launch the agent. It must include $PROMPT and can include $WORKING_DIR."
-                    />
-                    <textarea
-                      value={profileForm.invocationTemplate}
-                      onChange={(event) =>
-                        setProfileForm((current) => ({
-                          ...current,
-                          invocationTemplate: event.target.value,
-                        }))
-                      }
-                      className="min-h-40 w-full rounded-xl border border-input bg-background px-3 py-3 text-sm font-mono outline-none focus:ring-2 focus:ring-ring/40"
-                    />
-                  </label>
-                  <label className="flex items-center gap-2 text-sm">
-                    <input
-                      type="checkbox"
-                      checked={profileForm.enabled}
-                      onChange={(event) =>
-                        setProfileForm((current) => ({ ...current, enabled: event.target.checked }))
-                      }
-                    />
-                    Enabled
-                  </label>
-                  <div className="flex flex-wrap gap-2">
-                    <Button onClick={() => void submitProfile()}>
-                      <Save className="w-4 h-4" />
-                      {editingProfileId ? 'Update' : 'Create'}
-                    </Button>
-                    <Button variant="outline" onClick={() => void validateProfile()}>
-                      <TerminalSquare className="w-4 h-4" />
-                      Validate
-                    </Button>
-                    <Button variant="outline" onClick={resetProfileForm}>
-                      Reset
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
+            <div className="space-y-5">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+                <div className="max-w-3xl">
+                  <p className="text-[11px] uppercase tracking-[0.24em] text-primary/80">
+                    Agent Profiles
+                  </p>
+                  <h2 className="mt-2 text-2xl font-semibold tracking-tight">
+                    Profiles should be managed in a studio, not squeezed beside the list
+                  </h2>
+                  <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                    The page stays focused on browsing and testing profiles. Creation and editing
+                    now happen in a wide modal so templates, limits, and branding have enough room.
+                  </p>
+                </div>
+                <Button size="lg" onClick={openCreateProfileModal} className="shrink-0">
+                  <Bot className="w-4 h-4" />
+                  Create Profile
+                </Button>
+              </div>
 
-              <Card className="border-border/60">
-                <CardHeader>
-                  <CardTitle className="text-sm">Agent Profiles</CardTitle>
-                  <CardDescription>
-                    Configure reusable invocation templates for each AI CLI.
-                  </CardDescription>
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                <div className="rounded-[28px] border border-primary/20 bg-gradient-to-br from-primary/15 via-background to-primary/5 p-5 shadow-[0_22px_80px_-55px_rgba(99,102,241,0.55)]">
+                  <p className="text-[11px] uppercase tracking-[0.22em] text-primary/80">
+                    Total Profiles
+                  </p>
+                  <p className="mt-3 text-3xl font-semibold tracking-tight">{profiles.length}</p>
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    Reusable AI CLI configurations available across the runner.
+                  </p>
+                </div>
+                <div className="rounded-[28px] border border-success/20 bg-gradient-to-br from-success/15 via-background to-success/5 p-5 shadow-[0_22px_80px_-55px_rgba(34,197,94,0.4)]">
+                  <p className="text-[11px] uppercase tracking-[0.22em] text-success">Enabled</p>
+                  <p className="mt-3 text-3xl font-semibold tracking-tight">
+                    {enabledProfileCount}
+                  </p>
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    Profiles currently available for runs and schedules.
+                  </p>
+                </div>
+                <div className="rounded-[28px] border border-warning/20 bg-gradient-to-br from-warning/15 via-background to-warning/5 p-5 shadow-[0_22px_80px_-55px_rgba(234,179,8,0.45)]">
+                  <p className="text-[11px] uppercase tracking-[0.22em] text-warning">Custom</p>
+                  <p className="mt-3 text-3xl font-semibold tracking-tight">{customProfileCount}</p>
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    Profiles using a custom agent type instead of a preset family.
+                  </p>
+                </div>
+                <div className="rounded-[28px] border border-border/60 bg-gradient-to-br from-card via-background to-secondary/40 p-5">
+                  <p className="text-[11px] uppercase tracking-[0.22em] text-muted-foreground">
+                    Focused Profile
+                  </p>
+                  <p className="mt-3 text-lg font-semibold tracking-tight">
+                    {profiles[0]?.name || 'No profiles yet'}
+                  </p>
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    Test profiles here, then refine them in the dedicated profile studio.
+                  </p>
+                </div>
+              </div>
+
+              <Card className="overflow-hidden border-border/60 bg-gradient-to-br from-card via-background to-secondary/30">
+                <CardHeader className="border-b border-border/60">
+                  <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+                    <div>
+                      <CardTitle className="text-xl tracking-tight">Profile Board</CardTitle>
+                      <CardDescription className="mt-2 leading-6">
+                        Configure reusable invocation templates for each AI CLI and test them
+                        quickly from one place.
+                      </CardDescription>
+                    </div>
+                    <Badge variant="outline">{enabledProfileCount} enabled</Badge>
+                  </div>
                 </CardHeader>
-                <CardContent className="space-y-3">
+                <CardContent className="space-y-3 pt-5">
                   {profiles.map((profile) => (
                     <div
                       key={profile._id}
-                      className="rounded-xl border border-border/60 bg-card/60 p-4 space-y-3"
+                      className="rounded-[24px] border border-border/60 bg-card/70 p-5 space-y-4"
                     >
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div className="flex items-start gap-3">
-                          <ProfileIconPreview icon={profile.icon} name={profile.name} />
-                          <div className="space-y-1">
+                      <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                        <div className="flex items-start gap-4">
+                          <ProfileIconPreview
+                            icon={profile.icon}
+                            name={profile.name}
+                            className="h-12 w-12"
+                          />
+                          <div className="space-y-2">
                             <div className="flex flex-wrap items-center gap-2">
-                              <h3 className="text-sm font-semibold">{profile.name}</h3>
-                              <Badge variant={profile.enabled ? 'success' : 'secondary'}>
-                                {profile.enabled ? 'enabled' : 'disabled'}
+                              <h3 className="text-lg font-semibold tracking-tight">
+                                {profile.name}
+                              </h3>
+                              <Badge variant={profile.enabled ? 'success' : 'warning'}>
+                                {profile.enabled ? 'Enabled' : 'Disabled'}
                               </Badge>
                               <Badge variant="outline">{profile.agentType}</Badge>
                             </div>
                             <p className="text-xs text-muted-foreground">{profile.slug}</p>
+                            <div className="flex flex-wrap gap-2">
+                              <Badge variant="outline">{profile.defaultTimeout} min default</Badge>
+                              <Badge variant="outline">{profile.maxTimeout} min max</Badge>
+                              <Badge variant="outline">{profile.shell}</Badge>
+                            </div>
                           </div>
                         </div>
-                        <div className="flex flex-wrap gap-2">
+                        <div className="flex flex-wrap gap-2 xl:justify-end">
                           <Button size="sm" onClick={() => void testProfile(profile._id)}>
                             <Play className="w-4 h-4" />
                             Test
@@ -2941,18 +3033,339 @@ export default function AIRunnerPage() {
                           </Button>
                         </div>
                       </div>
-                      <pre className="overflow-auto rounded-lg bg-background px-3 py-3 text-xs whitespace-pre-wrap font-mono">
+                      <pre className="overflow-auto rounded-xl bg-background px-4 py-4 text-xs whitespace-pre-wrap font-mono">
                         {profile.invocationTemplate}
                       </pre>
                     </div>
                   ))}
                   {profiles.length === 0 && (
-                    <div className="rounded-xl border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
-                      No profiles configured yet
+                    <div className="rounded-[28px] border border-dashed border-primary/25 bg-gradient-to-br from-primary/5 via-background to-warning/5 px-6 py-16 text-center">
+                      <p className="text-[11px] uppercase tracking-[0.24em] text-primary/80">
+                        Profile Board
+                      </p>
+                      <h3 className="mt-3 text-xl font-semibold tracking-tight">
+                        No profiles configured yet
+                      </h3>
+                      <p className="mt-3 text-sm leading-6 text-muted-foreground">
+                        Open the profile studio and define your first reusable AI CLI config.
+                      </p>
+                      <div className="mt-6">
+                        <Button onClick={openCreateProfileModal}>
+                          <Bot className="w-4 h-4" />
+                          Create Profile
+                        </Button>
+                      </div>
                     </div>
                   )}
                 </CardContent>
               </Card>
+
+              {profileModalOpen && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 md:p-6">
+                  <div
+                    className="absolute inset-0 bg-background/80 backdrop-blur-sm animate-in fade-in duration-300"
+                    onClick={closeProfileModal}
+                  />
+                  <div className="relative flex max-h-[92dvh] w-full max-w-6xl flex-col overflow-hidden rounded-[32px] border border-primary/20 bg-card/95 shadow-2xl animate-in fade-in zoom-in-95 slide-in-from-bottom-4 duration-300">
+                    <div className="flex items-center justify-between border-b border-border/60 bg-background/80 px-6 py-5 backdrop-blur">
+                      <div>
+                        <p className="text-[11px] uppercase tracking-[0.26em] text-primary/80">
+                          Profile Studio
+                        </p>
+                        <h3 className="mt-2 text-2xl font-semibold tracking-tight">
+                          {editingProfileId ? 'Edit agent profile' : 'Create agent profile'}
+                        </h3>
+                        <p className="mt-2 text-sm text-muted-foreground">
+                          Define a reusable AI CLI profile once, then use it across runs, prompts,
+                          and schedules.
+                        </p>
+                      </div>
+                      <button
+                        onClick={closeProfileModal}
+                        className="flex h-10 w-10 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
+                        aria-label="Close profile modal"
+                      >
+                        <X className="h-5 w-5" />
+                      </button>
+                    </div>
+                    <div className="overflow-y-auto px-6 py-6">
+                      <div className="grid gap-6 xl:grid-cols-[0.8fr_1.2fr]">
+                        <div className="space-y-6">
+                          <div className="rounded-[24px] border border-border/60 bg-background/80 p-5 space-y-4">
+                            <label className="block space-y-1.5">
+                              <LabelWithHint
+                                label="Name"
+                                hint="A human-friendly label shown in dropdowns, cards, and history."
+                              />
+                              <Input
+                                value={profileForm.name}
+                                onChange={(event) => {
+                                  const nextName = event.target.value;
+                                  setProfileForm((current) => ({
+                                    ...current,
+                                    name: nextName,
+                                    slug:
+                                      editingProfileId || current.slug.trim().length > 0
+                                        ? current.slug
+                                        : slugifyValue(nextName),
+                                  }));
+                                }}
+                              />
+                            </label>
+                            <label className="block space-y-1.5">
+                              <LabelWithHint
+                                label="Slug"
+                                hint="A stable machine-friendly identifier. Keep it short, unique, and URL-safe, like codex-dangerous."
+                              />
+                              <Input
+                                value={profileForm.slug}
+                                onChange={(event) =>
+                                  setProfileForm((current) => ({
+                                    ...current,
+                                    slug: slugifyValue(event.target.value),
+                                  }))
+                                }
+                                placeholder="codex-dangerous"
+                              />
+                              <p className="text-xs text-muted-foreground">
+                                Used as the durable ID behind the scenes.
+                              </p>
+                            </label>
+                            <div className="grid gap-4 md:grid-cols-2">
+                              <label className="space-y-1.5">
+                                <LabelWithHint
+                                  label="Agent Type"
+                                  hint="The AI CLI family this profile belongs to."
+                                />
+                                <select
+                                  value={profileForm.agentType}
+                                  onChange={(event) =>
+                                    setProfileForm((current) => ({
+                                      ...current,
+                                      agentType: event.target
+                                        .value as ProfileFormState['agentType'],
+                                    }))
+                                  }
+                                  className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring/40"
+                                >
+                                  {[
+                                    'codex',
+                                    'claude-code',
+                                    'opencode',
+                                    'aider',
+                                    'gemini-cli',
+                                    'custom',
+                                  ].map((type) => (
+                                    <option key={type} value={type}>
+                                      {type}
+                                    </option>
+                                  ))}
+                                </select>
+                              </label>
+                              <label className="block space-y-1.5">
+                                <LabelWithHint
+                                  label="Shell"
+                                  hint="The shell used to execute the invocation template, usually /bin/bash."
+                                />
+                                <Input
+                                  value={profileForm.shell}
+                                  onChange={(event) =>
+                                    setProfileForm((current) => ({
+                                      ...current,
+                                      shell: event.target.value,
+                                    }))
+                                  }
+                                />
+                              </label>
+                            </div>
+                            <div className="grid gap-4 md:grid-cols-2">
+                              <label className="block space-y-1.5">
+                                <LabelWithHint
+                                  label="Default Timeout"
+                                  hint="How long runs should get by default before the runner stops them."
+                                />
+                                <Input
+                                  type="number"
+                                  value={profileForm.defaultTimeout}
+                                  onChange={(event) =>
+                                    setProfileForm((current) => ({
+                                      ...current,
+                                      defaultTimeout: Number(event.target.value) || 1,
+                                    }))
+                                  }
+                                />
+                              </label>
+                              <label className="block space-y-1.5">
+                                <LabelWithHint
+                                  label="Max Timeout"
+                                  hint="The hard safety cap for this profile even if a prompt asks for more."
+                                />
+                                <Input
+                                  type="number"
+                                  value={profileForm.maxTimeout}
+                                  onChange={(event) =>
+                                    setProfileForm((current) => ({
+                                      ...current,
+                                      maxTimeout: Number(event.target.value) || 1,
+                                    }))
+                                  }
+                                />
+                              </label>
+                            </div>
+                          </div>
+
+                          <div className="rounded-[24px] border border-border/60 bg-background/80 p-5 space-y-4">
+                            <div className="space-y-3 rounded-xl border border-border/60 bg-secondary/15 p-4">
+                              <div className="flex items-center gap-3">
+                                <ProfileIconPreview
+                                  icon={profileForm.icon}
+                                  name={profileForm.name || 'Profile'}
+                                />
+                                <div>
+                                  <LabelWithHint
+                                    label="Icon"
+                                    hint="Pick a preset icon or upload a small square image for this profile."
+                                  />
+                                  <p className="text-xs text-muted-foreground">
+                                    Presets are quick. Upload works well for team-specific branding.
+                                  </p>
+                                </div>
+                              </div>
+                              <div className="grid grid-cols-4 gap-2">
+                                {ICON_PRESETS.map((preset) => {
+                                  const Icon = preset.icon;
+                                  const selected = profileForm.icon === preset.key;
+                                  return (
+                                    <button
+                                      key={preset.key}
+                                      type="button"
+                                      onClick={() =>
+                                        setProfileForm((current) => ({
+                                          ...current,
+                                          icon: preset.key,
+                                        }))
+                                      }
+                                      className={cn(
+                                        'flex min-h-[72px] flex-col items-center justify-center gap-2 rounded-xl border px-2 py-3 text-xs transition-colors',
+                                        selected
+                                          ? 'border-primary bg-primary/10 text-foreground'
+                                          : 'border-border bg-background hover:bg-accent/40'
+                                      )}
+                                    >
+                                      <Icon className="h-4 w-4" />
+                                      <span>{preset.label}</span>
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                              <div className="flex flex-wrap gap-2">
+                                <label className="inline-flex cursor-pointer items-center">
+                                  <input
+                                    type="file"
+                                    accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                                    className="hidden"
+                                    onChange={(event) => {
+                                      const file = event.target.files?.[0];
+                                      if (!file) return;
+                                      if (file.size > 200 * 1024) {
+                                        toast({
+                                          title: 'Image too large',
+                                          description:
+                                            'Please upload an icon under 200 KB so profile cards stay light.',
+                                          variant: 'warning',
+                                        });
+                                        return;
+                                      }
+                                      const reader = new FileReader();
+                                      reader.onload = () => {
+                                        const result =
+                                          typeof reader.result === 'string'
+                                            ? reader.result
+                                            : undefined;
+                                        if (!result) return;
+                                        setProfileForm((current) => ({
+                                          ...current,
+                                          icon: result,
+                                        }));
+                                      };
+                                      reader.readAsDataURL(file);
+                                      event.target.value = '';
+                                    }}
+                                  />
+                                  <span className="inline-flex h-9 items-center justify-center rounded-lg border border-border bg-background px-4 text-sm font-medium hover:bg-accent/40">
+                                    Upload Icon
+                                  </span>
+                                </label>
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  onClick={() =>
+                                    setProfileForm((current) => ({ ...current, icon: '' }))
+                                  }
+                                >
+                                  Clear Icon
+                                </Button>
+                              </div>
+                            </div>
+                            <label className="flex items-center gap-2 text-sm">
+                              <input
+                                type="checkbox"
+                                checked={profileForm.enabled}
+                                onChange={(event) =>
+                                  setProfileForm((current) => ({
+                                    ...current,
+                                    enabled: event.target.checked,
+                                  }))
+                                }
+                              />
+                              Enabled
+                            </label>
+                          </div>
+                        </div>
+
+                        <div className="space-y-6">
+                          <div className="rounded-[24px] border border-border/60 bg-background/80 p-5 space-y-4">
+                            <label className="block space-y-1.5">
+                              <LabelWithHint
+                                label="Invocation Template"
+                                hint="The shell command template used to launch the agent. It must include $PROMPT and can include $WORKING_DIR."
+                              />
+                              <textarea
+                                value={profileForm.invocationTemplate}
+                                onChange={(event) =>
+                                  setProfileForm((current) => ({
+                                    ...current,
+                                    invocationTemplate: event.target.value,
+                                  }))
+                                }
+                                className="min-h-[420px] w-full rounded-xl border border-input bg-background px-3 py-3 text-sm font-mono outline-none focus:ring-2 focus:ring-ring/40"
+                              />
+                            </label>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex flex-col-reverse gap-3 border-t border-border/60 bg-background/80 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
+                      <Button variant="outline" onClick={closeProfileModal}>
+                        Cancel
+                      </Button>
+                      <div className="flex flex-wrap gap-2">
+                        <Button variant="outline" onClick={() => void validateProfile()}>
+                          <TerminalSquare className="w-4 h-4" />
+                          Validate
+                        </Button>
+                        <Button variant="outline" onClick={resetProfileForm}>
+                          Reset
+                        </Button>
+                        <Button onClick={() => void submitProfile()}>
+                          <Save className="w-4 h-4" />
+                          {editingProfileId ? 'Update profile' : 'Create profile'}
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </CardContent>
