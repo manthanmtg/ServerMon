@@ -41,7 +41,8 @@ type PromptFormState = Omit<AIRunnerPromptDTO, '_id' | 'createdAt' | 'updatedAt'
 type RunFormState = {
   name: string;
   content: string;
-  type: 'inline' | 'file-reference';
+  type: 'inline' | 'file-reference' | 'saved-prompt';
+  promptId?: string;
   agentProfileId: string;
   workingDirectory: string;
   timeout: number;
@@ -96,24 +97,26 @@ const ICON_PRESETS: Array<{
   { key: 'sparkles', label: 'Sparkles', icon: Sparkles },
 ];
 
-function emptyPromptForm(profileId?: string): PromptFormState {
+function emptyPromptForm(): PromptFormState {
   return {
     name: '',
     content: '',
     type: 'inline',
-    agentProfileId: profileId ?? '',
-    workingDirectory: process.env.NEXT_PUBLIC_DEFAULT_WORKDIR ?? '',
-    timeout: 30,
     tags: [],
   };
 }
 
-const DEFAULT_SCHEDULE_FORM: ScheduleFormState = {
-  name: '',
-  promptId: '',
-  cronExpression: '0 9 * * 1-5',
-  enabled: true,
-};
+function emptyScheduleForm(profileId?: string, workingDirectory?: string): ScheduleFormState {
+  return {
+    name: '',
+    promptId: '',
+    agentProfileId: profileId ?? '',
+    workingDirectory: workingDirectory ?? process.env.NEXT_PUBLIC_DEFAULT_WORKDIR ?? '',
+    timeout: 30,
+    cronExpression: '0 9 * * 1-5',
+    enabled: true,
+  };
+}
 
 function formatDuration(seconds?: number): string {
   if (!seconds || seconds <= 0) return '—';
@@ -327,7 +330,7 @@ export default function AIRunnerPage() {
   const [editingScheduleId, setEditingScheduleId] = useState<string | null>(null);
   const [profileForm, setProfileForm] = useState<ProfileFormState>(DEFAULT_PROFILE_FORM);
   const [promptForm, setPromptForm] = useState<PromptFormState>(emptyPromptForm());
-  const [scheduleForm, setScheduleForm] = useState<ScheduleFormState>(DEFAULT_SCHEDULE_FORM);
+  const [scheduleForm, setScheduleForm] = useState<ScheduleFormState>(emptyScheduleForm());
   const [runForm, setRunForm] = useState<RunFormState>({
     name: '',
     content: '',
@@ -365,10 +368,10 @@ export default function AIRunnerPage() {
               agentProfileId: profilePayload[0]._id,
               timeout: profilePayload[0].defaultTimeout,
             }));
-            setPromptForm((current) => ({
+            setScheduleForm((current) => ({
               ...current,
               agentProfileId: current.agentProfileId || profilePayload[0]._id,
-              timeout: current.timeout || profilePayload[0].defaultTimeout,
+              timeout: current.agentProfileId ? current.timeout : profilePayload[0].defaultTimeout,
             }));
           }
         }
@@ -394,7 +397,7 @@ export default function AIRunnerPage() {
             ...current,
             workingDirectory: current.workingDirectory || payload.directories?.[0] || '',
           }));
-          setPromptForm((current) => ({
+          setScheduleForm((current) => ({
             ...current,
             workingDirectory: current.workingDirectory || payload.directories?.[0] || '',
           }));
@@ -452,7 +455,6 @@ export default function AIRunnerPage() {
         query.length === 0 ||
         prompt.name.toLowerCase().includes(query) ||
         prompt.content.toLowerCase().includes(query) ||
-        prompt.workingDirectory.toLowerCase().includes(query) ||
         prompt.tags.some((tag) => tag.toLowerCase().includes(query));
       return matchesType && matchesSearch;
     });
@@ -463,6 +465,7 @@ export default function AIRunnerPage() {
     filteredPrompts[0] ??
     prompts[0] ??
     null;
+  const selectedRunPrompt = prompts.find((prompt) => prompt._id === runForm.promptId) ?? null;
 
   const activeRunCount = runs.filter((run) => run.status === 'running').length;
   const enabledScheduleCount = schedules.filter((schedule) => schedule.enabled).length;
@@ -497,9 +500,6 @@ export default function AIRunnerPage() {
       name: prompt.name,
       content: prompt.content,
       type: prompt.type,
-      agentProfileId: prompt.agentProfileId,
-      workingDirectory: prompt.workingDirectory,
-      timeout: prompt.timeout,
       tags: prompt.tags,
     });
     setActiveTab('prompts');
@@ -510,6 +510,9 @@ export default function AIRunnerPage() {
     setScheduleForm({
       name: schedule.name,
       promptId: schedule.promptId,
+      agentProfileId: schedule.agentProfileId,
+      workingDirectory: schedule.workingDirectory,
+      timeout: schedule.timeout,
       cronExpression: schedule.cronExpression,
       enabled: schedule.enabled,
     });
@@ -523,21 +526,37 @@ export default function AIRunnerPage() {
 
   const resetPromptForm = () => {
     setEditingPromptId(null);
-    setPromptForm(emptyPromptForm(profiles[0]?._id));
+    setPromptForm(emptyPromptForm());
   };
 
   const resetScheduleForm = () => {
     setEditingScheduleId(null);
-    setScheduleForm(DEFAULT_SCHEDULE_FORM);
+    setScheduleForm(emptyScheduleForm(profiles[0]?._id, directories[0]));
   };
 
   const submitRun = async () => {
     setRunPending(true);
     try {
+      const requestBody =
+        runForm.type === 'saved-prompt'
+          ? {
+              promptId: runForm.promptId,
+              agentProfileId: runForm.agentProfileId,
+              workingDirectory: runForm.workingDirectory,
+              timeout: runForm.timeout,
+            }
+          : {
+              name: runForm.name,
+              content: runForm.content,
+              type: runForm.type,
+              agentProfileId: runForm.agentProfileId,
+              workingDirectory: runForm.workingDirectory,
+              timeout: runForm.timeout,
+            };
       const response = await fetch('/api/modules/ai-runner/run', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(runForm),
+        body: JSON.stringify(requestBody),
       });
       const payload = await response.json();
       if (!response.ok) {
@@ -564,6 +583,14 @@ export default function AIRunnerPage() {
 
   const saveRunAsPrompt = async () => {
     try {
+      if (runForm.type === 'saved-prompt') {
+        toast({
+          title: 'Already saved',
+          description: 'This mode already uses a saved prompt from your library.',
+          variant: 'warning',
+        });
+        return;
+      }
       const name = runForm.name.trim() || 'Saved prompt';
       const response = await fetch('/api/modules/ai-runner/prompts', {
         method: 'POST',
@@ -572,9 +599,6 @@ export default function AIRunnerPage() {
           name,
           content: runForm.content,
           type: runForm.type,
-          agentProfileId: runForm.agentProfileId,
-          workingDirectory: runForm.workingDirectory,
-          timeout: runForm.timeout,
           tags: [],
         }),
       });
@@ -803,17 +827,31 @@ export default function AIRunnerPage() {
     await loadAll();
   };
 
-  const runSavedPrompt = async (promptId: string) => {
+  const openPromptInRun = (promptId: string) => {
+    setSelectedPromptId(promptId);
+    setRunForm((current) => ({
+      ...current,
+      type: 'saved-prompt',
+      promptId,
+    }));
+    setActiveTab('run');
+  };
+
+  const runScheduleNow = async (schedule: AIRunnerScheduleDTO) => {
     const response = await fetch('/api/modules/ai-runner/run', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ promptId }),
+      body: JSON.stringify({
+        promptId: schedule.promptId,
+        scheduleId: schedule._id,
+        triggeredBy: 'manual',
+      }),
     });
     const payload = await response.json();
     if (!response.ok) {
       toast({
         title: 'Run failed',
-        description: payload.error || 'Unable to start saved prompt',
+        description: payload.error || 'Unable to start scheduled prompt',
         variant: 'destructive',
       });
       return;
@@ -916,83 +954,10 @@ export default function AIRunnerPage() {
                 <CardHeader>
                   <CardTitle className="text-sm">Prompt Composer</CardTitle>
                   <CardDescription>
-                    Run an ad-hoc prompt or save it as a reusable template.
+                    Run ad-hoc input or execute a saved prompt from your library.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <Input
-                      label="Prompt Name"
-                      value={runForm.name}
-                      onChange={(event) =>
-                        setRunForm((current) => ({ ...current, name: event.target.value }))
-                      }
-                      placeholder="Nightly module cleanup"
-                    />
-                    <label className="space-y-1.5">
-                      <span className="block text-sm font-medium">Agent Profile</span>
-                      <select
-                        value={runForm.agentProfileId}
-                        onChange={(event) => {
-                          const profile = profileMap[event.target.value];
-                          setRunForm((current) => ({
-                            ...current,
-                            agentProfileId: event.target.value,
-                            timeout: profile?.defaultTimeout ?? current.timeout,
-                          }));
-                        }}
-                        className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring/40"
-                      >
-                        <option value="">Select a profile</option>
-                        {profiles
-                          .filter((profile) => profile.enabled)
-                          .map((profile) => (
-                            <option key={profile._id} value={profile._id}>
-                              {profile.name}
-                            </option>
-                          ))}
-                      </select>
-                    </label>
-                  </div>
-
-                  <div className="grid gap-4 md:grid-cols-[1fr_220px]">
-                    <div className="space-y-1.5">
-                      <label htmlFor="run-directory" className="block text-sm font-medium">
-                        Working Directory
-                      </label>
-                      <input
-                        id="run-directory"
-                        list="runner-directories"
-                        value={runForm.workingDirectory}
-                        onChange={(event) =>
-                          setRunForm((current) => ({
-                            ...current,
-                            workingDirectory: event.target.value,
-                          }))
-                        }
-                        className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring/40"
-                        placeholder="/srv/repos/project"
-                      />
-                      <datalist id="runner-directories">
-                        {directories.map((directory) => (
-                          <option key={directory} value={directory} />
-                        ))}
-                      </datalist>
-                    </div>
-                    <Input
-                      label="Timeout (minutes)"
-                      type="number"
-                      value={runForm.timeout}
-                      onChange={(event) =>
-                        setRunForm((current) => ({
-                          ...current,
-                          timeout: Number(event.target.value) || 1,
-                        }))
-                      }
-                      min={1}
-                    />
-                  </div>
-
                   <div className="flex gap-2">
                     <Button
                       variant={runForm.type === 'inline' ? 'default' : 'outline'}
@@ -1010,6 +975,19 @@ export default function AIRunnerPage() {
                     >
                       File Reference
                     </Button>
+                    <Button
+                      variant={runForm.type === 'saved-prompt' ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() =>
+                        setRunForm((current) => ({
+                          ...current,
+                          type: 'saved-prompt',
+                          promptId: current.promptId || prompts[0]?._id,
+                        }))
+                      }
+                    >
+                      Saved Prompt
+                    </Button>
                     {profileAgentType && (
                       <Badge variant="secondary" className="ml-auto">
                         {profileAgentType}
@@ -1017,7 +995,61 @@ export default function AIRunnerPage() {
                     )}
                   </div>
 
-                  {runForm.type === 'inline' ? (
+                  {runForm.type === 'saved-prompt' ? (
+                    <>
+                      <label className="space-y-1.5">
+                        <span className="block text-sm font-medium">Saved Prompt</span>
+                        <select
+                          value={runForm.promptId ?? ''}
+                          onChange={(event) =>
+                            setRunForm((current) => ({
+                              ...current,
+                              promptId: event.target.value,
+                            }))
+                          }
+                          className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring/40"
+                        >
+                          <option value="">Select a saved prompt</option>
+                          {prompts.map((prompt) => (
+                            <option key={prompt._id} value={prompt._id}>
+                              {prompt.name}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+
+                      {selectedRunPrompt ? (
+                        <div className="rounded-xl border border-border/60 bg-secondary/20 p-4 space-y-3">
+                          <div className="space-y-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <h3 className="text-sm font-semibold">{selectedRunPrompt.name}</h3>
+                              <Badge variant="secondary">{selectedRunPrompt.type}</Badge>
+                            </div>
+                            <p className="text-xs text-muted-foreground">
+                              Reusable prompt definition. Choose how to run it below.
+                            </p>
+                          </div>
+                          <p className="line-clamp-6 text-sm text-muted-foreground whitespace-pre-wrap">
+                            {selectedRunPrompt.content}
+                          </p>
+                          <div className="grid gap-3 sm:grid-cols-2 text-xs">
+                            <div className="rounded-lg bg-background px-3 py-2">
+                              <span className="text-muted-foreground">Tags</span>
+                              <p className="mt-1 font-medium">
+                                {selectedRunPrompt.tags.length > 0
+                                  ? selectedRunPrompt.tags.join(', ')
+                                  : 'No tags'}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="rounded-xl border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
+                          No saved prompts available yet
+                        </div>
+                      )}
+                    </>
+                  ) : runForm.type === 'inline' ? (
                     <label className="block space-y-1.5">
                       <span className="block text-sm font-medium">Prompt</span>
                       <textarea
@@ -1041,17 +1073,102 @@ export default function AIRunnerPage() {
                     />
                   )}
 
+                  <div className="rounded-xl border border-border/60 bg-card/50 p-4 space-y-4">
+                    <div className="space-y-1">
+                      <h3 className="text-sm font-semibold">Execution Settings</h3>
+                      <p className="text-xs text-muted-foreground">
+                        Pick the runtime context separately from the prompt content.
+                      </p>
+                    </div>
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <Input
+                        label="Run Label"
+                        value={runForm.name}
+                        onChange={(event) =>
+                          setRunForm((current) => ({ ...current, name: event.target.value }))
+                        }
+                        placeholder="Nightly module cleanup"
+                      />
+                      <label className="space-y-1.5">
+                        <span className="block text-sm font-medium">Agent Profile</span>
+                        <select
+                          value={runForm.agentProfileId}
+                          onChange={(event) => {
+                            const profile = profileMap[event.target.value];
+                            setRunForm((current) => ({
+                              ...current,
+                              agentProfileId: event.target.value,
+                              timeout: profile?.defaultTimeout ?? current.timeout,
+                            }));
+                          }}
+                          className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring/40"
+                        >
+                          <option value="">Select a profile</option>
+                          {profiles
+                            .filter((profile) => profile.enabled)
+                            .map((profile) => (
+                              <option key={profile._id} value={profile._id}>
+                                {profile.name}
+                              </option>
+                            ))}
+                        </select>
+                      </label>
+                    </div>
+
+                    <div className="grid gap-4 md:grid-cols-[1fr_220px]">
+                      <div className="space-y-1.5">
+                        <label htmlFor="run-directory" className="block text-sm font-medium">
+                          Working Directory
+                        </label>
+                        <input
+                          id="run-directory"
+                          list="runner-directories"
+                          value={runForm.workingDirectory}
+                          onChange={(event) =>
+                            setRunForm((current) => ({
+                              ...current,
+                              workingDirectory: event.target.value,
+                            }))
+                          }
+                          className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring/40"
+                          placeholder="/srv/repos/project"
+                        />
+                        <datalist id="runner-directories">
+                          {directories.map((directory) => (
+                            <option key={directory} value={directory} />
+                          ))}
+                        </datalist>
+                      </div>
+                      <Input
+                        label="Timeout (minutes)"
+                        type="number"
+                        value={runForm.timeout}
+                        onChange={(event) =>
+                          setRunForm((current) => ({
+                            ...current,
+                            timeout: Number(event.target.value) || 1,
+                          }))
+                        }
+                        min={1}
+                      />
+                    </div>
+                  </div>
+
                   <div className="flex flex-wrap gap-2">
                     <Button onClick={() => void submitRun()} loading={runPending}>
                       <Play className="w-4 h-4" />
                       Run Now
                     </Button>
-                    <Button variant="outline" onClick={() => void saveRunAsPrompt()}>
-                      <Save className="w-4 h-4" />
-                      Save Prompt
-                    </Button>
+                    {runForm.type !== 'saved-prompt' && (
+                      <Button variant="outline" onClick={() => void saveRunAsPrompt()}>
+                        <Save className="w-4 h-4" />
+                        Save Prompt
+                      </Button>
+                    )}
                     <div className="ml-auto rounded-lg border border-border bg-secondary/30 px-3 py-2 text-xs text-muted-foreground">
-                      Best for one-off execution and live output.
+                      {runForm.type === 'saved-prompt'
+                        ? 'Saved prompts reuse content; the execution settings come from the form above.'
+                        : 'Best for one-off execution and live output.'}
                     </div>
                   </div>
                 </CardContent>
@@ -1173,7 +1290,7 @@ export default function AIRunnerPage() {
                     label="Search Library"
                     value={promptSearch}
                     onChange={(event) => setPromptSearch(event.target.value)}
-                    placeholder="Search by name, tag, directory, or content"
+                    placeholder="Search by name, tag, or content"
                     icon={<Search className="w-4 h-4" />}
                   />
                   <div className="flex flex-wrap gap-2">
@@ -1204,13 +1321,10 @@ export default function AIRunnerPage() {
                       <div className="space-y-1">
                         <div className="flex flex-wrap items-center gap-2">
                           <Badge variant="secondary">{selectedPrompt.type}</Badge>
-                          <Badge variant="outline">
-                            {profileMap[selectedPrompt.agentProfileId]?.name || 'Unknown profile'}
-                          </Badge>
                         </div>
                         <h3 className="text-sm font-semibold">{selectedPrompt.name}</h3>
                         <p className="text-xs text-muted-foreground">
-                          {selectedPrompt.workingDirectory}
+                          Portable prompt definition for manual runs and schedules.
                         </p>
                       </div>
                       <p className="line-clamp-5 text-sm text-muted-foreground whitespace-pre-wrap">
@@ -1226,9 +1340,9 @@ export default function AIRunnerPage() {
                         </div>
                       ) : null}
                       <div className="flex flex-wrap gap-2">
-                        <Button size="sm" onClick={() => void runSavedPrompt(selectedPrompt._id)}>
+                        <Button size="sm" onClick={() => openPromptInRun(selectedPrompt._id)}>
                           <Play className="w-4 h-4" />
-                          Run Selected
+                          Open in Run
                         </Button>
                         <Button
                           size="sm"
@@ -1273,16 +1387,15 @@ export default function AIRunnerPage() {
                           <div className="flex flex-wrap items-center gap-2">
                             <h3 className="text-sm font-semibold">{prompt.name}</h3>
                             <Badge variant="secondary">{prompt.type}</Badge>
-                            <Badge variant="outline">
-                              {profileMap[prompt.agentProfileId]?.name || 'Unknown profile'}
-                            </Badge>
                           </div>
-                          <p className="text-xs text-muted-foreground">{prompt.workingDirectory}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {prompt.tags.length > 0 ? prompt.tags.join(' • ') : 'No tags yet'}
+                          </p>
                         </div>
                         <div className="flex gap-2">
-                          <Button size="sm" onClick={() => void runSavedPrompt(prompt._id)}>
+                          <Button size="sm" onClick={() => openPromptInRun(prompt._id)}>
                             <Play className="w-4 h-4" />
-                            Run
+                            Open in Run
                           </Button>
                           <Button
                             size="sm"
@@ -1333,36 +1446,6 @@ export default function AIRunnerPage() {
                       setPromptForm((current) => ({ ...current, name: event.target.value }))
                     }
                   />
-                  <label className="space-y-1.5">
-                    <span className="block text-sm font-medium">Profile</span>
-                    <select
-                      value={promptForm.agentProfileId}
-                      onChange={(event) =>
-                        setPromptForm((current) => ({
-                          ...current,
-                          agentProfileId: event.target.value,
-                        }))
-                      }
-                      className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring/40"
-                    >
-                      <option value="">Select a profile</option>
-                      {profiles.map((profile) => (
-                        <option key={profile._id} value={profile._id}>
-                          {profile.name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <Input
-                    label="Working Directory"
-                    value={promptForm.workingDirectory}
-                    onChange={(event) =>
-                      setPromptForm((current) => ({
-                        ...current,
-                        workingDirectory: event.target.value,
-                      }))
-                    }
-                  />
                   <div className="flex gap-2">
                     <Button
                       size="sm"
@@ -1406,17 +1489,10 @@ export default function AIRunnerPage() {
                       }))
                     }
                   />
-                  <Input
-                    label="Timeout (minutes)"
-                    type="number"
-                    value={promptForm.timeout}
-                    onChange={(event) =>
-                      setPromptForm((current) => ({
-                        ...current,
-                        timeout: Number(event.target.value) || 1,
-                      }))
-                    }
-                  />
+                  <div className="rounded-xl border border-primary/20 bg-primary/5 px-4 py-3 text-xs text-muted-foreground">
+                    Execution settings now live in the Run tab and on schedules, so this prompt can
+                    stay reusable across profiles and repos.
+                  </div>
                   <div className="flex gap-2">
                     <Button onClick={() => void submitPrompt()}>
                       <Save className="w-4 h-4" />
@@ -1464,6 +1540,62 @@ export default function AIRunnerPage() {
                       ))}
                     </select>
                   </label>
+                  <label className="space-y-1.5">
+                    <span className="block text-sm font-medium">Agent Profile</span>
+                    <select
+                      value={scheduleForm.agentProfileId}
+                      onChange={(event) => {
+                        const profile = profileMap[event.target.value];
+                        setScheduleForm((current) => ({
+                          ...current,
+                          agentProfileId: event.target.value,
+                          timeout: profile?.defaultTimeout ?? current.timeout,
+                        }));
+                      }}
+                      className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring/40"
+                    >
+                      <option value="">Select a profile</option>
+                      {profiles
+                        .filter((profile) => profile.enabled)
+                        .map((profile) => (
+                          <option key={profile._id} value={profile._id}>
+                            {profile.name}
+                          </option>
+                        ))}
+                    </select>
+                  </label>
+                  <div className="grid gap-4 md:grid-cols-[1fr_160px]">
+                    <div className="space-y-1.5">
+                      <label htmlFor="schedule-directory" className="block text-sm font-medium">
+                        Working Directory
+                      </label>
+                      <input
+                        id="schedule-directory"
+                        list="runner-directories"
+                        value={scheduleForm.workingDirectory}
+                        onChange={(event) =>
+                          setScheduleForm((current) => ({
+                            ...current,
+                            workingDirectory: event.target.value,
+                          }))
+                        }
+                        className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring/40"
+                        placeholder="/srv/repos/project"
+                      />
+                    </div>
+                    <Input
+                      label="Timeout"
+                      type="number"
+                      value={scheduleForm.timeout}
+                      onChange={(event) =>
+                        setScheduleForm((current) => ({
+                          ...current,
+                          timeout: Number(event.target.value) || 1,
+                        }))
+                      }
+                      min={1}
+                    />
+                  </div>
                   <ScheduleBuilder
                     cronExpression={scheduleForm.cronExpression}
                     onChange={(value) =>
@@ -1527,6 +1659,10 @@ export default function AIRunnerPage() {
                             {humanizeCron(schedule.cronExpression)}
                           </p>
                           <p className="text-xs text-muted-foreground">
+                            {profileMap[schedule.agentProfileId]?.name || 'Unknown profile'} •{' '}
+                            {schedule.workingDirectory || 'No directory'} • {schedule.timeout} min
+                          </p>
+                          <p className="text-xs text-muted-foreground">
                             Next run:{' '}
                             {schedule.nextRunTime
                               ? new Date(schedule.nextRunTime).toLocaleString()
@@ -1534,7 +1670,7 @@ export default function AIRunnerPage() {
                           </p>
                         </div>
                         <div className="flex flex-wrap gap-2">
-                          <Button size="sm" onClick={() => void runSavedPrompt(schedule.promptId)}>
+                          <Button size="sm" onClick={() => void runScheduleNow(schedule)}>
                             <Play className="w-4 h-4" />
                             Run Now
                           </Button>

@@ -29,7 +29,7 @@ export const profileCreateSchema = z.object({
   shell: z.string().trim().min(1).max(260).default('/bin/bash'),
   env: z.record(z.string(), z.string()).default({}),
   enabled: z.boolean().default(true),
-  icon: z.string().trim().max(60).optional(),
+  icon: z.string().trim().max(300_000).optional(),
 });
 
 export const profileUpdateSchema = profileCreateSchema.partial();
@@ -43,13 +43,6 @@ export const promptCreateSchema = z.object({
   name: z.string().trim().min(1).max(160),
   content: z.string().min(1).max(100_000),
   type: promptTypeSchema,
-  agentProfileId: z.string().trim().min(1),
-  workingDirectory: z.string().trim().min(1).max(2000),
-  timeout: z
-    .number()
-    .int()
-    .min(1)
-    .max(24 * 60),
   tags: z.array(z.string().trim().min(1).max(40)).max(20).default([]),
 });
 
@@ -58,6 +51,13 @@ export const promptUpdateSchema = promptCreateSchema.partial();
 export const scheduleCreateSchema = z.object({
   name: z.string().trim().min(1).max(160),
   promptId: z.string().trim().min(1),
+  agentProfileId: z.string().trim().min(1),
+  workingDirectory: z.string().trim().min(1).max(2000),
+  timeout: z
+    .number()
+    .int()
+    .min(1)
+    .max(24 * 60),
   cronExpression: z.string().trim().min(1).max(120),
   enabled: z.boolean().default(true),
 });
@@ -97,19 +97,19 @@ export const runExecuteSchema = z
           message: 'Type is required when promptId is not provided',
         });
       }
-      if (!value.agentProfileId) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ['agentProfileId'],
-          message: 'Agent profile is required when promptId is not provided',
-        });
-      }
-      if (!value.workingDirectory) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ['workingDirectory'],
-          message: 'Working directory is required when promptId is not provided',
-        });
-      }
+    }
+    if (!value.scheduleId && !value.agentProfileId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['agentProfileId'],
+        message: 'Agent profile is required when scheduleId is not provided',
+      });
+    }
+    if (!value.scheduleId && !value.workingDirectory) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['workingDirectory'],
+        message: 'Working directory is required when scheduleId is not provided',
+      });
     }
   });

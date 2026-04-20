@@ -47,6 +47,12 @@ interface ActiveRunState {
   startedAt: number;
 }
 
+interface LegacyPromptRuntime {
+  agentProfileId?: unknown;
+  workingDirectory?: string;
+  timeout?: number;
+}
+
 export interface AIRunnerServiceOptions {
   startScheduler?: boolean;
   schedulerIntervalMs?: number;
@@ -97,9 +103,6 @@ function mapPrompt(
     name: String(doc.name),
     content: String(doc.content),
     type: doc.type as AIRunnerPromptDTO['type'],
-    agentProfileId: stringifyId(doc.agentProfileId),
-    workingDirectory: String(doc.workingDirectory),
-    timeout: Number(doc.timeout),
     tags: Array.isArray(doc.tags) ? doc.tags.map(String) : [],
     createdAt: new Date(doc.createdAt as Date | string).toISOString(),
     updatedAt: new Date(doc.updatedAt as Date | string).toISOString(),
@@ -113,6 +116,9 @@ function mapSchedule(
     _id: stringifyId(doc._id),
     name: String(doc.name),
     promptId: stringifyId(doc.promptId),
+    agentProfileId: doc.agentProfileId ? stringifyId(doc.agentProfileId) : '',
+    workingDirectory: doc.workingDirectory ? String(doc.workingDirectory) : '',
+    timeout: typeof doc.timeout === 'number' ? Number(doc.timeout) : 30,
     cronExpression: String(doc.cronExpression),
     enabled: Boolean(doc.enabled),
     lastRunId: doc.lastRunId ? stringifyId(doc.lastRunId) : undefined,
@@ -415,9 +421,9 @@ export class AIRunnerService {
 
   async deleteProfile(id: string): Promise<boolean> {
     await connectDB();
-    const inUseCount = await AIRunnerPrompt.countDocuments({ agentProfileId: id });
+    const inUseCount = await AIRunnerSchedule.countDocuments({ agentProfileId: id });
     if (inUseCount > 0) {
-      throw new Error('Cannot delete a profile that is still referenced by saved prompts');
+      throw new Error('Cannot delete a profile that is still referenced by schedules');
     }
     const result = await AIRunnerProfile.findByIdAndDelete(id);
     return Boolean(result);
@@ -603,12 +609,16 @@ export class AIRunnerService {
 
   async listKnownDirectories(): Promise<AIRunnerDirectoriesResponse> {
     await connectDB();
-    const [promptDirs, runDirs] = await Promise.all([
-      AIRunnerPrompt.distinct('workingDirectory'),
+    const [scheduleDirs, runDirs] = await Promise.all([
+      AIRunnerSchedule.distinct('workingDirectory'),
       AIRunnerRun.distinct('workingDirectory'),
     ]);
     const directories = Array.from(
-      new Set([process.cwd(), ...promptDirs.map(String), ...runDirs.map(String)])
+      new Set([
+        process.cwd(),
+        ...scheduleDirs.filter(Boolean).map(String),
+        ...runDirs.filter(Boolean).map(String),
+      ])
     ).sort((a, b) => a.localeCompare(b));
     return { directories };
   }
@@ -842,16 +852,32 @@ export class AIRunnerService {
   }> {
     await connectDB();
 
+    let scheduleDoc: IAIRunnerSchedule | null = null;
+    if (request.scheduleId) {
+      scheduleDoc = await AIRunnerSchedule.findById(request.scheduleId);
+      if (!scheduleDoc) {
+        throw new Error('Schedule not found');
+      }
+    }
+
     let promptDoc: IAIRunnerPrompt | null = null;
-    if (request.promptId) {
-      promptDoc = await AIRunnerPrompt.findById(request.promptId);
+    const promptId =
+      request.promptId ?? (scheduleDoc ? stringifyId(scheduleDoc.promptId) : undefined);
+    if (promptId) {
+      promptDoc = await AIRunnerPrompt.findById(promptId);
       if (!promptDoc) {
         throw new Error('Saved prompt not found');
       }
     }
 
+    const legacyPromptRuntime =
+      (promptDoc as (IAIRunnerPrompt & LegacyPromptRuntime) | null) ?? null;
     const profileId =
-      request.agentProfileId ?? (promptDoc ? stringifyId(promptDoc.agentProfileId) : undefined);
+      request.agentProfileId ??
+      (scheduleDoc?.agentProfileId ? stringifyId(scheduleDoc.agentProfileId) : undefined) ??
+      (legacyPromptRuntime?.agentProfileId
+        ? stringifyId(legacyPromptRuntime.agentProfileId)
+        : undefined);
     if (!profileId) {
       throw new Error('Agent profile is required');
     }
@@ -862,7 +888,10 @@ export class AIRunnerService {
     }
 
     const profile = mapProfile(profileDoc);
-    const workingDirectory = request.workingDirectory ?? promptDoc?.workingDirectory;
+    const workingDirectory =
+      request.workingDirectory ??
+      scheduleDoc?.workingDirectory ??
+      legacyPromptRuntime?.workingDirectory;
     if (!workingDirectory) {
       throw new Error('Working directory is required');
     }
@@ -876,7 +905,13 @@ export class AIRunnerService {
 
     const promptContent = await resolvePromptContent(promptType, promptSource);
     const timeoutMinutes = Math.min(
-      Math.max(request.timeout ?? promptDoc?.timeout ?? profile.defaultTimeout, 1),
+      Math.max(
+        request.timeout ??
+          scheduleDoc?.timeout ??
+          legacyPromptRuntime?.timeout ??
+          profile.defaultTimeout,
+        1
+      ),
       profile.maxTimeout
     );
     const command = resolveInvocationTemplate(
@@ -885,22 +920,16 @@ export class AIRunnerService {
       workingDirectory
     );
 
-    let scheduleCronExpression: string | undefined;
-    if (request.scheduleId) {
-      const schedule = await AIRunnerSchedule.findById(request.scheduleId);
-      scheduleCronExpression = schedule?.cronExpression;
-    }
-
     return {
       promptId: promptDoc ? stringifyId(promptDoc._id) : undefined,
-      scheduleId: request.scheduleId,
-      scheduleCronExpression,
+      scheduleId: scheduleDoc ? stringifyId(scheduleDoc._id) : undefined,
+      scheduleCronExpression: scheduleDoc?.cronExpression,
       profile,
       promptContent,
       command,
       workingDirectory,
       timeoutMinutes,
-      triggeredBy: request.triggeredBy ?? 'manual',
+      triggeredBy: request.triggeredBy ?? (scheduleDoc ? 'schedule' : 'manual'),
     };
   }
 

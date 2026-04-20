@@ -37,9 +37,6 @@ export interface AIRunnerPromptDTO {
   name: string;
   content: string;
   type: AIRunnerPromptType;
-  agentProfileId: string;
-  workingDirectory: string;
-  timeout: number;
   tags: string[];
   createdAt: string;
   updatedAt: string;
@@ -49,6 +46,9 @@ export interface AIRunnerScheduleDTO {
   _id: string;
   name: string;
   promptId: string;
+  agentProfileId: string;
+  workingDirectory: string;
+  timeout: number;
   cronExpression: string;
   enabled: boolean;
   lastRunId?: string;
