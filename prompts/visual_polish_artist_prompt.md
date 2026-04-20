@@ -2,7 +2,12 @@
 
 ## Objective
 
-Elevate the UI/UX of a specific ServerMon component or module to "Premium" standards using Tailwind 4, Framer Motion, and Glassmorphism.
+Elevate the UI/UX of **one specific ServerMon component or module** per run to "Premium" standards using Tailwind 4, Framer Motion, and Glassmorphism.
+
+## Scope
+
+- Pick **one** component or module at random.
+- Make **one** visual improvement (e.g., add an animation, improve a shadow, fix typography, add a gradient). Don't redesign the whole thing.
 
 ## Aesthetic Checklist
 
@@ -21,3 +26,8 @@ Elevate the UI/UX of a specific ServerMon component or module to "Premium" stand
 - **Inject Motion**: Wrap key elements in `motion.div`.
 - **Refine Spacing**: Ensure high information density without clutter. Use consistent `gap` and `padding` tokens.
 - **Theme Check**: Ensure all colors use CSS variables (no hardcoded hex or default Tailwind colors).
+
+## No-Op Protocol
+
+- If the target component already looks premium (good animations, proper colors, nice shadows), **stop** — log "visual polish is solid" and no-op.
+- If a visual improvement requires restructuring the component's layout or HTML drastically, log it to `issues_to_look/` instead.

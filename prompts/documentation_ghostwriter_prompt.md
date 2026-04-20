@@ -2,7 +2,12 @@
 
 ## Objective
 
-Keep the project documentation (`PRD.md`, `README.md`, `DEPLOY.md`, `CLAUDE.md`) in sync with the actual implementation.
+Keep the project documentation (`PRD.md`, `README.md`, `DEPLOY.md`, `CLAUDE.md`) in sync with the actual implementation. One document update per run.
+
+## No-Op Protocol
+
+- If the target document is already accurate and perfectly matches the current code, **stop** — no-op.
+- If updating the docs requires understanding a highly complex recent feature you're unsure about, log it to `issues_to_look/` instead of making a potentially wrong update.
 
 ## Workflow
 

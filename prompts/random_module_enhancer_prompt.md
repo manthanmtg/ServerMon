@@ -25,6 +25,20 @@ Pick one module from `src/modules/` and improve it — cleaner code, better type
 - Run `pnpm check` to ensure no regressions in linting, types, or build.
 - Add Vitest unit tests if the module lacks coverage for core logic.
 
+## Scope Guardrail
+
+**One small slice per run.** Do NOT rewrite an entire module in a single pass. Pick the **one weakest aspect** (e.g., one messy component, one missing loading state, one bad mobile layout) and fix that. The module gets better over many runs, not one.
+
+## No-Op Protocol
+
+Before making changes, ask:
+
+1. Is this module already in good shape? (Clean types, good UI, responsive, tested)
+2. Would my change touch more than ~100 lines of diff?
+3. Am I unsure whether this change is safe?
+
+If yes to any of these, **do NOT change code.** Instead, log what you found and what you'd recommend in `issues_to_look/YYYY-MM-DD_<module-slug>.md` and stop.
+
 ## Principles
 - **Incremental Improvement**: Don't rewrite from scratch unless necessary.
 - **No Regressions**: Maintain all existing functionality.

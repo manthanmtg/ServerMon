@@ -1,5 +1,7 @@
 # Module Generator Prompt
 
+> **⚠️ NOT FOR AUTONOMOUS USE.** This prompt creates entirely new modules, which is a drastic change. It should only be executed when a human explicitly requests a new module. If `random_selector.md` picks this prompt, **no-op** — skip and do nothing.
+
 ## Objective
 
 Generate a complete, standard-compliant ServerMon module based on a user-provided name and core feature set.

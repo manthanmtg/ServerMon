@@ -2,7 +2,7 @@
 
 ## Objective
 
-Increase the quality and reliability of ServerMon by adding comprehensive tests.
+Increase the quality and reliability of ServerMon by adding **5-15 comprehensive tests** to **one untested or undertested area** per run. Coverage grows incrementally.
 
 ## Requirements
 
@@ -18,6 +18,11 @@ Increase the quality and reliability of ServerMon by adding comprehensive tests.
 
 ## Workflow
 
-- **Identify Gaps**: Run `pnpm test:coverage` to find untested areas.
+- **Identify Gaps**: Run `pnpm test:coverage` to find one untested area.
 - **Skeleton First**: Write the test suites and cases before implementation if possible (TDD).
 - **Verify**: Ensure `pnpm test` passes with zero failures.
+
+## No-Op Protocol
+
+- If all critical files already have solid tests, **stop** — log "test coverage is healthy" and no-op.
+- If testing a file requires building a complex test harness that doesn't exist yet, log it in `issues_to_look/` with details.
