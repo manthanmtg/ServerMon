@@ -66,7 +66,7 @@ const TAB_META: Array<{ id: ViewTab; label: string; icon: React.ReactNode }> = [
   { id: 'prompts', label: 'Saved Prompts', icon: <Save className="w-4 h-4" /> },
   { id: 'schedules', label: 'Schedules', icon: <CalendarClock className="w-4 h-4" /> },
   { id: 'history', label: 'History', icon: <History className="w-4 h-4" /> },
-  { id: 'settings', label: 'Settings', icon: <Settings2 className="w-4 h-4" /> },
+  { id: 'settings', label: 'Agent Profiles', icon: <Settings2 className="w-4 h-4" /> },
 ];
 
 const DEFAULT_PROFILE_FORM: ProfileFormState = {
