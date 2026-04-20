@@ -87,3 +87,40 @@ export interface AgentAdapter {
   readonly displayName: string;
   detect(): Promise<AgentSession[]>;
 }
+
+export interface GeminiToolCall {
+  id: string;
+  name: string;
+  args: Record<string, unknown>;
+  result?: unknown;
+}
+
+export interface GeminiMessage {
+  id: string;
+  timestamp: string;
+  type: 'user' | 'gemini' | 'system';
+  content: string | Array<{ text: string }>;
+  model?: string;
+  tokens?: {
+    input: number;
+    output: number;
+    total: number;
+  };
+  toolCalls?: GeminiToolCall[];
+}
+
+export interface GeminiSession {
+  sessionId: string;
+  projectHash: string;
+  startTime: string;
+  lastUpdated: string;
+  messages: GeminiMessage[];
+  summary?: string;
+}
+
+export interface GeminiLogEntry {
+  sessionId: string;
+  message: string;
+  type: string;
+  timestamp: string;
+}

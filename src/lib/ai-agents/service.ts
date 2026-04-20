@@ -2,6 +2,7 @@ import { createLogger } from '@/lib/logger';
 import { ClaudeCodeAdapter } from './adapters/claude-code';
 import { CodexAdapter } from './adapters/codex';
 import { OpenCodeAdapter } from './adapters/opencode';
+import { GeminiCLIAdapter } from './adapters/gemini-cli';
 import { killProcess } from './process-utils';
 import type {
   AgentAdapter,
@@ -19,7 +20,12 @@ export class AIAgentsService {
   private readonly CACHE_TTL_MS = 3000;
 
   constructor() {
-    this.adapters = [new ClaudeCodeAdapter(), new CodexAdapter(), new OpenCodeAdapter()];
+    this.adapters = [
+      new ClaudeCodeAdapter(),
+      new CodexAdapter(),
+      new OpenCodeAdapter(),
+      new GeminiCLIAdapter(),
+    ];
     log.info(`Registered ${this.adapters.length} agent adapters`);
   }
 
