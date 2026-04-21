@@ -71,6 +71,9 @@ export default function AIRunnerPage() {
   const [activeTab, setActiveTab] = useState<ViewTab>('run');
   const liveNow = useRealtimeNow(activeTab === 'schedules');
   const [loading, setLoading] = useState(true);
+  const [metadataLoaded, setMetadataLoaded] = useState(false);
+  const [runsLoaded, setRunsLoaded] = useState(false);
+  const [schedulesLoaded, setSchedulesLoaded] = useState(false);
   const [profiles, setProfiles] = useState<AIRunnerProfileDTO[]>([]);
   const [prompts, setPrompts] = useState<AIRunnerPromptDTO[]>([]);
   const [schedules, setSchedules] = useState<AIRunnerScheduleDTO[]>([]);
@@ -128,6 +131,7 @@ export default function AIRunnerPage() {
 
   const runsAbortRef = useRef<AbortController | null>(null);
   const metadataAbortRef = useRef<AbortController | null>(null);
+  const schedulesAbortRef = useRef<AbortController | null>(null);
 
   const loadRuns = useCallback(
     async (searchOverride?: string) => {
@@ -145,6 +149,7 @@ export default function AIRunnerPage() {
         if (controller.signal.aborted) return;
         setRuns(payload.runs);
         setRunTotal(payload.total);
+        setRunsLoaded(true);
       } catch (error) {
         if ((error as Error)?.name === 'AbortError') return;
         toast({
@@ -162,10 +167,9 @@ export default function AIRunnerPage() {
     const controller = new AbortController();
     metadataAbortRef.current = controller;
     try {
-      const [profilesRes, promptsRes, schedulesRes, directoriesRes] = await Promise.all([
+      const [profilesRes, promptsRes, directoriesRes] = await Promise.all([
         fetch('/api/modules/ai-runner/profiles', { cache: 'no-store', signal: controller.signal }),
         fetch('/api/modules/ai-runner/prompts', { cache: 'no-store', signal: controller.signal }),
-        fetch('/api/modules/ai-runner/schedules', { cache: 'no-store', signal: controller.signal }),
         fetch('/api/modules/ai-runner/directories', {
           cache: 'no-store',
           signal: controller.signal,
@@ -206,10 +210,6 @@ export default function AIRunnerPage() {
         setPrompts(await promptsRes.json());
       }
 
-      if (schedulesRes.ok) {
-        setSchedules(await schedulesRes.json());
-      }
-
       if (directoriesRes.ok) {
         const payload = await directoriesRes.json();
         if (controller.signal.aborted) return;
@@ -223,6 +223,7 @@ export default function AIRunnerPage() {
           workingDirectory: current.workingDirectory || payload.directories?.[0] || '',
         }));
       }
+      setMetadataLoaded(true);
     } catch (error) {
       if ((error as Error)?.name === 'AbortError') return;
       toast({
@@ -233,43 +234,79 @@ export default function AIRunnerPage() {
     }
   }, [toast]);
 
+  const loadSchedules = useCallback(async () => {
+    schedulesAbortRef.current?.abort();
+    const controller = new AbortController();
+    schedulesAbortRef.current = controller;
+    try {
+      const response = await fetch('/api/modules/ai-runner/schedules', {
+        cache: 'no-store',
+        signal: controller.signal,
+      });
+      if (!response.ok || controller.signal.aborted) return;
+      setSchedules(await response.json());
+      setSchedulesLoaded(true);
+    } catch (error) {
+      if ((error as Error)?.name === 'AbortError') return;
+      toast({
+        title: 'Load failed',
+        description: error instanceof Error ? error.message : 'Failed to load schedules',
+        variant: 'destructive',
+      });
+    }
+  }, [toast]);
+
   const loadAll = useCallback(
     async (searchOverride?: string) => {
       setRefreshing(true);
       try {
-        await Promise.all([loadMetadata(), loadRuns(searchOverride)]);
+        const tasks: Promise<unknown>[] = [loadMetadata()];
+        if (activeTab === 'history') {
+          tasks.push(loadRuns(searchOverride), loadSchedules());
+        } else if (activeTab === 'schedules') {
+          tasks.push(loadSchedules());
+        }
+        await Promise.all(tasks);
       } finally {
         setLoading(false);
         setRefreshing(false);
       }
     },
-    [loadMetadata, loadRuns]
+    [activeTab, loadMetadata, loadRuns, loadSchedules]
   );
 
   // Initial load — runs once on mount. Abort any in-flight fetches on unmount.
   useEffect(() => {
-    void loadAll();
+    void (async () => {
+      try {
+        await loadMetadata();
+      } finally {
+        setLoading(false);
+      }
+    })();
     return () => {
       runsAbortRef.current?.abort();
       metadataAbortRef.current?.abort();
+      schedulesAbortRef.current?.abort();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [loadMetadata]);
 
   // Debounced refetch of runs when the history search input changes. We
   // deliberately don't re-run metadata loads here — typing in the search
   // field used to refire 5 parallel fetches on every keystroke.
   const didMountRef = useRef(false);
   useEffect(() => {
+    if (!metadataLoaded) return;
     if (!didMountRef.current) {
       didMountRef.current = true;
       return;
     }
+    if (!runsLoaded) return;
     const handle = window.setTimeout(() => {
       void loadRuns(runSearch);
     }, 300);
     return () => window.clearTimeout(handle);
-  }, [runSearch, loadRuns]);
+  }, [loadRuns, metadataLoaded, runSearch, runsLoaded]);
 
   // Poll the currently-selected run while it's active. Depend only on the
   // run id/status so setSelectedRun(run) inside the interval doesn't tear
@@ -520,7 +557,39 @@ export default function AIRunnerPage() {
     setSelectedRun(run);
     setHistoryDetailSection(section);
     setHistoryDetailOpen(true);
+    void (async () => {
+      try {
+        const response = await fetch(`/api/modules/ai-runner/runs/${run._id}`, {
+          cache: 'no-store',
+        });
+        if (!response.ok) return;
+        const detail: AIRunnerRunDTO = await response.json();
+        setSelectedRun((current) => (current?._id === detail._id ? detail : current));
+        setRuns((current) => current.map((item) => (item._id === detail._id ? detail : item)));
+      } catch {
+        /* keep drawer usable with summary data */
+      }
+    })();
   };
+
+  const handleTabChange = useCallback(
+    (tab: ViewTab) => {
+      setActiveTab(tab);
+      if (tab === 'history') {
+        if (!runsLoaded) {
+          void loadRuns();
+        }
+        if (!schedulesLoaded) {
+          void loadSchedules();
+        }
+        return;
+      }
+      if (tab === 'schedules' && !schedulesLoaded) {
+        void loadSchedules();
+      }
+    },
+    [loadRuns, loadSchedules, runsLoaded, schedulesLoaded]
+  );
 
   const rerunHistoryItem = async (run: AIRunnerRunDTO) => {
     try {
@@ -978,7 +1047,7 @@ export default function AIRunnerPage() {
                   key={tab.id}
                   variant={activeTab === tab.id ? 'default' : 'outline'}
                   size="sm"
-                  onClick={() => setActiveTab(tab.id)}
+                  onClick={() => handleTabChange(tab.id)}
                 >
                   {tab.icon}
                   {tab.label}

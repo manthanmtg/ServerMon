@@ -33,6 +33,11 @@ import {
 } from './shared';
 
 const execFileAsync = promisify(execFile);
+const RUN_LIST_PROJECTION = {
+  stdout: 0,
+  stderr: 0,
+  rawOutput: 0,
+} as const;
 
 export interface AIRunnerServiceOptions {
   autoStartSupervisor?: boolean;
@@ -277,7 +282,12 @@ export class AIRunnerService {
     const offset = Math.max(options?.offset ?? 0, 0);
 
     const [runs, total] = await Promise.all([
-      AIRunnerRun.find(filter).sort({ startedAt: -1 }).skip(offset).limit(limit),
+      AIRunnerRun.find(filter)
+        .select(RUN_LIST_PROJECTION)
+        .sort({ startedAt: -1 })
+        .skip(offset)
+        .limit(limit)
+        .lean(),
       AIRunnerRun.countDocuments(filter),
     ]);
 
@@ -294,7 +304,10 @@ export class AIRunnerService {
     await connectDB();
     const activeDocs = await AIRunnerRun.find({
       status: { $in: ['queued', 'running', 'retrying'] },
-    }).sort({ startedAt: -1 });
+    })
+      .select(RUN_LIST_PROJECTION)
+      .sort({ startedAt: -1 })
+      .lean();
     return activeDocs.map(mapRun);
   }
 

@@ -104,6 +104,34 @@ describe('AIRunnerPage', () => {
     expect(screen.queryByText('Browse')).not.toBeInTheDocument();
   });
 
+  it('defers history runs loading until the history tab is opened', async () => {
+    const fetchMock = vi.mocked(global.fetch);
+
+    await act(async () => {
+      render(<AIRunnerPage />);
+    });
+
+    await waitFor(() => expect(screen.getByText('AI Agent Runner')).toBeInTheDocument());
+
+    expect(
+      fetchMock.mock.calls.some(
+        ([url]) => typeof url === 'string' && url.includes('/api/modules/ai-runner/runs')
+      )
+    ).toBe(false);
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /History/i }));
+    });
+
+    await waitFor(() =>
+      expect(
+        fetchMock.mock.calls.some(
+          ([url]) => typeof url === 'string' && url.includes('/api/modules/ai-runner/runs')
+        )
+      ).toBe(true)
+    );
+  });
+
   it('filters the library list and clears the focused prompt when nothing matches', async () => {
     await act(async () => {
       render(<AIRunnerPage />);
