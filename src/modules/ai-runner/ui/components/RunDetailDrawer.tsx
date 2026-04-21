@@ -1,16 +1,23 @@
 'use client';
 
-import { Cpu, ExternalLink, History, PanelRightOpen, Play, RefreshCcw, Square, X, Zap } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import {
+  Cpu,
+  ExternalLink,
+  History,
+  PanelRightOpen,
+  Play,
+  RefreshCcw,
+  Square,
+  X,
+  Zap,
+} from 'lucide-react';
+import { AutoscrollButton } from '@/components/ui/AutoscrollButton';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import type { AIRunnerRunDTO } from '../../types';
 import type { HistoryDetailSection } from '../types';
-import {
-  formatDateTime,
-  formatDuration,
-  formatMemory,
-  getRunStatusVariant,
-} from '../utils';
+import { formatDateTime, formatDuration, formatMemory, getRunStatusVariant } from '../utils';
 
 export function RunDetailDrawer({
   run,
@@ -39,6 +46,24 @@ export function RunDetailDrawer({
   promptSourceName: string;
   scheduleName: string;
 }) {
+  const [autoscrollEnabled, setAutoscrollEnabled] = useState(true);
+  const outputRef = useRef<HTMLPreElement | null>(null);
+  const outputText = run.rawOutput || run.stdout || run.stderr || 'No output captured';
+
+  useEffect(() => {
+    if (historyDetailSection !== 'output') return;
+    if (!autoscrollEnabled) return;
+    const node = outputRef.current;
+    if (!node) return;
+    node.scrollTop = node.scrollHeight;
+  }, [autoscrollEnabled, historyDetailSection, outputText]);
+
+  useEffect(() => {
+    if (historyDetailSection === 'output') {
+      setAutoscrollEnabled(true);
+    }
+  }, [historyDetailSection, run._id]);
+
   return (
     <div className="fixed inset-0 z-50">
       <button
@@ -179,20 +204,24 @@ export function RunDetailDrawer({
 
             {historyDetailSection === 'output' && (
               <div className="space-y-4">
-                <div className="overflow-hidden rounded-xl border border-border bg-background">
-                  <div className="border-b border-border px-4 py-2 text-xs text-muted-foreground">
-                    Clean output
+                <div className="flex items-center justify-between gap-3 rounded-xl border border-border/60 bg-secondary/15 px-4 py-3">
+                  <div>
+                    <p className="text-sm font-medium">Output</p>
+                    <p className="text-xs text-muted-foreground">
+                      Live execution output in one stream.
+                    </p>
                   </div>
-                  <pre className="max-h-[520px] overflow-auto px-4 py-4 text-xs leading-6 whitespace-pre-wrap font-mono">
-                    {run.stdout || run.stderr || 'No output captured'}
-                  </pre>
+                  <AutoscrollButton enabled={autoscrollEnabled} onToggle={setAutoscrollEnabled} />
                 </div>
                 <div className="overflow-hidden rounded-xl border border-border bg-background">
                   <div className="border-b border-border px-4 py-2 text-xs text-muted-foreground">
-                    Raw output
+                    Captured output
                   </div>
-                  <pre className="max-h-[280px] overflow-auto px-4 py-4 text-xs leading-6 whitespace-pre-wrap font-mono">
-                    {run.rawOutput || 'No raw output captured'}
+                  <pre
+                    ref={outputRef}
+                    className="max-h-[520px] overflow-auto px-4 py-4 text-xs leading-6 whitespace-pre-wrap font-mono"
+                  >
+                    {outputText}
                   </pre>
                 </div>
               </div>
