@@ -2576,7 +2576,7 @@ export default function AIRunnerPage() {
                         schedule.enabled ? 'bg-card/40' : 'bg-muted/10'
                       )}
                     >
-                      <div className="flex flex-col gap-4 xl:grid xl:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)_auto] xl:items-center">
+                      <div className="flex flex-col gap-4 xl:grid xl:grid-cols-[minmax(0,1fr)_auto] xl:gap-x-6 xl:gap-y-3">
                         <div className="min-w-0 space-y-2">
                           <div className="flex flex-wrap items-center gap-2">
                             <Badge variant={schedule.enabled ? 'success' : 'warning'}>
@@ -2598,51 +2598,6 @@ export default function AIRunnerPage() {
                             </h3>
                             <p className="mt-1 text-sm text-muted-foreground">
                               {humanizeCron(schedule.cronExpression)}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="grid gap-x-6 gap-y-3 text-sm sm:grid-cols-2 2xl:grid-cols-5">
-                          <div className="min-w-0">
-                            <span className="text-xs text-muted-foreground">Prompt</span>
-                            <p className="mt-1 truncate font-medium">
-                              {promptMap[schedule.promptId]?.name || 'Unknown prompt'}
-                            </p>
-                          </div>
-                          <div className="min-w-0">
-                            <span className="text-xs text-muted-foreground">Profile</span>
-                            <p className="mt-1 truncate font-medium">
-                              {profileMap[schedule.agentProfileId]?.name || 'Unknown profile'}
-                            </p>
-                          </div>
-                          <div className="min-w-0">
-                            <span className="text-xs text-muted-foreground">Next launch</span>
-                            <p className="mt-1 font-medium">
-                              {formatScheduleDate(schedule.nextRunTime)}
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                              {formatCountdown(schedule.nextRunTime, liveNow)}
-                            </p>
-                          </div>
-                          <div className="min-w-0">
-                            <span className="text-xs text-muted-foreground">Last run</span>
-                            <p className="mt-1 font-medium">
-                              {schedule.lastRunAt
-                                ? formatScheduleDate(schedule.lastRunAt)
-                                : 'No runs yet'}
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                              {schedule.lastRunAt
-                                ? formatRelative(schedule.lastRunAt)
-                                : 'Fresh automation'}
-                            </p>
-                          </div>
-                          <div className="min-w-0">
-                            <span className="text-xs text-muted-foreground">Workspace</span>
-                            <p className="mt-1 truncate font-mono text-xs">
-                              {schedule.workingDirectory || 'No directory'}
-                            </p>
-                            <p className="mt-1 text-xs text-muted-foreground">
-                              {schedule.timeout} min runtime
                             </p>
                           </div>
                         </div>
@@ -2674,6 +2629,51 @@ export default function AIRunnerPage() {
                             <Trash2 className="w-4 h-4" />
                             Delete
                           </Button>
+                        </div>
+                        <div className="grid gap-x-6 gap-y-3 text-sm sm:grid-cols-2 xl:col-span-2 xl:grid-cols-[minmax(0,1.25fr)_minmax(0,1.15fr)_minmax(150px,0.9fr)_minmax(150px,0.9fr)_minmax(0,1.5fr)]">
+                          <div className="min-w-0">
+                            <span className="text-xs text-muted-foreground">Prompt</span>
+                            <p className="mt-1 font-medium leading-6 whitespace-normal break-words">
+                              {promptMap[schedule.promptId]?.name || 'Unknown prompt'}
+                            </p>
+                          </div>
+                          <div className="min-w-0">
+                            <span className="text-xs text-muted-foreground">Profile</span>
+                            <p className="mt-1 font-medium leading-6 whitespace-normal break-words">
+                              {profileMap[schedule.agentProfileId]?.name || 'Unknown profile'}
+                            </p>
+                          </div>
+                          <div className="min-w-0">
+                            <span className="text-xs text-muted-foreground">Next launch</span>
+                            <p className="mt-1 font-medium">
+                              {formatScheduleDate(schedule.nextRunTime)}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {formatCountdown(schedule.nextRunTime, liveNow)}
+                            </p>
+                          </div>
+                          <div className="min-w-0">
+                            <span className="text-xs text-muted-foreground">Last run</span>
+                            <p className="mt-1 font-medium">
+                              {schedule.lastRunAt
+                                ? formatScheduleDate(schedule.lastRunAt)
+                                : 'No runs yet'}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {schedule.lastRunAt
+                                ? formatRelative(schedule.lastRunAt)
+                                : 'Fresh automation'}
+                            </p>
+                          </div>
+                          <div className="min-w-0">
+                            <span className="text-xs text-muted-foreground">Workspace</span>
+                            <p className="mt-1 font-mono text-xs leading-5 whitespace-normal break-all">
+                              {schedule.workingDirectory || 'No directory'}
+                            </p>
+                            <p className="mt-1 text-xs text-muted-foreground">
+                              {schedule.timeout} min runtime
+                            </p>
+                          </div>
                         </div>
                       </div>
                     </div>
