@@ -1090,11 +1090,7 @@ export default function AIRunnerPage() {
     });
   }, [promptSearch, promptTypeFilter, prompts]);
   const selectedPrompt =
-    filteredPrompts.find((prompt) => prompt._id === selectedPromptId) ??
-    prompts.find((prompt) => prompt._id === selectedPromptId) ??
-    filteredPrompts[0] ??
-    prompts[0] ??
-    null;
+    filteredPrompts.find((prompt) => prompt._id === selectedPromptId) ?? filteredPrompts[0] ?? null;
 
   const filteredHistoryRuns = useMemo(() => {
     const query = runSearch.trim().toLowerCase();
@@ -2080,7 +2076,7 @@ export default function AIRunnerPage() {
               <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
                 <div className="max-w-3xl">
                   <p className="text-[11px] uppercase tracking-[0.24em] text-primary/80">
-                    Prompt Library
+                    Saved Prompts
                   </p>
                   <h2 className="mt-2 text-2xl font-semibold tracking-tight">
                     Prompt authoring deserves a dedicated studio too
@@ -2097,47 +2093,14 @@ export default function AIRunnerPage() {
                 </Button>
               </div>
 
-              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                <CompactStat
-                  label="Saved"
-                  value={prompts.length}
-                  tone="primary"
-                  detail="Reusable prompt definitions."
-                />
-                <CompactStat
-                  label="File-backed"
-                  value={fileBackedPromptCount}
-                  tone="success"
-                  detail="Prompts sourced from files."
-                />
-                <CompactStat
-                  label="Visible"
-                  value={filteredPrompts.length}
-                  tone="warning"
-                  detail="Matches current search and filter."
-                />
-                <CompactStat
-                  label="Selected"
-                  value={selectedPrompt?.name || 'Nothing selected'}
-                  detail={
-                    selectedPrompt
-                      ? `${selectedPrompt.type === 'inline' ? 'Inline' : 'File-backed'} prompt`
-                      : 'Choose a prompt below'
-                  }
-                />
-              </div>
-
-              <div className="grid gap-5 xl:grid-cols-[320px_minmax(0,1fr)]">
+              <div className="grid gap-4 xl:grid-cols-[280px_minmax(0,1fr)]">
                 <Card className="border-border/60">
-                  <CardHeader>
-                    <CardTitle className="text-sm">Browse</CardTitle>
-                    <CardDescription>
-                      Filter the library and keep one prompt in focus.
-                    </CardDescription>
+                  <CardHeader className="border-b border-border/60">
+                    <CardTitle className="text-sm">Search & Filter</CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-4">
                     <Input
-                      label="Search Library"
+                      label="Search"
                       value={promptSearch}
                       onChange={(event) => setPromptSearch(event.target.value)}
                       placeholder="Search by name, tag, or content"
@@ -2166,19 +2129,23 @@ export default function AIRunnerPage() {
                         File-backed
                       </Button>
                     </div>
-
+                    <div className="flex flex-wrap gap-2 text-xs">
+                      <Badge variant="outline">{prompts.length} saved</Badge>
+                      <Badge variant="outline">{fileBackedPromptCount} file-backed</Badge>
+                      <Badge variant="outline">{filteredPrompts.length} visible</Badge>
+                    </div>
                     {selectedPrompt ? (
-                      <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4 space-y-3">
+                      <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 space-y-3">
                         <div className="flex flex-wrap items-start justify-between gap-3">
                           <div className="space-y-1">
-                            <h3 className="text-base font-semibold">{selectedPrompt.name}</h3>
-                            <p className="text-xs text-muted-foreground">
-                              Portable prompt definition for runs and schedules.
+                            <p className="text-[11px] uppercase tracking-[0.18em] text-primary/80">
+                              Selected
                             </p>
+                            <h3 className="text-sm font-semibold">{selectedPrompt.name}</h3>
                           </div>
                           <Badge variant="secondary">{selectedPrompt.type}</Badge>
                         </div>
-                        <p className="line-clamp-5 text-sm text-muted-foreground whitespace-pre-wrap">
+                        <p className="line-clamp-4 text-xs text-muted-foreground whitespace-pre-wrap">
                           {selectedPrompt.content}
                         </p>
                         {selectedPrompt.tags.length > 0 ? (
@@ -2202,11 +2169,19 @@ export default function AIRunnerPage() {
                           >
                             Edit
                           </Button>
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            onClick={() => void deletePrompt(selectedPrompt._id)}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                            Delete
+                          </Button>
                         </div>
                       </div>
                     ) : (
                       <div className="rounded-xl border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
-                        No prompts match this filter
+                        {prompts.length === 0 ? 'No prompts in the library yet' : 'Select a prompt to preview it here'}
                       </div>
                     )}
                   </CardContent>
@@ -2216,9 +2191,9 @@ export default function AIRunnerPage() {
                   <CardHeader className="border-b border-border/60">
                     <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
                       <div>
-                        <CardTitle className="text-xl tracking-tight">Prompt Library</CardTitle>
-                        <CardDescription className="mt-2 leading-6">
-                          Dense list view for scanning, selecting, and launching prompts quickly.
+                        <CardTitle className="text-lg tracking-tight">Library</CardTitle>
+                        <CardDescription className="mt-1">
+                          Compact rows for scanning, selection, and quick launch.
                         </CardDescription>
                       </div>
                       <Badge variant="outline">{filteredPrompts.length} visible</Badge>
@@ -2226,75 +2201,98 @@ export default function AIRunnerPage() {
                   </CardHeader>
                   <CardContent className="pt-2">
                     {filteredPrompts.map((prompt) => (
-                      <button
+                      <div
                         key={prompt._id}
-                        type="button"
                         onClick={() => setSelectedPromptId(prompt._id)}
                         className={cn(
-                          'w-full border-b border-border/60 px-5 py-4 text-left transition-colors last:border-b-0 hover:bg-accent/20',
+                          'border-b border-border/60 px-4 py-3 transition-colors last:border-b-0 hover:bg-accent/20',
                           selectedPrompt?._id === prompt._id && 'bg-primary/5'
                         )}
                       >
-                        <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
-                          <div className="min-w-0 space-y-2">
+                        <div className="flex flex-col gap-3 lg:grid lg:grid-cols-[minmax(0,1.5fr)_minmax(0,0.8fr)_auto] lg:items-center">
+                          <div className="min-w-0 space-y-1.5">
                             <div className="flex flex-wrap items-center gap-2">
-                              <h3 className="text-base font-semibold tracking-tight">
+                              <h3 className="text-sm font-semibold tracking-tight">
                                 {prompt.name}
                               </h3>
                               <Badge variant="secondary">{prompt.type}</Badge>
+                            </div>
+                            <p className="line-clamp-2 text-xs text-muted-foreground whitespace-pre-wrap">
+                              {prompt.content}
+                            </p>
+                          </div>
+                          <div className="flex flex-wrap gap-1.5">
+                            {prompt.tags.length > 0 ? (
+                              prompt.tags.map((tag) => (
+                                <Badge key={tag} variant="outline" className="text-[10px]">
+                                  {tag}
+                                </Badge>
+                              ))
+                            ) : (
                               <span className="text-xs text-muted-foreground">
                                 {prompt.content.length} chars
                               </span>
-                            </div>
-                            <p className="line-clamp-2 text-sm text-muted-foreground whitespace-pre-wrap">
-                              {prompt.content}
-                            </p>
-                            <div className="flex flex-wrap gap-1.5">
-                              {prompt.tags.length > 0 ? (
-                                prompt.tags.map((tag) => (
-                                  <Badge key={tag} variant="outline" className="text-[10px]">
-                                    {tag}
-                                  </Badge>
-                                ))
-                              ) : (
-                                <span className="text-xs text-muted-foreground">No tags yet</span>
-                              )}
-                            </div>
+                            )}
                           </div>
-                          <div className="flex flex-wrap gap-2 xl:justify-end">
-                            <Button size="sm" onClick={() => openPromptInRun(prompt._id)}>
+                          <div className="flex flex-wrap gap-2 lg:justify-end">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                setSelectedPromptId(prompt._id);
+                              }}
+                            >
+                              Preview
+                            </Button>
+                            <Button
+                              size="sm"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                openPromptInRun(prompt._id);
+                              }}
+                            >
                               <Play className="w-4 h-4" />
-                              Open in Run
+                              Run
                             </Button>
                             <Button
                               size="sm"
                               variant="outline"
-                              onClick={() => selectPromptForEdit(prompt)}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                selectPromptForEdit(prompt);
+                              }}
                             >
                               Edit
                             </Button>
                             <Button
                               size="sm"
                               variant="destructive"
-                              onClick={() => void deletePrompt(prompt._id)}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                void deletePrompt(prompt._id);
+                              }}
                             >
                               <Trash2 className="w-4 h-4" />
                               Delete
                             </Button>
                           </div>
                         </div>
-                      </button>
+                      </div>
                     ))}
                     {filteredPrompts.length === 0 && (
-                      <div className="rounded-[28px] border border-dashed border-primary/25 bg-gradient-to-br from-primary/5 via-background to-warning/5 px-6 py-16 text-center">
-                        <h3 className="mt-3 text-xl font-semibold tracking-tight">
-                          No prompts in the library yet
+                      <div className="px-6 py-14 text-center">
+                        <h3 className="text-lg font-semibold tracking-tight">
+                          {prompts.length === 0
+                            ? 'No prompts in the library yet'
+                            : 'No prompts match this filter'}
                         </h3>
-                        <p className="mt-3 text-sm leading-6 text-muted-foreground">
-                          Create a reusable prompt in the wide studio and it will show up here ready
-                          for launch and scheduling.
+                        <p className="mt-2 text-sm text-muted-foreground">
+                          {prompts.length === 0
+                            ? 'Create a reusable prompt and it will show up here ready for runs and schedules.'
+                            : 'Adjust the search or type filter to bring prompts back into view.'}
                         </p>
-                        <div className="mt-6">
+                        <div className="mt-5">
                           <Button onClick={openCreatePromptModal}>
                             <Save className="w-4 h-4" />
                             Create Prompt
@@ -3176,9 +3174,7 @@ export default function AIRunnerPage() {
                               </Badge>
                               <Badge variant="outline">{profile.agentType}</Badge>
                             </div>
-                            <p className="truncate text-xs text-muted-foreground">
-                              {profile.slug}
-                            </p>
+                            <p className="truncate text-xs text-muted-foreground">{profile.slug}</p>
                             <div className="flex flex-wrap gap-2">
                               <Badge variant="outline">{profile.defaultTimeout} min default</Badge>
                               <Badge variant="outline">{profile.maxTimeout} min max</Badge>
