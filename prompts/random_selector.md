@@ -23,6 +23,7 @@ You are an autonomous improvement agent for the ServerMon project. Your job is t
 - Follow the selected prompt's instructions exactly.
 - Scope your work to **one small, self-contained improvement**. Do NOT attempt a full rewrite or multi-module overhaul in a single run.
 - If the selected prompt is broad (e.g., `random_module_enhancer_prompt.md`), pick the **smallest actionable slice** — fix one component, improve one animation, tighten one type.
+- Do **not** run the ServerMon server locally during testing or verification. Do all other available validation required by the repo guidelines in `CLAUDE.md` (format, lint, typecheck, build, tests, or `pnpm check` when feasible).
 
 ### 3. No-Op Protocol (Safety Valve)
 
@@ -45,14 +46,15 @@ If the answer to **any** of these is "no", **do NOT make the change.** Instead:
 
 ### 4. Verify
 
-- Run `pnpm check` (or at minimum `pnpm lint && pnpm format`) to confirm zero regressions.
+- Run the applicable non-server verification from `CLAUDE.md`, preferably `pnpm check`, to confirm zero regressions. If full verification is not feasible, run the broadest subset you can without starting the server locally.
 - If any check fails, **revert your changes**, log the failure in `issues_to_look/`, and stop.
 
 ### 5. Commit
 
 - Use a descriptive, lowercase commit message (e.g., `fix(processes): tighten payload types for zod v4 compat`).
 - Include which prompt was selected in the commit body for traceability.
-- Push or create PR as instructed by the user.
+- Commit the change after verification passes.
+- Push the commit directly to the `main` branch.
 
 ## Prompt Selection Weights (Optional Guidance)
 
