@@ -423,6 +423,34 @@ function LabelWithHint({ label, hint }: { label: string; hint?: string }) {
   );
 }
 
+function CompactStat({
+  label,
+  value,
+  tone = 'default',
+  detail,
+}: {
+  label: string;
+  value: React.ReactNode;
+  tone?: 'default' | 'primary' | 'success' | 'warning';
+  detail?: React.ReactNode;
+}) {
+  return (
+    <div
+      className={cn(
+        'rounded-2xl border px-4 py-3',
+        tone === 'primary' && 'border-primary/20 bg-primary/5',
+        tone === 'success' && 'border-success/20 bg-success/5',
+        tone === 'warning' && 'border-warning/20 bg-warning/5',
+        tone === 'default' && 'border-border/60 bg-card/60'
+      )}
+    >
+      <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">{label}</p>
+      <p className="mt-2 text-lg font-semibold tracking-tight">{value}</p>
+      {detail ? <p className="mt-1 text-xs text-muted-foreground">{detail}</p> : null}
+    </div>
+  );
+}
+
 function ProfileIconPreview({
   icon,
   name,
@@ -2069,61 +2097,42 @@ export default function AIRunnerPage() {
                 </Button>
               </div>
 
-              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                <div className="rounded-[28px] border border-primary/20 bg-gradient-to-br from-primary/15 via-background to-primary/5 p-5 shadow-[0_22px_80px_-55px_rgba(99,102,241,0.55)]">
-                  <p className="text-[11px] uppercase tracking-[0.22em] text-primary/80">Saved</p>
-                  <p className="mt-3 text-3xl font-semibold tracking-tight">{prompts.length}</p>
-                  <p className="mt-2 text-sm text-muted-foreground">
-                    Reusable prompt definitions ready for manual runs and schedules.
-                  </p>
-                </div>
-                <div className="rounded-[28px] border border-success/20 bg-gradient-to-br from-success/15 via-background to-success/5 p-5 shadow-[0_22px_80px_-55px_rgba(34,197,94,0.4)]">
-                  <p className="text-[11px] uppercase tracking-[0.22em] text-success">
-                    File-backed
-                  </p>
-                  <p className="mt-3 text-3xl font-semibold tracking-tight">
-                    {fileBackedPromptCount}
-                  </p>
-                  <p className="mt-2 text-sm text-muted-foreground">
-                    Prompts that point to files instead of storing inline instructions.
-                  </p>
-                </div>
-                <div className="rounded-[28px] border border-warning/20 bg-gradient-to-br from-warning/15 via-background to-warning/5 p-5 shadow-[0_22px_80px_-55px_rgba(234,179,8,0.45)]">
-                  <p className="text-[11px] uppercase tracking-[0.22em] text-warning">
-                    Visible Now
-                  </p>
-                  <p className="mt-3 text-3xl font-semibold tracking-tight">
-                    {filteredPrompts.length}
-                  </p>
-                  <p className="mt-2 text-sm text-muted-foreground">
-                    Prompt cards currently matching your active search and type filter.
-                  </p>
-                </div>
-                <div className="rounded-[28px] border border-border/60 bg-gradient-to-br from-card via-background to-secondary/40 p-5">
-                  <p className="text-[11px] uppercase tracking-[0.22em] text-muted-foreground">
-                    Current Focus
-                  </p>
-                  <p className="mt-3 text-lg font-semibold tracking-tight">
-                    {selectedPrompt?.name || 'Nothing selected'}
-                  </p>
-                  <p className="mt-2 text-sm text-muted-foreground">
-                    {selectedPrompt
-                      ? `${selectedPrompt.type === 'inline' ? 'Inline prompt' : 'File-backed prompt'} with ${
-                          selectedPrompt.tags.length > 0
-                            ? `${selectedPrompt.tags.length} tag${selectedPrompt.tags.length === 1 ? '' : 's'}`
-                            : 'no tags yet'
-                        }.`
-                      : 'Pick a prompt card to inspect its shape and launch options.'}
-                  </p>
-                </div>
+              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                <CompactStat
+                  label="Saved"
+                  value={prompts.length}
+                  tone="primary"
+                  detail="Reusable prompt definitions."
+                />
+                <CompactStat
+                  label="File-backed"
+                  value={fileBackedPromptCount}
+                  tone="success"
+                  detail="Prompts sourced from files."
+                />
+                <CompactStat
+                  label="Visible"
+                  value={filteredPrompts.length}
+                  tone="warning"
+                  detail="Matches current search and filter."
+                />
+                <CompactStat
+                  label="Selected"
+                  value={selectedPrompt?.name || 'Nothing selected'}
+                  detail={
+                    selectedPrompt
+                      ? `${selectedPrompt.type === 'inline' ? 'Inline' : 'File-backed'} prompt`
+                      : 'Choose a prompt below'
+                  }
+                />
               </div>
 
               <div className="grid gap-5 xl:grid-cols-[320px_minmax(0,1fr)]">
                 <Card className="border-border/60">
                   <CardHeader>
-                    <CardTitle className="text-sm">Library Controls</CardTitle>
+                    <CardTitle className="text-sm">Browse</CardTitle>
                     <CardDescription>
-                      Browse reusable prompt patterns instead of composing one-off runs.
+                      Filter the library and keep one prompt in focus.
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
@@ -2159,17 +2168,17 @@ export default function AIRunnerPage() {
                     </div>
 
                     {selectedPrompt ? (
-                      <div className="rounded-[24px] border border-primary/20 bg-primary/5 p-4 space-y-3">
-                        <div className="space-y-1">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <Badge variant="secondary">{selectedPrompt.type}</Badge>
+                      <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4 space-y-3">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div className="space-y-1">
+                            <h3 className="text-base font-semibold">{selectedPrompt.name}</h3>
+                            <p className="text-xs text-muted-foreground">
+                              Portable prompt definition for runs and schedules.
+                            </p>
                           </div>
-                          <h3 className="text-base font-semibold">{selectedPrompt.name}</h3>
-                          <p className="text-xs text-muted-foreground">
-                            Portable prompt definition for manual runs and schedules.
-                          </p>
+                          <Badge variant="secondary">{selectedPrompt.type}</Badge>
                         </div>
-                        <p className="line-clamp-6 text-sm text-muted-foreground whitespace-pre-wrap">
+                        <p className="line-clamp-5 text-sm text-muted-foreground whitespace-pre-wrap">
                           {selectedPrompt.content}
                         </p>
                         {selectedPrompt.tags.length > 0 ? (
@@ -2203,41 +2212,42 @@ export default function AIRunnerPage() {
                   </CardContent>
                 </Card>
 
-                <Card className="overflow-hidden border-border/60 bg-gradient-to-br from-card via-background to-secondary/30">
+                <Card className="overflow-hidden border-border/60">
                   <CardHeader className="border-b border-border/60">
                     <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
                       <div>
-                        <CardTitle className="text-xl tracking-tight">Prompt Board</CardTitle>
+                        <CardTitle className="text-xl tracking-tight">Prompt Library</CardTitle>
                         <CardDescription className="mt-2 leading-6">
-                          Your reusable prompt definitions in one place, ready to run, inspect, or
-                          refine.
+                          Dense list view for scanning, selecting, and launching prompts quickly.
                         </CardDescription>
                       </div>
                       <Badge variant="outline">{filteredPrompts.length} visible</Badge>
                     </div>
                   </CardHeader>
-                  <CardContent className="space-y-3 pt-5">
+                  <CardContent className="pt-2">
                     {filteredPrompts.map((prompt) => (
                       <button
                         key={prompt._id}
                         type="button"
                         onClick={() => setSelectedPromptId(prompt._id)}
                         className={cn(
-                          'w-full rounded-[24px] border border-border/60 bg-card/70 p-5 space-y-4 text-left transition-colors hover:bg-accent/20',
-                          selectedPrompt?._id === prompt._id && 'border-primary/30 bg-primary/5'
+                          'w-full border-b border-border/60 px-5 py-4 text-left transition-colors last:border-b-0 hover:bg-accent/20',
+                          selectedPrompt?._id === prompt._id && 'bg-primary/5'
                         )}
                       >
-                        <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-                          <div className="space-y-2 min-w-0">
+                        <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+                          <div className="min-w-0 space-y-2">
                             <div className="flex flex-wrap items-center gap-2">
-                              <h3 className="text-lg font-semibold tracking-tight">
+                              <h3 className="text-base font-semibold tracking-tight">
                                 {prompt.name}
                               </h3>
                               <Badge variant="secondary">{prompt.type}</Badge>
+                              <span className="text-xs text-muted-foreground">
+                                {prompt.content.length} chars
+                              </span>
                             </div>
-                            <p className="text-sm text-muted-foreground whitespace-pre-wrap">
-                              {prompt.content.slice(0, 240)}
-                              {prompt.content.length > 240 ? '…' : ''}
+                            <p className="line-clamp-2 text-sm text-muted-foreground whitespace-pre-wrap">
+                              {prompt.content}
                             </p>
                             <div className="flex flex-wrap gap-1.5">
                               {prompt.tags.length > 0 ? (
@@ -2277,11 +2287,8 @@ export default function AIRunnerPage() {
                     ))}
                     {filteredPrompts.length === 0 && (
                       <div className="rounded-[28px] border border-dashed border-primary/25 bg-gradient-to-br from-primary/5 via-background to-warning/5 px-6 py-16 text-center">
-                        <p className="text-[11px] uppercase tracking-[0.24em] text-primary/80">
-                          Prompt Board
-                        </p>
                         <h3 className="mt-3 text-xl font-semibold tracking-tight">
-                          No prompts on the board yet
+                          No prompts in the library yet
                         </h3>
                         <p className="mt-3 text-sm leading-6 text-muted-foreground">
                           Create a reusable prompt in the wide studio and it will show up here ready
@@ -2472,68 +2479,47 @@ export default function AIRunnerPage() {
                 </Button>
               </div>
 
-              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                <div className="rounded-[28px] border border-primary/20 bg-gradient-to-br from-primary/15 via-background to-primary/5 p-5 shadow-[0_22px_80px_-55px_rgba(99,102,241,0.55)]">
-                  <p className="text-[11px] uppercase tracking-[0.22em] text-primary/80">
-                    Live Automations
-                  </p>
-                  <p className="mt-3 text-3xl font-semibold tracking-tight">
-                    {enabledScheduleCount}
-                  </p>
-                  <p className="mt-2 text-sm text-muted-foreground">
-                    Active schedules currently ready to wake up and run.
-                  </p>
-                </div>
-                <div className="rounded-[28px] border border-warning/20 bg-gradient-to-br from-warning/15 via-background to-warning/5 p-5 shadow-[0_22px_80px_-55px_rgba(234,179,8,0.45)]">
-                  <p className="text-[11px] uppercase tracking-[0.22em] text-warning">
-                    Next Launch
-                  </p>
-                  <p className="mt-3 text-lg font-semibold tracking-tight">
-                    {nextSchedule?.nextRunTime
+              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                <CompactStat
+                  label="Enabled"
+                  value={enabledScheduleCount}
+                  tone="primary"
+                  detail="Schedules ready to run."
+                />
+                <CompactStat
+                  label="Next Launch"
+                  value={
+                    nextSchedule?.nextRunTime
                       ? formatScheduleDate(nextSchedule.nextRunTime)
-                      : 'No launch queued'}
-                  </p>
-                  <p className="mt-2 text-sm text-muted-foreground">
-                    {nextSchedule?.nextRunTime
-                      ? `${nextSchedule.name} goes live ${formatRelative(nextSchedule.nextRunTime)}`
-                      : 'Enable a schedule to see the next launch window.'}
-                  </p>
-                </div>
-                <div className="rounded-[28px] border border-success/20 bg-gradient-to-br from-success/15 via-background to-success/5 p-5 shadow-[0_22px_80px_-55px_rgba(34,197,94,0.4)]">
-                  <p className="text-[11px] uppercase tracking-[0.22em] text-success">
-                    Recently Active
-                  </p>
-                  <p className="mt-3 text-3xl font-semibold tracking-tight">
-                    {recentlyActiveScheduleCount}
-                  </p>
-                  <p className="mt-2 text-sm text-muted-foreground">
-                    Schedules that have run within the last 24 hours.
-                  </p>
-                </div>
-                <div className="rounded-[28px] border border-border/60 bg-gradient-to-br from-card via-background to-secondary/40 p-5">
-                  <p className="text-[11px] uppercase tracking-[0.22em] text-muted-foreground">
-                    Design Surface
-                  </p>
-                  <p className="mt-3 text-3xl font-semibold tracking-tight">{scheduleModeCount}</p>
-                  <p className="mt-2 text-sm text-muted-foreground">
-                    Scheduling modes represented right now, with {pausedScheduleCount} paused.
-                  </p>
-                </div>
+                      : 'No launch queued'
+                  }
+                  tone="warning"
+                  detail={
+                    nextSchedule?.nextRunTime
+                      ? `${nextSchedule.name} ${formatRelative(nextSchedule.nextRunTime)}`
+                      : 'Enable a schedule to populate this.'
+                  }
+                />
+                <CompactStat
+                  label="Recently Active"
+                  value={recentlyActiveScheduleCount}
+                  tone="success"
+                  detail="Ran within the last 24 hours."
+                />
+                <CompactStat
+                  label="Modes"
+                  value={scheduleModeCount}
+                  detail={`${pausedScheduleCount} paused`}
+                />
               </div>
 
-              <Card className="overflow-hidden border-border/60 bg-gradient-to-br from-card via-background to-secondary/30">
+              <Card className="overflow-hidden border-border/60">
                 <CardHeader className="border-b border-border/60">
                   <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
                     <div>
-                      <p className="text-[11px] uppercase tracking-[0.24em] text-muted-foreground">
-                        Schedule Board
-                      </p>
-                      <CardTitle className="mt-2 text-xl tracking-tight">
-                        A richer view of every automation
-                      </CardTitle>
+                      <CardTitle className="text-xl tracking-tight">Schedule List</CardTitle>
                       <CardDescription className="mt-2 leading-6">
-                        Track cadence, next launches, execution context, and last-run health in one
-                        place.
+                        Cleaner rows for cadence, runtime context, and execution health.
                       </CardDescription>
                     </div>
                     <div className="flex flex-wrap gap-2 text-xs">
@@ -2543,158 +2529,117 @@ export default function AIRunnerPage() {
                     </div>
                   </div>
                 </CardHeader>
-                <CardContent className="space-y-4 pt-5">
+                <CardContent className="pt-2">
                   {sortedSchedules.map((schedule, index) => (
                     <div
                       key={schedule._id}
                       className={cn(
-                        'group relative overflow-hidden rounded-[28px] border bg-card/80 p-5 shadow-[0_18px_60px_-48px_rgba(15,23,42,0.45)] transition-transform duration-200 hover:-translate-y-0.5',
-                        schedule.enabled ? 'border-primary/20' : 'border-border/60 bg-muted/20'
+                        'border-b border-border/60 px-5 py-4 last:border-b-0',
+                        schedule.enabled ? 'bg-card/40' : 'bg-muted/10'
                       )}
                     >
-                      <div
-                        className={cn(
-                          'absolute inset-y-0 left-0 w-1.5 rounded-r-full',
-                          schedule.enabled ? 'bg-primary/70' : 'bg-warning/60'
-                        )}
-                      />
-                      <div
-                        className={cn(
-                          'pointer-events-none absolute right-0 top-0 h-32 w-32 rounded-full blur-3xl',
-                          schedule.enabled ? 'bg-primary/10' : 'bg-warning/10'
-                        )}
-                      />
-                      <div className="relative space-y-5">
-                        <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-                          <div className="min-w-0 space-y-3">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <Badge variant={schedule.enabled ? 'success' : 'warning'}>
-                                {schedule.enabled ? 'Enabled' : 'Paused'}
+                      <div className="flex flex-col gap-4 xl:grid xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_auto] xl:items-start">
+                        <div className="min-w-0 space-y-2">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Badge variant={schedule.enabled ? 'success' : 'warning'}>
+                              {schedule.enabled ? 'Enabled' : 'Paused'}
+                            </Badge>
+                            <Badge variant="outline">
+                              {getScheduleModeLabel(schedule.cronExpression)}
+                            </Badge>
+                            {schedule.lastRunStatus ? (
+                              <Badge variant={getScheduleStatusVariant(schedule.lastRunStatus)}>
+                                {schedule.lastRunStatus}
                               </Badge>
-                              <Badge variant="outline">
-                                {getScheduleModeLabel(schedule.cronExpression)}
-                              </Badge>
-                              {schedule.lastRunStatus ? (
-                                <Badge variant={getScheduleStatusVariant(schedule.lastRunStatus)}>
-                                  {schedule.lastRunStatus}
-                                </Badge>
-                              ) : null}
-                              <span className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
-                                #{index + 1}
-                              </span>
-                            </div>
-                            <div>
-                              <h3 className="text-xl font-semibold tracking-tight">
-                                {schedule.name}
-                              </h3>
-                              <p className="mt-1 text-sm text-muted-foreground">
-                                {humanizeCron(schedule.cronExpression)}
-                              </p>
-                            </div>
-                            <div className="flex flex-wrap gap-2">
-                              <Badge variant="secondary">
-                                Prompt: {promptMap[schedule.promptId]?.name || 'Unknown prompt'}
-                              </Badge>
-                              <Badge variant="outline">
-                                Profile:{' '}
-                                {profileMap[schedule.agentProfileId]?.name || 'Unknown profile'}
-                              </Badge>
-                              <Badge variant="outline">{schedule.timeout} min runtime</Badge>
-                            </div>
+                            ) : null}
+                            <span className="text-xs text-muted-foreground">#{index + 1}</span>
                           </div>
-                          <div className="grid gap-3 sm:grid-cols-3 xl:min-w-[280px] xl:grid-cols-1">
-                            <div className="rounded-2xl border border-border/60 bg-background/85 px-4 py-3">
-                              <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
-                                Next Launch
-                              </p>
-                              <p className="mt-1 text-sm font-semibold">
-                                {formatScheduleDate(schedule.nextRunTime)}
-                              </p>
-                              <p className="mt-1 text-xs text-muted-foreground">
-                                {schedule.nextRunTime
-                                  ? formatRelative(schedule.nextRunTime)
-                                  : 'Waiting for enablement'}
-                              </p>
-                            </div>
-                            <div className="rounded-2xl border border-border/60 bg-background/85 px-4 py-3">
-                              <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
-                                Last Activity
-                              </p>
-                              <p className="mt-1 text-sm font-semibold">
-                                {schedule.lastRunAt
-                                  ? formatScheduleDate(schedule.lastRunAt)
-                                  : 'No runs yet'}
-                              </p>
-                              <p className="mt-1 text-xs text-muted-foreground">
-                                {schedule.lastRunAt
-                                  ? formatRelative(schedule.lastRunAt)
-                                  : 'Fresh automation'}
+                          <div>
+                            <h3 className="text-base font-semibold tracking-tight">
+                              {schedule.name}
+                            </h3>
+                            <p className="mt-1 text-sm text-muted-foreground">
+                              {humanizeCron(schedule.cronExpression)}
+                            </p>
+                          </div>
+                          <div className="grid gap-2 text-sm sm:grid-cols-2">
+                            <div className="rounded-xl border border-border/50 bg-background/70 px-3 py-2">
+                              <span className="text-xs text-muted-foreground">Prompt</span>
+                              <p className="truncate font-medium">
+                                {promptMap[schedule.promptId]?.name || 'Unknown prompt'}
                               </p>
                             </div>
-                            <div className="rounded-2xl border border-border/60 bg-background/85 px-4 py-3">
-                              <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
-                                Workspace
-                              </p>
-                              <p className="mt-1 truncate font-mono text-xs">
-                                {schedule.workingDirectory || 'No directory'}
+                            <div className="rounded-xl border border-border/50 bg-background/70 px-3 py-2">
+                              <span className="text-xs text-muted-foreground">Profile</span>
+                              <p className="truncate font-medium">
+                                {profileMap[schedule.agentProfileId]?.name || 'Unknown profile'}
                               </p>
                             </div>
                           </div>
                         </div>
-
-                        <div className="grid gap-3 lg:grid-cols-[1.2fr_0.8fr]">
-                          <div className="rounded-[22px] border border-border/60 bg-background/80 px-4 py-4">
-                            <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
-                              Cadence Snapshot
+                        <div className="grid gap-2 text-sm sm:grid-cols-2 xl:grid-cols-1">
+                          <div className="rounded-xl border border-border/50 bg-background/70 px-3 py-2">
+                            <span className="text-xs text-muted-foreground">Next launch</span>
+                            <p className="font-medium">
+                              {formatScheduleDate(schedule.nextRunTime)}
                             </p>
-                            <div className="mt-3 grid gap-3 md:grid-cols-3">
-                              <div className="rounded-xl border border-border/60 bg-card px-3 py-3">
-                                <p className="text-xs text-muted-foreground">Mode</p>
-                                <p className="mt-1 text-sm font-semibold">
-                                  {getScheduleModeLabel(schedule.cronExpression)}
-                                </p>
-                              </div>
-                              <div className="rounded-xl border border-border/60 bg-card px-3 py-3">
-                                <p className="text-xs text-muted-foreground">Narrative</p>
-                                <p className="mt-1 text-sm font-semibold">
-                                  {humanizeCron(schedule.cronExpression)}
-                                </p>
-                              </div>
-                              <div className="rounded-xl border border-border/60 bg-card px-3 py-3">
-                                <p className="text-xs text-muted-foreground">Raw Cron</p>
-                                <p className="mt-1 font-mono text-xs">{schedule.cronExpression}</p>
-                              </div>
-                            </div>
+                            <p className="text-xs text-muted-foreground">
+                              {schedule.nextRunTime
+                                ? formatRelative(schedule.nextRunTime)
+                                : 'Waiting for enablement'}
+                            </p>
                           </div>
-                          <div className="flex flex-wrap items-end justify-start gap-2 lg:justify-end">
-                            <Button size="sm" onClick={() => void runScheduleNow(schedule)}>
-                              <Play className="w-4 h-4" />
-                              Run Now
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => void toggleSchedule(schedule._id)}
-                            >
-                              <Clock3 className="w-4 h-4" />
-                              {schedule.enabled ? 'Pause' : 'Enable'}
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => selectScheduleForEdit(schedule)}
-                            >
-                              Edit
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="destructive"
-                              onClick={() => void deleteSchedule(schedule._id)}
-                            >
-                              <Trash2 className="w-4 h-4" />
-                              Delete
-                            </Button>
+                          <div className="rounded-xl border border-border/50 bg-background/70 px-3 py-2">
+                            <span className="text-xs text-muted-foreground">Last activity</span>
+                            <p className="font-medium">
+                              {schedule.lastRunAt
+                                ? formatScheduleDate(schedule.lastRunAt)
+                                : 'No runs yet'}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {schedule.lastRunAt
+                                ? formatRelative(schedule.lastRunAt)
+                                : 'Fresh automation'}
+                            </p>
                           </div>
+                          <div className="rounded-xl border border-border/50 bg-background/70 px-3 py-2 sm:col-span-2 xl:col-span-1">
+                            <span className="text-xs text-muted-foreground">Workspace</span>
+                            <p className="truncate font-mono text-xs">
+                              {schedule.workingDirectory || 'No directory'}
+                            </p>
+                            <p className="mt-1 text-xs text-muted-foreground">
+                              {schedule.timeout} min runtime • {schedule.cronExpression}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap gap-2 xl:justify-end">
+                          <Button size="sm" onClick={() => void runScheduleNow(schedule)}>
+                            <Play className="w-4 h-4" />
+                            Run Now
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => void toggleSchedule(schedule._id)}
+                          >
+                            <Clock3 className="w-4 h-4" />
+                            {schedule.enabled ? 'Pause' : 'Enable'}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => selectScheduleForEdit(schedule)}
+                          >
+                            Edit
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            onClick={() => void deleteSchedule(schedule._id)}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                            Delete
+                          </Button>
                         </div>
                       </div>
                     </div>
@@ -2702,11 +2647,8 @@ export default function AIRunnerPage() {
 
                   {sortedSchedules.length === 0 && (
                     <div className="rounded-[28px] border border-dashed border-primary/25 bg-gradient-to-br from-primary/5 via-background to-warning/5 px-6 py-16 text-center">
-                      <p className="text-[11px] uppercase tracking-[0.24em] text-primary/80">
-                        Schedule Board
-                      </p>
                       <h3 className="mt-3 text-xl font-semibold tracking-tight">
-                        No automations on the board yet
+                        No schedules configured yet
                       </h3>
                       <p className="mt-3 text-sm leading-6 text-muted-foreground">
                         Use the create button above to open a wide schedule studio and build your
@@ -3173,74 +3115,60 @@ export default function AIRunnerPage() {
                 </Button>
               </div>
 
-              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                <div className="rounded-[28px] border border-primary/20 bg-gradient-to-br from-primary/15 via-background to-primary/5 p-5 shadow-[0_22px_80px_-55px_rgba(99,102,241,0.55)]">
-                  <p className="text-[11px] uppercase tracking-[0.22em] text-primary/80">
-                    Total Profiles
-                  </p>
-                  <p className="mt-3 text-3xl font-semibold tracking-tight">{profiles.length}</p>
-                  <p className="mt-2 text-sm text-muted-foreground">
-                    Reusable AI CLI configurations available across the runner.
-                  </p>
-                </div>
-                <div className="rounded-[28px] border border-success/20 bg-gradient-to-br from-success/15 via-background to-success/5 p-5 shadow-[0_22px_80px_-55px_rgba(34,197,94,0.4)]">
-                  <p className="text-[11px] uppercase tracking-[0.22em] text-success">Enabled</p>
-                  <p className="mt-3 text-3xl font-semibold tracking-tight">
-                    {enabledProfileCount}
-                  </p>
-                  <p className="mt-2 text-sm text-muted-foreground">
-                    Profiles currently available for runs and schedules.
-                  </p>
-                </div>
-                <div className="rounded-[28px] border border-warning/20 bg-gradient-to-br from-warning/15 via-background to-warning/5 p-5 shadow-[0_22px_80px_-55px_rgba(234,179,8,0.45)]">
-                  <p className="text-[11px] uppercase tracking-[0.22em] text-warning">Custom</p>
-                  <p className="mt-3 text-3xl font-semibold tracking-tight">{customProfileCount}</p>
-                  <p className="mt-2 text-sm text-muted-foreground">
-                    Profiles using a custom agent type instead of a preset family.
-                  </p>
-                </div>
-                <div className="rounded-[28px] border border-border/60 bg-gradient-to-br from-card via-background to-secondary/40 p-5">
-                  <p className="text-[11px] uppercase tracking-[0.22em] text-muted-foreground">
-                    Focused Profile
-                  </p>
-                  <p className="mt-3 text-lg font-semibold tracking-tight">
-                    {profiles[0]?.name || 'No profiles yet'}
-                  </p>
-                  <p className="mt-2 text-sm text-muted-foreground">
-                    Test profiles here, then refine them in the dedicated profile studio.
-                  </p>
-                </div>
+              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                <CompactStat
+                  label="Profiles"
+                  value={profiles.length}
+                  tone="primary"
+                  detail="Reusable AI CLI configurations."
+                />
+                <CompactStat
+                  label="Enabled"
+                  value={enabledProfileCount}
+                  tone="success"
+                  detail="Available for runs and schedules."
+                />
+                <CompactStat
+                  label="Custom"
+                  value={customProfileCount}
+                  tone="warning"
+                  detail="Non-preset agent families."
+                />
+                <CompactStat
+                  label="First in List"
+                  value={profiles[0]?.name || 'No profiles yet'}
+                  detail="Open a profile to test or edit it."
+                />
               </div>
 
-              <Card className="overflow-hidden border-border/60 bg-gradient-to-br from-card via-background to-secondary/30">
+              <Card className="overflow-hidden border-border/60">
                 <CardHeader className="border-b border-border/60">
                   <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
                     <div>
-                      <CardTitle className="text-xl tracking-tight">Profile Board</CardTitle>
+                      <CardTitle className="text-xl tracking-tight">Profile List</CardTitle>
                       <CardDescription className="mt-2 leading-6">
-                        Configure reusable invocation templates for each AI CLI and test them
-                        quickly from one place.
+                        Compact profile rows with the runtime template still visible when needed.
                       </CardDescription>
                     </div>
                     <Badge variant="outline">{enabledProfileCount} enabled</Badge>
                   </div>
                 </CardHeader>
-                <CardContent className="space-y-3 pt-5">
+                <CardContent className="pt-2">
                   {profiles.map((profile) => (
                     <div
                       key={profile._id}
-                      className="rounded-[24px] border border-border/60 bg-card/70 p-5 space-y-4"
+                      className="border-b border-border/60 px-5 py-4 last:border-b-0"
                     >
-                      <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-                        <div className="flex items-start gap-4">
+                      <div className="flex flex-col gap-4 xl:grid xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_auto] xl:items-start">
+                        <div className="flex min-w-0 items-start gap-4">
                           <ProfileIconPreview
                             icon={profile.icon}
                             name={profile.name}
                             className="h-12 w-12"
                           />
-                          <div className="space-y-2">
+                          <div className="min-w-0 space-y-2">
                             <div className="flex flex-wrap items-center gap-2">
-                              <h3 className="text-lg font-semibold tracking-tight">
+                              <h3 className="text-base font-semibold tracking-tight">
                                 {profile.name}
                               </h3>
                               <Badge variant={profile.enabled ? 'success' : 'warning'}>
@@ -3248,7 +3176,9 @@ export default function AIRunnerPage() {
                               </Badge>
                               <Badge variant="outline">{profile.agentType}</Badge>
                             </div>
-                            <p className="text-xs text-muted-foreground">{profile.slug}</p>
+                            <p className="truncate text-xs text-muted-foreground">
+                              {profile.slug}
+                            </p>
                             <div className="flex flex-wrap gap-2">
                               <Badge variant="outline">{profile.defaultTimeout} min default</Badge>
                               <Badge variant="outline">{profile.maxTimeout} min max</Badge>
@@ -3256,6 +3186,12 @@ export default function AIRunnerPage() {
                               {profile.requiresTTY && <Badge variant="outline">TTY required</Badge>}
                             </div>
                           </div>
+                        </div>
+                        <div className="rounded-xl border border-border/50 bg-background/70 px-3 py-3">
+                          <p className="text-xs text-muted-foreground">Invocation template</p>
+                          <pre className="mt-2 overflow-auto whitespace-pre-wrap break-all font-mono text-xs">
+                            {profile.invocationTemplate}
+                          </pre>
                         </div>
                         <div className="flex flex-wrap gap-2 xl:justify-end">
                           <Button size="sm" onClick={() => void testProfile(profile._id)}>
@@ -3279,16 +3215,10 @@ export default function AIRunnerPage() {
                           </Button>
                         </div>
                       </div>
-                      <pre className="overflow-auto rounded-xl bg-background px-4 py-4 text-xs whitespace-pre-wrap font-mono">
-                        {profile.invocationTemplate}
-                      </pre>
                     </div>
                   ))}
                   {profiles.length === 0 && (
                     <div className="rounded-[28px] border border-dashed border-primary/25 bg-gradient-to-br from-primary/5 via-background to-warning/5 px-6 py-16 text-center">
-                      <p className="text-[11px] uppercase tracking-[0.24em] text-primary/80">
-                        Profile Board
-                      </p>
                       <h3 className="mt-3 text-xl font-semibold tracking-tight">
                         No profiles configured yet
                       </h3>
