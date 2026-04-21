@@ -146,6 +146,45 @@ function formatRelative(iso?: string): string {
   return `${Math.round(hours / 24)}d ago`;
 }
 
+function useRealtimeNow(enabled: boolean, intervalMs = 1000): number {
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    if (!enabled) return;
+
+    const interval = window.setInterval(() => {
+      setNow(Date.now());
+    }, intervalMs);
+
+    return () => window.clearInterval(interval);
+  }, [enabled, intervalMs]);
+
+  return now;
+}
+
+function formatCountdown(targetIso?: string, now = Date.now()): string {
+  if (!targetIso) return 'Waiting for enablement';
+
+  const diffMs = new Date(targetIso).getTime() - now;
+  if (diffMs <= 0) return 'due now';
+
+  let remainingSeconds = Math.floor(diffMs / 1000);
+  const days = Math.floor(remainingSeconds / 86_400);
+  remainingSeconds -= days * 86_400;
+  const hours = Math.floor(remainingSeconds / 3_600);
+  remainingSeconds -= hours * 3_600;
+  const minutes = Math.floor(remainingSeconds / 60);
+  const seconds = remainingSeconds - minutes * 60;
+
+  const parts: string[] = [];
+  if (days > 0) parts.push(`${days}d`);
+  if (hours > 0 || days > 0) parts.push(`${hours}h`);
+  if (minutes > 0 || hours > 0 || days > 0) parts.push(`${minutes}m`);
+  parts.push(`${seconds}s`);
+
+  return `in ${parts.join(' ')}`;
+}
+
 type ScheduleBuilderMode = 'every' | 'hourly' | 'daily' | 'weekly' | 'monthly' | 'advanced';
 
 const MINUTE_OPTIONS = Array.from({ length: 60 }, (_, index) => index);
@@ -916,6 +955,7 @@ function StatCard({
 export default function AIRunnerPage() {
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState<ViewTab>('run');
+  const liveNow = useRealtimeNow(activeTab === 'schedules');
   const [loading, setLoading] = useState(true);
   const [profiles, setProfiles] = useState<AIRunnerProfileDTO[]>([]);
   const [prompts, setPrompts] = useState<AIRunnerPromptDTO[]>([]);
@@ -2494,7 +2534,7 @@ export default function AIRunnerPage() {
                   tone="warning"
                   detail={
                     nextSchedule?.nextRunTime
-                      ? `${nextSchedule.name} ${formatRelative(nextSchedule.nextRunTime)}`
+                      ? `${nextSchedule.name} ${formatCountdown(nextSchedule.nextRunTime, liveNow)}`
                       : 'Enable a schedule to populate this.'
                   }
                 />
@@ -2536,7 +2576,7 @@ export default function AIRunnerPage() {
                         schedule.enabled ? 'bg-card/40' : 'bg-muted/10'
                       )}
                     >
-                      <div className="flex flex-col gap-4 xl:grid xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_auto] xl:items-start">
+                      <div className="flex flex-col gap-4 xl:grid xl:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)_auto] xl:items-center">
                         <div className="min-w-0 space-y-2">
                           <div className="flex flex-wrap items-center gap-2">
                             <Badge variant={schedule.enabled ? 'success' : 'warning'}>
@@ -2560,36 +2600,32 @@ export default function AIRunnerPage() {
                               {humanizeCron(schedule.cronExpression)}
                             </p>
                           </div>
-                          <div className="grid gap-2 text-sm sm:grid-cols-2">
-                            <div className="rounded-xl border border-border/50 bg-background/70 px-3 py-2">
-                              <span className="text-xs text-muted-foreground">Prompt</span>
-                              <p className="truncate font-medium">
-                                {promptMap[schedule.promptId]?.name || 'Unknown prompt'}
-                              </p>
-                            </div>
-                            <div className="rounded-xl border border-border/50 bg-background/70 px-3 py-2">
-                              <span className="text-xs text-muted-foreground">Profile</span>
-                              <p className="truncate font-medium">
-                                {profileMap[schedule.agentProfileId]?.name || 'Unknown profile'}
-                              </p>
-                            </div>
-                          </div>
                         </div>
-                        <div className="grid gap-2 text-sm sm:grid-cols-2 xl:grid-cols-1">
-                          <div className="rounded-xl border border-border/50 bg-background/70 px-3 py-2">
+                        <div className="grid gap-x-6 gap-y-3 text-sm sm:grid-cols-2 2xl:grid-cols-5">
+                          <div className="min-w-0">
+                            <span className="text-xs text-muted-foreground">Prompt</span>
+                            <p className="mt-1 truncate font-medium">
+                              {promptMap[schedule.promptId]?.name || 'Unknown prompt'}
+                            </p>
+                          </div>
+                          <div className="min-w-0">
+                            <span className="text-xs text-muted-foreground">Profile</span>
+                            <p className="mt-1 truncate font-medium">
+                              {profileMap[schedule.agentProfileId]?.name || 'Unknown profile'}
+                            </p>
+                          </div>
+                          <div className="min-w-0">
                             <span className="text-xs text-muted-foreground">Next launch</span>
-                            <p className="font-medium">
+                            <p className="mt-1 font-medium">
                               {formatScheduleDate(schedule.nextRunTime)}
                             </p>
                             <p className="text-xs text-muted-foreground">
-                              {schedule.nextRunTime
-                                ? formatRelative(schedule.nextRunTime)
-                                : 'Waiting for enablement'}
+                              {formatCountdown(schedule.nextRunTime, liveNow)}
                             </p>
                           </div>
-                          <div className="rounded-xl border border-border/50 bg-background/70 px-3 py-2">
-                            <span className="text-xs text-muted-foreground">Last activity</span>
-                            <p className="font-medium">
+                          <div className="min-w-0">
+                            <span className="text-xs text-muted-foreground">Last run</span>
+                            <p className="mt-1 font-medium">
                               {schedule.lastRunAt
                                 ? formatScheduleDate(schedule.lastRunAt)
                                 : 'No runs yet'}
@@ -2600,13 +2636,13 @@ export default function AIRunnerPage() {
                                 : 'Fresh automation'}
                             </p>
                           </div>
-                          <div className="rounded-xl border border-border/50 bg-background/70 px-3 py-2 sm:col-span-2 xl:col-span-1">
+                          <div className="min-w-0">
                             <span className="text-xs text-muted-foreground">Workspace</span>
-                            <p className="truncate font-mono text-xs">
+                            <p className="mt-1 truncate font-mono text-xs">
                               {schedule.workingDirectory || 'No directory'}
                             </p>
                             <p className="mt-1 text-xs text-muted-foreground">
-                              {schedule.timeout} min runtime • {schedule.cronExpression}
+                              {schedule.timeout} min runtime
                             </p>
                           </div>
                         </div>

@@ -125,4 +125,59 @@ describe('AIRunnerPage', () => {
     expect(screen.getByText('Select a prompt to preview it here')).toBeInTheDocument();
     expect(screen.queryByText('Fix tests')).not.toBeInTheDocument();
   });
+
+  it('shows a live countdown and last run label on schedule rows', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-04-21T09:25:00.000Z'));
+    mockSchedules.splice(0, mockSchedules.length, {
+      _id: 'schedule-1',
+      name: 'LifeOS Improve',
+      promptId: 'prompt-1',
+      agentProfileId: 'profile-1',
+      workingDirectory: '/root/repos/LifeOS',
+      timeout: 28,
+      cronExpression: '30 9 * * *',
+      enabled: true,
+      lastRunId: 'run-1',
+      lastRunStatus: 'completed',
+      lastRunAt: '2026-04-21T09:20:00.000Z',
+      nextRunTime: '2026-04-21T10:30:00.000Z',
+      createdAt: '2026-04-21T00:00:00.000Z',
+      updatedAt: '2026-04-21T00:00:00.000Z',
+    });
+
+    try {
+      await act(async () => {
+        render(<AIRunnerPage />);
+      });
+
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      expect(screen.getByText('AI Agent Runner')).toBeInTheDocument();
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /Schedules/i }));
+      });
+
+      expect(screen.getByText('Last run')).toBeInTheDocument();
+      expect(screen.queryByText('Last activity')).not.toBeInTheDocument();
+      expect(screen.getByText('in 1h 5m 0s')).toBeInTheDocument();
+      expect(screen.getByText('5m ago')).toBeInTheDocument();
+
+      await act(async () => {
+        vi.advanceTimersByTime(1000);
+      });
+
+      expect(screen.getByText('in 1h 4m 59s')).toBeInTheDocument();
+    } finally {
+      mockSchedules.splice(0, mockSchedules.length);
+      vi.useRealTimers();
+    }
+  });
 });
