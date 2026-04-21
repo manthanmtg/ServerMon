@@ -871,6 +871,7 @@ export default function FileBrowserPage() {
     setUploadProgress(0);
     const request = new XMLHttpRequest();
     request.open('POST', '/api/modules/file-browser/upload');
+    request.timeout = 60_000;
 
     request.upload.onprogress = (event) => {
       if (event.lengthComputable) {
@@ -898,6 +899,14 @@ export default function FileBrowserPage() {
 
     request.onerror = () => {
       toast({ title: 'Upload failed', variant: 'destructive' });
+      setUploadProgress(0);
+    };
+
+    request.ontimeout = () => {
+      toast({
+        title: 'Upload timed out after 60s',
+        variant: 'destructive',
+      });
       setUploadProgress(0);
     };
 

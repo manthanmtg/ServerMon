@@ -8,12 +8,15 @@ import os from 'os';
 import { createLogger } from './lib/logger';
 import { decrypt } from './lib/session-core';
 import { ensureAIRunnerSupervisor } from './lib/ai-runner/processes';
+import { getRuntimeDiagnostics } from './lib/runtime-diagnostics';
 
 const log = createLogger('server');
+const diagnostics = getRuntimeDiagnostics();
 const dev = process.env.NODE_ENV !== 'production';
 const app = next({ dev });
 const handle = app.getRequestHandler();
 const port = parseInt(process.env.PORT || '8912', 10);
+const DIAGNOSTIC_IGNORED_PATH_PREFIXES = ['/api/socket', '/api/metrics/stream'];
 
 // Database imports for settings
 import connectDB from './lib/db';
@@ -64,11 +67,43 @@ app.prepare().then(async () => {
     const parsedUrl = parse(req.url!, true);
     const { pathname } = parsedUrl;
 
-    if (pathname?.startsWith('/api/socket')) {
+    if (
+      pathname &&
+      DIAGNOSTIC_IGNORED_PATH_PREFIXES.some((prefix) => pathname.startsWith(prefix))
+    ) {
       return;
     }
 
-    handle(req, res, parsedUrl);
+    const requestId = diagnostics.beginRequest({
+      method: req.method || 'GET',
+      path: pathname || req.url || '/',
+    });
+    let settled = false;
+    const finalize = (outcome: 'completed' | 'aborted' | 'error') => {
+      if (settled) return;
+      settled = true;
+      const record = diagnostics.completeRequest(requestId, {
+        statusCode: res.statusCode,
+        outcome,
+      });
+      if (record && record.durationMs >= diagnostics.getSlowRequestThresholdMs()) {
+        log.warn('Slow request detected', record);
+      }
+    };
+
+    res.once('finish', () => finalize('completed'));
+    res.once('close', () => {
+      finalize(res.writableEnded ? 'completed' : 'aborted');
+    });
+
+    void Promise.resolve(handle(req, res, parsedUrl)).catch((error) => {
+      finalize('error');
+      log.error('Unhandled request failure', error);
+      if (!res.headersSent) {
+        res.statusCode = 500;
+        res.end('Internal Server Error');
+      }
+    });
   });
 
   const io = new Server(server, {

@@ -70,6 +70,8 @@ import {
 } from './utils';
 import { buildScheduleVisualizationModel } from './scheduleVisualization';
 
+const SCHEDULE_SURFACE_REFRESH_MS = 15_000;
+
 export default function AIRunnerPage() {
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState<ViewTab>('run');
@@ -317,6 +319,26 @@ export default function AIRunnerPage() {
     }, 300);
     return () => window.clearTimeout(handle);
   }, [loadRuns, metadataLoaded, runSearch, runsLoaded]);
+
+  useEffect(() => {
+    if (!metadataLoaded) return;
+    if (activeTab !== 'schedules' && activeTab !== 'history') return;
+
+    const refreshVisibleData = () => {
+      if (document.visibilityState !== 'visible') return;
+
+      if (activeTab === 'history') {
+        void loadRuns();
+        void loadSchedules();
+        return;
+      }
+
+      void loadSchedules();
+    };
+
+    const interval = window.setInterval(refreshVisibleData, SCHEDULE_SURFACE_REFRESH_MS);
+    return () => window.clearInterval(interval);
+  }, [activeTab, loadRuns, loadSchedules, metadataLoaded]);
 
   // Poll the currently-selected run while it's active. Depend only on the
   // run id/status so setSelectedRun(run) inside the interval doesn't tear

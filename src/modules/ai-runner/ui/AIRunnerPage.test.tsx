@@ -204,6 +204,13 @@ describe('AIRunnerPage', () => {
       });
 
       expect(screen.getByText('in 1h 4m 59s')).toBeInTheDocument();
+
+      await act(async () => {
+        vi.setSystemTime(new Date('2026-04-21T10:31:00.000Z'));
+        vi.advanceTimersByTime(1000);
+      });
+
+      expect(screen.getByText('overdue by 1m 1s')).toBeInTheDocument();
     } finally {
       mockSchedules.splice(0, mockSchedules.length);
       vi.useRealTimers();

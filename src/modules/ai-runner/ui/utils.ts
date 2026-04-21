@@ -52,9 +52,9 @@ export function formatCountdown(targetIso?: string, now = Date.now()): string {
   if (!targetIso) return 'Waiting for enablement';
 
   const diffMs = new Date(targetIso).getTime() - now;
-  if (diffMs <= 0) return 'due now';
+  if (diffMs === 0) return 'due now';
 
-  let remainingSeconds = Math.floor(diffMs / 1000);
+  let remainingSeconds = Math.floor(Math.abs(diffMs) / 1000);
   const days = Math.floor(remainingSeconds / 86_400);
   remainingSeconds -= days * 86_400;
   const hours = Math.floor(remainingSeconds / 3_600);
@@ -68,7 +68,7 @@ export function formatCountdown(targetIso?: string, now = Date.now()): string {
   if (minutes > 0 || hours > 0 || days > 0) parts.push(`${minutes}m`);
   parts.push(`${seconds}s`);
 
-  return `in ${parts.join(' ')}`;
+  return diffMs > 0 ? `in ${parts.join(' ')}` : `overdue by ${parts.join(' ')}`;
 }
 
 const MINUTE_OPTIONS = Array.from({ length: 60 }, (_, index) => index);
