@@ -7,6 +7,7 @@ export interface IAIRunnerSchedule extends Document {
   agentProfileId?: mongoose.Types.ObjectId;
   workingDirectory?: string;
   timeout?: number;
+  retries: number;
   cronExpression: string;
   enabled: boolean;
   lastRunId?: mongoose.Types.ObjectId;
@@ -25,6 +26,7 @@ const AIRunnerScheduleSchema = new Schema<IAIRunnerSchedule>(
     agentProfileId: { type: Schema.Types.ObjectId, ref: 'AIRunnerProfile' },
     workingDirectory: { type: String, trim: true, maxlength: 2000 },
     timeout: { type: Number, min: 1, max: 24 * 60 },
+    retries: { type: Number, default: 1, min: 0, max: 9 },
     cronExpression: { type: String, required: true, trim: true, maxlength: 120 },
     enabled: { type: Boolean, default: true },
     lastRunId: { type: Schema.Types.ObjectId, ref: 'AIRunnerRun' },

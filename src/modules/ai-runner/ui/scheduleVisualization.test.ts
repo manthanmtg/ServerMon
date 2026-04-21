@@ -7,6 +7,7 @@ const baseSchedule = {
   agentProfileId: 'profile-1',
   workingDirectory: '/root/repos/ServerMon',
   timeout: 30,
+  retries: 1,
   enabled: true,
   createdAt: '2026-04-21T00:00:00.000Z',
   updatedAt: '2026-04-21T00:00:00.000Z',

@@ -106,6 +106,10 @@ export async function resolveExecutionRequest(
     command,
     workingDirectory,
     timeoutMinutes,
+    maxAttempts:
+      scheduleDoc && typeof scheduleDoc.retries === 'number'
+        ? Math.min(Math.max(Number(scheduleDoc.retries), 0), 9) + 1
+        : DEFAULT_MAX_ATTEMPTS,
     triggeredBy: request.triggeredBy ?? (scheduleDoc ? 'schedule' : 'manual'),
   };
 }
@@ -136,7 +140,7 @@ export async function enqueueResolvedRun(
     triggeredBy: resolved.triggeredBy,
     jobStatus: 'queued',
     attemptCount: 0,
-    maxAttempts: options?.maxAttempts ?? DEFAULT_MAX_ATTEMPTS,
+    maxAttempts: options?.maxAttempts ?? resolved.maxAttempts ?? DEFAULT_MAX_ATTEMPTS,
   });
 
   let jobDoc;
@@ -157,7 +161,7 @@ export async function enqueueResolvedRun(
       status: 'queued',
       nextAttemptAt: startedAt,
       scheduledFor: options?.scheduledFor,
-      maxAttempts: options?.maxAttempts ?? DEFAULT_MAX_ATTEMPTS,
+      maxAttempts: options?.maxAttempts ?? resolved.maxAttempts ?? DEFAULT_MAX_ATTEMPTS,
     });
   } catch (error) {
     await AIRunnerRun.findByIdAndDelete(runDoc._id);

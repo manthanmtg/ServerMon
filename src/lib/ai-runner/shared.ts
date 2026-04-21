@@ -35,6 +35,7 @@ export interface AIRunnerResolvedExecution {
   command: string;
   workingDirectory: string;
   timeoutMinutes: number;
+  maxAttempts: number;
   triggeredBy: AIRunnerTrigger;
 }
 
@@ -107,6 +108,7 @@ export function mapSchedule(
     agentProfileId: doc.agentProfileId ? stringifyId(doc.agentProfileId) : '',
     workingDirectory: doc.workingDirectory ? String(doc.workingDirectory) : '',
     timeout: typeof doc.timeout === 'number' ? Number(doc.timeout) : 30,
+    retries: typeof doc.retries === 'number' ? Number(doc.retries) : 1,
     cronExpression: String(doc.cronExpression),
     enabled: Boolean(doc.enabled),
     lastRunId: doc.lastRunId ? stringifyId(doc.lastRunId) : undefined,

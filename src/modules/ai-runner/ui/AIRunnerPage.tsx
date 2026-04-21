@@ -488,6 +488,7 @@ export default function AIRunnerPage() {
       agentProfileId: schedule.agentProfileId,
       workingDirectory: schedule.workingDirectory,
       timeout: schedule.timeout,
+      retries: schedule.retries,
       cronExpression: schedule.cronExpression,
       enabled: schedule.enabled,
     });
@@ -1968,6 +1969,10 @@ export default function AIRunnerPage() {
                             </p>
                             <p className="mt-1 text-xs text-muted-foreground">
                               {schedule.timeout} min runtime
+                              {' · '}
+                              {schedule.retries === 0
+                                ? 'no retries'
+                                : `${schedule.retries} retr${schedule.retries === 1 ? 'y' : 'ies'}`}
                             </p>
                           </div>
                         </div>
@@ -2120,11 +2125,11 @@ export default function AIRunnerPage() {
                               <div>
                                 <p className="text-sm font-semibold">Runtime Scene</p>
                                 <p className="mt-1 text-xs text-muted-foreground">
-                                  Tell the schedule where to run and how long it is allowed to stay
-                                  active.
+                                  Tell the schedule where to run, how long it is allowed to stay
+                                  active, and how many retries it gets after a failure.
                                 </p>
                               </div>
-                              <div className="grid gap-4 md:grid-cols-[1fr_160px]">
+                              <div className="grid gap-4 md:grid-cols-[1fr_140px_140px]">
                                 <div className="space-y-1.5">
                                   <label
                                     htmlFor="schedule-directory"
@@ -2163,27 +2168,57 @@ export default function AIRunnerPage() {
                                   }
                                   min={1}
                                 />
+                                <Input
+                                  label="Retries"
+                                  type="number"
+                                  value={scheduleForm.retries}
+                                  onChange={(event) =>
+                                    setScheduleForm((current) => ({
+                                      ...current,
+                                      retries: Math.min(
+                                        Math.max(Number(event.target.value) || 0, 0),
+                                        9
+                                      ),
+                                    }))
+                                  }
+                                  min={0}
+                                  max={9}
+                                />
                               </div>
 
                               <div className="rounded-xl border border-border/60 bg-card/70 p-4">
-                                <div className="flex flex-wrap items-center justify-between gap-3">
-                                  <label className="flex items-center gap-3 text-sm font-medium">
-                                    <input
-                                      type="checkbox"
-                                      checked={scheduleForm.enabled}
-                                      onChange={(event) =>
-                                        setScheduleForm((current) => ({
-                                          ...current,
-                                          enabled: event.target.checked,
-                                        }))
-                                      }
-                                      className="h-4 w-4 rounded border-input"
-                                    />
-                                    Keep this schedule enabled after saving
-                                  </label>
-                                  <Badge variant={scheduleForm.enabled ? 'success' : 'warning'}>
-                                    {scheduleForm.enabled ? 'Auto-run on' : 'Saved as paused'}
-                                  </Badge>
+                                <div className="flex flex-wrap items-start justify-between gap-3">
+                                  <div className="space-y-1">
+                                    <label className="flex items-center gap-3 text-sm font-medium">
+                                      <input
+                                        type="checkbox"
+                                        checked={scheduleForm.enabled}
+                                        onChange={(event) =>
+                                          setScheduleForm((current) => ({
+                                            ...current,
+                                            enabled: event.target.checked,
+                                          }))
+                                        }
+                                        className="h-4 w-4 rounded border-input"
+                                      />
+                                      Keep this schedule enabled after saving
+                                    </label>
+                                    <p className="text-xs text-muted-foreground">
+                                      {scheduleForm.retries === 0
+                                        ? 'No automatic retry after a failed scheduled run.'
+                                        : `${scheduleForm.retries} retr${scheduleForm.retries === 1 ? 'y' : 'ies'} allowed after a failed scheduled run.`}
+                                    </p>
+                                  </div>
+                                  <div className="flex flex-wrap gap-2">
+                                    <Badge variant={scheduleForm.enabled ? 'success' : 'warning'}>
+                                      {scheduleForm.enabled ? 'Auto-run on' : 'Saved as paused'}
+                                    </Badge>
+                                    <Badge variant="outline">
+                                      {scheduleForm.retries === 0
+                                        ? 'No retries'
+                                        : `${scheduleForm.retries} retr${scheduleForm.retries === 1 ? 'y' : 'ies'}`}
+                                    </Badge>
+                                  </div>
                                 </div>
                               </div>
                             </div>

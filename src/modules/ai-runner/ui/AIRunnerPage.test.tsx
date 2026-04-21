@@ -164,6 +164,7 @@ describe('AIRunnerPage', () => {
       agentProfileId: 'profile-1',
       workingDirectory: '/root/repos/LifeOS',
       timeout: 28,
+      retries: 1,
       cronExpression: '30 9 * * *',
       enabled: true,
       lastRunId: 'run-1',
@@ -220,6 +221,7 @@ describe('AIRunnerPage', () => {
         agentProfileId: 'profile-1',
         workingDirectory: '/root/repos/LifeOS',
         timeout: 28,
+        retries: 1,
         cronExpression: '30 9 * * *',
         enabled: true,
         nextRunTime: '2026-04-21T10:30:00.000Z',
@@ -233,6 +235,7 @@ describe('AIRunnerPage', () => {
         agentProfileId: 'profile-1',
         workingDirectory: '/root/repos/ServerMon',
         timeout: 20,
+        retries: 1,
         cronExpression: '0 13 * * *',
         enabled: true,
         nextRunTime: '2026-04-21T13:00:00.000Z',
@@ -273,5 +276,24 @@ describe('AIRunnerPage', () => {
     } finally {
       mockSchedules.splice(0, mockSchedules.length);
     }
+  });
+
+  it('shows schedule retries in the create schedule studio with a default of 1', async () => {
+    await act(async () => {
+      render(<AIRunnerPage />);
+    });
+
+    await waitFor(() => expect(screen.getByText('AI Agent Runner')).toBeInTheDocument());
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /Schedules/i }));
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getAllByRole('button', { name: /^Create Schedule$/i })[0]!);
+    });
+
+    expect(screen.getByLabelText('Retries')).toHaveValue(1);
+    expect(screen.getByText('1 retry allowed after a failed scheduled run.')).toBeInTheDocument();
   });
 });

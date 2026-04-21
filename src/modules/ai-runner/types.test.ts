@@ -49,6 +49,7 @@ describe('ai-runner type shapes', () => {
       agentProfileId: 'profile-1',
       workingDirectory: '/srv/repo',
       timeout: 20,
+      retries: 1,
       cronExpression: '0 9 * * 1-5',
       enabled: true,
       nextRunTime: '2026-04-21T03:30:00.000Z',

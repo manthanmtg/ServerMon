@@ -21,6 +21,7 @@ export function emptyScheduleForm(
     agentProfileId: profileId ?? '',
     workingDirectory: workingDirectory ?? process.env.NEXT_PUBLIC_DEFAULT_WORKDIR ?? '',
     timeout: 30,
+    retries: 1,
     cronExpression: '0 9 * * 1-5',
     enabled: true,
   };

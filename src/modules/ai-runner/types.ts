@@ -59,6 +59,7 @@ export interface AIRunnerScheduleDTO {
   agentProfileId: string;
   workingDirectory: string;
   timeout: number;
+  retries: number;
   cronExpression: string;
   enabled: boolean;
   lastRunId?: string;
