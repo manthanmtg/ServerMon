@@ -26,3 +26,6 @@ Increase the quality and reliability of ServerMon by adding **5-15 comprehensive
 
 - If all critical files already have solid tests, **stop** — log "test coverage is healthy" and no-op.
 - If testing a file requires building a complex test harness that doesn't exist yet, log it in `issues_to_look/` with details.
+
+## Issue Management
+- If an issue from `issues_to_look/` is resolved or found to be resolved, move it to the `issues_to_look/resolved/` directory to keep things clean.

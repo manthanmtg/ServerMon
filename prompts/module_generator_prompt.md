@@ -25,3 +25,6 @@ Generate a complete, standard-compliant ServerMon module based on a user-provide
 - Use the semantic color system flow through CSS variables in `src/app/globals.css`.
 - Ensure minimum 44px touch targets.
 - Use `lucide-react` for icons.
+
+## Issue Management
+- If an issue from `issues_to_look/` is resolved or found to be resolved, move it to the `issues_to_look/resolved/` directory to keep things clean.

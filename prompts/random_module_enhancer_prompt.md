@@ -43,3 +43,6 @@ If yes to any of these, **do NOT change code.** Instead, log what you found and 
 - **Incremental Improvement**: Don't rewrite from scratch unless necessary.
 - **No Regressions**: Maintain all existing functionality.
 - **Standardized**: Follow the checklists in `CLAUDE.md`.
+
+## Issue Management
+- If an issue from `issues_to_look/` is resolved or found to be resolved, move it to the `issues_to_look/resolved/` directory to keep things clean.

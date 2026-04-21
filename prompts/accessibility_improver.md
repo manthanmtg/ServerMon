@@ -44,3 +44,6 @@ Check for these common gaps:
 ### 6. Commit
 
 - Commit with a message like: `a11y(processes): add aria-labels to process actions`
+
+## Issue Management
+- If an issue from `issues_to_look/` is resolved or found to be resolved, move it to the `issues_to_look/resolved/` directory to keep things clean.

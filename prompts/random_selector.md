@@ -71,3 +71,6 @@ After 100 runs:
 - `pnpm check` passes with zero warnings.
 - Documentation is accurate and complete.
 - The `issues_to_look/` folder is mostly empty because issues got addressed in subsequent runs.
+
+## Issue Management
+- If an issue from `issues_to_look/` is resolved or found to be resolved, move it to the `issues_to_look/resolved/` directory to keep things clean.

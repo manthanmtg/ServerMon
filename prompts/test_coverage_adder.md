@@ -44,3 +44,6 @@ Coverage grows like a garden. Each run plants a few seeds. Over many runs, the e
 
 - Commit with a message like: `test(lib/utils): add edge case tests for formatting`
 - List what was covered in the commit body.
+
+## Issue Management
+- If an issue from `issues_to_look/` is resolved or found to be resolved, move it to the `issues_to_look/resolved/` directory to keep things clean.

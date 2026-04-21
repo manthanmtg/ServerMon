@@ -38,3 +38,6 @@ For each failing test, determine the root cause:
 
 - Commit with a message like: `fix(tests): repair 3 failing tests in terminal module`
 - List which tests were fixed and why in the commit body.
+
+## Issue Management
+- If an issue from `issues_to_look/` is resolved or found to be resolved, move it to the `issues_to_look/resolved/` directory to keep things clean.

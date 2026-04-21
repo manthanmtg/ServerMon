@@ -48,3 +48,6 @@ If `pnpm check` fails, identify the stage:
 
 - Commit with a message like: `fix(build): resolve type error in processes api route`
 - Keep it factual and specific.
+
+## Issue Management
+- If an issue from `issues_to_look/` is resolved or found to be resolved, move it to the `issues_to_look/resolved/` directory to keep things clean.
