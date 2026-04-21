@@ -265,15 +265,85 @@ describe('AIRunnerPage', () => {
         })
       ).toBeInTheDocument();
       expect(screen.getByText('Schedule Visualization')).toBeInTheDocument();
+    } finally {
+      mockSchedules.splice(0, mockSchedules.length);
+    }
+  });
 
+  it('opens a profile-scoped schedule visualization from the settings tab', async () => {
+    mockProfiles.splice(1, 0, {
+      _id: 'profile-2',
+      name: 'Claude Code',
+      slug: 'claude-code',
+      agentType: 'claude-code',
+      invocationTemplate: 'claude "$PROMPT"',
+      defaultTimeout: 25,
+      maxTimeout: 90,
+      shell: '/bin/bash',
+      requiresTTY: false,
+      env: {},
+      enabled: true,
+      createdAt: '2026-04-21T00:00:00.000Z',
+      updatedAt: '2026-04-21T00:00:00.000Z',
+    });
+    mockSchedules.splice(
+      0,
+      mockSchedules.length,
+      {
+        _id: 'schedule-1',
+        name: 'Codex Audit',
+        promptId: 'prompt-1',
+        agentProfileId: 'profile-1',
+        workingDirectory: '/root/repos/ServerMon',
+        timeout: 28,
+        retries: 1,
+        cronExpression: '30 9 * * *',
+        enabled: true,
+        nextRunTime: '2026-04-21T10:30:00.000Z',
+        createdAt: '2026-04-21T00:00:00.000Z',
+        updatedAt: '2026-04-21T00:00:00.000Z',
+      },
+      {
+        _id: 'schedule-2',
+        name: 'Claude Review',
+        promptId: 'prompt-1',
+        agentProfileId: 'profile-2',
+        workingDirectory: '/root/repos/OtherRepo',
+        timeout: 20,
+        retries: 1,
+        cronExpression: '0 13 * * *',
+        enabled: true,
+        nextRunTime: '2026-04-21T13:00:00.000Z',
+        createdAt: '2026-04-21T00:00:00.000Z',
+        updatedAt: '2026-04-21T00:00:00.000Z',
+      }
+    );
+
+    try {
       await act(async () => {
-        fireEvent.click(screen.getByRole('button', { name: /All Schedules/i }));
+        render(<AIRunnerPage />);
       });
 
-      expect(screen.getByText('Full Schedule View')).toBeInTheDocument();
-      expect(screen.getAllByText('/root/repos/LifeOS').length).toBeGreaterThan(0);
-      expect(screen.getAllByText('/root/repos/ServerMon').length).toBeGreaterThan(0);
+      await waitFor(() => expect(screen.getByText('AI Agent Runner')).toBeInTheDocument());
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /Profiles/i }));
+      });
+
+      await act(async () => {
+        fireEvent.click(screen.getAllByRole('button', { name: /Visualize Schedules/i })[0]!);
+      });
+
+      expect(
+        screen.getByRole('dialog', {
+          name: /Visualize Codex schedule pressure before runs step on each other/i,
+        })
+      ).toBeInTheDocument();
+      expect(screen.getByText('Profile scope')).toBeInTheDocument();
+      expect(screen.getByText('Codex Audit')).toBeInTheDocument();
+      expect(screen.queryByText('Claude Review')).not.toBeInTheDocument();
     } finally {
+      mockProfiles.splice(1, 1);
       mockSchedules.splice(0, mockSchedules.length);
     }
   });

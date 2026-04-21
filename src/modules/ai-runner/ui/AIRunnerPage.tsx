@@ -68,6 +68,7 @@ import {
   humanizeCron,
   slugifyValue,
 } from './utils';
+import { buildScheduleVisualizationModel } from './scheduleVisualization';
 
 export default function AIRunnerPage() {
   const { toast } = useToast();
@@ -109,6 +110,9 @@ export default function AIRunnerPage() {
   const [promptModalOpen, setPromptModalOpen] = useState(false);
   const [scheduleModalOpen, setScheduleModalOpen] = useState(false);
   const [scheduleVisualizationOpen, setScheduleVisualizationOpen] = useState(false);
+  const [scheduleVisualizationProfileId, setScheduleVisualizationProfileId] = useState<
+    string | null
+  >(null);
   const [profileForm, setProfileForm] = useState<ProfileFormState>(DEFAULT_PROFILE_FORM);
   const [promptForm, setPromptForm] = useState<PromptFormState>(emptyPromptForm());
   const [scheduleForm, setScheduleForm] = useState<ScheduleFormState>(emptyScheduleForm());
@@ -269,6 +273,8 @@ export default function AIRunnerPage() {
           tasks.push(loadRuns(searchOverride), loadSchedules());
         } else if (activeTab === 'schedules') {
           tasks.push(loadSchedules());
+        } else if (activeTab === 'settings') {
+          tasks.push(loadSchedules());
         }
         await Promise.all(tasks);
       } finally {
@@ -421,6 +427,7 @@ export default function AIRunnerPage() {
   const customProfileCount = profiles.filter((profile) => profile.agentType === 'custom').length;
   const fileBackedPromptCount = prompts.filter((prompt) => prompt.type === 'file-reference').length;
   const pausedScheduleCount = schedules.length - enabledScheduleCount;
+  const scheduledProfileCount = new Set(schedules.map((schedule) => schedule.agentProfileId)).size;
   const recentlyActiveScheduleCount = schedules.filter((schedule) => {
     if (!schedule.lastRunAt) return false;
     return Date.now() - new Date(schedule.lastRunAt).getTime() < 24 * 60 * 60 * 1000;
@@ -446,6 +453,40 @@ export default function AIRunnerPage() {
   const scheduleFormProfileName = scheduleForm.agentProfileId
     ? profileMap[scheduleForm.agentProfileId]?.name || 'Unknown profile'
     : 'Choose an agent profile';
+  const scheduleVisualizationProfile = scheduleVisualizationProfileId
+    ? (profileMap[scheduleVisualizationProfileId] ?? null)
+    : null;
+  const visualizationSchedules = scheduleVisualizationProfileId
+    ? schedules.filter((schedule) => schedule.agentProfileId === scheduleVisualizationProfileId)
+    : schedules;
+  const profileScheduleSummaryMap = useMemo(
+    () =>
+      Object.fromEntries(
+        profiles.map((profile) => {
+          const profileSchedules = schedules.filter(
+            (schedule) => schedule.agentProfileId === profile._id
+          );
+          const visualization = buildScheduleVisualizationModel(profileSchedules);
+          const nextLaunch = profileSchedules
+            .filter((schedule) => schedule.enabled && schedule.nextRunTime)
+            .sort((left, right) => {
+              return new Date(left.nextRunTime!).getTime() - new Date(right.nextRunTime!).getTime();
+            })[0]?.nextRunTime;
+
+          return [
+            profile._id,
+            {
+              totalSchedules: profileSchedules.length,
+              enabledSchedules: profileSchedules.filter((schedule) => schedule.enabled).length,
+              workspaceCount: visualization.workspaceCount,
+              highRiskWorkspaceCount: visualization.highRiskWorkspaceCount,
+              nextLaunch,
+            },
+          ];
+        })
+      ),
+    [profiles, schedules]
+  );
 
   const profileAgentType = profileMap[runForm.agentProfileId]?.agentType;
 
@@ -545,13 +586,18 @@ export default function AIRunnerPage() {
     setActiveTab('schedules');
   };
 
-  const openScheduleVisualization = () => {
+  const openScheduleVisualization = async (profileId?: string) => {
+    if (!schedulesLoaded) {
+      await loadSchedules();
+    }
+    setScheduleVisualizationProfileId(profileId ?? null);
     setScheduleVisualizationOpen(true);
-    setActiveTab('schedules');
+    setActiveTab(profileId ? 'settings' : 'schedules');
   };
 
   const closeScheduleVisualization = () => {
     setScheduleVisualizationOpen(false);
+    setScheduleVisualizationProfileId(null);
   };
 
   const getRunDisplayName = useCallback(
@@ -596,6 +642,10 @@ export default function AIRunnerPage() {
         if (!schedulesLoaded) {
           void loadSchedules();
         }
+        return;
+      }
+      if (tab === 'settings' && !schedulesLoaded) {
+        void loadSchedules();
         return;
       }
       if (tab === 'schedules' && !schedulesLoaded) {
@@ -1853,7 +1903,7 @@ export default function AIRunnerPage() {
                   <Button
                     size="lg"
                     variant="outline"
-                    onClick={openScheduleVisualization}
+                    onClick={() => void openScheduleVisualization()}
                     className="shrink-0"
                   >
                     <Eye className="w-4 h-4" />
@@ -2316,14 +2366,6 @@ export default function AIRunnerPage() {
                   </div>
                 </div>
               )}
-
-              <ScheduleVisualizationModal
-                isOpen={scheduleVisualizationOpen}
-                onClose={closeScheduleVisualization}
-                schedules={sortedSchedules}
-                promptMap={promptMap}
-                profileMap={profileMap}
-              />
             </div>
           )}
 
@@ -2542,10 +2584,21 @@ export default function AIRunnerPage() {
                     now happen in a wide modal so templates, limits, and branding have enough room.
                   </p>
                 </div>
-                <Button size="lg" onClick={openCreateProfileModal} className="shrink-0">
-                  <Bot className="w-4 h-4" />
-                  Create Profile
-                </Button>
+                <div className="flex flex-wrap gap-3">
+                  <Button
+                    size="lg"
+                    variant="outline"
+                    onClick={() => void openScheduleVisualization()}
+                    className="shrink-0"
+                  >
+                    <Eye className="w-4 h-4" />
+                    Visualize All Schedules
+                  </Button>
+                  <Button size="lg" onClick={openCreateProfileModal} className="shrink-0">
+                    <Bot className="w-4 h-4" />
+                    Create Profile
+                  </Button>
+                </div>
               </div>
 
               <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
@@ -2568,9 +2621,9 @@ export default function AIRunnerPage() {
                   detail="Non-preset agent families."
                 />
                 <CompactStat
-                  label="First in List"
-                  value={profiles[0]?.name || 'No profiles yet'}
-                  detail="Open a profile to test or edit it."
+                  label="Scheduled Profiles"
+                  value={scheduledProfileCount}
+                  detail="Profiles currently attached to automations."
                 />
               </div>
 
@@ -2580,74 +2633,132 @@ export default function AIRunnerPage() {
                     <div>
                       <CardTitle className="text-xl tracking-tight">Profile List</CardTitle>
                       <CardDescription className="mt-2 leading-6">
-                        Compact profile rows with the runtime template still visible when needed.
+                        Compact profile rows with runtime details and schedule load in the same
+                        place.
                       </CardDescription>
                     </div>
-                    <Badge variant="outline">{enabledProfileCount} enabled</Badge>
+                    <div className="flex flex-wrap gap-2">
+                      <Badge variant="outline">{enabledProfileCount} enabled</Badge>
+                      <Badge variant="outline">{scheduledProfileCount} scheduled</Badge>
+                    </div>
                   </div>
                 </CardHeader>
                 <CardContent className="pt-2">
-                  {profiles.map((profile) => (
-                    <div
-                      key={profile._id}
-                      className="border-b border-border/60 px-5 py-4 last:border-b-0"
-                    >
-                      <div className="flex flex-col gap-4 xl:grid xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_auto] xl:items-start">
-                        <div className="flex min-w-0 items-start gap-4">
-                          <ProfileIconPreview
-                            icon={profile.icon}
-                            name={profile.name}
-                            className="h-12 w-12"
-                          />
-                          <div className="min-w-0 space-y-2">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <h3 className="text-base font-semibold tracking-tight">
-                                {profile.name}
-                              </h3>
-                              <Badge variant={profile.enabled ? 'success' : 'warning'}>
-                                {profile.enabled ? 'Enabled' : 'Disabled'}
-                              </Badge>
-                              <Badge variant="outline">{profile.agentType}</Badge>
-                            </div>
-                            <p className="truncate text-xs text-muted-foreground">{profile.slug}</p>
-                            <div className="flex flex-wrap gap-2">
-                              <Badge variant="outline">{profile.defaultTimeout} min default</Badge>
-                              <Badge variant="outline">{profile.maxTimeout} min max</Badge>
-                              <Badge variant="outline">{profile.shell}</Badge>
-                              {profile.requiresTTY && <Badge variant="outline">TTY required</Badge>}
+                  {profiles.map((profile) => {
+                    const scheduleSummary = profileScheduleSummaryMap[profile._id] ?? {
+                      totalSchedules: 0,
+                      enabledSchedules: 0,
+                      workspaceCount: 0,
+                      highRiskWorkspaceCount: 0,
+                      nextLaunch: undefined,
+                    };
+
+                    return (
+                      <div
+                        key={profile._id}
+                        className="border-b border-border/60 px-5 py-4 last:border-b-0"
+                      >
+                        <div className="flex flex-col gap-4 xl:grid xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_auto] xl:items-start">
+                          <div className="flex min-w-0 items-start gap-4">
+                            <ProfileIconPreview
+                              icon={profile.icon}
+                              name={profile.name}
+                              className="h-12 w-12"
+                            />
+                            <div className="min-w-0 space-y-2">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <h3 className="text-base font-semibold tracking-tight">
+                                  {profile.name}
+                                </h3>
+                                <Badge variant={profile.enabled ? 'success' : 'warning'}>
+                                  {profile.enabled ? 'Enabled' : 'Disabled'}
+                                </Badge>
+                                <Badge variant="outline">{profile.agentType}</Badge>
+                              </div>
+                              <p className="truncate text-xs text-muted-foreground">
+                                {profile.slug}
+                              </p>
+                              <div className="flex flex-wrap gap-2">
+                                <Badge variant="outline">
+                                  {profile.defaultTimeout} min default
+                                </Badge>
+                                <Badge variant="outline">{profile.maxTimeout} min max</Badge>
+                                <Badge variant="outline">{profile.shell}</Badge>
+                                {profile.requiresTTY && (
+                                  <Badge variant="outline">TTY required</Badge>
+                                )}
+                                <Badge variant="outline">
+                                  {scheduleSummary.totalSchedules} schedule
+                                  {scheduleSummary.totalSchedules === 1 ? '' : 's'}
+                                </Badge>
+                                {scheduleSummary.enabledSchedules > 0 ? (
+                                  <Badge variant="success">
+                                    {scheduleSummary.enabledSchedules} enabled schedule
+                                    {scheduleSummary.enabledSchedules === 1 ? '' : 's'}
+                                  </Badge>
+                                ) : null}
+                                {scheduleSummary.workspaceCount > 0 ? (
+                                  <Badge variant="outline">
+                                    {scheduleSummary.workspaceCount} workspace
+                                    {scheduleSummary.workspaceCount === 1 ? '' : 's'}
+                                  </Badge>
+                                ) : null}
+                                {scheduleSummary.highRiskWorkspaceCount > 0 ? (
+                                  <Badge variant="warning">
+                                    {scheduleSummary.highRiskWorkspaceCount} overlap risk
+                                    {scheduleSummary.highRiskWorkspaceCount === 1 ? '' : 's'}
+                                  </Badge>
+                                ) : null}
+                              </div>
+                              <p className="text-xs text-muted-foreground">
+                                {scheduleSummary.nextLaunch
+                                  ? `Next scheduled launch ${formatScheduleDate(scheduleSummary.nextLaunch)}`
+                                  : scheduleSummary.totalSchedules > 0
+                                    ? 'No upcoming launch is queued for this profile right now.'
+                                    : 'No schedules are attached to this profile yet.'}
+                              </p>
                             </div>
                           </div>
-                        </div>
-                        <div className="rounded-xl border border-border/50 bg-background/70 px-3 py-3">
-                          <p className="text-xs text-muted-foreground">Invocation template</p>
-                          <pre className="mt-2 overflow-auto whitespace-pre-wrap break-all font-mono text-xs">
-                            {profile.invocationTemplate}
-                          </pre>
-                        </div>
-                        <div className="flex flex-wrap gap-2 xl:justify-end">
-                          <Button size="sm" onClick={() => void testProfile(profile._id)}>
-                            <Play className="w-4 h-4" />
-                            Test
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => selectProfileForEdit(profile)}
-                          >
-                            Edit
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="destructive"
-                            onClick={() => void deleteProfile(profile._id)}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                            Delete
-                          </Button>
+                          <div className="rounded-xl border border-border/50 bg-background/70 px-3 py-3">
+                            <p className="text-xs text-muted-foreground">Invocation template</p>
+                            <pre className="mt-2 overflow-auto whitespace-pre-wrap break-all font-mono text-xs">
+                              {profile.invocationTemplate}
+                            </pre>
+                          </div>
+                          <div className="flex flex-wrap gap-2 xl:justify-end">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => void openScheduleVisualization(profile._id)}
+                              disabled={scheduleSummary.totalSchedules === 0}
+                            >
+                              <Eye className="w-4 h-4" />
+                              Visualize Schedules
+                            </Button>
+                            <Button size="sm" onClick={() => void testProfile(profile._id)}>
+                              <Play className="w-4 h-4" />
+                              Test
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => selectProfileForEdit(profile)}
+                            >
+                              Edit
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              onClick={() => void deleteProfile(profile._id)}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                              Delete
+                            </Button>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                   {profiles.length === 0 && (
                     <div className="rounded-[28px] border border-dashed border-primary/25 bg-gradient-to-br from-primary/5 via-background to-warning/5 px-6 py-16 text-center">
                       <h3 className="mt-3 text-xl font-semibold tracking-tight">
@@ -2997,6 +3108,15 @@ export default function AIRunnerPage() {
           )}
         </CardContent>
       </Card>
+
+      <ScheduleVisualizationModal
+        isOpen={scheduleVisualizationOpen}
+        onClose={closeScheduleVisualization}
+        schedules={visualizationSchedules}
+        promptMap={promptMap}
+        profileMap={profileMap}
+        scopeLabel={scheduleVisualizationProfile?.name}
+      />
 
       {historyDetailOpen && selectedRun && (
         <RunDetailDrawer

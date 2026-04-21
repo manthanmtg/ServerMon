@@ -15,6 +15,7 @@ interface ScheduleVisualizationModalProps {
   schedules: AIRunnerScheduleDTO[];
   promptMap: Record<string, AIRunnerPromptDTO>;
   profileMap: Record<string, AIRunnerProfileDTO>;
+  scopeLabel?: string;
 }
 
 type VisualizationMode = 'workspace' | 'all';
@@ -25,6 +26,7 @@ export function ScheduleVisualizationModal({
   schedules,
   promptMap,
   profileMap,
+  scopeLabel,
 }: ScheduleVisualizationModalProps) {
   const [mode, setMode] = useState<VisualizationMode>('workspace');
   const visualization = useMemo(() => buildScheduleVisualizationModel(schedules), [schedules]);
@@ -101,13 +103,22 @@ export function ScheduleVisualizationModal({
               id="schedule-visualization-title"
               className="mt-2 text-2xl font-semibold tracking-tight"
             >
-              Visualize schedule pressure and overall split before agents step on each other
+              {scopeLabel
+                ? `Visualize ${scopeLabel} schedule pressure before runs step on each other`
+                : 'Visualize schedule pressure and overall split before agents step on each other'}
             </h3>
             <p className="mt-2 text-sm leading-6 text-muted-foreground">
-              Switch between workspace collision planning and a full schedule board. Both views
-              project the next 24 hours so you can understand overlap windows, runtime pressure, and
-              how the schedule load is distributed overall.
+              {scopeLabel
+                ? `This view is filtered to schedules using ${scopeLabel}. Switch between workspace collision planning and the full board to understand overlap windows, runtime pressure, and how that profile's load is distributed over the next 24 hours.`
+                : 'Switch between workspace collision planning and a full schedule board. Both views project the next 24 hours so you can understand overlap windows, runtime pressure, and how the schedule load is distributed overall.'}
             </p>
+            {scopeLabel ? (
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Badge variant="outline">Profile scope</Badge>
+                <Badge variant="outline">{scopeLabel}</Badge>
+                <Badge variant="outline">{schedules.length} schedules in view</Badge>
+              </div>
+            ) : null}
           </div>
           <button
             onClick={onClose}
