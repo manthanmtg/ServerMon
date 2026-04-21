@@ -1,92 +1,18 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
 import { Bot, CircleDot, Clock, AlertTriangle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { WidgetCardSkeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
-import type { AgentsSnapshot } from '../types';
-
-function statusColor(status: string): string {
-  if (status === 'running') return 'text-success';
-  if (status === 'idle') return 'text-warning';
-  if (status === 'waiting') return 'text-primary';
-  if (status === 'error') return 'text-destructive';
-  return 'text-muted-foreground';
-}
-
-function statusVariant(
-  status: string
-): 'success' | 'warning' | 'destructive' | 'secondary' | 'default' {
-  if (status === 'running') return 'success';
-  if (status === 'idle') return 'warning';
-  if (status === 'error') return 'destructive';
-  if (status === 'waiting') return 'default';
-  return 'secondary';
-}
+import { WIDGET_POLL_INTERVAL_MS } from './constants';
+import { statusTextColor, statusVariant } from './utils';
+import { useAgentsSnapshot } from './useAgentsSnapshot';
 
 export default function AIAgentsWidget() {
-  const [snapshot, setSnapshot] = useState<AgentsSnapshot | null>(null);
-  const [initialLoad, setInitialLoad] = useState(true);
+  const { snapshot, loading } = useAgentsSnapshot({ pollIntervalMs: WIDGET_POLL_INTERVAL_MS });
 
-  const load = useCallback(async (signal?: AbortSignal) => {
-    try {
-      const res = await fetch('/api/modules/ai-agents', { cache: 'no-store', signal });
-      if (res.ok) {
-        const data = await res.json();
-        if (!signal?.aborted) setSnapshot(data);
-      }
-    } catch {
-      // silently ignore for widget
-    } finally {
-      if (!signal?.aborted) setInitialLoad(false);
-    }
-  }, []);
-
-  // Poll while the dashboard tab is visible; pause when hidden and cancel
-  // in-flight requests to keep the snapshot endpoint (which is expensive on
-  // the server) from being hammered in the background.
-  useEffect(() => {
-    let interval: number | null = null;
-    let controller: AbortController | null = null;
-
-    const tick = () => {
-      controller?.abort();
-      controller = new AbortController();
-      void load(controller.signal);
-    };
-
-    const start = () => {
-      if (interval !== null) return;
-      tick();
-      interval = window.setInterval(tick, 15_000);
-    };
-
-    const stop = () => {
-      if (interval !== null) {
-        window.clearInterval(interval);
-        interval = null;
-      }
-      controller?.abort();
-      controller = null;
-    };
-
-    const onVisibility = () => {
-      if (document.visibilityState === 'visible') start();
-      else stop();
-    };
-
-    if (document.visibilityState === 'visible') start();
-    document.addEventListener('visibilitychange', onVisibility);
-
-    return () => {
-      document.removeEventListener('visibilitychange', onVisibility);
-      stop();
-    };
-  }, [load]);
-
-  if (initialLoad && !snapshot) {
+  if (loading && !snapshot) {
     return <WidgetCardSkeleton />;
   }
 
@@ -141,7 +67,7 @@ export default function AIAgentsWidget() {
                 key={session.id}
                 className="flex items-center gap-2 rounded-lg bg-secondary/50 px-3 py-2 text-xs"
               >
-                <CircleDot className={cn('w-3 h-3 shrink-0', statusColor(session.status))} />
+                <CircleDot className={cn('w-3 h-3 shrink-0', statusTextColor(session.status))} />
                 <span className="font-medium truncate">{session.agent.displayName}</span>
                 {session.environment.repository && (
                   <span className="text-muted-foreground truncate">
