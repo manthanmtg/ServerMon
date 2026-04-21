@@ -240,7 +240,7 @@ function DashboardContent() {
           <CardHeader>
             <CardTitle>System Health</CardTitle>
           </CardHeader>
-          <CardContent>{renderWidget('HealthWidget')}</CardContent>
+          <CardContent>{renderWidget('HealthWidget', { metric: latest })}</CardContent>
         </Card>
       </div>
     </div>

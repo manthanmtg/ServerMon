@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { Cpu, MemoryStick, HardDrive } from 'lucide-react';
+import type { SystemMetric } from '@/lib/MetricsContext';
 
 interface HealthData {
   cpu: number;
@@ -20,11 +21,27 @@ function ProgressBar({ value, color }: { value: number; color: string }) {
   );
 }
 
-export default function HealthWidget() {
-  const [health, setHealth] = useState<HealthData>({ cpu: 0, memory: 0, disk: 0 });
+function toHealthData(metric?: Pick<SystemMetric, 'cpu' | 'memory' | 'disks'> | null): HealthData {
+  return {
+    cpu: metric?.cpu ?? 0,
+    memory: metric?.memory ?? 0,
+    disk: metric?.disks?.[0]?.use ?? 0,
+  };
+}
+
+interface HealthWidgetProps {
+  metric?: Pick<SystemMetric, 'cpu' | 'memory' | 'disks'> | null;
+}
+
+export default function HealthWidget({ metric }: HealthWidgetProps) {
+  const [health, setHealth] = useState<HealthData>(() => toHealthData(metric));
 
   useEffect(() => {
-    // Try to read from MetricsContext if available, otherwise use own SSE
+    if (metric) {
+      setHealth(toHealthData(metric));
+      return;
+    }
+
     const es = new EventSource('/api/metrics/stream');
     es.onmessage = (event) => {
       try {
@@ -40,7 +57,7 @@ export default function HealthWidget() {
     };
     es.onerror = () => es.close();
     return () => es.close();
-  }, []);
+  }, [metric]);
 
   const items = [
     { label: 'CPU', value: health.cpu, icon: Cpu, color: 'bg-primary' },

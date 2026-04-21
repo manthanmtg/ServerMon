@@ -90,6 +90,23 @@ describe('HealthWidget', () => {
     expect(MockEventSource).toHaveBeenCalledWith('/api/metrics/stream');
   });
 
+  it('renders directly from a provided metric without opening another stream', () => {
+    render(
+      <HealthWidget
+        metric={{
+          cpu: 72.4,
+          memory: 51.2,
+          disks: [{ use: 63.5 }] as never,
+        }}
+      />
+    );
+
+    expect(MockEventSource).not.toHaveBeenCalled();
+    expect(screen.getByText('72.4%')).toBeDefined();
+    expect(screen.getByText('51.2%')).toBeDefined();
+    expect(screen.getByText('63.5%')).toBeDefined();
+  });
+
   it('uses partial updates - only updates provided fields', async () => {
     render(<HealthWidget />);
 
