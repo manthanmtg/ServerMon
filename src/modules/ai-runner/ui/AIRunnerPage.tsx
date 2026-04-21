@@ -2396,100 +2396,118 @@ export default function AIRunnerPage() {
               <Card className="border-border/60">
                 <CardHeader className="border-b border-border/60">
                   <div className="flex flex-col gap-4">
-                    <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="flex flex-wrap items-end justify-between gap-3">
                       <div>
-                        <CardTitle className="text-sm">Run Audit Console</CardTitle>
-                        <CardDescription>
+                        <CardTitle className="text-base tracking-tight">Run Audit Console</CardTitle>
+                        <CardDescription className="mt-1">
                           {filteredHistoryRuns.length} of {runTotal} run(s) match the current
                           filters
                         </CardDescription>
                       </div>
-                      <Button variant="outline" onClick={() => void loadAll(runSearch)}>
-                        <RefreshCcw className="w-4 h-4" />
-                        Refresh History
-                      </Button>
                     </div>
 
-                    <div className="grid gap-3 lg:grid-cols-[minmax(260px,1.6fr)_repeat(4,minmax(0,1fr))]">
-                      <Input
-                        value={runSearch}
-                        onChange={(event) => setRunSearch(event.target.value)}
-                        placeholder="Search prompt, command, profile, workspace"
-                        icon={<Search className="w-4 h-4" />}
-                      />
-
-                      <label className="space-y-1">
-                        <span className="flex items-center gap-1 text-xs font-medium text-muted-foreground">
-                          <ListFilter className="w-3.5 h-3.5" />
-                          Status
-                        </span>
-                        <select
-                          value={historyStatusFilter}
-                          onChange={(event) =>
-                            setHistoryStatusFilter(event.target.value as typeof historyStatusFilter)
-                          }
-                          className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring/40"
+                    <div className="rounded-2xl border border-border/60 bg-background/70 p-4">
+                      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/60 pb-3">
+                        <div>
+                          <p className="text-sm font-medium text-foreground">History filters</p>
+                          <p className="text-xs text-muted-foreground">
+                            Narrow the run list before opening details.
+                          </p>
+                        </div>
+                        <Button
+                          variant="outline"
+                          onClick={() => void loadAll(runSearch)}
+                          className="h-10"
                         >
-                          <option value="all">All statuses</option>
-                          <option value="queued">Queued</option>
-                          <option value="running">Running</option>
-                          <option value="retrying">Retrying</option>
-                          <option value="completed">Completed</option>
-                          <option value="failed">Failed</option>
-                          <option value="timeout">Timed out</option>
-                          <option value="killed">Killed</option>
-                        </select>
-                      </label>
+                          <RefreshCcw className="w-4 h-4" />
+                          Refresh
+                        </Button>
+                      </div>
 
-                      <label className="space-y-1">
-                        <span className="text-xs font-medium text-muted-foreground">Trigger</span>
-                        <select
-                          value={historyTriggerFilter}
-                          onChange={(event) =>
-                            setHistoryTriggerFilter(
-                              event.target.value as typeof historyTriggerFilter
-                            )
-                          }
-                          className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring/40"
-                        >
-                          <option value="all">All triggers</option>
-                          <option value="manual">Manual</option>
-                          <option value="schedule">Schedule</option>
-                        </select>
-                      </label>
+                      <div className="mt-3 grid gap-3 xl:grid-cols-[minmax(260px,1.4fr)_repeat(4,minmax(0,1fr))]">
+                        <label className="space-y-1">
+                          <span className="text-xs font-medium text-muted-foreground">Search</span>
+                          <Input
+                            value={runSearch}
+                            onChange={(event) => setRunSearch(event.target.value)}
+                            placeholder="Prompt, command, profile, workspace"
+                            icon={<Search className="w-4 h-4" />}
+                          />
+                        </label>
 
-                      <label className="space-y-1">
-                        <span className="text-xs font-medium text-muted-foreground">Profile</span>
-                        <select
-                          value={historyProfileFilter}
-                          onChange={(event) => setHistoryProfileFilter(event.target.value)}
-                          className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring/40"
-                        >
-                          <option value="all">All profiles</option>
-                          {profiles.map((profile) => (
-                            <option key={profile._id} value={profile._id}>
-                              {profile.name}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
+                        <label className="space-y-1">
+                          <span className="flex items-center gap-1 text-xs font-medium text-muted-foreground">
+                            <ListFilter className="w-3.5 h-3.5" />
+                            Status
+                          </span>
+                          <select
+                            value={historyStatusFilter}
+                            onChange={(event) =>
+                              setHistoryStatusFilter(event.target.value as typeof historyStatusFilter)
+                            }
+                            className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring/40"
+                          >
+                            <option value="all">All statuses</option>
+                            <option value="queued">Queued</option>
+                            <option value="running">Running</option>
+                            <option value="retrying">Retrying</option>
+                            <option value="completed">Completed</option>
+                            <option value="failed">Failed</option>
+                            <option value="timeout">Timed out</option>
+                            <option value="killed">Killed</option>
+                          </select>
+                        </label>
 
-                      <label className="space-y-1">
-                        <span className="text-xs font-medium text-muted-foreground">Schedule</span>
-                        <select
-                          value={historyScheduleFilter}
-                          onChange={(event) => setHistoryScheduleFilter(event.target.value)}
-                          className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring/40"
-                        >
-                          <option value="all">All schedules</option>
-                          <option value="none">No schedule</option>
-                          {schedules.map((schedule) => (
-                            <option key={schedule._id} value={schedule._id}>
-                              {schedule.name}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
+                        <label className="space-y-1">
+                          <span className="text-xs font-medium text-muted-foreground">Trigger</span>
+                          <select
+                            value={historyTriggerFilter}
+                            onChange={(event) =>
+                              setHistoryTriggerFilter(
+                                event.target.value as typeof historyTriggerFilter
+                              )
+                            }
+                            className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring/40"
+                          >
+                            <option value="all">All triggers</option>
+                            <option value="manual">Manual</option>
+                            <option value="schedule">Schedule</option>
+                          </select>
+                        </label>
+
+                        <label className="space-y-1">
+                          <span className="text-xs font-medium text-muted-foreground">Profile</span>
+                          <select
+                            value={historyProfileFilter}
+                            onChange={(event) => setHistoryProfileFilter(event.target.value)}
+                            className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring/40"
+                          >
+                            <option value="all">All profiles</option>
+                            {profiles.map((profile) => (
+                              <option key={profile._id} value={profile._id}>
+                                {profile.name}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+
+                        <label className="space-y-1">
+                          <span className="text-xs font-medium text-muted-foreground">Schedule</span>
+                          <select
+                            value={historyScheduleFilter}
+                            onChange={(event) => setHistoryScheduleFilter(event.target.value)}
+                            className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring/40"
+                          >
+                            <option value="all">All schedules</option>
+                            <option value="none">No schedule</option>
+                            {schedules.map((schedule) => (
+                              <option key={schedule._id} value={schedule._id}>
+                                {schedule.name}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                      </div>
                     </div>
                   </div>
                 </CardHeader>
