@@ -5,6 +5,7 @@ import {
   Bot,
   CalendarClock,
   Clock3,
+  Eye,
   FolderOpen,
   History,
   ListFilter,
@@ -35,6 +36,7 @@ import type {
 import { TAB_META, DEFAULT_PROFILE_FORM, ICON_PRESETS } from './constants';
 import { RunDetailDrawer } from './components/RunDetailDrawer';
 import { ScheduleBuilder } from './components/ScheduleBuilder';
+import { ScheduleVisualizationModal } from './components/ScheduleVisualizationModal';
 import {
   CompactStat,
   LabelWithHint,
@@ -105,6 +107,7 @@ export default function AIRunnerPage() {
   const [profileModalOpen, setProfileModalOpen] = useState(false);
   const [promptModalOpen, setPromptModalOpen] = useState(false);
   const [scheduleModalOpen, setScheduleModalOpen] = useState(false);
+  const [scheduleVisualizationOpen, setScheduleVisualizationOpen] = useState(false);
   const [profileForm, setProfileForm] = useState<ProfileFormState>(DEFAULT_PROFILE_FORM);
   const [promptForm, setPromptForm] = useState<PromptFormState>(emptyPromptForm());
   const [scheduleForm, setScheduleForm] = useState<ScheduleFormState>(emptyScheduleForm());
@@ -538,6 +541,15 @@ export default function AIRunnerPage() {
     resetScheduleForm();
     setScheduleModalOpen(true);
     setActiveTab('schedules');
+  };
+
+  const openScheduleVisualization = () => {
+    setScheduleVisualizationOpen(true);
+    setActiveTab('schedules');
+  };
+
+  const closeScheduleVisualization = () => {
+    setScheduleVisualizationOpen(false);
   };
 
   const getRunDisplayName = useCallback(
@@ -1492,7 +1504,9 @@ export default function AIRunnerPage() {
                       </div>
                     ) : (
                       <div className="rounded-xl border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
-                        {prompts.length === 0 ? 'No prompts in the library yet' : 'Select a prompt to preview it here'}
+                        {prompts.length === 0
+                          ? 'No prompts in the library yet'
+                          : 'Select a prompt to preview it here'}
                       </div>
                     )}
                   </CardContent>
@@ -1782,10 +1796,21 @@ export default function AIRunnerPage() {
                     editing now open a much wider studio so the cadence builder has room to breathe.
                   </p>
                 </div>
-                <Button size="lg" onClick={openCreateScheduleModal} className="shrink-0">
-                  <CalendarClock className="w-4 h-4" />
-                  Create Schedule
-                </Button>
+                <div className="flex flex-wrap gap-3">
+                  <Button
+                    size="lg"
+                    variant="outline"
+                    onClick={openScheduleVisualization}
+                    className="shrink-0"
+                  >
+                    <Eye className="w-4 h-4" />
+                    Visualize Schedule
+                  </Button>
+                  <Button size="lg" onClick={openCreateScheduleModal} className="shrink-0">
+                    <CalendarClock className="w-4 h-4" />
+                    Create Schedule
+                  </Button>
+                </div>
               </div>
 
               <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
@@ -2196,6 +2221,14 @@ export default function AIRunnerPage() {
                   </div>
                 </div>
               )}
+
+              <ScheduleVisualizationModal
+                isOpen={scheduleVisualizationOpen}
+                onClose={closeScheduleVisualization}
+                schedules={sortedSchedules}
+                promptMap={promptMap}
+                profileMap={profileMap}
+              />
             </div>
           )}
 
