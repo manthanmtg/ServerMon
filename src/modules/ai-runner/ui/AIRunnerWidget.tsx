@@ -117,7 +117,11 @@ export default function AIRunnerWidget() {
                       ? 'success'
                       : run.status === 'running'
                         ? 'default'
-                        : 'warning'
+                        : run.status === 'failed' ||
+                            run.status === 'timeout' ||
+                            run.status === 'killed'
+                          ? 'destructive'
+                          : 'warning'
                   }
                   className="ml-auto text-[10px]"
                 >

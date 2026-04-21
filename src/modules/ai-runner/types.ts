@@ -10,11 +10,20 @@ export type AIRunnerPromptType = 'inline' | 'file-reference';
 export type AIRunnerRunStatus =
   | 'queued'
   | 'running'
+  | 'retrying'
   | 'completed'
   | 'failed'
   | 'timeout'
   | 'killed';
 export type AIRunnerTrigger = 'manual' | 'schedule';
+export type AIRunnerJobStatus =
+  | 'queued'
+  | 'dispatched'
+  | 'running'
+  | 'retrying'
+  | 'completed'
+  | 'failed'
+  | 'canceled';
 
 export interface AIRunnerProfileDTO {
   _id: string;
@@ -55,6 +64,7 @@ export interface AIRunnerScheduleDTO {
   lastRunId?: string;
   lastRunStatus?: AIRunnerRunStatus;
   lastRunAt?: string;
+  lastScheduledFor?: string;
   nextRunTime?: string;
   createdAt: string;
   updatedAt: string;
@@ -68,6 +78,7 @@ export interface AIRunnerResourceUsage {
 
 export interface AIRunnerRunDTO {
   _id: string;
+  jobId?: string;
   promptId?: string;
   scheduleId?: string;
   agentProfileId: string;
@@ -84,6 +95,12 @@ export interface AIRunnerRunDTO {
   finishedAt?: string;
   durationSeconds?: number;
   triggeredBy: AIRunnerTrigger;
+  jobStatus?: AIRunnerJobStatus;
+  attemptCount?: number;
+  maxAttempts?: number;
+  heartbeatAt?: string;
+  lastOutputAt?: string;
+  lastError?: string;
   resourceUsage?: AIRunnerResourceUsage;
 }
 

@@ -6,9 +6,13 @@ import {
   Bot,
   CalendarClock,
   Clock3,
+  Cpu,
+  ExternalLink,
   FolderOpen,
   History,
   Info,
+  ListFilter,
+  PanelRightOpen,
   Play,
   RefreshCcw,
   Save,
@@ -37,6 +41,7 @@ import type {
 } from '../types';
 
 type ViewTab = 'run' | 'prompts' | 'schedules' | 'history' | 'settings';
+type HistoryDetailSection = 'summary' | 'output' | 'command' | 'metadata' | 'resources';
 type ProfileFormState = Omit<AIRunnerProfileDTO, '_id' | 'createdAt' | 'updatedAt'>;
 type PromptFormState = Omit<AIRunnerPromptDTO, '_id' | 'createdAt' | 'updatedAt'>;
 type RunFormState = {
@@ -339,8 +344,36 @@ function getScheduleStatusVariant(
 ): 'success' | 'warning' | 'destructive' | 'outline' {
   if (status === 'completed') return 'success';
   if (status === 'failed' || status === 'timeout' || status === 'killed') return 'destructive';
-  if (status === 'running' || status === 'queued') return 'warning';
+  if (status === 'running' || status === 'queued' || status === 'retrying') return 'warning';
   return 'outline';
+}
+
+function getRunStatusVariant(
+  status?: AIRunnerRunDTO['status']
+): 'success' | 'warning' | 'destructive' | 'default' | 'outline' {
+  if (status === 'completed') return 'success';
+  if (status === 'running') return 'default';
+  if (status === 'failed' || status === 'timeout' || status === 'killed') return 'destructive';
+  if (status === 'queued' || status === 'retrying') return 'warning';
+  return 'outline';
+}
+
+function formatDateTime(iso?: string): string {
+  if (!iso) return '—';
+  return new Date(iso).toLocaleString([], {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
+
+function formatMemory(bytes?: number): string {
+  if (!bytes || bytes <= 0) return '—';
+  if (bytes >= 1024 * 1024 * 1024) {
+    return `${(bytes / 1024 / 1024 / 1024).toFixed(1)} GB`;
+  }
+  return `${Math.round(bytes / 1024 / 1024)} MB`;
 }
 
 function formatScheduleDate(iso?: string): string {
@@ -864,6 +897,16 @@ export default function AIRunnerPage() {
   const [directories, setDirectories] = useState<string[]>([]);
   const [selectedRun, setSelectedRun] = useState<AIRunnerRunDTO | null>(null);
   const [runSearch, setRunSearch] = useState('');
+  const [historyStatusFilter, setHistoryStatusFilter] = useState<'all' | AIRunnerRunDTO['status']>(
+    'all'
+  );
+  const [historyTriggerFilter, setHistoryTriggerFilter] = useState<
+    'all' | AIRunnerRunDTO['triggeredBy']
+  >('all');
+  const [historyProfileFilter, setHistoryProfileFilter] = useState<string>('all');
+  const [historyScheduleFilter, setHistoryScheduleFilter] = useState<string>('all');
+  const [historyDetailOpen, setHistoryDetailOpen] = useState(false);
+  const [historyDetailSection, setHistoryDetailSection] = useState<HistoryDetailSection>('summary');
   const [promptSearch, setPromptSearch] = useState('');
   const [promptTypeFilter, setPromptTypeFilter] = useState<'all' | AIRunnerPromptDTO['type']>(
     'all'
@@ -888,6 +931,12 @@ export default function AIRunnerPage() {
     workingDirectory: '',
     timeout: 30,
   });
+
+  const selectedRunPrompt = prompts.find((prompt) => prompt._id === runForm.promptId) ?? null;
+  const selectedRunPromptDoc =
+    prompts.find((prompt) => prompt._id === selectedRun?.promptId) ?? null;
+  const selectedRunSchedule =
+    schedules.find((schedule) => schedule._id === selectedRun?.scheduleId) ?? null;
 
   const loadAll = useCallback(
     async (search = runSearch) => {
@@ -970,7 +1019,7 @@ export default function AIRunnerPage() {
   }, [loadAll]);
 
   useEffect(() => {
-    if (!selectedRun || selectedRun.status !== 'running') {
+    if (!selectedRun || !['queued', 'running', 'retrying'].includes(selectedRun.status)) {
       return;
     }
 
@@ -996,6 +1045,10 @@ export default function AIRunnerPage() {
     () => Object.fromEntries(prompts.map((prompt) => [prompt._id, prompt])),
     [prompts]
   );
+  const scheduleMap = useMemo(
+    () => Object.fromEntries(schedules.map((schedule) => [schedule._id, schedule])),
+    [schedules]
+  );
   const filteredPrompts = useMemo(() => {
     return prompts.filter((prompt) => {
       const matchesType = promptTypeFilter === 'all' || prompt.type === promptTypeFilter;
@@ -1014,7 +1067,45 @@ export default function AIRunnerPage() {
     filteredPrompts[0] ??
     prompts[0] ??
     null;
-  const selectedRunPrompt = prompts.find((prompt) => prompt._id === runForm.promptId) ?? null;
+
+  const filteredHistoryRuns = useMemo(() => {
+    const query = runSearch.trim().toLowerCase();
+    return runs.filter((run) => {
+      const matchesStatus = historyStatusFilter === 'all' || run.status === historyStatusFilter;
+      const matchesTrigger =
+        historyTriggerFilter === 'all' || run.triggeredBy === historyTriggerFilter;
+      const matchesProfile =
+        historyProfileFilter === 'all' || run.agentProfileId === historyProfileFilter;
+      const matchesSchedule =
+        historyScheduleFilter === 'all' ||
+        (historyScheduleFilter === 'none'
+          ? !run.scheduleId
+          : run.scheduleId === historyScheduleFilter);
+      const promptName = run.promptId ? (promptMap[run.promptId]?.name ?? '') : '';
+      const scheduleName = run.scheduleId ? (scheduleMap[run.scheduleId]?.name ?? '') : '';
+      const profileName = profileMap[run.agentProfileId]?.name ?? '';
+      const matchesSearch =
+        query.length === 0 ||
+        run.promptContent.toLowerCase().includes(query) ||
+        run.command.toLowerCase().includes(query) ||
+        run.workingDirectory.toLowerCase().includes(query) ||
+        promptName.toLowerCase().includes(query) ||
+        scheduleName.toLowerCase().includes(query) ||
+        profileName.toLowerCase().includes(query);
+
+      return matchesStatus && matchesTrigger && matchesProfile && matchesSchedule && matchesSearch;
+    });
+  }, [
+    historyProfileFilter,
+    historyScheduleFilter,
+    historyStatusFilter,
+    historyTriggerFilter,
+    profileMap,
+    promptMap,
+    runSearch,
+    runs,
+    scheduleMap,
+  ]);
 
   const activeRunCount = runs.filter((run) => run.status === 'running').length;
   const enabledScheduleCount = schedules.filter((schedule) => schedule.enabled).length;
@@ -1144,6 +1235,83 @@ export default function AIRunnerPage() {
     resetScheduleForm();
     setScheduleModalOpen(true);
     setActiveTab('schedules');
+  };
+
+  const getRunDisplayName = useCallback(
+    (run: AIRunnerRunDTO) => {
+      if (run.scheduleId) {
+        return scheduleMap[run.scheduleId]?.name || 'Scheduled run';
+      }
+      if (run.promptId) {
+        return promptMap[run.promptId]?.name || 'Saved prompt run';
+      }
+      return run.promptContent.split('\n')[0]?.trim().slice(0, 72) || 'Manual run';
+    },
+    [promptMap, scheduleMap]
+  );
+
+  const openRunDetail = (run: AIRunnerRunDTO, section: HistoryDetailSection = 'summary') => {
+    setSelectedRun(run);
+    setHistoryDetailSection(section);
+    setHistoryDetailOpen(true);
+  };
+
+  const rerunHistoryItem = async (run: AIRunnerRunDTO) => {
+    try {
+      const requestBody = run.promptId
+        ? {
+            promptId: run.promptId,
+            agentProfileId: run.agentProfileId,
+            workingDirectory: run.workingDirectory,
+          }
+        : {
+            content: run.promptContent,
+            type: 'inline',
+            agentProfileId: run.agentProfileId,
+            workingDirectory: run.workingDirectory,
+          };
+      const response = await fetch('/api/modules/ai-runner/run', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(requestBody),
+      });
+      const payload = await response.json();
+      if (!response.ok) {
+        throw new Error(payload.error || 'Unable to rerun item');
+      }
+      setSelectedRun(payload);
+      setHistoryDetailOpen(false);
+      setActiveTab('run');
+      await loadAll();
+      toast({
+        title:
+          run.status === 'failed' || run.status === 'timeout' ? 'Retry queued' : 'Rerun queued',
+        description: 'A new durable run has been queued from this history item.',
+        variant: 'success',
+      });
+    } catch (error) {
+      toast({
+        title: 'Run request failed',
+        description: error instanceof Error ? error.message : 'Unable to start the run',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const openRunPrompt = (run: AIRunnerRunDTO) => {
+    if (!run.promptId) return;
+    const prompt = promptMap[run.promptId];
+    if (!prompt) return;
+    selectPromptForEdit(prompt);
+    setHistoryDetailOpen(false);
+  };
+
+  const openRunSchedule = (run: AIRunnerRunDTO) => {
+    if (!run.scheduleId) return;
+    const schedule = scheduleMap[run.scheduleId];
+    if (!schedule) return;
+    selectScheduleForEdit(schedule);
+    setHistoryDetailOpen(false);
   };
 
   const submitRun = async () => {
@@ -2785,123 +2953,198 @@ export default function AIRunnerPage() {
           )}
 
           {activeTab === 'history' && (
-            <div className="grid gap-5 lg:grid-cols-[1.1fr_1fr]">
+            <div className="space-y-5">
               <Card className="border-border/60">
-                <CardHeader>
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                      <CardTitle className="text-sm">Run History</CardTitle>
-                      <CardDescription>{runTotal} run(s) tracked</CardDescription>
+                <CardHeader className="border-b border-border/60">
+                  <div className="flex flex-col gap-4">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <CardTitle className="text-sm">Run Audit Console</CardTitle>
+                        <CardDescription>
+                          {filteredHistoryRuns.length} of {runTotal} run(s) match the current
+                          filters
+                        </CardDescription>
+                      </div>
+                      <Button variant="outline" onClick={() => void loadAll(runSearch)}>
+                        <RefreshCcw className="w-4 h-4" />
+                        Refresh History
+                      </Button>
                     </div>
-                    <div className="flex gap-2">
+
+                    <div className="grid gap-3 lg:grid-cols-[minmax(260px,1.6fr)_repeat(4,minmax(0,1fr))]">
                       <Input
                         value={runSearch}
                         onChange={(event) => setRunSearch(event.target.value)}
-                        placeholder="Search command or prompt"
+                        placeholder="Search prompt, command, profile, workspace"
                         icon={<Search className="w-4 h-4" />}
                       />
-                      <Button variant="outline" onClick={() => void loadAll(runSearch)}>
-                        Search
-                      </Button>
+
+                      <label className="space-y-1">
+                        <span className="flex items-center gap-1 text-xs font-medium text-muted-foreground">
+                          <ListFilter className="w-3.5 h-3.5" />
+                          Status
+                        </span>
+                        <select
+                          value={historyStatusFilter}
+                          onChange={(event) =>
+                            setHistoryStatusFilter(event.target.value as typeof historyStatusFilter)
+                          }
+                          className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring/40"
+                        >
+                          <option value="all">All statuses</option>
+                          <option value="queued">Queued</option>
+                          <option value="running">Running</option>
+                          <option value="retrying">Retrying</option>
+                          <option value="completed">Completed</option>
+                          <option value="failed">Failed</option>
+                          <option value="timeout">Timed out</option>
+                          <option value="killed">Killed</option>
+                        </select>
+                      </label>
+
+                      <label className="space-y-1">
+                        <span className="text-xs font-medium text-muted-foreground">Trigger</span>
+                        <select
+                          value={historyTriggerFilter}
+                          onChange={(event) =>
+                            setHistoryTriggerFilter(
+                              event.target.value as typeof historyTriggerFilter
+                            )
+                          }
+                          className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring/40"
+                        >
+                          <option value="all">All triggers</option>
+                          <option value="manual">Manual</option>
+                          <option value="schedule">Schedule</option>
+                        </select>
+                      </label>
+
+                      <label className="space-y-1">
+                        <span className="text-xs font-medium text-muted-foreground">Profile</span>
+                        <select
+                          value={historyProfileFilter}
+                          onChange={(event) => setHistoryProfileFilter(event.target.value)}
+                          className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring/40"
+                        >
+                          <option value="all">All profiles</option>
+                          {profiles.map((profile) => (
+                            <option key={profile._id} value={profile._id}>
+                              {profile.name}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+
+                      <label className="space-y-1">
+                        <span className="text-xs font-medium text-muted-foreground">Schedule</span>
+                        <select
+                          value={historyScheduleFilter}
+                          onChange={(event) => setHistoryScheduleFilter(event.target.value)}
+                          className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring/40"
+                        >
+                          <option value="all">All schedules</option>
+                          <option value="none">No schedule</option>
+                          {schedules.map((schedule) => (
+                            <option key={schedule._id} value={schedule._id}>
+                              {schedule.name}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
                     </div>
                   </div>
                 </CardHeader>
-                <CardContent className="space-y-3">
-                  {runs.map((run) => (
-                    <button
-                      key={run._id}
-                      onClick={() => setSelectedRun(run)}
-                      className={cn(
-                        'w-full rounded-xl border border-border/60 bg-card/60 p-4 text-left transition-colors hover:bg-accent/40',
-                        selectedRun?._id === run._id && 'border-primary/50 bg-primary/5'
-                      )}
-                    >
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div className="space-y-1 min-w-0">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <Badge
-                              variant={
-                                run.status === 'completed'
-                                  ? 'success'
-                                  : run.status === 'running'
-                                    ? 'default'
-                                    : 'warning'
-                              }
-                            >
-                              {run.status}
-                            </Badge>
-                            <Badge variant="outline">{run.triggeredBy}</Badge>
-                            <span className="truncate text-sm font-medium">
-                              {profileMap[run.agentProfileId]?.name || 'Unknown profile'}
-                            </span>
-                          </div>
-                          <p className="truncate text-sm">{run.promptContent.slice(0, 120)}</p>
-                          <p className="truncate text-xs text-muted-foreground">
-                            {run.workingDirectory}
-                          </p>
-                        </div>
-                        <div className="text-right text-xs text-muted-foreground shrink-0">
-                          <p>{formatRelative(run.startedAt)}</p>
-                          <p>{formatDuration(run.durationSeconds)}</p>
-                        </div>
-                      </div>
-                    </button>
-                  ))}
-                </CardContent>
-              </Card>
 
-              <Card className="border-border/60">
-                <CardHeader>
-                  <CardTitle className="text-sm">Run Detail</CardTitle>
-                  <CardDescription>
-                    {selectedRun
-                      ? new Date(selectedRun.startedAt).toLocaleString()
-                      : 'Select a run'}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {selectedRun ? (
-                    <>
-                      <div className="grid gap-3 sm:grid-cols-2 text-xs">
-                        <div className="rounded-lg bg-secondary/40 px-3 py-2">
-                          <span className="text-muted-foreground">Profile</span>
-                          <p className="mt-1 font-medium">
-                            {profileMap[selectedRun.agentProfileId]?.name || 'Unknown profile'}
-                          </p>
-                        </div>
-                        <div className="rounded-lg bg-secondary/40 px-3 py-2">
-                          <span className="text-muted-foreground">Command</span>
-                          <p className="mt-1 font-medium">{selectedRun.command.slice(0, 48)}</p>
-                        </div>
-                        <div className="rounded-lg bg-secondary/40 px-3 py-2">
-                          <span className="text-muted-foreground">Finished</span>
-                          <p className="mt-1 font-medium">
-                            {selectedRun.finishedAt
-                              ? new Date(selectedRun.finishedAt).toLocaleString()
-                              : 'Running'}
-                          </p>
-                        </div>
-                        <div className="rounded-lg bg-secondary/40 px-3 py-2">
-                          <span className="text-muted-foreground">Resource Peak</span>
-                          <p className="mt-1 font-medium">
-                            {selectedRun.resourceUsage?.peakMemoryBytes
-                              ? `${Math.round(selectedRun.resourceUsage.peakMemoryBytes / 1024 / 1024)} MB`
-                              : '—'}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="rounded-xl border border-border bg-background overflow-hidden">
-                        <div className="border-b border-border px-4 py-2 text-xs text-muted-foreground">
-                          Output
-                        </div>
-                        <pre className="max-h-[420px] overflow-auto px-4 py-4 text-xs leading-6 whitespace-pre-wrap font-mono">
-                          {selectedRun.stdout || selectedRun.stderr || 'No output captured'}
-                        </pre>
-                      </div>
-                    </>
-                  ) : (
-                    <div className="rounded-xl border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
-                      Select a run to inspect the captured output
+                <CardContent className="p-0">
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full text-sm">
+                      <thead className="border-b border-border/60 bg-secondary/20 text-xs uppercase tracking-wide text-muted-foreground">
+                        <tr>
+                          <th className="px-4 py-3 text-left font-medium">Status</th>
+                          <th className="px-4 py-3 text-left font-medium">Run</th>
+                          <th className="px-4 py-3 text-left font-medium">Prompt</th>
+                          <th className="px-4 py-3 text-left font-medium">Profile</th>
+                          <th className="px-4 py-3 text-left font-medium">Trigger</th>
+                          <th className="px-4 py-3 text-left font-medium">Workspace</th>
+                          <th className="px-4 py-3 text-left font-medium">Started</th>
+                          <th className="px-4 py-3 text-left font-medium">Duration</th>
+                          <th className="px-4 py-3 text-left font-medium">Exit</th>
+                          <th className="px-4 py-3 text-left font-medium">Resources</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filteredHistoryRuns.map((run) => (
+                          <tr
+                            key={run._id}
+                            onClick={() => openRunDetail(run)}
+                            className={cn(
+                              'cursor-pointer border-b border-border/40 transition-colors hover:bg-accent/30',
+                              selectedRun?._id === run._id && 'bg-primary/5'
+                            )}
+                          >
+                            <td className="px-4 py-3 align-top">
+                              <Badge variant={getRunStatusVariant(run.status)}>{run.status}</Badge>
+                            </td>
+                            <td className="px-4 py-3 align-top">
+                              <div className="max-w-[220px]">
+                                <p className="truncate font-medium">{getRunDisplayName(run)}</p>
+                                <p className="truncate text-xs text-muted-foreground">
+                                  {run.scheduleId
+                                    ? scheduleMap[run.scheduleId]?.name || 'Schedule'
+                                    : 'Ad hoc'}
+                                </p>
+                              </div>
+                            </td>
+                            <td className="px-4 py-3 align-top">
+                              <div className="max-w-[280px]">
+                                <p className="truncate">{run.promptContent.slice(0, 80)}</p>
+                                <p className="truncate text-xs text-muted-foreground">
+                                  {run.promptId
+                                    ? promptMap[run.promptId]?.name || 'Saved prompt'
+                                    : 'Inline prompt'}
+                                </p>
+                              </div>
+                            </td>
+                            <td className="px-4 py-3 align-top">
+                              {profileMap[run.agentProfileId]?.name || 'Unknown profile'}
+                            </td>
+                            <td className="px-4 py-3 align-top">
+                              <Badge variant="outline">{run.triggeredBy}</Badge>
+                            </td>
+                            <td className="px-4 py-3 align-top">
+                              <span className="block max-w-[220px] truncate text-xs text-muted-foreground">
+                                {run.workingDirectory}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 align-top">
+                              <div>
+                                <p>{formatDateTime(run.startedAt)}</p>
+                                <p className="text-xs text-muted-foreground">
+                                  {formatRelative(run.startedAt)}
+                                </p>
+                              </div>
+                            </td>
+                            <td className="px-4 py-3 align-top">
+                              {formatDuration(run.durationSeconds)}
+                            </td>
+                            <td className="px-4 py-3 align-top">
+                              {run.exitCode === undefined ? '—' : run.exitCode}
+                            </td>
+                            <td className="px-4 py-3 align-top">
+                              <div className="text-xs text-muted-foreground">
+                                <p>CPU {run.resourceUsage?.peakCpuPercent?.toFixed(1) ?? '—'}%</p>
+                                <p>Mem {formatMemory(run.resourceUsage?.peakMemoryBytes)}</p>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {filteredHistoryRuns.length === 0 && (
+                    <div className="px-6 py-16 text-center text-sm text-muted-foreground">
+                      No runs match the current history filters.
                     </div>
                   )}
                 </CardContent>
@@ -3393,6 +3636,324 @@ export default function AIRunnerPage() {
           )}
         </CardContent>
       </Card>
+
+      {historyDetailOpen && selectedRun && (
+        <div className="fixed inset-0 z-50">
+          <button
+            type="button"
+            aria-label="Close run detail"
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            onClick={() => setHistoryDetailOpen(false)}
+          />
+          <div className="absolute inset-y-0 right-0 flex w-full justify-end">
+            <div className="relative flex h-full w-full max-w-4xl flex-col border-l border-border/60 bg-card shadow-2xl">
+              <div className="flex items-start justify-between gap-4 border-b border-border/60 px-6 py-5">
+                <div className="space-y-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge variant={getRunStatusVariant(selectedRun.status)}>
+                      {selectedRun.status}
+                    </Badge>
+                    <Badge variant="outline">{selectedRun.triggeredBy}</Badge>
+                    {selectedRun.jobStatus && (
+                      <Badge variant="outline">job {selectedRun.jobStatus}</Badge>
+                    )}
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold">{getRunDisplayName(selectedRun)}</h3>
+                    <p className="text-sm text-muted-foreground">
+                      {profileMap[selectedRun.agentProfileId]?.name || 'Unknown profile'} •{' '}
+                      {formatDateTime(selectedRun.startedAt)}
+                    </p>
+                  </div>
+                </div>
+                <Button variant="ghost" size="icon" onClick={() => setHistoryDetailOpen(false)}>
+                  <X className="w-4 h-4" />
+                </Button>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2 border-b border-border/60 px-6 py-3">
+                {(
+                  [
+                    ['summary', 'Summary'],
+                    ['output', 'Output'],
+                    ['command', 'Command'],
+                    ['metadata', 'Metadata'],
+                    ['resources', 'Resources'],
+                  ] as Array<[HistoryDetailSection, string]>
+                ).map(([section, label]) => (
+                  <Button
+                    key={section}
+                    variant={historyDetailSection === section ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setHistoryDetailSection(section)}
+                  >
+                    {label}
+                  </Button>
+                ))}
+
+                <div className="ml-auto flex flex-wrap gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => void rerunHistoryItem(selectedRun)}
+                  >
+                    <Play className="w-4 h-4" />
+                    Rerun
+                  </Button>
+                  {(selectedRun.status === 'failed' || selectedRun.status === 'timeout') && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => void rerunHistoryItem(selectedRun)}
+                    >
+                      <RefreshCcw className="w-4 h-4" />
+                      Retry
+                    </Button>
+                  )}
+                  {selectedRun.status === 'running' && (
+                    <Button variant="destructive" size="sm" onClick={() => void killSelectedRun()}>
+                      <Square className="w-4 h-4" />
+                      Kill
+                    </Button>
+                  )}
+                  {selectedRun.promptId && (
+                    <Button variant="outline" size="sm" onClick={() => openRunPrompt(selectedRun)}>
+                      <ExternalLink className="w-4 h-4" />
+                      Open Prompt
+                    </Button>
+                  )}
+                  {selectedRun.scheduleId && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => openRunSchedule(selectedRun)}
+                    >
+                      <PanelRightOpen className="w-4 h-4" />
+                      Open Schedule
+                    </Button>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex-1 overflow-y-auto px-6 py-5">
+                {historyDetailSection === 'summary' && (
+                  <div className="space-y-4">
+                    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                      <div className="rounded-xl border border-border/60 bg-secondary/15 px-4 py-3">
+                        <p className="text-xs text-muted-foreground">Started</p>
+                        <p className="mt-1 font-medium">{formatDateTime(selectedRun.startedAt)}</p>
+                      </div>
+                      <div className="rounded-xl border border-border/60 bg-secondary/15 px-4 py-3">
+                        <p className="text-xs text-muted-foreground">Duration</p>
+                        <p className="mt-1 font-medium">
+                          {formatDuration(selectedRun.durationSeconds)}
+                        </p>
+                      </div>
+                      <div className="rounded-xl border border-border/60 bg-secondary/15 px-4 py-3">
+                        <p className="text-xs text-muted-foreground">Exit code</p>
+                        <p className="mt-1 font-medium">
+                          {selectedRun.exitCode === undefined ? '—' : selectedRun.exitCode}
+                        </p>
+                      </div>
+                      <div className="rounded-xl border border-border/60 bg-secondary/15 px-4 py-3">
+                        <p className="text-xs text-muted-foreground">Peak memory</p>
+                        <p className="mt-1 font-medium">
+                          {formatMemory(selectedRun.resourceUsage?.peakMemoryBytes)}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
+                      <div className="rounded-xl border border-border/60 bg-background p-4">
+                        <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                          Prompt
+                        </p>
+                        <p className="mt-3 whitespace-pre-wrap text-sm leading-6">
+                          {selectedRun.promptContent || 'No prompt content captured'}
+                        </p>
+                      </div>
+                      <div className="space-y-4">
+                        <div className="rounded-xl border border-border/60 bg-background p-4">
+                          <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                            Profile
+                          </p>
+                          <p className="mt-2 font-medium">
+                            {profileMap[selectedRun.agentProfileId]?.name || 'Unknown profile'}
+                          </p>
+                        </div>
+                        <div className="rounded-xl border border-border/60 bg-background p-4">
+                          <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                            Prompt source
+                          </p>
+                          <p className="mt-2 font-medium">
+                            {selectedRunPromptDoc?.name || 'Inline prompt'}
+                          </p>
+                        </div>
+                        <div className="rounded-xl border border-border/60 bg-background p-4">
+                          <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                            Schedule
+                          </p>
+                          <p className="mt-2 font-medium">
+                            {selectedRunSchedule?.name || 'Not scheduled'}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {historyDetailSection === 'output' && (
+                  <div className="space-y-4">
+                    <div className="rounded-xl border border-border bg-background overflow-hidden">
+                      <div className="border-b border-border px-4 py-2 text-xs text-muted-foreground">
+                        Clean output
+                      </div>
+                      <pre className="max-h-[520px] overflow-auto px-4 py-4 text-xs leading-6 whitespace-pre-wrap font-mono">
+                        {selectedRun.stdout || selectedRun.stderr || 'No output captured'}
+                      </pre>
+                    </div>
+                    <div className="rounded-xl border border-border bg-background overflow-hidden">
+                      <div className="border-b border-border px-4 py-2 text-xs text-muted-foreground">
+                        Raw output
+                      </div>
+                      <pre className="max-h-[280px] overflow-auto px-4 py-4 text-xs leading-6 whitespace-pre-wrap font-mono">
+                        {selectedRun.rawOutput || 'No raw output captured'}
+                      </pre>
+                    </div>
+                  </div>
+                )}
+
+                {historyDetailSection === 'command' && (
+                  <div className="space-y-4">
+                    <div className="rounded-xl border border-border/60 bg-background p-4">
+                      <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                        Command
+                      </p>
+                      <pre className="mt-3 whitespace-pre-wrap break-all text-xs leading-6 font-mono">
+                        {selectedRun.command}
+                      </pre>
+                    </div>
+                    <div className="rounded-xl border border-border/60 bg-background p-4">
+                      <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                        Working directory
+                      </p>
+                      <pre className="mt-3 whitespace-pre-wrap break-all text-xs leading-6 font-mono">
+                        {selectedRun.workingDirectory}
+                      </pre>
+                    </div>
+                  </div>
+                )}
+
+                {historyDetailSection === 'metadata' && (
+                  <div className="grid gap-4 lg:grid-cols-2">
+                    <div className="rounded-xl border border-border/60 bg-background p-4 text-sm">
+                      <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                        Run metadata
+                      </p>
+                      <dl className="mt-3 space-y-3">
+                        <div>
+                          <dt className="text-xs text-muted-foreground">Run id</dt>
+                          <dd className="font-mono text-xs break-all">{selectedRun._id}</dd>
+                        </div>
+                        <div>
+                          <dt className="text-xs text-muted-foreground">Job id</dt>
+                          <dd className="font-mono text-xs break-all">
+                            {selectedRun.jobId || '—'}
+                          </dd>
+                        </div>
+                        <div>
+                          <dt className="text-xs text-muted-foreground">Prompt id</dt>
+                          <dd className="font-mono text-xs break-all">
+                            {selectedRun.promptId || '—'}
+                          </dd>
+                        </div>
+                        <div>
+                          <dt className="text-xs text-muted-foreground">Schedule id</dt>
+                          <dd className="font-mono text-xs break-all">
+                            {selectedRun.scheduleId || '—'}
+                          </dd>
+                        </div>
+                        <div>
+                          <dt className="text-xs text-muted-foreground">PID</dt>
+                          <dd>{selectedRun.pid ?? '—'}</dd>
+                        </div>
+                        <div>
+                          <dt className="text-xs text-muted-foreground">Attempts</dt>
+                          <dd>
+                            {selectedRun.attemptCount ?? 0}
+                            {selectedRun.maxAttempts ? ` / ${selectedRun.maxAttempts}` : ''}
+                          </dd>
+                        </div>
+                      </dl>
+                    </div>
+                    <div className="rounded-xl border border-border/60 bg-background p-4 text-sm">
+                      <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                        Timing and state
+                      </p>
+                      <dl className="mt-3 space-y-3">
+                        <div>
+                          <dt className="text-xs text-muted-foreground">Started</dt>
+                          <dd>{formatDateTime(selectedRun.startedAt)}</dd>
+                        </div>
+                        <div>
+                          <dt className="text-xs text-muted-foreground">Finished</dt>
+                          <dd>{formatDateTime(selectedRun.finishedAt)}</dd>
+                        </div>
+                        <div>
+                          <dt className="text-xs text-muted-foreground">Heartbeat</dt>
+                          <dd>{formatDateTime(selectedRun.heartbeatAt)}</dd>
+                        </div>
+                        <div>
+                          <dt className="text-xs text-muted-foreground">Last output</dt>
+                          <dd>{formatDateTime(selectedRun.lastOutputAt)}</dd>
+                        </div>
+                        <div>
+                          <dt className="text-xs text-muted-foreground">Last error</dt>
+                          <dd className="whitespace-pre-wrap break-words">
+                            {selectedRun.lastError || '—'}
+                          </dd>
+                        </div>
+                      </dl>
+                    </div>
+                  </div>
+                )}
+
+                {historyDetailSection === 'resources' && (
+                  <div className="grid gap-4 md:grid-cols-3">
+                    <div className="rounded-xl border border-border/60 bg-background p-5">
+                      <div className="flex items-center gap-2 text-muted-foreground">
+                        <Cpu className="w-4 h-4" />
+                        <span className="text-xs uppercase tracking-wide">Peak CPU</span>
+                      </div>
+                      <p className="mt-4 text-2xl font-semibold">
+                        {selectedRun.resourceUsage?.peakCpuPercent?.toFixed(1) ?? '—'}%
+                      </p>
+                    </div>
+                    <div className="rounded-xl border border-border/60 bg-background p-5">
+                      <div className="flex items-center gap-2 text-muted-foreground">
+                        <History className="w-4 h-4" />
+                        <span className="text-xs uppercase tracking-wide">Peak memory</span>
+                      </div>
+                      <p className="mt-4 text-2xl font-semibold">
+                        {formatMemory(selectedRun.resourceUsage?.peakMemoryBytes)}
+                      </p>
+                    </div>
+                    <div className="rounded-xl border border-border/60 bg-background p-5">
+                      <div className="flex items-center gap-2 text-muted-foreground">
+                        <Zap className="w-4 h-4" />
+                        <span className="text-xs uppercase tracking-wide">Peak memory %</span>
+                      </div>
+                      <p className="mt-4 text-2xl font-semibold">
+                        {selectedRun.resourceUsage?.peakMemoryPercent?.toFixed(1) ?? '—'}%
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -7,6 +7,7 @@ import * as pty from 'node-pty';
 import os from 'os';
 import { createLogger } from './lib/logger';
 import { decrypt } from './lib/session-core';
+import { ensureAIRunnerSupervisor } from './lib/ai-runner/processes';
 
 const log = createLogger('server');
 const dev = process.env.NODE_ENV !== 'production';
@@ -58,6 +59,7 @@ async function cleanupStaleSessions() {
 
 app.prepare().then(async () => {
   await cleanupStaleSessions();
+  ensureAIRunnerSupervisor();
   const server = createServer((req, res) => {
     const parsedUrl = parse(req.url!, true);
     const { pathname } = parsedUrl;

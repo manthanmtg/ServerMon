@@ -1,7 +1,12 @@
 import mongoose, { Schema, Document, Model } from 'mongoose';
-import type { AIRunnerRunStatus, AIRunnerTrigger } from '@/modules/ai-runner/types';
+import type {
+  AIRunnerJobStatus,
+  AIRunnerRunStatus,
+  AIRunnerTrigger,
+} from '@/modules/ai-runner/types';
 
 export interface IAIRunnerRun extends Document {
+  jobId?: mongoose.Types.ObjectId;
   promptId?: mongoose.Types.ObjectId;
   scheduleId?: mongoose.Types.ObjectId;
   agentProfileId: mongoose.Types.ObjectId;
@@ -18,6 +23,12 @@ export interface IAIRunnerRun extends Document {
   finishedAt?: Date;
   durationSeconds?: number;
   triggeredBy: AIRunnerTrigger;
+  jobStatus?: AIRunnerJobStatus;
+  attemptCount?: number;
+  maxAttempts?: number;
+  heartbeatAt?: Date;
+  lastOutputAt?: Date;
+  lastError?: string;
   resourceUsage?: {
     peakCpuPercent: number;
     peakMemoryBytes: number;
@@ -29,6 +40,7 @@ export interface IAIRunnerRun extends Document {
 
 const AIRunnerRunSchema = new Schema<IAIRunnerRun>(
   {
+    jobId: { type: Schema.Types.ObjectId, ref: 'AIRunnerJob' },
     promptId: { type: Schema.Types.ObjectId, ref: 'AIRunnerPrompt' },
     scheduleId: { type: Schema.Types.ObjectId, ref: 'AIRunnerSchedule' },
     agentProfileId: { type: Schema.Types.ObjectId, ref: 'AIRunnerProfile', required: true },
@@ -39,7 +51,7 @@ const AIRunnerRunSchema = new Schema<IAIRunnerRun>(
     status: {
       type: String,
       required: true,
-      enum: ['queued', 'running', 'completed', 'failed', 'timeout', 'killed'],
+      enum: ['queued', 'running', 'retrying', 'completed', 'failed', 'timeout', 'killed'],
       index: true,
     },
     exitCode: { type: Number },
@@ -50,6 +62,16 @@ const AIRunnerRunSchema = new Schema<IAIRunnerRun>(
     finishedAt: { type: Date },
     durationSeconds: { type: Number },
     triggeredBy: { type: String, required: true, enum: ['manual', 'schedule'] },
+    jobStatus: {
+      type: String,
+      enum: ['queued', 'dispatched', 'running', 'retrying', 'completed', 'failed', 'canceled'],
+      index: true,
+    },
+    attemptCount: { type: Number, default: 0, min: 0 },
+    maxAttempts: { type: Number, default: 1, min: 1 },
+    heartbeatAt: { type: Date },
+    lastOutputAt: { type: Date },
+    lastError: { type: String, maxlength: 10_000 },
     resourceUsage: {
       peakCpuPercent: { type: Number },
       peakMemoryBytes: { type: Number },
@@ -60,6 +82,7 @@ const AIRunnerRunSchema = new Schema<IAIRunnerRun>(
 );
 
 AIRunnerRunSchema.index({ status: 1, startedAt: -1 });
+AIRunnerRunSchema.index({ jobStatus: 1, startedAt: -1 });
 AIRunnerRunSchema.index({ promptId: 1, startedAt: -1 });
 AIRunnerRunSchema.index({ scheduleId: 1, startedAt: -1 });
 AIRunnerRunSchema.index({ startedAt: 1 }, { expireAfterSeconds: 30 * 24 * 60 * 60 });

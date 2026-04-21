@@ -12,6 +12,7 @@ export interface IAIRunnerSchedule extends Document {
   lastRunId?: mongoose.Types.ObjectId;
   lastRunStatus?: AIRunnerRunStatus;
   lastRunAt?: Date;
+  lastScheduledFor?: Date;
   nextRunTime?: Date;
   createdAt: Date;
   updatedAt: Date;
@@ -29,9 +30,10 @@ const AIRunnerScheduleSchema = new Schema<IAIRunnerSchedule>(
     lastRunId: { type: Schema.Types.ObjectId, ref: 'AIRunnerRun' },
     lastRunStatus: {
       type: String,
-      enum: ['queued', 'running', 'completed', 'failed', 'timeout', 'killed'],
+      enum: ['queued', 'running', 'retrying', 'completed', 'failed', 'timeout', 'killed'],
     },
     lastRunAt: { type: Date },
+    lastScheduledFor: { type: Date },
     nextRunTime: { type: Date },
   },
   { timestamps: true }
