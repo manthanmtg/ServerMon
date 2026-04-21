@@ -11,11 +11,11 @@ import { enqueueRunRequest } from './queue';
 import {
   DEFAULT_HEARTBEAT_STALE_MS,
   DEFAULT_LEASE_TTL_MS,
-  DEFAULT_MAX_CONCURRENT_RUNS,
   DEFAULT_RETRY_DELAY_MS,
   DEFAULT_SUPERVISOR_TICK_MS,
   LEASE_ID,
   MAX_SCHEDULE_CATCHUP_RUNS,
+  getMaxConcurrentRuns,
   getNextRunTimeFromExpression,
   shouldRetryJob,
   stringifyId,
@@ -32,6 +32,7 @@ export class AIRunnerSupervisor {
     process.env.AI_RUNNER_SUPERVISOR_INSTANCE_ID || `${process.pid}-${randomUUID()}`;
 
   private readonly tickMs = DEFAULT_SUPERVISOR_TICK_MS;
+  private readonly maxConcurrentRuns = getMaxConcurrentRuns();
 
   async run(): Promise<void> {
     await connectDB();
@@ -263,7 +264,7 @@ export class AIRunnerSupervisor {
       status: { $in: ['dispatched', 'running'] },
     });
 
-    while (activeCount < DEFAULT_MAX_CONCURRENT_RUNS) {
+    while (activeCount < this.maxConcurrentRuns) {
       const now = new Date();
       const job = await AIRunnerJob.findOneAndUpdate(
         {

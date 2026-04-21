@@ -17,6 +17,7 @@ import type { IAIRunnerSchedule } from '@/models/AIRunnerSchedule';
 import { computeNextRuns } from '@/lib/crons/service';
 
 export const DEFAULT_MAX_CONCURRENT_RUNS = 3;
+export const MAX_CONCURRENT_RUNS_CAP = 8;
 export const DEFAULT_OUTPUT_LIMIT = 1_000_000;
 export const DEFAULT_SUPERVISOR_TICK_MS = 5_000;
 export const DEFAULT_LEASE_TTL_MS = 20_000;
@@ -25,6 +26,12 @@ export const DEFAULT_RETRY_DELAY_MS = 15_000;
 export const DEFAULT_MAX_ATTEMPTS = 2;
 export const MAX_SCHEDULE_CATCHUP_RUNS = 24;
 export const LEASE_ID = 'airunner-supervisor';
+
+export function getMaxConcurrentRuns(): number {
+  const raw = Number(process.env.AI_RUNNER_MAX_CONCURRENT_RUNS ?? DEFAULT_MAX_CONCURRENT_RUNS);
+  if (!Number.isFinite(raw)) return DEFAULT_MAX_CONCURRENT_RUNS;
+  return Math.min(Math.max(Math.floor(raw), 1), MAX_CONCURRENT_RUNS_CAP);
+}
 
 export interface AIRunnerResolvedExecution {
   promptId?: string;
