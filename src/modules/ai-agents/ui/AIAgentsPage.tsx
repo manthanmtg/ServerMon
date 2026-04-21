@@ -570,28 +570,66 @@ export default function AIAgentsPage() {
   const [actionLoading, setActionLoading] = useState(false);
 
   const load = useCallback(
-    async (showRefresh = false) => {
+    async (showRefresh = false, signal?: AbortSignal) => {
       if (showRefresh) setRefreshing(true);
       try {
-        const res = await fetch('/api/modules/ai-agents', { cache: 'no-store' });
+        const res = await fetch('/api/modules/ai-agents', { cache: 'no-store', signal });
         if (res.ok) {
           const data = await res.json();
-          setSnapshot(data);
+          if (!signal?.aborted) setSnapshot(data);
         }
-      } catch {
+      } catch (err) {
+        if ((err as Error)?.name === 'AbortError') return;
         toast({ title: 'Failed to load AI agents', variant: 'destructive' });
       } finally {
-        setLoading(false);
-        setRefreshing(false);
+        if (!signal?.aborted) {
+          setLoading(false);
+          setRefreshing(false);
+        }
       }
     },
     [toast]
   );
 
+  // Poll while the tab is visible; pause when hidden. Cancel in-flight fetches
+  // on unmount or visibility change to avoid piling up work.
   useEffect(() => {
-    load();
-    const interval = window.setInterval(() => load(), 3000);
-    return () => window.clearInterval(interval);
+    let interval: number | null = null;
+    let controller: AbortController | null = null;
+
+    const tick = () => {
+      controller?.abort();
+      controller = new AbortController();
+      void load(false, controller.signal);
+    };
+
+    const start = () => {
+      if (interval !== null) return;
+      tick();
+      interval = window.setInterval(tick, 10_000);
+    };
+
+    const stop = () => {
+      if (interval !== null) {
+        window.clearInterval(interval);
+        interval = null;
+      }
+      controller?.abort();
+      controller = null;
+    };
+
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') start();
+      else stop();
+    };
+
+    if (document.visibilityState === 'visible') start();
+    document.addEventListener('visibilitychange', onVisibility);
+
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibility);
+      stop();
+    };
   }, [load]);
 
   const filteredSessions = useMemo(() => {

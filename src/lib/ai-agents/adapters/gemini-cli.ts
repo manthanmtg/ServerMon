@@ -1,6 +1,11 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { execPromise, detectGitInfo, discoverHomeDirs } from '../process-utils';
+import {
+  execPromise,
+  detectGitInfo,
+  discoverHomeDirs,
+  getHostnameCached,
+} from '../process-utils';
 import { createLogger } from '@/lib/logger';
 import type {
   AgentAdapter,
@@ -233,7 +238,7 @@ export class GeminiCLIAdapter implements AgentAdapter {
         workingDirectory: projectPath || projectSlug,
         repository: gitInfo.repository,
         gitBranch: gitInfo.branch,
-        host: (await execPromise('hostname').catch(() => ({ stdout: 'localhost' }))).stdout.trim(),
+        host: getHostnameCached(),
       },
       lifecycle: {
         startTime: sessionData.startTime,

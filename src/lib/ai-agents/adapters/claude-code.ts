@@ -1,6 +1,12 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { execPromise, detectGitInfo, discoverHomeDirs } from '../process-utils';
+import {
+  execPromise,
+  detectGitInfo,
+  discoverHomeDirs,
+  getHostnameCached,
+  readFileTailSync,
+} from '../process-utils';
 import { createLogger } from '@/lib/logger';
 import type {
   AgentAdapter,
@@ -90,7 +96,7 @@ export class ClaudeCodeAdapter implements AgentAdapter {
         workingDirectory: cwd || projectFolderName,
         repository: gitInfo.repository,
         gitBranch: gitInfo.branch,
-        host: (await execPromise('hostname').catch(() => ({ stdout: 'localhost' }))).stdout.trim(),
+        host: getHostnameCached(),
       },
       lifecycle: {
         startTime: historyData.startTime || now,
@@ -179,7 +185,8 @@ export class ClaudeCodeAdapter implements AgentAdapter {
       data.fileModifiedAt = files[0].time;
 
       const latestFile = path.join(projectPath, files[0].name);
-      const content = fs.readFileSync(latestFile, 'utf8');
+      // Only tail-read to avoid loading multi-MB conversation logs on every snapshot.
+      const content = readFileTailSync(latestFile, 256 * 1024);
       const conversation: ConversationEntry[] = [];
       const timeline: ActionTimelineEntry[] = [];
       const logs: string[] = [];

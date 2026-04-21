@@ -30,24 +30,60 @@ export default function AIAgentsWidget() {
   const [snapshot, setSnapshot] = useState<AgentsSnapshot | null>(null);
   const [initialLoad, setInitialLoad] = useState(true);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (signal?: AbortSignal) => {
     try {
-      const res = await fetch('/api/modules/ai-agents', { cache: 'no-store' });
+      const res = await fetch('/api/modules/ai-agents', { cache: 'no-store', signal });
       if (res.ok) {
         const data = await res.json();
-        setSnapshot(data);
+        if (!signal?.aborted) setSnapshot(data);
       }
     } catch {
       // silently ignore for widget
     } finally {
-      setInitialLoad(false);
+      if (!signal?.aborted) setInitialLoad(false);
     }
   }, []);
 
+  // Poll while the dashboard tab is visible; pause when hidden and cancel
+  // in-flight requests to keep the snapshot endpoint (which is expensive on
+  // the server) from being hammered in the background.
   useEffect(() => {
-    load();
-    const interval = window.setInterval(load, 10000);
-    return () => window.clearInterval(interval);
+    let interval: number | null = null;
+    let controller: AbortController | null = null;
+
+    const tick = () => {
+      controller?.abort();
+      controller = new AbortController();
+      void load(controller.signal);
+    };
+
+    const start = () => {
+      if (interval !== null) return;
+      tick();
+      interval = window.setInterval(tick, 15_000);
+    };
+
+    const stop = () => {
+      if (interval !== null) {
+        window.clearInterval(interval);
+        interval = null;
+      }
+      controller?.abort();
+      controller = null;
+    };
+
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') start();
+      else stop();
+    };
+
+    if (document.visibilityState === 'visible') start();
+    document.addEventListener('visibilitychange', onVisibility);
+
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibility);
+      stop();
+    };
   }, [load]);
 
   if (initialLoad && !snapshot) {

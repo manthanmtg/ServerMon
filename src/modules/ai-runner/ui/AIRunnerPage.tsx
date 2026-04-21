@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Image from 'next/image';
 import {
   Bot,
@@ -152,11 +152,33 @@ function useRealtimeNow(enabled: boolean, intervalMs = 1000): number {
   useEffect(() => {
     if (!enabled) return;
 
-    const interval = window.setInterval(() => {
-      setNow(Date.now());
-    }, intervalMs);
+    let interval: number | null = null;
 
-    return () => window.clearInterval(interval);
+    const start = () => {
+      if (interval !== null) return;
+      setNow(Date.now());
+      interval = window.setInterval(() => setNow(Date.now()), intervalMs);
+    };
+
+    const stop = () => {
+      if (interval !== null) {
+        window.clearInterval(interval);
+        interval = null;
+      }
+    };
+
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') start();
+      else stop();
+    };
+
+    if (document.visibilityState === 'visible') start();
+    document.addEventListener('visibilitychange', onVisibility);
+
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibility);
+      stop();
+    };
   }, [enabled, intervalMs]);
 
   return now;
@@ -1006,103 +1028,191 @@ export default function AIRunnerPage() {
   const selectedRunSchedule =
     schedules.find((schedule) => schedule._id === selectedRun?.scheduleId) ?? null;
 
-  const loadAll = useCallback(
-    async (search = runSearch) => {
-      const firstLoad = loading;
-      if (!firstLoad) {
-        setRefreshing(true);
-      }
+  // Keep latest values in refs so that data-loading callbacks can stay stable
+  // (not dependent on search/form state) and don't re-run 5 parallel fetches
+  // on every keystroke.
+  const runSearchRef = useRef(runSearch);
+  runSearchRef.current = runSearch;
 
+  const runsAbortRef = useRef<AbortController | null>(null);
+  const metadataAbortRef = useRef<AbortController | null>(null);
+
+  const loadRuns = useCallback(
+    async (searchOverride?: string) => {
+      const search = searchOverride ?? runSearchRef.current;
+      runsAbortRef.current?.abort();
+      const controller = new AbortController();
+      runsAbortRef.current = controller;
       try {
-        const [profilesRes, promptsRes, schedulesRes, runsRes, directoriesRes] = await Promise.all([
-          fetch('/api/modules/ai-runner/profiles', { cache: 'no-store' }),
-          fetch('/api/modules/ai-runner/prompts', { cache: 'no-store' }),
-          fetch('/api/modules/ai-runner/schedules', { cache: 'no-store' }),
-          fetch(
-            `/api/modules/ai-runner/runs?limit=25${search ? `&search=${encodeURIComponent(search)}` : ''}`,
-            { cache: 'no-store' }
-          ),
-          fetch('/api/modules/ai-runner/directories', { cache: 'no-store' }),
-        ]);
-
-        if (profilesRes.ok) {
-          const profilePayload: AIRunnerProfileDTO[] = await profilesRes.json();
-          setProfiles(profilePayload);
-          if (!runForm.agentProfileId && profilePayload[0]) {
-            setRunForm((current) => ({
-              ...current,
-              agentProfileId: profilePayload[0]._id,
-              timeout: profilePayload[0].defaultTimeout,
-            }));
-            setScheduleForm((current) => ({
-              ...current,
-              agentProfileId: current.agentProfileId || profilePayload[0]._id,
-              timeout: current.agentProfileId ? current.timeout : profilePayload[0].defaultTimeout,
-            }));
-          }
-        }
-
-        if (promptsRes.ok) {
-          setPrompts(await promptsRes.json());
-        }
-
-        if (schedulesRes.ok) {
-          setSchedules(await schedulesRes.json());
-        }
-
-        if (runsRes.ok) {
-          const payload: AIRunnerRunsResponse = await runsRes.json();
-          setRuns(payload.runs);
-          setRunTotal(payload.total);
-        }
-
-        if (directoriesRes.ok) {
-          const payload = await directoriesRes.json();
-          setDirectories(payload.directories ?? []);
-          setRunForm((current) => ({
-            ...current,
-            workingDirectory: current.workingDirectory || payload.directories?.[0] || '',
-          }));
-          setScheduleForm((current) => ({
-            ...current,
-            workingDirectory: current.workingDirectory || payload.directories?.[0] || '',
-          }));
-        }
+        const response = await fetch(
+          `/api/modules/ai-runner/runs?limit=25${search ? `&search=${encodeURIComponent(search)}` : ''}`,
+          { cache: 'no-store', signal: controller.signal }
+        );
+        if (!response.ok) return;
+        const payload: AIRunnerRunsResponse = await response.json();
+        if (controller.signal.aborted) return;
+        setRuns(payload.runs);
+        setRunTotal(payload.total);
       } catch (error) {
+        if ((error as Error)?.name === 'AbortError') return;
         toast({
           title: 'Load failed',
-          description: error instanceof Error ? error.message : 'Failed to load AI Runner data',
+          description: error instanceof Error ? error.message : 'Failed to load runs',
           variant: 'destructive',
         });
+      }
+    },
+    [toast]
+  );
+
+  const loadMetadata = useCallback(async () => {
+    metadataAbortRef.current?.abort();
+    const controller = new AbortController();
+    metadataAbortRef.current = controller;
+    try {
+      const [profilesRes, promptsRes, schedulesRes, directoriesRes] = await Promise.all([
+        fetch('/api/modules/ai-runner/profiles', { cache: 'no-store', signal: controller.signal }),
+        fetch('/api/modules/ai-runner/prompts', { cache: 'no-store', signal: controller.signal }),
+        fetch('/api/modules/ai-runner/schedules', { cache: 'no-store', signal: controller.signal }),
+        fetch('/api/modules/ai-runner/directories', {
+          cache: 'no-store',
+          signal: controller.signal,
+        }),
+      ]);
+
+      if (controller.signal.aborted) return;
+
+      if (profilesRes.ok) {
+        const profilePayload: AIRunnerProfileDTO[] = await profilesRes.json();
+        setProfiles(profilePayload);
+        if (profilePayload[0]) {
+          // Initialise the run/schedule forms only when they haven't been
+          // touched yet — functional setters read the current value so this
+          // stays idempotent across reloads.
+          setRunForm((current) =>
+            current.agentProfileId
+              ? current
+              : {
+                  ...current,
+                  agentProfileId: profilePayload[0]._id,
+                  timeout: profilePayload[0].defaultTimeout,
+                }
+          );
+          setScheduleForm((current) =>
+            current.agentProfileId
+              ? current
+              : {
+                  ...current,
+                  agentProfileId: profilePayload[0]._id,
+                  timeout: profilePayload[0].defaultTimeout,
+                }
+          );
+        }
+      }
+
+      if (promptsRes.ok) {
+        setPrompts(await promptsRes.json());
+      }
+
+      if (schedulesRes.ok) {
+        setSchedules(await schedulesRes.json());
+      }
+
+      if (directoriesRes.ok) {
+        const payload = await directoriesRes.json();
+        if (controller.signal.aborted) return;
+        setDirectories(payload.directories ?? []);
+        setRunForm((current) => ({
+          ...current,
+          workingDirectory: current.workingDirectory || payload.directories?.[0] || '',
+        }));
+        setScheduleForm((current) => ({
+          ...current,
+          workingDirectory: current.workingDirectory || payload.directories?.[0] || '',
+        }));
+      }
+    } catch (error) {
+      if ((error as Error)?.name === 'AbortError') return;
+      toast({
+        title: 'Load failed',
+        description: error instanceof Error ? error.message : 'Failed to load AI Runner data',
+        variant: 'destructive',
+      });
+    }
+  }, [toast]);
+
+  const loadAll = useCallback(
+    async (searchOverride?: string) => {
+      setRefreshing(true);
+      try {
+        await Promise.all([loadMetadata(), loadRuns(searchOverride)]);
       } finally {
         setLoading(false);
         setRefreshing(false);
       }
     },
-    [loading, runForm.agentProfileId, runSearch, toast]
+    [loadMetadata, loadRuns]
   );
 
+  // Initial load — runs once on mount. Abort any in-flight fetches on unmount.
   useEffect(() => {
     void loadAll();
-  }, [loadAll]);
+    return () => {
+      runsAbortRef.current?.abort();
+      metadataAbortRef.current?.abort();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
+  // Debounced refetch of runs when the history search input changes. We
+  // deliberately don't re-run metadata loads here — typing in the search
+  // field used to refire 5 parallel fetches on every keystroke.
+  const didMountRef = useRef(false);
   useEffect(() => {
-    if (!selectedRun || !['queued', 'running', 'retrying'].includes(selectedRun.status)) {
+    if (!didMountRef.current) {
+      didMountRef.current = true;
       return;
     }
+    const handle = window.setTimeout(() => {
+      void loadRuns(runSearch);
+    }, 300);
+    return () => window.clearTimeout(handle);
+  }, [runSearch, loadRuns]);
+
+  // Poll the currently-selected run while it's active. Depend only on the
+  // run id/status so setSelectedRun(run) inside the interval doesn't tear
+  // down and recreate the interval on every tick.
+  const selectedRunId = selectedRun?._id;
+  const selectedRunStatus = selectedRun?.status;
+  useEffect(() => {
+    if (!selectedRunId || !selectedRunStatus) return;
+    if (!['queued', 'running', 'retrying'].includes(selectedRunStatus)) return;
+
+    let cancelled = false;
+    const controller = new AbortController();
 
     const interval = window.setInterval(async () => {
-      const response = await fetch(`/api/modules/ai-runner/runs/${selectedRun._id}`, {
-        cache: 'no-store',
-      });
-      if (!response.ok) return;
-      const run: AIRunnerRunDTO = await response.json();
-      setSelectedRun(run);
-      setRuns((current) => current.map((item) => (item._id === run._id ? run : item)));
+      try {
+        const response = await fetch(`/api/modules/ai-runner/runs/${selectedRunId}`, {
+          cache: 'no-store',
+          signal: controller.signal,
+        });
+        if (!response.ok || cancelled) return;
+        const run: AIRunnerRunDTO = await response.json();
+        if (cancelled) return;
+        setSelectedRun((current) => (current?._id === run._id ? run : current));
+        setRuns((current) => current.map((item) => (item._id === run._id ? run : item)));
+      } catch {
+        /* aborted or transient — ignored */
+      }
     }, 2000);
 
-    return () => window.clearInterval(interval);
-  }, [selectedRun]);
+    return () => {
+      cancelled = true;
+      controller.abort();
+      window.clearInterval(interval);
+    };
+  }, [selectedRunId, selectedRunStatus]);
 
   const profileMap = useMemo(
     () => Object.fromEntries(profiles.map((profile) => [profile._id, profile])),

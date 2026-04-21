@@ -16,6 +16,60 @@ export function execPromise(cmd: string): Promise<{ stdout: string; stderr: stri
   });
 }
 
+/**
+ * Read the tail (last N bytes) of a file as UTF-8. For line-oriented formats
+ * like .jsonl we strip the leading partial line. Falls back to reading the
+ * whole file if it's smaller than maxBytes. This avoids blocking the event
+ * loop reading multi-MB conversation logs on every snapshot.
+ */
+export function readFileTailSync(filePath: string, maxBytes = 256 * 1024): string {
+  let fd: number | undefined;
+  try {
+    let size: number | undefined;
+    try {
+      size = fs.statSync(filePath)?.size;
+    } catch {
+      size = undefined;
+    }
+    // If we can't determine a real size, fall back to readFileSync (keeps
+    // tests and edge cases working — they rely on fs.readFileSync being
+    // mocked/available).
+    if (typeof size !== 'number' || !Number.isFinite(size) || size <= maxBytes) {
+      return fs.readFileSync(filePath, 'utf8');
+    }
+    fd = fs.openSync(filePath, 'r');
+    const buffer = Buffer.alloc(maxBytes);
+    const position = size - maxBytes;
+    fs.readSync(fd, buffer, 0, maxBytes, position);
+    const text = buffer.toString('utf8');
+    // Drop the first (likely partial) line since we started mid-file.
+    const firstNewline = text.indexOf('\n');
+    return firstNewline >= 0 ? text.slice(firstNewline + 1) : text;
+  } finally {
+    if (fd !== undefined) {
+      try {
+        fs.closeSync(fd);
+      } catch {
+        /* ignore */
+      }
+    }
+  }
+}
+
+// Cached hostname — os.hostname() is cheap but we also avoid repeated
+// syscalls across many sessions per snapshot.
+let _cachedHostname: string | null = null;
+export function getHostnameCached(): string {
+  if (_cachedHostname === null) {
+    try {
+      _cachedHostname = os.hostname() || 'localhost';
+    } catch {
+      _cachedHostname = 'localhost';
+    }
+  }
+  return _cachedHostname;
+}
+
 export async function getProcessResourceUsage(pid: number): Promise<SessionResourceUsage> {
   try {
     // macOS ps doesn't support --no-headers, so we fetch with headers and skip the first line
@@ -38,10 +92,18 @@ export async function getProcessResourceUsage(pid: number): Promise<SessionResou
   return { cpuPercent: 0, memoryPercent: 0, memoryBytes: 0 };
 }
 
-export async function detectGitInfo(
-  cwd: string
-): Promise<{ repository?: string; branch?: string }> {
+type GitInfo = { repository?: string; branch?: string };
+const GIT_INFO_CACHE_TTL_MS = 30_000;
+const _gitInfoCache = new Map<string, { value: GitInfo; expiresAt: number }>();
+
+export async function detectGitInfo(cwd: string): Promise<GitInfo> {
   if (!cwd || cwd === '~') return {};
+  const now = Date.now();
+  const cached = _gitInfoCache.get(cwd);
+  if (cached && cached.expiresAt > now) {
+    return cached.value;
+  }
+  let value: GitInfo = {};
   try {
     const [repoResult, branchResult] = await Promise.all([
       execPromise(`git -C "${cwd}" rev-parse --show-toplevel 2>/dev/null`),
@@ -50,10 +112,17 @@ export async function detectGitInfo(
     const repoPath = repoResult.stdout.trim();
     const repository = repoPath ? repoPath.split('/').pop() : undefined;
     const branch = branchResult.stdout.trim() || undefined;
-    return { repository, branch };
+    value = { repository, branch };
   } catch {
-    return {};
+    value = {};
   }
+  _gitInfoCache.set(cwd, { value, expiresAt: now + GIT_INFO_CACHE_TTL_MS });
+  // Bound cache size to avoid unbounded growth if many unique cwds appear
+  if (_gitInfoCache.size > 256) {
+    const oldestKey = _gitInfoCache.keys().next().value;
+    if (oldestKey !== undefined) _gitInfoCache.delete(oldestKey);
+  }
+  return value;
 }
 
 export async function killProcess(

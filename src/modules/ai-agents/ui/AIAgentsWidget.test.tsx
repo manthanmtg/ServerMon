@@ -132,14 +132,14 @@ describe('AIAgentsWidget', () => {
     await waitFor(() => expect(screen.queryByText('AI Agents')).toBeDefined());
   });
 
-  it('polls for updates every 10 seconds', async () => {
+  it('polls for updates every 15 seconds', async () => {
     vi.useFakeTimers();
     await act(async () => {
       render(<AIAgentsWidget />);
     });
     expect(global.fetch).toHaveBeenCalledTimes(1);
     await act(async () => {
-      vi.advanceTimersByTime(10001);
+      vi.advanceTimersByTime(15001);
     });
     expect(global.fetch).toHaveBeenCalledTimes(2);
   });

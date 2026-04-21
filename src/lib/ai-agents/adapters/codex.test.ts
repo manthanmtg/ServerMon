@@ -31,6 +31,8 @@ vi.mock('../process-utils', () => ({
   discoverHomeDirs: mockDiscoverHomeDirs,
   detectGitInfo: mockDetectGitInfo,
   execPromise: mockExecPromise,
+  getHostnameCached: () => 'localhost',
+  readFileTailSync: (p: string) => mockReadFileSync(p, 'utf8'),
 }));
 
 import { CodexAdapter } from './codex';

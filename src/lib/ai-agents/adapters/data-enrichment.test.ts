@@ -34,6 +34,8 @@ vi.mock('../process-utils', () => ({
   discoverHomeDirs: mockDiscoverHomeDirs,
   detectGitInfo: mockDetectGitInfo,
   execPromise: mockExecPromise,
+  getHostnameCached: () => 'localhost',
+  readFileTailSync: (p: string) => mockReadFileSync(p, 'utf8'),
 }));
 
 import { ClaudeCodeAdapter } from './claude-code';

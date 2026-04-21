@@ -17,7 +17,7 @@ export class AIAgentsService {
   private adapters: AgentAdapter[] = [];
   private sessionCache: AgentSession[] = [];
   private lastScanTime = 0;
-  private readonly CACHE_TTL_MS = 3000;
+  private readonly CACHE_TTL_MS = 15_000;
 
   constructor() {
     this.adapters = [

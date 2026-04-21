@@ -34,6 +34,7 @@ vi.mock('../process-utils', () => ({
   discoverHomeDirs: mockDiscoverHomeDirs,
   detectGitInfo: mockDetectGitInfo,
   execPromise: mockExecPromise,
+  getHostnameCached: () => 'localhost',
 }));
 
 import { GeminiCLIAdapter } from './gemini-cli';

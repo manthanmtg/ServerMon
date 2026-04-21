@@ -1,6 +1,12 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { execPromise, detectGitInfo, discoverHomeDirs } from '../process-utils';
+import {
+  execPromise,
+  detectGitInfo,
+  discoverHomeDirs,
+  getHostnameCached,
+  readFileTailSync,
+} from '../process-utils';
 import { createLogger } from '@/lib/logger';
 import type {
   AgentAdapter,
@@ -95,7 +101,7 @@ export class CodexAdapter implements AgentAdapter {
         workingDirectory: cwd || 'unknown',
         repository: gitInfo.repository,
         gitBranch: gitInfo.branch,
-        host: (await execPromise('hostname').catch(() => ({ stdout: 'localhost' }))).stdout.trim(),
+        host: getHostnameCached(),
       },
       lifecycle: {
         startTime: historyData.startTime || now,
@@ -178,7 +184,8 @@ export class CodexAdapter implements AgentAdapter {
         /* ignore */
       }
 
-      const content = fs.readFileSync(rolloutPath, 'utf8');
+      // Only tail-read to avoid loading multi-MB rollout logs on every snapshot.
+      const content = readFileTailSync(rolloutPath, 256 * 1024);
       const conversation: ConversationEntry[] = [];
       const timeline: ActionTimelineEntry[] = [];
       const logs: string[] = [];
