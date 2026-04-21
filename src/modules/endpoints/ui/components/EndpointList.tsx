@@ -1,7 +1,6 @@
 'use client';
 
-import { Search, RefreshCcw, Sparkles, Plus, Terminal, Braces, Globe, Lock, LockOpen, Copy, ChevronDown, Check } from 'lucide-react';
-import { useState, useRef, useEffect } from 'react';
+import { Search, RefreshCcw, Sparkles, Plus, Terminal, Braces, Globe, Lock, LockOpen } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn, relativeTime } from '@/lib/utils';
 import { MethodBadge } from './common/MethodBadge';
@@ -29,7 +28,6 @@ interface EndpointListProps {
   onCreate: () => void;
   onShowTemplates: () => void;
   onToggle: (id: string) => void;
-  onCopySnippet: (code: string) => void;
   isResizing: boolean;
 }
 

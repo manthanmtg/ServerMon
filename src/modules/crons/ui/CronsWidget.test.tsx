@@ -11,9 +11,12 @@ const mockCronsSnapshot = {
 describe('CronsWidget', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    global.fetch = vi
-      .fn()
-      .mockImplementation(() => Promise.resolve({ ok: true, json: async () => mockCronsSnapshot }));
+    global.fetch = vi.fn(async () =>
+      new Response(JSON.stringify(mockCronsSnapshot), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    ) as unknown as typeof fetch;
   });
 
   it('renders active crons count', async () => {
@@ -35,7 +38,7 @@ describe('CronsWidget', () => {
   });
 
   it('shows loading state initially', () => {
-    global.fetch = vi.fn(() => new Promise(() => {}));
+    global.fetch = vi.fn(() => new Promise(() => {})) as unknown as typeof fetch;
     const { container } = render(<CronsWidget />);
     expect(container.querySelector('.animate-spin')).toBeTruthy();
   });

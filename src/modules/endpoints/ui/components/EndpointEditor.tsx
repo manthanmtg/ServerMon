@@ -1,11 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import { LoaderCircle, X, Plus, Terminal, Link, Braces, Sparkles, Globe } from 'lucide-react';
+import { LoaderCircle, X, Terminal, Link, Braces, Sparkles } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import { cn } from '@/lib/utils';
 import { LANGUAGES, METHODS } from './common/constants';
-import { SCRIPT_BOILERPLATES, WEBHOOK_BOILERPLATES, LOGIC_BOILERPLATES } from './common/boilerplates';
+import { LOGIC_BOILERPLATES, SCRIPT_BOILERPLATES, WEBHOOK_BOILERPLATES } from './common/boilerplates';
 import type { EndpointCreateRequest, HttpMethod, ScriptLanguage } from '../../types';
 import ConfirmationModal from '@/components/ui/ConfirmationModal';
 

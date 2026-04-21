@@ -4,14 +4,27 @@ import mongoose from 'mongoose';
 
 // ── Hoisted mocks ─────────────────────────────────────────────────────────────
 
-const { mockConnectDB, mockFindByIdAndUpdate, mockFindOne, mockUpdateOne, mockFindById } =
-  vi.hoisted(() => ({
+const {
+  mockConnectDB,
+  mockFindByIdAndUpdate,
+  mockFindOne,
+  mockUpdateOne,
+  mockFindById,
+  mockQuery,
+} = vi.hoisted(() => {
+  const mockQuery = {
+    select: vi.fn().mockReturnThis(),
+    lean: vi.fn().mockResolvedValue(null),
+  };
+  return {
     mockConnectDB: vi.fn().mockResolvedValue(undefined),
     mockFindByIdAndUpdate: vi.fn().mockResolvedValue(null),
-    mockFindOne: vi.fn().mockResolvedValue(null),
+    mockFindOne: vi.fn().mockReturnValue(mockQuery),
     mockUpdateOne: vi.fn().mockResolvedValue({ modifiedCount: 1 }),
     mockFindById: vi.fn(),
-  }));
+    mockQuery,
+  };
+});
 
 vi.mock('@/lib/db', () => ({ default: mockConnectDB }));
 
@@ -73,7 +86,9 @@ describe('token-service', () => {
     vi.clearAllMocks();
     mockConnectDB.mockResolvedValue(undefined);
     mockFindByIdAndUpdate.mockResolvedValue(null);
-    mockFindOne.mockResolvedValue(null);
+    mockFindOne.mockReturnValue(mockQuery);
+    mockQuery.select.mockReturnThis();
+    mockQuery.lean.mockResolvedValue(null);
     mockUpdateOne.mockResolvedValue({ modifiedCount: 1 });
   });
 
@@ -147,7 +162,7 @@ describe('token-service', () => {
 
   describe('verifyToken()', () => {
     it('returns false when no endpoint is found', async () => {
-      mockFindOne.mockResolvedValue(null);
+      mockQuery.lean.mockResolvedValue(null);
       const result = await verifyToken('endpoint-id', 'sk_sometoken');
       expect(result).toBe(false);
     });
@@ -162,7 +177,7 @@ describe('token-service', () => {
         expiresAt: new Date(Date.now() + 86400_000), // future
       });
 
-      mockFindOne.mockResolvedValue({
+      mockQuery.lean.mockResolvedValue({
         tokens: [token],
         _id: new mongoose.Types.ObjectId(),
       });
@@ -181,7 +196,7 @@ describe('token-service', () => {
         expiresAt: new Date(Date.now() - 1000), // past
       });
 
-      mockFindOne.mockResolvedValue({
+      mockQuery.lean.mockResolvedValue({
         tokens: [token],
         _id: new mongoose.Types.ObjectId(),
       });
@@ -197,7 +212,7 @@ describe('token-service', () => {
 
       const token = makeToken({ hashedToken, expiresAt: undefined });
 
-      mockFindOne.mockResolvedValue({
+      mockQuery.lean.mockResolvedValue({
         tokens: [token],
       });
 
@@ -213,7 +228,7 @@ describe('token-service', () => {
 
       const token = makeToken({ _id: tokenId, hashedToken });
 
-      mockFindOne.mockResolvedValue({ tokens: [token] });
+      mockQuery.lean.mockResolvedValue({ tokens: [token] });
 
       await verifyToken('endpoint-id', rawToken);
 
@@ -230,7 +245,7 @@ describe('token-service', () => {
 
   describe('verifyTokenBySlug()', () => {
     it('returns false when no endpoint matches the slug', async () => {
-      mockFindOne.mockResolvedValue(null);
+      mockQuery.lean.mockResolvedValue(null);
       const result = await verifyTokenBySlug('my-endpoint', 'sk_token');
       expect(result).toBe(false);
     });
@@ -241,7 +256,7 @@ describe('token-service', () => {
       const hashedToken = crypto.createHash('sha256').update(rawToken).digest('hex');
 
       const token = makeToken({ hashedToken });
-      mockFindOne.mockResolvedValue({ tokens: [token], slug: 'my-endpoint' });
+      mockQuery.lean.mockResolvedValue({ tokens: [token], slug: 'my-endpoint' });
 
       const result = await verifyTokenBySlug('my-endpoint', rawToken);
       expect(result).toBe(true);

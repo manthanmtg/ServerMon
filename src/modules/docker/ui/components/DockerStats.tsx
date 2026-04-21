@@ -1,7 +1,7 @@
 'use client';
  
 import { Card, CardContent } from '@/components/ui/card';
-import { PlayCircle, Square, PauseCircle, LucideIcon } from 'lucide-react';
+import { PlayCircle, Square, PauseCircle } from 'lucide-react';
 import type { DockerSnapshot } from '../../types';
  
 interface DockerStatsProps {

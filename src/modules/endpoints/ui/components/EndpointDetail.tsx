@@ -11,17 +11,17 @@ import {
   Key,
   FileText,
   ChevronDown,
-  BookOpen
+  BookOpen,
+  type LucideIcon
 } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { TYPE_ICONS } from './common/constants';
-import type { EndpointCreateRequest, DetailTab } from '../../types';
+import type { EndpointCreateRequest, DetailTab, EndpointSnippetFormat } from '../../types';
 
 interface EndpointDetailProps {
   form: EndpointCreateRequest;
-  initialForm: EndpointCreateRequest | null;
   selectedId: string | null;
   isCreating: boolean;
   isDirty: boolean;
@@ -36,14 +36,13 @@ interface EndpointDetailProps {
   onTest: () => void;
   onTabChange: (tab: DetailTab) => void;
   onCopySnippet: (code: string) => void;
-  generateCopySnippet: (format: 'url' | 'curl' | 'powershell' | 'fetch' | 'node' | 'python') => string;
+  generateCopySnippet: (format: EndpointSnippetFormat) => string;
   showTestConsole: boolean;
   children: React.ReactNode;
 }
 
 export function EndpointDetail({
   form,
-  initialForm,
   selectedId,
   isCreating,
   isDirty,
@@ -64,6 +63,29 @@ export function EndpointDetail({
 }: EndpointDetailProps) {
   const [showCopyDropdown, setShowCopyDropdown] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const tabs: Array<{ id: DetailTab; label: string; shortLabel: string; icon: LucideIcon }> = [
+    { id: 'configure', label: 'Configure', shortLabel: 'Config', icon: Settings },
+    {
+      id: 'code',
+      label:
+        form.endpointType === 'webhook'
+          ? 'Webhook'
+          : form.endpointType === 'logic'
+            ? 'Logic'
+            : 'Code',
+      shortLabel:
+        form.endpointType === 'webhook'
+          ? 'Hook'
+          : form.endpointType === 'logic'
+            ? 'Logic'
+            : 'Code',
+      icon: TYPE_ICONS[form.endpointType || 'script'],
+    },
+    { id: 'docs', label: 'Docs', shortLabel: 'Docs', icon: BookOpen },
+    { id: 'auth', label: 'Auth & Tokens', shortLabel: 'Auth', icon: Key },
+    ...(isCreating ? [] : [{ id: 'logs' as const, label: 'Logs', shortLabel: 'Logs', icon: FileText }]),
+    { id: 'settings', label: 'Settings', shortLabel: 'Settings', icon: Settings },
+  ];
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -83,29 +105,6 @@ export function EndpointDetail({
     { id: 'node', label: 'Copy as fetch (Node.js)', format: 'node' },
     { id: 'python', label: 'Copy as Python', format: 'python' },
   ] as const;
-  const tabs = [
-    { id: 'configure' as const, label: 'Configure', shortLabel: 'Config', icon: Settings },
-    {
-      id: 'code' as const,
-      label:
-        form.endpointType === 'webhook'
-          ? 'Webhook'
-          : form.endpointType === 'logic'
-            ? 'Logic'
-            : 'Code',
-      shortLabel:
-        form.endpointType === 'webhook'
-          ? 'Hook'
-          : form.endpointType === 'logic'
-            ? 'Logic'
-            : 'Code',
-      icon: TYPE_ICONS[form.endpointType || 'script'],
-    },
-    { id: 'docs' as const, label: 'Docs', shortLabel: 'Docs', icon: BookOpen },
-    { id: 'auth' as const, label: 'Auth & Tokens', shortLabel: 'Auth', icon: Key },
-    !isCreating && { id: 'logs' as const, label: 'Logs', shortLabel: 'Logs', icon: FileText },
-    { id: 'settings' as const, label: 'Settings', shortLabel: 'Settings', icon: Settings },
-  ].filter(Boolean) as { id: DetailTab; label: string; shortLabel: string; icon: any }[];
 
   return (
     <div
@@ -171,7 +170,7 @@ export function EndpointDetail({
                       <button
                         key={opt.id}
                         onClick={() => {
-                          const snippet = generateCopySnippet(opt.format as any);
+                          const snippet = generateCopySnippet(opt.format);
                           onCopySnippet(snippet);
                           setShowCopyDropdown(false);
                         }}

@@ -10,9 +10,9 @@ import type {
   CustomEndpointDTO,
   EndpointsListResponse,
   EndpointCreateRequest,
+  EndpointSnippetFormat,
   EndpointTestResult,
   EndpointTemplate,
-  HttpMethod,
   EndpointExecutionLogDTO,
   EndpointToken,
   DetailTab,
@@ -311,7 +311,7 @@ export default function EndpointsPage() {
   }, []);
 
   const generateCopySnippetForEndpoint = useCallback(
-    (ep: CustomEndpointDTO, format: 'url' | 'curl' | 'powershell' | 'fetch' | 'node' | 'python') => {
+    (ep: CustomEndpointDTO, format: EndpointSnippetFormat) => {
       const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
       const url = `${baseUrl}/api/endpoints/${ep.slug}`;
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
@@ -348,7 +348,7 @@ export default function EndpointsPage() {
   );
 
   const generateCopySnippet = useCallback(
-    (format: 'url' | 'curl' | 'powershell' | 'fetch' | 'node' | 'python') => {
+    (format: EndpointSnippetFormat) => {
       // Create a temporary DTO from form for compatibility
       const ep = { 
         slug: form.slug, 
@@ -569,9 +569,10 @@ export default function EndpointsPage() {
   const copySlugUrl = useCallback(async () => {
     const url = `${window.location.origin}/api/endpoints/${form.slug}`;
     await navigator.clipboard.writeText(url);
+    toast({ title: 'Copied to clipboard', variant: 'success' });
     setCopiedSlug(true);
     setTimeout(() => setCopiedSlug(false), 2000);
-  }, [form.slug]);
+  }, [form.slug, toast]);
 
   // Slug auto-gen
   const autoSlugRef = useRef(true);
@@ -642,7 +643,6 @@ export default function EndpointsPage() {
             setShowTemplates(true);
           }}
           onToggle={handleToggle}
-          onCopySnippet={handleCopySnippet}
           isResizing={isResizing}
         />
       </div>
@@ -671,7 +671,6 @@ export default function EndpointsPage() {
         >
           <EndpointDetail
             form={form}
-            initialForm={initialForm}
             selectedId={selectedId}
             isCreating={isCreating}
             isDirty={isDirty}
@@ -680,7 +679,7 @@ export default function EndpointsPage() {
             detailTab={detailTab}
             copiedSlug={copiedSlug}
             onUpdateForm={updateForm}
-            onCopySlug={() => handleCopySnippet(`${typeof window !== 'undefined' ? window.location.origin : ''}/api/endpoints/${form.slug}`)}
+            onCopySlug={copySlugUrl}
             onCloseDetail={closeDetail}
             onSave={handleSave}
             onTest={handleTest}
@@ -717,7 +716,6 @@ export default function EndpointsPage() {
             {detailTab === 'auth' && (
               <EndpointAuth
                 form={form}
-                selectedId={selectedId}
                 isCreating={isCreating}
                 tokens={tokens}
                 tokensLoading={tokensLoading}
