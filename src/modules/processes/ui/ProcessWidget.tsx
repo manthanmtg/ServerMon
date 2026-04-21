@@ -92,7 +92,7 @@ function cpuColor(cpu: number): string {
   return 'text-foreground';
 }
 
-function CpuBar({ value }: { value: number }) {
+function CpuBarBase({ value }: { value: number }) {
   return (
     <div className="w-16 h-1.5 bg-secondary rounded-full overflow-hidden">
       <div
@@ -106,7 +106,9 @@ function CpuBar({ value }: { value: number }) {
   );
 }
 
-function StatBox({ label, value, icon }: { label: string; value: string; icon: React.ReactNode }) {
+const CpuBar = React.memo(CpuBarBase);
+
+function StatBoxBase({ label, value, icon }: { label: string; value: string; icon: React.ReactNode }) {
   return (
     <div className="flex items-center gap-2.5 px-3 py-2 rounded-lg bg-secondary/50 border border-border min-w-0">
       <span className="text-muted-foreground shrink-0">{icon}</span>
@@ -118,23 +120,60 @@ function StatBox({ label, value, icon }: { label: string; value: string; icon: R
   );
 }
 
+const StatBox = React.memo(StatBoxBase);
+
+interface SortHeaderProps {
+  field: SortField;
+  children: React.ReactNode;
+  className?: string;
+  currentSort: SortField;
+  onSort: (field: SortField) => void;
+}
+
+const SortHeader = React.memo(({ field, children, className, currentSort, onSort }: SortHeaderProps) => (
+  <th
+    className={cn(
+      'px-3 py-2.5 text-xs font-medium text-muted-foreground cursor-pointer hover:text-foreground transition-colors select-none',
+      className
+    )}
+    onClick={() => onSort(field)}
+  >
+    <span className="inline-flex items-center gap-1">
+      {children}
+      {currentSort === field && <ArrowUpDown className="w-3 h-3 text-primary" />}
+    </span>
+  </th>
+));
+
+SortHeader.displayName = 'SortHeader';
+
 export default function ProcessWidget() {
   const [processes, setProcesses] = useState<ProcessInfo[]>([]);
   const [summary, setSummary] = useState<Summary | null>(null);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [sortField, setSortField] = useState<SortField>('cpu');
   const [expandedPid, setExpandedPid] = useState<number | null>(null);
   const [killingPid, setKillingPid] = useState<number | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const { toast } = useToast();
 
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [search]);
+
   const fetchProcs = useCallback(
     async (isManual = false) => {
       if (isManual) setRefreshing(true);
       try {
         const res = await fetch(
-          `/api/modules/processes?limit=50&sort=${sortField}&search=${encodeURIComponent(search)}`
+          `/api/modules/processes?limit=50&sort=${sortField}&search=${encodeURIComponent(
+            debouncedSearch
+          )}`
         );
         const data = await res.json();
         setProcesses(data.processes || []);
@@ -146,7 +185,7 @@ export default function ProcessWidget() {
         if (isManual) setRefreshing(false);
       }
     },
-    [sortField, search]
+    [sortField, debouncedSearch]
   );
 
   useEffect(() => {
@@ -177,32 +216,9 @@ export default function ProcessWidget() {
     }
   };
 
-  const toggleSort = (field: SortField) => {
+  const toggleSort = useCallback((field: SortField) => {
     setSortField(field);
-  };
-
-  const SortHeader = ({
-    field,
-    children,
-    className,
-  }: {
-    field: SortField;
-    children: React.ReactNode;
-    className?: string;
-  }) => (
-    <th
-      className={cn(
-        'px-3 py-2.5 text-xs font-medium text-muted-foreground cursor-pointer hover:text-foreground transition-colors select-none',
-        className
-      )}
-      onClick={() => toggleSort(field)}
-    >
-      <span className="inline-flex items-center gap-1">
-        {children}
-        {sortField === field && <ArrowUpDown className="w-3 h-3 text-primary" />}
-      </span>
-    </th>
-  );
+  }, []);
 
   if (loading) {
     return (
@@ -370,14 +386,30 @@ export default function ProcessWidget() {
             <thead>
               <tr className="border-b border-border bg-secondary/50">
                 <th className="w-8 px-2" />
-                <SortHeader field="pid">PID</SortHeader>
-                <SortHeader field="name">Process</SortHeader>
-                <SortHeader field="user">User</SortHeader>
+                <SortHeader field="pid" currentSort={sortField} onSort={toggleSort}>
+                  PID
+                </SortHeader>
+                <SortHeader field="name" currentSort={sortField} onSort={toggleSort}>
+                  Process
+                </SortHeader>
+                <SortHeader field="user" currentSort={sortField} onSort={toggleSort}>
+                  User
+                </SortHeader>
                 <th className="px-3 py-2.5 text-xs font-medium text-muted-foreground">State</th>
-                <SortHeader field="cpu" className="text-right">
+                <SortHeader
+                  field="cpu"
+                  className="text-right"
+                  currentSort={sortField}
+                  onSort={toggleSort}
+                >
                   CPU
                 </SortHeader>
-                <SortHeader field="mem" className="text-right">
+                <SortHeader
+                  field="mem"
+                  className="text-right"
+                  currentSort={sortField}
+                  onSort={toggleSort}
+                >
                   Memory
                 </SortHeader>
                 <th className="px-3 py-2.5 text-xs font-medium text-muted-foreground text-right">
