@@ -95,6 +95,10 @@ export class AIRunnerWorker {
     };
 
     let terminateChild = () => false;
+    let completeRun: (() => void) | null = null;
+    const completionPromise = new Promise<void>((resolve) => {
+      completeRun = resolve;
+    });
     const markDirty = () => {
       state.dirty = true;
     };
@@ -229,6 +233,7 @@ export class AIRunnerWorker {
           });
         }
 
+        completeRun?.();
         return;
       }
 
@@ -294,6 +299,8 @@ export class AIRunnerWorker {
           lastRunAt: finishedAt,
         });
       }
+
+      completeRun?.();
     };
 
     const applyChunk = (kind: 'stdout' | 'stderr', text: string) => {
@@ -408,5 +415,7 @@ export class AIRunnerWorker {
       ]);
       throw error;
     }
+
+    await completionPromise;
   }
 }
