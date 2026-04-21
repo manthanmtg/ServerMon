@@ -210,19 +210,36 @@ describe('AIRunnerPage', () => {
   });
 
   it('opens the schedule visualization modal from the schedules tab', async () => {
-    mockSchedules.splice(0, mockSchedules.length, {
-      _id: 'schedule-1',
-      name: 'LifeOS Improve',
-      promptId: 'prompt-1',
-      agentProfileId: 'profile-1',
-      workingDirectory: '/root/repos/LifeOS',
-      timeout: 28,
-      cronExpression: '30 9 * * *',
-      enabled: true,
-      nextRunTime: '2026-04-21T10:30:00.000Z',
-      createdAt: '2026-04-21T00:00:00.000Z',
-      updatedAt: '2026-04-21T00:00:00.000Z',
-    });
+    mockSchedules.splice(
+      0,
+      mockSchedules.length,
+      {
+        _id: 'schedule-1',
+        name: 'LifeOS Improve',
+        promptId: 'prompt-1',
+        agentProfileId: 'profile-1',
+        workingDirectory: '/root/repos/LifeOS',
+        timeout: 28,
+        cronExpression: '30 9 * * *',
+        enabled: true,
+        nextRunTime: '2026-04-21T10:30:00.000Z',
+        createdAt: '2026-04-21T00:00:00.000Z',
+        updatedAt: '2026-04-21T00:00:00.000Z',
+      },
+      {
+        _id: 'schedule-2',
+        name: 'ServerMon Audit',
+        promptId: 'prompt-1',
+        agentProfileId: 'profile-1',
+        workingDirectory: '/root/repos/ServerMon',
+        timeout: 20,
+        cronExpression: '0 13 * * *',
+        enabled: true,
+        nextRunTime: '2026-04-21T13:00:00.000Z',
+        createdAt: '2026-04-21T00:00:00.000Z',
+        updatedAt: '2026-04-21T00:00:00.000Z',
+      }
+    );
 
     try {
       await act(async () => {
@@ -241,10 +258,18 @@ describe('AIRunnerPage', () => {
 
       expect(
         screen.getByRole('dialog', {
-          name: /Visualize schedule pressure before agents step on each other/i,
+          name: /Visualize schedule pressure and overall split before agents step on each other/i,
         })
       ).toBeInTheDocument();
-      expect(screen.getByText('Workspace Collision View')).toBeInTheDocument();
+      expect(screen.getByText('Schedule Visualization')).toBeInTheDocument();
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /All Schedules/i }));
+      });
+
+      expect(screen.getByText('Full Schedule View')).toBeInTheDocument();
+      expect(screen.getAllByText('/root/repos/LifeOS').length).toBeGreaterThan(0);
+      expect(screen.getAllByText('/root/repos/ServerMon').length).toBeGreaterThan(0);
     } finally {
       mockSchedules.splice(0, mockSchedules.length);
     }
