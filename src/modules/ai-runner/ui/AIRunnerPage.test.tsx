@@ -208,4 +208,45 @@ describe('AIRunnerPage', () => {
       vi.useRealTimers();
     }
   });
+
+  it('opens the schedule visualization modal from the schedules tab', async () => {
+    mockSchedules.splice(0, mockSchedules.length, {
+      _id: 'schedule-1',
+      name: 'LifeOS Improve',
+      promptId: 'prompt-1',
+      agentProfileId: 'profile-1',
+      workingDirectory: '/root/repos/LifeOS',
+      timeout: 28,
+      cronExpression: '30 9 * * *',
+      enabled: true,
+      nextRunTime: '2026-04-21T10:30:00.000Z',
+      createdAt: '2026-04-21T00:00:00.000Z',
+      updatedAt: '2026-04-21T00:00:00.000Z',
+    });
+
+    try {
+      await act(async () => {
+        render(<AIRunnerPage />);
+      });
+
+      await waitFor(() => expect(screen.getByText('AI Agent Runner')).toBeInTheDocument());
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /Schedules/i }));
+      });
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /Visualize Schedule/i }));
+      });
+
+      expect(
+        screen.getByRole('dialog', {
+          name: /Visualize schedule pressure before agents step on each other/i,
+        })
+      ).toBeInTheDocument();
+      expect(screen.getByText('Workspace Collision View')).toBeInTheDocument();
+    } finally {
+      mockSchedules.splice(0, mockSchedules.length);
+    }
+  });
 });
