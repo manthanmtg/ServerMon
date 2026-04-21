@@ -5,7 +5,7 @@ vi.hoisted(() => {
 });
 
 import mongoose from 'mongoose';
-import connectDB from './db';
+import connectDB, { getMongoOptions } from './db';
 
 // Mock mongoose
 vi.mock('mongoose', () => ({
@@ -98,5 +98,20 @@ describe('connectDB', () => {
     };
     expect(result.connection.db).toBeDefined();
     expect(result.connection.db.getCollection('test')).toBeNull();
+  });
+
+  it('uses a lighter Mongo pool for AI Runner background processes', () => {
+    process.env.AI_RUNNER_PROCESS_KIND = 'worker';
+
+    expect(getMongoOptions()).toEqual({
+      bufferCommands: false,
+      maxPoolSize: 2,
+      minPoolSize: 0,
+      connectTimeoutMS: 10000,
+      socketTimeoutMS: 45000,
+      serverSelectionTimeoutMS: 5000,
+    });
+
+    delete process.env.AI_RUNNER_PROCESS_KIND;
   });
 });

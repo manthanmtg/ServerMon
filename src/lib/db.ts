@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 
 const MONGO_URI = process.env.MONGO_URI;
+const AI_RUNNER_BACKGROUND_PROCESS_KINDS = new Set(['worker', 'supervisor']);
 
 /**
  * Global is used here to maintain a cached connection across hot reloads
@@ -22,6 +23,21 @@ if (!global.mongoose) {
 
 const cached = global.mongoose;
 
+function getMongoOptions() {
+  const processKind = process.env.AI_RUNNER_PROCESS_KIND;
+  const isAIRunnerBackgroundProcess =
+    typeof processKind === 'string' && AI_RUNNER_BACKGROUND_PROCESS_KINDS.has(processKind);
+
+  return {
+    bufferCommands: false,
+    maxPoolSize: isAIRunnerBackgroundProcess ? 2 : 10,
+    minPoolSize: isAIRunnerBackgroundProcess ? 0 : 5,
+    connectTimeoutMS: 10000,
+    socketTimeoutMS: 45000,
+    serverSelectionTimeoutMS: 5000,
+  };
+}
+
 async function connectDB() {
   if (cached.conn) {
     return cached.conn;
@@ -32,14 +48,7 @@ async function connectDB() {
   }
 
   if (!cached.promise) {
-    const opts = {
-      bufferCommands: false,
-      maxPoolSize: 10,
-      minPoolSize: 5,
-      connectTimeoutMS: 10000,
-      socketTimeoutMS: 45000,
-      serverSelectionTimeoutMS: 5000,
-    };
+    const opts = getMongoOptions();
 
     cached.promise = mongoose.connect(MONGO_URI!, opts).then((mongoose) => {
       // Fix build-time DB check and ModuleRegistry warnings
@@ -70,3 +79,4 @@ async function connectDB() {
 }
 
 export default connectDB;
+export { getMongoOptions };
