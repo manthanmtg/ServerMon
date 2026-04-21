@@ -5,6 +5,7 @@ import {
   Bot,
   CalendarClock,
   Clock3,
+  Copy,
   Eye,
   FolderOpen,
   History,
@@ -958,6 +959,57 @@ export default function AIRunnerPage() {
     await loadAll();
   };
 
+  const duplicateSchedule = async (schedule: AIRunnerScheduleDTO) => {
+    try {
+      // Find a unique name
+      let baseName = `${schedule.name} Copy`;
+      let newName = baseName;
+      let counter = 1;
+
+      // Check for collisions and append counter if needed
+      while (schedules.some((s) => s.name === newName)) {
+        newName = `${baseName} ${counter}`;
+        counter++;
+      }
+
+      const duplicateForm: ScheduleFormState = {
+        name: newName,
+        promptId: schedule.promptId,
+        agentProfileId: schedule.agentProfileId,
+        workingDirectory: schedule.workingDirectory,
+        timeout: schedule.timeout,
+        retries: schedule.retries,
+        cronExpression: schedule.cronExpression,
+        enabled: false, // keep it disabled by default
+      };
+
+      const response = await fetch('/api/modules/ai-runner/schedules', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(duplicateForm),
+      });
+
+      const payload = await response.json();
+      if (!response.ok) {
+        throw new Error(payload.error || 'Unable to duplicate schedule');
+      }
+
+      toast({
+        title: 'Schedule duplicated',
+        description: `"${newName}" created and paused by default.`,
+        variant: 'success',
+      });
+
+      await loadAll();
+    } catch (error) {
+      toast({
+        title: 'Duplication failed',
+        description: error instanceof Error ? error.message : 'Unable to duplicate schedule',
+        variant: 'destructive',
+      });
+    }
+  };
+
   const openPromptInRun = (promptId: string) => {
     setSelectedPromptId(promptId);
     setRunForm((current) => ({
@@ -1899,6 +1951,14 @@ export default function AIRunnerPage() {
                           </div>
                         </div>
                         <div className="flex flex-wrap gap-2 xl:justify-end">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => void duplicateSchedule(schedule)}
+                            title="Duplicate Schedule"
+                          >
+                            <Copy className="w-4 h-4" />
+                          </Button>
                           <Button size="sm" onClick={() => void runScheduleNow(schedule)}>
                             <Play className="w-4 h-4" />
                             Run Now
