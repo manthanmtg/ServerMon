@@ -73,4 +73,28 @@ describe('RunDetailDrawer', () => {
     fireEvent.click(toggle);
     expect(toggle).toHaveTextContent('Autoscroll: OFF');
   });
+
+  it('locks body scrolling while the drawer is open and restores it on close', () => {
+    const originalOverflow = document.body.style.overflow;
+    const { unmount } = render(
+      <RunDetailDrawer
+        run={baseRun}
+        historyDetailSection="output"
+        onSectionChange={vi.fn()}
+        onClose={vi.fn()}
+        onRerun={vi.fn()}
+        onKill={vi.fn()}
+        onOpenPrompt={vi.fn()}
+        onOpenSchedule={vi.fn()}
+        getRunDisplayName={() => 'Test run'}
+        profileName="Codex"
+        promptSourceName="Inline prompt"
+        scheduleName="Not scheduled"
+      />
+    );
+
+    expect(document.body.style.overflow).toBe('hidden');
+    unmount();
+    expect(document.body.style.overflow).toBe(originalOverflow);
+  });
 });

@@ -51,6 +51,15 @@ export function RunDetailDrawer({
   const outputText = run.rawOutput || run.stdout || run.stderr || 'No output captured';
 
   useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, []);
+
+  useEffect(() => {
     if (historyDetailSection !== 'output') return;
     if (!autoscrollEnabled) return;
     const node = outputRef.current;
@@ -72,7 +81,7 @@ export function RunDetailDrawer({
         className="absolute inset-0 bg-black/50 backdrop-blur-sm"
         onClick={onClose}
       />
-      <div className="absolute inset-y-0 right-0 flex w-full justify-end">
+      <div className="absolute inset-y-0 right-0 flex w-full justify-end overflow-hidden">
         <div className="relative flex h-full w-full max-w-4xl flex-col border-l border-border/60 bg-card shadow-2xl">
           <div className="flex items-start justify-between gap-4 border-b border-border/60 px-6 py-5">
             <div className="space-y-2">
@@ -145,7 +154,7 @@ export function RunDetailDrawer({
             </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto px-6 py-5">
+          <div className="flex-1 overflow-y-auto overscroll-contain px-6 py-5">
             {historyDetailSection === 'summary' && (
               <div className="space-y-4">
                 <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
@@ -219,7 +228,7 @@ export function RunDetailDrawer({
                   </div>
                   <pre
                     ref={outputRef}
-                    className="max-h-[520px] overflow-auto px-4 py-4 text-xs leading-6 whitespace-pre-wrap font-mono"
+                    className="custom-scrollbar max-h-[520px] overflow-auto overscroll-contain px-4 py-4 text-xs leading-6 whitespace-pre-wrap font-mono"
                   >
                     {outputText}
                   </pre>
