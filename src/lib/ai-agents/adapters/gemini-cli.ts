@@ -190,17 +190,20 @@ export class GeminiCLIAdapter implements AgentAdapter {
 
       if (msg.toolCalls) {
         for (const tc of msg.toolCalls) {
-          const args = tc.args as Record<string, any>;
+          const args = tc.args;
           timeline.push({
             timestamp,
             action: `Tool: ${tc.name}`,
-            detail: (args?.description as string) || JSON.stringify(args),
+            detail: typeof args.description === 'string' ? args.description : JSON.stringify(args),
           });
 
-          if (tc.name === 'run_shell_command' && args?.command) {
-            commandsExecuted.add(args.command as string);
-          } else if ((tc.name === 'write_file' || tc.name === 'replace') && args?.file_path) {
-            filesModified.add(args.file_path as string);
+          if (tc.name === 'run_shell_command' && typeof args.command === 'string') {
+            commandsExecuted.add(args.command);
+          } else if (
+            (tc.name === 'write_file' || tc.name === 'replace') &&
+            typeof args.file_path === 'string'
+          ) {
+            filesModified.add(args.file_path);
           }
         }
       }

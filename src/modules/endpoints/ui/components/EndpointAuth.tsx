@@ -17,7 +17,6 @@ import type { EndpointCreateRequest, EndpointToken } from '../../types';
 
 interface EndpointAuthProps {
   form: EndpointCreateRequest;
-  selectedId: string | null;
   isCreating: boolean;
   tokens: EndpointToken[];
   tokensLoading: boolean;
@@ -34,7 +33,6 @@ interface EndpointAuthProps {
 
 export function EndpointAuth({
   form,
-  selectedId,
   isCreating,
   tokens,
   tokensLoading,

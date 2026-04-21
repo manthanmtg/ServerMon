@@ -1,6 +1,6 @@
 'use client';
  
-import { AlertTriangle, Boxes, Database } from 'lucide-react';
+import { AlertTriangle, Boxes } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { cn, formatBytes, relativeTime } from '@/lib/utils';

@@ -125,8 +125,14 @@ describe('ProcessWidget', () => {
       fireEvent.change(searchInput, { target: { value: 'node' } });
     });
 
-    // The component refetches on search change
-    expect(global.fetch).toHaveBeenCalledWith(expect.stringContaining('search=node'));
+    // The component refetches after the debounce window elapses.
+    await waitFor(() => {
+      expect(
+        vi.mocked(global.fetch).mock.calls.some(
+          ([input]) => typeof input === 'string' && input.includes('search=node')
+        )
+      ).toBe(true);
+    });
   });
 
   it('sorts processes when clicking headers', async () => {

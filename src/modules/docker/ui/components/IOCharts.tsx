@@ -15,12 +15,22 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { formatBytes } from '@/lib/utils';
 import type { DockerSnapshot, DockerContainerSummary } from '../../types';
- 
+
+interface IOHistoryPoint {
+  timestamp: string;
+  read: number;
+  write: number;
+}
+
+type NetworkHistoryPoint = Record<string, string | number> & {
+  timestamp: string;
+};
+
 interface IOChartsProps {
   snapshot: DockerSnapshot | null;
   selectedContainer: DockerContainerSummary | null;
-  ioHistory: any[];
-  networkHistory: any[];
+  ioHistory: IOHistoryPoint[];
+  networkHistory: NetworkHistoryPoint[];
   onContainerChange: (id: string) => void;
 }
  
@@ -165,9 +175,7 @@ export function IOCharts({
                   fill={chartColors[index]}
                   fillOpacity={0.15}
                   strokeWidth={2}
-                  name={String(
-                    networkHistory.at(-1)?.[`n${index}`] || `Container ${index + 1}`
-                  )}
+                  name={String(networkHistory.at(-1)?.[`n${index}`] || `Container ${index + 1}`)}
                   animationDuration={1200}
                   animationBegin={index * 100}
                 />

@@ -8,13 +8,21 @@ const {
   mockCreate,
   mockExecuteEndpoint,
   mockVerifyTokenBySlug,
-} = vi.hoisted(() => ({
-  mockFindOne: vi.fn(),
-  mockFindByIdAndUpdate: vi.fn(),
-  mockCreate: vi.fn(),
-  mockExecuteEndpoint: vi.fn(),
-  mockVerifyTokenBySlug: vi.fn(),
-}));
+  mockQuery,
+} = vi.hoisted(() => {
+  const mockQuery = {
+    select: vi.fn().mockReturnThis(),
+    lean: vi.fn().mockResolvedValue(null),
+  };
+  return {
+    mockFindOne: vi.fn().mockReturnValue(mockQuery),
+    mockFindByIdAndUpdate: vi.fn().mockResolvedValue(undefined),
+    mockCreate: vi.fn().mockResolvedValue(undefined),
+    mockExecuteEndpoint: vi.fn(),
+    mockVerifyTokenBySlug: vi.fn(),
+    mockQuery,
+  };
+});
 
 vi.mock('@/lib/db', () => ({ default: vi.fn().mockResolvedValue(true) }));
 vi.mock('@/lib/logger', () => ({
@@ -64,12 +72,14 @@ const mockResult = {
 describe('GET /api/endpoints/[slug]', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockQuery.select.mockReturnThis();
+    mockQuery.lean.mockResolvedValue(null);
     mockCreate.mockResolvedValue(undefined);
     mockFindByIdAndUpdate.mockResolvedValue(undefined);
   });
 
   it('returns 404 when endpoint not found', async () => {
-    mockFindOne.mockResolvedValue(null);
+    mockQuery.lean.mockResolvedValue(null);
     const req = new NextRequest('http://localhost/api/endpoints/my-endpoint');
     const res = await GET(req, makeContext('my-endpoint'));
     expect(res.status).toBe(404);
@@ -78,7 +88,7 @@ describe('GET /api/endpoints/[slug]', () => {
   });
 
   it('returns 503 when endpoint is disabled', async () => {
-    mockFindOne.mockResolvedValue({ ...mockEndpoint, enabled: false });
+    mockQuery.lean.mockResolvedValue({ ...mockEndpoint, enabled: false });
     const req = new NextRequest('http://localhost/api/endpoints/my-endpoint');
     const res = await GET(req, makeContext('my-endpoint'));
     expect(res.status).toBe(503);
@@ -87,7 +97,7 @@ describe('GET /api/endpoints/[slug]', () => {
   });
 
   it('returns 405 when method does not match', async () => {
-    mockFindOne.mockResolvedValue({ ...mockEndpoint, method: 'POST' });
+    mockQuery.lean.mockResolvedValue({ ...mockEndpoint, method: 'POST' });
     const req = new NextRequest('http://localhost/api/endpoints/my-endpoint', { method: 'GET' });
     const res = await GET(req, makeContext('my-endpoint'));
     expect(res.status).toBe(405);
@@ -96,7 +106,7 @@ describe('GET /api/endpoints/[slug]', () => {
   });
 
   it('executes endpoint and returns result', async () => {
-    mockFindOne.mockResolvedValue(mockEndpoint);
+    mockQuery.lean.mockResolvedValue(mockEndpoint);
     mockExecuteEndpoint.mockResolvedValue(mockResult);
     const req = new NextRequest('http://localhost/api/endpoints/my-endpoint');
     const res = await GET(req, makeContext('my-endpoint'));
@@ -104,7 +114,7 @@ describe('GET /api/endpoints/[slug]', () => {
   });
 
   it('sets custom response headers from endpoint config', async () => {
-    mockFindOne.mockResolvedValue({
+    mockQuery.lean.mockResolvedValue({
       ...mockEndpoint,
       responseHeaders: { 'x-custom': 'value' },
     });
@@ -123,7 +133,7 @@ describe('token authentication', () => {
   });
 
   it('returns 401 when token auth required but no token provided', async () => {
-    mockFindOne.mockResolvedValue({ ...mockEndpoint, auth: 'token' });
+    mockQuery.lean.mockResolvedValue({ ...mockEndpoint, auth: 'token' });
     const req = new NextRequest('http://localhost/api/endpoints/my-endpoint');
     const res = await GET(req, makeContext('my-endpoint'));
     expect(res.status).toBe(401);
@@ -132,7 +142,7 @@ describe('token authentication', () => {
   });
 
   it('returns 403 when token is invalid', async () => {
-    mockFindOne.mockResolvedValue({ ...mockEndpoint, auth: 'token' });
+    mockQuery.lean.mockResolvedValue({ ...mockEndpoint, auth: 'token' });
     mockVerifyTokenBySlug.mockResolvedValue(false);
     const req = new NextRequest('http://localhost/api/endpoints/my-endpoint', {
       headers: { authorization: 'Bearer bad-token' },
@@ -144,7 +154,7 @@ describe('token authentication', () => {
   });
 
   it('accepts valid Bearer token', async () => {
-    mockFindOne.mockResolvedValue({ ...mockEndpoint, auth: 'token' });
+    mockQuery.lean.mockResolvedValue({ ...mockEndpoint, auth: 'token' });
     mockVerifyTokenBySlug.mockResolvedValue(true);
     mockExecuteEndpoint.mockResolvedValue(mockResult);
     const req = new NextRequest('http://localhost/api/endpoints/my-endpoint', {
@@ -155,7 +165,7 @@ describe('token authentication', () => {
   });
 
   it('accepts token via query param', async () => {
-    mockFindOne.mockResolvedValue({ ...mockEndpoint, auth: 'token' });
+    mockQuery.lean.mockResolvedValue({ ...mockEndpoint, auth: 'token' });
     mockVerifyTokenBySlug.mockResolvedValue(true);
     mockExecuteEndpoint.mockResolvedValue(mockResult);
     const req = new NextRequest('http://localhost/api/endpoints/my-endpoint?token=valid-token');
@@ -172,7 +182,7 @@ describe('POST /api/endpoints/[slug]', () => {
   });
 
   it('reads body for non-GET requests', async () => {
-    mockFindOne.mockResolvedValue({ ...mockEndpoint, method: 'POST' });
+    mockQuery.lean.mockResolvedValue({ ...mockEndpoint, method: 'POST' });
     mockExecuteEndpoint.mockResolvedValue(mockResult);
     const req = new NextRequest('http://localhost/api/endpoints/my-endpoint', {
       method: 'POST',

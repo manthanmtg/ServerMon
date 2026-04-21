@@ -1,6 +1,6 @@
 'use client';
 
-import { 
+import {
   X, 
   Copy, 
   ChevronDown, 
@@ -9,11 +9,19 @@ import {
   Terminal, 
   Braces, 
   ArrowRightLeft, 
-  Check,
   Clock
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import type { EndpointTestResult } from '../../types';
+import type { EndpointSnippetFormat, EndpointTestResult } from '../../types';
+
+const copySnippetOptions: ReadonlyArray<{ label: string; format: EndpointSnippetFormat }> = [
+  { label: 'Canonical URL', format: 'url' },
+  { label: 'cURL command', format: 'curl' },
+  { label: 'PowerShell script', format: 'powershell' },
+  { label: 'JavaScript fetch', format: 'fetch' },
+  { label: 'Node.js fetch', format: 'node' },
+  { label: 'Python requests', format: 'python' },
+];
 
 interface EndpointTestConsoleProps {
   testBody: string;
@@ -24,7 +32,7 @@ interface EndpointTestConsoleProps {
   onSetTestBody: (val: string) => void;
   onToggleCopyMenu: () => void;
   onClose: () => void;
-  onCopySnippet: (format: 'url' | 'curl' | 'powershell' | 'fetch' | 'node' | 'python') => void;
+  onCopySnippet: (format: EndpointSnippetFormat) => void;
   onCopyResponse: () => void;
   onRun: () => void;
 }
@@ -100,17 +108,10 @@ export function EndpointTestConsole({
                    <div className="px-3 py-2 border-b border-white/5 mb-1.5">
                       <span className="text-[9px] font-black text-white/30 uppercase tracking-widest">Code Generator</span>
                    </div>
-                  {[
-                    { label: 'Canonical URL', format: 'url' },
-                    { label: 'cURL command', format: 'curl' },
-                    { label: 'PowerShell script', format: 'powershell' },
-                    { label: 'JavaScript fetch', format: 'fetch' },
-                    { label: 'Node.js fetch', format: 'node' },
-                    { label: 'Python requests', format: 'python' },
-                  ].map((opt) => (
+                  {copySnippetOptions.map((opt) => (
                     <button
                       key={opt.label}
-                      onClick={() => onCopySnippet(opt.format as any)}
+                      onClick={() => onCopySnippet(opt.format)}
                       className="w-full text-left px-4 py-2.5 text-[11px] font-bold text-white/60 hover:text-white hover:bg-white/10 transition-colors flex items-center justify-between group"
                     >
                       {opt.label}

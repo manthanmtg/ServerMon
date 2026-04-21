@@ -101,7 +101,7 @@ export default function DockerPage() {
           (a, b) => b.networkInBytes + b.networkOutBytes - (a.networkInBytes + a.networkOutBytes)
         )
         .slice(0, 4);
-      const row: Record<string, number | string> = {
+      const row: Record<string, number | string> & { timestamp: string } = {
         timestamp: new Date(entry.timestamp).toLocaleTimeString([], {
           hour: '2-digit',
           minute: '2-digit',

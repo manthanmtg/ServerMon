@@ -35,7 +35,12 @@ const chartColors = [
   'var(--warning)',
   'var(--destructive)',
 ];
- 
+
+function tooltipPercent(value: string | number | readonly (string | number)[] | undefined) {
+  const rawValue = Array.isArray(value) ? value[0] : value;
+  return [`${Number(rawValue || 0).toFixed(1)}%`, 'Usage'];
+}
+
 function tooltipBytes(value: string | number | readonly (string | number)[] | undefined) {
   const val = Array.isArray(value) ? value[0] : value;
   return formatBytes(typeof val === 'number' ? val : Number(val) || 0);
@@ -82,10 +87,7 @@ export function ResourceCharts({ snapshot, topContainers }: ResourceChartsProps)
               />
               <Tooltip
                 cursor={{ fill: 'var(--muted)', opacity: 0.2 }}
-                formatter={(value: any) => {
-                  const val = Array.isArray(value) ? value[0] : value;
-                  return [`${Number(val || 0).toFixed(1)}%`, 'Usage'];
-                }}
+                formatter={tooltipPercent}
                 contentStyle={{
                   background: 'var(--card)',
                   border: '1px solid var(--border)',

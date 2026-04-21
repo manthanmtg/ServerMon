@@ -1,4 +1,4 @@
-import type { HttpMethod, ScriptLanguage } from '../../../types';
+import type { ScriptLanguage } from '../../../types';
 
 export interface Boilerplate {
   name: string;

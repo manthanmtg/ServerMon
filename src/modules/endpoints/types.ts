@@ -3,6 +3,7 @@ export type EndpointType = 'script' | 'logic' | 'webhook';
 export type ScriptLanguage = 'python' | 'bash' | 'node';
 export type EndpointAuth = 'public' | 'token';
 export type DetailTab = 'configure' | 'code' | 'docs' | 'auth' | 'logs' | 'settings';
+export type EndpointSnippetFormat = 'url' | 'curl' | 'powershell' | 'fetch' | 'node' | 'python';
 
 export interface EndpointToken {
   _id: string;

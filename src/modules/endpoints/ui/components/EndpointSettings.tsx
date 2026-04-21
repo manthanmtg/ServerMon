@@ -3,16 +3,13 @@
 import { 
   Settings, 
   X, 
-  Plus, 
   Copy, 
   Trash2, 
   AlertTriangle, 
   Clock, 
-  Terminal,
   FileText
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { cn } from '@/lib/utils';
 import type { EndpointCreateRequest, CustomEndpointDTO } from '../../types';
 
 interface EndpointSettingsProps {

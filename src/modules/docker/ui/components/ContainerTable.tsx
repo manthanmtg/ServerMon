@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { cn, formatBytes, relativeTime } from '@/lib/utils';
-import type { DockerSnapshot, DockerContainerSummary } from '../../types';
+import type { DockerSnapshot } from '../../types';
  
 interface ContainerTableProps {
   snapshot: DockerSnapshot | null;
