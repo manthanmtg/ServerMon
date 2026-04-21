@@ -78,6 +78,7 @@ const DEFAULT_PROFILE_FORM: ProfileFormState = {
   defaultTimeout: 30,
   maxTimeout: 120,
   shell: '/bin/bash',
+  requiresTTY: false,
   env: {},
   enabled: true,
   icon: '',
@@ -1060,6 +1061,7 @@ export default function AIRunnerPage() {
       defaultTimeout: profile.defaultTimeout,
       maxTimeout: profile.maxTimeout,
       shell: profile.shell,
+      requiresTTY: profile.requiresTTY,
       env: profile.env,
       enabled: profile.enabled,
       icon: profile.icon ?? '',
@@ -3008,6 +3010,7 @@ export default function AIRunnerPage() {
                               <Badge variant="outline">{profile.defaultTimeout} min default</Badge>
                               <Badge variant="outline">{profile.maxTimeout} min max</Badge>
                               <Badge variant="outline">{profile.shell}</Badge>
+                              {profile.requiresTTY && <Badge variant="outline">TTY required</Badge>}
                             </div>
                           </div>
                         </div>
@@ -3212,6 +3215,26 @@ export default function AIRunnerPage() {
                                 />
                               </label>
                             </div>
+                            <label className="flex items-start gap-3 rounded-xl border border-border/60 bg-secondary/10 p-4 text-sm">
+                              <input
+                                type="checkbox"
+                                checked={profileForm.requiresTTY}
+                                onChange={(event) =>
+                                  setProfileForm((current) => ({
+                                    ...current,
+                                    requiresTTY: event.target.checked,
+                                  }))
+                                }
+                                className="mt-1"
+                              />
+                              <div className="space-y-1">
+                                <span className="font-medium text-foreground">Requires TTY</span>
+                                <p className="text-xs leading-5 text-muted-foreground">
+                                  Turn this on for CLIs that need a real terminal and fail with
+                                  &quot;stdin is not a terminal&quot;.
+                                </p>
+                              </div>
+                            </label>
                           </div>
 
                           <div className="rounded-[24px] border border-border/60 bg-background/80 p-5 space-y-4">

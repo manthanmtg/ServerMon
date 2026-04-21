@@ -9,6 +9,7 @@ export interface IAIRunnerProfile extends Document {
   defaultTimeout: number;
   maxTimeout: number;
   shell: string;
+  requiresTTY: boolean;
   env: Record<string, string>;
   enabled: boolean;
   icon?: string;
@@ -29,6 +30,7 @@ const AIRunnerProfileSchema = new Schema<IAIRunnerProfile>(
     defaultTimeout: { type: Number, required: true, min: 1, max: 24 * 60 },
     maxTimeout: { type: Number, required: true, min: 1, max: 24 * 60 },
     shell: { type: String, required: true, default: '/bin/bash', maxlength: 260 },
+    requiresTTY: { type: Boolean, default: false },
     env: { type: Map, of: String, default: {} },
     enabled: { type: Boolean, default: true },
     icon: { type: String, trim: true, maxlength: 60 },

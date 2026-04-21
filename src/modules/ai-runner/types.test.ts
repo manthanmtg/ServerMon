@@ -18,6 +18,7 @@ describe('ai-runner type shapes', () => {
       defaultTimeout: 30,
       maxTimeout: 120,
       shell: '/bin/bash',
+      requiresTTY: false,
       env: {},
       enabled: true,
       createdAt: '2026-04-20T10:00:00.000Z',

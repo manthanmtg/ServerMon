@@ -27,6 +27,7 @@ export const profileCreateSchema = z.object({
     .min(1)
     .max(24 * 60),
   shell: z.string().trim().min(1).max(260).default('/bin/bash'),
+  requiresTTY: z.boolean().default(false),
   env: z.record(z.string(), z.string()).default({}),
   enabled: z.boolean().default(true),
   icon: z.string().trim().max(300_000).optional(),

@@ -25,6 +25,7 @@ export interface AIRunnerProfileDTO {
   defaultTimeout: number;
   maxTimeout: number;
   shell: string;
+  requiresTTY: boolean;
   env: Record<string, string>;
   enabled: boolean;
   icon?: string;

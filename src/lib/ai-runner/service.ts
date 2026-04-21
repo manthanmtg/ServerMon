@@ -1,6 +1,7 @@
 import { spawn, execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { access, readFile } from 'node:fs/promises';
+import * as pty from 'node-pty';
 import connectDB from '@/lib/db';
 import { createLogger } from '@/lib/logger';
 import AIRunnerProfile, { type IAIRunnerProfile } from '@/models/AIRunnerProfile';
@@ -45,6 +46,7 @@ interface ActiveRunState {
   peakMemoryBytes: number;
   peakMemoryPercent: number;
   startedAt: number;
+  terminate: () => boolean;
 }
 
 interface LegacyPromptRuntime {
@@ -87,6 +89,7 @@ function mapProfile(
     defaultTimeout: Number(doc.defaultTimeout),
     maxTimeout: Number(doc.maxTimeout),
     shell: String(doc.shell),
+    requiresTTY: Boolean(doc.requiresTTY),
     env: (envValue ?? {}) as Record<string, string>,
     enabled: Boolean(doc.enabled),
     icon: doc.icon ? String(doc.icon) : undefined,
@@ -623,22 +626,27 @@ export class AIRunnerService {
     return { directories };
   }
 
-  async killRun(id: string): Promise<boolean> {
-    const active = this.activeRuns.get(id);
-    if (!active) return false;
-    active.killedBy = 'user';
+  private terminateProcessGroup(pid: number): boolean {
+    if (!pid) return false;
 
     try {
-      process.kill(-active.pid, 'SIGTERM');
+      process.kill(-pid, 'SIGTERM');
+      return true;
     } catch {
       try {
-        process.kill(active.pid, 'SIGTERM');
+        process.kill(pid, 'SIGTERM');
+        return true;
       } catch {
         return false;
       }
     }
+  }
 
-    return true;
+  async killRun(id: string): Promise<boolean> {
+    const active = this.activeRuns.get(id);
+    if (!active) return false;
+    active.killedBy = 'user';
+    return active.terminate();
   }
 
   async executeRun(request: AIRunnerExecuteRequest): Promise<AIRunnerRunDTO> {
@@ -664,64 +672,13 @@ export class AIRunnerService {
       triggeredBy: resolved.triggeredBy,
     });
 
-    const child = spawn(resolved.profile.shell, ['-lc', resolved.command], {
-      cwd: resolved.workingDirectory,
-      env: {
-        ...process.env,
-        ...resolved.profile.env,
-        PROMPT: resolved.promptContent,
-        WORKING_DIR: resolved.workingDirectory,
-      },
-      detached: true,
-      stdio: ['ignore', 'pipe', 'pipe'],
-    });
-
     const runId = stringifyId(runDoc._id);
-    const timeoutHandle = setTimeout(() => {
-      const active = this.activeRuns.get(runId);
-      if (!active) return;
-      active.killedBy = 'timeout';
-      try {
-        process.kill(-active.pid, 'SIGTERM');
-      } catch {
-        try {
-          process.kill(active.pid, 'SIGTERM');
-        } catch {
-          log.warn(`Failed to terminate timed out run ${runId}`);
-        }
-      }
-    }, resolved.timeoutMinutes * 60_000);
-
-    const usageHandle = setInterval(async () => {
-      const active = this.activeRuns.get(runId);
-      if (!active) return;
-      const usage = await getProcessResourceUsage(active.pid);
-      active.peakCpuPercent = Math.max(active.peakCpuPercent, usage.cpuPercent);
-      active.peakMemoryBytes = Math.max(active.peakMemoryBytes, usage.memoryBytes);
-      active.peakMemoryPercent = Math.max(active.peakMemoryPercent, usage.memoryPercent);
-    }, 5000);
-
-    const activeState: ActiveRunState = {
-      pid: child.pid ?? 0,
-      runId,
-      scheduleId: resolved.scheduleId ? stringifyId(resolved.scheduleId) : undefined,
-      killedBy: null,
-      stdout: '',
-      stderr: '',
-      rawOutput: '',
-      truncatedStdout: false,
-      truncatedStderr: false,
-      truncatedRaw: false,
-      timeoutHandle,
-      usageHandle,
-      peakCpuPercent: 0,
-      peakMemoryBytes: 0,
-      peakMemoryPercent: 0,
-      startedAt: Date.now(),
+    const runEnv = {
+      ...process.env,
+      ...resolved.profile.env,
+      PROMPT: resolved.promptContent,
+      WORKING_DIR: resolved.workingDirectory,
     };
-
-    this.activeRuns.set(runId, activeState);
-
     const applyChunk = (kind: 'stdout' | 'stderr', text: string) => {
       const state = this.activeRuns.get(runId);
       if (!state) return;
@@ -752,29 +709,133 @@ export class AIRunnerService {
       }
     };
 
-    child.stdout?.on('data', (chunk: Buffer | string) => {
-      applyChunk('stdout', chunk.toString());
-    });
+    let pid = 0;
+    let terminate = () => false;
+    const timeoutHandle = setTimeout(() => {
+      const active = this.activeRuns.get(runId);
+      if (!active) return;
+      active.killedBy = 'timeout';
+      if (!active.terminate()) {
+        log.warn(`Failed to terminate timed out run ${runId}`);
+      }
+    }, resolved.timeoutMinutes * 60_000);
 
-    child.stderr?.on('data', (chunk: Buffer | string) => {
-      applyChunk('stderr', chunk.toString());
-    });
+    const usageHandle = setInterval(async () => {
+      const active = this.activeRuns.get(runId);
+      if (!active) return;
+      const usage = await getProcessResourceUsage(active.pid);
+      active.peakCpuPercent = Math.max(active.peakCpuPercent, usage.cpuPercent);
+      active.peakMemoryBytes = Math.max(active.peakMemoryBytes, usage.memoryBytes);
+      active.peakMemoryPercent = Math.max(active.peakMemoryPercent, usage.memoryPercent);
+    }, 5000);
 
-    child.on('error', async (error) => {
-      log.error('Runner process errored', error);
-      await this.finalizeRun(runId, child.pid ?? 0, null, 'failed');
-    });
+    const activeState: ActiveRunState = {
+      pid,
+      runId,
+      scheduleId: resolved.scheduleId ? stringifyId(resolved.scheduleId) : undefined,
+      killedBy: null,
+      stdout: '',
+      stderr: '',
+      rawOutput: '',
+      truncatedStdout: false,
+      truncatedStderr: false,
+      truncatedRaw: false,
+      timeoutHandle,
+      usageHandle,
+      peakCpuPercent: 0,
+      peakMemoryBytes: 0,
+      peakMemoryPercent: 0,
+      startedAt: Date.now(),
+      terminate: () => terminate(),
+    };
 
-    child.on('close', async (exitCode) => {
-      const state = this.activeRuns.get(runId);
-      let finalStatus: AIRunnerRunStatus = exitCode === 0 ? 'completed' : 'failed';
-      if (state?.killedBy === 'timeout') finalStatus = 'timeout';
-      if (state?.killedBy === 'user') finalStatus = 'killed';
-      await this.finalizeRun(runId, child.pid ?? 0, exitCode, finalStatus);
-    });
+    this.activeRuns.set(runId, activeState);
+
+    try {
+      if (resolved.profile.requiresTTY) {
+        const terminal = pty.spawn(resolved.profile.shell, ['-lc', resolved.command], {
+          name: 'xterm-color',
+          cols: 120,
+          rows: 30,
+          cwd: resolved.workingDirectory,
+          env: runEnv,
+        });
+
+        pid = terminal.pid;
+        terminate = () => {
+          try {
+            terminal.kill('SIGTERM');
+            return true;
+          } catch {
+            return this.terminateProcessGroup(pid);
+          }
+        };
+        activeState.pid = pid;
+
+        terminal.onData((data) => {
+          applyChunk('stdout', data);
+        });
+
+        terminal.onExit(({ exitCode }) => {
+          void (async () => {
+            const state = this.activeRuns.get(runId);
+            let finalStatus: AIRunnerRunStatus = exitCode === 0 ? 'completed' : 'failed';
+            if (state?.killedBy === 'timeout') finalStatus = 'timeout';
+            if (state?.killedBy === 'user') finalStatus = 'killed';
+            await this.finalizeRun(runId, pid, exitCode, finalStatus);
+          })();
+        });
+      } else {
+        const child = spawn(resolved.profile.shell, ['-lc', resolved.command], {
+          cwd: resolved.workingDirectory,
+          env: runEnv,
+          detached: true,
+          stdio: ['ignore', 'pipe', 'pipe'],
+        });
+
+        pid = child.pid ?? 0;
+        terminate = () => this.terminateProcessGroup(pid);
+        activeState.pid = pid;
+
+        child.stdout?.on('data', (chunk: Buffer | string) => {
+          applyChunk('stdout', chunk.toString());
+        });
+
+        child.stderr?.on('data', (chunk: Buffer | string) => {
+          applyChunk('stderr', chunk.toString());
+        });
+
+        child.on('error', (error) => {
+          void (async () => {
+            log.error('Runner process errored', error);
+            await this.finalizeRun(runId, pid, null, 'failed');
+          })();
+        });
+
+        child.on('close', (exitCode) => {
+          void (async () => {
+            const state = this.activeRuns.get(runId);
+            let finalStatus: AIRunnerRunStatus = exitCode === 0 ? 'completed' : 'failed';
+            if (state?.killedBy === 'timeout') finalStatus = 'timeout';
+            if (state?.killedBy === 'user') finalStatus = 'killed';
+            await this.finalizeRun(runId, pid, exitCode, finalStatus);
+          })();
+        });
+      }
+    } catch (error) {
+      clearTimeout(timeoutHandle);
+      clearInterval(usageHandle);
+      this.activeRuns.delete(runId);
+      runDoc.status = 'failed';
+      runDoc.finishedAt = new Date();
+      runDoc.stderr = error instanceof Error ? error.message : 'Failed to start runner process';
+      runDoc.rawOutput = runDoc.stderr;
+      await runDoc.save();
+      throw error;
+    }
 
     runDoc.status = 'running';
-    runDoc.pid = child.pid;
+    runDoc.pid = pid;
     await runDoc.save();
 
     if (resolved.scheduleId) {
