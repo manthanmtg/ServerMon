@@ -296,4 +296,67 @@ describe('AIRunnerPage', () => {
     expect(screen.getByLabelText('Retries')).toHaveValue(1);
     expect(screen.getByText('1 retry allowed after a failed scheduled run.')).toBeInTheDocument();
   });
+
+  it('allows duplicating a schedule with a "Copy" name suffix', async () => {
+    mockSchedules.splice(0, mockSchedules.length, {
+      _id: 'schedule-1',
+      name: 'Original Schedule',
+      promptId: 'prompt-1',
+      agentProfileId: 'profile-1',
+      workingDirectory: '/root/repos/ServerMon',
+      timeout: 30,
+      retries: 1,
+      cronExpression: '0 0 * * *',
+      enabled: true,
+      createdAt: '2026-04-21T00:00:00.000Z',
+      updatedAt: '2026-04-21T00:00:00.000Z',
+    });
+
+    try {
+      await act(async () => {
+        render(<AIRunnerPage />);
+      });
+
+      await waitFor(() => expect(screen.getByText('AI Agent Runner')).toBeInTheDocument());
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /Schedules/i }));
+      });
+
+      expect(screen.getByText('Original Schedule')).toBeInTheDocument();
+
+      const duplicateButton = screen.getByTitle('Duplicate Schedule');
+
+      const fetchMock = vi.mocked(global.fetch);
+
+      await act(async () => {
+        fireEvent.click(duplicateButton);
+      });
+
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/modules/ai-runner/schedules',
+        expect.objectContaining({
+          method: 'POST',
+          body: expect.stringContaining('"name":"Original Schedule Copy"'),
+        })
+      );
+
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/modules/ai-runner/schedules',
+        expect.objectContaining({
+          body: expect.stringContaining('"enabled":false'),
+        })
+      );
+
+      await waitFor(() =>
+        expect(mockToast).toHaveBeenCalledWith(
+          expect.objectContaining({
+            title: 'Schedule duplicated',
+          })
+        )
+      );
+    } finally {
+      mockSchedules.splice(0, mockSchedules.length);
+    }
+  });
 });
