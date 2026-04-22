@@ -97,10 +97,6 @@ export default function AIRunnerPage() {
   const [historyScheduleFilter, setHistoryScheduleFilter] = useState<string>('all');
   const [historyDetailOpen, setHistoryDetailOpen] = useState(false);
   const [historyDetailSection, setHistoryDetailSection] = useState<HistoryDetailSection>('summary');
-  const [promptSearch, setPromptSearch] = useState('');
-  const [promptTypeFilter, setPromptTypeFilter] = useState<'all' | AIRunnerPromptDTO['type']>(
-    'all'
-  );
   const [selectedPromptId, setSelectedPromptId] = useState<string | null>(null);
   const [runPending, setRunPending] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -386,20 +382,7 @@ export default function AIRunnerPage() {
     () => Object.fromEntries(schedules.map((schedule) => [schedule._id, schedule])),
     [schedules]
   );
-  const filteredPrompts = useMemo(() => {
-    return prompts.filter((prompt) => {
-      const matchesType = promptTypeFilter === 'all' || prompt.type === promptTypeFilter;
-      const query = promptSearch.trim().toLowerCase();
-      const matchesSearch =
-        query.length === 0 ||
-        prompt.name.toLowerCase().includes(query) ||
-        prompt.content.toLowerCase().includes(query) ||
-        prompt.tags.some((tag) => tag.toLowerCase().includes(query));
-      return matchesType && matchesSearch;
-    });
-  }, [promptSearch, promptTypeFilter, prompts]);
-  const selectedPrompt =
-    filteredPrompts.find((prompt) => prompt._id === selectedPromptId) ?? filteredPrompts[0] ?? null;
+  const filteredPrompts = useMemo(() => prompts, [prompts]);
 
   const filteredHistoryRuns = useMemo(() => {
     const query = runSearch.trim().toLowerCase();
@@ -445,7 +428,6 @@ export default function AIRunnerPage() {
   const successfulRuns = runs.filter((run) => run.status === 'completed').length;
   const enabledProfileCount = profiles.filter((profile) => profile.enabled).length;
   const customProfileCount = profiles.filter((profile) => profile.agentType === 'custom').length;
-  const fileBackedPromptCount = prompts.filter((prompt) => prompt.type === 'file-reference').length;
   const pausedScheduleCount = schedules.length - enabledScheduleCount;
   const scheduledProfileCount = new Set(schedules.map((schedule) => schedule.agentProfileId)).size;
   const recentlyActiveScheduleCount = schedules.filter((schedule) => {
@@ -1539,112 +1521,14 @@ export default function AIRunnerPage() {
                 </Button>
               </div>
 
-              <div className="grid gap-4 xl:grid-cols-[280px_minmax(0,1fr)]">
-                <Card className="border-border/60">
-                  <CardHeader className="border-b border-border/60">
-                    <CardTitle className="text-sm">Search & Filter</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <Input
-                      label="Search"
-                      value={promptSearch}
-                      onChange={(event) => setPromptSearch(event.target.value)}
-                      placeholder="Search by name, tag, or content"
-                      icon={<Search className="w-4 h-4" />}
-                    />
-                    <div className="flex flex-wrap gap-2">
-                      <Button
-                        size="sm"
-                        variant={promptTypeFilter === 'all' ? 'default' : 'outline'}
-                        onClick={() => setPromptTypeFilter('all')}
-                      >
-                        All
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant={promptTypeFilter === 'inline' ? 'default' : 'outline'}
-                        onClick={() => setPromptTypeFilter('inline')}
-                      >
-                        Inline
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant={promptTypeFilter === 'file-reference' ? 'default' : 'outline'}
-                        onClick={() => setPromptTypeFilter('file-reference')}
-                      >
-                        File-backed
-                      </Button>
-                    </div>
-                    <div className="flex flex-wrap gap-2 text-xs">
-                      <Badge variant="outline">{prompts.length} saved</Badge>
-                      <Badge variant="outline">{fileBackedPromptCount} file-backed</Badge>
-                      <Badge variant="outline">{filteredPrompts.length} visible</Badge>
-                    </div>
-                    {selectedPrompt ? (
-                      <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 space-y-3">
-                        <div className="flex flex-wrap items-start justify-between gap-3">
-                          <div className="space-y-1">
-                            <p className="text-[11px] uppercase tracking-[0.18em] text-primary/80">
-                              Selected
-                            </p>
-                            <h3 className="text-sm font-semibold">{selectedPrompt.name}</h3>
-                          </div>
-                          <Badge variant="secondary">{selectedPrompt.type}</Badge>
-                        </div>
-                        <p className="line-clamp-4 text-xs text-muted-foreground whitespace-pre-wrap">
-                          {selectedPrompt.content}
-                        </p>
-                        {selectedPrompt.tags.length > 0 ? (
-                          <div className="flex flex-wrap gap-1.5">
-                            {selectedPrompt.tags.map((tag) => (
-                              <Badge key={tag} variant="outline" className="text-[10px]">
-                                {tag}
-                              </Badge>
-                            ))}
-                          </div>
-                        ) : null}
-                        <div className="flex flex-wrap gap-2">
-                          <Button size="sm" onClick={() => openPromptInRun(selectedPrompt._id)}>
-                            <Play className="w-4 h-4" />
-                            Open in Run
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => selectPromptForEdit(selectedPrompt)}
-                          >
-                            Edit
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="destructive"
-                            onClick={() => void deletePrompt(selectedPrompt._id)}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                            Delete
-                          </Button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="rounded-xl border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
-                        {prompts.length === 0
-                          ? 'No prompts in the library yet'
-                          : 'Select a prompt to preview it here'}
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-
+              <div>
                 <Card className="overflow-hidden border-border/60">
                   <CardHeader className="border-b border-border/60">
                     <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
                       <div>
                         <CardTitle className="text-lg tracking-tight">Library</CardTitle>
-                        <CardDescription className="mt-1">
-                          Compact rows for scanning, selection, and quick launch.
-                        </CardDescription>
                       </div>
-                      <Badge variant="outline">{filteredPrompts.length} visible</Badge>
+                      <Badge variant="outline">{prompts.length} saved</Badge>
                     </div>
                   </CardHeader>
                   <CardContent className="pt-2">
@@ -1654,7 +1538,7 @@ export default function AIRunnerPage() {
                         onClick={() => setSelectedPromptId(prompt._id)}
                         className={cn(
                           'border-b border-border/60 px-4 py-3 transition-colors last:border-b-0 hover:bg-accent/20',
-                          selectedPrompt?._id === prompt._id && 'bg-primary/5'
+                          selectedPromptId === prompt._id && 'bg-primary/5'
                         )}
                       >
                         <div className="flex flex-col gap-3 lg:grid lg:grid-cols-[minmax(0,1.5fr)_minmax(0,0.8fr)_auto] lg:items-center">
@@ -1731,14 +1615,10 @@ export default function AIRunnerPage() {
                     {filteredPrompts.length === 0 && (
                       <div className="px-6 py-14 text-center">
                         <h3 className="text-lg font-semibold tracking-tight">
-                          {prompts.length === 0
-                            ? 'No prompts in the library yet'
-                            : 'No prompts match this filter'}
+                          No prompts in the library yet
                         </h3>
                         <p className="mt-2 text-sm text-muted-foreground">
-                          {prompts.length === 0
-                            ? 'Create a reusable prompt and it will show up here ready for runs and schedules.'
-                            : 'Adjust the search or type filter to bring prompts back into view.'}
+                          Create a reusable prompt and it will show up here ready for runs and schedules.
                         </p>
                         <div className="mt-5">
                           <Button onClick={openCreatePromptModal}>
