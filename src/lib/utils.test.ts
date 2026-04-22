@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest';
-import { cn, formatBytes, formatDuration } from './utils';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { cn, formatBytes, formatDuration, relativeTime, slugify } from './utils';
 
 describe('utils', () => {
   describe('cn', () => {
@@ -89,6 +89,64 @@ describe('utils', () => {
     it('should omit zero components', () => {
       expect(formatDuration(3600)).toBe('1 hour');
       expect(formatDuration(3660)).toBe('1 hour 1 min');
+    });
+  });
+
+  describe('relativeTime', () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date('2024-01-01T12:00:00Z'));
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('should return "-" for nullish values', () => {
+      expect(relativeTime(null)).toBe('—');
+      expect(relativeTime(undefined)).toBe('—');
+    });
+
+    it('should return "just now" for very recent times', () => {
+      const now = new Date('2024-01-01T12:00:00Z');
+      expect(relativeTime(now)).toBe('just now');
+    });
+
+    it('should format minutes', () => {
+      const fiveMinsAgo = new Date('2024-01-01T11:55:00Z');
+      expect(relativeTime(fiveMinsAgo)).toBe('5m ago');
+    });
+
+    it('should format hours', () => {
+      const twoHoursAgo = new Date('2024-01-01T10:00:00Z');
+      expect(relativeTime(twoHoursAgo)).toBe('2h ago');
+    });
+
+    it('should format days', () => {
+      const twoDaysAgo = new Date('2023-12-30T12:00:00Z');
+      expect(relativeTime(twoDaysAgo)).toBe('2d ago');
+    });
+  });
+
+  describe('slugify', () => {
+    it('should lowercase and trim', () => {
+      expect(slugify('  Hello World  ')).toBe('hello-world');
+    });
+
+    it('should replace spaces and underscores with hyphens', () => {
+      expect(slugify('hello_world and_more')).toBe('hello-world-and-more');
+    });
+
+    it('should remove special characters', () => {
+      expect(slugify('Hello World!')).toBe('hello-world');
+    });
+
+    it('should collapse multiple hyphens', () => {
+      expect(slugify('hello---world')).toBe('hello-world');
+    });
+
+    it('should handle non-latin characters by removing them', () => {
+      expect(slugify('hello 世界')).toBe('hello');
     });
   });
 });
