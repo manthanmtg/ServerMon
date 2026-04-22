@@ -70,12 +70,6 @@ export function ScheduleVisualizationModal({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
 
-  useEffect(() => {
-    if (isOpen) {
-      setMode('workspace');
-    }
-  }, [isOpen]);
-
   if (!isOpen) {
     return null;
   }
