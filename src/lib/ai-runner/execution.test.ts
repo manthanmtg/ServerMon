@@ -80,6 +80,27 @@ describe('ai-runner execution', () => {
     );
   });
 
+  it('spawns TTY workloads through script inside the isolated unit', async () => {
+    const { spawnAIRunnerCommand } = await import('./execution');
+
+    await spawnAIRunnerCommand({
+      jobId: 'job-tty',
+      shell: '/bin/bash',
+      command: 'printf tty-ok',
+      cwd: '/tmp/example',
+      env: { ...process.env, PATH: '/usr/bin' },
+      requiresTTY: true,
+    });
+
+    expect(spawnMock).toHaveBeenCalledWith(
+      'systemd-run',
+      expect.arrayContaining(['/usr/bin/script', '-qefc']),
+      expect.objectContaining({
+        stdio: ['ignore', 'pipe', 'pipe'],
+      })
+    );
+  });
+
   it('falls back to detached local spawn when systemd isolation is disabled', async () => {
     process.env.AI_RUNNER_DISABLE_SYSTEMD_ISOLATION = '1';
     const { spawnAIRunnerCommand } = await import('./execution');

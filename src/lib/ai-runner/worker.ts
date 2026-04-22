@@ -1,4 +1,3 @@
-import * as pty from 'node-pty';
 import connectDB from '@/lib/db';
 import { createLogger } from '@/lib/logger';
 import { getProcessResourceUsage } from '@/lib/ai-agents/process-utils';
@@ -321,77 +320,50 @@ export class AIRunnerWorker {
     };
 
     try {
-      if (job.requiresTTY) {
-        const terminal = pty.spawn(job.shell, ['-lc', job.command], {
-          name: 'xterm-color',
-          cols: 120,
-          rows: 30,
-          cwd: job.workingDirectory,
-          env: runEnv,
+      const childExecution = await spawnAIRunnerCommand({
+        jobId: this.jobId,
+        shell: job.shell,
+        command: job.command,
+        cwd: job.workingDirectory,
+        env: runEnv,
+        requiresTTY: job.requiresTTY,
+      });
+      const child = childExecution.child;
+
+      state.childPid = childExecution.pid ?? child.pid ?? 0;
+      state.executionUnit = childExecution.unitName;
+      terminateChild = () =>
+        terminateAIRunnerExecution({
+          pid: state.childPid || undefined,
+          unitName: state.executionUnit,
         });
 
-        state.childPid = terminal.pid;
-        terminateChild = () => {
-          return terminateAIRunnerExecution({ pid: terminal.pid });
-        };
+      await Promise.all([
+        AIRunnerJob.findByIdAndUpdate(job._id, {
+          $set: {
+            childPid: state.childPid || undefined,
+            executionUnit: state.executionUnit,
+          },
+        }),
+        AIRunnerRun.findByIdAndUpdate(run._id, { $set: { pid: state.childPid || undefined } }),
+      ]);
 
-        await Promise.all([
-          AIRunnerJob.findByIdAndUpdate(job._id, { $set: { childPid: terminal.pid } }),
-          AIRunnerRun.findByIdAndUpdate(run._id, { $set: { pid: terminal.pid } }),
-        ]);
+      child.stdout?.on('data', (chunk: Buffer | string) => {
+        applyChunk('stdout', chunk.toString());
+      });
 
-        terminal.onData((data) => {
-          applyChunk('stdout', data);
-        });
+      child.stderr?.on('data', (chunk: Buffer | string) => {
+        applyChunk('stderr', chunk.toString());
+      });
 
-        terminal.onExit(({ exitCode }) => {
-          void finalize(exitCode, exitCode === 0 ? 'completed' : 'failed');
-        });
-      } else {
-        const childExecution = await spawnAIRunnerCommand({
-          jobId: this.jobId,
-          shell: job.shell,
-          command: job.command,
-          cwd: job.workingDirectory,
-          env: runEnv,
-        });
-        const child = childExecution.child;
+      child.on('error', (error) => {
+        log.error(`Worker child errored for job ${this.jobId}`, error);
+        void finalize(null, 'failed');
+      });
 
-        state.childPid = childExecution.pid ?? child.pid ?? 0;
-        state.executionUnit = childExecution.unitName;
-        terminateChild = () =>
-          terminateAIRunnerExecution({
-            pid: state.childPid || undefined,
-            unitName: state.executionUnit,
-          });
-
-        await Promise.all([
-          AIRunnerJob.findByIdAndUpdate(job._id, {
-            $set: {
-              childPid: state.childPid || undefined,
-              executionUnit: state.executionUnit,
-            },
-          }),
-          AIRunnerRun.findByIdAndUpdate(run._id, { $set: { pid: state.childPid || undefined } }),
-        ]);
-
-        child.stdout?.on('data', (chunk: Buffer | string) => {
-          applyChunk('stdout', chunk.toString());
-        });
-
-        child.stderr?.on('data', (chunk: Buffer | string) => {
-          applyChunk('stderr', chunk.toString());
-        });
-
-        child.on('error', (error) => {
-          log.error(`Worker child errored for job ${this.jobId}`, error);
-          void finalize(null, 'failed');
-        });
-
-        child.on('close', (exitCode) => {
-          void finalize(exitCode, exitCode === 0 ? 'completed' : 'failed');
-        });
-      }
+      child.on('close', (exitCode) => {
+        void finalize(exitCode, exitCode === 0 ? 'completed' : 'failed');
+      });
     } catch (error) {
       clearInterval(heartbeatHandle);
       clearTimeout(timeoutHandle);

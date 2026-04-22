@@ -12,6 +12,7 @@ const execFileAsync = promisify(execFile);
 const log = createLogger('ai-runner:execution');
 const TEMP_ENV_DIR = path.join(os.tmpdir(), 'servermon-ai-runner');
 const UNIT_PREFIX = 'servermon-airunner-job';
+const SCRIPT_BIN = '/usr/bin/script';
 
 export interface AIRunnerExecutionRef {
   pid?: number;
@@ -94,10 +95,16 @@ export async function spawnAIRunnerCommand(input: {
   command: string;
   cwd: string;
   env: NodeJS.ProcessEnv;
+  requiresTTY?: boolean;
 }): Promise<AIRunnerSpawnedCommand> {
   const isolationDisabled = process.env.AI_RUNNER_DISABLE_SYSTEMD_ISOLATION === '1';
+  const launchArgs =
+    input.requiresTTY && process.platform === 'linux'
+      ? [SCRIPT_BIN, '-qefc', `${input.shell} -lc ${shellEscape(input.command)}`, '/dev/null']
+      : [input.shell, '-lc', input.command];
+
   if (process.platform !== 'linux' || isolationDisabled) {
-    const child = spawn(input.shell, ['-lc', input.command], {
+    const child = spawn(launchArgs[0], launchArgs.slice(1), {
       cwd: input.cwd,
       env: input.env,
       detached: true,
@@ -133,9 +140,9 @@ export async function spawnAIRunnerCommand(input: {
       '--working-directory',
       input.cwd,
       '--pipe',
-      '/bin/sh',
-      '-lc',
-      launchCommand,
+      ...(input.requiresTTY
+        ? [SCRIPT_BIN, '-qefc', `/bin/sh -lc ${shellEscape(launchCommand)}`, '/dev/null']
+        : ['/bin/sh', '-lc', launchCommand]),
     ],
     {
       stdio: ['ignore', 'pipe', 'pipe'],
