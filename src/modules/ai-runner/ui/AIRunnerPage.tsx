@@ -2394,39 +2394,10 @@ export default function AIRunnerPage() {
           {activeTab === 'history' && (
             <div className="space-y-5">
               <Card className="border-border/60">
-                <CardHeader className="border-b border-border/60">
-                  <div className="flex flex-col gap-4">
-                    <div className="flex flex-wrap items-end justify-between gap-3">
-                      <div>
-                        <CardTitle className="text-base tracking-tight">
-                          Run Audit Console
-                        </CardTitle>
-                        <CardDescription className="mt-1">
-                          {filteredHistoryRuns.length} of {runTotal} run(s) match the current
-                          filters
-                        </CardDescription>
-                      </div>
-                    </div>
-
-                    <div className="rounded-2xl border border-border/60 bg-background/70 p-4">
-                      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/60 pb-3">
-                        <div>
-                          <p className="text-sm font-medium text-foreground">History filters</p>
-                          <p className="text-xs text-muted-foreground">
-                            Narrow the run list before opening details.
-                          </p>
-                        </div>
-                        <Button
-                          variant="outline"
-                          onClick={() => void loadAll(runSearch)}
-                          className="h-10"
-                        >
-                          <RefreshCcw className="w-4 h-4" />
-                          Refresh
-                        </Button>
-                      </div>
-
-                      <div className="mt-3 grid gap-3 xl:grid-cols-[minmax(260px,1.4fr)_repeat(4,minmax(0,1fr))]">
+                <CardContent className="p-0">
+                  <div className="border-b border-border/60 px-5 py-4">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div className="grid flex-1 gap-3 xl:grid-cols-[minmax(260px,1.4fr)_repeat(4,minmax(0,1fr))]">
                         <label className="space-y-1">
                           <span className="text-xs font-medium text-muted-foreground">Search</span>
                           <Input
@@ -2514,11 +2485,18 @@ export default function AIRunnerPage() {
                           </select>
                         </label>
                       </div>
+
+                      <Button
+                        variant="outline"
+                        onClick={() => void loadAll(runSearch)}
+                        className="h-10 shrink-0"
+                      >
+                        <RefreshCcw className="w-4 h-4" />
+                        Refresh
+                      </Button>
                     </div>
                   </div>
-                </CardHeader>
 
-                <CardContent className="p-0">
                   <div className="overflow-x-auto">
                     <table className="min-w-full text-sm">
                       <thead className="border-b border-border/60 bg-secondary/20 text-xs uppercase tracking-wide text-muted-foreground">
