@@ -84,7 +84,6 @@ export default function AIRunnerPage() {
   const [prompts, setPrompts] = useState<AIRunnerPromptDTO[]>([]);
   const [schedules, setSchedules] = useState<AIRunnerScheduleDTO[]>([]);
   const [runs, setRuns] = useState<AIRunnerRunDTO[]>([]);
-  const [runTotal, setRunTotal] = useState(0);
   const [directories, setDirectories] = useState<string[]>([]);
   const [selectedRun, setSelectedRun] = useState<AIRunnerRunDTO | null>(null);
   const [runSearch, setRunSearch] = useState('');
@@ -158,7 +157,6 @@ export default function AIRunnerPage() {
         const payload: AIRunnerRunsResponse = await response.json();
         if (controller.signal.aborted) return;
         setRuns(payload.runs);
-        setRunTotal(payload.total);
         setRunsLoaded(true);
       } catch (error) {
         if ((error as Error)?.name === 'AbortError') return;
