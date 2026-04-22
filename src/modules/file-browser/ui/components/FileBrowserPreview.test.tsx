@@ -10,10 +10,12 @@ vi.mock('next/image', () => ({
   default: ({
     src,
     alt,
+    unoptimized: _unoptimized,
     ...props
   }: {
     src: string;
     alt: string;
+    unoptimized?: boolean;
     [key: string]: unknown;
   }) => {
     // eslint-disable-next-line @next/next/no-img-element
