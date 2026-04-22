@@ -19,6 +19,10 @@ import type { AIRunnerRunDTO } from '../../types';
 import type { HistoryDetailSection } from '../types';
 import { formatDateTime, formatDuration, formatMemory, getRunStatusVariant } from '../utils';
 
+function formatDetailedDateTime(iso?: string): string {
+  return formatDateTime(iso, { includeSeconds: true });
+}
+
 function formatTimingDelay(from?: string, to?: string): string {
   if (!from || !to) return '—';
   const delaySeconds = Math.max(
@@ -63,7 +67,7 @@ export function RunDetailDrawer({
       ? [
           {
             label: 'Ideal start time',
-            value: formatDateTime(run.scheduledFor),
+            value: formatDetailedDateTime(run.scheduledFor),
           },
           {
             label: 'Queue delay',
@@ -73,11 +77,11 @@ export function RunDetailDrawer({
       : []),
     {
       label: 'Queued at',
-      value: formatDateTime(run.queuedAt),
+      value: formatDetailedDateTime(run.queuedAt),
     },
     {
       label: 'Dispatched at',
-      value: formatDateTime(run.dispatchedAt),
+      value: formatDetailedDateTime(run.dispatchedAt),
     },
     {
       label: 'Dispatch delay',
@@ -85,7 +89,7 @@ export function RunDetailDrawer({
     },
     {
       label: 'Started at',
-      value: formatDateTime(run.startedAt),
+      value: formatDetailedDateTime(run.startedAt),
     },
     {
       label: 'Start delay',
@@ -93,15 +97,15 @@ export function RunDetailDrawer({
     },
     {
       label: 'Finished',
-      value: formatDateTime(run.finishedAt),
+      value: formatDetailedDateTime(run.finishedAt),
     },
     {
       label: 'Heartbeat',
-      value: formatDateTime(run.heartbeatAt),
+      value: formatDetailedDateTime(run.heartbeatAt),
     },
     {
       label: 'Last output',
-      value: formatDateTime(run.lastOutputAt),
+      value: formatDetailedDateTime(run.lastOutputAt),
     },
     {
       label: 'Last error',
@@ -159,7 +163,7 @@ export function RunDetailDrawer({
               <div>
                 <h3 className="text-lg font-semibold">{getRunDisplayName(run)}</h3>
                 <p className="text-sm text-muted-foreground">
-                  {profileName} • {formatDateTime(primaryTimestamp)}
+                  {profileName} • {formatDetailedDateTime(primaryTimestamp)}
                 </p>
               </div>
             </div>
@@ -226,7 +230,7 @@ export function RunDetailDrawer({
                 <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
                   <div className="rounded-xl border border-border/60 bg-secondary/15 px-4 py-3">
                     <p className="text-xs text-muted-foreground">{primaryTimestampLabel}</p>
-                    <p className="mt-1 font-medium">{formatDateTime(primaryTimestamp)}</p>
+                    <p className="mt-1 font-medium">{formatDetailedDateTime(primaryTimestamp)}</p>
                   </div>
                   <div className="rounded-xl border border-border/60 bg-secondary/15 px-4 py-3">
                     <p className="text-xs text-muted-foreground">Duration</p>

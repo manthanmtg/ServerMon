@@ -285,13 +285,19 @@ export function getRunStatusVariant(
   return 'outline';
 }
 
-export function formatDateTime(iso?: string): string {
+export function formatDateTime(
+  iso?: string,
+  options?: {
+    includeSeconds?: boolean;
+  }
+): string {
   if (!iso) return '—';
   return new Date(iso).toLocaleString([], {
     month: 'short',
     day: 'numeric',
     hour: 'numeric',
     minute: '2-digit',
+    second: options?.includeSeconds ? '2-digit' : undefined,
   });
 }
 
