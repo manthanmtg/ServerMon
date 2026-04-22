@@ -1,4 +1,3 @@
-import { spawn } from 'node:child_process';
 import * as pty from 'node-pty';
 import connectDB from '@/lib/db';
 import { createLogger } from '@/lib/logger';
@@ -7,6 +6,7 @@ import AIRunnerJob from '@/models/AIRunnerJob';
 import AIRunnerRun from '@/models/AIRunnerRun';
 import AIRunnerSchedule from '@/models/AIRunnerSchedule';
 import type { AIRunnerRunStatus } from '@/modules/ai-runner/types';
+import { spawnAIRunnerCommand, terminateAIRunnerExecution } from './execution';
 import {
   DEFAULT_HEARTBEAT_STALE_MS,
   DEFAULT_OUTPUT_LIMIT,
@@ -26,6 +26,7 @@ interface WorkerState {
   childPid: number;
   childExitSeen: boolean;
   dirty: boolean;
+  executionUnit?: string;
   killedBy: KillReason;
   peakCpuPercent: number;
   peakMemoryBytes: number;
@@ -86,6 +87,7 @@ export class AIRunnerWorker {
       childPid: 0,
       childExitSeen: false,
       dirty: false,
+      executionUnit: undefined,
       killedBy: null,
       peakCpuPercent: 0,
       peakMemoryBytes: 0,
@@ -122,6 +124,7 @@ export class AIRunnerWorker {
         heartbeatAt,
         lastOutputAt: state.dirty || force ? heartbeatAt : job.lastOutputAt,
         childPid: state.childPid || job.childPid,
+        executionUnit: state.executionUnit ?? job.executionUnit,
       };
 
       await Promise.all([
@@ -198,6 +201,7 @@ export class AIRunnerWorker {
               nextAttemptAt,
               heartbeatAt: undefined,
               childPid: undefined,
+              executionUnit: undefined,
               exitCode: typeof exitCode === 'number' ? exitCode : undefined,
               lastError:
                 terminalRunStatus === 'timeout'
@@ -253,6 +257,7 @@ export class AIRunnerWorker {
             lastOutputAt: finishedAt,
             exitCode: typeof exitCode === 'number' ? exitCode : undefined,
             childPid: state.childPid || undefined,
+            executionUnit: undefined,
             lastError:
               terminalRunStatus === 'completed'
                 ? undefined
@@ -327,12 +332,7 @@ export class AIRunnerWorker {
 
         state.childPid = terminal.pid;
         terminateChild = () => {
-          try {
-            terminal.kill('SIGTERM');
-            return true;
-          } catch {
-            return false;
-          }
+          return terminateAIRunnerExecution({ pid: terminal.pid });
         };
 
         await Promise.all([
@@ -348,31 +348,30 @@ export class AIRunnerWorker {
           void finalize(exitCode, exitCode === 0 ? 'completed' : 'failed');
         });
       } else {
-        const child = spawn(job.shell, ['-lc', job.command], {
+        const childExecution = await spawnAIRunnerCommand({
+          jobId: this.jobId,
+          shell: job.shell,
+          command: job.command,
           cwd: job.workingDirectory,
           env: runEnv,
-          detached: true,
-          stdio: ['ignore', 'pipe', 'pipe'],
         });
+        const child = childExecution.child;
 
-        state.childPid = child.pid ?? 0;
-        terminateChild = () => {
-          if (!state.childPid) return false;
-          try {
-            process.kill(-state.childPid, 'SIGTERM');
-            return true;
-          } catch {
-            try {
-              process.kill(state.childPid, 'SIGTERM');
-              return true;
-            } catch {
-              return false;
-            }
-          }
-        };
+        state.childPid = childExecution.pid ?? child.pid ?? 0;
+        state.executionUnit = childExecution.unitName;
+        terminateChild = () =>
+          terminateAIRunnerExecution({
+            pid: state.childPid || undefined,
+            unitName: state.executionUnit,
+          });
 
         await Promise.all([
-          AIRunnerJob.findByIdAndUpdate(job._id, { $set: { childPid: state.childPid } }),
+          AIRunnerJob.findByIdAndUpdate(job._id, {
+            $set: {
+              childPid: state.childPid || undefined,
+              executionUnit: state.executionUnit,
+            },
+          }),
           AIRunnerRun.findByIdAndUpdate(run._id, { $set: { pid: state.childPid || undefined } }),
         ]);
 

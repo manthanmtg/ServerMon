@@ -18,6 +18,7 @@ import type {
   AIRunnerTrigger,
 } from '@/modules/ai-runner/types';
 import { ensureAIRunnerSupervisor } from './processes';
+import { terminateAIRunnerExecution } from './execution';
 import { enqueueRunRequest } from './queue';
 import {
   getNextRunTimeFromExpression,
@@ -327,22 +328,6 @@ export class AIRunnerService {
     return { directories };
   }
 
-  private terminateProcessGroup(pid: number): boolean {
-    if (!pid) return false;
-
-    try {
-      process.kill(-pid, 'SIGTERM');
-      return true;
-    } catch {
-      try {
-        process.kill(pid, 'SIGTERM');
-        return true;
-      } catch {
-        return false;
-      }
-    }
-  }
-
   async killRun(id: string): Promise<boolean> {
     await connectDB();
     const run = await AIRunnerRun.findById(id);
@@ -401,9 +386,7 @@ export class AIRunnerService {
     }
 
     const pid = typeof job.childPid === 'number' ? job.childPid : run.pid;
-    if (typeof pid === 'number' && pid > 0) {
-      this.terminateProcessGroup(pid);
-    }
+    terminateAIRunnerExecution({ pid: typeof pid === 'number' && pid > 0 ? pid : undefined, unitName: job.executionUnit });
 
     return true;
   }

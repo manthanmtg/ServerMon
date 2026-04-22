@@ -6,6 +6,7 @@ import AIRunnerRun from '@/models/AIRunnerRun';
 import AIRunnerSchedule from '@/models/AIRunnerSchedule';
 import AIRunnerSupervisorLease from '@/models/AIRunnerSupervisorLease';
 import type { AIRunnerRunStatus } from '@/modules/ai-runner/types';
+import { terminateAIRunnerExecution } from './execution';
 import { spawnAIRunnerWorker } from './processes';
 import { enqueueRunRequest } from './queue';
 import {
@@ -103,6 +104,10 @@ export class AIRunnerSupervisor {
     }).sort({ updatedAt: 1 });
 
     for (const job of staleJobs) {
+      terminateAIRunnerExecution({
+        pid: job.childPid ?? job.workerPid,
+        unitName: job.executionUnit,
+      });
       const run = await AIRunnerRun.findById(job.runId);
       const timedOut =
         job.startedAt != null && Date.now() > job.startedAt.getTime() + job.timeoutMinutes * 60_000;
@@ -119,6 +124,7 @@ export class AIRunnerSupervisor {
               heartbeatAt: undefined,
               childPid: undefined,
               workerPid: undefined,
+              executionUnit: undefined,
               lastError: 'Worker heartbeat went stale and the job was queued for retry',
             },
           }),
@@ -163,12 +169,13 @@ export class AIRunnerSupervisor {
 
       await Promise.all([
         AIRunnerJob.findByIdAndUpdate(job._id, {
-          $set: {
-            status: jobStatus,
-            finishedAt,
-            lastError:
-              terminalStatus === 'timeout'
-                ? 'Worker heartbeat went stale after the timeout window'
+            $set: {
+              status: jobStatus,
+              finishedAt,
+              executionUnit: undefined,
+              lastError:
+                terminalStatus === 'timeout'
+                  ? 'Worker heartbeat went stale after the timeout window'
                 : terminalStatus === 'killed'
                   ? 'Run was canceled while stale'
                   : 'Worker heartbeat went stale',
@@ -278,6 +285,7 @@ export class AIRunnerSupervisor {
             dispatchedAt: now,
             heartbeatAt: now,
             workerPid: undefined,
+            executionUnit: undefined,
           },
         },
         {

@@ -9,15 +9,19 @@ vi.mock('node:child_process', () => ({
   })),
 }));
 
-vi.mock('node:crypto', () => ({
-  randomUUID: vi.fn(() => 'test-uuid'),
-}));
-
 vi.mock('@/lib/logger', () => ({
   createLogger: () => ({
     debug: vi.fn(),
     error: vi.fn(),
   }),
+}));
+
+const runMock = vi.fn();
+
+vi.mock('./supervisor', () => ({
+  AIRunnerSupervisor: class AIRunnerSupervisor {
+    run = runMock;
+  },
 }));
 
 describe('ai-runner processes', () => {
@@ -55,56 +59,46 @@ describe('ai-runner processes', () => {
     );
   });
 
-  it('ensureAIRunnerSupervisor spawns supervisor when not disabled and cooldown passed', () => {
+  it('ensureAIRunnerSupervisor spawns supervisor when not disabled and cooldown passed', async () => {
     // Force development environment to bypass the test check
-    process.env.NODE_ENV = 'development';
+    process.env = { ...process.env, NODE_ENV: 'development' };
     delete process.env.AI_RUNNER_DISABLE_SUPERVISOR;
-    
+
+    runMock.mockResolvedValue(undefined);
+
     processes.ensureAIRunnerSupervisor();
-    
-    expect(spawn).toHaveBeenCalledWith(
-      process.execPath,
-      expect.arrayContaining([expect.stringContaining('supervisor-entry.ts')]),
-      expect.objectContaining({
-        env: expect.objectContaining({
-          AI_RUNNER_PROCESS_KIND: 'supervisor',
-          AI_RUNNER_SUPERVISOR_INSTANCE_ID: 'test-uuid',
-        }),
-      })
-    );
+    await vi.dynamicImportSettled();
+
+    expect(spawn).not.toHaveBeenCalled();
+    expect(runMock).toHaveBeenCalledTimes(1);
   });
 
-  it('ensureAIRunnerSupervisor respects cooldown', () => {
-    process.env.NODE_ENV = 'development';
+  it('ensureAIRunnerSupervisor does not start multiple loops concurrently', async () => {
+    process.env = { ...process.env, NODE_ENV: 'development' };
     delete process.env.AI_RUNNER_DISABLE_SUPERVISOR;
-    
+
+    runMock.mockReturnValue(new Promise(() => undefined));
+
     processes.ensureAIRunnerSupervisor();
-    expect(spawn).toHaveBeenCalledTimes(1);
-    
-    vi.mocked(spawn).mockClear();
-    
-    // Call again immediately - should NOT spawn
     processes.ensureAIRunnerSupervisor();
-    expect(spawn).not.toHaveBeenCalled();
-    
-    // Advance time by 11 seconds (cooldown is 10s)
-    vi.advanceTimersByTime(11_000);
-    
-    processes.ensureAIRunnerSupervisor();
-    expect(spawn).toHaveBeenCalledTimes(1);
+    await vi.dynamicImportSettled();
+
+    expect(runMock).toHaveBeenCalledTimes(1);
   });
 
   it('ensureAIRunnerSupervisor does nothing if disabled', () => {
-    process.env.NODE_ENV = 'development';
+    process.env = { ...process.env, NODE_ENV: 'development' };
     process.env.AI_RUNNER_DISABLE_SUPERVISOR = '1';
-    
+
     processes.ensureAIRunnerSupervisor();
     expect(spawn).not.toHaveBeenCalled();
+    expect(runMock).not.toHaveBeenCalled();
   });
 
   it('ensureAIRunnerSupervisor does nothing in test environment (default)', () => {
     // process.env.NODE_ENV is 'test' by default in vitest
     processes.ensureAIRunnerSupervisor();
     expect(spawn).not.toHaveBeenCalled();
+    expect(runMock).not.toHaveBeenCalled();
   });
 });

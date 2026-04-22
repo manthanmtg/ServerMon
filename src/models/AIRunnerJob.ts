@@ -29,6 +29,7 @@ export interface IAIRunnerJob extends Document {
   exitCode?: number;
   workerPid?: number;
   childPid?: number;
+  executionUnit?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -67,6 +68,7 @@ const AIRunnerJobSchema = new Schema<IAIRunnerJob>(
     exitCode: { type: Number },
     workerPid: { type: Number },
     childPid: { type: Number },
+    executionUnit: { type: String, maxlength: 256 },
   },
   { timestamps: true }
 );
