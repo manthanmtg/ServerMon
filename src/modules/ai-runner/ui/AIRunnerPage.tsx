@@ -1501,20 +1501,7 @@ export default function AIRunnerPage() {
 
           {activeTab === 'prompts' && (
             <div className="space-y-5">
-              <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-                <div className="max-w-3xl">
-                  <p className="text-[11px] uppercase tracking-[0.24em] text-primary/80">
-                    Saved Prompts
-                  </p>
-                  <h2 className="mt-2 text-2xl font-semibold tracking-tight">
-                    Prompt authoring deserves a dedicated studio too
-                  </h2>
-                  <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                    The library stays focused on browsing, selection, and quick launch. Creation and
-                    editing now happen in a wide modal so prompt structure, tags, and content get
-                    proper room.
-                  </p>
-                </div>
+              <div className="flex flex-wrap gap-3">
                 <Button size="lg" onClick={openCreatePromptModal} className="shrink-0">
                   <Save className="w-4 h-4" />
                   Create Prompt
