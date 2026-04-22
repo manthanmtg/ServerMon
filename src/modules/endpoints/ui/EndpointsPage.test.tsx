@@ -64,6 +64,29 @@ vi.mock('./components/ScriptEditor', () => ({
   ),
 }));
 
+vi.mock('./components/EndpointDocs', () => ({
+  EndpointDocs: ({
+    form,
+    onUpdateForm,
+    onSave,
+  }: {
+    form: { docs?: string };
+    onUpdateForm: (key: 'docs', value: string) => void;
+    onSave: () => void;
+  }) => (
+    <div data-testid="mock-endpoint-docs">
+      <textarea
+        data-testid="endpoint-docs-input"
+        value={form.docs ?? ''}
+        onChange={(e) => onUpdateForm('docs', e.target.value)}
+      />
+      <button data-testid="save-endpoint-docs" onClick={onSave}>
+        Save docs
+      </button>
+    </div>
+  ),
+}));
+
 describe('EndpointsPage', () => {
   const mockEndpoints = [
     {
