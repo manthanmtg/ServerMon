@@ -85,7 +85,7 @@ describe('ai-runner shared utilities', () => {
   describe('mapProfile', () => {
     it('correctly maps profile document', () => {
       const now = new Date();
-      const doc = {
+      const doc: Parameters<typeof mapProfile>[0] = {
         _id: 'p1',
         name: 'Profile 1',
         slug: 'p1-slug',
@@ -101,7 +101,7 @@ describe('ai-runner shared utilities', () => {
         createdAt: now,
         updatedAt: now,
       };
-      const result = mapProfile(doc as any);
+      const result = mapProfile(doc);
       expect(result._id).toBe('p1');
       expect(result.env).toEqual({ KEY: 'VALUE' });
       expect(result.icon).toBe('my-icon');
@@ -112,7 +112,7 @@ describe('ai-runner shared utilities', () => {
   describe('mapPrompt', () => {
     it('correctly maps prompt document', () => {
       const now = new Date();
-      const doc = {
+      const doc: Parameters<typeof mapPrompt>[0] = {
         _id: 'pr1',
         name: 'Prompt 1',
         content: 'Hello world',
@@ -121,7 +121,7 @@ describe('ai-runner shared utilities', () => {
         createdAt: now,
         updatedAt: now,
       };
-      const result = mapPrompt(doc as any);
+      const result = mapPrompt(doc);
       expect(result.name).toBe('Prompt 1');
       expect(result.tags).toEqual(['test']);
     });
@@ -130,7 +130,7 @@ describe('ai-runner shared utilities', () => {
   describe('mapSchedule', () => {
     it('correctly maps schedule document', () => {
       const now = new Date();
-      const doc = {
+      const doc: Parameters<typeof mapSchedule>[0] = {
         _id: 's1',
         name: 'Schedule 1',
         promptId: 'pr1',
@@ -140,7 +140,7 @@ describe('ai-runner shared utilities', () => {
         createdAt: now,
         updatedAt: now,
       };
-      const result = mapSchedule(doc as any);
+      const result = mapSchedule(doc);
       expect(result.promptId).toBe('pr1');
       expect(result.cronExpression).toBe('* * * * *');
     });
@@ -149,7 +149,7 @@ describe('ai-runner shared utilities', () => {
   describe('mapRun', () => {
     it('falls back queuedAt from startedAt for legacy runs', () => {
       const startedAt = new Date('2026-04-22T08:00:00.000Z');
-      const run = mapRun({
+      const runDoc: Parameters<typeof mapRun>[0] = {
         _id: 'run-1',
         agentProfileId: 'profile-1',
         promptContent: 'Fix tests',
@@ -163,19 +163,21 @@ describe('ai-runner shared utilities', () => {
         triggeredBy: 'manual',
         createdAt: startedAt,
         updatedAt: startedAt,
-      } as any);
+      };
+      const run = mapRun(runDoc);
 
       expect(run.queuedAt).toBe(startedAt.toISOString());
       expect(run.startedAt).toBe(startedAt.toISOString());
     });
 
     it('maps resource usage correctly', () => {
-      const run = mapRun({
+      const runDoc: Parameters<typeof mapRun>[0] = {
         _id: 'run-1',
         agentProfileId: 'p1',
         resourceUsage: { peakCpuPercent: 10, peakMemoryBytes: 1024 },
         createdAt: new Date(),
-      } as any);
+      };
+      const run = mapRun(runDoc);
       expect(run.resourceUsage?.peakCpuPercent).toBe(10);
       expect(run.resourceUsage?.peakMemoryBytes).toBe(1024);
       expect(run.resourceUsage?.peakMemoryPercent).toBe(0);
@@ -249,11 +251,13 @@ describe('ai-runner shared utilities', () => {
 
   describe('shouldRetryJob', () => {
     it('returns true if attempts < maxAttempts', () => {
-      expect(shouldRetryJob({ attemptCount: 1, maxAttempts: 2 } as any)).toBe(true);
+      const job: Parameters<typeof shouldRetryJob>[0] = { attemptCount: 1, maxAttempts: 2 };
+      expect(shouldRetryJob(job)).toBe(true);
     });
 
     it('returns false if attempts >= maxAttempts', () => {
-      expect(shouldRetryJob({ attemptCount: 2, maxAttempts: 2 } as any)).toBe(false);
+      const job: Parameters<typeof shouldRetryJob>[0] = { attemptCount: 2, maxAttempts: 2 };
+      expect(shouldRetryJob(job)).toBe(false);
     });
   });
 
