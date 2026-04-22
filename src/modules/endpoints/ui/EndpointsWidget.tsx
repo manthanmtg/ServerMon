@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Waypoints, LoaderCircle, Zap, AlertTriangle, TrendingUp } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { cn } from '@/lib/utils';
+import { cn, relativeTime } from '@/lib/utils';
 import type { CustomEndpointDTO, EndpointsListResponse } from '../types';
 
 const METHOD_COLORS: Record<string, string> = {
@@ -14,16 +14,6 @@ const METHOD_COLORS: Record<string, string> = {
   PATCH: 'text-info',
   DELETE: 'text-destructive',
 };
-
-function relativeTime(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime();
-  const minutes = Math.max(0, Math.round(diff / 60_000));
-  if (minutes < 1) return 'just now';
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.round(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  return `${Math.round(hours / 24)}d ago`;
-}
 
 export default function EndpointsWidget() {
   const [endpoints, setEndpoints] = useState<CustomEndpointDTO[]>([]);
