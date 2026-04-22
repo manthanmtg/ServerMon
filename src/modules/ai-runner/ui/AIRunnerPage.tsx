@@ -97,6 +97,7 @@ export default function AIRunnerPage() {
   const [historyScheduleFilter, setHistoryScheduleFilter] = useState<string>('all');
   const [historyDetailOpen, setHistoryDetailOpen] = useState(false);
   const [historyDetailSection, setHistoryDetailSection] = useState<HistoryDetailSection>('summary');
+  const [promptSearch, setPromptSearch] = useState('');
   const [selectedPromptId, setSelectedPromptId] = useState<string | null>(null);
   const [runPending, setRunPending] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -127,6 +128,9 @@ export default function AIRunnerPage() {
     prompts.find((prompt) => prompt._id === selectedRun?.promptId) ?? null;
   const selectedRunSchedule =
     schedules.find((schedule) => schedule._id === selectedRun?.scheduleId) ?? null;
+
+  // Detail for the prompts library
+  const selectedPromptDoc = prompts.find((p) => p._id === selectedPromptId) ?? null;
 
   // Keep latest values in refs so that data-loading callbacks can stay stable
   // (not dependent on search/form state) and don't re-run 5 parallel fetches
@@ -382,7 +386,32 @@ export default function AIRunnerPage() {
     () => Object.fromEntries(schedules.map((schedule) => [schedule._id, schedule])),
     [schedules]
   );
-  const filteredPrompts = useMemo(() => prompts, [prompts]);
+
+  const filteredPrompts = useMemo(() => {
+    const query = promptSearch.trim().toLowerCase();
+    const result = prompts.filter((prompt) => {
+      if (!query) return true;
+      return (
+        prompt.name.toLowerCase().includes(query) ||
+        prompt.content.toLowerCase().includes(query) ||
+        prompt.tags.some((tag) => tag.toLowerCase().includes(query))
+      );
+    });
+    return result;
+  }, [prompts, promptSearch]);
+
+  // Clear focused prompt if it's filtered out
+  useEffect(() => {
+    if (selectedPromptId && filteredPrompts.length > 0) {
+      if (!filteredPrompts.some((p) => p._id === selectedPromptId)) {
+        setSelectedPromptId(null);
+      }
+    } else if (filteredPrompts.length === 0 && selectedPromptId) {
+      setSelectedPromptId(null);
+    } else if (!selectedPromptId && filteredPrompts.length > 0) {
+      setSelectedPromptId(filteredPrompts[0]._id);
+    }
+  }, [filteredPrompts, selectedPromptId]);
 
   const filteredHistoryRuns = useMemo(() => {
     const query = runSearch.trim().toLowerCase();
@@ -1506,112 +1535,189 @@ export default function AIRunnerPage() {
                   <Save className="w-4 h-4" />
                   Create Prompt
                 </Button>
+                <div className="flex-1 min-w-[200px]">
+                  <Input
+                    label="Search"
+                    value={promptSearch}
+                    onChange={(event) => setPromptSearch(event.target.value)}
+                    placeholder="Search prompts by name, tags, or content..."
+                    icon={<Search className="w-4 h-4" />}
+                  />
+                </div>
               </div>
 
-              <div>
+              <div className="grid gap-5 lg:grid-cols-[1fr_minmax(340px,1.15fr)]">
                 <Card className="overflow-hidden border-border/60">
                   <CardHeader className="border-b border-border/60">
                     <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
                       <div>
                         <CardTitle className="text-lg tracking-tight">Library</CardTitle>
                       </div>
-                      <Badge variant="outline">{prompts.length} saved</Badge>
+                      <Badge variant="outline">{filteredPrompts.length} matches</Badge>
                     </div>
                   </CardHeader>
-                  <CardContent className="pt-2">
-                    {filteredPrompts.map((prompt) => (
-                      <div
-                        key={prompt._id}
-                        onClick={() => setSelectedPromptId(prompt._id)}
-                        className={cn(
-                          'border-b border-border/60 px-4 py-3 transition-colors last:border-b-0 hover:bg-accent/20',
-                          selectedPromptId === prompt._id && 'bg-primary/5'
-                        )}
-                      >
-                        <div className="flex flex-col gap-3 lg:grid lg:grid-cols-[minmax(0,1.5fr)_minmax(0,0.8fr)_auto] lg:items-center">
-                          <div className="min-w-0 space-y-1.5">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <h3 className="text-sm font-semibold tracking-tight">
-                                {prompt.name}
-                              </h3>
-                              <Badge variant="secondary">{prompt.type}</Badge>
+                  <CardContent className="p-0">
+                    <div className="max-h-[700px] overflow-y-auto">
+                      {filteredPrompts.map((prompt) => (
+                        <div
+                          key={prompt._id}
+                          onClick={() => setSelectedPromptId(prompt._id)}
+                          className={cn(
+                            'border-b border-border/60 px-4 py-3 transition-colors last:border-b-0 hover:bg-accent/20 cursor-pointer',
+                            selectedPromptId === prompt._id && 'bg-primary/5'
+                          )}
+                        >
+                          <div className="flex flex-col gap-3">
+                            <div className="min-w-0 space-y-1.5">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <h3 className="text-sm font-semibold tracking-tight">
+                                  {prompt.name}
+                                </h3>
+                                <Badge variant="secondary" className="text-[10px]">
+                                  {prompt.type}
+                                </Badge>
+                              </div>
+                              <p className="line-clamp-1 text-xs text-muted-foreground whitespace-pre-wrap">
+                                {prompt.content}
+                              </p>
                             </div>
-                            <p className="line-clamp-2 text-xs text-muted-foreground whitespace-pre-wrap">
-                              {prompt.content}
-                            </p>
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <div className="flex flex-wrap gap-1.5">
+                                {prompt.tags.length > 0 ? (
+                                  prompt.tags.map((tag) => (
+                                    <Badge key={tag} variant="outline" className="text-[10px]">
+                                      {tag}
+                                    </Badge>
+                                  ))
+                                ) : (
+                                  <span className="text-[10px] text-muted-foreground">
+                                    {prompt.content.length} chars
+                                  </span>
+                                )}
+                              </div>
+                              <div className="flex gap-1">
+                                <Button
+                                  size="xs"
+                                  variant="ghost"
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    selectPromptForEdit(prompt);
+                                  }}
+                                >
+                                  Edit
+                                </Button>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                      {filteredPrompts.length === 0 && (
+                        <div className="px-6 py-14 text-center">
+                          <h3 className="text-base font-semibold tracking-tight">
+                            {promptSearch
+                              ? 'No prompts match this filter'
+                              : 'No prompts in the library yet'}
+                          </h3>
+                          <p className="mt-2 text-xs text-muted-foreground">
+                            {promptSearch
+                              ? 'Try adjusting your search query or tags.'
+                              : 'Create a reusable prompt to get started.'}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="border-border/60">
+                  <CardHeader className="border-b border-border/60">
+                    <CardTitle className="text-lg tracking-tight">Selected</CardTitle>
+                  </CardHeader>
+                  <CardContent className="pt-5">
+                    {selectedPromptDoc ? (
+                      <div className="space-y-6">
+                        <div className="space-y-3">
+                          <div className="flex flex-wrap items-center justify-between gap-3">
+                            <div>
+                              <h3 className="text-base font-semibold">{selectedPromptDoc.name}</h3>
+                              <p className="text-xs text-muted-foreground">
+                                {selectedPromptDoc.type === 'file-reference'
+                                  ? 'External file reference'
+                                  : 'Stored inline in ServerMon'}
+                              </p>
+                            </div>
+                            <div className="flex gap-2">
+                              <Button
+                                size="sm"
+                                onClick={() => openPromptInRun(selectedPromptDoc._id)}
+                              >
+                                <Play className="w-4 h-4" />
+                                Run Now
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => selectPromptForEdit(selectedPromptDoc)}
+                              >
+                                Edit
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="destructive"
+                                onClick={() => void deletePrompt(selectedPromptDoc._id)}
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </div>
                           </div>
                           <div className="flex flex-wrap gap-1.5">
-                            {prompt.tags.length > 0 ? (
-                              prompt.tags.map((tag) => (
-                                <Badge key={tag} variant="outline" className="text-[10px]">
-                                  {tag}
-                                </Badge>
-                              ))
-                            ) : (
-                              <span className="text-xs text-muted-foreground">
-                                {prompt.content.length} chars
-                              </span>
-                            )}
+                            {selectedPromptDoc.tags.map((tag) => (
+                              <Badge key={tag} variant="secondary">
+                                {tag}
+                              </Badge>
+                            ))}
                           </div>
-                          <div className="flex flex-wrap gap-2 lg:justify-end">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                setSelectedPromptId(prompt._id);
-                              }}
-                            >
-                              Preview
-                            </Button>
-                            <Button
-                              size="sm"
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                openPromptInRun(prompt._id);
-                              }}
-                            >
-                              <Play className="w-4 h-4" />
-                              Run
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                selectPromptForEdit(prompt);
-                              }}
-                            >
-                              Edit
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="destructive"
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                void deletePrompt(prompt._id);
-                              }}
-                            >
-                              <Trash2 className="w-4 h-4" />
-                              Delete
-                            </Button>
+                        </div>
+
+                        <div className="rounded-xl border border-border bg-secondary/10 p-4">
+                          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
+                            {selectedPromptDoc.type === 'inline' ? 'Content' : 'Path'}
+                          </p>
+                          <pre className="max-h-[400px] overflow-auto whitespace-pre-wrap text-sm leading-relaxed">
+                            {selectedPromptDoc.content}
+                          </pre>
+                        </div>
+
+                        <div className="rounded-xl border border-primary/20 bg-primary/5 p-4">
+                          <div className="flex items-start gap-3">
+                            <Zap className="h-4 w-4 text-primary mt-0.5" />
+                            <div className="space-y-1">
+                              <p className="text-xs font-medium text-primary">Quick Tip</p>
+                              <p className="text-xs text-muted-foreground leading-relaxed">
+                                You can use this prompt in scheduled runs by going to the
+                                <Button
+                                  variant="link"
+                                  className="h-auto p-0 text-xs font-medium ml-1"
+                                  onClick={() => setActiveTab('schedules')}
+                                >
+                                  Schedules
+                                </Button>{' '}
+                                tab and selecting this as the source.
+                              </p>
+                            </div>
                           </div>
                         </div>
                       </div>
-                    ))}
-                    {filteredPrompts.length === 0 && (
-                      <div className="px-6 py-14 text-center">
-                        <h3 className="text-lg font-semibold tracking-tight">
-                          No prompts in the library yet
-                        </h3>
-                        <p className="mt-2 text-sm text-muted-foreground">
-                          Create a reusable prompt and it will show up here ready for runs and schedules.
-                        </p>
-                        <div className="mt-5">
-                          <Button onClick={openCreatePromptModal}>
-                            <Save className="w-4 h-4" />
-                            Create Prompt
-                          </Button>
+                    ) : (
+                      <div className="flex min-h-[400px] flex-col items-center justify-center space-y-3 text-center">
+                        <div className="rounded-full bg-secondary p-3">
+                          <Bot className="h-6 w-6 text-muted-foreground" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium">Select a prompt to preview it here</p>
+                          <p className="text-xs text-muted-foreground">
+                            Browse your library on the left.
+                          </p>
                         </div>
                       </div>
                     )}
