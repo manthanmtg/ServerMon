@@ -17,6 +17,7 @@ import type {
   AIRunnerDirectoriesResponse,
   AIRunnerProfileDTO,
   AIRunnerPromptDTO,
+  AIRunnerRunDTO,
   AIRunnerRunsResponse,
   AIRunnerScheduleDTO,
 } from '../types';
@@ -62,6 +63,7 @@ const mockPrompts: AIRunnerPromptDTO[] = [
 
 const mockSchedules: AIRunnerScheduleDTO[] = [];
 const mockRuns: AIRunnerRunsResponse = { runs: [], total: 0 };
+const mockActiveRuns: AIRunnerRunDTO[] = [];
 const mockDirectories: AIRunnerDirectoriesResponse = { directories: ['/root/repos/ServerMon'] };
 
 describe('AIRunnerPage', () => {
@@ -76,6 +78,9 @@ describe('AIRunnerPage', () => {
       }
       if (url.includes('/api/modules/ai-runner/schedules')) {
         return Promise.resolve({ ok: true, json: async () => mockSchedules });
+      }
+      if (url.includes('/api/modules/ai-runner/runs/active')) {
+        return Promise.resolve({ ok: true, json: async () => mockActiveRuns });
       }
       if (url.includes('/api/modules/ai-runner/runs')) {
         return Promise.resolve({ ok: true, json: async () => mockRuns });
@@ -98,10 +103,10 @@ describe('AIRunnerPage', () => {
       fireEvent.click(screen.getByRole('button', { name: /Saved Prompts/i }));
     });
 
-    expect(screen.getByText('Selected')).toBeInTheDocument();
-    expect(screen.getByLabelText('Search')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Create Prompt$/i })).toBeInTheDocument();
     expect(screen.getByText('Library')).toBeInTheDocument();
-    expect(screen.queryByText('Browse')).not.toBeInTheDocument();
+    expect(screen.queryByText('Selected')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Search')).not.toBeInTheDocument();
   });
 
   it('defers history runs loading until the history tab is opened', async () => {
@@ -132,7 +137,7 @@ describe('AIRunnerPage', () => {
     );
   });
 
-  it('filters the library list and clears the focused prompt when nothing matches', async () => {
+  it('keeps prompt actions inline without a separate filter panel', async () => {
     await act(async () => {
       render(<AIRunnerPage />);
     });
@@ -143,15 +148,11 @@ describe('AIRunnerPage', () => {
       fireEvent.click(screen.getByRole('button', { name: /Saved Prompts/i }));
     });
 
-    await act(async () => {
-      fireEvent.change(screen.getByLabelText('Search'), {
-        target: { value: 'nonexistent prompt' },
-      });
-    });
-
-    expect(screen.getByText('No prompts match this filter')).toBeInTheDocument();
-    expect(screen.getByText('Select a prompt to preview it here')).toBeInTheDocument();
-    expect(screen.queryByText('Fix tests')).not.toBeInTheDocument();
+    expect(screen.getByText('Fix tests')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Run$/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Edit$/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Delete$/i })).toBeInTheDocument();
+    expect(screen.queryByText('Search & Filter')).not.toBeInTheDocument();
   });
 
   it('shows a live countdown and last run label on schedule rows', async () => {
@@ -213,6 +214,98 @@ describe('AIRunnerPage', () => {
       expect(screen.getByText('overdue by 1m 1s')).toBeInTheDocument();
     } finally {
       mockSchedules.splice(0, mockSchedules.length);
+      mockActiveRuns.splice(0, mockActiveRuns.length);
+      vi.useRealTimers();
+    }
+  });
+
+  it('shows a live run status instead of overdue when the scheduled run is active', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-04-21T10:31:00.000Z'));
+    mockSchedules.splice(0, mockSchedules.length, {
+      _id: 'schedule-1',
+      name: 'LifeOS Improve',
+      promptId: 'prompt-1',
+      agentProfileId: 'profile-1',
+      workingDirectory: '/root/repos/LifeOS',
+      timeout: 28,
+      retries: 1,
+      cronExpression: '30 9 * * *',
+      enabled: true,
+      nextRunTime: '2026-04-21T10:30:00.000Z',
+      createdAt: '2026-04-21T00:00:00.000Z',
+      updatedAt: '2026-04-21T00:00:00.000Z',
+    });
+    mockActiveRuns.splice(0, mockActiveRuns.length, {
+      _id: 'run-1',
+      scheduleId: 'schedule-1',
+      agentProfileId: 'profile-1',
+      promptContent: 'Audit failing tests and patch the root cause.',
+      workingDirectory: '/root/repos/LifeOS',
+      command: 'codex "$PROMPT"',
+      status: 'running',
+      stdout: '',
+      stderr: '',
+      rawOutput: '',
+      queuedAt: '2026-04-21T10:30:00.000Z',
+      startedAt: '2026-04-21T10:30:07.000Z',
+      triggeredBy: 'schedule',
+    });
+
+    try {
+      await act(async () => {
+        render(<AIRunnerPage />);
+      });
+
+      await waitFor(() => expect(screen.getByText('AI Agent Runner')).toBeInTheDocument());
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /Schedules/i }));
+      });
+
+      expect(screen.getAllByText('running now').length).toBeGreaterThan(0);
+      expect(screen.queryByText('overdue by 1m 1s')).not.toBeInTheDocument();
+    } finally {
+      mockSchedules.splice(0, mockSchedules.length);
+      mockActiveRuns.splice(0, mockActiveRuns.length);
+      vi.useRealTimers();
+    }
+  });
+
+  it('refreshes history every 5 seconds only while the history tab is open', async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi.mocked(global.fetch);
+
+    try {
+      await act(async () => {
+        render(<AIRunnerPage />);
+      });
+
+      await waitFor(() => expect(screen.getByText('AI Agent Runner')).toBeInTheDocument());
+
+      const runsRequestCountBeforeHistory = fetchMock.mock.calls.filter(
+        ([url]) => typeof url === 'string' && url.includes('/api/modules/ai-runner/runs?limit=25')
+      ).length;
+      expect(runsRequestCountBeforeHistory).toBe(0);
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /History/i }));
+      });
+
+      const runsRequestCountAfterOpen = fetchMock.mock.calls.filter(
+        ([url]) => typeof url === 'string' && url.includes('/api/modules/ai-runner/runs?limit=25')
+      ).length;
+      expect(runsRequestCountAfterOpen).toBeGreaterThan(0);
+
+      await act(async () => {
+        vi.advanceTimersByTime(5000);
+      });
+
+      const runsRequestCountAfterPoll = fetchMock.mock.calls.filter(
+        ([url]) => typeof url === 'string' && url.includes('/api/modules/ai-runner/runs?limit=25')
+      ).length;
+      expect(runsRequestCountAfterPoll).toBeGreaterThan(runsRequestCountAfterOpen);
+    } finally {
       vi.useRealTimers();
     }
   });

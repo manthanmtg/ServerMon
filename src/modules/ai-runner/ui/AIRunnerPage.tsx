@@ -71,6 +71,16 @@ import {
 import { buildScheduleVisualizationModel } from './scheduleVisualization';
 
 const SCHEDULE_SURFACE_REFRESH_MS = 15_000;
+const HISTORY_REFRESH_MS = 5_000;
+const ACTIVE_SCHEDULE_RUN_REFRESH_MS = 5_000;
+
+function getActiveScheduleRunLabel(run?: AIRunnerRunDTO | null): string | null {
+  if (!run) return null;
+  if (run.status === 'running') return 'running now';
+  if (run.status === 'retrying') return 'retrying now';
+  if (run.status === 'queued') return 'queued now';
+  return null;
+}
 
 export default function AIRunnerPage() {
   const { toast } = useToast();
@@ -84,6 +94,7 @@ export default function AIRunnerPage() {
   const [prompts, setPrompts] = useState<AIRunnerPromptDTO[]>([]);
   const [schedules, setSchedules] = useState<AIRunnerScheduleDTO[]>([]);
   const [runs, setRuns] = useState<AIRunnerRunDTO[]>([]);
+  const [activeScheduleRuns, setActiveScheduleRuns] = useState<AIRunnerRunDTO[]>([]);
   const [directories, setDirectories] = useState<string[]>([]);
   const [selectedRun, setSelectedRun] = useState<AIRunnerRunDTO | null>(null);
   const [runSearch, setRunSearch] = useState('');
@@ -260,6 +271,19 @@ export default function AIRunnerPage() {
     }
   }, [toast]);
 
+  const loadActiveRuns = useCallback(async () => {
+    try {
+      const response = await fetch('/api/modules/ai-runner/runs/active', {
+        cache: 'no-store',
+      });
+      if (!response.ok) return;
+      const payload: AIRunnerRunDTO[] = await response.json();
+      setActiveScheduleRuns(payload.filter((run) => Boolean(run.scheduleId)));
+    } catch {
+      /* lightweight background poll; ignore transient failures */
+    }
+  }, []);
+
   const loadAll = useCallback(
     async (searchOverride?: string) => {
       setRefreshing(true);
@@ -268,7 +292,7 @@ export default function AIRunnerPage() {
         if (activeTab === 'history') {
           tasks.push(loadRuns(searchOverride), loadSchedules());
         } else if (activeTab === 'schedules') {
-          tasks.push(loadSchedules());
+          tasks.push(loadSchedules(), loadActiveRuns());
         } else if (activeTab === 'settings') {
           tasks.push(loadSchedules());
         }
@@ -278,7 +302,7 @@ export default function AIRunnerPage() {
         setRefreshing(false);
       }
     },
-    [activeTab, loadMetadata, loadRuns, loadSchedules]
+    [activeTab, loadActiveRuns, loadMetadata, loadRuns, loadSchedules]
   );
 
   // Initial load — runs once on mount. Abort any in-flight fetches on unmount.
@@ -315,24 +339,48 @@ export default function AIRunnerPage() {
   }, [loadRuns, metadataLoaded, runSearch, runsLoaded]);
 
   useEffect(() => {
-    if (!metadataLoaded) return;
-    if (activeTab !== 'schedules' && activeTab !== 'history') return;
+    if (!metadataLoaded || activeTab !== 'history') return;
 
-    const refreshVisibleData = () => {
+    if (!schedulesLoaded) {
+      void loadSchedules();
+    }
+
+    const refreshHistoryRuns = () => {
       if (document.visibilityState !== 'visible') return;
+      void loadRuns();
+    };
 
-      if (activeTab === 'history') {
-        void loadRuns();
-        void loadSchedules();
-        return;
-      }
+    refreshHistoryRuns();
+    const interval = window.setInterval(refreshHistoryRuns, HISTORY_REFRESH_MS);
+    return () => window.clearInterval(interval);
+  }, [activeTab, loadRuns, loadSchedules, metadataLoaded, schedulesLoaded]);
 
+  useEffect(() => {
+    if (!metadataLoaded) return;
+    if (activeTab !== 'schedules' && activeTab !== 'settings') return;
+
+    const refreshSchedules = () => {
+      if (document.visibilityState !== 'visible') return;
       void loadSchedules();
     };
 
-    const interval = window.setInterval(refreshVisibleData, SCHEDULE_SURFACE_REFRESH_MS);
+    refreshSchedules();
+    const interval = window.setInterval(refreshSchedules, SCHEDULE_SURFACE_REFRESH_MS);
     return () => window.clearInterval(interval);
-  }, [activeTab, loadRuns, loadSchedules, metadataLoaded]);
+  }, [activeTab, loadSchedules, metadataLoaded]);
+
+  useEffect(() => {
+    if (!metadataLoaded || activeTab !== 'schedules') return;
+
+    const refreshActiveScheduleRuns = () => {
+      if (document.visibilityState !== 'visible') return;
+      void loadActiveRuns();
+    };
+
+    refreshActiveScheduleRuns();
+    const interval = window.setInterval(refreshActiveScheduleRuns, ACTIVE_SCHEDULE_RUN_REFRESH_MS);
+    return () => window.clearInterval(interval);
+  }, [activeTab, loadActiveRuns, metadataLoaded]);
 
   // Poll the currently-selected run while it's active. Depend only on the
   // run id/status so setSelectedRun(run) inside the interval doesn't tear
@@ -440,6 +488,44 @@ export default function AIRunnerPage() {
   const nextSchedule = schedules
     .filter((schedule) => schedule.enabled && schedule.nextRunTime)
     .sort((a, b) => new Date(a.nextRunTime!).getTime() - new Date(b.nextRunTime!).getTime())[0];
+  const activeScheduleRunMap = useMemo(() => {
+    const statusRank: Record<AIRunnerRunDTO['status'], number> = {
+      running: 3,
+      retrying: 2,
+      queued: 1,
+      completed: 0,
+      failed: 0,
+      timeout: 0,
+      killed: 0,
+    };
+
+    const selectedRuns = new Map<string, AIRunnerRunDTO>();
+    for (const run of activeScheduleRuns) {
+      if (!run.scheduleId) continue;
+      const current = selectedRuns.get(run.scheduleId);
+      if (!current) {
+        selectedRuns.set(run.scheduleId, run);
+        continue;
+      }
+
+      const currentRank = statusRank[current.status] ?? 0;
+      const nextRank = statusRank[run.status] ?? 0;
+      if (nextRank > currentRank) {
+        selectedRuns.set(run.scheduleId, run);
+        continue;
+      }
+
+      const currentTime = new Date(current.startedAt ?? current.queuedAt).getTime();
+      const nextTime = new Date(run.startedAt ?? run.queuedAt).getTime();
+      if (nextTime > currentTime) {
+        selectedRuns.set(run.scheduleId, run);
+      }
+    }
+
+    return Object.fromEntries(selectedRuns.entries());
+  }, [activeScheduleRuns]);
+  const nextScheduleActiveRun = nextSchedule ? activeScheduleRunMap[nextSchedule._id] : undefined;
+  const nextScheduleStatusLabel = getActiveScheduleRunLabel(nextScheduleActiveRun);
   const sortedSchedules = [...schedules].sort((left, right) => {
     if (left.enabled !== right.enabled) return left.enabled ? -1 : 1;
     if (left.nextRunTime && right.nextRunTime) {
@@ -637,24 +723,8 @@ export default function AIRunnerPage() {
   const handleTabChange = useCallback(
     (tab: ViewTab) => {
       setActiveTab(tab);
-      if (tab === 'history') {
-        if (!runsLoaded) {
-          void loadRuns();
-        }
-        if (!schedulesLoaded) {
-          void loadSchedules();
-        }
-        return;
-      }
-      if (tab === 'settings' && !schedulesLoaded) {
-        void loadSchedules();
-        return;
-      }
-      if (tab === 'schedules' && !schedulesLoaded) {
-        void loadSchedules();
-      }
     },
-    [loadRuns, loadSchedules, runsLoaded, schedulesLoaded]
+    []
   );
 
   const rerunHistoryItem = async (run: AIRunnerRunDTO) => {
@@ -1789,12 +1859,14 @@ export default function AIRunnerPage() {
                         : 'No launch queued'
                     }
                     tone="warning"
-                    detail={
+                  detail={
                       nextSchedule?.nextRunTime
-                        ? `${nextSchedule.name} ${formatCountdown(nextSchedule.nextRunTime, liveNow)}`
+                        ? nextScheduleStatusLabel
+                          ? `${nextSchedule.name} ${nextScheduleStatusLabel}`
+                          : `${nextSchedule.name} ${formatCountdown(nextSchedule.nextRunTime, liveNow)}`
                         : 'Enable a schedule to populate this.'
-                    }
-                  />
+                  }
+                />
                   <CompactStat
                     label="Recently Active"
                     value={recentlyActiveScheduleCount}
@@ -1935,7 +2007,8 @@ export default function AIRunnerPage() {
                               {formatScheduleDate(schedule.nextRunTime)}
                             </p>
                             <p className="text-xs text-muted-foreground">
-                              {formatCountdown(schedule.nextRunTime, liveNow)}
+                              {getActiveScheduleRunLabel(activeScheduleRunMap[schedule._id]) ??
+                                formatCountdown(schedule.nextRunTime, liveNow)}
                             </p>
                           </div>
                           <div className="min-w-0">
