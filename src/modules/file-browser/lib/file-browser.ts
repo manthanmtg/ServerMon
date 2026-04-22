@@ -195,7 +195,7 @@ export function formatBytes(bytes: number): string {
   return `${size.toFixed(size >= 10 || unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`;
 }
 
-function detectKind(filePath: string, isDirectory: boolean): FileKind {
+export function detectKind(filePath: string, isDirectory: boolean): FileKind {
   if (isDirectory) return 'directory';
 
   const extension = path.extname(filePath).toLowerCase();
@@ -624,7 +624,7 @@ const STATUS_LABELS: Record<string, string> = {
   '!': 'ignored',
 };
 
-function parseStatusCode(code: string): string {
+export function parseStatusCode(code: string): string {
   return STATUS_LABELS[code] || code;
 }
 
