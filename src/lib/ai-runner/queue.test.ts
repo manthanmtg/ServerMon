@@ -223,7 +223,7 @@ describe('ai-runner queue', () => {
         save: vi.fn().mockResolvedValue(undefined),
         createdAt: now,
         updatedAt: now,
-        startedAt: now,
+        queuedAt: now,
         jobId: '',
         ...resolved,
       } as unknown as IAIRunnerRun;
@@ -232,9 +232,14 @@ describe('ai-runner queue', () => {
       vi.mocked(AIRunnerRun.create).mockResolvedValue(mockRun as unknown as never);
       vi.mocked(AIRunnerJob.create).mockResolvedValue(mockJob as unknown as never);
 
-      const result = await queue.enqueueResolvedRun(resolved);
+      const result = await queue.enqueueResolvedRun(resolved, { requestedAt: now });
 
       expect(AIRunnerRun.create).toHaveBeenCalled();
+      expect(AIRunnerRun.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          queuedAt: now,
+        })
+      );
       expect(AIRunnerJob.create).toHaveBeenCalled();
       expect((mockRun as unknown as { jobId: string }).jobId).toBe('job1');
       expect(mockRun.save).toHaveBeenCalled();
@@ -252,7 +257,7 @@ describe('ai-runner queue', () => {
         save: vi.fn(),
         createdAt: now,
         updatedAt: now,
-        startedAt: now,
+        queuedAt: now,
         ...resolvedWithSchedule,
       } as unknown as IAIRunnerRun;
       vi.mocked(AIRunnerRun.create).mockResolvedValue(mockRun as unknown as never);
@@ -282,7 +287,7 @@ describe('ai-runner queue', () => {
         save: vi.fn(),
         createdAt: startedAt,
         updatedAt: startedAt,
-        startedAt,
+        queuedAt: startedAt,
         ...manualScheduledRun,
       } as unknown as IAIRunnerRun;
 
@@ -343,7 +348,7 @@ describe('ai-runner queue', () => {
         save: vi.fn(),
         createdAt: now,
         updatedAt: now,
-        startedAt: now,
+        queuedAt: now,
         agentProfileId: 'p1',
         promptContent: 'c',
         workingDirectory: '/tmp',

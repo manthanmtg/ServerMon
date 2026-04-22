@@ -19,7 +19,10 @@ export interface IAIRunnerRun extends Document {
   stdout: string;
   stderr: string;
   rawOutput: string;
-  startedAt: Date;
+  queuedAt?: Date;
+  scheduledFor?: Date;
+  dispatchedAt?: Date;
+  startedAt?: Date;
   finishedAt?: Date;
   durationSeconds?: number;
   triggeredBy: AIRunnerTrigger;
@@ -58,7 +61,10 @@ const AIRunnerRunSchema = new Schema<IAIRunnerRun>(
     stdout: { type: String, default: '', maxlength: 1_000_000 },
     stderr: { type: String, default: '', maxlength: 1_000_000 },
     rawOutput: { type: String, default: '', maxlength: 1_000_000 },
-    startedAt: { type: Date, required: true, index: true },
+    queuedAt: { type: Date, index: true },
+    scheduledFor: { type: Date },
+    dispatchedAt: { type: Date },
+    startedAt: { type: Date, index: true },
     finishedAt: { type: Date },
     durationSeconds: { type: Number },
     triggeredBy: { type: String, required: true, enum: ['manual', 'schedule'] },
@@ -85,7 +91,7 @@ AIRunnerRunSchema.index({ status: 1, startedAt: -1 });
 AIRunnerRunSchema.index({ jobStatus: 1, startedAt: -1 });
 AIRunnerRunSchema.index({ promptId: 1, startedAt: -1 });
 AIRunnerRunSchema.index({ scheduleId: 1, startedAt: -1 });
-AIRunnerRunSchema.index({ startedAt: 1 }, { expireAfterSeconds: 30 * 24 * 60 * 60 });
+AIRunnerRunSchema.index({ queuedAt: 1 }, { expireAfterSeconds: 30 * 24 * 60 * 60 });
 
 const AIRunnerRun: Model<IAIRunnerRun> =
   mongoose.models.AIRunnerRun || mongoose.model<IAIRunnerRun>('AIRunnerRun', AIRunnerRunSchema);

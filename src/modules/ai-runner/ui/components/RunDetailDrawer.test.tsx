@@ -19,6 +19,7 @@ const baseRun: AIRunnerRunDTO = {
   stdout: 'clean output',
   stderr: '',
   rawOutput: 'raw output',
+  queuedAt: '2026-04-21T17:59:35.000Z',
   startedAt: '2026-04-21T18:00:00.000Z',
   triggeredBy: 'manual',
 };
@@ -96,5 +97,37 @@ describe('RunDetailDrawer', () => {
     expect(document.body.style.overflow).toBe('hidden');
     unmount();
     expect(document.body.style.overflow).toBe(originalOverflow);
+  });
+
+  it('shows the richer timing metadata for scheduled runs', () => {
+    render(
+      <RunDetailDrawer
+        run={{
+          ...baseRun,
+          scheduleId: 'schedule-1',
+          scheduledFor: '2026-04-21T17:59:00.000Z',
+          dispatchedAt: '2026-04-21T17:59:45.000Z',
+          lastError: 'Transient worker issue',
+        }}
+        historyDetailSection="metadata"
+        onSectionChange={vi.fn()}
+        onClose={vi.fn()}
+        onRerun={vi.fn()}
+        onKill={vi.fn()}
+        onOpenPrompt={vi.fn()}
+        onOpenSchedule={vi.fn()}
+        getRunDisplayName={() => 'Test run'}
+        profileName="Codex"
+        promptSourceName="Inline prompt"
+        scheduleName="Weekday run"
+      />
+    );
+
+    expect(screen.getByText('Ideal start time')).toBeInTheDocument();
+    expect(screen.getByText('Queued at')).toBeInTheDocument();
+    expect(screen.getByText('Queue delay')).toBeInTheDocument();
+    expect(screen.getByText('Dispatch delay')).toBeInTheDocument();
+    expect(screen.getByText('Start delay')).toBeInTheDocument();
+    expect(screen.getByText('Transient worker issue')).toBeInTheDocument();
   });
 });

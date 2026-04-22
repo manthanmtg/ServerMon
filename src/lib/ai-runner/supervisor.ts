@@ -331,6 +331,7 @@ export class AIRunnerSupervisor {
       await AIRunnerRun.findByIdAndUpdate(job.runId, {
         $set: {
           jobStatus: 'dispatched',
+          dispatchedAt: now,
           heartbeatAt: now,
           attemptCount: job.attemptCount,
           maxAttempts: job.maxAttempts,

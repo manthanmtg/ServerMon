@@ -3,6 +3,7 @@ import {
   DEFAULT_MAX_CONCURRENT_RUNS,
   MAX_CONCURRENT_RUNS_CAP,
   getMaxConcurrentRuns,
+  mapRun,
 } from './shared';
 
 describe('getMaxConcurrentRuns', () => {
@@ -28,5 +29,27 @@ describe('getMaxConcurrentRuns', () => {
   it('caps high values to the supported maximum', () => {
     vi.stubEnv('AI_RUNNER_MAX_CONCURRENT_RUNS', '99');
     expect(getMaxConcurrentRuns()).toBe(MAX_CONCURRENT_RUNS_CAP);
+  });
+
+  it('falls back queuedAt from startedAt for legacy runs', () => {
+    const startedAt = new Date('2026-04-22T08:00:00.000Z');
+    const run = mapRun({
+      _id: 'run-1',
+      agentProfileId: 'profile-1',
+      promptContent: 'Fix tests',
+      workingDirectory: '/srv/repo',
+      command: 'codex "$PROMPT"',
+      status: 'completed',
+      stdout: 'Done',
+      stderr: '',
+      rawOutput: 'Done',
+      startedAt,
+      triggeredBy: 'manual',
+      createdAt: startedAt,
+      updatedAt: startedAt,
+    });
+
+    expect(run.queuedAt).toBe(startedAt.toISOString());
+    expect(run.startedAt).toBe(startedAt.toISOString());
   });
 });

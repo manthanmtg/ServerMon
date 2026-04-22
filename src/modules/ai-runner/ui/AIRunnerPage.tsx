@@ -1474,7 +1474,7 @@ export default function AIRunnerPage() {
                         <div className="rounded-lg bg-secondary/40 px-3 py-2">
                           <span className="text-muted-foreground">Started</span>
                           <p className="mt-1 font-medium">
-                            {new Date(selectedRun.startedAt).toLocaleString()}
+                            {new Date(selectedRun.startedAt ?? selectedRun.queuedAt).toLocaleString()}
                           </p>
                         </div>
                         <div className="rounded-lg bg-secondary/40 px-3 py-2">
@@ -2581,9 +2581,9 @@ export default function AIRunnerPage() {
                             </td>
                             <td className="px-4 py-3 align-top">
                               <div>
-                                <p>{formatDateTime(run.startedAt)}</p>
+                                <p>{formatDateTime(run.startedAt ?? run.queuedAt)}</p>
                                 <p className="text-xs text-muted-foreground">
-                                  {formatRelative(run.startedAt)}
+                                  {formatRelative(run.startedAt ?? run.queuedAt)}
                                 </p>
                               </div>
                             </td>

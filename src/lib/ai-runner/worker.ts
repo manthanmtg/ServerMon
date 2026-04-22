@@ -78,6 +78,9 @@ export class AIRunnerWorker {
 
     run.status = 'running';
     run.jobStatus = 'running';
+    run.queuedAt = run.queuedAt ?? job.createdAt;
+    run.scheduledFor = run.scheduledFor ?? job.scheduledFor;
+    run.dispatchedAt = run.dispatchedAt ?? job.dispatchedAt;
     run.startedAt = now;
     run.heartbeatAt = now;
     run.lastOutputAt = now;

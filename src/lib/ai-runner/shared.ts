@@ -154,7 +154,13 @@ export function mapRun(
     stdout: String(doc.stdout ?? ''),
     stderr: String(doc.stderr ?? ''),
     rawOutput: String(doc.rawOutput ?? ''),
-    startedAt: new Date(doc.startedAt as Date | string).toISOString(),
+    queuedAt:
+      toIso(doc.queuedAt as Date | string | undefined) ??
+      toIso(doc.startedAt as Date | string | undefined) ??
+      new Date(doc.createdAt as Date | string).toISOString(),
+    scheduledFor: toIso(doc.scheduledFor as Date | string | undefined),
+    dispatchedAt: toIso(doc.dispatchedAt as Date | string | undefined),
+    startedAt: toIso(doc.startedAt as Date | string | undefined),
     finishedAt: toIso(doc.finishedAt as Date | string | undefined),
     durationSeconds:
       typeof doc.durationSeconds === 'number' ? Number(doc.durationSeconds) : undefined,

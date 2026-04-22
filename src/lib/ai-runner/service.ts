@@ -285,7 +285,7 @@ export class AIRunnerService {
     const [runs, total] = await Promise.all([
       AIRunnerRun.find(filter)
         .select(RUN_LIST_PROJECTION)
-        .sort({ startedAt: -1 })
+        .sort({ queuedAt: -1, startedAt: -1, createdAt: -1 })
         .skip(offset)
         .limit(limit)
         .lean(),
@@ -307,7 +307,7 @@ export class AIRunnerService {
       status: { $in: ['queued', 'running', 'retrying'] },
     })
       .select(RUN_LIST_PROJECTION)
-      .sort({ startedAt: -1 })
+      .sort({ queuedAt: -1, startedAt: -1, createdAt: -1 })
       .lean();
     return activeDocs.map(mapRun);
   }

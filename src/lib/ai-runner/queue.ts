@@ -124,8 +124,8 @@ export async function enqueueResolvedRun(
 ): Promise<AIRunnerRunDTO> {
   await connectDB();
 
-  const startedAt = options?.requestedAt ?? new Date();
-  const jobScheduledFor = options?.scheduledFor ?? (resolved.scheduleId ? startedAt : undefined);
+  const queuedAt = options?.requestedAt ?? new Date();
+  const jobScheduledFor = options?.scheduledFor ?? (resolved.scheduleId ? queuedAt : undefined);
   const runDoc = await AIRunnerRun.create({
     promptId: resolved.promptId,
     scheduleId: resolved.scheduleId,
@@ -137,7 +137,8 @@ export async function enqueueResolvedRun(
     stdout: '',
     stderr: '',
     rawOutput: '',
-    startedAt,
+    queuedAt,
+    scheduledFor: jobScheduledFor,
     triggeredBy: resolved.triggeredBy,
     jobStatus: 'queued',
     attemptCount: 0,
@@ -160,7 +161,7 @@ export async function enqueueResolvedRun(
       env: resolved.profile.env,
       timeoutMinutes: resolved.timeoutMinutes,
       status: 'queued',
-      nextAttemptAt: startedAt,
+      nextAttemptAt: queuedAt,
       scheduledFor: jobScheduledFor,
       maxAttempts: options?.maxAttempts ?? resolved.maxAttempts ?? DEFAULT_MAX_ATTEMPTS,
     });
@@ -175,12 +176,12 @@ export async function enqueueResolvedRun(
   if (resolved.scheduleId) {
     const nextRunTime = getNextRunTimeFromExpression(
       resolved.scheduleCronExpression ?? '',
-      new Date((options?.scheduledFor ?? startedAt).getTime() + 60_000)
+      new Date((options?.scheduledFor ?? queuedAt).getTime() + 60_000)
     );
     await AIRunnerSchedule.findByIdAndUpdate(resolved.scheduleId, {
       lastRunId: runDoc._id,
       lastRunStatus: 'queued',
-      lastRunAt: startedAt,
+      lastRunAt: queuedAt,
       lastScheduledFor: options?.scheduledFor,
       nextRunTime: nextRunTime ? new Date(nextRunTime) : undefined,
     });

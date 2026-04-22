@@ -19,6 +19,15 @@ import type { AIRunnerRunDTO } from '../../types';
 import type { HistoryDetailSection } from '../types';
 import { formatDateTime, formatDuration, formatMemory, getRunStatusVariant } from '../utils';
 
+function formatTimingDelay(from?: string, to?: string): string {
+  if (!from || !to) return '—';
+  const delaySeconds = Math.max(
+    0,
+    Math.round((new Date(to).getTime() - new Date(from).getTime()) / 1000)
+  );
+  return delaySeconds === 0 ? '0s' : formatDuration(delaySeconds);
+}
+
 export function RunDetailDrawer({
   run,
   historyDetailSection,
@@ -47,6 +56,59 @@ export function RunDetailDrawer({
   scheduleName: string;
 }) {
   const [autoscrollEnabled, setAutoscrollEnabled] = useState(true);
+  const primaryTimestamp = run.startedAt ?? run.queuedAt;
+  const primaryTimestampLabel = run.startedAt ? 'Started' : 'Queued';
+  const timingRows = [
+    ...(run.scheduleId || run.scheduledFor
+      ? [
+          {
+            label: 'Ideal start time',
+            value: formatDateTime(run.scheduledFor),
+          },
+          {
+            label: 'Queue delay',
+            value: formatTimingDelay(run.scheduledFor, run.queuedAt),
+          },
+        ]
+      : []),
+    {
+      label: 'Queued at',
+      value: formatDateTime(run.queuedAt),
+    },
+    {
+      label: 'Dispatched at',
+      value: formatDateTime(run.dispatchedAt),
+    },
+    {
+      label: 'Dispatch delay',
+      value: formatTimingDelay(run.queuedAt, run.dispatchedAt),
+    },
+    {
+      label: 'Started at',
+      value: formatDateTime(run.startedAt),
+    },
+    {
+      label: 'Start delay',
+      value: formatTimingDelay(run.queuedAt, run.startedAt),
+    },
+    {
+      label: 'Finished',
+      value: formatDateTime(run.finishedAt),
+    },
+    {
+      label: 'Heartbeat',
+      value: formatDateTime(run.heartbeatAt),
+    },
+    {
+      label: 'Last output',
+      value: formatDateTime(run.lastOutputAt),
+    },
+    {
+      label: 'Last error',
+      value: run.lastError || '—',
+      className: 'whitespace-pre-wrap break-words',
+    },
+  ];
 
   // Reset autoscroll when switching to output section or a new run
   const [lastStateKey, setLastStateKey] = useState(`${run._id}-${historyDetailSection}`);
@@ -97,7 +159,7 @@ export function RunDetailDrawer({
               <div>
                 <h3 className="text-lg font-semibold">{getRunDisplayName(run)}</h3>
                 <p className="text-sm text-muted-foreground">
-                  {profileName} • {formatDateTime(run.startedAt)}
+                  {profileName} • {formatDateTime(primaryTimestamp)}
                 </p>
               </div>
             </div>
@@ -163,8 +225,8 @@ export function RunDetailDrawer({
               <div className="space-y-4">
                 <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
                   <div className="rounded-xl border border-border/60 bg-secondary/15 px-4 py-3">
-                    <p className="text-xs text-muted-foreground">Started</p>
-                    <p className="mt-1 font-medium">{formatDateTime(run.startedAt)}</p>
+                    <p className="text-xs text-muted-foreground">{primaryTimestampLabel}</p>
+                    <p className="mt-1 font-medium">{formatDateTime(primaryTimestamp)}</p>
                   </div>
                   <div className="rounded-xl border border-border/60 bg-secondary/15 px-4 py-3">
                     <p className="text-xs text-muted-foreground">Duration</p>
@@ -300,26 +362,12 @@ export function RunDetailDrawer({
                     Timing and state
                   </p>
                   <dl className="mt-3 space-y-3">
-                    <div>
-                      <dt className="text-xs text-muted-foreground">Started</dt>
-                      <dd>{formatDateTime(run.startedAt)}</dd>
-                    </div>
-                    <div>
-                      <dt className="text-xs text-muted-foreground">Finished</dt>
-                      <dd>{formatDateTime(run.finishedAt)}</dd>
-                    </div>
-                    <div>
-                      <dt className="text-xs text-muted-foreground">Heartbeat</dt>
-                      <dd>{formatDateTime(run.heartbeatAt)}</dd>
-                    </div>
-                    <div>
-                      <dt className="text-xs text-muted-foreground">Last output</dt>
-                      <dd>{formatDateTime(run.lastOutputAt)}</dd>
-                    </div>
-                    <div>
-                      <dt className="text-xs text-muted-foreground">Last error</dt>
-                      <dd className="whitespace-pre-wrap break-words">{run.lastError || '—'}</dd>
-                    </div>
+                    {timingRows.map((row) => (
+                      <div key={row.label}>
+                        <dt className="text-xs text-muted-foreground">{row.label}</dt>
+                        <dd className={row.className}>{row.value}</dd>
+                      </div>
+                    ))}
                   </dl>
                 </div>
               </div>

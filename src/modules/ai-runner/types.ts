@@ -92,7 +92,10 @@ export interface AIRunnerRunDTO {
   stdout: string;
   stderr: string;
   rawOutput: string;
-  startedAt: string;
+  queuedAt: string;
+  scheduledFor?: string;
+  dispatchedAt?: string;
+  startedAt?: string;
   finishedAt?: string;
   durationSeconds?: number;
   triggeredBy: AIRunnerTrigger;
