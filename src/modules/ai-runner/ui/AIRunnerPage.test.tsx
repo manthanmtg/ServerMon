@@ -346,7 +346,7 @@ describe('AIRunnerPage', () => {
           name: /Visualize Codex schedule pressure before runs step on each other/i,
         })
       ).toBeInTheDocument();
-      expect(screen.getByText('Profile scope')).toBeInTheDocument();
+      expect(screen.getByText(/Profile scope:/i)).toBeInTheDocument();
       expect(screen.getByText('Codex Audit')).toBeInTheDocument();
       expect(screen.queryByText('Claude Review')).not.toBeInTheDocument();
     } finally {

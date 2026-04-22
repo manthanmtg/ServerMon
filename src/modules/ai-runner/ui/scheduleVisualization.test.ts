@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import type { AIRunnerProfileDTO } from '../types';
 import type { AIRunnerScheduleDTO } from '../types';
 import { buildScheduleVisualizationModel } from './scheduleVisualization';
 
@@ -98,5 +99,40 @@ describe('buildScheduleVisualizationModel', () => {
     expect(model.workspaces[0]?.summary).toContain(
       'Multiple enabled schedules share this workspace'
     );
+  });
+
+  it('groups schedules by agent profile and uses profile names in the profile view', () => {
+    const schedules: AIRunnerScheduleDTO[] = [
+      {
+        ...baseSchedule,
+        _id: 'schedule-1',
+        name: 'Codex audit',
+        cronExpression: '0 9 * * *',
+        nextRunTime: '2026-04-21T09:00:00.000Z',
+      },
+      {
+        ...baseSchedule,
+        _id: 'schedule-2',
+        name: 'Claude review',
+        agentProfileId: 'profile-2',
+        workingDirectory: '/root/repos/OtherRepo',
+        cronExpression: '15 9 * * *',
+        nextRunTime: '2026-04-21T09:15:00.000Z',
+      },
+    ];
+    const profileMap = {
+      'profile-1': { name: 'Codex' },
+      'profile-2': { name: 'Claude Code' },
+    } satisfies Record<string, Pick<AIRunnerProfileDTO, 'name'>>;
+
+    const model = buildScheduleVisualizationModel(schedules, {
+      now: new Date('2026-04-21T08:30:00.000Z').getTime(),
+      profileMap,
+    });
+
+    expect(model.profileCount).toBe(2);
+    expect(model.profiles.map((profile) => profile.profileLabel)).toEqual(['Claude Code', 'Codex']);
+    expect(model.profiles[0]?.uniqueWorkspaceCount).toBe(1);
+    expect(model.visualizedSchedules[0]?.profileLabel).toBe('Codex');
   });
 });

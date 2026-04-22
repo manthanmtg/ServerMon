@@ -2398,7 +2398,9 @@ export default function AIRunnerPage() {
                   <div className="flex flex-col gap-4">
                     <div className="flex flex-wrap items-end justify-between gap-3">
                       <div>
-                        <CardTitle className="text-base tracking-tight">Run Audit Console</CardTitle>
+                        <CardTitle className="text-base tracking-tight">
+                          Run Audit Console
+                        </CardTitle>
                         <CardDescription className="mt-1">
                           {filteredHistoryRuns.length} of {runTotal} run(s) match the current
                           filters
@@ -2443,7 +2445,9 @@ export default function AIRunnerPage() {
                           <select
                             value={historyStatusFilter}
                             onChange={(event) =>
-                              setHistoryStatusFilter(event.target.value as typeof historyStatusFilter)
+                              setHistoryStatusFilter(
+                                event.target.value as typeof historyStatusFilter
+                              )
                             }
                             className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring/40"
                           >
@@ -2492,7 +2496,9 @@ export default function AIRunnerPage() {
                         </label>
 
                         <label className="space-y-1">
-                          <span className="text-xs font-medium text-muted-foreground">Schedule</span>
+                          <span className="text-xs font-medium text-muted-foreground">
+                            Schedule
+                          </span>
                           <select
                             value={historyScheduleFilter}
                             onChange={(event) => setHistoryScheduleFilter(event.target.value)}
@@ -3150,6 +3156,7 @@ export default function AIRunnerPage() {
       </Card>
 
       <ScheduleVisualizationModal
+        key={`${scheduleVisualizationProfileId ?? 'all'}-${scheduleVisualizationOpen ? 'open' : 'closed'}`}
         isOpen={scheduleVisualizationOpen}
         onClose={closeScheduleVisualization}
         schedules={visualizationSchedules}
