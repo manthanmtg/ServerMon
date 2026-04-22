@@ -1,5 +1,7 @@
 import type { SessionStatus } from '../types';
 import { statusColors } from './constants';
+import { relativeTime } from '@/lib/utils';
+export { relativeTime };
 
 export type StatusVariant = 'success' | 'warning' | 'destructive' | 'secondary' | 'default';
 
@@ -23,14 +25,4 @@ export function formatDuration(seconds: number): string {
   if (h > 0) return `${h}h ${m}m`;
   if (m > 0) return `${m}m ${s}s`;
   return `${s}s`;
-}
-
-export function relativeTime(value: string): string {
-  const diff = Date.now() - new Date(value).getTime();
-  const minutes = Math.max(0, Math.round(diff / 60_000));
-  if (minutes < 1) return 'just now';
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.round(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  return `${Math.round(hours / 24)}d ago`;
 }

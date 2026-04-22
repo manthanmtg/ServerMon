@@ -32,7 +32,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/components/ui/toast';
-import { cn, formatBytes } from '@/lib/utils';
+import { cn, formatBytes, relativeTime } from '@/lib/utils';
 import type { NetworkSnapshot } from '../types';
 import TerminalUI from '@/modules/terminal/ui/TerminalUI';
 
@@ -47,16 +47,6 @@ const chartColors = [
 function formatSpeed(bps: number) {
   if (bps >= 1000) return `${(bps / 1000).toFixed(1)} Gbps`;
   return `${bps} Mbps`;
-}
-
-function relativeTime(value: string) {
-  const diff = Date.now() - new Date(value).getTime();
-  const minutes = Math.max(0, Math.round(diff / 60_000));
-  if (minutes < 1) return 'just now';
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.round(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  return `${Math.round(hours / 24)}d ago`;
 }
 
 function tooltipBytes(value: unknown) {

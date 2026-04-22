@@ -35,4 +35,3 @@ function createLogger(context: string) {
 }
 
 export { createLogger };
-export type { LogLevel };
