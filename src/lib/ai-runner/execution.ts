@@ -4,15 +4,16 @@ import type { Readable } from 'node:stream';
 import { mkdir, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { promisify } from 'node:util';
 import { createLogger } from '@/lib/logger';
 import { shellEscape } from './shared';
 
-const execFileAsync = promisify(execFile);
 const log = createLogger('ai-runner:execution');
 const TEMP_ENV_DIR = path.join(os.tmpdir(), 'servermon-ai-runner');
 const UNIT_PREFIX = 'servermon-airunner-job';
 const SCRIPT_BIN = '/usr/bin/script';
+
+let systemdIsolationAvailable: boolean | null = null;
+let systemdIsolationProbe: Promise<boolean> | null = null;
 
 export interface AIRunnerExecutionRef {
   pid?: number;
@@ -25,6 +26,33 @@ export interface AIRunnerSpawnedCommand extends AIRunnerExecutionRef {
 
 function sanitizeUnitSegment(value: string): string {
   return value.replace(/[^a-zA-Z0-9:-]/g, '-').slice(0, 48) || 'job';
+}
+
+function execFileAsync(
+  file: string,
+  args: string[],
+  options?: Parameters<typeof execFile>[2]
+): Promise<{ stdout: string; stderr: string }> {
+  return new Promise((resolve, reject) => {
+    const callback = (error: Error | null, stdout: string | Buffer, stderr: string | Buffer) => {
+      if (error) {
+        reject(error);
+        return;
+      }
+
+      resolve({
+        stdout: typeof stdout === 'string' ? stdout : stdout.toString(),
+        stderr: typeof stderr === 'string' ? stderr : stderr.toString(),
+      });
+    };
+
+    if (options) {
+      execFile(file, args, options, callback);
+      return;
+    }
+
+    execFile(file, args, callback);
+  });
 }
 
 function buildExportFile(env: NodeJS.ProcessEnv): string {
@@ -51,13 +79,45 @@ async function lookupSystemdUnitMainPid(unitName: string): Promise<number | unde
   }
 }
 
-async function waitForMainPid(unitName: string): Promise<number | undefined> {
-  for (let attempt = 0; attempt < 20; attempt += 1) {
-    const pid = await lookupSystemdUnitMainPid(unitName);
-    if (pid) return pid;
-    await new Promise((resolve) => setTimeout(resolve, 100));
+async function canUseSystemdIsolation(): Promise<boolean> {
+  if (process.platform !== 'linux' || process.env.AI_RUNNER_DISABLE_SYSTEMD_ISOLATION === '1') {
+    return false;
   }
-  return undefined;
+
+  if (systemdIsolationAvailable !== null) {
+    return systemdIsolationAvailable;
+  }
+
+  if (!systemdIsolationProbe) {
+    systemdIsolationProbe = execFileAsync('systemd-run', ['--version'], { timeout: 3000 })
+      .then(() => {
+        systemdIsolationAvailable = true;
+        return true;
+      })
+      .catch(() => {
+        systemdIsolationAvailable = false;
+        return false;
+      })
+      .finally(() => {
+        systemdIsolationProbe = null;
+      });
+  }
+
+  return systemdIsolationProbe;
+}
+
+export async function resolveAIRunnerExecutionPid(
+  ref: AIRunnerExecutionRef
+): Promise<number | undefined> {
+  if (typeof ref.pid === 'number' && ref.pid > 0) {
+    return ref.pid;
+  }
+
+  if (!ref.unitName) {
+    return undefined;
+  }
+
+  return lookupSystemdUnitMainPid(ref.unitName);
 }
 
 export function terminateAIRunnerExecution(ref: AIRunnerExecutionRef): boolean {
@@ -97,13 +157,13 @@ export async function spawnAIRunnerCommand(input: {
   env: NodeJS.ProcessEnv;
   requiresTTY?: boolean;
 }): Promise<AIRunnerSpawnedCommand> {
-  const isolationDisabled = process.env.AI_RUNNER_DISABLE_SYSTEMD_ISOLATION === '1';
+  const useSystemdIsolation = await canUseSystemdIsolation();
   const launchArgs =
     input.requiresTTY && process.platform === 'linux'
       ? [SCRIPT_BIN, '-qefc', `${input.shell} -lc ${shellEscape(input.command)}`, '/dev/null']
       : [input.shell, '-lc', input.command];
 
-  if (process.platform !== 'linux' || isolationDisabled) {
+  if (!useSystemdIsolation) {
     const child = spawn(launchArgs[0], launchArgs.slice(1), {
       cwd: input.cwd,
       env: input.env,
@@ -161,11 +221,8 @@ export async function spawnAIRunnerCommand(input: {
     void cleanupEnvFile();
   });
 
-  const pid = await waitForMainPid(unitName);
-
   return {
     child,
-    pid,
     unitName,
   };
 }

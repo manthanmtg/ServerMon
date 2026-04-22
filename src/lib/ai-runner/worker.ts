@@ -5,7 +5,11 @@ import AIRunnerJob from '@/models/AIRunnerJob';
 import AIRunnerRun from '@/models/AIRunnerRun';
 import AIRunnerSchedule from '@/models/AIRunnerSchedule';
 import type { AIRunnerRunStatus } from '@/modules/ai-runner/types';
-import { spawnAIRunnerCommand, terminateAIRunnerExecution } from './execution';
+import {
+  resolveAIRunnerExecutionPid,
+  spawnAIRunnerCommand,
+  terminateAIRunnerExecution,
+} from './execution';
 import {
   DEFAULT_HEARTBEAT_STALE_MS,
   DEFAULT_OUTPUT_LIMIT,
@@ -103,6 +107,7 @@ export class AIRunnerWorker {
     const markDirty = () => {
       state.dirty = true;
     };
+    let childPidLookupPromise: Promise<void> | null = null;
 
     const flush = async (force = false) => {
       const heartbeatAt = new Date();
@@ -133,6 +138,64 @@ export class AIRunnerWorker {
       state.dirty = false;
     };
 
+    const persistExecutionRef = async () => {
+      await Promise.all([
+        AIRunnerJob.findOneAndUpdate(
+          {
+            _id: job._id,
+            status: 'running',
+            finishedAt: { $exists: false },
+          },
+          {
+            $set: {
+              childPid: state.childPid || undefined,
+              executionUnit: state.executionUnit,
+            },
+          }
+        ),
+        AIRunnerRun.findOneAndUpdate(
+          {
+            _id: run._id,
+            status: 'running',
+            finishedAt: { $exists: false },
+          },
+          {
+            $set: {
+              pid: state.childPid || undefined,
+            },
+          }
+        ),
+      ]);
+    };
+
+    const resolveChildPid = async () => {
+      if (state.childPid || !state.executionUnit) {
+        return;
+      }
+
+      if (!childPidLookupPromise) {
+        childPidLookupPromise = resolveAIRunnerExecutionPid({
+          unitName: state.executionUnit,
+        })
+          .then(async (pid) => {
+            if (!pid || state.childExitSeen) {
+              return;
+            }
+
+            state.childPid = pid;
+            await persistExecutionRef();
+          })
+          .catch((error) => {
+            log.warn(`Failed to resolve worker child pid for job ${this.jobId}`, error);
+          })
+          .finally(() => {
+            childPidLookupPromise = null;
+          });
+      }
+
+      await childPidLookupPromise;
+    };
+
     const heartbeatHandle = setInterval(
       () => {
         void (async () => {
@@ -142,6 +205,10 @@ export class AIRunnerWorker {
               state.killedBy = 'user';
               terminateChild();
               return;
+            }
+
+            if (!state.childPid && state.executionUnit) {
+              await resolveChildPid();
             }
 
             if (state.childPid) {
@@ -330,23 +397,16 @@ export class AIRunnerWorker {
       });
       const child = childExecution.child;
 
-      state.childPid = childExecution.pid ?? child.pid ?? 0;
+      state.childPid =
+        childExecution.unitName && childExecution.pid == null
+          ? 0
+          : childExecution.pid ?? child.pid ?? 0;
       state.executionUnit = childExecution.unitName;
       terminateChild = () =>
         terminateAIRunnerExecution({
           pid: state.childPid || undefined,
           unitName: state.executionUnit,
         });
-
-      await Promise.all([
-        AIRunnerJob.findByIdAndUpdate(job._id, {
-          $set: {
-            childPid: state.childPid || undefined,
-            executionUnit: state.executionUnit,
-          },
-        }),
-        AIRunnerRun.findByIdAndUpdate(run._id, { $set: { pid: state.childPid || undefined } }),
-      ]);
 
       child.stdout?.on('data', (chunk: Buffer | string) => {
         applyChunk('stdout', chunk.toString());
@@ -364,6 +424,9 @@ export class AIRunnerWorker {
       child.on('close', (exitCode) => {
         void finalize(exitCode, exitCode === 0 ? 'completed' : 'failed');
       });
+
+      await persistExecutionRef();
+      void resolveChildPid();
     } catch (error) {
       clearInterval(heartbeatHandle);
       clearTimeout(timeoutHandle);

@@ -1,10 +1,13 @@
+import { randomUUID } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { createLogger } from '@/lib/logger';
 
 const log = createLogger('ai-runner:processes');
-let supervisorPromise: Promise<void> | null = null;
+const SUPERVISOR_COOLDOWN_MS = 10_000;
+
+let lastSupervisorSpawnAt = 0;
 
 function getTsxCliPath(): string {
   return path.resolve(process.cwd(), 'node_modules', 'tsx', 'dist', 'cli.mjs');
@@ -30,21 +33,22 @@ export function ensureAIRunnerSupervisor(): void {
     return;
   }
 
-  if (supervisorPromise) {
+  const now = Date.now();
+  if (now - lastSupervisorSpawnAt < SUPERVISOR_COOLDOWN_MS) {
     return;
   }
 
-  supervisorPromise = import('./supervisor')
-    .then(async ({ AIRunnerSupervisor }) => {
-      log.debug('Starting AI Runner supervisor loop');
-      await new AIRunnerSupervisor().run();
-    })
-    .catch((error) => {
-      log.error('AI Runner supervisor stopped unexpectedly', error);
-    })
-    .finally(() => {
-      supervisorPromise = null;
+  lastSupervisorSpawnAt = now;
+
+  try {
+    const pid = spawnDetachedProcess([getTsxCliPath(), getScriptPath('./supervisor-entry.ts')], {
+      AI_RUNNER_PROCESS_KIND: 'supervisor',
+      AI_RUNNER_SUPERVISOR_INSTANCE_ID: randomUUID(),
     });
+    log.debug(`Spawned AI Runner supervisor process ${pid}`);
+  } catch (error) {
+    log.error('Failed to spawn AI Runner supervisor', error);
+  }
 }
 
 export function spawnAIRunnerWorker(jobId: string, supervisorId: string): number {
