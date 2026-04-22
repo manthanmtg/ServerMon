@@ -1786,20 +1786,7 @@ export default function AIRunnerPage() {
 
           {activeTab === 'schedules' && (
             <div className="space-y-5">
-              <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-                <div className="max-w-3xl">
-                  <p className="text-[11px] uppercase tracking-[0.24em] text-primary/80">
-                    Automation Control
-                  </p>
-                  <h2 className="mt-2 text-2xl font-semibold tracking-tight">
-                    Schedules should read like a control room, not a cramped form
-                  </h2>
-                  <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                    The board stays focused on what exists and what launches next. Creation and
-                    editing now open a much wider studio so the cadence builder has room to breathe.
-                  </p>
-                </div>
-                <div className="flex flex-wrap gap-3">
+              <div className="flex flex-wrap gap-3">
                   <Button
                     size="lg"
                     variant="outline"
@@ -1813,7 +1800,6 @@ export default function AIRunnerPage() {
                     <CalendarClock className="w-4 h-4" />
                     Create Schedule
                   </Button>
-                </div>
               </div>
 
               <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
