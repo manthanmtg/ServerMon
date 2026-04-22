@@ -5,6 +5,7 @@ import { useMetrics } from '@/lib/MetricsContext';
 import { AreaChart, Area, ResponsiveContainer } from 'recharts';
 import { Brain, Database, Activity, ArrowRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { motion } from 'framer-motion';
 
 export default function MemoryWidget() {
   const { latest, history } = useMetrics();
@@ -16,7 +17,11 @@ export default function MemoryWidget() {
   const percent = latest.memory;
 
   return (
-    <div className="flex flex-col h-full gap-4">
+    <motion.div 
+      initial={{ opacity: 0, scale: 0.98 }}
+      animate={{ opacity: 1, scale: 1 }}
+      className="flex flex-col h-full gap-4"
+    >
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
@@ -36,20 +41,26 @@ export default function MemoryWidget() {
       </div>
 
       <div className="grid grid-cols-2 gap-3">
-        <div className="p-3 rounded-xl bg-accent/30 border border-border/50">
+        <motion.div 
+          whileHover={{ scale: 1.02 }}
+          className="p-3 rounded-xl bg-accent/30 border border-border/50"
+        >
           <div className="flex items-center gap-2 mb-1">
             <Activity className="w-3.5 h-3.5 text-primary" />
             <span className="text-[11px] font-medium text-muted-foreground uppercase">Used</span>
           </div>
           <div className="text-sm font-bold truncate">{usedGb.toFixed(2)} GB</div>
-        </div>
-        <div className="p-3 rounded-xl bg-accent/30 border border-border/50">
+        </motion.div>
+        <motion.div 
+          whileHover={{ scale: 1.02 }}
+          className="p-3 rounded-xl bg-accent/30 border border-border/50"
+        >
           <div className="flex items-center gap-2 mb-1">
             <Database className="w-3.5 h-3.5 text-muted-foreground" />
             <span className="text-[11px] font-medium text-muted-foreground uppercase">Total</span>
           </div>
           <div className="text-sm font-bold truncate">{totalGb.toFixed(2)} GB</div>
-        </div>
+        </motion.div>
       </div>
 
       <div className="flex-1 min-h-[80px] relative -mx-2">
@@ -67,7 +78,7 @@ export default function MemoryWidget() {
               stroke="var(--primary)"
               strokeWidth={2}
               fill="url(#memWidgetGrad)"
-              isAnimationActive={false}
+              isAnimationActive={true}
             />
           </AreaChart>
         </ResponsiveContainer>
@@ -93,6 +104,6 @@ export default function MemoryWidget() {
           <ArrowRight className="w-3 h-3 transition-transform group-hover:translate-x-0.5" />
         </a>
       </div>
-    </div>
+    </motion.div>
   );
 }
