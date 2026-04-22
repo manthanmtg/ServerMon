@@ -2497,6 +2497,7 @@ export default function AIRunnerPage() {
                     <Bot className="w-4 h-4" />
                     Create Profile
                   </Button>
+                </div>
               </div>
 
               <Card className="overflow-hidden border-border/60">
