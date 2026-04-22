@@ -1773,54 +1773,60 @@ export default function AIRunnerPage() {
 
           {activeTab === 'schedules' && (
             <div className="space-y-5">
-              <div className="flex flex-wrap gap-3">
+              <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_260px] xl:items-start">
+                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                  <CompactStat
+                    label="Enabled"
+                    value={enabledScheduleCount}
+                    tone="primary"
+                    detail="Schedules ready to run."
+                  />
+                  <CompactStat
+                    label="Next Launch"
+                    value={
+                      nextSchedule?.nextRunTime
+                        ? formatScheduleDate(nextSchedule.nextRunTime)
+                        : 'No launch queued'
+                    }
+                    tone="warning"
+                    detail={
+                      nextSchedule?.nextRunTime
+                        ? `${nextSchedule.name} ${formatCountdown(nextSchedule.nextRunTime, liveNow)}`
+                        : 'Enable a schedule to populate this.'
+                    }
+                  />
+                  <CompactStat
+                    label="Recently Active"
+                    value={recentlyActiveScheduleCount}
+                    tone="success"
+                    detail="Ran within the last 24 hours."
+                  />
+                  <CompactStat
+                    label="Modes"
+                    value={scheduleModeCount}
+                    detail={`${pausedScheduleCount} paused`}
+                  />
+                </div>
+
+                <div className="flex flex-col gap-3 xl:sticky xl:top-4">
                   <Button
                     size="lg"
                     variant="outline"
                     onClick={() => void openScheduleVisualization()}
-                    className="shrink-0"
+                    className="w-full justify-start"
                   >
                     <Eye className="w-4 h-4" />
                     Visualize Schedule
                   </Button>
-                  <Button size="lg" onClick={openCreateScheduleModal} className="shrink-0">
+                  <Button
+                    size="lg"
+                    onClick={openCreateScheduleModal}
+                    className="w-full justify-start"
+                  >
                     <CalendarClock className="w-4 h-4" />
                     Create Schedule
                   </Button>
-              </div>
-
-              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                <CompactStat
-                  label="Enabled"
-                  value={enabledScheduleCount}
-                  tone="primary"
-                  detail="Schedules ready to run."
-                />
-                <CompactStat
-                  label="Next Launch"
-                  value={
-                    nextSchedule?.nextRunTime
-                      ? formatScheduleDate(nextSchedule.nextRunTime)
-                      : 'No launch queued'
-                  }
-                  tone="warning"
-                  detail={
-                    nextSchedule?.nextRunTime
-                      ? `${nextSchedule.name} ${formatCountdown(nextSchedule.nextRunTime, liveNow)}`
-                      : 'Enable a schedule to populate this.'
-                  }
-                />
-                <CompactStat
-                  label="Recently Active"
-                  value={recentlyActiveScheduleCount}
-                  tone="success"
-                  detail="Ran within the last 24 hours."
-                />
-                <CompactStat
-                  label="Modes"
-                  value={scheduleModeCount}
-                  detail={`${pausedScheduleCount} paused`}
-                />
+                </div>
               </div>
 
               <Card className="overflow-hidden border-border/60">
@@ -2446,60 +2452,51 @@ export default function AIRunnerPage() {
 
           {activeTab === 'settings' && (
             <div className="space-y-5">
-              <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-                <div className="max-w-3xl">
-                  <p className="text-[11px] uppercase tracking-[0.24em] text-primary/80">
-                    Agent Profiles
-                  </p>
-                  <h2 className="mt-2 text-2xl font-semibold tracking-tight">
-                    Profiles should be managed in a studio, not squeezed beside the list
-                  </h2>
-                  <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                    The page stays focused on browsing and testing profiles. Creation and editing
-                    now happen in a wide modal so templates, limits, and branding have enough room.
-                  </p>
+              <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_260px] xl:items-start">
+                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                  <CompactStat
+                    label="Profiles"
+                    value={profiles.length}
+                    tone="primary"
+                    detail="Reusable AI CLI configurations."
+                  />
+                  <CompactStat
+                    label="Enabled"
+                    value={enabledProfileCount}
+                    tone="success"
+                    detail="Available for runs and schedules."
+                  />
+                  <CompactStat
+                    label="Custom"
+                    value={customProfileCount}
+                    tone="warning"
+                    detail="Non-preset agent families."
+                  />
+                  <CompactStat
+                    label="Scheduled Profiles"
+                    value={scheduledProfileCount}
+                    detail="Profiles currently attached to automations."
+                  />
                 </div>
-                <div className="flex flex-wrap gap-3">
+
+                <div className="flex flex-col gap-3 xl:sticky xl:top-4">
                   <Button
                     size="lg"
                     variant="outline"
                     onClick={() => void openScheduleVisualization()}
-                    className="shrink-0"
+                    className="w-full justify-start"
                   >
                     <Eye className="w-4 h-4" />
                     Visualize All Schedules
                   </Button>
-                  <Button size="lg" onClick={openCreateProfileModal} className="shrink-0">
+                  <Button
+                    size="lg"
+                    onClick={openCreateProfileModal}
+                    className="w-full justify-start"
+                  >
                     <Bot className="w-4 h-4" />
                     Create Profile
                   </Button>
-                </div>
-              </div>
-
-              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                <CompactStat
-                  label="Profiles"
-                  value={profiles.length}
-                  tone="primary"
-                  detail="Reusable AI CLI configurations."
-                />
-                <CompactStat
-                  label="Enabled"
-                  value={enabledProfileCount}
-                  tone="success"
-                  detail="Available for runs and schedules."
-                />
-                <CompactStat
-                  label="Custom"
-                  value={customProfileCount}
-                  tone="warning"
-                  detail="Non-preset agent families."
-                />
-                <CompactStat
-                  label="Scheduled Profiles"
-                  value={scheduledProfileCount}
-                  detail="Profiles currently attached to automations."
-                />
               </div>
 
               <Card className="overflow-hidden border-border/60">
