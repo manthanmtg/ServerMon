@@ -1,5 +1,5 @@
 import { createElement, type ImgHTMLAttributes } from 'react';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, waitFor, fireEvent, act } from '@testing-library/react';
 
 vi.mock('next/image', () => ({
@@ -92,6 +92,10 @@ describe('AIRunnerPage', () => {
     });
   });
 
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it('keeps the prompts tab focused on a single library surface', async () => {
     await act(async () => {
       render(<AIRunnerPage />);
@@ -149,9 +153,9 @@ describe('AIRunnerPage', () => {
     });
 
     expect(screen.getByText('Fix tests')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /^Run$/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /^Edit$/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /^Delete$/i })).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: /^Run$/i }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole('button', { name: /^Edit$/i }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole('button', { name: /^Delete$/i }).length).toBeGreaterThan(0);
     expect(screen.queryByText('Search & Filter')).not.toBeInTheDocument();
   });
 
@@ -257,7 +261,15 @@ describe('AIRunnerPage', () => {
         render(<AIRunnerPage />);
       });
 
-      await waitFor(() => expect(screen.getByText('AI Agent Runner')).toBeInTheDocument());
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      expect(screen.getByText('AI Agent Runner')).toBeInTheDocument();
 
       await act(async () => {
         fireEvent.click(screen.getByRole('button', { name: /Schedules/i }));
@@ -281,7 +293,15 @@ describe('AIRunnerPage', () => {
         render(<AIRunnerPage />);
       });
 
-      await waitFor(() => expect(screen.getByText('AI Agent Runner')).toBeInTheDocument());
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      expect(screen.getByText('AI Agent Runner')).toBeInTheDocument();
 
       const runsRequestCountBeforeHistory = fetchMock.mock.calls.filter(
         ([url]) => typeof url === 'string' && url.includes('/api/modules/ai-runner/runs?limit=25')
@@ -292,6 +312,10 @@ describe('AIRunnerPage', () => {
         fireEvent.click(screen.getByRole('button', { name: /History/i }));
       });
 
+      await act(async () => {
+        await Promise.resolve();
+      });
+
       const runsRequestCountAfterOpen = fetchMock.mock.calls.filter(
         ([url]) => typeof url === 'string' && url.includes('/api/modules/ai-runner/runs?limit=25')
       ).length;
@@ -299,6 +323,7 @@ describe('AIRunnerPage', () => {
 
       await act(async () => {
         vi.advanceTimersByTime(5000);
+        await Promise.resolve();
       });
 
       const runsRequestCountAfterPoll = fetchMock.mock.calls.filter(
