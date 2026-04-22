@@ -125,6 +125,7 @@ export async function enqueueResolvedRun(
   await connectDB();
 
   const startedAt = options?.requestedAt ?? new Date();
+  const jobScheduledFor = options?.scheduledFor ?? (resolved.scheduleId ? startedAt : undefined);
   const runDoc = await AIRunnerRun.create({
     promptId: resolved.promptId,
     scheduleId: resolved.scheduleId,
@@ -160,7 +161,7 @@ export async function enqueueResolvedRun(
       timeoutMinutes: resolved.timeoutMinutes,
       status: 'queued',
       nextAttemptAt: startedAt,
-      scheduledFor: options?.scheduledFor,
+      scheduledFor: jobScheduledFor,
       maxAttempts: options?.maxAttempts ?? resolved.maxAttempts ?? DEFAULT_MAX_ATTEMPTS,
     });
   } catch (error) {

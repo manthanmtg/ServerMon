@@ -132,55 +132,69 @@ describe('ai-runner queue', () => {
 
     it('throws error if schedule not found', async () => {
       vi.mocked(AIRunnerSchedule.findById).mockResolvedValue(null);
-      await expect(queue.resolveExecutionRequest({ scheduleId: 'non-existent' }))
-        .rejects.toThrow('Schedule not found');
+      await expect(queue.resolveExecutionRequest({ scheduleId: 'non-existent' })).rejects.toThrow(
+        'Schedule not found'
+      );
     });
 
     it('throws error if prompt not found', async () => {
       vi.mocked(AIRunnerPrompt.findById).mockResolvedValue(null);
-      await expect(queue.resolveExecutionRequest({ promptId: 'non-existent' }))
-        .rejects.toThrow('Saved prompt not found');
+      await expect(queue.resolveExecutionRequest({ promptId: 'non-existent' })).rejects.toThrow(
+        'Saved prompt not found'
+      );
     });
 
     it('throws error if agent profile is missing', async () => {
       vi.mocked(AIRunnerPrompt.findById).mockResolvedValue(mockPrompt);
-      await expect(queue.resolveExecutionRequest({ promptId: 'prompt-1', workingDirectory: '/tmp' }))
-        .rejects.toThrow('Agent profile is required');
+      await expect(
+        queue.resolveExecutionRequest({ promptId: 'prompt-1', workingDirectory: '/tmp' })
+      ).rejects.toThrow('Agent profile is required');
     });
 
     it('throws error if agent profile is not available', async () => {
-      vi.mocked(AIRunnerProfile.findById).mockResolvedValue({ ...mockProfile, enabled: false } as unknown as IAIRunnerProfile);
-      await expect(queue.resolveExecutionRequest({ 
-        promptId: 'prompt-1', 
-        agentProfileId: 'profile-1',
-        workingDirectory: '/tmp' 
-      })).rejects.toThrow('Agent profile is not available');
+      vi.mocked(AIRunnerProfile.findById).mockResolvedValue({
+        ...mockProfile,
+        enabled: false,
+      } as unknown as IAIRunnerProfile);
+      await expect(
+        queue.resolveExecutionRequest({
+          promptId: 'prompt-1',
+          agentProfileId: 'profile-1',
+          workingDirectory: '/tmp',
+        })
+      ).rejects.toThrow('Agent profile is not available');
     });
 
     it('throws error if working directory is missing', async () => {
       vi.mocked(AIRunnerProfile.findById).mockResolvedValue(mockProfile);
       vi.mocked(AIRunnerPrompt.findById).mockResolvedValue(mockPrompt);
-      await expect(queue.resolveExecutionRequest({ 
-        promptId: 'prompt-1', 
-        agentProfileId: 'profile-1' 
-      })).rejects.toThrow('Working directory is required');
+      await expect(
+        queue.resolveExecutionRequest({
+          promptId: 'prompt-1',
+          agentProfileId: 'profile-1',
+        })
+      ).rejects.toThrow('Working directory is required');
     });
 
     it('throws error if prompt content is missing', async () => {
       vi.mocked(AIRunnerProfile.findById).mockResolvedValue(mockProfile);
-      vi.mocked(AIRunnerPrompt.findById).mockResolvedValue({ _id: 'p1' } as unknown as IAIRunnerPrompt); // No content/type
-      await expect(queue.resolveExecutionRequest({ 
-        promptId: 'p1', 
-        agentProfileId: 'profile-1',
-        workingDirectory: '/tmp'
-      })).rejects.toThrow('Prompt content is required');
+      vi.mocked(AIRunnerPrompt.findById).mockResolvedValue({
+        _id: 'p1',
+      } as unknown as IAIRunnerPrompt); // No content/type
+      await expect(
+        queue.resolveExecutionRequest({
+          promptId: 'p1',
+          agentProfileId: 'profile-1',
+          workingDirectory: '/tmp',
+        })
+      ).rejects.toThrow('Prompt content is required');
     });
   });
 
   describe('enqueueResolvedRun', () => {
     const now = new Date();
     const resolved: AIRunnerResolvedExecution = {
-      profile: { 
+      profile: {
         _id: 'prof1',
         name: 'Profile 1',
         slug: 'profile-1',
@@ -188,12 +202,12 @@ describe('ai-runner queue', () => {
         invocationTemplate: 'echo $PROMPT',
         defaultTimeout: 30,
         maxTimeout: 120,
-        shell: '/bin/bash', 
-        requiresTTY: false, 
+        shell: '/bin/bash',
+        requiresTTY: false,
         env: {},
         enabled: true,
         createdAt: now.toISOString(),
-        updatedAt: now.toISOString()
+        updatedAt: now.toISOString(),
       },
       promptContent: 'content',
       command: 'cmd',
@@ -211,7 +225,7 @@ describe('ai-runner queue', () => {
         updatedAt: now,
         startedAt: now,
         jobId: '',
-        ...resolved
+        ...resolved,
       } as unknown as IAIRunnerRun;
       const mockJob = { _id: 'job1' } as unknown as IAIRunnerJob;
 
@@ -231,25 +245,67 @@ describe('ai-runner queue', () => {
       const resolvedWithSchedule = {
         ...resolved,
         scheduleId: 'sched1',
-        scheduleCronExpression: '0 * * * *'
+        scheduleCronExpression: '0 * * * *',
       };
-      const mockRun = { 
-        _id: 'run1', 
-        save: vi.fn(), 
+      const mockRun = {
+        _id: 'run1',
+        save: vi.fn(),
         createdAt: now,
         updatedAt: now,
         startedAt: now,
-        ...resolvedWithSchedule 
+        ...resolvedWithSchedule,
       } as unknown as IAIRunnerRun;
       vi.mocked(AIRunnerRun.create).mockResolvedValue(mockRun as unknown as never);
       vi.mocked(AIRunnerJob.create).mockResolvedValue({ _id: 'job1' } as unknown as never);
 
       await queue.enqueueResolvedRun(resolvedWithSchedule);
 
-      expect(AIRunnerSchedule.findByIdAndUpdate).toHaveBeenCalledWith('sched1', expect.objectContaining({
-        lastRunId: 'run1',
-        lastRunStatus: 'queued'
-      }));
+      expect(AIRunnerSchedule.findByIdAndUpdate).toHaveBeenCalledWith(
+        'sched1',
+        expect.objectContaining({
+          lastRunId: 'run1',
+          lastRunStatus: 'queued',
+        })
+      );
+    });
+
+    it('uses the request time as scheduledFor for manual runs tied to a schedule', async () => {
+      const manualScheduledRun = {
+        ...resolved,
+        scheduleId: 'sched1',
+        scheduleCronExpression: '0 * * * *',
+        triggeredBy: 'manual' as const,
+      };
+      const startedAt = new Date('2026-04-22T08:00:00.000Z');
+      const mockRun = {
+        _id: 'run1',
+        save: vi.fn(),
+        createdAt: startedAt,
+        updatedAt: startedAt,
+        startedAt,
+        ...manualScheduledRun,
+      } as unknown as IAIRunnerRun;
+
+      vi.mocked(AIRunnerRun.create).mockResolvedValue(mockRun as unknown as never);
+      vi.mocked(AIRunnerJob.create).mockResolvedValue({ _id: 'job1' } as unknown as never);
+
+      await queue.enqueueResolvedRun(manualScheduledRun, {
+        requestedAt: startedAt,
+      });
+
+      expect(AIRunnerJob.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          scheduleId: 'sched1',
+          scheduledFor: startedAt,
+          triggeredBy: 'manual',
+        })
+      );
+      expect(AIRunnerSchedule.findByIdAndUpdate).toHaveBeenCalledWith(
+        'sched1',
+        expect.objectContaining({
+          lastScheduledFor: undefined,
+        })
+      );
     });
 
     it('deletes run if job creation fails', async () => {
@@ -268,18 +324,22 @@ describe('ai-runner queue', () => {
       const now = new Date();
       // Mocking resolveExecutionRequest would be better but it's in the same file.
       // We'll mock the internal calls it makes.
-      vi.mocked(AIRunnerProfile.findById).mockResolvedValue({ 
-        _id: 'p1', 
-        enabled: true, 
-        defaultTimeout: 10, 
+      vi.mocked(AIRunnerProfile.findById).mockResolvedValue({
+        _id: 'p1',
+        enabled: true,
+        defaultTimeout: 10,
         maxTimeout: 60,
         createdAt: now,
         updatedAt: now,
-        env: new Map()
+        env: new Map(),
       } as unknown as IAIRunnerProfile);
-      vi.mocked(AIRunnerPrompt.findById).mockResolvedValue({ _id: 'pr1', content: 'c', type: 'inline' } as unknown as IAIRunnerPrompt);
-      vi.mocked(AIRunnerRun.create).mockResolvedValue({ 
-        _id: 'r1', 
+      vi.mocked(AIRunnerPrompt.findById).mockResolvedValue({
+        _id: 'pr1',
+        content: 'c',
+        type: 'inline',
+      } as unknown as IAIRunnerPrompt);
+      vi.mocked(AIRunnerRun.create).mockResolvedValue({
+        _id: 'r1',
         save: vi.fn(),
         createdAt: now,
         updatedAt: now,
@@ -289,14 +349,16 @@ describe('ai-runner queue', () => {
         workingDirectory: '/tmp',
         command: 'resolved command',
         status: 'queued',
-        triggeredBy: 'manual'
+        triggeredBy: 'manual',
       } as unknown as IAIRunnerRun as unknown as never);
-      vi.mocked(AIRunnerJob.create).mockResolvedValue({ _id: 'j1' } as unknown as IAIRunnerJob as unknown as never);
+      vi.mocked(AIRunnerJob.create).mockResolvedValue({
+        _id: 'j1',
+      } as unknown as IAIRunnerJob as unknown as never);
 
       const result = await queue.enqueueRunRequest({
         promptId: 'pr1',
         agentProfileId: 'p1',
-        workingDirectory: '/tmp'
+        workingDirectory: '/tmp',
       });
 
       expect(result._id).toBe('r1');
