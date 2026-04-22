@@ -1,6 +1,9 @@
+import { formatBytes, relativeTime, slugify } from '@/lib/utils';
 import type { AIRunnerRunDTO, AIRunnerScheduleDTO } from '../types';
 import { ICON_PRESETS } from './constants';
 import type { PromptFormState, ScheduleBuilderMode, ScheduleFormState } from './types';
+
+export { relativeTime as formatRelative, slugify as slugifyValue, formatBytes as formatMemory };
 
 export function emptyPromptForm(): PromptFormState {
   return {
@@ -35,17 +38,6 @@ export function formatDuration(seconds?: number): string {
   if (minutes < 60) return `${minutes}m ${remainder}s`;
   const hours = Math.floor(minutes / 60);
   return `${hours}h ${minutes % 60}m`;
-}
-
-export function formatRelative(iso?: string): string {
-  if (!iso) return '—';
-  const diff = Date.now() - new Date(iso).getTime();
-  const minutes = Math.max(0, Math.round(diff / 60_000));
-  if (minutes < 1) return 'just now';
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.round(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  return `${Math.round(hours / 24)}d ago`;
 }
 
 export function formatCountdown(targetIso?: string, now = Date.now()): string {
@@ -303,14 +295,6 @@ export function formatDateTime(iso?: string): string {
   });
 }
 
-export function formatMemory(bytes?: number): string {
-  if (!bytes || bytes <= 0) return '—';
-  if (bytes >= 1024 * 1024 * 1024) {
-    return `${(bytes / 1024 / 1024 / 1024).toFixed(1)} GB`;
-  }
-  return `${Math.round(bytes / 1024 / 1024)} MB`;
-}
-
 export function formatScheduleDate(iso?: string): string {
   if (!iso) return 'Not scheduled';
   return new Date(iso).toLocaleString([], {
@@ -319,15 +303,6 @@ export function formatScheduleDate(iso?: string): string {
     hour: 'numeric',
     minute: '2-digit',
   });
-}
-
-export function slugifyValue(input: string): string {
-  return input
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 120);
 }
 
 export function getPresetIcon(icon?: string) {

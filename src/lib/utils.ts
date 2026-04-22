@@ -2,8 +2,9 @@ export function cn(...classes: (string | undefined | null | false)[]): string {
   return classes.filter(Boolean).join(' ');
 }
 
-export function formatBytes(bytes: number, system: 'binary' | 'decimal' = 'binary') {
-  if (bytes === 0) return '0 B';
+export function formatBytes(bytes?: number | null, system: 'binary' | 'decimal' = 'binary') {
+  if (bytes === undefined || bytes === null || bytes === 0) return '0 B';
+  if (bytes < 0) return '0 B';
   const k = system === 'binary' ? 1024 : 1000;
   const sizes =
     system === 'binary' ? ['B', 'KiB', 'MiB', 'GiB', 'TiB'] : ['B', 'KB', 'MB', 'GB', 'TB'];
@@ -26,7 +27,8 @@ export function formatDuration(seconds: number): string {
   return parts.join(' ');
 }
  
-export function relativeTime(value: string | number | Date): string {
+export function relativeTime(value?: string | number | Date | null): string {
+  if (!value) return '—';
   const diff = Date.now() - new Date(value).getTime();
   const minutes = Math.max(0, Math.round(diff / 60_000));
   if (minutes < 1) return 'just now';

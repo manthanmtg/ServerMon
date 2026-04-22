@@ -2,20 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createLogger } from '@/lib/logger';
 import connectDB from '@/lib/db';
 import CustomEndpoint, { CustomEndpointZodSchema } from '@/models/CustomEndpoint';
+import { slugify } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
 
 const log = createLogger('api:endpoints:create');
-
-function slugify(text: string): string {
-  return text
-    .toLowerCase()
-    .trim()
-    .replace(/[^\w\s-]/g, '')
-    .replace(/[\s_]+/g, '-')
-    .replace(/-+/g, '-')
-    .replace(/^-|-$/g, '');
-}
 
 export async function POST(req: NextRequest) {
   try {
