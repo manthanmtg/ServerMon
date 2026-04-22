@@ -193,7 +193,9 @@ export default function SecurityPage() {
               Security Checks
             </CardTitle>
             <button
+              type="button"
               onClick={load}
+              aria-label="Refresh security checks"
               className="h-8 w-8 flex items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
               title="Refresh"
             >
