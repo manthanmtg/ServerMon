@@ -135,15 +135,17 @@ ServerMon implements **multi‑layer authentication**.
 ## 5.1 Authentication Flow
 
 1. User accesses web interface
-2. HTTP Basic Auth validation
+2. Username + Password validation
 3. TOTP verification (Google Authenticator)
 4. Session established
 
 Both factors must succeed.
 
+Alternatively, users can login via **WebAuthn Passkeys** if previously registered.
+
 ---
 
-## 5.2 Basic Authentication
+## 5.2 Password Authentication
 
 Credentials are stored in MongoDB.
 
@@ -172,7 +174,19 @@ Features:
 
 ---
 
-## 5.4 Optional Security Enhancements (Future)
+## 5.4 WebAuthn Passkeys
+
+Users can register one or more **Passkeys** (FIDO2/WebAuthn) for passwordless, phishing‑resistant login.
+
+Features:
+
+- Biometric authentication (TouchID, FaceID, Windows Hello)
+- Hardware security keys (YubiKey)
+- Management interface in User Settings
+
+---
+
+## 5.5 Optional Security Enhancements (Future)
 
 - IP allowlist
 - Session expiry
@@ -490,10 +504,11 @@ users
  role            // "admin" | "user"
  totpSecret
  totpEnabled
- createdAt
- createdBy
- lastLoginAt
+ passkeys        // Array of WebAuthn credentials
  isActive
+ lastLoginAt
+ createdBy
+ createdAt
 }
 ```
 
@@ -501,6 +516,7 @@ Notes:
 
 - `passwordHash` uses **Argon2 or bcrypt**.
 - `totpSecret` stored securely and used for Google Authenticator.
+- `passkeys` stores credential ID, public key, and metadata for WebAuthn.
 - `createdBy` references the admin who created the user.
 - `isActive` allows disabling accounts without deletion.
 
