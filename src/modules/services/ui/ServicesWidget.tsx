@@ -2,11 +2,14 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { AlertTriangle, CheckCircle, Cog, Play, Power, XCircle } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { WidgetCardSkeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import type { ServicesSnapshot } from '../types';
+
+const MotionCard = motion.create(Card);
 
 function MiniGauge({ score }: { score: number }) {
   const circumference = 2 * Math.PI * 18;
@@ -68,7 +71,13 @@ export default function ServicesWidget() {
   const s = snapshot?.summary;
 
   return (
-    <Card className="border-border/60">
+    <MotionCard
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      whileHover={{ scale: 1.01, translateY: -2 }}
+      transition={{ duration: 0.3 }}
+      className="border-white/10 bg-zinc-900/50 backdrop-blur-md shadow-2xl"
+    >
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
           <CardTitle className="flex items-center gap-2">
@@ -83,8 +92,8 @@ export default function ServicesWidget() {
           </Badge>
         </div>
       </CardHeader>
-      <CardContent>
-        <div className="flex items-center gap-4">
+      <CardContent className="overflow-hidden">
+        <motion.div layout className="flex items-center gap-4">
           <MiniGauge score={s?.healthScore ?? 0} />
           <div className="flex-1 grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
             <div className="flex items-center gap-1.5">
@@ -112,17 +121,26 @@ export default function ServicesWidget() {
               <span className="ml-auto font-semibold">{s?.total ?? 0}</span>
             </div>
           </div>
-        </div>
-        {(snapshot?.alerts.length ?? 0) > 0 && (
-          <div className="mt-3 flex items-center gap-2 rounded-lg bg-destructive/5 border border-destructive/20 px-3 py-2 text-xs">
-            <AlertTriangle className="w-3.5 h-3.5 text-destructive shrink-0" />
-            <span className="text-destructive font-medium">
-              {snapshot?.alerts.length} active alert
-              {(snapshot?.alerts.length ?? 0) !== 1 ? 's' : ''}
-            </span>
-          </div>
-        )}
+        </motion.div>
+        <AnimatePresence>
+          {(snapshot?.alerts.length ?? 0) > 0 && (
+            <motion.div
+              initial={{ opacity: 0, height: 0, marginTop: 0 }}
+              animate={{ opacity: 1, height: 'auto', marginTop: 12 }}
+              exit={{ opacity: 0, height: 0, marginTop: 0 }}
+              className="flex items-center gap-2 rounded-lg bg-destructive/10 border border-destructive/20 px-3 py-2 text-xs"
+            >
+              <AlertTriangle className="w-3.5 h-3.5 text-destructive shrink-0" />
+              <span className="text-destructive font-medium">
+                {snapshot?.alerts.length} active alert
+                {(snapshot?.alerts.length ?? 0) !== 1 ? 's' : ''}
+              </span>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </CardContent>
-    </Card>
+    </MotionCard>
   );
 }
+
+
