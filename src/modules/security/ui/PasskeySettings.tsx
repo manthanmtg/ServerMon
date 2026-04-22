@@ -130,6 +130,7 @@ export default function PasskeySettings() {
           </div>
           <Button
             size="sm"
+            type="button"
             onClick={handleRegister}
             disabled={registering}
             className="gap-2 shrink-0"
@@ -151,8 +152,16 @@ export default function PasskeySettings() {
         )}
 
         {loading ? (
-          <div className="flex items-center justify-center py-10">
-            <LoaderCircle className="h-5 w-5 animate-spin text-muted-foreground/50" />
+          <div
+            className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground"
+            role="status"
+            aria-live="polite"
+          >
+            <LoaderCircle
+              className="h-5 w-5 animate-spin text-muted-foreground/50"
+              aria-hidden="true"
+            />
+            <span>Loading registered passkeys...</span>
           </div>
         ) : passkeys.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 text-center px-6">
@@ -197,7 +206,9 @@ export default function PasskeySettings() {
                   <Button
                     variant="ghost"
                     size="lg"
+                    type="button"
                     onClick={() => handleDelete(pk.id)}
+                    aria-label={`Remove passkey added ${new Date(pk.createdAt).toLocaleDateString()}`}
                     className="h-11 w-11 p-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-all active:scale-95"
                     title="Remove passkey"
                   >
