@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { Cpu, MemoryStick, HardDrive } from 'lucide-react';
 import type { SystemMetric } from '@/lib/MetricsContext';
+import { motion } from 'framer-motion';
 
 interface HealthData {
   cpu: number;
@@ -12,11 +13,20 @@ interface HealthData {
 
 function ProgressBar({ value, color }: { value: number; color: string }) {
   return (
-    <div className="h-1.5 w-full bg-secondary rounded-full overflow-hidden">
-      <div
-        className={`h-full rounded-full transition-all duration-700 ease-out ${color}`}
-        style={{ width: `${Math.min(value, 100)}%` }}
-      />
+    <div className="h-1.5 w-full bg-secondary/30 backdrop-blur-xs rounded-full overflow-hidden border border-white/5">
+      <motion.div
+        className={`h-full rounded-full ${color} relative`}
+        initial={{ width: 0 }}
+        animate={{ width: `${Math.min(value, 100)}%` }}
+        transition={{ duration: 1, ease: [0.16, 1, 0.3, 1] }}
+      >
+        <motion.div
+          className="absolute inset-0 bg-white/20"
+          initial={{ x: '-100%' }}
+          animate={{ x: '100%' }}
+          transition={{ repeat: Infinity, duration: 2, ease: 'linear' }}
+        />
+      </motion.div>
     </div>
   );
 }
@@ -68,19 +78,31 @@ export default function HealthWidget({ metric }: HealthWidgetProps) {
 
   return (
     <div className="space-y-4">
-      {items.map((item) => (
-        <div key={item.label} className="space-y-2">
+      {items.map((item, index) => (
+        <motion.div
+          key={item.label}
+          className="space-y-2 group cursor-default"
+          initial={{ opacity: 0, x: -10 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ delay: index * 0.1, duration: 0.4 }}
+          whileHover={{ x: 2 }}
+        >
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-muted-foreground">
+            <div className="flex items-center gap-2 text-muted-foreground group-hover:text-foreground transition-colors duration-300">
               <item.icon className="w-3.5 h-3.5" />
-              <span className="text-xs font-medium">{item.label}</span>
+              <span className="text-xs font-medium tracking-tight">{item.label}</span>
             </div>
-            <span className="text-xs font-semibold text-foreground tabular-nums">
+            <motion.span
+              className="text-xs font-semibold text-foreground tabular-nums"
+              key={item.value}
+              initial={{ opacity: 0.5 }}
+              animate={{ opacity: 1 }}
+            >
               {item.value.toFixed(1)}%
-            </span>
+            </motion.span>
           </div>
           <ProgressBar value={item.value} color={item.color} />
-        </div>
+        </motion.div>
       ))}
     </div>
   );
