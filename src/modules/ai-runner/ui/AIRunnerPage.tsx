@@ -1034,7 +1034,7 @@ export default function AIRunnerPage() {
   const duplicateSchedule = async (schedule: AIRunnerScheduleDTO) => {
     try {
       // Find a unique name
-      let baseName = `${schedule.name} Copy`;
+      const baseName = `${schedule.name} Copy`;
       let newName = baseName;
       let counter = 1;
 

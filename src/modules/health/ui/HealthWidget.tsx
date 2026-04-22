@@ -34,19 +34,17 @@ interface HealthWidgetProps {
 }
 
 export default function HealthWidget({ metric }: HealthWidgetProps) {
-  const [health, setHealth] = useState<HealthData>(() => toHealthData(metric));
+  const [internalHealth, setInternalHealth] = useState<HealthData>(() => toHealthData(metric));
 
   useEffect(() => {
-    if (metric) {
-      setHealth(toHealthData(metric));
-      return;
-    }
+    // If we have a metric provided by props, we don't need the local stream
+    if (metric) return;
 
     const es = new EventSource('/api/metrics/stream');
     es.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
-        setHealth((prev) => ({
+        setInternalHealth((prev) => ({
           cpu: data.cpu ?? prev.cpu,
           memory: data.memory ?? prev.memory,
           disk: data.disks?.[0]?.use ?? prev.disk,
@@ -58,6 +56,9 @@ export default function HealthWidget({ metric }: HealthWidgetProps) {
     es.onerror = () => es.close();
     return () => es.close();
   }, [metric]);
+
+  // Use prop if available, otherwise use stream data
+  const health = metric ? toHealthData(metric) : internalHealth;
 
   const items = [
     { label: 'CPU', value: health.cpu, icon: Cpu, color: 'bg-primary' },

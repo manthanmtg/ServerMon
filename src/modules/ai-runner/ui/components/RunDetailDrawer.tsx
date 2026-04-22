@@ -47,6 +47,16 @@ export function RunDetailDrawer({
   scheduleName: string;
 }) {
   const [autoscrollEnabled, setAutoscrollEnabled] = useState(true);
+
+  // Reset autoscroll when switching to output section or a new run
+  const [lastStateKey, setLastStateKey] = useState(`${run._id}-${historyDetailSection}`);
+  if (lastStateKey !== `${run._id}-${historyDetailSection}`) {
+    setLastStateKey(`${run._id}-${historyDetailSection}`);
+    if (historyDetailSection === 'output') {
+      setAutoscrollEnabled(true);
+    }
+  }
+
   const outputRef = useRef<HTMLPreElement | null>(null);
   const outputText = run.rawOutput || run.stdout || run.stderr || 'No output captured';
 
@@ -66,12 +76,6 @@ export function RunDetailDrawer({
     if (!node) return;
     node.scrollTop = node.scrollHeight;
   }, [autoscrollEnabled, historyDetailSection, outputText]);
-
-  useEffect(() => {
-    if (historyDetailSection === 'output') {
-      setAutoscrollEnabled(true);
-    }
-  }, [historyDetailSection, run._id]);
 
   return (
     <div className="fixed inset-0 z-50">

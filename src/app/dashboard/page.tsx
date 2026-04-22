@@ -54,7 +54,7 @@ function DashboardSkeleton() {
   );
 }
 
-function Sparkline({ data, color = 'var(--primary)' }: { data: number[]; color?: string }) {
+const Sparkline = React.memo(function Sparkline({ data, color = 'var(--primary)' }: { data: number[]; color?: string }) {
   if (data.length < 2) return null;
   const min = Math.min(...data);
   const max = Math.max(...data);
@@ -86,25 +86,25 @@ function Sparkline({ data, color = 'var(--primary)' }: { data: number[]; color?:
       />
     </svg>
   );
-}
+});
+
+// Helper to format bytes to GB
+const formatGB = (bytes: number) => (bytes / (1024 * 1024 * 1024)).toFixed(1);
+
+// Helper to format uptime (seconds) to a readable string
+const formatUptime = (seconds: number) => {
+  const days = Math.floor(seconds / (24 * 3600));
+  const hrs = Math.floor((seconds % (24 * 3600)) / 3600);
+  const mins = Math.floor((seconds % 3600) / 60);
+  if (days > 0) return `${days}d ${hrs}h`;
+  if (hrs > 0) return `${hrs}h ${mins}m`;
+  return `${mins}m ${Math.floor(seconds % 60)}s`;
+};
 
 function DashboardContent() {
   const { latest, history, connected } = useMetrics();
   const [pingLatency, setPingLatency] = React.useState<number | null>(null);
   const [pingHistory, setPingHistory] = React.useState<number[]>([]);
-
-  // Helper to format bytes to GB
-  const formatGB = (bytes: number) => (bytes / (1024 * 1024 * 1024)).toFixed(1);
-
-  // Helper to format uptime (seconds) to a readable string
-  const formatUptime = (seconds: number) => {
-    const days = Math.floor(seconds / (24 * 3600));
-    const hrs = Math.floor((seconds % (24 * 3600)) / 3600);
-    const mins = Math.floor((seconds % 3600) / 60);
-    if (days > 0) return `${days}d ${hrs}h`;
-    if (hrs > 0) return `${hrs}h ${mins}m`;
-    return `${mins}m ${Math.floor(seconds % 60)}s`;
-  };
 
   // Calculate approximate data latency
   const dataLatency = latest
@@ -133,6 +133,13 @@ function DashboardContent() {
 
   const isInitialLoad = !latest;
 
+  const cpuHistory = React.useMemo(() => history.map((m) => m.cpu), [history]);
+  const memoryHistory = React.useMemo(() => history.map((m) => m.memory), [history]);
+  const latencyHistory = React.useMemo(
+    () => history.map((m) => Math.max(0, (new Date(m.timestamp).getTime() % 1000) / 10)),
+    [history]
+  );
+
   if (isInitialLoad) {
     return <DashboardSkeleton />;
   }
@@ -147,7 +154,7 @@ function DashboardContent() {
           subLabel={latest ? `${latest.cpuCores} Cores` : ''}
           icon={<Cpu className="w-4 h-4" />}
           status={!latest ? 'loading' : latest.cpu > 80 ? 'warning' : 'normal'}
-          historyData={history.map((m) => m.cpu)}
+          historyData={cpuHistory}
         />
         <StatCard
           label="Memory"
@@ -155,7 +162,7 @@ function DashboardContent() {
           subLabel={latest ? `${formatGB(latest.memUsed)} of ${formatGB(latest.memTotal)} GB` : ''}
           icon={<MemoryStick className="w-4 h-4" />}
           status={!latest ? 'loading' : latest.memory > 80 ? 'warning' : 'normal'}
-          historyData={history.map((m) => m.memory)}
+          historyData={memoryHistory}
           color="var(--accent)"
         />
         <StatCard
@@ -172,9 +179,7 @@ function DashboardContent() {
           subLabel={connected ? 'Stream Lag' : 'Reconnecting...'}
           icon={<ActivityIcon className="w-4 h-4" />}
           status={!connected ? 'loading' : dataLatency > 200 ? 'warning' : 'normal'}
-          historyData={history.map((m) =>
-            Math.max(0, (new Date(m.timestamp).getTime() % 1000) / 10)
-          )}
+          historyData={latencyHistory}
           color="var(--info)"
         />
         <StatCard
@@ -257,7 +262,7 @@ export default function DashboardPage() {
   );
 }
 
-function StatCard({
+const StatCard = React.memo(function StatCard({
   label,
   value,
   subLabel,
@@ -313,4 +318,4 @@ function StatCard({
       />
     </Card>
   );
-}
+});
