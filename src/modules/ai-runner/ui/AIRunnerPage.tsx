@@ -551,9 +551,6 @@ export default function AIRunnerPage() {
     if (!schedule.lastRunAt) return false;
     return Date.now() - new Date(schedule.lastRunAt).getTime() < 24 * 60 * 60 * 1000;
   }).length;
-  const scheduleModeCount = new Set(
-    schedules.map((schedule) => getScheduleModeLabel(schedule.cronExpression))
-  ).size;
   const nextSchedule = schedules
     .filter((schedule) => schedule.enabled && schedule.nextRunTime)
     .sort((a, b) => new Date(a.nextRunTime!).getTime() - new Date(b.nextRunTime!).getTime())[0];
@@ -1964,7 +1961,7 @@ export default function AIRunnerPage() {
           {activeTab === 'schedules' && (
             <div className="space-y-5">
               <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_260px] xl:items-start">
-                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                   <CompactStat
                     label="Enabled"
                     value={enabledScheduleCount}
@@ -1996,11 +1993,6 @@ export default function AIRunnerPage() {
                     value={recentlyActiveScheduleCount}
                     tone="success"
                     detail="Ran within the last 24 hours."
-                  />
-                  <CompactStat
-                    label="Modes"
-                    value={scheduleModeCount}
-                    detail={`${pausedScheduleCount} paused`}
                   />
                 </div>
 
@@ -2076,7 +2068,6 @@ export default function AIRunnerPage() {
                       {!schedulesGloballyEnabled ? (
                         <Badge variant="destructive">global auto-queue off</Badge>
                       ) : null}
-                      <Badge variant="outline">{scheduleModeCount} modes in play</Badge>
                     </div>
                   </div>
                 </CardHeader>
