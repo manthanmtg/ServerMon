@@ -349,6 +349,7 @@ export class AIRunnerSupervisor {
             },
           });
         } catch (error) {
+          const scheduledFor = cursor.toISOString();
           if (
             typeof error === 'object' &&
             error !== null &&
@@ -365,11 +366,30 @@ export class AIRunnerSupervisor {
               message: 'Skipped duplicate AI Runner schedule enqueue',
               data: {
                 scheduleId: stringifyId(schedule._id),
-                scheduledFor: cursor.toISOString(),
+                scheduledFor,
               },
             });
           } else {
-            throw error;
+            const message = error instanceof Error ? error.message : String(error);
+            log.error(`Failed to enqueue AI Runner schedule ${stringifyId(schedule._id)}`, error);
+            await writeAIRunnerLogEntry({
+              level: 'error',
+              component: 'ai-runner:supervisor',
+              event: 'schedule.enqueue_failed',
+              message: 'Failed to enqueue due AI Runner schedule',
+              data: {
+                scheduleId: stringifyId(schedule._id),
+                scheduleName: schedule.name,
+                promptId: stringifyId(schedule.promptId),
+                agentProfileId: schedule.agentProfileId
+                  ? stringifyId(schedule.agentProfileId)
+                  : undefined,
+                workingDirectory: schedule.workingDirectory,
+                scheduledFor,
+                observedAt: now.toISOString(),
+                error: message,
+              },
+            });
           }
         }
 

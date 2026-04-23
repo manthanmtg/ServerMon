@@ -10,6 +10,7 @@ import { terminateAIRunnerExecution } from './execution';
 import { spawnAIRunnerWorker } from './processes';
 import { enqueueRunRequest } from './queue';
 import { getAIRunnerSettings } from './settings';
+import { writeAIRunnerLogEntry } from './logs';
 import * as shared from './shared';
 
 vi.mock('@/lib/db', () => ({
@@ -37,6 +38,10 @@ vi.mock('./settings', () => ({
   getAIRunnerSettings: vi.fn(),
 }));
 
+vi.mock('./logs', () => ({
+  writeAIRunnerLogEntry: vi.fn().mockResolvedValue(undefined),
+}));
+
 vi.mock('./shared', async (importOriginal) => {
   const actual = await importOriginal<typeof import('./shared')>();
   return {
@@ -60,6 +65,7 @@ describe('AIRunnerSupervisor', () => {
     (getAIRunnerSettings as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
       schedulesGloballyEnabled: true,
     });
+    (writeAIRunnerLogEntry as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
     supervisor = new AIRunnerSupervisor();
   });
 
@@ -244,6 +250,66 @@ describe('AIRunnerSupervisor', () => {
 
       expect(enqueueRunRequest).toHaveBeenCalled();
       expect(mockSchedule.save).toHaveBeenCalled(); // Still saves to update nextRunTime
+    });
+
+    it('logs enqueue failures and continues advancing schedules', async () => {
+      const badNextRunTime = new Date(Date.now() - 2_000);
+      const goodNextRunTime = new Date(Date.now() - 1_000);
+      const badFuture = new Date(Date.now() + 60_000);
+      const goodFuture = new Date(Date.now() + 120_000);
+      const badSchedule = {
+        _id: 'bad-schedule',
+        name: 'Bad schedule',
+        promptId: 'missing-prompt',
+        agentProfileId: 'profile-1',
+        workingDirectory: '/tmp/missing',
+        nextRunTime: badNextRunTime,
+        cronExpression: '* * * * *',
+        save: vi.fn().mockResolvedValue(true),
+      };
+      const goodSchedule = {
+        _id: 'good-schedule',
+        name: 'Good schedule',
+        promptId: 'prompt-1',
+        agentProfileId: 'profile-1',
+        workingDirectory: '/tmp',
+        nextRunTime: goodNextRunTime,
+        cronExpression: '* * * * *',
+        save: vi.fn().mockResolvedValue(true),
+      };
+
+      (AIRunnerSchedule.find as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
+        sort: vi.fn().mockResolvedValue([badSchedule, goodSchedule]),
+      });
+      (enqueueRunRequest as unknown as ReturnType<typeof vi.fn>)
+        .mockRejectedValueOnce(new Error('Saved prompt not found'))
+        .mockResolvedValueOnce({});
+      (shared.getNextRunTimeFromExpression as unknown as ReturnType<typeof vi.fn>)
+        .mockReturnValueOnce(badFuture)
+        .mockReturnValueOnce(goodFuture);
+
+      await (
+        supervisor as unknown as {
+          enqueueDueSchedules: () => Promise<void>;
+        }
+      ).enqueueDueSchedules();
+
+      expect(enqueueRunRequest).toHaveBeenCalledTimes(2);
+      expect(badSchedule.nextRunTime).toEqual(badFuture);
+      expect(goodSchedule.nextRunTime).toEqual(goodFuture);
+      expect(badSchedule.save).toHaveBeenCalled();
+      expect(goodSchedule.save).toHaveBeenCalled();
+      expect(writeAIRunnerLogEntry).toHaveBeenCalledWith(
+        expect.objectContaining({
+          level: 'error',
+          event: 'schedule.enqueue_failed',
+          data: expect.objectContaining({
+            scheduleId: 'bad-schedule',
+            promptId: 'missing-prompt',
+            error: 'Saved prompt not found',
+          }),
+        })
+      );
     });
 
     it('skips queueing while global schedules are disabled', async () => {
