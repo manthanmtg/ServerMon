@@ -35,7 +35,6 @@ import {
   RotateCcw,
   Search,
   Shield,
-  ShieldAlert,
   Square,
   Timer,
   XCircle,
@@ -47,6 +46,7 @@ import { PageSkeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/components/ui/toast';
 import { cn, formatBytes, relativeTime } from '@/lib/utils';
 import type { ServiceLogEntry, ServicesSnapshot } from '../types';
+import { ServicesSummaryGrid } from './components/ServicesSummaryGrid';
 
 type FilterStatus = 'all' | 'running' | 'failed' | 'inactive' | 'exited';
 type SortField = 'name' | 'status' | 'cpu' | 'memory' | 'uptime' | 'restarts';
@@ -102,48 +102,12 @@ function subStateIcon(sub: string) {
   return <Pause className="w-3.5 h-3.5" />;
 }
 
-function healthScoreColor(score: number): string {
-  if (score >= 90) return 'text-success';
-  if (score >= 70) return 'text-warning';
-  return 'text-destructive';
-}
-
 function logPriorityVariant(priority: string): 'destructive' | 'warning' | 'default' | 'secondary' {
   if (priority === 'emerg' || priority === 'alert' || priority === 'crit' || priority === 'err')
     return 'destructive';
   if (priority === 'warning') return 'warning';
   if (priority === 'notice') return 'default';
   return 'secondary';
-}
-
-function HealthGauge({ score }: { score: number }) {
-  const circumference = 2 * Math.PI * 54;
-  const offset = circumference - (score / 100) * circumference;
-  return (
-    <div className="relative w-32 h-32">
-      <svg className="w-full h-full -rotate-90" viewBox="0 0 120 120">
-        <circle cx="60" cy="60" r="54" fill="none" stroke="var(--border)" strokeWidth="8" />
-        <circle
-          cx="60"
-          cy="60"
-          r="54"
-          fill="none"
-          stroke={
-            score >= 90 ? 'var(--success)' : score >= 70 ? 'var(--warning)' : 'var(--destructive)'
-          }
-          strokeWidth="8"
-          strokeLinecap="round"
-          strokeDasharray={circumference}
-          strokeDashoffset={offset}
-          className="transition-all duration-700"
-        />
-      </svg>
-      <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className={cn('text-2xl font-bold', healthScoreColor(score))}>{score}</span>
-        <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Health</span>
-      </div>
-    </div>
-  );
 }
 
 function ServiceLogPanel({ serviceName }: { serviceName: string }) {
@@ -507,77 +471,7 @@ export default function ServicesPage() {
         </div>
       </section>
 
-      {/* Summary cards + Health gauge */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-        <Card className="border-border/60 bg-card/80 sm:col-span-2 lg:col-span-1 lg:row-span-2">
-          <CardContent className="flex flex-col items-center justify-center p-5 min-h-[180px]">
-            <HealthGauge score={snapshot?.summary.healthScore ?? 0} />
-            <p className="mt-2 text-xs text-muted-foreground uppercase tracking-wider">
-              System Health
-            </p>
-          </CardContent>
-        </Card>
-        {[
-          {
-            label: 'Running',
-            value: snapshot?.summary.running ?? 0,
-            icon: Play,
-            color: 'text-success',
-          },
-          {
-            label: 'Failed',
-            value: snapshot?.summary.failed ?? 0,
-            icon: XCircle,
-            color: 'text-destructive',
-          },
-          {
-            label: 'Inactive',
-            value: snapshot?.summary.inactive ?? 0,
-            icon: Power,
-            color: 'text-warning',
-          },
-          { label: 'Total', value: snapshot?.summary.total ?? 0, icon: Cog, color: 'text-primary' },
-          {
-            label: 'Enabled',
-            value: snapshot?.summary.enabled ?? 0,
-            icon: CheckCircle,
-            color: 'text-success',
-          },
-          {
-            label: 'Disabled',
-            value: snapshot?.summary.disabled ?? 0,
-            icon: Shield,
-            color: 'text-muted-foreground',
-          },
-          {
-            label: 'Exited',
-            value: snapshot?.summary.exited ?? 0,
-            icon: Square,
-            color: 'text-muted-foreground',
-          },
-          {
-            label: 'Alerts',
-            value: snapshot?.alerts.length ?? 0,
-            icon: ShieldAlert,
-            color:
-              (snapshot?.alerts.length ?? 0) > 0 ? 'text-destructive' : 'text-muted-foreground',
-          },
-        ].map(({ label, value, icon: Icon, color }) => (
-          <Card key={label} className="border-border/60 bg-card/80">
-            <CardContent className="flex items-center justify-between p-4 min-h-[80px]">
-              <div>
-                <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
-                  {label}
-                </p>
-                <p className="mt-1 text-2xl font-semibold tracking-tight">{value}</p>
-              </div>
-              <div className="rounded-xl border border-border/60 bg-muted/30 p-2.5">
-                <Icon className={cn('h-5 w-5', color)} />
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+      <ServicesSummaryGrid summary={snapshot?.summary} alertsCount={snapshot?.alerts.length ?? 0} />
 
       {/* Charts row */}
       <div className="grid gap-6 2xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
@@ -1030,7 +924,7 @@ export default function ServicesPage() {
                                   </div>
                                 )}
                                 <div>
-                                <ServiceLogPanel serviceName={svc.name} />
+                                  <ServiceLogPanel serviceName={svc.name} />
                                 </div>
                               </div>
                             </td>
