@@ -4,6 +4,15 @@ import ServicesPage from './ServicesPage';
 import { ToastProvider } from '@/components/ui/toast';
 import { ServicesSnapshot } from '../types';
 
+// Mock Recharts components because they are difficult to test in JSDOM
+vi.mock('recharts', async () => {
+  const original = await vi.importActual('recharts');
+  return {
+    ...original,
+    ResponsiveContainer: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  };
+});
+
 const mockSnapshot: ServicesSnapshot = {
   services: [
     {

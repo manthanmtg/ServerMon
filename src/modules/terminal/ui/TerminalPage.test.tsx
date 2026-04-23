@@ -120,12 +120,16 @@ function setupFetchMock(sessions = mockSessions) {
   });
 }
 
-function renderPage() {
-  return render(
-    <ToastProvider>
-      <TerminalPage />
-    </ToastProvider>
-  );
+async function renderPage() {
+  let result: ReturnType<typeof render>;
+  await act(async () => {
+    result = render(
+      <ToastProvider>
+        <TerminalPage />
+      </ToastProvider>
+    );
+  });
+  return result!;
 }
 
 // ── Tests ──────────────────────────────────────────────────────────────────────
@@ -136,23 +140,49 @@ describe('TerminalPage', () => {
     setupFetchMock();
   });
 
-  it('renders loading skeleton initially', () => {
+  it('renders loading skeleton initially', async () => {
     setupFetchMock();
-    renderPage();
+    let resolveSessions: (value: any) => void;
+    global.fetch = vi.fn().mockImplementation((url: string) => {
+      if (url === '/api/terminal/sessions') {
+        return new Promise((resolve) => {
+          resolveSessions = resolve;
+        });
+      }
+      return Promise.resolve({ ok: true, json: async () => ({}) });
+    });
+
+    await act(async () => {
+      render(
+        <ToastProvider>
+          <TerminalPage />
+        </ToastProvider>
+      );
+    });
+
     // During loading, skeleton elements are shown
     const skeletons = document.querySelectorAll('[class*="animate-pulse"]');
     expect(skeletons.length).toBeGreaterThanOrEqual(0);
+
+    if (resolveSessions!) {
+      await act(async () => {
+        resolveSessions!({
+          ok: true,
+          json: async () => ({ sessions: mockSessions }),
+        });
+      });
+    }
   });
 
   it('renders terminal tabs after fetching sessions', async () => {
-    renderPage();
+    await renderPage();
     await waitFor(() => {
       expect(screen.getAllByText('Terminal 1').length).toBeGreaterThan(0);
     });
   });
 
   it('renders all session tabs', async () => {
-    renderPage();
+    await renderPage();
     await waitFor(() => {
       expect(screen.getAllByText('Terminal 1').length).toBeGreaterThan(0);
       expect(screen.getAllByText('Terminal 2').length).toBeGreaterThan(0);
@@ -184,7 +214,7 @@ describe('TerminalPage', () => {
       return Promise.resolve({ ok: true, json: async () => ({}) });
     });
 
-    renderPage();
+    await renderPage();
     await waitFor(() => {
       // Auto-created session
       expect(global.fetch).toHaveBeenCalled();
@@ -192,7 +222,7 @@ describe('TerminalPage', () => {
   });
 
   it('switches the active tab when another tab is clicked', async () => {
-    renderPage();
+    await renderPage();
     await waitFor(() => {
       expect(screen.getByText('Terminal 2')).toBeDefined();
     });
@@ -205,7 +235,7 @@ describe('TerminalPage', () => {
   });
 
   it('opens settings modal when the settings button is clicked', async () => {
-    renderPage();
+    await renderPage();
     await waitFor(() => {
       expect(screen.getAllByText('Terminal 1').length).toBeGreaterThan(0);
     });
@@ -228,7 +258,7 @@ describe('TerminalPage', () => {
   });
 
   it('opens history modal when the history button is clicked', async () => {
-    renderPage();
+    await renderPage();
     await waitFor(() => {
       expect(screen.getAllByText('Terminal 1').length).toBeGreaterThan(0);
     });
@@ -249,7 +279,7 @@ describe('TerminalPage', () => {
   });
 
   it('opens saved commands modal when the bookmark button is clicked', async () => {
-    renderPage();
+    await renderPage();
     await waitFor(() => {
       expect(screen.getAllByText('Terminal 1').length).toBeGreaterThan(0);
     });
@@ -294,7 +324,7 @@ describe('TerminalPage', () => {
       return Promise.resolve({ ok: true, json: async () => ({}) });
     });
 
-    renderPage();
+    await renderPage();
     await waitFor(() => {
       expect(screen.getAllByText('Terminal 1').length).toBeGreaterThan(0);
     });
@@ -322,7 +352,7 @@ describe('TerminalPage', () => {
   });
 
   it('shows reboot/reset confirmation modal', async () => {
-    renderPage();
+    await renderPage();
     await waitFor(() => {
       expect(screen.getAllByText('Terminal 1').length).toBeGreaterThan(0);
     });
