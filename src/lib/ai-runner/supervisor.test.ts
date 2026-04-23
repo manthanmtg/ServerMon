@@ -9,6 +9,7 @@ import AIRunnerSupervisorLease from '@/models/AIRunnerSupervisorLease';
 import { terminateAIRunnerExecution } from './execution';
 import { spawnAIRunnerWorker } from './processes';
 import { enqueueRunRequest } from './queue';
+import { getAIRunnerSettings } from './settings';
 import * as shared from './shared';
 
 vi.mock('@/lib/db', () => ({
@@ -32,6 +33,10 @@ vi.mock('./queue', () => ({
   enqueueRunRequest: vi.fn(),
 }));
 
+vi.mock('./settings', () => ({
+  getAIRunnerSettings: vi.fn(),
+}));
+
 vi.mock('./shared', async (importOriginal) => {
   const actual = await importOriginal<typeof import('./shared')>();
   return {
@@ -49,7 +54,12 @@ describe('AIRunnerSupervisor', () => {
     vi.useFakeTimers();
     // Re-mock shared BEFORE instantiating supervisor
     (shared.getMaxConcurrentRuns as unknown as ReturnType<typeof vi.fn>).mockReturnValue(2);
-    (shared.getNextRunTimeFromExpression as unknown as ReturnType<typeof vi.fn>).mockReturnValue(new Date());
+    (shared.getNextRunTimeFromExpression as unknown as ReturnType<typeof vi.fn>).mockReturnValue(
+      new Date()
+    );
+    (getAIRunnerSettings as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
+      schedulesGloballyEnabled: true,
+    });
     supervisor = new AIRunnerSupervisor();
   });
 
@@ -59,7 +69,9 @@ describe('AIRunnerSupervisor', () => {
 
   describe('acquireLease', () => {
     it('returns true when lease is successfully updated', async () => {
-      (AIRunnerSupervisorLease.findOneAndUpdate as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
+      (
+        AIRunnerSupervisorLease.findOneAndUpdate as unknown as ReturnType<typeof vi.fn>
+      ).mockResolvedValue({
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         ownerId: (supervisor as any).instanceId,
       });
@@ -71,7 +83,9 @@ describe('AIRunnerSupervisor', () => {
     });
 
     it('returns true when lease is successfully created if update fails', async () => {
-      (AIRunnerSupervisorLease.findOneAndUpdate as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(null);
+      (
+        AIRunnerSupervisorLease.findOneAndUpdate as unknown as ReturnType<typeof vi.fn>
+      ).mockResolvedValue(null);
       (AIRunnerSupervisorLease.create as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         ownerId: (supervisor as any).instanceId,
@@ -84,8 +98,12 @@ describe('AIRunnerSupervisor', () => {
     });
 
     it('returns false when lease is owned by someone else', async () => {
-      (AIRunnerSupervisorLease.findOneAndUpdate as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(null);
-      (AIRunnerSupervisorLease.create as unknown as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('duplicate'));
+      (
+        AIRunnerSupervisorLease.findOneAndUpdate as unknown as ReturnType<typeof vi.fn>
+      ).mockResolvedValue(null);
+      (AIRunnerSupervisorLease.create as unknown as ReturnType<typeof vi.fn>).mockRejectedValue(
+        new Error('duplicate')
+      );
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const result = await (supervisor as any).acquireLease();
@@ -109,15 +127,20 @@ describe('AIRunnerSupervisor', () => {
       (AIRunnerJob.find as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
         sort: vi.fn().mockResolvedValue([mockJob]),
       });
-      (AIRunnerRun.findById as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({ _id: 'run-1' });
+      (AIRunnerRun.findById as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
+        _id: 'run-1',
+      });
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       await (supervisor as any).reconcileStaleJobs();
 
       expect(terminateAIRunnerExecution).toHaveBeenCalled();
-      expect(AIRunnerJob.findByIdAndUpdate).toHaveBeenCalledWith('job-1', expect.objectContaining({
-        $set: expect.objectContaining({ status: 'retrying' }),
-      }));
+      expect(AIRunnerJob.findByIdAndUpdate).toHaveBeenCalledWith(
+        'job-1',
+        expect.objectContaining({
+          $set: expect.objectContaining({ status: 'retrying' }),
+        })
+      );
     });
 
     it('marks a job as failed if it is not retryable', async () => {
@@ -135,14 +158,19 @@ describe('AIRunnerSupervisor', () => {
       (AIRunnerJob.find as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
         sort: vi.fn().mockResolvedValue([mockJob]),
       });
-      (AIRunnerRun.findById as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({ _id: 'run-1' });
+      (AIRunnerRun.findById as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
+        _id: 'run-1',
+      });
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       await (supervisor as any).reconcileStaleJobs();
 
-      expect(AIRunnerJob.findByIdAndUpdate).toHaveBeenCalledWith('job-1', expect.objectContaining({
-        $set: expect.objectContaining({ status: 'failed' }),
-      }));
+      expect(AIRunnerJob.findByIdAndUpdate).toHaveBeenCalledWith(
+        'job-1',
+        expect.objectContaining({
+          $set: expect.objectContaining({ status: 'failed' }),
+        })
+      );
     });
 
     it('marks a job as timeout if it exceeded its window', async () => {
@@ -160,14 +188,19 @@ describe('AIRunnerSupervisor', () => {
       (AIRunnerJob.find as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
         sort: vi.fn().mockResolvedValue([mockJob]),
       });
-      (AIRunnerRun.findById as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({ _id: 'run-1' });
+      (AIRunnerRun.findById as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
+        _id: 'run-1',
+      });
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       await (supervisor as any).reconcileStaleJobs();
 
-      expect(AIRunnerRun.findByIdAndUpdate).toHaveBeenCalledWith('run-1', expect.objectContaining({
-        $set: expect.objectContaining({ status: 'timeout' }),
-      }));
+      expect(AIRunnerRun.findByIdAndUpdate).toHaveBeenCalledWith(
+        'run-1',
+        expect.objectContaining({
+          $set: expect.objectContaining({ status: 'timeout' }),
+        })
+      );
     });
   });
 
@@ -211,6 +244,29 @@ describe('AIRunnerSupervisor', () => {
 
       expect(enqueueRunRequest).toHaveBeenCalled();
       expect(mockSchedule.save).toHaveBeenCalled(); // Still saves to update nextRunTime
+    });
+
+    it('skips queueing while global schedules are disabled', async () => {
+      const mockSchedule = {
+        _id: 's1',
+        promptId: 'p1',
+        nextRunTime: new Date(Date.now() - 1000),
+        cronExpression: '* * * * *',
+        save: vi.fn().mockResolvedValue(true),
+      };
+
+      (getAIRunnerSettings as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
+        schedulesGloballyEnabled: false,
+      });
+      (AIRunnerSchedule.find as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
+        sort: vi.fn().mockResolvedValue([mockSchedule]),
+      });
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (supervisor as any).enqueueDueSchedules();
+
+      expect(enqueueRunRequest).not.toHaveBeenCalled();
+      expect(mockSchedule.save).toHaveBeenCalled();
     });
   });
 
@@ -256,16 +312,23 @@ describe('AIRunnerSupervisor', () => {
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       expect(spawnAIRunnerWorker).toHaveBeenCalledWith('j1', (supervisor as any).instanceId);
-      expect(AIRunnerJob.findByIdAndUpdate).toHaveBeenCalledWith('j1', expect.objectContaining({
-        $set: expect.objectContaining({ status: 'failed' }),
-      }));
+      expect(AIRunnerJob.findByIdAndUpdate).toHaveBeenCalledWith(
+        'j1',
+        expect.objectContaining({
+          $set: expect.objectContaining({ status: 'failed' }),
+        })
+      );
     });
   });
 
   describe('run', () => {
     it('stops if lease cannot be acquired', async () => {
-      (AIRunnerSupervisorLease.findOneAndUpdate as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(null);
-      (AIRunnerSupervisorLease.create as unknown as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('duplicate'));
+      (
+        AIRunnerSupervisorLease.findOneAndUpdate as unknown as ReturnType<typeof vi.fn>
+      ).mockResolvedValue(null);
+      (AIRunnerSupervisorLease.create as unknown as ReturnType<typeof vi.fn>).mockRejectedValue(
+        new Error('duplicate')
+      );
 
       await supervisor.run();
 

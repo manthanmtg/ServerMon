@@ -14,6 +14,7 @@ import AIRunnerSchedule from '@/models/AIRunnerSchedule';
 import AIRunnerRun from '@/models/AIRunnerRun';
 import { ensureAIRunnerSupervisor } from './processes';
 import { enqueueRunRequest } from './queue';
+import { getAIRunnerSettings, updateAIRunnerSettings } from './settings';
 import * as shared from './shared';
 
 vi.mock('@/lib/db', () => ({
@@ -32,6 +33,11 @@ vi.mock('./processes', () => ({
 
 vi.mock('./queue', () => ({
   enqueueRunRequest: vi.fn(),
+}));
+
+vi.mock('./settings', () => ({
+  getAIRunnerSettings: vi.fn(),
+  updateAIRunnerSettings: vi.fn(),
 }));
 
 vi.mock('./execution', () => ({
@@ -212,6 +218,31 @@ describe('AIRunnerService', () => {
       expect(mockSchedule.save).toHaveBeenCalled();
       expect(ensureAIRunnerSupervisor).toHaveBeenCalled();
     });
+
+    it('returns persisted runner settings', async () => {
+      (getAIRunnerSettings as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
+        schedulesGloballyEnabled: false,
+      });
+
+      const result = await service.getSettings();
+
+      expect(result.schedulesGloballyEnabled).toBe(false);
+      expect(getAIRunnerSettings).toHaveBeenCalled();
+    });
+
+    it('updates persisted runner settings', async () => {
+      (updateAIRunnerSettings as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
+        schedulesGloballyEnabled: false,
+      });
+
+      const result = await service.updateSettings({ schedulesGloballyEnabled: false });
+
+      expect(result.schedulesGloballyEnabled).toBe(false);
+      expect(updateAIRunnerSettings).toHaveBeenCalledWith({
+        schedulesGloballyEnabled: false,
+      });
+      expect(ensureAIRunnerSupervisor).toHaveBeenCalled();
+    });
   });
 
   describe('Runs', () => {
@@ -248,7 +279,9 @@ describe('AIRunnerService', () => {
       const request = { content: 'test', type: 'inline' } as unknown as Parameters<
         AIRunnerService['executeRun']
       >[0];
-      (enqueueRunRequest as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({ _id: 'run-1' });
+      (enqueueRunRequest as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
+        _id: 'run-1',
+      });
 
       const result = await service.executeRun(request);
       expect(enqueueRunRequest).toHaveBeenCalledWith(request);
@@ -259,7 +292,9 @@ describe('AIRunnerService', () => {
 
   describe('Directories', () => {
     it('lists known directories from schedules and runs', async () => {
-      (AIRunnerSchedule.distinct as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(['/dir1']);
+      (AIRunnerSchedule.distinct as unknown as ReturnType<typeof vi.fn>).mockResolvedValue([
+        '/dir1',
+      ]);
       (AIRunnerRun.distinct as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(['/dir2']);
 
       const result = await service.listKnownDirectories();

@@ -20,6 +20,7 @@ import type {
   AIRunnerRunDTO,
   AIRunnerRunsResponse,
   AIRunnerScheduleDTO,
+  AIRunnerSettingsDTO,
 } from '../types';
 
 const mockProfiles: AIRunnerProfileDTO[] = [
@@ -65,6 +66,7 @@ const mockSchedules: AIRunnerScheduleDTO[] = [];
 const mockRuns: AIRunnerRunsResponse = { runs: [], total: 0 };
 const mockActiveRuns: AIRunnerRunDTO[] = [];
 const mockDirectories: AIRunnerDirectoriesResponse = { directories: ['/root/repos/ServerMon'] };
+const mockRunnerSettings: AIRunnerSettingsDTO = { schedulesGloballyEnabled: true };
 const mockDiagnostics: {
   runtime: {
     kind: 'interactive' | 'systemd' | 'launchd' | 'background';
@@ -90,12 +92,20 @@ const mockDiagnostics: {
 describe('AIRunnerPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    global.fetch = vi.fn().mockImplementation((url: string) => {
+    mockRunnerSettings.schedulesGloballyEnabled = true;
+    global.fetch = vi.fn().mockImplementation((url: string, init?: RequestInit) => {
       if (url.includes('/api/modules/ai-runner/profiles')) {
         return Promise.resolve({ ok: true, json: async () => mockProfiles });
       }
       if (url.includes('/api/modules/ai-runner/prompts')) {
         return Promise.resolve({ ok: true, json: async () => mockPrompts });
+      }
+      if (url.includes('/api/modules/ai-runner/settings')) {
+        if (init?.method === 'PATCH') {
+          const payload = JSON.parse(String(init.body ?? '{}')) as AIRunnerSettingsDTO;
+          mockRunnerSettings.schedulesGloballyEnabled = payload.schedulesGloballyEnabled;
+        }
+        return Promise.resolve({ ok: true, json: async () => mockRunnerSettings });
       }
       if (url.includes('/api/modules/ai-runner/schedules')) {
         return Promise.resolve({ ok: true, json: async () => mockSchedules });
@@ -207,6 +217,39 @@ describe('AIRunnerPage', () => {
     expect(screen.getAllByRole('button', { name: /^Edit$/i }).length).toBeGreaterThan(0);
     expect(screen.getAllByRole('button', { name: /^Delete$/i }).length).toBeGreaterThan(0);
     expect(screen.queryByText('Search & Filter')).not.toBeInTheDocument();
+  });
+
+  it('shows and toggles the global schedule queue button', async () => {
+    const fetchMock = vi.mocked(global.fetch);
+
+    await act(async () => {
+      render(<AIRunnerPage />);
+    });
+
+    await waitFor(() => expect(screen.getByText('AI Agent Runner')).toBeInTheDocument());
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /Schedules/i }));
+    });
+
+    expect(screen.getByRole('button', { name: /Global Auto-Queue ON/i })).toBeInTheDocument();
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /Global Auto-Queue ON/i }));
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/modules/ai-runner/settings',
+      expect.objectContaining({
+        method: 'PATCH',
+        body: JSON.stringify({ schedulesGloballyEnabled: false }),
+      })
+    );
+
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: /Global Auto-Queue OFF/i })).toBeInTheDocument()
+    );
+    expect(screen.getByText('Global schedule pause is active')).toBeInTheDocument();
   });
 
   it('shows a live countdown and last run label on schedule rows', async () => {

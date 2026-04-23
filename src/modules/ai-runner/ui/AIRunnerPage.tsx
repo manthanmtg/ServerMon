@@ -34,6 +34,7 @@ import type {
   AIRunnerRunDTO,
   AIRunnerRunsResponse,
   AIRunnerScheduleDTO,
+  AIRunnerSettingsDTO,
 } from '../types';
 import { TAB_META, DEFAULT_PROFILE_FORM, ICON_PRESETS } from './constants';
 import { RunDetailDrawer } from './components/RunDetailDrawer';
@@ -135,6 +136,7 @@ export default function AIRunnerPage() {
   const [runs, setRuns] = useState<AIRunnerRunDTO[]>([]);
   const [activeScheduleRuns, setActiveScheduleRuns] = useState<AIRunnerRunDTO[]>([]);
   const [directories, setDirectories] = useState<string[]>([]);
+  const [runnerSettings, setRunnerSettings] = useState<AIRunnerSettingsDTO | null>(null);
   const [runtimeDiagnostics, setRuntimeDiagnostics] = useState<AIRunnerRuntimeDiagnostics | null>(
     null
   );
@@ -153,6 +155,7 @@ export default function AIRunnerPage() {
   const [selectedPromptId, setSelectedPromptId] = useState<string | null>(null);
   const [runPending, setRunPending] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [globalScheduleTogglePending, setGlobalScheduleTogglePending] = useState(false);
   const [editingProfileId, setEditingProfileId] = useState<string | null>(null);
   const [editingPromptId, setEditingPromptId] = useState<string | null>(null);
   const [editingScheduleId, setEditingScheduleId] = useState<string | null>(null);
@@ -224,15 +227,23 @@ export default function AIRunnerPage() {
     const controller = new AbortController();
     metadataAbortRef.current = controller;
     try {
-      const [profilesRes, promptsRes, directoriesRes, diagnosticsRes] = await Promise.all([
-        fetch('/api/modules/ai-runner/profiles', { cache: 'no-store', signal: controller.signal }),
-        fetch('/api/modules/ai-runner/prompts', { cache: 'no-store', signal: controller.signal }),
-        fetch('/api/modules/ai-runner/directories', {
-          cache: 'no-store',
-          signal: controller.signal,
-        }),
-        fetch('/api/system/diagnostics', { cache: 'no-store', signal: controller.signal }),
-      ]);
+      const [profilesRes, promptsRes, directoriesRes, diagnosticsRes, settingsRes] =
+        await Promise.all([
+          fetch('/api/modules/ai-runner/profiles', {
+            cache: 'no-store',
+            signal: controller.signal,
+          }),
+          fetch('/api/modules/ai-runner/prompts', { cache: 'no-store', signal: controller.signal }),
+          fetch('/api/modules/ai-runner/directories', {
+            cache: 'no-store',
+            signal: controller.signal,
+          }),
+          fetch('/api/system/diagnostics', { cache: 'no-store', signal: controller.signal }),
+          fetch('/api/modules/ai-runner/settings', {
+            cache: 'no-store',
+            signal: controller.signal,
+          }),
+        ]);
 
       if (controller.signal.aborted) return;
 
@@ -286,6 +297,12 @@ export default function AIRunnerPage() {
         const payload: AIRunnerRuntimeDiagnostics = await diagnosticsRes.json();
         if (controller.signal.aborted) return;
         setRuntimeDiagnostics(payload);
+      }
+
+      if (settingsRes.ok) {
+        const payload: AIRunnerSettingsDTO = await settingsRes.json();
+        if (controller.signal.aborted) return;
+        setRunnerSettings(payload);
       }
 
       setMetadataLoaded(true);
@@ -524,6 +541,7 @@ export default function AIRunnerPage() {
   const activeRunCount = runs.filter((run) => run.status === 'running').length;
   const enabledScheduleCount = schedules.filter((schedule) => schedule.enabled).length;
   const successfulRuns = runs.filter((run) => run.status === 'completed').length;
+  const schedulesGloballyEnabled = runnerSettings?.schedulesGloballyEnabled ?? true;
   const schedulerReliabilityWarning = getSchedulerReliabilityWarning(runtimeDiagnostics);
   const enabledProfileCount = profiles.filter((profile) => profile.enabled).length;
   const customProfileCount = profiles.filter((profile) => profile.agentType === 'custom').length;
@@ -1212,6 +1230,43 @@ export default function AIRunnerPage() {
     setSelectedRun(payload);
     setActiveTab('run');
     await loadAll();
+  };
+
+  const toggleGlobalScheduleQueue = async () => {
+    try {
+      setGlobalScheduleTogglePending(true);
+      const nextValue = !schedulesGloballyEnabled;
+      const response = await fetch('/api/modules/ai-runner/settings', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          schedulesGloballyEnabled: nextValue,
+        }),
+      });
+      const payload = await response.json();
+      if (!response.ok) {
+        throw new Error(payload.error || 'Unable to update global schedule setting');
+      }
+
+      setRunnerSettings(payload);
+      toast({
+        title: nextValue ? 'Global auto-queue enabled' : 'Global auto-queue disabled',
+        description: nextValue
+          ? 'Enabled schedules can be queued again.'
+          : 'Enabled schedules will stay saved but stop queueing automatically.',
+        variant: 'success',
+      });
+      await loadSchedules();
+    } catch (error) {
+      toast({
+        title: 'Global schedule toggle failed',
+        description:
+          error instanceof Error ? error.message : 'Unable to update global schedule setting',
+        variant: 'destructive',
+      });
+    } finally {
+      setGlobalScheduleTogglePending(false);
+    }
   };
 
   const killSelectedRun = async () => {
@@ -1919,17 +1974,21 @@ export default function AIRunnerPage() {
                   <CompactStat
                     label="Next Launch"
                     value={
-                      nextSchedule?.nextRunTime
-                        ? formatScheduleDate(nextSchedule.nextRunTime)
-                        : 'No launch queued'
+                      !schedulesGloballyEnabled
+                        ? 'Globally paused'
+                        : nextSchedule?.nextRunTime
+                          ? formatScheduleDate(nextSchedule.nextRunTime)
+                          : 'No launch queued'
                     }
                     tone="warning"
                     detail={
-                      nextSchedule?.nextRunTime
-                        ? nextScheduleStatusLabel
-                          ? `${nextSchedule.name} ${nextScheduleStatusLabel}`
-                          : `${nextSchedule.name} ${formatCountdown(nextSchedule.nextRunTime, liveNow)}`
-                        : 'Enable a schedule to populate this.'
+                      !schedulesGloballyEnabled
+                        ? 'Automatic queueing is paused for every schedule.'
+                        : nextSchedule?.nextRunTime
+                          ? nextScheduleStatusLabel
+                            ? `${nextSchedule.name} ${nextScheduleStatusLabel}`
+                            : `${nextSchedule.name} ${formatCountdown(nextSchedule.nextRunTime, liveNow)}`
+                          : 'Enable a schedule to populate this.'
                     }
                   />
                   <CompactStat
@@ -1957,6 +2016,25 @@ export default function AIRunnerPage() {
                   </Button>
                   <Button
                     size="lg"
+                    variant="outline"
+                    loading={globalScheduleTogglePending}
+                    onClick={() => void toggleGlobalScheduleQueue()}
+                    className={cn(
+                      'w-full justify-start border-2',
+                      schedulesGloballyEnabled
+                        ? 'border-success/25 bg-success/10 text-success hover:bg-success/15 hover:text-success'
+                        : 'border-destructive/25 bg-destructive/10 text-destructive hover:bg-destructive/15 hover:text-destructive'
+                    )}
+                  >
+                    {schedulesGloballyEnabled ? (
+                      <Play className="w-4 h-4" />
+                    ) : (
+                      <Square className="w-4 h-4" />
+                    )}
+                    {schedulesGloballyEnabled ? 'Global Auto-Queue ON' : 'Global Auto-Queue OFF'}
+                  </Button>
+                  <Button
+                    size="lg"
                     onClick={openCreateScheduleModal}
                     className="w-full justify-start"
                   >
@@ -1965,6 +2043,23 @@ export default function AIRunnerPage() {
                   </Button>
                 </div>
               </div>
+
+              {!schedulesGloballyEnabled ? (
+                <div className="rounded-[24px] border border-destructive/20 bg-destructive/5 px-5 py-4">
+                  <div className="flex items-start gap-3">
+                    <AlertTriangle className="mt-0.5 h-5 w-5 text-destructive" />
+                    <div>
+                      <p className="text-sm font-semibold text-destructive">
+                        Global schedule pause is active
+                      </p>
+                      <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                        Individual schedules can stay enabled, but none of them will be queued
+                        automatically until global auto-queue is turned back on.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
 
               <Card className="overflow-hidden border-border/60">
                 <CardHeader className="border-b border-border/60">
@@ -1978,6 +2073,9 @@ export default function AIRunnerPage() {
                     <div className="flex flex-wrap gap-2 text-xs">
                       <Badge variant="success">{enabledScheduleCount} enabled</Badge>
                       <Badge variant="warning">{pausedScheduleCount} paused</Badge>
+                      {!schedulesGloballyEnabled ? (
+                        <Badge variant="destructive">global auto-queue off</Badge>
+                      ) : null}
                       <Badge variant="outline">{scheduleModeCount} modes in play</Badge>
                     </div>
                   </div>

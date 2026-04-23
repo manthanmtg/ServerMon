@@ -121,6 +121,13 @@ describe('Mongoose Models', () => {
     });
   });
 
+  describe('AIRunnerSettings model', () => {
+    it('exports a model', async () => {
+      const mod = await import('./AIRunnerSettings');
+      expect(mod.default).toBeDefined();
+    });
+  });
+
   describe('CustomEndpoint model', () => {
     it('exports a model and CustomEndpointZodSchema', async () => {
       const mod = await import('./CustomEndpoint');

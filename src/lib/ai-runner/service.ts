@@ -14,12 +14,14 @@ import type {
   AIRunnerRunDTO,
   AIRunnerRunStatus,
   AIRunnerScheduleDTO,
+  AIRunnerSettingsDTO,
   AIRunnerTemplateValidationResult,
   AIRunnerTrigger,
 } from '@/modules/ai-runner/types';
 import { ensureAIRunnerSupervisor } from './processes';
 import { terminateAIRunnerExecution } from './execution';
 import { enqueueRunRequest } from './queue';
+import { getAIRunnerSettings, updateAIRunnerSettings } from './settings';
 import {
   getNextRunTimeFromExpression,
   mapProfile,
@@ -256,6 +258,16 @@ export class AIRunnerService {
     return mapSchedule(schedule);
   }
 
+  async getSettings(): Promise<AIRunnerSettingsDTO> {
+    return getAIRunnerSettings();
+  }
+
+  async updateSettings(input: { schedulesGloballyEnabled: boolean }): Promise<AIRunnerSettingsDTO> {
+    const settings = await updateAIRunnerSettings(input);
+    ensureAIRunnerSupervisor();
+    return settings;
+  }
+
   async listRuns(options?: {
     status?: AIRunnerRunStatus;
     triggeredBy?: AIRunnerTrigger;
@@ -386,7 +398,10 @@ export class AIRunnerService {
     }
 
     const pid = typeof job.childPid === 'number' ? job.childPid : run.pid;
-    terminateAIRunnerExecution({ pid: typeof pid === 'number' && pid > 0 ? pid : undefined, unitName: job.executionUnit });
+    terminateAIRunnerExecution({
+      pid: typeof pid === 'number' && pid > 0 ? pid : undefined,
+      unitName: job.executionUnit,
+    });
 
     return true;
   }

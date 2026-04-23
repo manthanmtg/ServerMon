@@ -66,6 +66,10 @@ export const scheduleCreateSchema = z.object({
 
 export const scheduleUpdateSchema = scheduleCreateSchema.partial();
 
+export const settingsUpdateSchema = z.object({
+  schedulesGloballyEnabled: z.boolean(),
+});
+
 export const runExecuteSchema = z
   .object({
     promptId: z.string().trim().min(1).optional(),

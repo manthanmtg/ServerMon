@@ -9,6 +9,7 @@ import type { AIRunnerRunStatus } from '@/modules/ai-runner/types';
 import { terminateAIRunnerExecution } from './execution';
 import { spawnAIRunnerWorker } from './processes';
 import { enqueueRunRequest } from './queue';
+import { getAIRunnerSettings } from './settings';
 import {
   DEFAULT_HEARTBEAT_STALE_MS,
   DEFAULT_LEASE_TTL_MS,
@@ -169,13 +170,13 @@ export class AIRunnerSupervisor {
 
       await Promise.all([
         AIRunnerJob.findByIdAndUpdate(job._id, {
-            $set: {
-              status: jobStatus,
-              finishedAt,
-              executionUnit: undefined,
-              lastError:
-                terminalStatus === 'timeout'
-                  ? 'Worker heartbeat went stale after the timeout window'
+          $set: {
+            status: jobStatus,
+            finishedAt,
+            executionUnit: undefined,
+            lastError:
+              terminalStatus === 'timeout'
+                ? 'Worker heartbeat went stale after the timeout window'
                 : terminalStatus === 'killed'
                   ? 'Run was canceled while stale'
                   : 'Worker heartbeat went stale',
@@ -217,6 +218,27 @@ export class AIRunnerSupervisor {
       enabled: true,
       nextRunTime: { $lte: now },
     }).sort({ nextRunTime: 1 });
+
+    const settings = await getAIRunnerSettings();
+    if (!settings.schedulesGloballyEnabled) {
+      for (const schedule of schedules) {
+        let cursor = schedule.nextRunTime;
+        let catchupCount = 0;
+
+        while (cursor && cursor <= now && catchupCount < MAX_SCHEDULE_CATCHUP_RUNS) {
+          const next = getNextRunTimeFromExpression(
+            schedule.cronExpression,
+            new Date(cursor.getTime() + 60_000)
+          );
+          cursor = next ? new Date(next) : undefined;
+          catchupCount += 1;
+        }
+
+        schedule.nextRunTime = cursor;
+        await schedule.save();
+      }
+      return;
+    }
 
     for (const schedule of schedules) {
       let cursor = schedule.nextRunTime;

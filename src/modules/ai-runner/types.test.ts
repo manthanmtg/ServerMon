@@ -5,6 +5,7 @@ import type {
   AIRunnerPromptDTO,
   AIRunnerRunDTO,
   AIRunnerScheduleDTO,
+  AIRunnerSettingsDTO,
 } from './types';
 
 describe('ai-runner type shapes', () => {
@@ -58,6 +59,14 @@ describe('ai-runner type shapes', () => {
     };
     expect(schedule.enabled).toBe(true);
     expect(schedule.cronExpression).toContain('1-5');
+  });
+
+  it('captures global scheduling settings', () => {
+    const settings: AIRunnerSettingsDTO = {
+      schedulesGloballyEnabled: false,
+      updatedAt: '2026-04-20T10:00:00.000Z',
+    };
+    expect(settings.schedulesGloballyEnabled).toBe(false);
   });
 
   it('captures run output and status', () => {

@@ -71,6 +71,11 @@ export interface AIRunnerScheduleDTO {
   updatedAt: string;
 }
 
+export interface AIRunnerSettingsDTO {
+  schedulesGloballyEnabled: boolean;
+  updatedAt?: string;
+}
+
 export interface AIRunnerResourceUsage {
   peakCpuPercent: number;
   peakMemoryBytes: number;
