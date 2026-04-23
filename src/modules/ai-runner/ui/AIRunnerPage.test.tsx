@@ -138,7 +138,7 @@ describe('AIRunnerPage', () => {
     await waitFor(() => expect(screen.getByText('AI Agent Runner')).toBeInTheDocument());
 
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: /Saved Prompts/i }));
+      fireEvent.click(screen.getByRole('tab', { name: /Saved Prompts/i }));
     });
 
     expect(screen.getByRole('button', { name: /^Create Prompt$/i })).toBeInTheDocument();
@@ -189,7 +189,7 @@ describe('AIRunnerPage', () => {
     ).toBe(false);
 
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: /History/i }));
+      fireEvent.click(screen.getByRole('tab', { name: /History/i }));
     });
 
     await waitFor(() =>
@@ -209,7 +209,7 @@ describe('AIRunnerPage', () => {
     await waitFor(() => expect(screen.getByText('AI Agent Runner')).toBeInTheDocument());
 
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: /Saved Prompts/i }));
+      fireEvent.click(screen.getByRole('tab', { name: /Saved Prompts/i }));
     });
 
     expect(screen.getByText('Fix tests')).toBeInTheDocument();
@@ -229,7 +229,7 @@ describe('AIRunnerPage', () => {
     await waitFor(() => expect(screen.getByText('AI Agent Runner')).toBeInTheDocument());
 
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: /Schedules/i }));
+      fireEvent.click(screen.getByRole('tab', { name: /Schedules/i }));
     });
 
     expect(screen.getByRole('button', { name: /Global Auto-Queue ON/i })).toBeInTheDocument();
@@ -289,7 +289,7 @@ describe('AIRunnerPage', () => {
       expect(screen.getByText('AI Agent Runner')).toBeInTheDocument();
 
       await act(async () => {
-        fireEvent.click(screen.getByRole('button', { name: /Schedules/i }));
+        fireEvent.click(screen.getByRole('tab', { name: /Schedules/i }));
       });
 
       expect(screen.getByText('Last run')).toBeInTheDocument();
@@ -365,7 +365,7 @@ describe('AIRunnerPage', () => {
       expect(screen.getByText('AI Agent Runner')).toBeInTheDocument();
 
       await act(async () => {
-        fireEvent.click(screen.getByRole('button', { name: /Schedules/i }));
+        fireEvent.click(screen.getByRole('tab', { name: /Schedules/i }));
       });
 
       expect(screen.getAllByText('running now').length).toBeGreaterThan(0);
@@ -402,7 +402,7 @@ describe('AIRunnerPage', () => {
       expect(runsRequestCountBeforeHistory).toBe(0);
 
       await act(async () => {
-        fireEvent.click(screen.getByRole('button', { name: /History/i }));
+        fireEvent.click(screen.getByRole('tab', { name: /History/i }));
       });
 
       await act(async () => {
@@ -470,7 +470,7 @@ describe('AIRunnerPage', () => {
       await waitFor(() => expect(screen.getByText('AI Agent Runner')).toBeInTheDocument());
 
       await act(async () => {
-        fireEvent.click(screen.getByRole('button', { name: /Schedules/i }));
+        fireEvent.click(screen.getByRole('tab', { name: /Schedules/i }));
       });
 
       await act(async () => {
@@ -545,7 +545,7 @@ describe('AIRunnerPage', () => {
       await waitFor(() => expect(screen.getByText('AI Agent Runner')).toBeInTheDocument());
 
       await act(async () => {
-        fireEvent.click(screen.getByRole('button', { name: /Profiles/i }));
+        fireEvent.click(screen.getByRole('tab', { name: /Profiles/i }));
       });
 
       await act(async () => {
@@ -574,7 +574,7 @@ describe('AIRunnerPage', () => {
     await waitFor(() => expect(screen.getByText('AI Agent Runner')).toBeInTheDocument());
 
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: /Schedules/i }));
+      fireEvent.click(screen.getByRole('tab', { name: /Schedules/i }));
     });
 
     await act(async () => {
@@ -608,7 +608,7 @@ describe('AIRunnerPage', () => {
       await waitFor(() => expect(screen.getByText('AI Agent Runner')).toBeInTheDocument());
 
       await act(async () => {
-        fireEvent.click(screen.getByRole('button', { name: /Schedules/i }));
+        fireEvent.click(screen.getByRole('tab', { name: /Schedules/i }));
       });
 
       expect(screen.getByText('Original Schedule')).toBeInTheDocument();
