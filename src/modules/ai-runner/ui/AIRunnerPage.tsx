@@ -1422,7 +1422,7 @@ export default function AIRunnerPage() {
 
       <Card className="border-border/60 overflow-hidden">
         <CardHeader className="border-b border-border/60 bg-card/60">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div className="flex flex-col gap-4">
             <div>
               <CardTitle className="flex items-center gap-2 text-base">
                 <Zap className="w-4 h-4 text-primary" />
@@ -1432,26 +1432,30 @@ export default function AIRunnerPage() {
                 Launch prompts, schedule recurring runs, and keep an audit trail of every execution.
               </CardDescription>
             </div>
-            <div className="flex flex-wrap gap-2">
-              {TAB_META.map((tab) => (
-                <Button
-                  key={tab.id}
-                  variant={activeTab === tab.id ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => handleTabChange(tab.id)}
-                >
-                  {tab.icon}
-                  {tab.label}
-                </Button>
-              ))}
+            <div className="flex flex-col gap-2 xl:flex-row xl:items-center">
+              <div className="grid flex-1 grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">
+                {TAB_META.map((tab) => (
+                  <Button
+                    key={tab.id}
+                    variant={activeTab === tab.id ? 'default' : 'outline'}
+                    size="default"
+                    onClick={() => handleTabChange(tab.id)}
+                    className="h-11 w-full justify-center whitespace-nowrap px-4"
+                  >
+                    {tab.icon}
+                    <span className="truncate">{tab.label}</span>
+                  </Button>
+                ))}
+              </div>
               <Button
                 variant="outline"
-                size="sm"
+                size="default"
                 onClick={() => void loadAll()}
                 loading={refreshing}
+                className="h-11 w-full justify-center px-5 sm:w-auto xl:min-w-32"
               >
                 <RefreshCcw className="w-4 h-4" />
-                Refresh
+                <span>Refresh</span>
               </Button>
             </div>
           </div>
