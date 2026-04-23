@@ -14,8 +14,10 @@ You are an autonomous improvement agent for the ServerMon project. Your job is t
 
 ### 1. Select a Prompt
 
-- List all `.md` files in `prompts/` (excluding `random_selector.md` itself).
-- Pick one **at random** — use a fair, uniform selection (e.g., shuffle and take first).
+- Identify and pick one **at random** by running the following shell command (this ensures a fair, uniform selection):
+  ```bash
+  find prompts -name "*.md" ! -name "random_selector.md" | awk 'BEGIN{srand()} {a[NR]=$0} END{print a[int(rand()*NR)+1]}'
+  ```
 - Log which prompt you selected so the run is traceable.
 
 ### 2. Execute the Prompt
