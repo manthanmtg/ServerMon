@@ -132,16 +132,18 @@ interface SortHeaderProps {
 
 const SortHeader = React.memo(({ field, children, className, currentSort, onSort }: SortHeaderProps) => (
   <th
-    className={cn(
-      'px-3 py-2.5 text-xs font-medium text-muted-foreground cursor-pointer hover:text-foreground transition-colors select-none',
-      className
-    )}
-    onClick={() => onSort(field)}
+    className={cn('px-3 py-2.5 text-xs font-medium text-muted-foreground', className)}
+    aria-sort={currentSort === field ? 'descending' : 'none'}
   >
-    <span className="inline-flex items-center gap-1">
+    <button
+      type="button"
+      className="inline-flex items-center gap-1 cursor-pointer hover:text-foreground transition-colors select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 rounded-sm"
+      onClick={() => onSort(field)}
+      aria-label={`Sort by ${String(children)}`}
+    >
       {children}
       {currentSort === field && <ArrowUpDown className="w-3 h-3 text-primary" />}
-    </span>
+    </button>
   </th>
 ));
 
@@ -266,8 +268,12 @@ export default function ProcessWidget() {
       {/* Toolbar */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
         <div className="relative flex-1 sm:max-w-xs">
+          <label htmlFor="process-search" className="sr-only">
+            Search processes
+          </label>
           <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
           <input
+            id="process-search"
             type="text"
             placeholder="Search by name, PID, user..."
             value={search}
@@ -306,6 +312,10 @@ export default function ProcessWidget() {
                   size="icon"
                   className="h-7 w-7 shrink-0"
                   onClick={() => setExpandedPid(expandedPid === p.pid ? null : p.pid)}
+                  aria-label={`${
+                    expandedPid === p.pid ? 'Collapse' : 'Expand'
+                  } details for process ${p.name} (${p.pid})`}
+                  aria-expanded={expandedPid === p.pid}
                 >
                   {expandedPid === p.pid ? (
                     <ChevronDown className="w-4 h-4" />
@@ -426,8 +436,13 @@ export default function ProcessWidget() {
                   <tr className="border-b border-border last:border-0 hover:bg-accent/30 transition-colors group">
                     <td className="px-2">
                       <button
-                        className="p-1 rounded hover:bg-accent transition-colors cursor-pointer"
+                        type="button"
+                        className="p-1 rounded hover:bg-accent transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
                         onClick={() => setExpandedPid(expandedPid === p.pid ? null : p.pid)}
+                        aria-label={`${
+                          expandedPid === p.pid ? 'Collapse' : 'Expand'
+                        } details for process ${p.name} (${p.pid})`}
+                        aria-expanded={expandedPid === p.pid}
                       >
                         {expandedPid === p.pid ? (
                           <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
