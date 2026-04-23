@@ -199,13 +199,6 @@ const mockListing = {
   git: null,
 };
 
-const mockTreeNode = {
-  path: '/',
-  name: '/',
-  isDirectory: true,
-  children: [],
-};
-
 const makeEntry = (name: string, isDirectory = false) => ({
   name,
   path: `/root/${name}`,

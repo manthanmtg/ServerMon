@@ -142,7 +142,10 @@ describe('TerminalPage', () => {
 
   it('renders loading skeleton initially', async () => {
     setupFetchMock();
-    let resolveSessions: (value: any) => void;
+    let resolveSessions: (value: {
+      ok: boolean;
+      json: () => Promise<{ sessions: typeof mockSessions }>;
+    }) => void;
     global.fetch = vi.fn().mockImplementation((url: string) => {
       if (url === '/api/terminal/sessions') {
         return new Promise((resolve) => {
