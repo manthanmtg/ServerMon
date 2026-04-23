@@ -1,11 +1,20 @@
 import { metricsService, SystemMetric } from '@/lib/metrics';
 import { createLogger } from '@/lib/logger';
+import { getSession } from '@/lib/session';
 
 const log = createLogger('sse');
 
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
+  const session = await getSession();
+  if (!session) {
+    return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+      status: 401,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+
   if (!metricsService.canAcceptConnection()) {
     log.warn('SSE connection rejected: limit reached');
     return new Response('Too many connections', { status: 429 });

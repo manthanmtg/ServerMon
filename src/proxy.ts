@@ -1,39 +1,29 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { decrypt } from '@/lib/session';
-
-const publicRoutes = ['/login', '/setup'];
-const publicApiRoutes = [
-  '/api/auth/login',
-  '/api/auth/logout', // Allow logouts without strict session if session is already dead
-  '/api/auth/passkey',
-  '/api/auth/verify',
-  '/api/setup',
-  '/api/settings/branding', // Allow logo/title to persist on login page after logout
-  '/api/endpoints', // Custom endpoints handle their own auth via tokens
-  '/api/metrics/stream', // Allow metrics stream in proxy and send credentials in MetricsContext.
-];
+import { decrypt, updateSession } from '@/lib/session';
+import { isPublicApiRoute, isPublicRoute } from '@/lib/auth-routes';
 
 export default async function middleware(req: NextRequest) {
   const path = req.nextUrl.pathname;
 
-  // Check if it's a public route or a public API route
-  const isPublicRoute = publicRoutes.some((route) => path === route);
-  const isPublicApiRoute = publicApiRoutes.some((route) => path.startsWith(route));
+  const routeIsPublic = isPublicRoute(path);
+  const apiRouteIsPublic = isPublicApiRoute(path);
 
   const cookie = req.cookies.get('session')?.value;
   const session = cookie ? await decrypt(cookie).catch(() => null) : null;
 
-  // Protection logic
-  if (!isPublicRoute && !isPublicApiRoute && !session) {
+  if (!routeIsPublic && !apiRouteIsPublic && !session) {
     if (path.startsWith('/api')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     return NextResponse.redirect(new URL('/login', req.nextUrl));
   }
 
-  // Redirect to dashboard if logged in and trying to access public routes (non-API)
-  if (isPublicRoute && session) {
+  if (routeIsPublic && session) {
     return NextResponse.redirect(new URL('/dashboard', req.nextUrl));
+  }
+
+  if (session && !routeIsPublic && !apiRouteIsPublic) {
+    return (await updateSession(req)) ?? NextResponse.next();
   }
 
   return NextResponse.next();

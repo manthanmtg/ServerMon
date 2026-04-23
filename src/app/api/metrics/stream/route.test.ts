@@ -11,6 +11,7 @@ const mockRegisterConnection = vi.fn();
 const mockUnregisterConnection = vi.fn();
 const mockGetCurrent = vi.fn();
 const mockGetHistory = vi.fn();
+const mockGetSession = vi.fn();
 
 vi.mock('@/lib/metrics', () => ({
   metricsService: {
@@ -31,6 +32,10 @@ vi.mock('@/lib/logger', () => ({
     warn: vi.fn(),
     error: vi.fn(),
   }),
+}));
+
+vi.mock('@/lib/session', () => ({
+  getSession: mockGetSession,
 }));
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -56,9 +61,21 @@ const makeMetric = (): SystemMetric => ({
 describe('GET /api/metrics/stream', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockGetSession.mockResolvedValue({ user: { id: 'u1' } });
     mockCanAcceptConnection.mockReturnValue(true);
     mockGetCurrent.mockReturnValue(null);
     mockGetHistory.mockReturnValue([]);
+  });
+
+  it('returns 401 when the session is missing', async () => {
+    mockGetSession.mockResolvedValue(null);
+
+    const { GET } = await import('./route');
+    const response = await GET();
+
+    expect(response.status).toBe(401);
+    expect(await response.json()).toEqual({ error: 'Unauthorized' });
+    expect(mockRegisterConnection).not.toHaveBeenCalled();
   });
 
   it('returns 429 when connection limit is reached', async () => {
