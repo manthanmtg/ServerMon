@@ -1406,14 +1406,18 @@ export default function AIRunnerPage() {
               </CardDescription>
             </div>
             <div className="flex flex-col gap-2 xl:flex-row xl:items-center">
-              <div className="grid flex-1 grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">
+              <div className="grid flex-1 grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6" role="tablist">
                 {TAB_META.map((tab) => (
                   <Button
                     key={tab.id}
+                    id={`tab-${tab.id}`}
                     variant={activeTab === tab.id ? 'default' : 'outline'}
                     size="default"
                     onClick={() => handleTabChange(tab.id)}
                     className="h-11 w-full justify-center whitespace-nowrap px-4"
+                    role="tab"
+                    aria-selected={activeTab === tab.id}
+                    aria-controls={`runner-tab-${tab.id}`}
                   >
                     {tab.icon}
                     <span className="truncate">{tab.label}</span>
@@ -1449,7 +1453,7 @@ export default function AIRunnerPage() {
           ) : null}
 
           {activeTab === 'run' && (
-            <div className="grid gap-5 lg:grid-cols-[1.05fr_1fr]">
+            <div id="runner-tab-run" role="tabpanel" aria-labelledby="tab-run" className="grid gap-5 lg:grid-cols-[1.05fr_1fr]">
               <Card className="border-border/60">
                 <CardHeader>
                   <CardTitle className="text-sm">Prompt Composer</CardTitle>
@@ -1767,7 +1771,7 @@ export default function AIRunnerPage() {
           )}
 
           {activeTab === 'prompts' && (
-            <div className="space-y-5">
+            <div id="runner-tab-prompts" role="tabpanel" aria-labelledby="tab-prompts" className="space-y-5">
               <div className="flex flex-wrap gap-3">
                 <Button size="lg" onClick={openCreatePromptModal} className="shrink-0">
                   <Save className="w-4 h-4" />
@@ -2040,7 +2044,7 @@ export default function AIRunnerPage() {
           )}
 
           {activeTab === 'schedules' && (
-            <div className="space-y-5">
+            <div id="runner-tab-schedules" role="tabpanel" aria-labelledby="tab-schedules" className="space-y-5">
               <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_260px] xl:items-start">
                 <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                   <CompactStat
@@ -2557,7 +2561,7 @@ export default function AIRunnerPage() {
           )}
 
           {activeTab === 'history' && (
-            <div className="space-y-5">
+            <div id="runner-tab-history" role="tabpanel" aria-labelledby="tab-history" className="space-y-5">
               <Card className="border-border/60">
                 <CardContent className="p-0">
                   <div className="border-b border-border/60 px-5 py-4">
@@ -2759,7 +2763,7 @@ export default function AIRunnerPage() {
           )}
 
           {activeTab === 'settings' && (
-            <div className="space-y-5">
+            <div id="runner-tab-settings" role="tabpanel" aria-labelledby="tab-settings" className="space-y-5">
               <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_260px] xl:items-start">
                 <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
                   <CompactStat
@@ -3289,7 +3293,7 @@ export default function AIRunnerPage() {
           )}
 
           {activeTab === 'logs' && (
-            <div className="space-y-5">
+            <div id="runner-tab-logs" role="tabpanel" aria-labelledby="tab-logs" className="space-y-5">
               <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_280px]">
                 <Card className="border-border/60">
                   <CardHeader>

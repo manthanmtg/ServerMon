@@ -11,6 +11,8 @@ export function FieldHint({ text }: { text: string }) {
   return (
     <span
       title={text}
+      role="tooltip"
+      aria-label={text}
       className="inline-flex h-4 w-4 cursor-help items-center justify-center rounded-full text-muted-foreground hover:text-foreground"
     >
       <Info className="h-3.5 w-3.5" />
@@ -82,6 +84,8 @@ export function ProfileIconPreview({
   const Icon = preset?.icon ?? Bot;
   return (
     <div
+      role="img"
+      aria-label={`${name} icon`}
       className={cn(
         'flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-secondary text-primary',
         className
