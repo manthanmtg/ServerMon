@@ -29,6 +29,7 @@ function buildEnv(endpoint: ICustomEndpoint, input: ExecutionInput): Record<stri
 
   if (input.body) {
     safeEnv.ENDPOINT_BODY = input.body;
+    safeEnv.REQUEST_BODY = input.body;
   }
 
   if (endpoint.envVars) {
