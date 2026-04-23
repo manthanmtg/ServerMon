@@ -7,6 +7,7 @@ import * as pty from 'node-pty';
 import os from 'os';
 import { createLogger } from './lib/logger';
 import { decrypt } from './lib/session-core';
+import { resetAIRunnerLogSession, writeAIRunnerLogEntry } from './lib/ai-runner/logs';
 import { ensureAIRunnerSupervisor } from './lib/ai-runner/processes';
 import { getRuntimeDiagnostics } from './lib/runtime-diagnostics';
 import { handleRequestWithDiagnostics } from './lib/server-request-diagnostics';
@@ -61,7 +62,18 @@ async function cleanupStaleSessions() {
 }
 
 app.prepare().then(async () => {
+  const aiRunnerLogPath = await resetAIRunnerLogSession();
   await cleanupStaleSessions();
+  await writeAIRunnerLogEntry({
+    level: 'info',
+    component: 'server',
+    event: 'server.ready',
+    message: 'ServerMon server finished startup and reset AI Runner logs',
+    data: {
+      port,
+      aiRunnerLogPath,
+    },
+  });
   ensureAIRunnerSupervisor();
   const server = createServer((req, res) => {
     const parsedUrl = parse(req.url!, true);

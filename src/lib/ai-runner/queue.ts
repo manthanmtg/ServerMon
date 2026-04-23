@@ -20,6 +20,7 @@ import {
   stringifyId,
   type AIRunnerResolvedExecution,
 } from './shared';
+import { writeAIRunnerLogEntry } from './logs';
 
 interface LegacyPromptRuntime {
   agentProfileId?: unknown;
@@ -172,6 +173,24 @@ export async function enqueueResolvedRun(
 
   runDoc.jobId = jobDoc._id;
   await runDoc.save();
+
+  void writeAIRunnerLogEntry({
+    level: 'info',
+    component: 'ai-runner:queue',
+    event: 'run.queued',
+    message: 'Queued AI Runner job',
+    data: {
+      runId: stringifyId(runDoc._id),
+      jobId: stringifyId(jobDoc._id),
+      scheduleId: resolved.scheduleId,
+      promptId: resolved.promptId,
+      profileId: resolved.profile._id,
+      triggeredBy: resolved.triggeredBy,
+      queuedAt: queuedAt.toISOString(),
+      scheduledFor: jobScheduledFor?.toISOString(),
+      workingDirectory: resolved.workingDirectory,
+    },
+  });
 
   if (resolved.scheduleId) {
     const nextRunTime = getNextRunTimeFromExpression(

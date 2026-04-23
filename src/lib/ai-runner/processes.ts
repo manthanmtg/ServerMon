@@ -3,6 +3,7 @@ import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { createLogger } from '@/lib/logger';
+import { writeAIRunnerLogEntry } from './logs';
 
 const log = createLogger('ai-runner:processes');
 const SUPERVISOR_COOLDOWN_MS = 10_000;
@@ -46,15 +47,43 @@ export function ensureAIRunnerSupervisor(): void {
       AI_RUNNER_SUPERVISOR_INSTANCE_ID: randomUUID(),
     });
     log.debug(`Spawned AI Runner supervisor process ${pid}`);
+    void writeAIRunnerLogEntry({
+      level: 'info',
+      component: 'ai-runner:processes',
+      event: 'supervisor.spawned',
+      message: 'Spawned detached AI Runner supervisor process',
+      data: { pid },
+    });
   } catch (error) {
     log.error('Failed to spawn AI Runner supervisor', error);
+    void writeAIRunnerLogEntry({
+      level: 'error',
+      component: 'ai-runner:processes',
+      event: 'supervisor.spawn_failed',
+      message: 'Failed to spawn detached AI Runner supervisor process',
+      data: {
+        error: error instanceof Error ? error.message : String(error),
+      },
+    });
   }
 }
 
 export function spawnAIRunnerWorker(jobId: string, supervisorId: string): number {
-  return spawnDetachedProcess([getTsxCliPath(), getScriptPath('./worker-entry.ts'), jobId], {
+  const pid = spawnDetachedProcess([getTsxCliPath(), getScriptPath('./worker-entry.ts'), jobId], {
     AI_RUNNER_PROCESS_KIND: 'worker',
     AI_RUNNER_SUPERVISOR_INSTANCE_ID: supervisorId,
     AI_RUNNER_JOB_ID: jobId,
   });
+  void writeAIRunnerLogEntry({
+    level: 'info',
+    component: 'ai-runner:processes',
+    event: 'worker.spawned',
+    message: 'Spawned detached AI Runner worker process',
+    data: {
+      pid,
+      jobId,
+      supervisorId,
+    },
+  });
+  return pid;
 }

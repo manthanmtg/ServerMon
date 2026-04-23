@@ -19,6 +19,7 @@ import {
   shouldRetryJob,
   stringifyId,
 } from './shared';
+import { writeAIRunnerLogEntry } from './logs';
 
 const log = createLogger('ai-runner:worker');
 
@@ -61,6 +62,15 @@ export class AIRunnerWorker {
     );
 
     if (!job) {
+      await writeAIRunnerLogEntry({
+        level: 'warn',
+        component: 'ai-runner:worker',
+        event: 'worker.start_skipped',
+        message: 'Worker started but no dispatched job was available',
+        data: {
+          jobId: this.jobId,
+        },
+      });
       return;
     }
 
@@ -71,6 +81,16 @@ export class AIRunnerWorker {
           status: 'failed',
           finishedAt: new Date(),
           lastError: 'Run document not found for job',
+        },
+      });
+      await writeAIRunnerLogEntry({
+        level: 'error',
+        component: 'ai-runner:worker',
+        event: 'worker.run_missing',
+        message: 'Worker could not find run document for job',
+        data: {
+          jobId: stringifyId(job._id),
+          runId: stringifyId(job.runId),
         },
       });
       return;
@@ -87,6 +107,20 @@ export class AIRunnerWorker {
     run.attemptCount = job.attemptCount;
     run.maxAttempts = job.maxAttempts;
     await run.save();
+
+    await writeAIRunnerLogEntry({
+      level: 'info',
+      component: 'ai-runner:worker',
+      event: 'job.started',
+      message: 'Worker began executing AI Runner job',
+      data: {
+        jobId: stringifyId(job._id),
+        runId: stringifyId(run._id),
+        attemptCount: job.attemptCount,
+        scheduledFor: job.scheduledFor?.toISOString(),
+        startedAt: now.toISOString(),
+      },
+    });
 
     const state: WorkerState = {
       buffers: createEmptyBuffers(),
@@ -190,6 +224,17 @@ export class AIRunnerWorker {
           })
           .catch((error) => {
             log.warn(`Failed to resolve worker child pid for job ${this.jobId}`, error);
+            void writeAIRunnerLogEntry({
+              level: 'warn',
+              component: 'ai-runner:worker',
+              event: 'worker.child_pid_resolution_failed',
+              message: 'Failed to resolve child process id for running worker',
+              data: {
+                jobId: this.jobId,
+                executionUnit: state.executionUnit,
+                error: error instanceof Error ? error.message : String(error),
+              },
+            });
           })
           .finally(() => {
             childPidLookupPromise = null;
@@ -224,6 +269,17 @@ export class AIRunnerWorker {
             await flush();
           } catch (error) {
             log.warn(`Failed worker heartbeat for job ${this.jobId}`, error);
+            void writeAIRunnerLogEntry({
+              level: 'warn',
+              component: 'ai-runner:worker',
+              event: 'worker.heartbeat_failed',
+              message: 'Worker heartbeat flush failed',
+              data: {
+                jobId: this.jobId,
+                runId: state.runId,
+                error: error instanceof Error ? error.message : String(error),
+              },
+            });
           }
         })();
       },
@@ -245,6 +301,17 @@ export class AIRunnerWorker {
       clearTimeout(timeoutHandle);
       await flush(true).catch((error) => {
         log.warn(`Failed to flush final worker output for job ${this.jobId}`, error);
+        void writeAIRunnerLogEntry({
+          level: 'warn',
+          component: 'ai-runner:worker',
+          event: 'worker.final_flush_failed',
+          message: 'Failed to flush final worker output',
+          data: {
+            jobId: this.jobId,
+            runId: state.runId,
+            error: error instanceof Error ? error.message : String(error),
+          },
+        });
       });
 
       const finishedAt = new Date();
@@ -305,6 +372,20 @@ export class AIRunnerWorker {
             lastRunAt: finishedAt,
           });
         }
+
+        await writeAIRunnerLogEntry({
+          level: 'warn',
+          component: 'ai-runner:worker',
+          event: 'job.retry_scheduled',
+          message: 'Scheduled AI Runner job retry after unsuccessful attempt',
+          data: {
+            jobId: stringifyId(job._id),
+            runId: stringifyId(run._id),
+            terminalRunStatus,
+            nextAttemptAt: nextAttemptAt.toISOString(),
+            exitCode: typeof exitCode === 'number' ? exitCode : undefined,
+          },
+        });
 
         completeRun?.();
         return;
@@ -374,6 +455,23 @@ export class AIRunnerWorker {
         });
       }
 
+      await writeAIRunnerLogEntry({
+        level: terminalRunStatus === 'completed' ? 'info' : 'warn',
+        component: 'ai-runner:worker',
+        event: 'job.finished',
+        message: 'Finished AI Runner job execution',
+        data: {
+          jobId: stringifyId(job._id),
+          runId: stringifyId(run._id),
+          terminalRunStatus,
+          finalJobStatus,
+          exitCode: typeof exitCode === 'number' ? exitCode : undefined,
+          finishedAt: finishedAt.toISOString(),
+          durationSeconds,
+          killedBy: state.killedBy,
+        },
+      });
+
       completeRun?.();
     };
 
@@ -411,6 +509,21 @@ export class AIRunnerWorker {
           unitName: state.executionUnit,
         });
 
+      await writeAIRunnerLogEntry({
+        level: 'info',
+        component: 'ai-runner:worker',
+        event: 'worker.child_spawned',
+        message: 'Spawned AI Runner child command',
+        data: {
+          jobId: this.jobId,
+          runId: state.runId,
+          pid: state.childPid || undefined,
+          executionUnit: state.executionUnit,
+          requiresTTY: job.requiresTTY,
+          shell: job.shell,
+        },
+      });
+
       child.stdout?.on('data', (chunk: Buffer | string) => {
         applyChunk('stdout', chunk.toString());
       });
@@ -421,10 +534,32 @@ export class AIRunnerWorker {
 
       child.on('error', (error) => {
         log.error(`Worker child errored for job ${this.jobId}`, error);
+        void writeAIRunnerLogEntry({
+          level: 'error',
+          component: 'ai-runner:worker',
+          event: 'worker.child_error',
+          message: 'AI Runner child process emitted an error',
+          data: {
+            jobId: this.jobId,
+            runId: state.runId,
+            error: error instanceof Error ? error.message : String(error),
+          },
+        });
         void finalize(null, 'failed');
       });
 
       child.on('close', (exitCode) => {
+        void writeAIRunnerLogEntry({
+          level: exitCode === 0 ? 'info' : 'warn',
+          component: 'ai-runner:worker',
+          event: 'worker.child_closed',
+          message: 'AI Runner child process closed',
+          data: {
+            jobId: this.jobId,
+            runId: state.runId,
+            exitCode,
+          },
+        });
         void finalize(exitCode, exitCode === 0 ? 'completed' : 'failed');
       });
 
@@ -450,6 +585,17 @@ export class AIRunnerWorker {
           },
         }),
       ]);
+      await writeAIRunnerLogEntry({
+        level: 'error',
+        component: 'ai-runner:worker',
+        event: 'worker.start_failed',
+        message: 'Failed to start AI Runner child command',
+        data: {
+          jobId: this.jobId,
+          runId: state.runId,
+          error: error instanceof Error ? error.message : String(error),
+        },
+      });
       throw error;
     }
 

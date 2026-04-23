@@ -4,7 +4,7 @@ import type {
   AIRunnerScheduleDTO,
 } from '../types';
 
-export type ViewTab = 'run' | 'prompts' | 'schedules' | 'history' | 'settings';
+export type ViewTab = 'run' | 'prompts' | 'schedules' | 'history' | 'settings' | 'logs';
 
 export type HistoryDetailSection = 'summary' | 'output' | 'command' | 'metadata' | 'resources';
 

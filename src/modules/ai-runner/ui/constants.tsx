@@ -19,6 +19,7 @@ export const TAB_META: Array<{ id: ViewTab; label: string; icon: ReactNode }> = 
   { id: 'schedules', label: 'Schedules', icon: <CalendarClock className="w-4 h-4" /> },
   { id: 'history', label: 'History', icon: <History className="w-4 h-4" /> },
   { id: 'settings', label: 'Agent Profiles', icon: <Settings2 className="w-4 h-4" /> },
+  { id: 'logs', label: 'Logs', icon: <TerminalSquare className="w-4 h-4" /> },
 ];
 
 export const DEFAULT_PROFILE_FORM: ProfileFormState = {

@@ -7,6 +7,7 @@ import AIRunnerSchedule from '@/models/AIRunnerSchedule';
 import AIRunnerSupervisorLease from '@/models/AIRunnerSupervisorLease';
 import type { AIRunnerRunStatus } from '@/modules/ai-runner/types';
 import { terminateAIRunnerExecution } from './execution';
+import { writeAIRunnerLogEntry } from './logs';
 import { spawnAIRunnerWorker } from './processes';
 import { enqueueRunRequest } from './queue';
 import { getAIRunnerSettings } from './settings';
@@ -38,6 +39,17 @@ export class AIRunnerSupervisor {
 
   async run(): Promise<void> {
     await connectDB();
+    await writeAIRunnerLogEntry({
+      level: 'info',
+      component: 'ai-runner:supervisor',
+      event: 'supervisor.loop_started',
+      message: 'AI Runner supervisor loop started',
+      data: {
+        instanceId: this.instanceId,
+        maxConcurrentRuns: this.maxConcurrentRuns,
+        tickMs: this.tickMs,
+      },
+    });
 
     while (true) {
       const hasLease = await this.acquireLease();
@@ -49,6 +61,16 @@ export class AIRunnerSupervisor {
         await this.tick();
       } catch (error) {
         log.error('Supervisor tick failed', error);
+        await writeAIRunnerLogEntry({
+          level: 'error',
+          component: 'ai-runner:supervisor',
+          event: 'supervisor.tick_failed',
+          message: 'AI Runner supervisor tick failed',
+          data: {
+            instanceId: this.instanceId,
+            error: error instanceof Error ? error.message : String(error),
+          },
+        });
       }
 
       await sleep(this.tickMs);
@@ -115,6 +137,23 @@ export class AIRunnerSupervisor {
       const cancelled = job.cancelRequestedAt != null;
       const retryable = !cancelled && !timedOut && shouldRetryJob(job);
 
+      await writeAIRunnerLogEntry({
+        level: retryable ? 'warn' : 'error',
+        component: 'ai-runner:supervisor',
+        event: 'job.stale_detected',
+        message: 'Detected stale AI Runner job heartbeat',
+        data: {
+          jobId: stringifyId(job._id),
+          runId: stringifyId(job.runId),
+          status: job.status,
+          heartbeatAt: job.heartbeatAt?.toISOString(),
+          startedAt: job.startedAt?.toISOString(),
+          timedOut,
+          cancelled,
+          retryable,
+        },
+      });
+
       if (retryable) {
         const nextAttemptAt = new Date(Date.now() + DEFAULT_RETRY_DELAY_MS);
         await Promise.all([
@@ -153,6 +192,17 @@ export class AIRunnerSupervisor {
             lastRunAt: new Date(),
           });
         }
+        await writeAIRunnerLogEntry({
+          level: 'warn',
+          component: 'ai-runner:supervisor',
+          event: 'job.retry_queued',
+          message: 'Queued retry for stale AI Runner job',
+          data: {
+            jobId: stringifyId(job._id),
+            runId: stringifyId(job.runId),
+            nextAttemptAt: nextAttemptAt.toISOString(),
+          },
+        });
         continue;
       }
 
@@ -209,6 +259,19 @@ export class AIRunnerSupervisor {
           lastRunAt: finishedAt,
         });
       }
+
+      await writeAIRunnerLogEntry({
+        level: 'error',
+        component: 'ai-runner:supervisor',
+        event: 'job.stale_finalized',
+        message: 'Finalized stale AI Runner job after heartbeat loss',
+        data: {
+          jobId: stringifyId(job._id),
+          runId: stringifyId(job.runId),
+          terminalStatus,
+          finishedAt: finishedAt.toISOString(),
+        },
+      });
     }
   }
 
@@ -221,6 +284,18 @@ export class AIRunnerSupervisor {
 
     const settings = await getAIRunnerSettings();
     if (!settings.schedulesGloballyEnabled) {
+      if (schedules.length > 0) {
+        await writeAIRunnerLogEntry({
+          level: 'info',
+          component: 'ai-runner:supervisor',
+          event: 'schedule.catchup_advanced_while_paused',
+          message: 'Advanced overdue schedules while global auto-queue was disabled',
+          data: {
+            count: schedules.length,
+          },
+        });
+      }
+
       for (const schedule of schedules) {
         let cursor = schedule.nextRunTime;
         let catchupCount = 0;
@@ -260,6 +335,19 @@ export class AIRunnerSupervisor {
           schedule.lastRunAt = now;
           schedule.lastRunStatus = 'queued';
           schedule.lastScheduledFor = cursor;
+          await writeAIRunnerLogEntry({
+            level: 'info',
+            component: 'ai-runner:supervisor',
+            event: 'schedule.run_enqueued',
+            message: 'Enqueued due AI Runner schedule',
+            data: {
+              scheduleId: stringifyId(schedule._id),
+              promptId: stringifyId(schedule.promptId),
+              scheduledFor: cursor.toISOString(),
+              observedAt: now.toISOString(),
+              catchupCount,
+            },
+          });
         } catch (error) {
           if (
             typeof error === 'object' &&
@@ -270,6 +358,16 @@ export class AIRunnerSupervisor {
             log.warn(
               `Skipped duplicate AI Runner schedule enqueue for ${stringifyId(schedule._id)}`
             );
+            await writeAIRunnerLogEntry({
+              level: 'warn',
+              component: 'ai-runner:supervisor',
+              event: 'schedule.duplicate_enqueue_skipped',
+              message: 'Skipped duplicate AI Runner schedule enqueue',
+              data: {
+                scheduleId: stringifyId(schedule._id),
+                scheduledFor: cursor.toISOString(),
+              },
+            });
           } else {
             throw error;
           }
@@ -319,6 +417,21 @@ export class AIRunnerSupervisor {
       if (!job) {
         break;
       }
+
+      await writeAIRunnerLogEntry({
+        level: 'info',
+        component: 'ai-runner:supervisor',
+        event: 'job.dispatched',
+        message: 'Dispatched AI Runner job to worker',
+        data: {
+          jobId: stringifyId(job._id),
+          runId: stringifyId(job.runId),
+          scheduleId: job.scheduleId ? stringifyId(job.scheduleId) : undefined,
+          dispatchedAt: now.toISOString(),
+          scheduledFor: job.scheduledFor?.toISOString(),
+          queueDelayMs: job.scheduledFor ? now.getTime() - job.scheduledFor.getTime() : undefined,
+        },
+      });
 
       const workerPid = spawnAIRunnerWorker(stringifyId(job._id), this.instanceId);
       if (!workerPid) {

@@ -76,6 +76,24 @@ export interface AIRunnerSettingsDTO {
   updatedAt?: string;
 }
 
+export interface AIRunnerLogEntry {
+  id: string;
+  timestamp: string;
+  level: 'debug' | 'info' | 'warn' | 'error';
+  component: string;
+  event: string;
+  message: string;
+  sessionId: string;
+  pid: number;
+  data?: Record<string, unknown>;
+}
+
+export interface AIRunnerLogsResponse {
+  entries: AIRunnerLogEntry[];
+  filePath: string;
+  sessionId: string;
+}
+
 export interface AIRunnerResourceUsage {
   peakCpuPercent: number;
   peakMemoryBytes: number;
