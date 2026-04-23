@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import {
   LayoutDashboard,
@@ -40,11 +40,23 @@ interface ModuleDef {
 }
 
 const ALL_MODULES: ModuleDef[] = [
-  { id: 'dashboard', label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, iconKey: 'LayoutDashboard' },
+  {
+    id: 'dashboard',
+    label: 'Dashboard',
+    href: '/dashboard',
+    icon: LayoutDashboard,
+    iconKey: 'LayoutDashboard',
+  },
   { id: 'terminal', label: 'Terminal', href: '/terminal', icon: Terminal, iconKey: 'Terminal' },
   { id: 'processes', label: 'Processes', href: '/processes', icon: Monitor, iconKey: 'Monitor' },
   { id: 'logs', label: 'Audit Logs', href: '/logs', icon: Activity, iconKey: 'Activity' },
-  { id: 'file-browser', label: 'File Browser', href: '/file-browser', icon: FolderTree, iconKey: 'FolderTree' },
+  {
+    id: 'file-browser',
+    label: 'File Browser',
+    href: '/file-browser',
+    icon: FolderTree,
+    iconKey: 'FolderTree',
+  },
   { id: 'disk', label: 'Disk', href: '/disk', icon: HardDrive, iconKey: 'HardDrive' },
   { id: 'network', label: 'Network', href: '/network', icon: Activity, iconKey: 'Activity' },
   { id: 'updates', label: 'Updates', href: '/updates', icon: Package, iconKey: 'Package' },
@@ -54,15 +66,29 @@ const ALL_MODULES: ModuleDef[] = [
   { id: 'crons', label: 'Crons', href: '/crons', icon: Clock, iconKey: 'Clock' },
   { id: 'ports', label: 'Ports', href: '/ports', icon: Cable, iconKey: 'Cable' },
   { id: 'hardware', label: 'Hardware', href: '/hardware', icon: Cpu, iconKey: 'Cpu' },
-  { id: 'certificates', label: 'Certificates', href: '/certificates', icon: ShieldCheck, iconKey: 'ShieldCheck' },
+  {
+    id: 'certificates',
+    label: 'Certificates',
+    href: '/certificates',
+    icon: ShieldCheck,
+    iconKey: 'ShieldCheck',
+  },
   { id: 'nginx', label: 'Nginx', href: '/nginx', icon: Server, iconKey: 'Server' },
   { id: 'security', label: 'Security', href: '/security', icon: Shield, iconKey: 'Shield' },
   { id: 'users', label: 'Users & Permissions', href: '/users', icon: Users, iconKey: 'Users' },
   { id: 'memory', label: 'Memory', href: '/memory', icon: Brain, iconKey: 'Brain' },
-  { id: 'endpoints', label: 'Endpoints', href: '/endpoints', icon: Waypoints, iconKey: 'Waypoints' },
+  {
+    id: 'endpoints',
+    label: 'Endpoints',
+    href: '/endpoints',
+    icon: Waypoints,
+    iconKey: 'Waypoints',
+  },
 ];
 
 export { ALL_MODULES };
+
+const MODULE_BY_ID = new Map(ALL_MODULES.map((moduleDef) => [moduleDef.id, moduleDef]));
 
 export default function QuickAccessSettings() {
   const { toast } = useToast();
@@ -83,11 +109,16 @@ export default function QuickAccessSettings() {
       .catch(() => setIsLoading(false));
   }, []);
 
-  const enabledModules = enabledIds
-    .map((id) => ALL_MODULES.find((m) => m.id === id))
-    .filter((m): m is ModuleDef => m !== undefined);
+  const enabledModules = useMemo(
+    () =>
+      enabledIds.map((id) => MODULE_BY_ID.get(id)).filter((m): m is ModuleDef => m !== undefined),
+    [enabledIds]
+  );
 
-  const disabledModules = ALL_MODULES.filter((m) => !enabledIds.includes(m.id));
+  const disabledModules = useMemo(() => {
+    const enabledSet = new Set(enabledIds);
+    return ALL_MODULES.filter((m) => !enabledSet.has(m.id));
+  }, [enabledIds]);
 
   const toggleModule = useCallback((id: string, enabled: boolean) => {
     setEnabledIds((prev) => {
@@ -122,7 +153,7 @@ export default function QuickAccessSettings() {
     try {
       const items: QuickAccessItem[] = enabledIds
         .map((id) => {
-          const mod = ALL_MODULES.find((m) => m.id === id);
+          const mod = MODULE_BY_ID.get(id);
           if (!mod) return null;
           return { id: mod.id, href: mod.href, label: mod.label, icon: mod.iconKey };
         })
@@ -139,7 +170,11 @@ export default function QuickAccessSettings() {
         throw new Error(err.error ?? 'Failed to save');
       }
 
-      toast({ title: 'Quick Access Saved', description: 'Bar updated successfully.', variant: 'success' });
+      toast({
+        title: 'Quick Access Saved',
+        description: 'Bar updated successfully.',
+        variant: 'success',
+      });
     } catch (err) {
       toast({
         title: 'Save Failed',
@@ -167,7 +202,9 @@ export default function QuickAccessSettings() {
       <CardContent className="space-y-5">
         {/* Live preview */}
         <div>
-          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Preview</p>
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
+            Preview
+          </p>
           <div className="h-12 rounded-xl bg-background/60 backdrop-blur-md border border-border/50 flex items-center px-3 gap-1 overflow-x-auto scrollbar-none">
             {enabledModules.length === 0 ? (
               <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
@@ -216,7 +253,9 @@ export default function QuickAccessSettings() {
                       <div className="w-7 h-7 rounded-md bg-primary/10 flex items-center justify-center shrink-0">
                         <mod.icon className="w-3.5 h-3.5 text-primary" />
                       </div>
-                      <span className="flex-1 text-sm font-medium text-foreground">{mod.label}</span>
+                      <span className="flex-1 text-sm font-medium text-foreground">
+                        {mod.label}
+                      </span>
                       <button
                         onClick={() => toggleModule(mod.id, false)}
                         className="text-xs text-muted-foreground hover:text-destructive transition-colors px-2 py-1 rounded min-h-[44px]"
