@@ -1,8 +1,11 @@
 import { moduleRegistry } from './ModuleRegistry';
 import { coreModules } from '@/modules';
+import { createLogger } from '../logger';
+
+const logger = createLogger('ModuleLoader');
 
 export async function initializeModules() {
-  console.log('--- Initializing Modules ---');
+  logger.info('--- Initializing Modules ---');
   for (const mod of coreModules) {
     await moduleRegistry.register(mod);
   }

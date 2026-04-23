@@ -1,7 +1,10 @@
 import { Module, ModuleContext } from '@/types/module';
 import { eventBus } from './EventBus';
 import { analyticsService } from '../analytics';
+import { createLogger } from '../logger';
 import os from 'os';
+
+const logger = createLogger('ModuleRegistry');
 
 class ModuleRegistry {
   private static instance: ModuleRegistry;
@@ -22,7 +25,7 @@ class ModuleRegistry {
    */
   public async register(mod: Module): Promise<void> {
     if (this.modules.has(mod.id)) {
-      console.warn(`Module with id ${mod.id} is already registered.`);
+      logger.warn(`Module with id ${mod.id} is already registered.`);
       return;
     }
 
@@ -34,7 +37,7 @@ class ModuleRegistry {
       await mod.init(ctx);
     }
 
-    console.log(`Module loaded: ${mod.name} (v${mod.version})`);
+    logger.info(`Module loaded: ${mod.name} (v${mod.version})`);
     eventBus.emit('module:loaded', { id: mod.id, name: mod.name });
 
     // Log registration

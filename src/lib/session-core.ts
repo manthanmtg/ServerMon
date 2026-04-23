@@ -1,4 +1,7 @@
 import { SignJWT, jwtVerify, importJWK } from 'jose';
+import { createLogger } from './logger';
+
+const logger = createLogger('session-core');
 
 function getSecretKey() {
   const secretKey = process.env.JWT_SECRET;
@@ -6,7 +9,7 @@ function getSecretKey() {
     if (process.env.NODE_ENV === 'production') {
       throw new Error('JWT_SECRET environment variable is required in production');
     }
-    console.warn('WARNING: JWT_SECRET is not set. Using insecure development fallback.');
+    logger.warn('WARNING: JWT_SECRET is not set. Using insecure development fallback.');
   }
   // HS256 requires exactly 32 bytes (256 bits).
   const secret = (secretKey || 'dev_fallback_secret_32_chars_now').slice(0, 32);
