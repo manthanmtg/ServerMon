@@ -7,6 +7,16 @@ import type { Module } from '@/types/module';
 const mockRegister = vi.fn().mockResolvedValue(undefined);
 const mockStart = vi.fn().mockResolvedValue(undefined);
 const mockGetAllModules = vi.fn();
+const mockLoggerInfo = vi.fn();
+
+vi.mock('../logger', () => ({
+  createLogger: vi.fn(() => ({
+    info: mockLoggerInfo,
+    error: vi.fn(),
+    warn: vi.fn(),
+    debug: vi.fn(),
+  })),
+}));
 
 vi.mock('./ModuleRegistry', () => ({
   moduleRegistry: {
@@ -50,7 +60,6 @@ describe('ModuleLoader - initializeModules()', () => {
     mockGetAllModules.mockReturnValue(fakeModules);
 
     const { initializeModules } = await import('./ModuleLoader');
-    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
     await initializeModules();
 
@@ -58,8 +67,6 @@ describe('ModuleLoader - initializeModules()', () => {
     expect(mockRegister).toHaveBeenCalledWith(fakeModules[0]);
     expect(mockRegister).toHaveBeenCalledWith(fakeModules[1]);
     expect(mockRegister).toHaveBeenCalledWith(fakeModules[2]);
-
-    consoleSpy.mockRestore();
   });
 
   it('starts all registered modules after registration', async () => {
@@ -78,15 +85,12 @@ describe('ModuleLoader - initializeModules()', () => {
     mockGetAllModules.mockReturnValue(fakeModules);
 
     const { initializeModules } = await import('./ModuleLoader');
-    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
     await initializeModules();
 
     expect(mockStart).toHaveBeenCalledTimes(2);
     expect(mockStart).toHaveBeenCalledWith('alpha');
     expect(mockStart).toHaveBeenCalledWith('beta');
-
-    consoleSpy.mockRestore();
   });
 
   it('logs initialization message', async () => {
@@ -105,13 +109,10 @@ describe('ModuleLoader - initializeModules()', () => {
     mockGetAllModules.mockReturnValue([]);
 
     const { initializeModules } = await import('./ModuleLoader');
-    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
     await initializeModules();
 
-    expect(consoleSpy).toHaveBeenCalledWith('--- Initializing Modules ---');
-
-    consoleSpy.mockRestore();
+    expect(mockLoggerInfo).toHaveBeenCalledWith('--- Initializing Modules ---');
   });
 
   it('handles empty coreModules gracefully', async () => {
@@ -128,12 +129,9 @@ describe('ModuleLoader - initializeModules()', () => {
     mockGetAllModules.mockReturnValue([]);
 
     const { initializeModules } = await import('./ModuleLoader');
-    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
     await expect(initializeModules()).resolves.toBeUndefined();
     expect(mockRegister).not.toHaveBeenCalled();
     expect(mockStart).not.toHaveBeenCalled();
-
-    consoleSpy.mockRestore();
   });
 });
