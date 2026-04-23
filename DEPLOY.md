@@ -6,16 +6,16 @@ This guide covers every way to deploy ServerMon — from a quick one-liner to a 
 
 ## Prerequisites
 
-| Requirement  | Minimum                             |
-| ------------ | ----------------------------------- |
-| OS           | Ubuntu 22.04+ or Debian 11+         |
-| Architecture | x86_64 or ARM64                     |
-| RAM          | 512 MB                              |
-| Disk         | 1 GB free                           |
-| Access       | Root or sudo                        |
-| Ports        | 8912 (app), 80/443 (if using Nginx) |
+| Requirement  | Minimum                                                        |
+| ------------ | -------------------------------------------------------------- |
+| OS           | Ubuntu 22.04+ or Debian 11+, or macOS 13+ for launchd installs |
+| Architecture | x86_64 or ARM64                                                |
+| RAM          | 512 MB                                                         |
+| Disk         | 1 GB free                                                      |
+| Access       | Root or sudo                                                   |
+| Ports        | 8912 (app), 80/443 (if using Nginx)                            |
 
-MongoDB and Node.js are installed automatically if not present.
+MongoDB and Node.js are installed automatically by the Linux installer. On macOS, install them yourself before setting up the launchd daemon.
 
 ---
 
@@ -30,6 +30,18 @@ sudo ./scripts/install.sh
 ```
 
 The interactive installer will walk you through configuration. Once complete, open `http://<your-server-ip>:8912` in a browser to run the setup wizard.
+
+### macOS Always-On Setup
+
+If you are running ServerMon on macOS and want schedules to survive reboot without user login, install it as a LaunchDaemon instead of starting it from Terminal:
+
+```bash
+pnpm install
+cp .env.example .env.local
+sudo ./scripts/install-launchd.sh
+```
+
+This creates `/Library/LaunchDaemons/com.servermon.servermon.plist`, keeps ServerMon alive with `launchd`, and starts it automatically at boot.
 
 ---
 
@@ -249,6 +261,28 @@ sudo systemctl stop servermon
 # Start the service
 sudo systemctl start servermon
 ```
+
+### macOS launchd
+
+```bash
+# Check the daemon
+sudo launchctl print system/com.servermon.servermon
+
+# Restart it immediately
+sudo launchctl kickstart -k system/com.servermon.servermon
+
+# Remove it
+sudo ./scripts/install-launchd.sh --uninstall
+```
+
+Files used on macOS:
+
+| Path                                                   | Purpose                           |
+| ------------------------------------------------------ | --------------------------------- |
+| `/Library/LaunchDaemons/com.servermon.servermon.plist` | LaunchDaemon definition           |
+| `/Library/Logs/ServerMon/servermon.out.log`            | Standard output log               |
+| `/Library/Logs/ServerMon/servermon.err.log`            | Error log                         |
+| `scripts/servermon-launchd-wrapper.sh`                 | Loads env and starts `pnpm start` |
 
 ---
 

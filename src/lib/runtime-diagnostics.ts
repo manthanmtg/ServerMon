@@ -1,4 +1,8 @@
 import { monitorEventLoopDelay, performance } from 'node:perf_hooks';
+import {
+  detectRuntimeLaunchContext,
+  type RuntimeLaunchContextSnapshot,
+} from './runtime-launch-context';
 
 export interface RuntimeDiagnosticsCompletedRequest {
   id: string;
@@ -20,6 +24,7 @@ interface InFlightRequestRecord {
 
 export interface RuntimeDiagnosticsSnapshot {
   generatedAt: string;
+  runtime: RuntimeLaunchContextSnapshot;
   process: {
     pid: number;
     uptimeSeconds: number;
@@ -146,6 +151,7 @@ class RuntimeDiagnosticsService {
 
     return {
       generatedAt: new Date(now).toISOString(),
+      runtime: detectRuntimeLaunchContext(),
       process: {
         pid: process.pid,
         uptimeSeconds: Math.round(process.uptime()),

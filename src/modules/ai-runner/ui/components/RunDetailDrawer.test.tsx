@@ -106,10 +106,12 @@ describe('RunDetailDrawer', () => {
           ...baseRun,
           scheduleId: 'schedule-1',
           scheduledFor: '2026-04-21T17:59:00.000Z',
-          dispatchedAt: '2026-04-21T17:59:45.000Z',
+          queuedAt: '2026-04-21T17:59:00.000Z',
+          dispatchedAt: '2026-04-21T18:36:45.000Z',
           lastError: 'Transient worker issue',
+          triggeredBy: 'schedule',
         }}
-        historyDetailSection="metadata"
+        historyDetailSection="summary"
         onSectionChange={vi.fn()}
         onClose={vi.fn()}
         onRerun={vi.fn()}
@@ -123,11 +125,10 @@ describe('RunDetailDrawer', () => {
       />
     );
 
-    expect(screen.getByText('Ideal start time')).toBeInTheDocument();
-    expect(screen.getByText('Queued at')).toBeInTheDocument();
-    expect(screen.getByText('Queue delay')).toBeInTheDocument();
-    expect(screen.getByText('Dispatch delay')).toBeInTheDocument();
-    expect(screen.getByText('Start delay')).toBeInTheDocument();
-    expect(screen.getByText('Transient worker issue')).toBeInTheDocument();
+    expect(screen.getByText('Duration')).toBeInTheDocument();
+    expect(screen.getByText('Weekday run')).toBeInTheDocument();
+    expect(
+      screen.getByText('Late dispatch usually means ServerMon was unavailable')
+    ).toBeInTheDocument();
   });
 });

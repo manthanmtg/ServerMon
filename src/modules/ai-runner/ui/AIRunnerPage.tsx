@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  AlertTriangle,
   Bot,
   CalendarClock,
   Clock3,
@@ -74,11 +75,49 @@ const SCHEDULE_SURFACE_REFRESH_MS = 15_000;
 const HISTORY_REFRESH_MS = 5_000;
 const ACTIVE_SCHEDULE_RUN_REFRESH_MS = 5_000;
 
+interface AIRunnerRuntimeDiagnostics {
+  runtime?: {
+    kind?: 'interactive' | 'systemd' | 'launchd' | 'background';
+    serviceManager?: 'systemd' | 'launchd' | null;
+    scheduleReliability?: 'session-bound' | 'reboot-safe' | 'unknown';
+    summary?: string;
+  };
+  process?: {
+    platform?: string;
+  };
+}
+
 function getActiveScheduleRunLabel(run?: AIRunnerRunDTO | null): string | null {
   if (!run) return null;
   if (run.status === 'running') return 'running now';
   if (run.status === 'retrying') return 'retrying now';
   if (run.status === 'queued') return 'queued now';
+  return null;
+}
+
+function getSchedulerReliabilityWarning(
+  diagnostics: AIRunnerRuntimeDiagnostics | null
+): { title: string; body: string } | null {
+  const reliability = diagnostics?.runtime?.scheduleReliability;
+
+  if (reliability === 'reboot-safe') {
+    return null;
+  }
+
+  if (reliability === 'session-bound') {
+    return {
+      title: 'Schedules are tied to this live session',
+      body: 'ServerMon is running from an interactive session, so scheduled AI runs stop when this process exits, the terminal closes, or the machine reboots. Run ServerMon as a boot-time service for reboot-safe schedules.',
+    };
+  }
+
+  if (reliability === 'unknown') {
+    return {
+      title: 'Reboot persistence is not confirmed',
+      body: 'ServerMon is running without a detected system service manager, so scheduled runs may pause after reboot until the app starts again.',
+    };
+  }
+
   return null;
 }
 
@@ -96,6 +135,9 @@ export default function AIRunnerPage() {
   const [runs, setRuns] = useState<AIRunnerRunDTO[]>([]);
   const [activeScheduleRuns, setActiveScheduleRuns] = useState<AIRunnerRunDTO[]>([]);
   const [directories, setDirectories] = useState<string[]>([]);
+  const [runtimeDiagnostics, setRuntimeDiagnostics] = useState<AIRunnerRuntimeDiagnostics | null>(
+    null
+  );
   const [selectedRun, setSelectedRun] = useState<AIRunnerRunDTO | null>(null);
   const [runSearch, setRunSearch] = useState('');
   const [historyStatusFilter, setHistoryStatusFilter] = useState<'all' | AIRunnerRunDTO['status']>(
@@ -182,13 +224,14 @@ export default function AIRunnerPage() {
     const controller = new AbortController();
     metadataAbortRef.current = controller;
     try {
-      const [profilesRes, promptsRes, directoriesRes] = await Promise.all([
+      const [profilesRes, promptsRes, directoriesRes, diagnosticsRes] = await Promise.all([
         fetch('/api/modules/ai-runner/profiles', { cache: 'no-store', signal: controller.signal }),
         fetch('/api/modules/ai-runner/prompts', { cache: 'no-store', signal: controller.signal }),
         fetch('/api/modules/ai-runner/directories', {
           cache: 'no-store',
           signal: controller.signal,
         }),
+        fetch('/api/system/diagnostics', { cache: 'no-store', signal: controller.signal }),
       ]);
 
       if (controller.signal.aborted) return;
@@ -238,6 +281,13 @@ export default function AIRunnerPage() {
           workingDirectory: current.workingDirectory || payload.directories?.[0] || '',
         }));
       }
+
+      if (diagnosticsRes.ok) {
+        const payload: AIRunnerRuntimeDiagnostics = await diagnosticsRes.json();
+        if (controller.signal.aborted) return;
+        setRuntimeDiagnostics(payload);
+      }
+
       setMetadataLoaded(true);
     } catch (error) {
       if ((error as Error)?.name === 'AbortError') return;
@@ -474,6 +524,7 @@ export default function AIRunnerPage() {
   const activeRunCount = runs.filter((run) => run.status === 'running').length;
   const enabledScheduleCount = schedules.filter((schedule) => schedule.enabled).length;
   const successfulRuns = runs.filter((run) => run.status === 'completed').length;
+  const schedulerReliabilityWarning = getSchedulerReliabilityWarning(runtimeDiagnostics);
   const enabledProfileCount = profiles.filter((profile) => profile.enabled).length;
   const customProfileCount = profiles.filter((profile) => profile.agentType === 'custom').length;
   const pausedScheduleCount = schedules.length - enabledScheduleCount;
@@ -720,12 +771,9 @@ export default function AIRunnerPage() {
     })();
   };
 
-  const handleTabChange = useCallback(
-    (tab: ViewTab) => {
-      setActiveTab(tab);
-    },
-    []
-  );
+  const handleTabChange = useCallback((tab: ViewTab) => {
+    setActiveTab(tab);
+  }, []);
 
   const rerunHistoryItem = async (run: AIRunnerRunDTO) => {
     try {
@@ -1253,6 +1301,20 @@ export default function AIRunnerPage() {
           </div>
         </CardHeader>
         <CardContent className="pt-5">
+          {schedulerReliabilityWarning ? (
+            <div className="mb-5 rounded-xl border border-warning/30 bg-warning/10 px-4 py-3">
+              <div className="flex gap-3">
+                <AlertTriangle className="mt-0.5 h-4 w-4 text-warning" />
+                <div>
+                  <p className="text-sm font-medium">{schedulerReliabilityWarning.title}</p>
+                  <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                    {schedulerReliabilityWarning.body}
+                  </p>
+                </div>
+              </div>
+            </div>
+          ) : null}
+
           {activeTab === 'run' && (
             <div className="grid gap-5 lg:grid-cols-[1.05fr_1fr]">
               <Card className="border-border/60">
@@ -1524,7 +1586,9 @@ export default function AIRunnerPage() {
                         <div className="rounded-lg bg-secondary/40 px-3 py-2">
                           <span className="text-muted-foreground">Started</span>
                           <p className="mt-1 font-medium">
-                            {new Date(selectedRun.startedAt ?? selectedRun.queuedAt).toLocaleString()}
+                            {new Date(
+                              selectedRun.startedAt ?? selectedRun.queuedAt
+                            ).toLocaleString()}
                           </p>
                         </div>
                         <div className="rounded-lg bg-secondary/40 px-3 py-2">
@@ -1675,7 +1739,8 @@ export default function AIRunnerPage() {
                           No prompts in the library yet
                         </h3>
                         <p className="mt-2 text-sm text-muted-foreground">
-                          Create a reusable prompt and it will show up here ready for runs and schedules.
+                          Create a reusable prompt and it will show up here ready for runs and
+                          schedules.
                         </p>
                         <div className="mt-5">
                           <Button onClick={openCreatePromptModal}>
@@ -1859,14 +1924,14 @@ export default function AIRunnerPage() {
                         : 'No launch queued'
                     }
                     tone="warning"
-                  detail={
+                    detail={
                       nextSchedule?.nextRunTime
                         ? nextScheduleStatusLabel
                           ? `${nextSchedule.name} ${nextScheduleStatusLabel}`
                           : `${nextSchedule.name} ${formatCountdown(nextSchedule.nextRunTime, liveNow)}`
                         : 'Enable a schedule to populate this.'
-                  }
-                />
+                    }
+                  />
                   <CompactStat
                     label="Recently Active"
                     value={recentlyActiveScheduleCount}

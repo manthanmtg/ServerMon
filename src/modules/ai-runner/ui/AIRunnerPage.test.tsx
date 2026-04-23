@@ -65,6 +65,27 @@ const mockSchedules: AIRunnerScheduleDTO[] = [];
 const mockRuns: AIRunnerRunsResponse = { runs: [], total: 0 };
 const mockActiveRuns: AIRunnerRunDTO[] = [];
 const mockDirectories: AIRunnerDirectoriesResponse = { directories: ['/root/repos/ServerMon'] };
+const mockDiagnostics: {
+  runtime: {
+    kind: 'interactive' | 'systemd' | 'launchd' | 'background';
+    serviceManager: 'systemd' | 'launchd' | null;
+    scheduleReliability: 'session-bound' | 'reboot-safe' | 'unknown';
+    summary: string;
+  };
+  process: {
+    platform: string;
+  };
+} = {
+  runtime: {
+    kind: 'systemd',
+    serviceManager: 'systemd',
+    scheduleReliability: 'reboot-safe',
+    summary: 'Managed by systemd.',
+  },
+  process: {
+    platform: 'linux',
+  },
+};
 
 describe('AIRunnerPage', () => {
   beforeEach(() => {
@@ -87,6 +108,9 @@ describe('AIRunnerPage', () => {
       }
       if (url.includes('/api/modules/ai-runner/directories')) {
         return Promise.resolve({ ok: true, json: async () => mockDirectories });
+      }
+      if (url.includes('/api/system/diagnostics')) {
+        return Promise.resolve({ ok: true, json: async () => mockDiagnostics });
       }
       return Promise.resolve({ ok: true, json: async () => ({}) });
     });
@@ -111,6 +135,32 @@ describe('AIRunnerPage', () => {
     expect(screen.getByText('Library')).toBeInTheDocument();
     expect(screen.queryByText('Selected')).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Search')).not.toBeInTheDocument();
+  });
+
+  it('warns when schedules are running from an interactive session', async () => {
+    mockDiagnostics.runtime = {
+      kind: 'interactive',
+      serviceManager: null,
+      scheduleReliability: 'session-bound',
+      summary: 'Running from an interactive session.',
+    };
+
+    try {
+      await act(async () => {
+        render(<AIRunnerPage />);
+      });
+
+      await waitFor(() => expect(screen.getByText('AI Agent Runner')).toBeInTheDocument());
+
+      expect(screen.getByText('Schedules are tied to this live session')).toBeInTheDocument();
+    } finally {
+      mockDiagnostics.runtime = {
+        kind: 'systemd',
+        serviceManager: 'systemd',
+        scheduleReliability: 'reboot-safe',
+        summary: 'Managed by systemd.',
+      };
+    }
   });
 
   it('defers history runs loading until the history tab is opened', async () => {

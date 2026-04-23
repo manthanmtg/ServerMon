@@ -69,6 +69,16 @@ sudo ./scripts/install.sh
 
 The interactive installer walks you through everything. See [DEPLOY.md](DEPLOY.md) for all options including domain setup, SSL, remote MongoDB, and unattended installs.
 
+### Always-On On macOS
+
+```bash
+pnpm install
+cp .env.example .env.local
+sudo ./scripts/install-launchd.sh
+```
+
+This installs a system `launchd` daemon so ServerMon starts at boot and scheduled runs do not wait for a user login. See [DEPLOY.md](DEPLOY.md) for setup details and management commands.
+
 ### Local Development
 
 ```bash
@@ -101,6 +111,14 @@ sudo systemctl status servermon        # check status
 sudo journalctl -u servermon -f        # live logs
 sudo systemctl restart servermon       # restart after config changes
 sudo ./scripts/install.sh --uninstall  # remove completely
+```
+
+macOS `launchd`:
+
+```bash
+sudo launchctl print system/com.servermon.servermon
+sudo launchctl kickstart -k system/com.servermon.servermon
+sudo ./scripts/install-launchd.sh --uninstall
 ```
 
 ---
@@ -172,6 +190,9 @@ src/
 └── types/                # Shared TypeScript types
 scripts/
 ├── install.sh            # One-command production installer
+├── install-launchd.sh    # macOS launchd installer
+├── servermon.launchd.plist # Reference launchd template
+├── servermon-launchd-wrapper.sh # Loads env and starts ServerMon under launchd
 ├── servermon.service     # Systemd unit file
 └── nginx.conf            # Nginx reverse proxy template
 ```

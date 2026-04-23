@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import {
+  AlertTriangle,
   Cpu,
   ExternalLink,
   History,
@@ -32,6 +33,36 @@ function formatTimingDelay(from?: string, to?: string): string {
   return delaySeconds === 0 ? '0s' : formatDuration(delaySeconds);
 }
 
+function getDelaySeconds(from?: string, to?: string): number {
+  if (!from || !to) return 0;
+  return Math.max(0, Math.round((new Date(to).getTime() - new Date(from).getTime()) / 1000));
+}
+
+function getScheduleDelayInsight(run: AIRunnerRunDTO): { title: string; body: string } | null {
+  if (run.triggeredBy !== 'schedule' || !run.scheduledFor || !run.dispatchedAt) {
+    return null;
+  }
+
+  const dispatchDelaySeconds = getDelaySeconds(run.queuedAt, run.dispatchedAt);
+  if (dispatchDelaySeconds < 5 * 60) {
+    return null;
+  }
+
+  const queueDelaySeconds = getDelaySeconds(run.scheduledFor, run.queuedAt);
+
+  if (queueDelaySeconds <= 30) {
+    return {
+      title: 'Late dispatch usually means ServerMon was unavailable',
+      body: `This run hit the queue on time, then waited ${formatDuration(dispatchDelaySeconds)} before dispatch. That usually means ServerMon or the AI Runner supervisor was offline, restarting, or not running as a boot-time service during that window.`,
+    };
+  }
+
+  return {
+    title: 'Late queueing usually means the scheduler was offline',
+    body: `This run was queued ${formatDuration(queueDelaySeconds)} after its ideal start time. That usually means the AI Runner scheduler was unavailable until ServerMon came back online.`,
+  };
+}
+
 export function RunDetailDrawer({
   run,
   historyDetailSection,
@@ -60,6 +91,7 @@ export function RunDetailDrawer({
   scheduleName: string;
 }) {
   const [autoscrollEnabled, setAutoscrollEnabled] = useState(true);
+  const scheduleDelayInsight = getScheduleDelayInsight(run);
   const primaryTimestamp = run.startedAt ?? run.queuedAt;
   const primaryTimestampLabel = run.startedAt ? 'Started' : 'Queued';
   const timingRows = [
@@ -278,6 +310,20 @@ export function RunDetailDrawer({
                     </div>
                   </div>
                 </div>
+
+                {scheduleDelayInsight ? (
+                  <div className="rounded-xl border border-warning/30 bg-warning/10 p-4">
+                    <div className="flex gap-3">
+                      <AlertTriangle className="mt-0.5 h-4 w-4 text-warning" />
+                      <div>
+                        <p className="text-sm font-medium">{scheduleDelayInsight.title}</p>
+                        <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                          {scheduleDelayInsight.body}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
               </div>
             )}
 

@@ -1,0 +1,46 @@
+<!--
+Reference template for macOS launchd.
+Replace the placeholder values below or use scripts/install-launchd.sh to generate
+and install a LaunchDaemon automatically.
+-->
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.servermon.servermon</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>__REPO_DIR__/scripts/servermon-launchd-wrapper.sh</string>
+  </array>
+
+  <key>WorkingDirectory</key>
+  <string>__REPO_DIR__</string>
+
+  <key>UserName</key>
+  <string>__SERVICE_USER__</string>
+
+  <key>RunAtLoad</key>
+  <true/>
+
+  <key>KeepAlive</key>
+  <true/>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    <key>SERVERMON_REPO_DIR</key>
+    <string>__REPO_DIR__</string>
+    <key>SERVERMON_ENV_FILE</key>
+    <string>__ENV_FILE__</string>
+  </dict>
+
+  <key>StandardOutPath</key>
+  <string>/Library/Logs/ServerMon/servermon.out.log</string>
+
+  <key>StandardErrorPath</key>
+  <string>/Library/Logs/ServerMon/servermon.err.log</string>
+</dict>
+</plist>

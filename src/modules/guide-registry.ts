@@ -30,7 +30,7 @@ export const moduleGuides: ModuleGuideItem[] = [
         {
           title: 'Managing the Service',
           content:
-            'On a production install, ServerMon runs as a systemd service. Check status: sudo systemctl status servermon. View logs: sudo journalctl -u servermon -f. Restart after config changes: sudo systemctl restart servermon. Uninstall: sudo ./scripts/install.sh --uninstall.',
+            'On Linux, ServerMon runs as a systemd service. Check status: sudo systemctl status servermon. View logs: sudo journalctl -u servermon -f. Restart after config changes: sudo systemctl restart servermon. On macOS, install the launchd daemon with sudo ./scripts/install-launchd.sh so ServerMon starts at boot without waiting for login.',
           icon: 'Activity',
         },
         {
