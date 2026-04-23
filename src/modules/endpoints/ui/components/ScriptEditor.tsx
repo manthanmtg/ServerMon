@@ -213,7 +213,7 @@ export default function ScriptEditor({
         className
       )}
     >
-      <div ref={containerRef} className="[&_.cm-editor]:outline-none" />
+      <div ref={containerRef} style={{ height }} className="[&_.cm-editor]:outline-none" />
       <div className="flex items-center justify-between px-4 py-2 bg-black/40 backdrop-blur-md border-t border-white/5 text-[10px] font-bold text-white/40 uppercase tracking-widest">
         <div className="flex items-center gap-4">
           <span className="text-primary/70 tracking-tighter">{language}</span>

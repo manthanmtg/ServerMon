@@ -152,10 +152,11 @@ describe('ScriptEditor', () => {
     const { container } = render(
       <ScriptEditor value="" onChange={vi.fn()} language="bash" height="600px" />
     );
-    const styled = container.querySelector('[style]') as HTMLElement | null;
-    if (styled) {
-      expect(styled.style.height).toBe('600px');
-    }
+    const elementsWithStyle = container.querySelectorAll('[style]');
+    const hasHeight = Array.from(elementsWithStyle).some(
+      (el) => (el as HTMLElement).style.height === '600px'
+    );
+    expect(hasHeight).toBe(true);
   });
 
   it('renders with python language without errors', async () => {
