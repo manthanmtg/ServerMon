@@ -384,7 +384,9 @@ describe('DockerPage', () => {
       .getAllByRole('button')
       .find((b) => b.innerHTML.includes('lucide-trash2'));
     if (!deleteButton) throw new Error('Delete button not found');
-    fireEvent.click(deleteButton);
+    await act(async () => {
+      fireEvent.click(deleteButton);
+    });
 
     expect(window.confirm).toHaveBeenCalled();
     expect(global.fetch).toHaveBeenCalledWith(
@@ -414,7 +416,9 @@ describe('DockerPage', () => {
     await renderPage();
     await waitFor(() => screen.getByText('Refresh now'));
     const refreshButton = screen.getByText('Refresh now');
-    fireEvent.click(refreshButton);
+    await act(async () => {
+      fireEvent.click(refreshButton);
+    });
     expect(global.fetch).toHaveBeenCalledTimes(2); // Initial + Manual
   });
 

@@ -248,9 +248,18 @@ function setupFetchMock() {
       return Promise.resolve({ ok: true, json: async () => ({ result: '' }) });
     }
     if (url.includes('/file-browser') && url.includes('mode=tree')) {
+      const urlObj = new URL(url, 'http://localhost');
+      const requestedPath = urlObj.searchParams.get('path') || '/';
       return Promise.resolve({
         ok: true,
-        json: async () => ({ tree: mockTreeNode }),
+        json: async () => ({
+          tree: {
+            path: requestedPath,
+            name: requestedPath.split('/').pop() || '/',
+            isDirectory: true,
+            children: [],
+          },
+        }),
       });
     }
     if (url.includes('/file-browser')) {
@@ -297,12 +306,14 @@ function setupFetch(entries = [makeEntry('index.ts'), makeEntry('src', true)]) {
       return Promise.resolve({ ok: true, json: async () => ({ result: '' }) });
     }
     if (url.includes('/file-browser') && url.includes('mode=tree')) {
+      const urlObj = new URL(url, 'http://localhost');
+      const requestedPath = urlObj.searchParams.get('path') || '/';
       return Promise.resolve({
         ok: true,
         json: async () => ({
           tree: {
-            name: '/',
-            path: '/',
+            path: requestedPath,
+            name: requestedPath.split('/').pop() || '/',
             hasChildren: true,
             isDirectory: true,
             children: [],
@@ -634,7 +645,19 @@ describe('FileBrowserPage', () => {
         return Promise.resolve({ ok: true, json: async () => ({ settings: mockSettings }) });
       }
       if (url.includes('/api/modules/file-browser') && url.includes('mode=tree')) {
-        return Promise.resolve({ ok: true, json: async () => ({ tree: mockTreeNode }) });
+        const urlObj = new URL(url, 'http://localhost');
+        const requestedPath = urlObj.searchParams.get('path') || '/';
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            tree: {
+              path: requestedPath,
+              name: requestedPath.split('/').pop() || '/',
+              isDirectory: true,
+              children: [],
+            },
+          }),
+        });
       }
       if (url.includes('/api/modules/file-browser')) {
         return Promise.resolve({

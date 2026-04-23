@@ -25,7 +25,9 @@ describe('Toast Component', () => {
     );
 
     const button = screen.getByText('Show Toast');
-    button.click();
+    await act(async () => {
+      button.click();
+    });
 
     expect(await screen.findByText('Test Toast')).toBeDefined();
     expect(screen.getByText('Test Description')).toBeDefined();
