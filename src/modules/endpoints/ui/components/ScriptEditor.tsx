@@ -28,6 +28,7 @@ import {
 import { javascript } from '@codemirror/lang-javascript';
 import { python } from '@codemirror/lang-python';
 import { shell } from '@codemirror/legacy-modes/mode/shell';
+import { motion } from 'framer-motion';
 
 import type { ScriptLanguage } from '../../types';
 
@@ -137,13 +138,25 @@ export default function ScriptEditor({
           '&': {
             height,
             fontSize: '13px',
+            backgroundColor: 'transparent !important',
+          },
+          '&.cm-focused': {
+            outline: 'none',
           },
           '.cm-scroller': {
             overflow: 'auto',
             fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace',
           },
           '.cm-gutters': {
+            backgroundColor: 'transparent !important',
+            color: 'rgba(255,255,255,0.2)',
             borderRight: '1px solid rgba(255,255,255,0.06)',
+          },
+          '.cm-activeLine': {
+            backgroundColor: 'rgba(255,255,255,0.03)',
+          },
+          '.cm-activeLineGutter': {
+            backgroundColor: 'rgba(255,255,255,0.03)',
           },
         }),
       ],
@@ -189,23 +202,49 @@ export default function ScriptEditor({
   }, [value]);
 
   return (
-    <div className={cn('rounded-2xl overflow-hidden border border-border/40 bg-[#1e1e2e] shadow-xl', className)}>
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+      whileHover={{ scale: 1.002 }}
+      className={cn(
+        'rounded-2xl overflow-hidden border border-white/10 bg-zinc-900/40 backdrop-blur-xl shadow-2xl transition-all duration-500',
+        'hover:border-primary/30 hover:shadow-primary/5 hover:bg-zinc-900/50',
+        className
+      )}
+    >
       <div ref={containerRef} className="[&_.cm-editor]:outline-none" />
-      <div className="flex items-center justify-between px-4 py-2 bg-[#1a1a26] border-t border-white/5 text-[10px] font-bold text-white/40 uppercase tracking-widest">
+      <div className="flex items-center justify-between px-4 py-2 bg-black/40 backdrop-blur-md border-t border-white/5 text-[10px] font-bold text-white/40 uppercase tracking-widest">
         <div className="flex items-center gap-4">
-          <span className="text-primary/60">{language}</span>
-          <span className="font-mono">
+          <span className="text-primary/70 tracking-tighter">{language}</span>
+          <span className="font-mono opacity-80">
             Ln {cursorPos.line}, Col {cursorPos.col}
           </span>
         </div>
         <div className="flex items-center gap-4">
-          <span className="font-mono">{charCount.toLocaleString()} chars</span>
+          <span className="font-mono opacity-80">{charCount.toLocaleString()} chars</span>
           <div className="flex items-center gap-3">
-             {onRun && <span className="text-white/20 hover:text-white/40 transition-colors cursor-help" title="Module+Enter">Test Available</span>}
-             {onSave && <span className="text-white/20 hover:text-white/40 transition-colors cursor-help" title="Module+S">Save Ready</span>}
+            {onRun && (
+              <span
+                className="text-white/20 hover:text-white/60 transition-colors cursor-help flex items-center gap-1"
+                title="Module+Enter"
+              >
+                <div className="w-1 h-1 rounded-full bg-success/50 animate-pulse" />
+                Test Available
+              </span>
+            )}
+            {onSave && (
+              <span
+                className="text-white/20 hover:text-white/60 transition-colors cursor-help flex items-center gap-1"
+                title="Module+S"
+              >
+                <div className="w-1 h-1 rounded-full bg-primary/50 animate-pulse" />
+                Save Ready
+              </span>
+            )}
           </div>
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 }
