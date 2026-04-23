@@ -83,44 +83,44 @@ describe('MemoryWidget', () => {
   it('shows System Healthy status for low memory (62.3%)', () => {
     mockMetrics.latest = makeLatest(62.3);
     render(<MemoryWidget />);
-    expect(screen.getByText('System Healthy')).toBeDefined();
+    expect(screen.getByText('Healthy')).toBeDefined();
   });
 
   it('shows High Usage status when memory is above 70%', () => {
     mockMetrics.latest = makeLatest(75);
     render(<MemoryWidget />);
-    expect(screen.getByText('High Usage')).toBeDefined();
+    expect(screen.getByText('High')).toBeDefined();
   });
 
   it('shows Critical Pressure status when memory is above 90%', () => {
     mockMetrics.latest = makeLatest(95);
     render(<MemoryWidget />);
-    expect(screen.getByText('Critical Pressure')).toBeDefined();
+    expect(screen.getByText('Critical')).toBeDefined();
   });
 
   it('shows High Usage at exactly 71%', () => {
     mockMetrics.latest = makeLatest(71);
     render(<MemoryWidget />);
-    expect(screen.getByText('High Usage')).toBeDefined();
+    expect(screen.getByText('High')).toBeDefined();
   });
 
   it('shows Critical Pressure at exactly 91%', () => {
     mockMetrics.latest = makeLatest(91);
     render(<MemoryWidget />);
-    expect(screen.getByText('Critical Pressure')).toBeDefined();
+    expect(screen.getByText('Critical')).toBeDefined();
   });
 
-  it('renders View Specs link', () => {
+  it('renders Details link', () => {
     mockMetrics.latest = makeLatest(62.3);
     render(<MemoryWidget />);
-    const link = screen.getByText('View Specs');
+    const link = screen.getByText('Details');
     expect(link.tagName.toLowerCase()).toBe('a');
   });
 
-  it('renders Usage Level label', () => {
+  it('renders Usage label', () => {
     mockMetrics.latest = makeLatest(62.3);
     render(<MemoryWidget />);
-    expect(screen.getByText('Usage Level')).toBeDefined();
+    expect(screen.getByText('Usage')).toBeDefined();
   });
 
   it('renders RAM Status label', () => {
