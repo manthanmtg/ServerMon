@@ -9,7 +9,6 @@ import {
   Copy,
   Eye,
   FolderOpen,
-  History,
   ListFilter,
   Play,
   RefreshCcw,
@@ -46,7 +45,6 @@ import {
   CompactStat,
   LabelWithHint,
   ProfileIconPreview,
-  StatCard,
 } from './components/AIRunnerShared';
 import type {
   HistoryDetailSection,
@@ -638,9 +636,7 @@ export default function AIRunnerPage() {
     scheduleMap,
   ]);
 
-  const activeRunCount = runs.filter((run) => run.status === 'running').length;
   const enabledScheduleCount = schedules.filter((schedule) => schedule.enabled).length;
-  const successfulRuns = runs.filter((run) => run.status === 'completed').length;
   const schedulesGloballyEnabled = runnerSettings?.schedulesGloballyEnabled ?? true;
   const schedulerReliabilityWarning = getSchedulerReliabilityWarning(runtimeDiagnostics);
   const enabledProfileCount = profiles.filter((profile) => profile.enabled).length;
@@ -1397,29 +1393,6 @@ export default function AIRunnerPage() {
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard
-          label="Active Runs"
-          value={activeRunCount}
-          icon={<Play className="w-4 h-4 text-primary" />}
-        />
-        <StatCard
-          label="Enabled Schedules"
-          value={enabledScheduleCount}
-          icon={<CalendarClock className="w-4 h-4 text-warning" />}
-        />
-        <StatCard
-          label="Profiles"
-          value={profiles.length}
-          icon={<Bot className="w-4 h-4 text-success" />}
-        />
-        <StatCard
-          label="Successful Runs"
-          value={successfulRuns}
-          icon={<History className="w-4 h-4 text-info" />}
-        />
-      </div>
-
       <Card className="border-border/60 overflow-hidden">
         <CardHeader className="border-b border-border/60 bg-card/60">
           <div className="flex flex-col gap-4">
