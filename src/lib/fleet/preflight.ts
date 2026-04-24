@@ -41,6 +41,10 @@ export interface PreflightEnv {
   nginxManagedDir?: string;
   nginxBinaryPath?: string;
   minDiskFreeMb?: number;
+  /** True if the FRP orchestrator is currently enabled and supposed to be running. */
+  frpEnabled?: boolean;
+  /** Current runtime state of the FRP orchestrator ('running', 'stopped', etc). */
+  frpRuntimeState?: string;
 }
 
 const DEFAULT_MIN_DISK_FREE_MB = 500;
@@ -88,6 +92,10 @@ const CHECKS: CheckDef[] = [
     label: 'FRP bind port available',
     fixOnFail: '',
     run: async (env, ex) => {
+      // If FRP is already running, the port will be in use BY US, which is a pass.
+      if (env.frpEnabled && env.frpRuntimeState === 'running') {
+        return { status: 'pass', detail: 'occupied by running hub' };
+      }
       if (!ex.checkPortAvailable) return null;
       const r = await ex.checkPortAvailable(env.frpBindPort);
       if (r.available) return { status: 'pass' };
@@ -104,6 +112,9 @@ const CHECKS: CheckDef[] = [
     label: 'FRP vhost HTTP port available',
     fixOnFail: '',
     run: async (env, ex) => {
+      if (env.frpEnabled && env.frpRuntimeState === 'running') {
+        return { status: 'pass', detail: 'occupied by running hub' };
+      }
       if (!ex.checkPortAvailable) return null;
       const r = await ex.checkPortAvailable(env.vhostHttpPort);
       if (r.available) return { status: 'pass' };
@@ -121,6 +132,9 @@ const CHECKS: CheckDef[] = [
     fixOnFail: '',
     run: async (env, ex) => {
       if (env.vhostHttpsPort === undefined) return { status: 'skip' };
+      if (env.frpEnabled && env.frpRuntimeState === 'running') {
+        return { status: 'pass', detail: 'occupied by running hub' };
+      }
       if (!ex.checkPortAvailable) return null;
       const r = await ex.checkPortAvailable(env.vhostHttpsPort);
       if (r.available) return { status: 'pass' };

@@ -27,6 +27,10 @@ export async function POST() {
     const frp = await FrpServerState.findOne({ key: 'global' }).lean();
     const nginx = await NginxState.findOne({ key: 'global' }).lean();
 
+    const { getFrpOrchestrator } = await import('@/lib/fleet/orchestrators');
+    const orch = getFrpOrchestrator();
+    const current = (orch as any).currentState?.() || {};
+
     const env: PreflightEnv = {
       frpBindPort: frp?.bindPort ?? 7000,
       vhostHttpPort: frp?.vhostHttpPort ?? 8080,
@@ -34,6 +38,8 @@ export async function POST() {
       publicHostname: frp?.subdomainHost,
       nginxManagedDir: nginx?.managedDir,
       nginxBinaryPath: nginx?.binaryPath,
+      frpEnabled: frp?.enabled,
+      frpRuntimeState: current.runtimeState || frp?.runtimeState,
     };
 
     const executors = createDefaultExecutors();
