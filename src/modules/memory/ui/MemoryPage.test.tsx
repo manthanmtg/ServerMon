@@ -8,7 +8,7 @@ vi.mock('recharts', () => ({
   ResponsiveContainer: ({ children }: { children: React.ReactNode }) => (
     <div style={{ width: '100%', height: '100%' }}>{children}</div>
   ),
-  AreaChart: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  AreaChart: ({ children }: { children: React.ReactNode }) => <svg>{children}</svg>,
   Area: () => null,
   XAxis: () => null,
   YAxis: () => null,
