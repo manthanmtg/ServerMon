@@ -107,6 +107,26 @@ export async function GET() {
     await connectDB();
     const state = await getOrCreateState();
 
+    // Auto-repair/Sync: If env vars are set but DB is empty/different, update DB to match Env.
+    // This ensures that changes in /etc/servermon/env are reflected in the UI/Wizard.
+    let needsSave = false;
+    const envSubdomain = process.env.FRP_SUBDOMAIN_HOST;
+    if (envSubdomain && state.subdomainHost !== envSubdomain) {
+      state.subdomainHost = envSubdomain;
+      needsSave = true;
+    }
+    
+    const envBindPort = process.env.FRP_BIND_PORT ? parseInt(process.env.FRP_BIND_PORT, 10) : null;
+    if (envBindPort && !isNaN(envBindPort) && state.bindPort !== envBindPort) {
+      state.bindPort = envBindPort;
+      needsSave = true;
+    }
+
+    if (needsSave) {
+      log.info('Synchronized database state with environment variables');
+      await state.save();
+    }
+
     // Include environment defaults to help the setup wizard prepopulate
     const envDefaults = {
       hubPublicUrl: process.env.FLEET_HUB_PUBLIC_URL || '',
