@@ -383,11 +383,8 @@ export function createDefaultExecutors(opts: DefaultExecutorsOpts = {}): Preflig
   }
 
   async function checkFrpBinary(): Promise<{ present: boolean; version?: string }> {
-    const cacheDir = process.env.FLEET_BINARY_CACHE_DIR;
-    const version = process.env.FLEET_FRP_VERSION;
-    if (!cacheDir || !version) {
-      return { present: false };
-    }
+    const cacheDir = process.env.FLEET_BINARY_CACHE_DIR || '/var/lib/servermon/frp-cache';
+    const version = process.env.FLEET_FRP_VERSION || '0.58.1';
     if (!fsImpl.stat) {
       return { present: false };
     }
