@@ -633,6 +633,7 @@ FLEET_FRP_VERSION=${HUB_FRP_VERSION}
 HUBEOF
         [ -n "$FLEET_ACME_EMAIL" ] && echo "FLEET_ACME_EMAIL=${FLEET_ACME_EMAIL}" >> "${CONFIG_DIR}/env"
     fi
+
     log "Environment config created at ${CONFIG_DIR}/env"
 fi
 
@@ -726,6 +727,7 @@ SyslogIdentifier=servermon
 [Install]
 WantedBy=multi-user.target
 SVCEOF
+
 log_info "Systemd service file created at /etc/systemd/system/${SERVICE_NAME}.service"
 
 systemctl daemon-reload
@@ -787,7 +789,7 @@ if [ "$SETUP_NGINX" = "true" ]; then
     log_info "Creating Nginx configuration at ${NGINX_CONF}..."
 
     cat > "$NGINX_CONF" <<NGXEOF
-server {
+    server {
     listen 80;
     server_name ${SERVER_NAME};
     client_max_body_size 2m;
@@ -833,9 +835,8 @@ server {
         proxy_read_timeout 300s;
         proxy_send_timeout 300s;
     }
-}
+    }
 NGXEOF
-
     # Enable the site
     log_info "Enabling Nginx site..."
     ln -sf "$NGINX_CONF" /etc/nginx/sites-enabled/servermon
