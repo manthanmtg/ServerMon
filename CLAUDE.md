@@ -27,23 +27,28 @@ ServerMon is a self-hosted server monitoring platform built with Next.js 16 (App
 ## Repository Health Rules
 
 ### No Ignored Errors
+
 - Do not add `eslint-disable` comments without a paired explanation comment.
 - Do not add `@ts-ignore` or `@ts-expect-error`. Fix the type issue instead.
 - Do not add `any` types. Use `unknown` and narrow with type guards.
 
 ### No Dead Code
+
 - Remove unused imports, variables, functions, and files.
 - Do not comment out code and commit it. Use Git history instead.
 
 ### No Secrets
+
 - Never commit `.env`, `.env.local`, credentials, API keys, or tokens.
 - `.env.example` is the only env file that should be tracked.
 
 ### No Large Files
+
 - `.pnpm-store/`, `node_modules/`, `.next/`, and build artifacts must never be committed.
 - These are in `.gitignore`. If git tries to track them, something is wrong.
 
 ### Dependency Hygiene
+
 - Use `pnpm` exclusively. Do not use npm or yarn.
 - Do not add dependencies without a clear need.
 - Pin major versions in `package.json`. Use `^` for minor/patch.
@@ -53,6 +58,7 @@ ServerMon is a self-hosted server monitoring platform built with Next.js 16 (App
 ## File Conventions & Component Checklists
 
 ### Naming
+
 | Type       | Convention                           | Example                          |
 | ---------- | ------------------------------------ | -------------------------------- |
 | Pages      | `page.tsx` in route folder           | `src/app/dashboard/page.tsx`     |
@@ -63,6 +69,7 @@ ServerMon is a self-hosted server monitoring platform built with Next.js 16 (App
 | Modules    | lowercase folder name                | `src/modules/terminal/`          |
 
 ### New Component Checklist (`src/components/ui/`)
+
 1. Use `forwardRef` for elements that accept refs.
 2. Accept a `className` prop and merge with `cn()`.
 3. Use semantic theme tokens — **never hardcode colors** (e.g. `bg-slate-900`).
@@ -70,6 +77,7 @@ ServerMon is a self-hosted server monitoring platform built with Next.js 16 (App
 5. Ensure minimum 44px touch target (`min-h-[44px]`).
 
 ### New Module Checklist (`src/modules/<name>/`)
+
 1. Create `module.ts` with the `Module` interface.
 2. Create UI in `ui/` subfolder.
 3. Register the widget in `src/components/modules/ModuleWidgetRegistry.tsx`.
@@ -78,6 +86,7 @@ ServerMon is a self-hosted server monitoring platform built with Next.js 16 (App
 6. Run `pnpm check` to verify.
 
 ### New API Route Checklist
+
 1. Wrap handler body in try/catch.
 2. Use `createLogger('api:<name>')`.
 3. Return `{ error: "message" }` on failures with proper HTTP status.
@@ -110,7 +119,7 @@ Tests use **Vitest** for unit/integration and **Playwright** for E2E.
 
 - **Single SSE connection**: `MetricsProvider` creates one `EventSource`. Never create instances in widgets.
 - **CSS variable theming**: All colors flow through variables defined in `src/app/globals.css`.
-- **Error boundaries**: `ModuleWidgetRegistry` wraps each widget automatically. 
+- **Error boundaries**: `ModuleWidgetRegistry` wraps each widget automatically.
 - **Structured logging**: Use `createLogger()` from `src/lib/logger.ts`. Never use `console.log`.
 
 ---
@@ -119,13 +128,13 @@ Tests use **Vitest** for unit/integration and **Playwright** for E2E.
 
 Required at runtime (set in `.env.local` or `/etc/servermon/env`):
 
-| Variable     | Required | Description                        |
-| ------------ | -------- | ---------------------------------- |
-| `MONGO_URI`  | Yes      | MongoDB connection string          |
-| `JWT_SECRET` | Yes      | Secret for signing session JWTs    |
-| `PORT`       | No       | App port (default: 8912)           |
-| `NODE_ENV`   | No       | `development` or `production`      |
-| `LOG_LEVEL`  | No       | `debug`, `info`, `warn`, `error`   |
+| Variable     | Required | Description                      |
+| ------------ | -------- | -------------------------------- |
+| `MONGO_URI`  | Yes      | MongoDB connection string        |
+| `JWT_SECRET` | Yes      | Secret for signing session JWTs  |
+| `PORT`       | No       | App port (default: 8912)         |
+| `NODE_ENV`   | No       | `development` or `production`    |
+| `LOG_LEVEL`  | No       | `debug`, `info`, `warn`, `error` |
 
 ---
 
@@ -134,3 +143,57 @@ Required at runtime (set in `.env.local` or `/etc/servermon/env`):
 - Run `pnpm check` before committing.
 - Write imperative commit messages: "Add health endpoint" not "Added health endpoint".
 - Group related changes in one commit.
+
+---
+
+# Workspace Index
+
+Concise map of major directories, commands, and key files. Update this section whenever files/directories are added or removed.
+
+## Core Commands
+
+- `pnpm dev` — run dev server via `src/server.ts`
+- `pnpm build` — Next.js production build
+- `pnpm start` — run production server
+- `pnpm lint` — ESLint over `src/`
+- `pnpm typecheck` — `tsc --noEmit`
+- `pnpm test` — Vitest unit/integration
+- `pnpm test:e2e` — Playwright end-to-end
+- `pnpm format` — Prettier write
+- `pnpm check` — lint + typecheck + build + test
+
+## Top-level Layout
+
+- `src/` — application source (see sub-index below)
+- `e2e/` — Playwright end-to-end specs
+- `scripts/` — CLI helper scripts
+- `public/` — static assets
+- `docs/` — plans and reference docs (superpowers plans live under `docs/superpowers/plans/`)
+- `module_ideas/` — product specs per module (e.g. `fleet_management.md`)
+- `prompts/`, `manual_prompts/`, `issues_to_look/` — wave prompts and investigation notes
+- `.env.example` — required runtime env vars (do NOT commit real `.env`)
+- `CLAUDE.md`, `README.md`, `PRD.md`, `DEPLOY.md`, `AGENTS.md` — project docs
+
+## `src/` Layout
+
+- `src/app/` — Next.js App Router pages + `api/` route handlers
+- `src/components/` — shared UI (including `layout/`, `ui/`, `modules/`)
+- `src/lib/` — utilities, domain logic, fleet libraries
+- `src/models/` — Mongoose schemas
+- `src/modules/` — feature modules (terminal, processes, logs, metrics, fleet, etc.)
+- `src/server.ts` — custom Next.js server entry (Socket.IO bridge)
+- `src/proxy.ts`, `src/proxy.test.ts` — reverse proxy helper + tests
+- `src/test/` — shared test setup
+- `src/types/` — ambient TypeScript types
+
+### Fleet Management
+
+- `src/models/` — fleet Mongoose models: Node, FrpServerState, FleetLogEvent, ConfigRevision, PublicRoute, NginxState, AgentUpdateJob, BackupJob, ResourcePolicy, AccessPolicy, RouteTemplate, DiagnosticRun, ImportedConfig, AlertChannel, AlertSubscription
+- `src/lib/fleet/` — pure libraries: enums, status, pairing, toml, toml-parse, nginx, binary, frpProcess, nginxProcess, heartbeat, audit, revisions, templates, install-script, preflight, preflightExecutors, diagnostics, firewall, dns, acme, resourceGuards, access, import, backup, frpOrchestrator, nginxOrchestrator, applyEngine, orchestrators, tty-bridge, hubTtyBridge, fleetTtyNamespace, alerts, alertSubscriber
+- `src/app/api/fleet/` — fleet HTTP routes: nodes, server, routes, nginx, templates, access-policies, resource-policies, logs, revisions (incl. `[id]/apply` + `[id]/rollback`), updates, backups, emergency, install, import, endpoint-exec, alerts/channels (+ `[id]`), alerts/subscriptions (+ `[id]`), alerts/test
+- `src/app/fleet/` — fleet UI pages: dashboard, node detail `[slug]`, onboarding, routes, logs, server, nginx, updates, backups, diagnostics, templates, policies, emergency, import, endpoint-runner, alerts
+- `src/modules/fleet/` — module definition + shared types + UI components (`ui/dashboard/`, `ui/onboarding/`, `ui/details/`, `ui/operations/`); `ui/details/exposeService/` houses the 6-step Expose Remote Service wizard (`ExposeServiceWizard`, `StepIdentity`, `StepTarget`, `StepAccess`, `StepPreview`, `StepDns`, `StepCreate`, `schema.ts`, `index.ts` barrel); `ui/operations/rotate/` holds `RotateTokenFlow` (+ `RotateTokenResultPanel`) and `RotateAllTokensFlow` (+ `RotateAllTokensResultPanel`) used by `EmergencyControls`; `ui/operations/AlertChannelManager.tsx` manages alert channels/subscriptions for the `/fleet/alerts` page
+- `docs/superpowers/plans/2026-04-24-fleet-management.md` — Phase 1 plan
+- `docs/superpowers/plans/2026-04-24-fleet-phase{2,3,4,5}-*.md` — follow-on phase stubs
+- `module_ideas/fleet_management.md` — full product spec (phases 1-5)
+- Env keys added: `FLEET_HUB_PUBLIC_URL`, `FRP_BIND_PORT`, `FRP_VHOST_HTTP_PORT`, `FRP_VHOST_HTTPS_PORT`, `FRP_AUTH_TOKEN`, `FRP_SUBDOMAIN_HOST`, `FLEET_HUB_AUTH_TOKEN`, `FLEET_AGENT_*`, `FLEET_NGINX_*`, `FLEET_ACME_*`, `FLEET_BINARY_CACHE_DIR`, `FLEET_FRP_VERSION`, `FLEET_FRPS_CONFIG_DIR`, `FLEET_BACKUP_DIR`, `FLEET_AUTO_APPLY_REVISIONS` (set to `'true'` to trigger `applyRevision` after each create/patch; rollback always applies)

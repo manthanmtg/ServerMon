@@ -87,8 +87,11 @@ describe('PortsPage', () => {
 
   it('renders loading state initially', async () => {
     let resolveFetch: (value: Response | PromiseLike<Response>) => void;
-    global.fetch = vi.fn().mockImplementation(() =>
-      new Promise<Response>(resolve => { resolveFetch = resolve; })
+    global.fetch = vi.fn().mockImplementation(
+      () =>
+        new Promise<Response>((resolve) => {
+          resolveFetch = resolve;
+        })
     );
 
     const { container } = render(<PortsPage />);

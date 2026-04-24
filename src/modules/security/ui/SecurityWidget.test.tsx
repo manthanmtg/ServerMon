@@ -53,8 +53,11 @@ describe('SecurityWidget', () => {
 
   it('renders loading state initially', async () => {
     let resolveFetch: (value: Response | PromiseLike<Response>) => void;
-    global.fetch = vi.fn().mockImplementation(() =>
-      new Promise<Response>(resolve => { resolveFetch = resolve; })
+    global.fetch = vi.fn().mockImplementation(
+      () =>
+        new Promise<Response>((resolve) => {
+          resolveFetch = resolve;
+        })
     );
 
     render(<SecurityWidget />);
@@ -80,9 +83,9 @@ describe('SecurityWidget', () => {
       expect(screen.getByText('live')).toBeTruthy();
       expect(screen.getByText('85')).toBeTruthy();
       expect(screen.getByText('17')).toBeTruthy(); // Passed
-      expect(screen.getByText('1')).toBeTruthy();  // Failed
-      expect(screen.getByText('2')).toBeTruthy();  // Warnings
-      expect(screen.getByText('5')).toBeTruthy();  // Banned
+      expect(screen.getByText('1')).toBeTruthy(); // Failed
+      expect(screen.getByText('2')).toBeTruthy(); // Warnings
+      expect(screen.getByText('5')).toBeTruthy(); // Banned
     });
   });
 
@@ -110,7 +113,7 @@ describe('SecurityWidget', () => {
     await act(async () => {
       render(<SecurityWidget />);
     });
-    
+
     expect(global.fetch).toHaveBeenCalledTimes(1);
 
     await act(async () => {
@@ -122,7 +125,7 @@ describe('SecurityWidget', () => {
 
   it('handles fetch failure gracefully', async () => {
     global.fetch = vi.fn().mockRejectedValue(new Error('Fetch failed'));
-    
+
     await act(async () => {
       render(<SecurityWidget />);
     });

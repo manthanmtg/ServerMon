@@ -1,3 +1,2 @@
 export const SESSION_TIMEOUT_MS = 2 * 60 * 60 * 1000;
 export const SESSION_REFRESH_THROTTLE_MS = 60 * 1000;
-

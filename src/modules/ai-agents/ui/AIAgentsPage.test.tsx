@@ -41,7 +41,11 @@ const makeSession = (overrides: Partial<(typeof mockSnapshot)['sessions'][0]> = 
   commandsExecuted: ['npm install', 'npm test'],
   conversation: [
     { role: 'user' as const, content: 'Help me fix this bug', timestamp: '2026-03-17T10:00:00Z' },
-    { role: 'assistant' as const, content: 'Sure, let me look at it', timestamp: '2026-03-17T10:00:05Z' },
+    {
+      role: 'assistant' as const,
+      content: 'Sure, let me look at it',
+      timestamp: '2026-03-17T10:00:05Z',
+    },
   ],
   timeline: [
     { timestamp: '2026-03-17T10:00:00Z', action: 'Started', detail: 'Session initialized' },
@@ -229,7 +233,8 @@ describe('AIAgentsPage', () => {
   });
 
   it('terminates session on Stop click', async () => {
-    global.fetch = vi.fn()
+    global.fetch = vi
+      .fn()
       .mockResolvedValueOnce({ ok: true, json: async () => mockSnapshot })
       .mockResolvedValueOnce({ ok: true, json: async () => ({}) })
       .mockResolvedValue({ ok: true, json: async () => mockSnapshot });
@@ -254,7 +259,8 @@ describe('AIAgentsPage', () => {
   });
 
   it('kills session on Kill click', async () => {
-    global.fetch = vi.fn()
+    global.fetch = vi
+      .fn()
       .mockResolvedValueOnce({ ok: true, json: async () => mockSnapshot })
       .mockResolvedValueOnce({ ok: true, json: async () => ({}) })
       .mockResolvedValue({ ok: true, json: async () => mockSnapshot });

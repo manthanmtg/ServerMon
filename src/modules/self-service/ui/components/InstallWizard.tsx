@@ -2,7 +2,16 @@
 
 import { useState, useCallback } from 'react';
 import {
-  ArrowLeft, ArrowRight, Play, Shield, Globe, Terminal, Container, Package, FileText, Download,
+  ArrowLeft,
+  ArrowRight,
+  Play,
+  Shield,
+  Globe,
+  Terminal,
+  Container,
+  Package,
+  FileText,
+  Download,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
@@ -28,10 +37,7 @@ interface InstallWizardProps {
 }
 
 export function InstallWizard({ template, method, onBack, onStart }: InstallWizardProps) {
-  const allFields = [
-    ...template.configSchema,
-    ...(method.configOverrides || []),
-  ];
+  const allFields = [...template.configSchema, ...(method.configOverrides || [])];
 
   const initialConfig: Record<string, string | number | boolean> = {};
   for (const field of allFields) {
@@ -103,12 +109,17 @@ export function InstallWizard({ template, method, onBack, onStart }: InstallWiza
                 'w-7 h-7 rounded-full flex items-center justify-center text-xs font-medium transition-colors',
                 i <= currentIdx
                   ? 'bg-primary text-primary-foreground'
-                  : 'bg-muted text-muted-foreground',
+                  : 'bg-muted text-muted-foreground'
               )}
             >
               {i + 1}
             </div>
-            <span className={cn('text-xs capitalize', i <= currentIdx ? 'text-foreground' : 'text-muted-foreground')}>
+            <span
+              className={cn(
+                'text-xs capitalize',
+                i <= currentIdx ? 'text-foreground' : 'text-muted-foreground'
+              )}
+            >
               {s === 'ssl' ? 'Domain & SSL' : s}
             </span>
             {i < steps.length - 1 && (
@@ -151,20 +162,36 @@ export function InstallWizard({ template, method, onBack, onStart }: InstallWiza
           <CardContent className="space-y-4">
             <div className="flex items-center gap-2 p-3 rounded-lg bg-muted/50">
               <Globe className="w-4 h-4 text-muted-foreground" />
-              <span className="text-sm">Domain: <strong>{String(config.domain || 'not set')}</strong></span>
+              <span className="text-sm">
+                Domain: <strong>{String(config.domain || 'not set')}</strong>
+              </span>
             </div>
             <div className="space-y-2">
               <label className="text-xs font-medium">SSL Mode</label>
               {[
-                { value: 'letsencrypt', label: "Let's Encrypt", desc: 'Free, auto-renewing SSL certificate (requires public DNS)' },
-                { value: 'self-signed', label: 'Self-Signed', desc: 'Generate a self-signed certificate (for internal/development use)' },
-                { value: 'none', label: 'No SSL', desc: 'HTTP only (not recommended for production)' },
+                {
+                  value: 'letsencrypt',
+                  label: "Let's Encrypt",
+                  desc: 'Free, auto-renewing SSL certificate (requires public DNS)',
+                },
+                {
+                  value: 'self-signed',
+                  label: 'Self-Signed',
+                  desc: 'Generate a self-signed certificate (for internal/development use)',
+                },
+                {
+                  value: 'none',
+                  label: 'No SSL',
+                  desc: 'HTTP only (not recommended for production)',
+                },
               ].map((opt) => (
                 <label
                   key={opt.value}
                   className={cn(
                     'flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors',
-                    sslMode === opt.value ? 'border-primary bg-primary/5' : 'hover:border-primary/30',
+                    sslMode === opt.value
+                      ? 'border-primary bg-primary/5'
+                      : 'hover:border-primary/30'
                   )}
                 >
                   <input
@@ -262,7 +289,7 @@ export function InstallWizard({ template, method, onBack, onStart }: InstallWiza
               'flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-md transition-colors',
               step === 'configure' && !canProceedConfigure
                 ? 'bg-muted text-muted-foreground cursor-not-allowed'
-                : 'bg-primary text-primary-foreground hover:bg-primary/90',
+                : 'bg-primary text-primary-foreground hover:bg-primary/90'
             )}
           >
             Next
@@ -309,14 +336,18 @@ function ConfigFieldInput({
           {field.label}
           {field.required && <span className="text-destructive ml-0.5">*</span>}
         </label>
-        {field.description && <p className="text-[11px] text-muted-foreground mb-1.5">{field.description}</p>}
+        {field.description && (
+          <p className="text-[11px] text-muted-foreground mb-1.5">{field.description}</p>
+        )}
         <select
           value={String(value)}
           onChange={(e) => onChange(e.target.value)}
           className="w-full h-9 px-3 rounded-md border border-input bg-background text-sm"
         >
           {field.options.map((opt) => (
-            <option key={opt.value} value={opt.value}>{opt.label}</option>
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
+            </option>
           ))}
         </select>
       </div>
@@ -329,7 +360,9 @@ function ConfigFieldInput({
         {field.label}
         {field.required && <span className="text-destructive ml-0.5">*</span>}
       </label>
-      {field.description && <p className="text-[11px] text-muted-foreground mb-1.5">{field.description}</p>}
+      {field.description && (
+        <p className="text-[11px] text-muted-foreground mb-1.5">{field.description}</p>
+      )}
       <input
         type={field.type === 'number' ? 'number' : 'text'}
         value={String(value)}

@@ -501,7 +501,7 @@ export class AIRunnerWorker {
       state.childPid =
         childExecution.unitName && childExecution.pid == null
           ? 0
-          : childExecution.pid ?? child.pid ?? 0;
+          : (childExecution.pid ?? child.pid ?? 0);
       state.executionUnit = childExecution.unitName;
       terminateChild = () =>
         terminateAIRunnerExecution({

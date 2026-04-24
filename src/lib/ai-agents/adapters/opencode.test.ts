@@ -5,17 +5,14 @@ vi.mock('@/lib/logger', () => ({
   createLogger: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }),
 }));
 
-const {
-  mockExistsSync,
-  mockDiscoverHomeDirs,
-  mockDetectGitInfo,
-  mockExecPromise,
-} = vi.hoisted(() => ({
-  mockExistsSync: vi.fn(),
-  mockDiscoverHomeDirs: vi.fn(),
-  mockDetectGitInfo: vi.fn(),
-  mockExecPromise: vi.fn(),
-}));
+const { mockExistsSync, mockDiscoverHomeDirs, mockDetectGitInfo, mockExecPromise } = vi.hoisted(
+  () => ({
+    mockExistsSync: vi.fn(),
+    mockDiscoverHomeDirs: vi.fn(),
+    mockDetectGitInfo: vi.fn(),
+    mockExecPromise: vi.fn(),
+  })
+);
 
 vi.mock('fs', () => ({
   existsSync: mockExistsSync,
@@ -101,7 +98,8 @@ describe('OpenCodeAdapter', () => {
 
       mockExecPromise.mockImplementation(async (cmd: string) => {
         if (cmd.includes('SELECT id, slug')) return { stdout: makeDbSession() };
-        if (cmd.includes('SELECT m.time_created')) return { stdout: makeMessages('Hello from user') };
+        if (cmd.includes('SELECT m.time_created'))
+          return { stdout: makeMessages('Hello from user') };
         return { stdout: 'localhost\n' };
       });
 
@@ -125,10 +123,16 @@ describe('OpenCodeAdapter', () => {
       mockExecPromise.mockImplementation(async (cmd: string) => {
         if (cmd.includes('SELECT id, slug')) {
           return {
-            stdout: JSON.stringify([{
-              id: 'sess-1', slug: 'sess', title: 'Active', directory: '/tmp',
-              time_created: recentlyUpdated - 1000, time_updated: recentlyUpdated,
-            }]),
+            stdout: JSON.stringify([
+              {
+                id: 'sess-1',
+                slug: 'sess',
+                title: 'Active',
+                directory: '/tmp',
+                time_created: recentlyUpdated - 1000,
+                time_updated: recentlyUpdated,
+              },
+            ]),
           };
         }
         if (cmd.includes('SELECT m.time_created')) return { stdout: makeMessages('Hi') };
@@ -147,10 +151,16 @@ describe('OpenCodeAdapter', () => {
       mockExecPromise.mockImplementation(async (cmd: string) => {
         if (cmd.includes('SELECT id, slug')) {
           return {
-            stdout: JSON.stringify([{
-              id: 'sess-old', slug: 'sess', title: 'Old', directory: '/tmp',
-              time_created: TWO_DAYS_AGO, time_updated: TWO_DAYS_AGO + 1000,
-            }]),
+            stdout: JSON.stringify([
+              {
+                id: 'sess-old',
+                slug: 'sess',
+                title: 'Old',
+                directory: '/tmp',
+                time_created: TWO_DAYS_AGO,
+                time_updated: TWO_DAYS_AGO + 1000,
+              },
+            ]),
           };
         }
         if (cmd.includes('SELECT m.time_created')) return { stdout: makeMessages('Old message') };
@@ -170,11 +180,13 @@ describe('OpenCodeAdapter', () => {
         if (cmd.includes('SELECT id, slug')) return { stdout: makeDbSession() };
         if (cmd.includes('SELECT m.time_created')) {
           return {
-            stdout: JSON.stringify([{
-              time_created: NOW,
-              msg_data: JSON.stringify({ role: 'assistant', model: 'claude-3-5-sonnet' }),
-              part_data: JSON.stringify({ type: 'text', text: 'Here is the answer' }),
-            }]),
+            stdout: JSON.stringify([
+              {
+                time_created: NOW,
+                msg_data: JSON.stringify({ role: 'assistant', model: 'claude-3-5-sonnet' }),
+                part_data: JSON.stringify({ type: 'text', text: 'Here is the answer' }),
+              },
+            ]),
           };
         }
         return { stdout: 'localhost\n' };
@@ -193,11 +205,13 @@ describe('OpenCodeAdapter', () => {
         if (cmd.includes('SELECT id, slug')) return { stdout: makeDbSession() };
         if (cmd.includes('SELECT m.time_created')) {
           return {
-            stdout: JSON.stringify([{
-              time_created: NOW,
-              msg_data: JSON.stringify({ role: 'assistant', model: { modelID: 'gpt-4-turbo' } }),
-              part_data: JSON.stringify({ type: 'text', text: 'Answer here' }),
-            }]),
+            stdout: JSON.stringify([
+              {
+                time_created: NOW,
+                msg_data: JSON.stringify({ role: 'assistant', model: { modelID: 'gpt-4-turbo' } }),
+                part_data: JSON.stringify({ type: 'text', text: 'Answer here' }),
+              },
+            ]),
           };
         }
         return { stdout: 'localhost\n' };
@@ -215,10 +229,16 @@ describe('OpenCodeAdapter', () => {
       mockExecPromise.mockImplementation(async (cmd: string) => {
         if (cmd.includes('SELECT id, slug')) {
           return {
-            stdout: JSON.stringify([{
-              id: 'sess-t', slug: 'my-slug', title: 'My Title',
-              directory: '/tmp', time_created: TWENTY_MIN_AGO, time_updated: TWENTY_MIN_AGO,
-            }]),
+            stdout: JSON.stringify([
+              {
+                id: 'sess-t',
+                slug: 'my-slug',
+                title: 'My Title',
+                directory: '/tmp',
+                time_created: TWENTY_MIN_AGO,
+                time_updated: TWENTY_MIN_AGO,
+              },
+            ]),
           };
         }
         if (cmd.includes('SELECT m.time_created')) return { stdout: makeMessages('Hi') };
@@ -232,17 +252,23 @@ describe('OpenCodeAdapter', () => {
 
     it('calculates duration in seconds from timestamps', async () => {
       const start = NOW - 120_000; // 2 minutes ago
-      const end = NOW - 60_000;    // 1 minute ago
+      const end = NOW - 60_000; // 1 minute ago
       mockDiscoverHomeDirs.mockReturnValue([{ username: 'user1', homeDir: '/home/user1' }]);
       mockExistsSync.mockReturnValue(true);
 
       mockExecPromise.mockImplementation(async (cmd: string) => {
         if (cmd.includes('SELECT id, slug')) {
           return {
-            stdout: JSON.stringify([{
-              id: 'sess-d', slug: 'sess', title: 'Timed', directory: '/tmp',
-              time_created: start, time_updated: end,
-            }]),
+            stdout: JSON.stringify([
+              {
+                id: 'sess-d',
+                slug: 'sess',
+                title: 'Timed',
+                directory: '/tmp',
+                time_created: start,
+                time_updated: end,
+              },
+            ]),
           };
         }
         if (cmd.includes('SELECT m.time_created')) return { stdout: makeMessages('Hi') };
@@ -273,8 +299,16 @@ describe('OpenCodeAdapter', () => {
         if (cmd.includes('SELECT m.time_created')) {
           return {
             stdout: JSON.stringify([
-              { time_created: NOW, msg_data: 'not-json{{{', part_data: JSON.stringify({ type: 'text', text: 'Still valid' }) },
-              { time_created: NOW + 1000, msg_data: JSON.stringify({ role: 'user' }), part_data: 'invalid-json' },
+              {
+                time_created: NOW,
+                msg_data: 'not-json{{{',
+                part_data: JSON.stringify({ type: 'text', text: 'Still valid' }),
+              },
+              {
+                time_created: NOW + 1000,
+                msg_data: JSON.stringify({ role: 'user' }),
+                part_data: 'invalid-json',
+              },
             ]),
           };
         }

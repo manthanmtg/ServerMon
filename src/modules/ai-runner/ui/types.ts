@@ -1,8 +1,4 @@
-import type {
-  AIRunnerProfileDTO,
-  AIRunnerPromptDTO,
-  AIRunnerScheduleDTO,
-} from '../types';
+import type { AIRunnerProfileDTO, AIRunnerPromptDTO, AIRunnerScheduleDTO } from '../types';
 
 export type ViewTab = 'run' | 'prompts' | 'schedules' | 'history' | 'settings' | 'logs';
 

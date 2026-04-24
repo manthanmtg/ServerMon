@@ -56,7 +56,9 @@ describe('metricsModule', () => {
     it('start() logs start message', () => {
       const ctx = makeCtx();
       metricsModule.start!(ctx);
-      expect(ctx.logger.info).toHaveBeenCalledWith(expect.stringContaining('Metrics Stream Active'));
+      expect(ctx.logger.info).toHaveBeenCalledWith(
+        expect.stringContaining('Metrics Stream Active')
+      );
     });
 
     it('stop() logs stop message', () => {

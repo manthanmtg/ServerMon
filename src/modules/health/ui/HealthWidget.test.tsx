@@ -59,9 +59,7 @@ describe('HealthWidget', () => {
     render(<HealthWidget />);
     await act(async () => {
       if (mockEventSource.onmessage) {
-        mockEventSource.onmessage(
-          new MessageEvent('message', { data: 'invalid json' })
-        );
+        mockEventSource.onmessage(new MessageEvent('message', { data: 'invalid json' }));
       }
     });
     // Should still show initial values

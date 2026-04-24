@@ -1,7 +1,21 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { X, GitCommit, User, Calendar, Hash, LoaderCircle, ArrowLeft, Terminal, Search, Clock, Copy, Check, MessageSquare } from 'lucide-react';
+import {
+  X,
+  GitCommit,
+  User,
+  Calendar,
+  Hash,
+  LoaderCircle,
+  ArrowLeft,
+  Terminal,
+  Search,
+  Clock,
+  Copy,
+  Check,
+  MessageSquare,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
@@ -54,24 +68,27 @@ export default function GitHistoryModal({ root, onClose }: Props) {
     }
   }, [root, since, limit]);
 
-  const fetchDiff = useCallback(async (hash: string) => {
-    setLoadingDiff(true);
-    try {
-      const res = await fetch('/api/modules/file-browser/git', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ root, action: 'diff', hash }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        setDiff(data.result);
+  const fetchDiff = useCallback(
+    async (hash: string) => {
+      setLoadingDiff(true);
+      try {
+        const res = await fetch('/api/modules/file-browser/git', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ root, action: 'diff', hash }),
+        });
+        const data = await res.json();
+        if (data.success) {
+          setDiff(data.result);
+        }
+      } catch (err) {
+        console.error('Failed to fetch diff', err);
+      } finally {
+        setLoadingDiff(false);
       }
-    } catch (err) {
-      console.error('Failed to fetch diff', err);
-    } finally {
-      setLoadingDiff(false);
-    }
-  }, [root]);
+    },
+    [root]
+  );
 
   useEffect(() => {
     fetchLogs();
@@ -90,12 +107,12 @@ export default function GitHistoryModal({ root, onClose }: Props) {
       if (!dateStr) return 'No date';
       const d = new Date(dateStr);
       if (isNaN(d.getTime())) return 'Invalid Date';
-      return d.toLocaleDateString(undefined, { 
-        year: 'numeric', 
-        month: 'short', 
+      return d.toLocaleDateString(undefined, {
+        year: 'numeric',
+        month: 'short',
         day: '2-digit',
         hour: '2-digit',
-        minute: '2-digit'
+        minute: '2-digit',
       });
     } catch {
       return 'Invalid Date';
@@ -109,24 +126,39 @@ export default function GitHistoryModal({ root, onClose }: Props) {
     toast({ title: 'Copied', description: 'Commit hash copied to clipboard', variant: 'success' });
   };
 
-  const filteredCommits = commits.filter(c => 
-    c.subject.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    c.author.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    c.hash.toLowerCase().includes(searchQuery.toLowerCase())
+  const filteredCommits = commits.filter(
+    (c) =>
+      c.subject.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      c.author.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      c.hash.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const selectedCommit = commits.find(c => c.hash === selectedHash);
+  const selectedCommit = commits.find((c) => c.hash === selectedHash);
 
   const formatDiff = (rawDiff: string) => {
     return rawDiff.split('\n').map((line, i) => {
       let colorClass = 'text-foreground/70';
-      if (line.startsWith('+') && !line.startsWith('+++')) colorClass = 'text-success bg-success/10';
-      else if (line.startsWith('-') && !line.startsWith('---')) colorClass = 'text-destructive bg-destructive/10';
+      if (line.startsWith('+') && !line.startsWith('+++'))
+        colorClass = 'text-success bg-success/10';
+      else if (line.startsWith('-') && !line.startsWith('---'))
+        colorClass = 'text-destructive bg-destructive/10';
       else if (line.startsWith('@@')) colorClass = 'text-primary/70 bg-primary/5 font-bold';
-      else if (line.startsWith('diff') || line.startsWith('index') || line.startsWith('---') || line.startsWith('+++')) colorClass = 'text-muted-foreground font-semibold';
+      else if (
+        line.startsWith('diff') ||
+        line.startsWith('index') ||
+        line.startsWith('---') ||
+        line.startsWith('+++')
+      )
+        colorClass = 'text-muted-foreground font-semibold';
 
       return (
-        <div key={i} className={cn('px-4 py-0.5 font-mono text-[11px] whitespace-pre-wrap break-all', colorClass)}>
+        <div
+          key={i}
+          className={cn(
+            'px-4 py-0.5 font-mono text-[11px] whitespace-pre-wrap break-all',
+            colorClass
+          )}
+        >
           {line}
         </div>
       );
@@ -144,28 +176,34 @@ export default function GitHistoryModal({ root, onClose }: Props) {
                 <GitCommit className="w-6 h-6" />
               </div>
               <div>
-                <h2 className="text-lg font-bold text-foreground tracking-tight">Git Repository History</h2>
+                <h2 className="text-lg font-bold text-foreground tracking-tight">
+                  Git Repository History
+                </h2>
                 <div className="flex items-center gap-2">
                   <Terminal className="w-3 h-3 text-muted-foreground" />
-                  <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest truncate max-w-[400px]">{root}</p>
+                  <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest truncate max-w-[400px]">
+                    {root}
+                  </p>
                 </div>
               </div>
             </div>
-            
+
             <div className="flex items-center gap-4">
               {/* Limit Selector */}
               <div className="flex items-center gap-2">
-                <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider">Show:</span>
+                <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider">
+                  Show:
+                </span>
                 <div className="flex items-center bg-muted/30 p-1 rounded-xl border border-border/50">
                   {LIMIT_OPTIONS.map((opt) => (
                     <button
                       key={opt}
                       onClick={() => setLimit(opt)}
                       className={cn(
-                        "px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-lg transition-all duration-200",
-                        limit === opt 
-                          ? "bg-primary text-primary-foreground shadow-sm" 
-                          : "text-muted-foreground hover:text-foreground hover:bg-accent"
+                        'px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-lg transition-all duration-200',
+                        limit === opt
+                          ? 'bg-primary text-primary-foreground shadow-sm'
+                          : 'text-muted-foreground hover:text-foreground hover:bg-accent'
                       )}
                     >
                       {opt}
@@ -178,17 +216,19 @@ export default function GitHistoryModal({ root, onClose }: Props) {
 
               {/* Time Range Selector */}
               <div className="flex items-center gap-2">
-                <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider">Range:</span>
+                <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider">
+                  Range:
+                </span>
                 <div className="flex items-center bg-muted/30 p-1 rounded-xl border border-border/50">
                   {TIME_RANGES.map((range) => (
                     <button
                       key={range.value}
                       onClick={() => setSince(range.value)}
                       className={cn(
-                        "px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-lg transition-all duration-200",
-                        since === range.value 
-                          ? "bg-primary text-primary-foreground shadow-sm" 
-                          : "text-muted-foreground hover:text-foreground hover:bg-accent"
+                        'px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-lg transition-all duration-200',
+                        since === range.value
+                          ? 'bg-primary text-primary-foreground shadow-sm'
+                          : 'text-muted-foreground hover:text-foreground hover:bg-accent'
                       )}
                     >
                       {range.label}
@@ -196,20 +236,25 @@ export default function GitHistoryModal({ root, onClose }: Props) {
                   ))}
                 </div>
               </div>
-              
+
               <div className="h-8 w-px bg-border/50 mx-1" />
-              
-              <Button variant="ghost" size="icon" className="rounded-xl h-10 w-10 text-muted-foreground hover:text-foreground hover:bg-destructive/10 hover:text-destructive transition-all" onClick={onClose}>
+
+              <Button
+                variant="ghost"
+                size="icon"
+                className="rounded-xl h-10 w-10 text-muted-foreground hover:text-foreground hover:bg-destructive/10 hover:text-destructive transition-all"
+                onClick={onClose}
+              >
                 <X className="w-5 h-5" />
               </Button>
             </div>
           </div>
-          
+
           {/* Search Bar */}
           <div className="px-6 pb-4 flex items-center gap-3">
             <div className="relative flex-1 group">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
-              <input 
+              <input
                 type="text"
                 placeholder="Search by subject, author, or hash..."
                 className="w-full bg-muted/20 border border-border/50 rounded-xl py-2 pl-10 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
@@ -227,10 +272,12 @@ export default function GitHistoryModal({ root, onClose }: Props) {
         {/* Content Area */}
         <div className="flex-1 flex min-h-0 divide-x divide-border overflow-hidden">
           {/* Commit List */}
-          <div className={cn(
-            "flex flex-col min-h-0 transition-all duration-300 bg-muted/5",
-            selectedHash ? "w-2/5" : "w-full"
-          )}>
+          <div
+            className={cn(
+              'flex flex-col min-h-0 transition-all duration-300 bg-muted/5',
+              selectedHash ? 'w-2/5' : 'w-full'
+            )}
+          >
             <div className="flex-1 overflow-y-auto px-4 py-4 space-y-2 custom-scrollbar">
               {loading ? (
                 <div className="flex flex-col items-center justify-center h-full gap-3 text-muted-foreground">
@@ -242,7 +289,9 @@ export default function GitHistoryModal({ root, onClose }: Props) {
                   <Terminal className="w-12 h-12 opacity-10" />
                   <div className="text-center">
                     <p className="text-sm font-bold">No results found</p>
-                    <p className="text-[11px] opacity-60">Try adjusting your time range or search query</p>
+                    <p className="text-[11px] opacity-60">
+                      Try adjusting your time range or search query
+                    </p>
                   </div>
                 </div>
               ) : (
@@ -251,24 +300,31 @@ export default function GitHistoryModal({ root, onClose }: Props) {
                     key={c.hash}
                     onClick={() => setSelectedHash(c.hash === selectedHash ? null : c.hash)}
                     className={cn(
-                      "group w-full text-left p-4 rounded-2xl transition-all duration-300 border",
-                      selectedHash === c.hash 
-                        ? "bg-primary/10 border-primary/30 shadow-lg shadow-primary/5" 
-                        : "bg-card/40 border-border/30 hover:bg-accent/40 hover:border-primary/20 hover:-translate-y-0.5"
+                      'group w-full text-left p-4 rounded-2xl transition-all duration-300 border',
+                      selectedHash === c.hash
+                        ? 'bg-primary/10 border-primary/30 shadow-lg shadow-primary/5'
+                        : 'bg-card/40 border-border/30 hover:bg-accent/40 hover:border-primary/20 hover:-translate-y-0.5'
                     )}
                   >
                     <div className="flex items-start justify-between gap-3 mb-2.5">
-                      <span className={cn(
-                        "text-[13px] font-bold transition-colors leading-relaxed",
-                        selectedHash === c.hash ? "text-primary" : "text-foreground group-hover:text-primary/80"
-                      )}>
+                      <span
+                        className={cn(
+                          'text-[13px] font-bold transition-colors leading-relaxed',
+                          selectedHash === c.hash
+                            ? 'text-primary'
+                            : 'text-foreground group-hover:text-primary/80'
+                        )}
+                      >
                         {c.subject}
                       </span>
-                      <Badge variant="outline" className="h-6 px-2 font-mono text-[10px] shrink-0 border-border/50 bg-background/50 font-bold text-muted-foreground">
+                      <Badge
+                        variant="outline"
+                        className="h-6 px-2 font-mono text-[10px] shrink-0 border-border/50 bg-background/50 font-bold text-muted-foreground"
+                      >
                         {c.hash.slice(0, 7)}
                       </Badge>
                     </div>
-                    
+
                     <div className="flex items-center gap-4 text-[11px] text-muted-foreground/80 font-semibold">
                       <div className="flex items-center gap-2 min-w-0">
                         <div className="w-5 h-5 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center text-[9px] text-primary shrink-0">
@@ -294,64 +350,97 @@ export default function GitHistoryModal({ root, onClose }: Props) {
               <div className="px-6 py-5 border-b border-border bg-card/40 shrink-0 space-y-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <Button variant="ghost" size="sm" className="h-9 px-3 gap-2 -ml-2 text-muted-foreground hover:text-foreground hover:bg-accent rounded-xl" onClick={() => setSelectedHash(null)}>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-9 px-3 gap-2 -ml-2 text-muted-foreground hover:text-foreground hover:bg-accent rounded-xl"
+                      onClick={() => setSelectedHash(null)}
+                    >
                       <ArrowLeft className="w-4 h-4" />
-                      <span className="text-[11px] font-bold uppercase tracking-widest">Full List</span>
+                      <span className="text-[11px] font-bold uppercase tracking-widest">
+                        Full List
+                      </span>
                     </Button>
                     <div className="h-5 w-px bg-border/50 mx-1" />
-                    <div className="flex items-center gap-2 group cursor-pointer" onClick={() => copyToClipboard(selectedHash)}>
+                    <div
+                      className="flex items-center gap-2 group cursor-pointer"
+                      onClick={() => copyToClipboard(selectedHash)}
+                    >
                       <Hash className="w-4 h-4 text-primary" />
                       <code className="text-xs font-mono font-bold text-primary bg-primary/5 px-2 py-0.5 rounded-lg border border-primary/10 transition-all group-hover:bg-primary/10">
                         {selectedHash}
                       </code>
-                      {copied ? <Check className="w-3.5 h-3.5 text-success" /> : <Copy className="w-3.5 h-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-all" />}
+                      {copied ? (
+                        <Check className="w-3.5 h-3.5 text-success" />
+                      ) : (
+                        <Copy className="w-3.5 h-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-all" />
+                      )}
                     </div>
                   </div>
                 </div>
-                
+
                 <div className="bg-muted/10 rounded-2xl p-4 border border-border/50">
                   <div className="flex items-start gap-4 mb-4">
                     <div className="p-3 rounded-xl bg-card border border-border/50 shadow-sm">
                       <MessageSquare className="w-5 h-5 text-primary" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <h3 className="text-sm font-bold text-foreground mb-1 leading-normal">{selectedCommit?.subject}</h3>
+                      <h3 className="text-sm font-bold text-foreground mb-1 leading-normal">
+                        {selectedCommit?.subject}
+                      </h3>
                       {selectedCommit?.body && (
-                        <p className="text-xs text-muted-foreground leading-relaxed italic">{selectedCommit.body}</p>
+                        <p className="text-xs text-muted-foreground leading-relaxed italic">
+                          {selectedCommit.body}
+                        </p>
                       )}
                     </div>
                   </div>
-                  
+
                   <div className="grid grid-cols-2 gap-4">
                     <div className="flex items-center gap-2.5 px-3 py-2 bg-background/50 rounded-xl border border-border/30">
                       <User className="w-4 h-4 text-primary/70" />
                       <div className="min-w-0">
-                        <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider">Author</p>
-                        <p className="text-[11px] font-bold text-foreground truncate">{selectedCommit?.author} <span className="opacity-40 italic font-normal">&lt;{selectedCommit?.authorEmail}&gt;</span></p>
+                        <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider">
+                          Author
+                        </p>
+                        <p className="text-[11px] font-bold text-foreground truncate">
+                          {selectedCommit?.author}{' '}
+                          <span className="opacity-40 italic font-normal">
+                            &lt;{selectedCommit?.authorEmail}&gt;
+                          </span>
+                        </p>
                       </div>
                     </div>
                     <div className="flex items-center gap-2.5 px-3 py-2 bg-background/50 rounded-xl border border-border/30">
                       <Calendar className="w-4 h-4 text-primary/70" />
                       <div className="min-w-0">
-                        <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider">Committed On</p>
-                        <p className="text-[11px] font-bold text-foreground truncate">{selectedCommit ? formatDate(selectedCommit.date) : 'Loading...'}</p>
+                        <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider">
+                          Committed On
+                        </p>
+                        <p className="text-[11px] font-bold text-foreground truncate">
+                          {selectedCommit ? formatDate(selectedCommit.date) : 'Loading...'}
+                        </p>
                       </div>
                     </div>
                   </div>
                 </div>
               </div>
-              
+
               <div className="flex-1 overflow-y-auto py-6 custom-scrollbar bg-card/10">
                 {loadingDiff ? (
                   <div className="flex flex-col items-center justify-center h-full gap-3 text-muted-foreground">
                     <LoaderCircle className="w-10 h-10 animate-spin text-primary opacity-50" />
-                    <span className="text-xs font-bold tracking-widest uppercase opacity-70">Synthesizing Diff...</span>
+                    <span className="text-xs font-bold tracking-widest uppercase opacity-70">
+                      Synthesizing Diff...
+                    </span>
                   </div>
                 ) : diff ? (
                   <div className="px-6">
                     <div className="bg-card/50 border border-border rounded-2xl overflow-hidden shadow-sm">
                       <div className="px-4 py-2 bg-muted/30 border-b border-border flex items-center justify-between">
-                        <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Changes Overview</span>
+                        <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                          Changes Overview
+                        </span>
                         <div className="flex gap-4">
                           <div className="flex items-center gap-1">
                             <div className="w-2 h-2 rounded-full bg-success" />
@@ -359,18 +448,20 @@ export default function GitHistoryModal({ root, onClose }: Props) {
                           </div>
                           <div className="flex items-center gap-1">
                             <div className="w-2 h-2 rounded-full bg-destructive" />
-                            <span className="text-[9px] font-bold text-destructive/80">Removed</span>
+                            <span className="text-[9px] font-bold text-destructive/80">
+                              Removed
+                            </span>
                           </div>
                         </div>
                       </div>
-                      <div className="py-2">
-                        {formatDiff(diff)}
-                      </div>
+                      <div className="py-2">{formatDiff(diff)}</div>
                     </div>
                   </div>
                 ) : (
                   <div className="flex flex-col items-center justify-center h-full text-muted-foreground gap-2">
-                    <span className="text-xs font-semibold uppercase tracking-widest opacity-30">Select a commit to view diff</span>
+                    <span className="text-xs font-semibold uppercase tracking-widest opacity-30">
+                      Select a commit to view diff
+                    </span>
                   </div>
                 )}
               </div>

@@ -1,14 +1,6 @@
 'use client';
 
-import { 
-  Settings, 
-  X, 
-  Copy, 
-  Trash2, 
-  AlertTriangle, 
-  Clock, 
-  FileText
-} from 'lucide-react';
+import { Settings, X, Copy, Trash2, AlertTriangle, Clock, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { EndpointCreateRequest, CustomEndpointDTO } from '../../types';
 
@@ -17,7 +9,10 @@ interface EndpointSettingsProps {
   selectedEndpoint: CustomEndpointDTO | null;
   selectedId: string | null;
   isCreating: boolean;
-  onUpdateForm: <K extends keyof EndpointCreateRequest>(key: K, value: EndpointCreateRequest[K]) => void;
+  onUpdateForm: <K extends keyof EndpointCreateRequest>(
+    key: K,
+    value: EndpointCreateRequest[K]
+  ) => void;
   onDuplicate: (id: string) => void;
   onDelete: (ep: CustomEndpointDTO) => void;
 }
@@ -40,19 +35,23 @@ export function EndpointSettings({
       <div className="space-y-6 p-6 rounded-3xl bg-card border border-border/40 shadow-sm overflow-hidden relative">
         <div className="flex items-center justify-between relative z-10">
           <div className="flex items-center gap-3">
-             <div className="p-2 rounded-xl bg-primary/10">
-                <Clock className="w-4 h-4 text-primary" />
-             </div>
-             <div className="space-y-0.5">
-               <label className="text-xs font-black text-foreground uppercase tracking-wider">
-                 Execution Timeout
-               </label>
-               <p className="text-[10px] text-muted-foreground font-medium lowercase italic">Termination threshold for script execution</p>
-             </div>
+            <div className="p-2 rounded-xl bg-primary/10">
+              <Clock className="w-4 h-4 text-primary" />
+            </div>
+            <div className="space-y-0.5">
+              <label className="text-xs font-black text-foreground uppercase tracking-wider">
+                Execution Timeout
+              </label>
+              <p className="text-[10px] text-muted-foreground font-medium lowercase italic">
+                Termination threshold for script execution
+              </p>
+            </div>
           </div>
-          <span className="text-sm font-black font-mono text-primary bg-primary/10 px-3 py-1 rounded-xl border border-primary/20">{timeoutSec}s</span>
+          <span className="text-sm font-black font-mono text-primary bg-primary/10 px-3 py-1 rounded-xl border border-primary/20">
+            {timeoutSec}s
+          </span>
         </div>
-        
+
         <div className="space-y-4 px-2 relative z-10">
           <input
             type="range"
@@ -69,9 +68,9 @@ export function EndpointSettings({
             <span>Maximum 120s</span>
           </div>
         </div>
-        
+
         <div className="absolute top-0 right-0 p-8 opacity-[0.03] pointer-events-none -mr-4 -mt-4">
-           <Clock className="w-24 h-24" />
+          <Clock className="w-24 h-24" />
         </div>
       </div>
 
@@ -79,15 +78,17 @@ export function EndpointSettings({
       <div className="space-y-6">
         <div className="flex items-center justify-between px-2">
           <div className="flex items-center gap-3">
-             <div className="p-2 rounded-xl bg-blue-500/10">
-                <FileText className="w-4 h-4 text-blue-500" />
-             </div>
-             <div className="space-y-0.5">
-                <label className="text-xs font-black text-foreground uppercase tracking-wider">
-                  Static Egress Headers
-                </label>
-                <p className="text-[10px] text-muted-foreground font-medium lowercase italic">Injected into all outbound HTTP responses</p>
-             </div>
+            <div className="p-2 rounded-xl bg-blue-500/10">
+              <FileText className="w-4 h-4 text-blue-500" />
+            </div>
+            <div className="space-y-0.5">
+              <label className="text-xs font-black text-foreground uppercase tracking-wider">
+                Static Egress Headers
+              </label>
+              <p className="text-[10px] text-muted-foreground font-medium lowercase italic">
+                Injected into all outbound HTTP responses
+              </p>
+            </div>
           </div>
           <button
             onClick={() =>
@@ -101,9 +102,12 @@ export function EndpointSettings({
 
         <div className="space-y-3">
           {Object.entries(form.responseHeaders || {}).map(([key, value], i) => (
-            <div key={i} className="flex items-center gap-3 p-2 bg-muted/10 rounded-2xl border border-border/30 group/header animate-in slide-in-from-left-4 duration-300">
+            <div
+              key={i}
+              className="flex items-center gap-3 p-2 bg-muted/10 rounded-2xl border border-border/30 group/header animate-in slide-in-from-left-4 duration-300"
+            >
               <div className="flex-1 flex items-center gap-2">
-                 <input
+                <input
                   type="text"
                   value={key}
                   placeholder="X-Header-Name"
@@ -142,10 +146,12 @@ export function EndpointSettings({
             </div>
           ))}
           {Object.keys(form.responseHeaders || {}).length === 0 && (
-             <div className="text-center py-10 rounded-[2.5rem] border border-dashed border-border/40 bg-muted/5 flex flex-col items-center gap-3">
-                <Settings className="w-8 h-8 text-muted-foreground/20" />
-                <span className="text-[10px] font-bold text-muted-foreground/40 uppercase tracking-widest">No custom egress headers defined</span>
-             </div>
+            <div className="text-center py-10 rounded-[2.5rem] border border-dashed border-border/40 bg-muted/5 flex flex-col items-center gap-3">
+              <Settings className="w-8 h-8 text-muted-foreground/20" />
+              <span className="text-[10px] font-bold text-muted-foreground/40 uppercase tracking-widest">
+                No custom egress headers defined
+              </span>
+            </div>
           )}
         </div>
       </div>
@@ -153,22 +159,29 @@ export function EndpointSettings({
       {/* Danger Zone */}
       {!isCreating && selectedEndpoint && (
         <div className="space-y-6 pt-10 border-t border-border/40">
-           <div className="flex items-center gap-3 px-2">
-              <div className="p-2 rounded-xl bg-destructive/10">
-                <AlertTriangle className="w-4 h-4 text-destructive" />
-              </div>
-              <div className="space-y-0.5">
-                <h4 className="text-xs font-black text-destructive uppercase tracking-[0.2em]">
-                  Restricted Operations
-                </h4>
-                <p className="text-[10px] text-muted-foreground font-medium lowercase italic">Irreversible actions that impact endpoint availability</p>
-              </div>
-           </div>
+          <div className="flex items-center gap-3 px-2">
+            <div className="p-2 rounded-xl bg-destructive/10">
+              <AlertTriangle className="w-4 h-4 text-destructive" />
+            </div>
+            <div className="space-y-0.5">
+              <h4 className="text-xs font-black text-destructive uppercase tracking-[0.2em]">
+                Restricted Operations
+              </h4>
+              <p className="text-[10px] text-muted-foreground font-medium lowercase italic">
+                Irreversible actions that impact endpoint availability
+              </p>
+            </div>
+          </div>
 
           <div className="flex flex-wrap items-center gap-4 p-6 rounded-[2.5rem] bg-destructive/[0.02] border border-destructive/10 ring-1 ring-destructive/5 relative overflow-hidden">
             <div className="flex-1 min-w-0 relative z-10">
-               <p className="text-xs font-bold text-foreground mb-1 uppercase tracking-tight">Endpoint Lifecycle</p>
-               <p className="text-[10px] text-muted-foreground leading-relaxed italic">Duplicate this configuration as a new template or terminate the endpoint permanently, purging all associated tokens and historical logs.</p>
+              <p className="text-xs font-bold text-foreground mb-1 uppercase tracking-tight">
+                Endpoint Lifecycle
+              </p>
+              <p className="text-[10px] text-muted-foreground leading-relaxed italic">
+                Duplicate this configuration as a new template or terminate the endpoint
+                permanently, purging all associated tokens and historical logs.
+              </p>
             </div>
             <div className="flex items-center gap-3 shrink-0 relative z-10">
               <Button
@@ -191,7 +204,7 @@ export function EndpointSettings({
               </Button>
             </div>
             <div className="absolute top-0 right-0 p-8 opacity-[0.03] pointer-events-none -mr-4 -mt-4">
-               <AlertTriangle className="w-24 h-24 text-destructive" />
+              <AlertTriangle className="w-24 h-24 text-destructive" />
             </div>
           </div>
         </div>

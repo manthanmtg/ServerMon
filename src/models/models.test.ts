@@ -507,4 +507,61 @@ describe('CustomEndpointZodSchema — extended validation', () => {
     });
     expect(result.success).toBe(true);
   });
+
+  it('applies default target with mode=local and empty nodeIds', async () => {
+    const { CustomEndpointZodSchema } = await import('./CustomEndpoint');
+    const result = CustomEndpointZodSchema.safeParse({
+      name: 'Test',
+      slug: 'test',
+      method: 'GET',
+      endpointType: 'script',
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.target.mode).toBe('local');
+      expect(result.data.target.nodeIds).toEqual([]);
+    }
+  });
+
+  it('accepts all valid target modes', async () => {
+    const { CustomEndpointZodSchema } = await import('./CustomEndpoint');
+    for (const mode of ['local', 'single', 'fleet', 'tag', 'list'] as const) {
+      const result = CustomEndpointZodSchema.safeParse({
+        name: 'Test',
+        slug: 'test',
+        method: 'GET',
+        endpointType: 'script',
+        target: { mode, nodeIds: [] },
+      });
+      expect(result.success).toBe(true);
+    }
+  });
+
+  it('rejects invalid target mode', async () => {
+    const { CustomEndpointZodSchema } = await import('./CustomEndpoint');
+    const result = CustomEndpointZodSchema.safeParse({
+      name: 'Test',
+      slug: 'test',
+      method: 'GET',
+      endpointType: 'script',
+      target: { mode: 'cluster', nodeIds: [] },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('accepts target with nodeIds and tag', async () => {
+    const { CustomEndpointZodSchema } = await import('./CustomEndpoint');
+    const result = CustomEndpointZodSchema.safeParse({
+      name: 'Test',
+      slug: 'test',
+      method: 'GET',
+      endpointType: 'script',
+      target: { mode: 'list', nodeIds: ['n1', 'n2'], tag: 'prod' },
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.target.nodeIds).toEqual(['n1', 'n2']);
+      expect(result.data.target.tag).toBe('prod');
+    }
+  });
 });

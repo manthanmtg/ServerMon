@@ -53,16 +53,14 @@ export function createJob(request: InstallRequest): InstallJob | { error: string
     jobs.set(updatedJob.id, updatedJob);
   };
 
-  runProvisionPipeline(template, method, request.config, job, onUpdate).catch(
-    (err: unknown) => {
-      const error = err as { message?: string };
-      log.error(`Job ${job.id} pipeline error`, err);
-      job.status = 'failed';
-      job.error = error.message || 'Unexpected pipeline error';
-      job.completedAt = new Date().toISOString();
-      jobs.set(job.id, job);
-    },
-  );
+  runProvisionPipeline(template, method, request.config, job, onUpdate).catch((err: unknown) => {
+    const error = err as { message?: string };
+    log.error(`Job ${job.id} pipeline error`, err);
+    job.status = 'failed';
+    job.error = error.message || 'Unexpected pipeline error';
+    job.completedAt = new Date().toISOString();
+    jobs.set(job.id, job);
+  });
 
   return job;
 }
@@ -110,9 +108,7 @@ export function rollbackJob(jobId: string): { success: boolean; error?: string }
     return { success: false, error: 'Template not found for rollback' };
   }
 
-  const completedSteps = job.steps
-    .filter((s) => s.status === 'success')
-    .map((s) => s.step);
+  const completedSteps = job.steps.filter((s) => s.status === 'success').map((s) => s.step);
 
   if (completedSteps.length === 0) {
     return { success: false, error: 'No completed steps to rollback' };

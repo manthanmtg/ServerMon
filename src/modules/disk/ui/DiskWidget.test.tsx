@@ -61,7 +61,7 @@ describe('DiskWidget', () => {
     act(() => {
       render(<DiskWidget />);
     });
-    
+
     await waitFor(() => {
       expect(screen.getByText('50.0%')).toBeTruthy();
       expect(screen.getByText('System Usage')).toBeTruthy();
@@ -72,17 +72,15 @@ describe('DiskWidget', () => {
     const macSnapshot = {
       latest: {
         ...mockMetrics.latest,
-        disks: [
-          { ...mockMetrics.latest.disks[0], mount: '/System/Volumes/Data' }
-        ]
-      }
+        disks: [{ ...mockMetrics.latest.disks[0], mount: '/System/Volumes/Data' }],
+      },
     };
     vi.mocked(useMetrics).mockReturnValue({
       latest: macSnapshot.latest as unknown as SystemMetric,
       history: [],
       connected: true,
     });
-    
+
     render(<DiskWidget />);
     await waitFor(() => {
       expect(screen.getByText('Main Disk')).toBeTruthy();
@@ -93,17 +91,15 @@ describe('DiskWidget', () => {
     const highUsageSnapshot = {
       latest: {
         ...mockMetrics.latest,
-        disks: [
-          { ...mockMetrics.latest.disks[0], use: 95.0 }
-        ]
-      }
+        disks: [{ ...mockMetrics.latest.disks[0], use: 95.0 }],
+      },
     };
     vi.mocked(useMetrics).mockReturnValue({
       latest: highUsageSnapshot.latest as unknown as SystemMetric,
       history: [],
       connected: true,
     });
-    
+
     const { container } = render(<DiskWidget />);
     await waitFor(() => {
       const progressBar = container.querySelector('.bg-destructive');
@@ -115,17 +111,15 @@ describe('DiskWidget', () => {
     const warnUsageSnapshot = {
       latest: {
         ...mockMetrics.latest,
-        disks: [
-          { ...mockMetrics.latest.disks[0], use: 80.0 }
-        ]
-      }
+        disks: [{ ...mockMetrics.latest.disks[0], use: 80.0 }],
+      },
     };
     vi.mocked(useMetrics).mockReturnValue({
       latest: warnUsageSnapshot.latest as unknown as SystemMetric,
       history: [],
       connected: true,
     });
-    
+
     const { container } = render(<DiskWidget />);
     await waitFor(() => {
       const progressBar = container.querySelector('.bg-orange-500');
@@ -136,7 +130,7 @@ describe('DiskWidget', () => {
   it('handles disk settings fetch failure', async () => {
     global.fetch = vi.fn().mockRejectedValue(new Error('Settings failed'));
     render(<DiskWidget />);
-    
+
     await waitFor(() => {
       expect(screen.getByText('50.0%')).toBeTruthy();
     });

@@ -17,6 +17,7 @@ TypeScript's value is proportional to the strictness of its boundaries. Resortin
 ### 2. Audit
 
 Check for these gaps:
+
 - **Implicit boundaries**: API responses assigned to `any`.
 - **Loose Objects**: `Record<string, any>` instead of proper interfaces.
 - **Suppressed Compiler Errors**: Legacy `@ts-ignore` comments masking real bugs.
@@ -40,4 +41,5 @@ Check for these gaps:
 - Commit with a message like: `chore(types): replace any bindings in CustomEndpoint with proper interfaces`
 
 ## Issue Management
+
 - If an issue from `issues_to_look/` is resolved or found to be resolved, move it to the `issues_to_look/resolved/` directory to keep things clean.

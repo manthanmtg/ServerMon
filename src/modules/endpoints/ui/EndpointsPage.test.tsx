@@ -228,7 +228,9 @@ describe('EndpointsPage', () => {
     });
 
     // Check if slugified name appears in the input with placeholder "my-endpoint"
-    const slugInput = await waitFor(() => within(detail).getByPlaceholderText('my-awesome-endpoint'));
+    const slugInput = await waitFor(() =>
+      within(detail).getByPlaceholderText('my-awesome-endpoint')
+    );
     await waitFor(() => {
       expect(slugInput).toHaveValue('my-new-api');
     });

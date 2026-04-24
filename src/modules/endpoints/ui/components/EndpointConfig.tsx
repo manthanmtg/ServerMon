@@ -7,7 +7,10 @@ import type { EndpointCreateRequest } from '../../types';
 
 interface EndpointConfigProps {
   form: EndpointCreateRequest;
-  onUpdateForm: <K extends keyof EndpointCreateRequest>(key: K, value: EndpointCreateRequest[K]) => void;
+  onUpdateForm: <K extends keyof EndpointCreateRequest>(
+    key: K,
+    value: EndpointCreateRequest[K]
+  ) => void;
   autoSlugRef: React.MutableRefObject<boolean>;
 }
 
@@ -106,7 +109,7 @@ export function EndpointConfig({ form, onUpdateForm, autoSlugRef }: EndpointConf
                 />
                 <span className="capitalize tracking-tight">{t}</span>
                 {active && (
-                   <div className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-white rounded-full border-4 border-primary animate-pulse" />
+                  <div className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-white rounded-full border-4 border-primary animate-pulse" />
                 )}
               </button>
             );
@@ -158,18 +161,28 @@ export function EndpointConfig({ form, onUpdateForm, autoSlugRef }: EndpointConf
       {/* Enabled Toggle */}
       <div className="flex items-center justify-between p-6 rounded-3xl bg-primary/2 border border-primary/10 shadow-sm transition-all hover:bg-primary/5 group">
         <div className="flex items-center gap-4">
-          <div className={cn(
-            "p-3 rounded-2xl transition-colors",
-            form.enabled ? "bg-success/20" : "bg-muted-foreground/10"
-          )}>
-            <div className={cn(
-              "w-3 h-3 rounded-full animate-pulse",
-              form.enabled ? "bg-success shadow-[0_0_12px_rgba(var(--success-rgb),1)]" : "bg-muted-foreground shadow-none"
-            )} />
+          <div
+            className={cn(
+              'p-3 rounded-2xl transition-colors',
+              form.enabled ? 'bg-success/20' : 'bg-muted-foreground/10'
+            )}
+          >
+            <div
+              className={cn(
+                'w-3 h-3 rounded-full animate-pulse',
+                form.enabled
+                  ? 'bg-success shadow-[0_0_12px_rgba(var(--success-rgb),1)]'
+                  : 'bg-muted-foreground shadow-none'
+              )}
+            />
           </div>
           <div>
-            <div className="text-sm font-black text-foreground uppercase tracking-tight">Active Deployment</div>
-            <div className="text-[11px] text-muted-foreground font-medium">Endpoint is globally accessible via the assigned slug</div>
+            <div className="text-sm font-black text-foreground uppercase tracking-tight">
+              Active Deployment
+            </div>
+            <div className="text-[11px] text-muted-foreground font-medium">
+              Endpoint is globally accessible via the assigned slug
+            </div>
           </div>
         </div>
         <button

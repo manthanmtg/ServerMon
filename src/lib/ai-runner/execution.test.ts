@@ -44,8 +44,7 @@ describe('ai-runner execution', () => {
 
   const mockExecFileSuccess = () => {
     execFileMock.mockImplementation((file, args, optionsOrCallback, maybeCallback) => {
-      const callback =
-        typeof optionsOrCallback === 'function' ? optionsOrCallback : maybeCallback;
+      const callback = typeof optionsOrCallback === 'function' ? optionsOrCallback : maybeCallback;
 
       if (typeof callback !== 'function') {
         throw new Error('execFile callback not provided');
@@ -194,8 +193,7 @@ describe('ai-runner execution', () => {
   it('falls back to detached local spawn when systemd-run is unavailable', async () => {
     setPlatform('linux');
     execFileMock.mockImplementation((file, args, optionsOrCallback, maybeCallback) => {
-      const callback =
-        typeof optionsOrCallback === 'function' ? optionsOrCallback : maybeCallback;
+      const callback = typeof optionsOrCallback === 'function' ? optionsOrCallback : maybeCallback;
 
       if (typeof callback !== 'function') {
         throw new Error('execFile callback not provided');
@@ -236,10 +234,8 @@ describe('ai-runner execution', () => {
     const { terminateAIRunnerExecution } = await import('./execution');
 
     expect(terminateAIRunnerExecution({ unitName: 'servermon-airunner-job-1' })).toBe(true);
-    expect(spawnSyncMock).toHaveBeenCalledWith(
-      'systemctl',
-      ['kill', 'servermon-airunner-job-1'],
-      { stdio: 'ignore' }
-    );
+    expect(spawnSyncMock).toHaveBeenCalledWith('systemctl', ['kill', 'servermon-airunner-job-1'], {
+      stdio: 'ignore',
+    });
   });
 });

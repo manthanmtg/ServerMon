@@ -17,6 +17,7 @@ Robust applications expect the network to fail. Silent drops, infinite loading s
 ### 2. Audit (Pick 1–3 Issues)
 
 Check for these common fragility gaps:
+
 - **Missing Timeouts**: API calls that could hang indefinitely.
 - **Uncaught Errors**: Missing `catch` blocks or missing UI error state propagation.
 - **Missing Retry Logic**: Idempotent network calls failing on temporary 5xx errors instead of retrying.
@@ -41,4 +42,5 @@ Check for these common fragility gaps:
 - Commit with a message like: `fix(api): add request timeouts to custom endpoint sync`
 
 ## Issue Management
+
 - If an issue from `issues_to_look/` is resolved or found to be resolved, move it to the `issues_to_look/resolved/` directory to keep things clean.

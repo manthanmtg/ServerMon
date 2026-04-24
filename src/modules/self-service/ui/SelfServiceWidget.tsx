@@ -1,9 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import {
-  Package, ArrowRight, CheckCircle2, XCircle, Loader2, Clock,
-} from 'lucide-react';
+import { Package, ArrowRight, CheckCircle2, XCircle, Loader2, Clock } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { WidgetCardSkeleton } from '@/components/ui/skeleton';
@@ -78,7 +76,12 @@ export default function SelfServiceWidget() {
             <div className="text-[10px] text-muted-foreground">Installed</div>
           </div>
           <div className="text-center p-2 rounded-lg bg-muted/50">
-            <div className={cn('text-lg font-bold', runningCount > 0 ? 'text-blue-500' : failedCount > 0 ? 'text-destructive' : '')}>
+            <div
+              className={cn(
+                'text-lg font-bold',
+                runningCount > 0 ? 'text-blue-500' : failedCount > 0 ? 'text-destructive' : ''
+              )}
+            >
               {runningCount > 0 ? runningCount : failedCount}
             </div>
             <div className="text-[10px] text-muted-foreground">
@@ -89,25 +92,32 @@ export default function SelfServiceWidget() {
 
         {recentJobs.length > 0 ? (
           <div className="space-y-1.5">
-            <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Recent</p>
+            <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
+              Recent
+            </p>
             {recentJobs.map((job) => (
-              <div
-                key={job.id}
-                className="flex items-center gap-2 px-2 py-1.5 rounded text-xs"
-              >
-                {job.status === 'success' && <CheckCircle2 className="w-3 h-3 text-emerald-500 shrink-0" />}
-                {job.status === 'failed' && <XCircle className="w-3 h-3 text-destructive shrink-0" />}
-                {job.status === 'running' && <Loader2 className="w-3 h-3 text-blue-500 animate-spin shrink-0" />}
-                {!['success', 'failed', 'running'].includes(job.status) && <Clock className="w-3 h-3 text-muted-foreground shrink-0" />}
+              <div key={job.id} className="flex items-center gap-2 px-2 py-1.5 rounded text-xs">
+                {job.status === 'success' && (
+                  <CheckCircle2 className="w-3 h-3 text-emerald-500 shrink-0" />
+                )}
+                {job.status === 'failed' && (
+                  <XCircle className="w-3 h-3 text-destructive shrink-0" />
+                )}
+                {job.status === 'running' && (
+                  <Loader2 className="w-3 h-3 text-blue-500 animate-spin shrink-0" />
+                )}
+                {!['success', 'failed', 'running'].includes(job.status) && (
+                  <Clock className="w-3 h-3 text-muted-foreground shrink-0" />
+                )}
                 <span className="truncate flex-1">{job.templateName}</span>
-                <Badge variant="secondary" className="text-[9px] px-1 py-0 shrink-0">{job.methodId}</Badge>
+                <Badge variant="secondary" className="text-[9px] px-1 py-0 shrink-0">
+                  {job.methodId}
+                </Badge>
               </div>
             ))}
           </div>
         ) : (
-          <p className="text-xs text-muted-foreground text-center py-2">
-            No installations yet
-          </p>
+          <p className="text-xs text-muted-foreground text-center py-2">No installations yet</p>
         )}
       </CardContent>
     </Card>

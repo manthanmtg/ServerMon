@@ -210,13 +210,19 @@ describe('UsersService', () => {
     });
 
     it('throws for invalid username format', async () => {
-      await expect(usersService.createOSUser('Invalid User!')).rejects.toThrow('Invalid username format');
+      await expect(usersService.createOSUser('Invalid User!')).rejects.toThrow(
+        'Invalid username format'
+      );
       await expect(usersService.createOSUser('123user')).rejects.toThrow('Invalid username format');
-      await expect(usersService.createOSUser('-baduser')).rejects.toThrow('Invalid username format');
+      await expect(usersService.createOSUser('-baduser')).rejects.toThrow(
+        'Invalid username format'
+      );
     });
 
     it('throws for invalid shell path', async () => {
-      await expect(usersService.createOSUser('newuser', '/usr/bin/evil-shell')).rejects.toThrow('Invalid shell path');
+      await expect(usersService.createOSUser('newuser', '/usr/bin/evil-shell')).rejects.toThrow(
+        'Invalid shell path'
+      );
     });
 
     it('throws when useradd returns an error stderr', async () => {
@@ -246,7 +252,9 @@ describe('UsersService', () => {
     });
 
     it('throws for invalid username format', async () => {
-      await expect(usersService.deleteOSUser('; rm -rf /')).rejects.toThrow('Invalid username format');
+      await expect(usersService.deleteOSUser('; rm -rf /')).rejects.toThrow(
+        'Invalid username format'
+      );
     });
   });
 

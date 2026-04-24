@@ -25,15 +25,15 @@ vi.mock('node:crypto', () => {
   };
 });
 
-import { 
-  getAIRunnerLogSessionId, 
-  getAIRunnerLogFilePath, 
-  writeAIRunnerLogEntry, 
-  parseAIRunnerLogLine, 
-  readAIRunnerLogEntries, 
-  readAIRunnerLogSlice, 
-  resetAIRunnerLogSession, 
-  getAIRunnerLogSize 
+import {
+  getAIRunnerLogSessionId,
+  getAIRunnerLogFilePath,
+  writeAIRunnerLogEntry,
+  parseAIRunnerLogLine,
+  readAIRunnerLogEntries,
+  readAIRunnerLogSlice,
+  resetAIRunnerLogSession,
+  getAIRunnerLogSize,
 } from './logs';
 import { appendFile, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
@@ -91,13 +91,13 @@ describe('ai-runner/logs', () => {
       vi.mocked(randomUUID).mockReturnValue(entryId);
       process.env.AI_RUNNER_LOG_SESSION_ID = 'session-id';
       process.env.AI_RUNNER_LOG_PATH = '/tmp/log.ndjson';
-      
+
       const input = {
         level: 'info' as const,
         component: 'test',
         event: 'test-event',
         message: 'test-message',
-        data: { key: 'value' }
+        data: { key: 'value' },
       };
 
       await writeAIRunnerLogEntry(input);
@@ -116,12 +116,14 @@ describe('ai-runner/logs', () => {
 
     it('should not throw if appendFile fails', async () => {
       vi.mocked(appendFile).mockRejectedValue(new Error('disk full'));
-      await expect(writeAIRunnerLogEntry({
-        level: 'info',
-        component: 'test',
-        event: 'test-event',
-        message: 'test-message'
-      })).resolves.not.toThrow();
+      await expect(
+        writeAIRunnerLogEntry({
+          level: 'info',
+          component: 'test',
+          event: 'test-event',
+          message: 'test-message',
+        })
+      ).resolves.not.toThrow();
     });
   });
 
@@ -136,7 +138,7 @@ describe('ai-runner/logs', () => {
         message: 'test-message',
         sessionId: 'session-1',
         pid: 123,
-        data: { foo: 'bar' }
+        data: { foo: 'bar' },
       };
       const result = parseAIRunnerLogLine(JSON.stringify(entry));
       expect(result).toEqual(entry);
@@ -159,13 +161,29 @@ describe('ai-runner/logs', () => {
     it('should read and parse log entries', async () => {
       process.env.AI_RUNNER_LOG_PATH = '/tmp/log.ndjson';
       const entry1 = {
-        id: '1', timestamp: 'T1', level: 'info', component: 'c', event: 'e', message: 'm1', sessionId: 's', pid: 1
+        id: '1',
+        timestamp: 'T1',
+        level: 'info',
+        component: 'c',
+        event: 'e',
+        message: 'm1',
+        sessionId: 's',
+        pid: 1,
       };
       const entry2 = {
-        id: '2', timestamp: 'T2', level: 'error', component: 'c', event: 'e', message: 'm2', sessionId: 's', pid: 1
+        id: '2',
+        timestamp: 'T2',
+        level: 'error',
+        component: 'c',
+        event: 'e',
+        message: 'm2',
+        sessionId: 's',
+        pid: 1,
       };
-      
-      vi.mocked(readFile).mockResolvedValue(`${JSON.stringify(entry1)}\n${JSON.stringify(entry2)}\n`);
+
+      vi.mocked(readFile).mockResolvedValue(
+        `${JSON.stringify(entry1)}\n${JSON.stringify(entry2)}\n`
+      );
 
       const result = await readAIRunnerLogEntries();
       expect(result.entries).toHaveLength(2);
@@ -180,9 +198,17 @@ describe('ai-runner/logs', () => {
     });
 
     it('should respect the limit', async () => {
-      const entry = (i: number) => JSON.stringify({
-        id: `${i}`, timestamp: 'T', level: 'info', component: 'c', event: 'e', message: `m${i}`, sessionId: 's', pid: 1
-      });
+      const entry = (i: number) =>
+        JSON.stringify({
+          id: `${i}`,
+          timestamp: 'T',
+          level: 'info',
+          component: 'c',
+          event: 'e',
+          message: `m${i}`,
+          sessionId: 's',
+          pid: 1,
+        });
       vi.mocked(readFile).mockResolvedValue(`${entry(1)}\n${entry(2)}\n${entry(3)}\n`);
 
       const result = await readAIRunnerLogEntries(2);
@@ -195,8 +221,12 @@ describe('ai-runner/logs', () => {
   describe('readAIRunnerLogSlice', () => {
     it('should read a slice of the file', async () => {
       process.env.AI_RUNNER_LOG_PATH = '/tmp/log.ndjson';
-      vi.mocked(stat).mockResolvedValue({ size: 10 } as unknown as Awaited<ReturnType<typeof stat>>);
-      vi.mocked(readFile).mockResolvedValue(Buffer.from('0123456789') as unknown as Awaited<ReturnType<typeof readFile>>);
+      vi.mocked(stat).mockResolvedValue({ size: 10 } as unknown as Awaited<
+        ReturnType<typeof stat>
+      >);
+      vi.mocked(readFile).mockResolvedValue(
+        Buffer.from('0123456789') as unknown as Awaited<ReturnType<typeof readFile>>
+      );
 
       const result = await readAIRunnerLogSlice(5);
       expect(result.text).toBe('56789');
@@ -204,7 +234,9 @@ describe('ai-runner/logs', () => {
     });
 
     it('should return empty if offset is beyond size', async () => {
-      vi.mocked(stat).mockResolvedValue({ size: 100 } as unknown as Awaited<ReturnType<typeof stat>>);
+      vi.mocked(stat).mockResolvedValue({ size: 100 } as unknown as Awaited<
+        ReturnType<typeof stat>
+      >);
       const result = await readAIRunnerLogSlice(150);
       expect(result.text).toBe('');
       expect(result.nextOffset).toBe(100);
@@ -221,13 +253,19 @@ describe('ai-runner/logs', () => {
   describe('resetAIRunnerLogSession', () => {
     it('should generate new session and cleanup old logs', async () => {
       vi.mocked(randomUUID).mockReturnValue(newSessionId);
-      vi.mocked(readdir).mockResolvedValue(['servermon-ai-runner-old.ndjson', 'other.txt'] as unknown as Awaited<ReturnType<typeof readdir>>);
-      
+      vi.mocked(readdir).mockResolvedValue([
+        'servermon-ai-runner-old.ndjson',
+        'other.txt',
+      ] as unknown as Awaited<ReturnType<typeof readdir>>);
+
       const newPath = await resetAIRunnerLogSession();
-      
+
       expect(process.env.AI_RUNNER_LOG_SESSION_ID).toBe(newSessionId);
       expect(newPath).toContain(`servermon-ai-runner-${newSessionId}.ndjson`);
-      expect(rm).toHaveBeenCalledWith(expect.stringContaining('servermon-ai-runner-old.ndjson'), expect.anything());
+      expect(rm).toHaveBeenCalledWith(
+        expect.stringContaining('servermon-ai-runner-old.ndjson'),
+        expect.anything()
+      );
       expect(rm).not.toHaveBeenCalledWith(expect.stringContaining('other.txt'), expect.anything());
       expect(writeFile).toHaveBeenCalled();
       expect(appendFile).toHaveBeenCalled(); // Initial log entry
@@ -236,7 +274,9 @@ describe('ai-runner/logs', () => {
 
   describe('getAIRunnerLogSize', () => {
     it('should return file size', async () => {
-      vi.mocked(stat).mockResolvedValue({ size: 1234 } as unknown as Awaited<ReturnType<typeof stat>>);
+      vi.mocked(stat).mockResolvedValue({ size: 1234 } as unknown as Awaited<
+        ReturnType<typeof stat>
+      >);
       const size = await getAIRunnerLogSize();
       expect(size).toBe(1234);
     });

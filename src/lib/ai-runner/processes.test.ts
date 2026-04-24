@@ -39,7 +39,7 @@ describe('ai-runner processes', () => {
 
   it('spawnAIRunnerWorker calls spawn with correct arguments', () => {
     const pid = processes.spawnAIRunnerWorker('job-1', 'supervisor-1');
-    
+
     expect(pid).toBe(1234);
     expect(spawn).toHaveBeenCalledWith(
       process.execPath,
@@ -60,7 +60,7 @@ describe('ai-runner processes', () => {
     delete process.env.AI_RUNNER_DISABLE_SUPERVISOR;
 
     processes.ensureAIRunnerSupervisor();
-    
+
     expect(spawn).toHaveBeenCalledWith(
       process.execPath,
       expect.arrayContaining([expect.stringContaining('supervisor-entry.ts')]),

@@ -10,10 +10,7 @@ export interface ExecutorResult {
 }
 
 export interface Executor {
-  execute(
-    payload: ExecutorPayload,
-    onLog: (line: string) => void,
-  ): Promise<ExecutorResult>;
+  execute(payload: ExecutorPayload, onLog: (line: string) => void): Promise<ExecutorResult>;
 }
 
 export interface ExecutorPayload {
@@ -29,7 +26,7 @@ export interface ExecutorPayload {
 
 export function renderTemplate(
   template: string,
-  config: Record<string, string | number | boolean>,
+  config: Record<string, string | number | boolean>
 ): string {
   return template.replace(/\{\{config\.(\w+)\}\}/g, (_match, key: string) => {
     const value = config[key];
@@ -43,7 +40,7 @@ export function renderTemplate(
 
 export function renderTemplateArray(
   templates: string[],
-  config: Record<string, string | number | boolean>,
+  config: Record<string, string | number | boolean>
 ): string[] {
   return templates.map((t) => renderTemplate(t, config));
 }

@@ -69,9 +69,7 @@ describe('BrandContext', () => {
       );
     });
 
-    await waitFor(() =>
-      expect(screen.getByTestId('page-title').textContent).toBe('Fetched Title')
-    );
+    await waitFor(() => expect(screen.getByTestId('page-title').textContent).toBe('Fetched Title'));
     expect(screen.getByTestId('logo').textContent).toBe('data:img');
   });
 
@@ -89,9 +87,7 @@ describe('BrandContext', () => {
       );
     });
 
-    await waitFor(() =>
-      expect(screen.getByTestId('page-title').textContent).toBe('ServerMon')
-    );
+    await waitFor(() => expect(screen.getByTestId('page-title').textContent).toBe('ServerMon'));
   });
 
   it('keeps defaults when fetch throws', async () => {
@@ -106,9 +102,7 @@ describe('BrandContext', () => {
       );
     });
 
-    await waitFor(() =>
-      expect(screen.getByTestId('page-title').textContent).toBe('ServerMon')
-    );
+    await waitFor(() => expect(screen.getByTestId('page-title').textContent).toBe('ServerMon'));
     errorSpy.mockRestore();
   });
 
@@ -116,7 +110,10 @@ describe('BrandContext', () => {
     // Initial GET
     global.fetch = vi
       .fn()
-      .mockResolvedValueOnce({ ok: true, json: async () => ({ pageTitle: 'ServerMon', logoBase64: '' }) })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ pageTitle: 'ServerMon', logoBase64: '' }),
+      })
       // POST response
       .mockResolvedValueOnce({ ok: true, json: async () => ({}) });
 
@@ -132,9 +129,7 @@ describe('BrandContext', () => {
       screen.getByText('Update').click();
     });
 
-    await waitFor(() =>
-      expect(screen.getByTestId('page-title').textContent).toBe('MyServer')
-    );
+    await waitFor(() => expect(screen.getByTestId('page-title').textContent).toBe('MyServer'));
     expect(screen.getByTestId('logo').textContent).toBe('data:image/png;base64,abc');
 
     // Verify POST was called
@@ -148,7 +143,10 @@ describe('BrandContext', () => {
     // Initial GET succeeds, POST fails
     global.fetch = vi
       .fn()
-      .mockResolvedValueOnce({ ok: true, json: async () => ({ pageTitle: 'ServerMon', logoBase64: '' }) })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ pageTitle: 'ServerMon', logoBase64: '' }),
+      })
       .mockResolvedValueOnce({ ok: false });
 
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -202,9 +200,7 @@ describe('BrandContext', () => {
       );
     });
 
-    await waitFor(() =>
-      expect(screen.getByTestId('page-title').textContent).toBe('ServerMon')
-    );
+    await waitFor(() => expect(screen.getByTestId('page-title').textContent).toBe('ServerMon'));
   });
 
   it('throws when useBrand is used outside BrandProvider', () => {

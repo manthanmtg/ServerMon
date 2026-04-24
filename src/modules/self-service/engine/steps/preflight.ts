@@ -25,7 +25,7 @@ const TOOL_CHECKS: Record<string, string> = {
 export async function runPreflight(
   executionMethod: ExecutionMethod,
   pipeline: string[],
-  onLog: (line: string) => void,
+  onLog: (line: string) => void
 ): Promise<PreflightResult> {
   const logs: string[] = [];
   const required: string[] = [];

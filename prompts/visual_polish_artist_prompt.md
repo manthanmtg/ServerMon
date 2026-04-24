@@ -33,4 +33,5 @@ Elevate the UI/UX of **one specific ServerMon component or module** per run to "
 - If a visual improvement requires restructuring the component's layout or HTML drastically, log it to `issues_to_look/` instead.
 
 ## Issue Management
+
 - If an issue from `issues_to_look/` is resolved or found to be resolved, move it to the `issues_to_look/resolved/` directory to keep things clean.

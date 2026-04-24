@@ -1,30 +1,34 @@
 'use client';
- 
+
 import { TerminalSquare } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import TerminalUI from '@/modules/terminal/ui/TerminalUI';
- 
+
 interface DockerTerminalProps {
   terminalCommand: string;
   sessionId: string;
   onCommandChange: (command: string) => void;
 }
- 
+
 export function DockerTerminal({
   terminalCommand,
   sessionId,
   onCommandChange,
 }: DockerTerminalProps) {
   return (
-    <Card className="border-border/60 bg-card/40 backdrop-blur-md shadow-sm overflow-hidden" data-testid="docker-terminal">
+    <Card
+      className="border-border/60 bg-card/40 backdrop-blur-md shadow-sm overflow-hidden"
+      data-testid="docker-terminal"
+    >
       <CardHeader className="pb-4 border-b border-border/20">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <CardTitle className="text-lg font-semibold tracking-tight">Embedded Docker terminal</CardTitle>
+            <CardTitle className="text-lg font-semibold tracking-tight">
+              Embedded Docker terminal
+            </CardTitle>
             <p className="text-sm text-muted-foreground">
-              Run `docker`, `docker-compose`, and `crictl` commands without leaving the
-              module.
+              Run `docker`, `docker-compose`, and `crictl` commands without leaving the module.
             </p>
           </div>
           <div className="flex flex-wrap gap-1.5 p-1 bg-muted/20 rounded-lg border border-border/20">
@@ -67,7 +71,9 @@ export function DockerTerminal({
         <div className="bg-background/40 backdrop-blur-sm">
           <div className="flex flex-wrap items-center gap-2 border-b border-border/20 px-4 py-2.5">
             <TerminalSquare className="h-3.5 w-3.5 text-primary opacity-80" />
-            <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Preset command</span>
+            <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+              Preset command
+            </span>
             <code className="rounded bg-primary/10 border border-primary/20 px-2 py-0.5 text-[10px] font-mono text-primary shadow-sm">
               {terminalCommand.trim()}
             </code>

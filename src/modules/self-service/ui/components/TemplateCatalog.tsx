@@ -37,7 +37,7 @@ export function TemplateCatalog({ templates, onSelectTemplate }: TemplateCatalog
         (t) =>
           t.name.toLowerCase().includes(q) ||
           t.description.toLowerCase().includes(q) ||
-          t.tags.some((tag) => tag.includes(q)),
+          t.tags.some((tag) => tag.includes(q))
       );
     }
 
@@ -78,7 +78,7 @@ export function TemplateCatalog({ templates, onSelectTemplate }: TemplateCatalog
                   'px-2.5 py-1 rounded-full text-xs font-medium whitespace-nowrap transition-colors',
                   selectedCategory === cat.value
                     ? 'bg-primary text-primary-foreground'
-                    : 'bg-muted text-muted-foreground hover:bg-muted/80',
+                    : 'bg-muted text-muted-foreground hover:bg-muted/80'
                 )}
               >
                 {cat.label}
@@ -100,11 +100,7 @@ export function TemplateCatalog({ templates, onSelectTemplate }: TemplateCatalog
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
           {filtered.map((template) => (
-            <TemplateCard
-              key={template.id}
-              template={template}
-              onClick={onSelectTemplate}
-            />
+            <TemplateCard key={template.id} template={template} onClick={onSelectTemplate} />
           ))}
         </div>
       )}

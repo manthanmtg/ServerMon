@@ -3,13 +3,7 @@ import { render, screen } from '@testing-library/react';
 import UpdatesPageRoute from './page';
 
 vi.mock('@/components/layout/ProShell', () => ({
-  default: ({
-    children,
-    title,
-  }: {
-    children: React.ReactNode;
-    title: string;
-  }) => (
+  default: ({ children, title }: { children: React.ReactNode; title: string }) => (
     <div data-testid="pro-shell">
       <span data-testid="title">{title}</span>
       {children}

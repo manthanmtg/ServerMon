@@ -33,7 +33,11 @@ vi.mock('@/lib/logger', () => ({
 
 import { GET, POST, PUT, DELETE } from './route';
 
-const makeReq = (method: string, body?: Record<string, unknown>, url = 'http://localhost/api/terminal/commands') =>
+const makeReq = (
+  method: string,
+  body?: Record<string, unknown>,
+  url = 'http://localhost/api/terminal/commands'
+) =>
   new Request(url, {
     method,
     headers: body ? { 'Content-Type': 'application/json' } : {},
@@ -140,12 +144,14 @@ describe('POST /api/terminal/commands', () => {
     };
     mockCommandCreate.mockResolvedValue({ toObject: () => saved });
 
-    const res = await POST(makeReq('POST', {
-      name: 'List Files',
-      command: 'ls -la',
-      description: 'Lists files',
-      category: 'General',
-    }));
+    const res = await POST(
+      makeReq('POST', {
+        name: 'List Files',
+        command: 'ls -la',
+        description: 'Lists files',
+        category: 'General',
+      })
+    );
 
     expect(res.status).toBe(201);
     const json = await res.json();
@@ -161,7 +167,13 @@ describe('POST /api/terminal/commands', () => {
 
   it('uses default category "General" when not provided', async () => {
     mockGetSession.mockResolvedValue({ user: { username: 'admin' } });
-    const saved = { _id: 'cmd-2', name: 'Test', command: 'echo hi', category: 'General', createdBy: 'admin' };
+    const saved = {
+      _id: 'cmd-2',
+      name: 'Test',
+      command: 'echo hi',
+      category: 'General',
+      createdBy: 'admin',
+    };
     mockCommandCreate.mockResolvedValue({ toObject: () => saved });
 
     await POST(makeReq('POST', { name: 'Test', command: 'echo hi' }));
@@ -255,12 +267,14 @@ describe('PUT /api/terminal/commands', () => {
     const updated = { _id: '1', name: 'Updated', command: 'ls -la', category: 'System' };
     mockCommandFindByIdAndUpdate.mockReturnValue({ lean: () => Promise.resolve(updated) });
 
-    const res = await PUT(makeReq('PUT', {
-      id: '1',
-      name: 'Updated',
-      command: 'ls -la',
-      category: 'System',
-    }));
+    const res = await PUT(
+      makeReq('PUT', {
+        id: '1',
+        name: 'Updated',
+        command: 'ls -la',
+        category: 'System',
+      })
+    );
 
     expect(res.status).toBe(200);
     const json = await res.json();
@@ -294,13 +308,17 @@ describe('DELETE /api/terminal/commands', () => {
 
   it('returns 401 when no session', async () => {
     mockGetSession.mockResolvedValue(null);
-    const res = await DELETE(makeReq('DELETE', undefined, 'http://localhost/api/terminal/commands?id=1'));
+    const res = await DELETE(
+      makeReq('DELETE', undefined, 'http://localhost/api/terminal/commands?id=1')
+    );
     expect(res.status).toBe(401);
   });
 
   it('returns 400 when id query param is missing', async () => {
     mockGetSession.mockResolvedValue({ user: { username: 'admin' } });
-    const res = await DELETE(makeReq('DELETE', undefined, 'http://localhost/api/terminal/commands'));
+    const res = await DELETE(
+      makeReq('DELETE', undefined, 'http://localhost/api/terminal/commands')
+    );
     expect(res.status).toBe(400);
     const json = await res.json();
     expect(json.error).toBe('Command ID is required');
@@ -310,7 +328,9 @@ describe('DELETE /api/terminal/commands', () => {
     mockGetSession.mockResolvedValue({ user: { username: 'admin' } });
     mockCommandFindByIdAndDelete.mockResolvedValue(null);
 
-    const res = await DELETE(makeReq('DELETE', undefined, 'http://localhost/api/terminal/commands?id=nonexistent'));
+    const res = await DELETE(
+      makeReq('DELETE', undefined, 'http://localhost/api/terminal/commands?id=nonexistent')
+    );
     expect(res.status).toBe(404);
     const json = await res.json();
     expect(json.error).toBe('Command not found');
@@ -320,7 +340,9 @@ describe('DELETE /api/terminal/commands', () => {
     mockGetSession.mockResolvedValue({ user: { username: 'admin' } });
     mockCommandFindByIdAndDelete.mockResolvedValue({ _id: '1', name: 'Test' });
 
-    const res = await DELETE(makeReq('DELETE', undefined, 'http://localhost/api/terminal/commands?id=1'));
+    const res = await DELETE(
+      makeReq('DELETE', undefined, 'http://localhost/api/terminal/commands?id=1')
+    );
     expect(res.status).toBe(200);
     const json = await res.json();
     expect(json.success).toBe(true);
@@ -331,7 +353,9 @@ describe('DELETE /api/terminal/commands', () => {
     mockGetSession.mockResolvedValue({ user: { username: 'admin' } });
     mockCommandFindByIdAndDelete.mockRejectedValue(new Error('DB error'));
 
-    const res = await DELETE(makeReq('DELETE', undefined, 'http://localhost/api/terminal/commands?id=1'));
+    const res = await DELETE(
+      makeReq('DELETE', undefined, 'http://localhost/api/terminal/commands?id=1')
+    );
     expect(res.status).toBe(500);
     const json = await res.json();
     expect(json.error).toBe('Failed to delete saved command');

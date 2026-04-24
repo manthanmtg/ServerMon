@@ -156,9 +156,9 @@ describe('SavedCommandsModal', () => {
     await waitFor(() => screen.getByText('Nginx'));
 
     // Click Nginx category header to collapse
-    const nginxCategoryBtn = screen.getAllByRole('button').find(
-      (b) => b.textContent?.includes('Nginx')
-    );
+    const nginxCategoryBtn = screen
+      .getAllByRole('button')
+      .find((b) => b.textContent?.includes('Nginx'));
     expect(nginxCategoryBtn).toBeDefined();
     fireEvent.click(nginxCategoryBtn!);
 
@@ -213,7 +213,8 @@ describe('SavedCommandsModal', () => {
       createdBy: 'admin',
       createdAt: new Date().toISOString(),
     };
-    global.fetch = vi.fn()
+    global.fetch = vi
+      .fn()
       .mockResolvedValueOnce({ ok: true, json: async () => ({ commands: mockCommands }) })
       .mockResolvedValueOnce({ ok: true, json: async () => ({}) })
       .mockResolvedValueOnce({
@@ -305,7 +306,8 @@ describe('SavedCommandsModal', () => {
   });
 
   it('deletes command and updates list', async () => {
-    global.fetch = vi.fn()
+    global.fetch = vi
+      .fn()
       .mockResolvedValueOnce({ ok: true, json: async () => ({ commands: mockCommands }) })
       .mockResolvedValueOnce({ ok: true, json: async () => ({}) });
 
@@ -328,7 +330,8 @@ describe('SavedCommandsModal', () => {
   });
 
   it('shows delete error toast on failed delete', async () => {
-    global.fetch = vi.fn()
+    global.fetch = vi
+      .fn()
       .mockResolvedValueOnce({ ok: true, json: async () => ({ commands: mockCommands }) })
       .mockResolvedValueOnce({ ok: false });
 
@@ -352,7 +355,8 @@ describe('SavedCommandsModal', () => {
   });
 
   it('shows save error toast on failed POST', async () => {
-    global.fetch = vi.fn()
+    global.fetch = vi
+      .fn()
       .mockResolvedValueOnce({ ok: true, json: async () => ({ commands: [] }) })
       .mockResolvedValueOnce({ ok: false, json: async () => ({ error: 'Save failed' }) });
 

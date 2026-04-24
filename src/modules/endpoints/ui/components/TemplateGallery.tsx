@@ -2,23 +2,56 @@
 
 import { useState, useMemo, useCallback } from 'react';
 import {
-  X, Sparkles, Wand2, ChevronRight, SlidersHorizontal, RotateCcw,
-  Activity, Shield, Wrench, Plug, Database, Globe, SearchX,
+  X,
+  Sparkles,
+  Wand2,
+  ChevronRight,
+  SlidersHorizontal,
+  RotateCcw,
+  Activity,
+  Shield,
+  Wrench,
+  Plug,
+  Database,
+  Globe,
+  SearchX,
 } from 'lucide-react';
 import { MethodBadge } from './common/MethodBadge';
 import { cn } from '@/lib/utils';
 import type { EndpointTemplate, TemplateCategory, HttpMethod, EndpointType } from '../../types';
 
-const CATEGORY_META: Record<TemplateCategory, { label: string; icon: React.ReactNode; color: string }> = {
-  monitoring:    { label: 'Monitoring',    icon: <Activity className="w-3.5 h-3.5" />,  color: 'text-emerald-400' },
-  security:      { label: 'Security',      icon: <Shield className="w-3.5 h-3.5" />,    color: 'text-rose-400' },
-  devops:        { label: 'DevOps',        icon: <Wrench className="w-3.5 h-3.5" />,    color: 'text-amber-400' },
-  integrations:  { label: 'Integrations',  icon: <Plug className="w-3.5 h-3.5" />,      color: 'text-violet-400' },
-  data:          { label: 'Data',          icon: <Database className="w-3.5 h-3.5" />,   color: 'text-sky-400' },
-  networking:    { label: 'Networking',    icon: <Globe className="w-3.5 h-3.5" />,      color: 'text-orange-400' },
+const CATEGORY_META: Record<
+  TemplateCategory,
+  { label: string; icon: React.ReactNode; color: string }
+> = {
+  monitoring: {
+    label: 'Monitoring',
+    icon: <Activity className="w-3.5 h-3.5" />,
+    color: 'text-emerald-400',
+  },
+  security: { label: 'Security', icon: <Shield className="w-3.5 h-3.5" />, color: 'text-rose-400' },
+  devops: { label: 'DevOps', icon: <Wrench className="w-3.5 h-3.5" />, color: 'text-amber-400' },
+  integrations: {
+    label: 'Integrations',
+    icon: <Plug className="w-3.5 h-3.5" />,
+    color: 'text-violet-400',
+  },
+  data: { label: 'Data', icon: <Database className="w-3.5 h-3.5" />, color: 'text-sky-400' },
+  networking: {
+    label: 'Networking',
+    icon: <Globe className="w-3.5 h-3.5" />,
+    color: 'text-orange-400',
+  },
 };
 
-const CATEGORY_ORDER: TemplateCategory[] = ['monitoring', 'security', 'devops', 'integrations', 'data', 'networking'];
+const CATEGORY_ORDER: TemplateCategory[] = [
+  'monitoring',
+  'security',
+  'devops',
+  'integrations',
+  'data',
+  'networking',
+];
 const ALL_METHODS: HttpMethod[] = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'];
 const ALL_TYPES: EndpointType[] = ['script', 'logic', 'webhook'];
 
@@ -77,13 +110,14 @@ export function TemplateGallery({
       />
 
       {/* Modal — full-height sheet on mobile, centered card on desktop */}
-      <div className={cn(
-        'relative w-full flex flex-col bg-card/95 backdrop-blur-2xl shadow-2xl animate-in fade-in duration-500 overflow-hidden',
-        'h-[95dvh] rounded-t-[2rem] sm:rounded-[2.5rem] sm:max-w-5xl sm:max-h-[90vh] sm:h-auto',
-        'border-t border-border/40 sm:border sm:border-border/40',
-        'p-4 pt-3 sm:p-8 sm:pt-8',
-      )}>
-        
+      <div
+        className={cn(
+          'relative w-full flex flex-col bg-card/95 backdrop-blur-2xl shadow-2xl animate-in fade-in duration-500 overflow-hidden',
+          'h-[95dvh] rounded-t-[2rem] sm:rounded-[2.5rem] sm:max-w-5xl sm:max-h-[90vh] sm:h-auto',
+          'border-t border-border/40 sm:border sm:border-border/40',
+          'p-4 pt-3 sm:p-8 sm:pt-8'
+        )}
+      >
         {/* Mobile drag handle */}
         <div className="sm:hidden flex justify-center mb-3">
           <div className="w-10 h-1 rounded-full bg-muted-foreground/20" />
@@ -92,15 +126,17 @@ export function TemplateGallery({
         {/* Header */}
         <div className="flex items-center justify-between mb-4 sm:mb-6 relative z-10 shrink-0">
           <div className="flex items-center gap-3 sm:gap-4 min-w-0">
-             <div className="p-2.5 sm:p-3 rounded-xl sm:rounded-2xl bg-primary/10 ring-1 ring-primary/20 shrink-0">
-                <Sparkles className="w-5 h-5 sm:w-6 sm:h-6 text-primary" />
-             </div>
-             <div className="min-w-0">
-               <h3 className="text-lg sm:text-2xl font-black text-foreground uppercase tracking-tight truncate">Templates</h3>
-               <p className="text-xs sm:text-sm text-muted-foreground font-medium">
-                 {filtered.length} of {templates.length} boilerplates
-               </p>
-             </div>
+            <div className="p-2.5 sm:p-3 rounded-xl sm:rounded-2xl bg-primary/10 ring-1 ring-primary/20 shrink-0">
+              <Sparkles className="w-5 h-5 sm:w-6 sm:h-6 text-primary" />
+            </div>
+            <div className="min-w-0">
+              <h3 className="text-lg sm:text-2xl font-black text-foreground uppercase tracking-tight truncate">
+                Templates
+              </h3>
+              <p className="text-xs sm:text-sm text-muted-foreground font-medium">
+                {filtered.length} of {templates.length} boilerplates
+              </p>
+            </div>
           </div>
           <div className="flex items-center gap-2 shrink-0">
             <button
@@ -140,12 +176,14 @@ export function TemplateGallery({
               )}
             >
               All
-              <span className={cn(
-                'px-1.5 py-0.5 rounded-md text-[9px] sm:text-[10px] font-black tabular-nums',
-                activeCategory === 'all'
-                  ? 'bg-primary/10 text-primary'
-                  : 'bg-muted/50 text-muted-foreground/40'
-              )}>
+              <span
+                className={cn(
+                  'px-1.5 py-0.5 rounded-md text-[9px] sm:text-[10px] font-black tabular-nums',
+                  activeCategory === 'all'
+                    ? 'bg-primary/10 text-primary'
+                    : 'bg-muted/50 text-muted-foreground/40'
+                )}
+              >
                 {templates.length}
               </span>
             </button>
@@ -164,16 +202,23 @@ export function TemplateGallery({
                       : 'text-muted-foreground/60 hover:text-muted-foreground hover:bg-card/40'
                   )}
                 >
-                  <span className={cn(isActive ? meta.color : 'text-current opacity-50', 'transition-colors')}>
+                  <span
+                    className={cn(
+                      isActive ? meta.color : 'text-current opacity-50',
+                      'transition-colors'
+                    )}
+                  >
                     {meta.icon}
                   </span>
                   <span className="hidden xs:inline">{meta.label}</span>
-                  <span className={cn(
-                    'px-1.5 py-0.5 rounded-md text-[9px] sm:text-[10px] font-black tabular-nums',
-                    isActive
-                      ? 'bg-primary/10 text-primary'
-                      : 'bg-muted/50 text-muted-foreground/40'
-                  )}>
+                  <span
+                    className={cn(
+                      'px-1.5 py-0.5 rounded-md text-[9px] sm:text-[10px] font-black tabular-nums',
+                      isActive
+                        ? 'bg-primary/10 text-primary'
+                        : 'bg-muted/50 text-muted-foreground/40'
+                    )}
+                  >
                     {count}
                   </span>
                 </button>
@@ -183,14 +228,18 @@ export function TemplateGallery({
         </div>
 
         {/* Filter Bar — always visible on desktop, toggleable on mobile */}
-        <div className={cn(
-          'relative z-10 mb-3 sm:mb-4 shrink-0 overflow-hidden transition-all duration-300',
-          showFilters ? 'max-h-40 opacity-100' : 'max-h-0 opacity-0 sm:max-h-40 sm:opacity-100'
-        )}>
+        <div
+          className={cn(
+            'relative z-10 mb-3 sm:mb-4 shrink-0 overflow-hidden transition-all duration-300',
+            showFilters ? 'max-h-40 opacity-100' : 'max-h-0 opacity-0 sm:max-h-40 sm:opacity-100'
+          )}
+        >
           <div className="flex flex-col sm:flex-row gap-2 sm:gap-4 sm:items-center">
             {/* Method filter */}
             <div className="flex items-center gap-1.5">
-              <span className="text-[10px] font-bold text-muted-foreground/50 uppercase tracking-widest shrink-0 w-14 sm:w-auto">Method</span>
+              <span className="text-[10px] font-bold text-muted-foreground/50 uppercase tracking-widest shrink-0 w-14 sm:w-auto">
+                Method
+              </span>
               <div className="flex gap-1 overflow-x-auto no-scrollbar">
                 {availableMethods.map((m) => {
                   const isActive = filterMethod === m;
@@ -214,7 +263,9 @@ export function TemplateGallery({
 
             {/* Type filter */}
             <div className="flex items-center gap-1.5">
-              <span className="text-[10px] font-bold text-muted-foreground/50 uppercase tracking-widest shrink-0 w-14 sm:w-auto">Type</span>
+              <span className="text-[10px] font-bold text-muted-foreground/50 uppercase tracking-widest shrink-0 w-14 sm:w-auto">
+                Type
+              </span>
               <div className="flex gap-1 overflow-x-auto no-scrollbar">
                 {availableTypes.map((t) => {
                   const isActive = filterType === t;
@@ -258,10 +309,15 @@ export function TemplateGallery({
               </div>
               <div>
                 <p className="text-sm font-bold text-muted-foreground/60">No templates match</p>
-                <p className="text-xs text-muted-foreground/40 mt-1">Try adjusting your filters or category</p>
+                <p className="text-xs text-muted-foreground/40 mt-1">
+                  Try adjusting your filters or category
+                </p>
               </div>
               <button
-                onClick={() => { setActiveCategory('all'); clearFilters(); }}
+                onClick={() => {
+                  setActiveCategory('all');
+                  clearFilters();
+                }}
                 className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-primary bg-primary/10 hover:bg-primary/15 transition-all active:scale-95 ring-1 ring-primary/20"
               >
                 <RotateCcw className="w-3.5 h-3.5" />
@@ -277,7 +333,7 @@ export function TemplateGallery({
                   className="text-left p-4 sm:p-5 rounded-xl sm:rounded-2xl border border-border/40 bg-card/40 hover:border-primary/30 hover:bg-primary/5 hover:shadow-xl hover:shadow-primary/5 transition-all group relative overflow-hidden active:scale-[0.98]"
                 >
                   <div className="absolute top-0 right-0 p-6 opacity-[0.03] group-hover:opacity-[0.08] transition-opacity pointer-events-none -mr-4 -mt-4 group-hover:scale-125 transition-transform duration-700">
-                     <Wand2 className="w-14 sm:w-16 h-14 sm:h-16 text-primary" />
+                    <Wand2 className="w-14 sm:w-16 h-14 sm:h-16 text-primary" />
                   </div>
 
                   <div className="flex items-center gap-2.5 sm:gap-3 mb-2.5 sm:mb-3 relative z-10">
@@ -286,11 +342,11 @@ export function TemplateGallery({
                       {tmpl.name}
                     </span>
                   </div>
-                  
+
                   <p className="text-[10px] sm:text-[11px] text-muted-foreground/80 line-clamp-2 leading-relaxed mb-3 sm:mb-4 relative z-10 font-medium">
                     {tmpl.description}
                   </p>
-                  
+
                   <div className="flex items-center gap-1.5 relative z-10 flex-wrap">
                     {tmpl.scriptLang && (
                       <span className="px-2 py-0.5 rounded-md bg-primary/10 text-[8px] sm:text-[9px] font-black font-mono text-primary uppercase tracking-widest border border-primary/10">
@@ -301,21 +357,23 @@ export function TemplateGallery({
                       {tmpl.endpointType}
                     </span>
                     {activeCategory === 'all' && (
-                      <span className={cn(
-                        'px-2 py-0.5 rounded-md text-[8px] sm:text-[9px] font-black uppercase tracking-widest border border-border/10 bg-muted/30',
-                        CATEGORY_META[tmpl.category]?.color || 'text-muted-foreground/40'
-                      )}>
+                      <span
+                        className={cn(
+                          'px-2 py-0.5 rounded-md text-[8px] sm:text-[9px] font-black uppercase tracking-widest border border-border/10 bg-muted/30',
+                          CATEGORY_META[tmpl.category]?.color || 'text-muted-foreground/40'
+                        )}
+                      >
                         {CATEGORY_META[tmpl.category]?.label}
                       </span>
                     )}
                   </div>
 
-                   <div className="absolute bottom-4 sm:bottom-5 right-4 sm:right-5 opacity-0 group-hover:opacity-100 transition-all transform translate-x-4 group-hover:translate-x-0 hidden sm:block">
-                      <div className="flex items-center gap-1 text-[9px] font-black text-primary uppercase tracking-[0.2em] bg-primary/10 px-2.5 py-0.5 rounded-full border border-primary/20">
-                         USE
-                         <ChevronRight className="w-3 h-3" />
-                      </div>
-                   </div>
+                  <div className="absolute bottom-4 sm:bottom-5 right-4 sm:right-5 opacity-0 group-hover:opacity-100 transition-all transform translate-x-4 group-hover:translate-x-0 hidden sm:block">
+                    <div className="flex items-center gap-1 text-[9px] font-black text-primary uppercase tracking-[0.2em] bg-primary/10 px-2.5 py-0.5 rounded-full border border-primary/20">
+                      USE
+                      <ChevronRight className="w-3 h-3" />
+                    </div>
+                  </div>
                 </button>
               ))}
             </div>
@@ -323,7 +381,7 @@ export function TemplateGallery({
         </div>
 
         <div className="absolute top-0 right-0 p-24 opacity-[0.02] pointer-events-none -mr-20 -mt-20">
-           <Sparkles className="w-64 h-64 text-primary animate-pulse" />
+          <Sparkles className="w-64 h-64 text-primary animate-pulse" />
         </div>
       </div>
     </div>

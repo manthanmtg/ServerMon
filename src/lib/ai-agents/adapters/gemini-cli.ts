@@ -1,11 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import {
-  execPromise,
-  detectGitInfo,
-  discoverHomeDirs,
-  getHostnameCached,
-} from '../process-utils';
+import { execPromise, detectGitInfo, discoverHomeDirs, getHostnameCached } from '../process-utils';
 import { createLogger } from '@/lib/logger';
 import type {
   AgentAdapter,
@@ -73,12 +68,14 @@ export class GeminiCLIAdapter implements AgentAdapter {
           if (fs.existsSync(logsFile)) {
             try {
               projectLogs = JSON.parse(fs.readFileSync(logsFile, 'utf8'));
-            } catch { /* ignore */ }
+            } catch {
+              /* ignore */
+            }
           }
 
           const sessionFiles = fs
             .readdirSync(chatsDir)
-            .filter((f) => f.endsWith('.json') || f.endsWith('.jsonl'))
+            .filter((f) => f.endsWith('.json'))
             .map((f) => ({
               name: f,
               path: path.join(chatsDir, f),
@@ -117,13 +114,7 @@ export class GeminiCLIAdapter implements AgentAdapter {
     projectLogs: GeminiLogEntry[]
   ): Promise<AgentSession | null> {
     const content = fs.readFileSync(sessionFilePath, 'utf8');
-    let sessionData: GeminiSession;
-
-    if (sessionFilePath.endsWith('.jsonl')) {
-      sessionData = this.parseJsonl(content);
-    } else {
-      sessionData = JSON.parse(content);
-    }
+    const sessionData: GeminiSession = JSON.parse(content);
 
     if (!sessionData.messages || sessionData.messages.length === 0) return null;
 
@@ -132,7 +123,6 @@ export class GeminiCLIAdapter implements AgentAdapter {
     const isActive = Date.now() - lastUpdated < ACTIVE_THRESHOLD_MS;
 
     let pid = 0;
-    // ... rest of the method remains same ...
     if (isActive && projectPath) {
       try {
         // Find all gemini processes and check their CWD
@@ -180,23 +170,21 @@ export class GeminiCLIAdapter implements AgentAdapter {
     for (const msg of sessionData.messages) {
       const timestamp = msg.timestamp || new Date().toISOString();
       let text = '';
-      
+
       if (typeof msg.content === 'string') {
         text = msg.content;
       } else if (Array.isArray(msg.content)) {
-        text = msg.content.map((c) => c.text || '').join('\n').trim();
+        text = msg.content
+          .map((c) => c.text || '')
+          .join('\n')
+          .trim();
       }
 
-      if (text || msg.type === 'gemini' || msg.type === 'info') {
-        let role: 'user' | 'assistant' | 'system' = 'user';
-        if (msg.type === 'gemini') role = 'assistant';
-        else if (msg.type === 'system' || msg.type === 'info') role = 'system';
-
+      if (text || msg.type === 'gemini') {
         conversation.push({
-          role,
+          role: msg.type === 'gemini' ? 'assistant' : 'user',
           content: text || (msg.type === 'gemini' ? '(Thinking...)' : ''),
           timestamp,
-          thoughts: msg.thoughts,
         });
       }
 
@@ -255,7 +243,9 @@ export class GeminiCLIAdapter implements AgentAdapter {
       lifecycle: {
         startTime: sessionData.startTime,
         lastActivity: sessionData.lastUpdated || sessionData.startTime,
-        durationSeconds: Math.floor((lastUpdated - new Date(sessionData.startTime).getTime()) / 1000),
+        durationSeconds: Math.floor(
+          (lastUpdated - new Date(sessionData.startTime).getTime()) / 1000
+        ),
       },
       status: isActive ? 'running' : 'idle',
       currentActivity: sessionData.summary || (isActive ? 'Active session' : 'Past session'),
@@ -266,49 +256,5 @@ export class GeminiCLIAdapter implements AgentAdapter {
       timeline,
       logs: sessionLogs,
     };
-  }
-
-  private parseJsonl(content: string): GeminiSession {
-    const lines = content.trim().split('\n');
-    if (lines.length === 0) {
-      throw new Error('Empty session file');
-    }
-
-    const firstLine = JSON.parse(lines[0]);
-    const session: GeminiSession = {
-      sessionId: firstLine.sessionId || '',
-      projectHash: firstLine.projectHash || '',
-      startTime: firstLine.startTime || new Date().toISOString(),
-      lastUpdated: firstLine.lastUpdated || firstLine.startTime || new Date().toISOString(),
-      messages: [],
-    };
-
-    const messageMap = new Map<string, GeminiMessage>();
-
-    for (let i = 1; i < lines.length; i++) {
-      try {
-        const entry = JSON.parse(lines[i]);
-        if (entry.$set) {
-          if (entry.$set.lastUpdated) {
-            session.lastUpdated = entry.$set.lastUpdated;
-          }
-          if (entry.$set.summary) {
-            session.summary = entry.$set.summary;
-          }
-        } else if (entry.id && entry.type) {
-          // It's a message (user, gemini, system, info)
-          // Use a map to keep only the latest version of a message if it appears multiple times (updates)
-          messageMap.set(entry.id, entry as GeminiMessage);
-        }
-      } catch (e) {
-        log.debug('Failed to parse JSONL line', e);
-      }
-    }
-
-    session.messages = Array.from(messageMap.values()).sort(
-      (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
-    );
-
-    return session;
   }
 }

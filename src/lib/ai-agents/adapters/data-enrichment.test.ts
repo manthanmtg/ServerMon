@@ -60,14 +60,14 @@ describe('AI Agents Data Enrichment', () => {
     });
     mockStatSync.mockImplementation((p: string) => ({
       isDirectory: () => !(p as string).endsWith('.jsonl'),
-      mtime: { getTime: () => now }
+      mtime: { getTime: () => now },
     }));
 
     const jsonl = [
       JSON.stringify({
         type: 'user',
         timestamp: '2024-01-01T10:00:00Z',
-        message: { content: 'hello' }
+        message: { content: 'hello' },
       }),
       JSON.stringify({
         type: 'assistant',
@@ -78,10 +78,10 @@ describe('AI Agents Data Enrichment', () => {
           content: [
             { type: 'text', text: 'Thinking...' },
             { type: 'tool_use', name: 'write_to_file', input: { path: 'test.ts' } },
-            { type: 'tool_use', name: 'run_command', input: { command: 'ls' } }
-          ]
-        }
-      })
+            { type: 'tool_use', name: 'run_command', input: { command: 'ls' } },
+          ],
+        },
+      }),
     ].join('\n');
     mockReadFileSync.mockReturnValue(jsonl);
 
@@ -90,7 +90,7 @@ describe('AI Agents Data Enrichment', () => {
 
     expect(sessions).toHaveLength(1);
     const session = sessions[0];
-    
+
     // Tokens
     expect(session.usage!.inputTokens).toBe(100);
     expect(session.usage!.outputTokens).toBe(50);
@@ -114,8 +114,8 @@ describe('AI Agents Data Enrichment', () => {
     const now = Date.now();
     mockDiscoverHomeDirs.mockReturnValue([{ username: 'user1', homeDir: '/home/user1' }]);
     mockExistsSync.mockImplementation((p: string) => {
-        if (p === '/home/user1/project') return true;
-        return true;
+      if (p === '/home/user1/project') return true;
+      return true;
     });
     mockReaddirSync.mockImplementation((p: string) => {
       if (p === '/home/user1/.claude/projects') return ['-home-user1-project'];
@@ -124,7 +124,7 @@ describe('AI Agents Data Enrichment', () => {
     // Return recent time to mark as running
     mockStatSync.mockReturnValue({ isDirectory: () => true, mtime: { getTime: () => now } });
     mockReadFileSync.mockReturnValue(JSON.stringify({ type: 'user', message: { content: 'x' } }));
-    
+
     // Mock execPromise for hostname and ps
     mockExecPromise.mockImplementation(async (cmd: string) => {
       if (cmd.includes('ps aux')) return { stdout: '12345\n' };
@@ -151,7 +151,7 @@ describe('AI Agents Data Enrichment', () => {
     const jsonl = [
       JSON.stringify({
         type: 'session_meta',
-        payload: { cwd: '/proj', model_provider: 'openai' }
+        payload: { cwd: '/proj', model_provider: 'openai' },
       }),
       JSON.stringify({
         type: 'response_item',
@@ -161,10 +161,14 @@ describe('AI Agents Data Enrichment', () => {
           type: 'message',
           role: 'assistant',
           content: [
-            { text: 'Done', type: 'tool_use', tool_call: { name: 'write', input: { path: 'f.txt' } } }
-          ]
-        }
-      })
+            {
+              text: 'Done',
+              type: 'tool_use',
+              tool_call: { name: 'write', input: { path: 'f.txt' } },
+            },
+          ],
+        },
+      }),
     ].join('\n');
     mockReadFileSync.mockReturnValue(jsonl);
 
@@ -180,28 +184,45 @@ describe('AI Agents Data Enrichment', () => {
   it('OpenCodeAdapter extracts tokens and tools correctly', async () => {
     mockDiscoverHomeDirs.mockReturnValue([{ username: 'user1', homeDir: '/home/user1' }]);
     mockExistsSync.mockReturnValue(true);
-    
+
     mockExecPromise.mockImplementation(async (cmd: string) => {
       if (cmd.includes('SELECT id, slug')) {
-        return { stdout: JSON.stringify([{ id: 's1', title: 'Session 1', directory: '/p', time_created: 1000, time_updated: 2000 }]) };
+        return {
+          stdout: JSON.stringify([
+            {
+              id: 's1',
+              title: 'Session 1',
+              directory: '/p',
+              time_created: 1000,
+              time_updated: 2000,
+            },
+          ]),
+        };
       }
       if (cmd.includes('SELECT m.time_created')) {
-        return { 
+        return {
           stdout: JSON.stringify([
-            { 
-              time_created: 1500, 
+            {
+              time_created: 1500,
               msg_data: JSON.stringify({ role: 'assistant', model: 'gpt-4' }),
-              part_data: JSON.stringify({ type: 'text', text: 'Ok' }) 
+              part_data: JSON.stringify({ type: 'text', text: 'Ok' }),
             },
-            { 
-              time_created: 1600, 
-              part_data: JSON.stringify({ type: 'tool', tool_name: 'write_file', input: { path: 'a.js' } }) 
+            {
+              time_created: 1600,
+              part_data: JSON.stringify({
+                type: 'tool',
+                tool_name: 'write_file',
+                input: { path: 'a.js' },
+              }),
             },
-            { 
-              time_created: 1700, 
-              part_data: JSON.stringify({ type: 'step-finish', tokens: { input: 200, output: 100 } }) 
-            }
-          ]) 
+            {
+              time_created: 1700,
+              part_data: JSON.stringify({
+                type: 'step-finish',
+                tokens: { input: 200, output: 100 },
+              }),
+            },
+          ]),
         };
       }
       return { stdout: 'localhost\n' };

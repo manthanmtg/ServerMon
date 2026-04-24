@@ -93,9 +93,10 @@ vi.mock('@xterm/xterm', () => ({
 }));
 
 vi.mock('@xterm/addon-fit', () => ({
-  FitAddon: vi.fn(function (
-    this: { fit: typeof mockFitAddonFit; proposeDimensions: () => { cols: number; rows: number } }
-  ) {
+  FitAddon: vi.fn(function (this: {
+    fit: typeof mockFitAddonFit;
+    proposeDimensions: () => { cols: number; rows: number };
+  }) {
     this.fit = mockFitAddonFit;
     this.proposeDimensions = vi.fn(() => ({ cols: 80, rows: 24 }));
   }),
@@ -199,9 +200,7 @@ describe('TerminalUI', () => {
   });
 
   it('accepts initialCommand prop', () => {
-    expect(() =>
-      render(<TerminalUI sessionId="sess-1" initialCommand="ls -la" />)
-    ).not.toThrow();
+    expect(() => render(<TerminalUI sessionId="sess-1" initialCommand="ls -la" />)).not.toThrow();
   });
 
   // ── Initialization tests ──────────────────────────────────────────────────────
@@ -272,9 +271,7 @@ describe('TerminalUI', () => {
   });
 
   it('emits terminal:start on connect with session info', async () => {
-    render(
-      <TerminalUI sessionId="sess-42" label="My Terminal" username="admin" fontSize={16} />
-    );
+    render(<TerminalUI sessionId="sess-42" label="My Terminal" username="admin" fontSize={16} />);
 
     await act(async () => {
       capturedSocketHandlers['connect']?.();

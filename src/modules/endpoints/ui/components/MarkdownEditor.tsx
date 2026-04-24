@@ -151,7 +151,12 @@ export default function MarkdownEditor({
   }, [value]);
 
   return (
-    <div className={cn('rounded-2xl overflow-hidden border border-border/40 bg-[#1e1e2e] shadow-xl', className)}>
+    <div
+      className={cn(
+        'rounded-2xl overflow-hidden border border-border/40 bg-[#1e1e2e] shadow-xl',
+        className
+      )}
+    >
       <div ref={containerRef} className="[&_.cm-editor]:outline-none" />
       <div className="flex items-center justify-between px-4 py-2 bg-[#1a1a26] border-t border-white/5 text-[10px] font-bold text-white/40 uppercase tracking-widest">
         <div className="flex items-center gap-4">

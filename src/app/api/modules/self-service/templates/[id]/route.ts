@@ -7,10 +7,7 @@ export const dynamic = 'force-dynamic';
 
 const log = createLogger('api:self-service:template-detail');
 
-export async function GET(
-  _request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
+export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
     const template = getTemplateById(id);

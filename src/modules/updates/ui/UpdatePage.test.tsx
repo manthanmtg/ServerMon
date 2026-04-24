@@ -5,7 +5,9 @@ import { ToastProvider } from '@/components/ui/toast';
 
 // Mock Recharts to avoid issues in JSDOM
 vi.mock('recharts', () => ({
-  ResponsiveContainer: ({ children }: { children: React.ReactNode }) => <div style={{ width: '100%', height: '100%' }}>{children}</div>,
+  ResponsiveContainer: ({ children }: { children: React.ReactNode }) => (
+    <div style={{ width: '100%', height: '100%' }}>{children}</div>
+  ),
   AreaChart: ({ children }: { children: React.ReactNode }) => <svg>{children}</svg>,
   Area: () => null,
   XAxis: () => null,
@@ -16,7 +18,12 @@ vi.mock('recharts', () => ({
 
 // Mock ConfirmationModal
 vi.mock('@/components/ui/ConfirmationModal', () => ({
-  default: ({ isOpen, onConfirm, onCancel, title }: {
+  default: ({
+    isOpen,
+    onConfirm,
+    onCancel,
+    title,
+  }: {
     isOpen: boolean;
     onConfirm: () => void;
     onCancel: () => void;
@@ -61,9 +68,7 @@ const mockSnapshot = {
       severity: 'high',
     },
   ],
-  history: [
-    { timestamp: new Date().toISOString(), count: 5, success: true },
-  ],
+  history: [{ timestamp: new Date().toISOString(), count: 5, success: true }],
 };
 
 const mockRunHistory = { runs: [] };
@@ -98,9 +103,7 @@ describe('UpdatePage', () => {
   };
 
   it('renders loading state initially', async () => {
-    global.fetch = vi.fn().mockImplementation(() => 
-      new Promise<Response>(() => {})
-    );
+    global.fetch = vi.fn().mockImplementation(() => new Promise<Response>(() => {}));
 
     render(
       <ToastProvider>
@@ -116,7 +119,7 @@ describe('UpdatePage', () => {
 
     expect(screen.getByText('System Updates')).toBeDefined();
     expect(screen.getByText(/Ubuntu 22.04 LTS/i)).toBeDefined();
-    
+
     // Check status cards
     expect(screen.getByText('3')).toBeDefined(); // Security
     expect(screen.getByText('10')).toBeDefined(); // Regular
@@ -138,10 +141,13 @@ describe('UpdatePage', () => {
       fireEvent.click(checkButton);
     });
 
-    expect(global.fetch).toHaveBeenCalledWith('/api/modules/updates', expect.objectContaining({
-      method: 'POST',
-      body: JSON.stringify({ force: true }),
-    }));
+    expect(global.fetch).toHaveBeenCalledWith(
+      '/api/modules/updates',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ force: true }),
+      })
+    );
   });
 
   it('opens confirmation modal when "Update All" is clicked', async () => {
@@ -207,10 +213,13 @@ describe('UpdatePage', () => {
     });
 
     // Verify the POST to /api/modules/updates/run was called with type: packages
-    expect(global.fetch).toHaveBeenCalledWith('/api/modules/updates/run', expect.objectContaining({
-      method: 'POST',
-      body: JSON.stringify({ type: 'packages' }),
-    }));
+    expect(global.fetch).toHaveBeenCalledWith(
+      '/api/modules/updates/run',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ type: 'packages' }),
+      })
+    );
 
     // Should show "Installing Updates..." progress
     await waitFor(() => {

@@ -12,6 +12,7 @@ The **AI Agent Runner** module turns ServerMon into a **prompt execution platfor
 This module is the **operational backbone** for teams that use AI agents as automated contributors (feature PRs, module enhancements, test generation, documentation, refactoring).
 
 > **Relationship to existing modules:**
+>
 > - The existing **AI Agents** module provides **passive observability** — detecting and monitoring running agent sessions.
 > - The **AI Agent Runner** module provides **active orchestration** — launching, scheduling, and managing agent tasks from the UI.
 > - The existing **Crons** module manages system cron jobs. The Runner module manages **its own scheduled prompts** independently, using its own scheduler/executor.
@@ -20,14 +21,14 @@ This module is the **operational backbone** for teams that use AI agents as auto
 
 # 🎯 Goals
 
-| Goal | Description |
-|------|-------------|
-| **One-Click Prompt Execution** | Run any prompt against any repo with a single click |
-| **Scheduling** | Create recurring AI agent runs with cron expressions |
-| **Agent-Agnostic** | Support multiple AI CLI tools via configurable templates |
-| **Full Auditability** | Every run is logged with clean output, duration, exit code |
-| **Safe Defaults** | Validate commands, enforce timeouts, prevent runaway processes |
-| **Zero Bash Scripts** | Eliminate the need for hand-written shell wrapper scripts |
+| Goal                           | Description                                                    |
+| ------------------------------ | -------------------------------------------------------------- |
+| **One-Click Prompt Execution** | Run any prompt against any repo with a single click            |
+| **Scheduling**                 | Create recurring AI agent runs with cron expressions           |
+| **Agent-Agnostic**             | Support multiple AI CLI tools via configurable templates       |
+| **Full Auditability**          | Every run is logged with clean output, duration, exit code     |
+| **Safe Defaults**              | Validate commands, enforce timeouts, prevent runaway processes |
+| **Zero Bash Scripts**          | Eliminate the need for hand-written shell wrapper scripts      |
 
 ---
 
@@ -35,41 +36,45 @@ This module is the **operational backbone** for teams that use AI agents as auto
 
 ## 1️⃣ Agent Profiles (Settings)
 
-An **Agent Profile** defines *how* to invoke a specific AI tool. Profiles are configured once in the module Settings and reused across all prompts and schedules.
+An **Agent Profile** defines _how_ to invoke a specific AI tool. Profiles are configured once in the module Settings and reused across all prompts and schedules.
 
 ### Profile Fields
 
-| Field | Type | Description | Example |
-|-------|------|-------------|---------|
-| `name` | string | Human-readable profile name | "Claude Code (Dangerous)" |
-| `slug` | string | Unique identifier | "claude-dangerous" |
-| `agentType` | enum | Agent family | `claude-code` / `codex` / `opencode` / `gemini-cli` / `aider` / `custom` |
-| `invocationTemplate` | string | Shell command template. Must contain `$PROMPT` placeholder. May contain `$WORKING_DIR`. | See examples below |
-| `defaultTimeout` | number | Default timeout in minutes | `30` |
-| `maxTimeout` | number | Hard maximum timeout in minutes | `120` |
-| `shell` | string | Shell to use | `/bin/bash` |
-| `env` | Record<string, string> | Extra environment variables | `{ "ANTHROPIC_API_KEY": "..." }` |
-| `enabled` | boolean | Whether this profile is available | `true` |
-| `icon` | string | Optional custom icon identifier | `"claude"` |
+| Field                | Type                   | Description                                                                             | Example                                                                  |
+| -------------------- | ---------------------- | --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| `name`               | string                 | Human-readable profile name                                                             | "Claude Code (Dangerous)"                                                |
+| `slug`               | string                 | Unique identifier                                                                       | "claude-dangerous"                                                       |
+| `agentType`          | enum                   | Agent family                                                                            | `claude-code` / `codex` / `opencode` / `gemini-cli` / `aider` / `custom` |
+| `invocationTemplate` | string                 | Shell command template. Must contain `$PROMPT` placeholder. May contain `$WORKING_DIR`. | See examples below                                                       |
+| `defaultTimeout`     | number                 | Default timeout in minutes                                                              | `30`                                                                     |
+| `maxTimeout`         | number                 | Hard maximum timeout in minutes                                                         | `120`                                                                    |
+| `shell`              | string                 | Shell to use                                                                            | `/bin/bash`                                                              |
+| `env`                | Record<string, string> | Extra environment variables                                                             | `{ "ANTHROPIC_API_KEY": "..." }`                                         |
+| `enabled`            | boolean                | Whether this profile is available                                                       | `true`                                                                   |
+| `icon`               | string                 | Optional custom icon identifier                                                         | `"claude"`                                                               |
 
 ### Example Invocation Templates
 
 **Codex:**
+
 ```bash
 codex --dangerously-bypass-approvals-and-sandbox "$PROMPT"
 ```
 
 **Claude Code:**
+
 ```bash
 apt-get update -y >/dev/null 2>&1 && apt-get install -y acl >/dev/null 2>&1 && setfacl -m u:claudeuser:rx /root && setfacl -R -m u:claudeuser:rwx /root/repos && mkdir -p /home/claudeuser/.claude && echo '{"trustedDirectories":["/root/repos","/workspace","/home/claudeuser"]}' > /home/claudeuser/.claude/settings.json && chown -R claudeuser:claudeuser /home/claudeuser/.claude && su - claudeuser -c "cd /root/repos 2>/dev/null || cd /workspace 2>/dev/null || cd ~; claude --dangerously-skip-permissions \"$PROMPT\""
 ```
 
 **Aider:**
+
 ```bash
 aider --yes --message "$PROMPT"
 ```
 
 **Custom:**
+
 ```bash
 /usr/local/bin/my-agent --auto "$PROMPT"
 ```
@@ -97,22 +102,23 @@ A **Prompt** is the unit of work to execute. Prompts can be:
 
 ### Prompt Fields
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `id` | string | Unique identifier |
-| `name` | string | Human-readable name |
-| `content` | string | The prompt text OR a file path (prefixed with `@`) |
-| `type` | enum | `inline` / `file-reference` |
-| `agentProfileId` | string | Which agent profile to use |
-| `workingDirectory` | string | Directory to run in (repository path) |
-| `timeout` | number | Timeout in minutes (overrides profile default) |
-| `tags` | string[] | Tags for organization |
-| `createdAt` | string | ISO timestamp |
-| `updatedAt` | string | ISO timestamp |
+| Field              | Type     | Description                                        |
+| ------------------ | -------- | -------------------------------------------------- |
+| `id`               | string   | Unique identifier                                  |
+| `name`             | string   | Human-readable name                                |
+| `content`          | string   | The prompt text OR a file path (prefixed with `@`) |
+| `type`             | enum     | `inline` / `file-reference`                        |
+| `agentProfileId`   | string   | Which agent profile to use                         |
+| `workingDirectory` | string   | Directory to run in (repository path)              |
+| `timeout`          | number   | Timeout in minutes (overrides profile default)     |
+| `tags`             | string[] | Tags for organization                              |
+| `createdAt`        | string   | ISO timestamp                                      |
+| `updatedAt`        | string   | ISO timestamp                                      |
 
 ### File-Referenced Prompts
 
 When `type` is `file-reference`, the `content` field contains a path like:
+
 ```
 /root/repos/LifeOS/prompts/random_module_enhancer_prompt.md
 ```
@@ -127,18 +133,18 @@ A **Scheduled Run** binds a saved prompt to a cron expression.
 
 ### Schedule Fields
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `id` | string | Unique identifier |
-| `name` | string | Human-readable name |
-| `promptId` | string | Which saved prompt to run |
-| `cronExpression` | string | Standard 5-field cron expression |
-| `enabled` | boolean | Whether the schedule is active |
-| `lastRunId` | string? | Most recent run ID |
-| `lastRunStatus` | string? | Status of most recent run |
-| `nextRunTime` | string? | Computed next run timestamp |
-| `createdAt` | string | ISO timestamp |
-| `updatedAt` | string | ISO timestamp |
+| Field            | Type    | Description                      |
+| ---------------- | ------- | -------------------------------- |
+| `id`             | string  | Unique identifier                |
+| `name`           | string  | Human-readable name              |
+| `promptId`       | string  | Which saved prompt to run        |
+| `cronExpression` | string  | Standard 5-field cron expression |
+| `enabled`        | boolean | Whether the schedule is active   |
+| `lastRunId`      | string? | Most recent run ID               |
+| `lastRunStatus`  | string? | Status of most recent run        |
+| `nextRunTime`    | string? | Computed next run timestamp      |
+| `createdAt`      | string  | ISO timestamp                    |
+| `updatedAt`      | string  | ISO timestamp                    |
 
 ### Schedule Management
 
@@ -155,32 +161,33 @@ Every execution (manual or scheduled) produces a **Run Record**.
 
 ### Run Record Fields
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `runId` | string | Unique run identifier |
-| `promptId` | string? | Saved prompt ID (null for ad-hoc) |
-| `scheduleId` | string? | Schedule ID (null for manual runs) |
-| `agentProfileId` | string | Which agent profile was used |
-| `promptContent` | string | The actual prompt text sent |
-| `workingDirectory` | string | Where the command ran |
-| `command` | string | The fully-resolved command that was executed |
-| `pid` | number | Process ID |
-| `status` | enum | `queued` / `running` / `completed` / `failed` / `timeout` / `killed` |
-| `exitCode` | number? | Process exit code |
-| `stdout` | string | Captured stdout (ANSI-stripped) |
-| `stderr` | string | Captured stderr |
-| `rawOutput` | string | Raw terminal output with ANSI codes preserved |
-| `startedAt` | string | ISO timestamp |
-| `finishedAt` | string? | ISO timestamp |
-| `durationSeconds` | number? | Total run duration |
-| `triggeredBy` | enum | `manual` / `schedule` |
-| `resourceUsage` | object? | Peak CPU/memory during run |
+| Field              | Type    | Description                                                          |
+| ------------------ | ------- | -------------------------------------------------------------------- |
+| `runId`            | string  | Unique run identifier                                                |
+| `promptId`         | string? | Saved prompt ID (null for ad-hoc)                                    |
+| `scheduleId`       | string? | Schedule ID (null for manual runs)                                   |
+| `agentProfileId`   | string  | Which agent profile was used                                         |
+| `promptContent`    | string  | The actual prompt text sent                                          |
+| `workingDirectory` | string  | Where the command ran                                                |
+| `command`          | string  | The fully-resolved command that was executed                         |
+| `pid`              | number  | Process ID                                                           |
+| `status`           | enum    | `queued` / `running` / `completed` / `failed` / `timeout` / `killed` |
+| `exitCode`         | number? | Process exit code                                                    |
+| `stdout`           | string  | Captured stdout (ANSI-stripped)                                      |
+| `stderr`           | string  | Captured stderr                                                      |
+| `rawOutput`        | string  | Raw terminal output with ANSI codes preserved                        |
+| `startedAt`        | string  | ISO timestamp                                                        |
+| `finishedAt`       | string? | ISO timestamp                                                        |
+| `durationSeconds`  | number? | Total run duration                                                   |
+| `triggeredBy`      | enum    | `manual` / `schedule`                                                |
+| `resourceUsage`    | object? | Peak CPU/memory during run                                           |
 
 ### Output Handling
 
 **Critical requirement**: The output viewer must show **clean, readable terminal output**, not raw gibberish with ANSI escape codes.
 
 Strategy:
+
 1. Capture output using `script -q` (pseudo-TTY) for agents that need it
 2. Store both **raw** (with ANSI) and **stripped** (clean text) versions
 3. The UI output viewer supports two modes:
@@ -211,6 +218,7 @@ The AI Agent Runner page uses a **tabbed layout** with the following tabs:
 The primary interaction surface. A **split-pane** design:
 
 **Left panel — Prompt Composer:**
+
 - Agent profile selector (dropdown with icons)
 - Working directory input (with autocomplete from known repositories)
 - Prompt input (large textarea with markdown preview)
@@ -220,6 +228,7 @@ The primary interaction surface. A **split-pane** design:
 - **💾 Save Prompt** button (save for reuse / scheduling)
 
 **Right panel — Live Output:**
+
 - Real-time streaming output (xterm.js or clean text)
 - Status indicator (running spinner / success checkmark / failure X)
 - Duration counter
@@ -233,6 +242,7 @@ The primary interaction surface. A **split-pane** design:
 A **table/card view** of all saved prompts.
 
 Each entry shows:
+
 - Prompt name
 - Agent profile badge
 - Working directory
@@ -242,6 +252,7 @@ Each entry shows:
 - Actions: **Run** / **Edit** / **Schedule** / **Delete**
 
 Features:
+
 - Search / filter by tags, agent, directory
 - Bulk actions (delete, tag)
 - Quick-run button (executes immediately with saved settings)
@@ -253,6 +264,7 @@ Features:
 A **table view** of all scheduled prompts (similar to Crons module layout).
 
 Each entry shows:
+
 - Schedule name
 - Linked prompt name
 - Cron expression (human-readable description)
@@ -263,6 +275,7 @@ Each entry shows:
 - Actions: **Enable/Disable** / **Edit** / **Run Now** / **Delete**
 
 Features:
+
 - Schedule builder with presets (reuse `ScheduleBuilder` component)
 - Next N runs preview
 - Conflict warnings
@@ -275,6 +288,7 @@ Features:
 A **rich, searchable table** of all past runs (both manual and scheduled).
 
 Columns:
+
 - Status badge
 - Trigger type (manual / scheduled)
 - Prompt name / content preview
@@ -286,6 +300,7 @@ Columns:
 - **View Output** button
 
 Features:
+
 - Filter by: status, trigger type, agent, directory, date range
 - Sort by any column
 - Pagination / infinite scroll
@@ -299,12 +314,14 @@ Features:
 Agent profile management (CRUD).
 
 **Profile List:**
+
 - Cards for each configured agent profile
 - Status badge (enabled/disabled)
 - Quick test button (runs `echo "test"` to verify the template works)
 - Edit / Delete / Duplicate actions
 
 **Profile Editor (Modal):**
+
 - All profile fields (see Agent Profiles section above)
 - Template editor with syntax highlighting
 - **Validate** button (checks template syntax)
@@ -312,6 +329,7 @@ Agent profile management (CRUD).
 - Preview of resolved command
 
 **Global Settings:**
+
 - Default working directory
 - Default timeout
 - Max concurrent runs
@@ -355,33 +373,33 @@ aiRunnerRuns         — Run history and output
 
 ## API Routes
 
-| Method | Route | Description |
-|--------|-------|-------------|
-| **GET** | `/api/modules/ai-runner/profiles` | List all agent profiles |
-| **POST** | `/api/modules/ai-runner/profiles` | Create agent profile |
-| **PUT** | `/api/modules/ai-runner/profiles/:id` | Update agent profile |
-| **DELETE** | `/api/modules/ai-runner/profiles/:id` | Delete agent profile |
-| **POST** | `/api/modules/ai-runner/profiles/:id/validate` | Validate invocation template |
-| **POST** | `/api/modules/ai-runner/profiles/:id/test` | Quick-test profile (echo) |
-| | | |
-| **GET** | `/api/modules/ai-runner/prompts` | List saved prompts |
-| **POST** | `/api/modules/ai-runner/prompts` | Create saved prompt |
-| **PUT** | `/api/modules/ai-runner/prompts/:id` | Update saved prompt |
-| **DELETE** | `/api/modules/ai-runner/prompts/:id` | Delete saved prompt |
-| | | |
-| **GET** | `/api/modules/ai-runner/schedules` | List schedules |
-| **POST** | `/api/modules/ai-runner/schedules` | Create schedule |
-| **PUT** | `/api/modules/ai-runner/schedules/:id` | Update schedule |
-| **DELETE** | `/api/modules/ai-runner/schedules/:id` | Delete schedule |
-| **POST** | `/api/modules/ai-runner/schedules/:id/toggle` | Enable/disable schedule |
-| | | |
-| **POST** | `/api/modules/ai-runner/run` | Execute a prompt (ad-hoc or saved) |
-| **GET** | `/api/modules/ai-runner/runs` | List run history |
-| **GET** | `/api/modules/ai-runner/runs/:runId` | Get run details + output |
-| **POST** | `/api/modules/ai-runner/runs/:runId/kill` | Kill a running process |
-| **GET** | `/api/modules/ai-runner/runs/active` | List currently running executions |
-| | | |
-| **GET** | `/api/modules/ai-runner/directories` | List known repositories/directories |
+| Method     | Route                                          | Description                         |
+| ---------- | ---------------------------------------------- | ----------------------------------- |
+| **GET**    | `/api/modules/ai-runner/profiles`              | List all agent profiles             |
+| **POST**   | `/api/modules/ai-runner/profiles`              | Create agent profile                |
+| **PUT**    | `/api/modules/ai-runner/profiles/:id`          | Update agent profile                |
+| **DELETE** | `/api/modules/ai-runner/profiles/:id`          | Delete agent profile                |
+| **POST**   | `/api/modules/ai-runner/profiles/:id/validate` | Validate invocation template        |
+| **POST**   | `/api/modules/ai-runner/profiles/:id/test`     | Quick-test profile (echo)           |
+|            |                                                |                                     |
+| **GET**    | `/api/modules/ai-runner/prompts`               | List saved prompts                  |
+| **POST**   | `/api/modules/ai-runner/prompts`               | Create saved prompt                 |
+| **PUT**    | `/api/modules/ai-runner/prompts/:id`           | Update saved prompt                 |
+| **DELETE** | `/api/modules/ai-runner/prompts/:id`           | Delete saved prompt                 |
+|            |                                                |                                     |
+| **GET**    | `/api/modules/ai-runner/schedules`             | List schedules                      |
+| **POST**   | `/api/modules/ai-runner/schedules`             | Create schedule                     |
+| **PUT**    | `/api/modules/ai-runner/schedules/:id`         | Update schedule                     |
+| **DELETE** | `/api/modules/ai-runner/schedules/:id`         | Delete schedule                     |
+| **POST**   | `/api/modules/ai-runner/schedules/:id/toggle`  | Enable/disable schedule             |
+|            |                                                |                                     |
+| **POST**   | `/api/modules/ai-runner/run`                   | Execute a prompt (ad-hoc or saved)  |
+| **GET**    | `/api/modules/ai-runner/runs`                  | List run history                    |
+| **GET**    | `/api/modules/ai-runner/runs/:runId`           | Get run details + output            |
+| **POST**   | `/api/modules/ai-runner/runs/:runId/kill`      | Kill a running process              |
+| **GET**    | `/api/modules/ai-runner/runs/active`           | List currently running executions   |
+|            |                                                |                                     |
+| **GET**    | `/api/modules/ai-runner/directories`           | List known repositories/directories |
 
 ---
 
@@ -400,7 +418,7 @@ QUEUED → RUNNING → COMPLETED / FAILED / TIMEOUT / KILLED
 1. **Resolve prompt**: Read inline content or load file from disk
 2. **Resolve template**: Substitute `$PROMPT` and `$WORKING_DIR` into the agent profile template
 3. **Validate**: Check working directory exists, template is valid
-4. **Spawn process**: 
+4. **Spawn process**:
    - Use `script -q` wrapper for pseudo-TTY (needed by many agents)
    - Set `timeout` command wrapper for safety
    - Set environment variables from profile
@@ -443,23 +461,28 @@ The scheduler runs as a **background service** within the ServerMon process.
 # 🔗 Integration With Other Modules
 
 ### 🤖 AI Agents Module
+
 - When a Runner execution starts an AI agent process, the AI Agents module can detect and track the session
 - Cross-link: from a Run's detail view, link to the AI Agents session if detected
 
 ### ⏰ Crons Module
+
 - Share the `ScheduleBuilder` UI component
 - The Runner module manages its **own** schedules (not system crontab)
 - Migration tool: import existing AI-related cron jobs into the Runner module
 
 ### 🖥 Terminal Module
+
 - "Open in Terminal" action for any working directory
 - Terminal fallback for manual debugging
 
 ### 📂 File Browser
+
 - Browse and select prompt files from disk
 - View files modified by agent runs
 
 ### 📊 Metrics Module
+
 - Emit metrics for run duration, success rate, agent usage
 - Dashboard integration for trends
 
@@ -481,27 +504,35 @@ The module should provide aggregate analytics:
 # 🚀 Future Capabilities
 
 ## 🔗 Chained Prompts (Pipelines)
+
 Run multiple prompts in sequence — e.g., "enhance module" → "run tests" → "create PR".
 
 ## 📋 Prompt Templates
+
 Parameterized prompts with variables: `Enhance the {{MODULE_NAME}} module in {{REPO_PATH}}`.
 
 ## 🔔 Notifications
+
 Send alerts on run completion/failure via webhook, email, or Slack.
 
 ## 🔀 Git Integration
+
 Auto-create branches before runs, auto-commit after, auto-PR on success.
 
 ## 🧪 Dry Run Mode
+
 Preview the resolved command without executing it.
 
 ## 📊 Cost Tracking
+
 Track estimated API costs per run (by parsing token usage from agent output).
 
 ## 🔐 Secrets Management
+
 Secure storage for API keys used in agent profiles (encrypted at rest).
 
 ## 🌐 Multi-Server
+
 Dispatch prompts to remote servers (agent runner as a distributed system).
 
 ---
@@ -510,13 +541,13 @@ Dispatch prompts to remote servers (agent runner as a distributed system).
 
 The **AI Agent Runner** module transforms ServerMon from a monitoring tool into a full **AI DevOps platform**. It provides:
 
-| Capability | Description |
-|-----------|-------------|
-| **Execute** | Run AI agent prompts from a rich UI |
-| **Schedule** | Automate recurring AI tasks with cron expressions |
-| **Configure** | Set up multiple agents with validated invocation templates |
-| **Monitor** | Live-stream output with clean terminal rendering |
-| **Audit** | Full history of every run with searchable, downloadable output |
-| **Analyze** | Aggregate insights on AI agent usage and success rates |
+| Capability    | Description                                                    |
+| ------------- | -------------------------------------------------------------- |
+| **Execute**   | Run AI agent prompts from a rich UI                            |
+| **Schedule**  | Automate recurring AI tasks with cron expressions              |
+| **Configure** | Set up multiple agents with validated invocation templates     |
+| **Monitor**   | Live-stream output with clean terminal rendering               |
+| **Audit**     | Full history of every run with searchable, downloadable output |
+| **Analyze**   | Aggregate insights on AI agent usage and success rates         |
 
 This eliminates the need for hand-written bash scripts, manual cron job management, and opaque log files — replacing them with a **centralized, observable, and configurable** AI agent orchestration layer.

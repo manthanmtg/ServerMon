@@ -63,11 +63,11 @@ function SessionListInner({ activeSessions, pastSessions, onSelect, hasFilters }
         <Card className="border-border/60">
           <CardContent className="flex flex-col items-center justify-center py-16">
             <Bot className="w-10 h-10 text-muted-foreground/30 mb-3" />
-            <p className="text-sm font-medium text-muted-foreground">
-              No AI agent sessions found
-            </p>
+            <p className="text-sm font-medium text-muted-foreground">No AI agent sessions found</p>
             <p className="text-xs text-muted-foreground/70 mt-1">
-              {hasFilters ? 'Try adjusting your filters' : 'Start an AI coding agent to see it here'}
+              {hasFilters
+                ? 'Try adjusting your filters'
+                : 'Start an AI coding agent to see it here'}
             </p>
           </CardContent>
         </Card>

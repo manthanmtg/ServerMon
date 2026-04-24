@@ -54,7 +54,13 @@ function DashboardSkeleton() {
   );
 }
 
-const Sparkline = React.memo(function Sparkline({ data, color = 'var(--primary)' }: { data: number[]; color?: string }) {
+const Sparkline = React.memo(function Sparkline({
+  data,
+  color = 'var(--primary)',
+}: {
+  data: number[];
+  color?: string;
+}) {
   if (data.length < 2) return null;
   const min = Math.min(...data);
   const max = Math.max(...data);

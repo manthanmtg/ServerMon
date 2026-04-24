@@ -38,7 +38,10 @@ describe('AIAgentsWidget', () => {
   it('shows skeleton while loading', () => {
     let resolveFetch!: (v: Response) => void;
     global.fetch = vi.fn().mockImplementation(
-      () => new Promise<Response>((r) => { resolveFetch = r; })
+      () =>
+        new Promise<Response>((r) => {
+          resolveFetch = r;
+        })
     );
     render(<AIAgentsWidget />);
     // Skeleton is shown – no session list yet
@@ -87,7 +90,10 @@ describe('AIAgentsWidget', () => {
   it('shows none badge when no sessions', async () => {
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,
-      json: async () => ({ sessions: [], summary: { running: 0, idle: 0, error: 0, waiting: 0, total: 0 } }),
+      json: async () => ({
+        sessions: [],
+        summary: { running: 0, idle: 0, error: 0, waiting: 0, total: 0 },
+      }),
     });
     await act(async () => {
       render(<AIAgentsWidget />);
@@ -98,12 +104,17 @@ describe('AIAgentsWidget', () => {
   it('shows empty state when no sessions', async () => {
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,
-      json: async () => ({ sessions: [], summary: { running: 0, idle: 0, error: 0, waiting: 0, total: 0 } }),
+      json: async () => ({
+        sessions: [],
+        summary: { running: 0, idle: 0, error: 0, waiting: 0, total: 0 },
+      }),
     });
     await act(async () => {
       render(<AIAgentsWidget />);
     });
-    await waitFor(() => expect(screen.getByText('No active AI agent sessions detected')).toBeDefined());
+    await waitFor(() =>
+      expect(screen.getByText('No active AI agent sessions detected')).toBeDefined()
+    );
   });
 
   it('shows +N more when more than 3 sessions', async () => {
@@ -116,7 +127,10 @@ describe('AIAgentsWidget', () => {
     }));
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,
-      json: async () => ({ sessions: manySessions, summary: { running: 5, idle: 0, error: 0, waiting: 0, total: 5 } }),
+      json: async () => ({
+        sessions: manySessions,
+        summary: { running: 5, idle: 0, error: 0, waiting: 0, total: 5 },
+      }),
     });
     await act(async () => {
       render(<AIAgentsWidget />);

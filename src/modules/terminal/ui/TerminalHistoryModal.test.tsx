@@ -140,7 +140,8 @@ describe('TerminalHistoryModal', () => {
   });
 
   it('allows retry after error', async () => {
-    global.fetch = vi.fn()
+    global.fetch = vi
+      .fn()
       .mockRejectedValueOnce(new Error('fail'))
       .mockResolvedValue({
         ok: true,

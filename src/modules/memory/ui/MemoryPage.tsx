@@ -95,7 +95,7 @@ export default function MemoryPage() {
 
   return (
     <ProShell title="Memory" subtitle="Resource Diagnostics">
-      <motion.div 
+      <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         className="space-y-6"
@@ -313,7 +313,9 @@ export default function MemoryPage() {
                   <div className="h-3 rounded-full bg-background overflow-hidden p-0.5 border border-border/50">
                     <motion.div
                       initial={{ width: 0 }}
-                      animate={{ width: `${(detailedStats.swapused / detailedStats.swaptotal) * 100}%` }}
+                      animate={{
+                        width: `${(detailedStats.swapused / detailedStats.swaptotal) * 100}%`,
+                      }}
                       transition={{ duration: 1.2, ease: 'easeOut' }}
                       className="h-full rounded-full bg-warning"
                     />
@@ -416,7 +418,9 @@ export default function MemoryPage() {
                       <td className="py-4 px-4 min-w-[160px]">
                         <div className="space-y-1.5">
                           <div className="flex justify-between items-center text-[10px] font-bold px-0.5">
-                            <span className={cn(proc.mem > 5 ? 'text-primary' : 'text-emerald-500')}>
+                            <span
+                              className={cn(proc.mem > 5 ? 'text-primary' : 'text-emerald-500')}
+                            >
                               {proc.mem.toFixed(1)}%
                             </span>
                           </div>

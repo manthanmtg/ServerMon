@@ -3,7 +3,9 @@ import { render, screen } from '@testing-library/react';
 import MemoryWidget from './MemoryWidget';
 
 vi.mock('recharts', () => ({
-  AreaChart: ({ children }: { children: React.ReactNode }) => <svg data-testid="area-chart">{children}</svg>,
+  AreaChart: ({ children }: { children: React.ReactNode }) => (
+    <svg data-testid="area-chart">{children}</svg>
+  ),
   Area: () => null,
   ResponsiveContainer: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }));

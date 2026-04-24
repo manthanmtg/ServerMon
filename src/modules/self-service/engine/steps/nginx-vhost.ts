@@ -17,7 +17,7 @@ interface NginxVhostResult {
 export async function runNginxVhostSetup(
   domain: string,
   vhostContent: string,
-  onLog: (line: string) => void,
+  onLog: (line: string) => void
 ): Promise<NginxVhostResult> {
   const logs: string[] = [];
   const filename = domain.replace(/[^a-zA-Z0-9.-]/g, '_');
@@ -53,13 +53,10 @@ export async function runNginxVhostSetup(
     onLog('Testing Nginx configuration...');
     logs.push('Testing Nginx configuration...');
 
-    const testResult = await shell.execute(
-      { method: 'shell', commands: ['nginx -t'] },
-      (line) => {
-        logs.push(line);
-        onLog(line);
-      },
-    );
+    const testResult = await shell.execute({ method: 'shell', commands: ['nginx -t'] }, (line) => {
+      logs.push(line);
+      onLog(line);
+    });
 
     if (!testResult.success) {
       const msg = 'Nginx config test failed — rolling back vhost.';
@@ -93,7 +90,7 @@ export async function runNginxVhostSetup(
 
 export async function rollbackNginxVhost(
   domain: string,
-  onLog: (line: string) => void,
+  onLog: (line: string) => void
 ): Promise<void> {
   const filename = domain.replace(/[^a-zA-Z0-9.-]/g, '_');
   const availablePath = join(SITES_AVAILABLE, filename);
@@ -116,8 +113,7 @@ export async function rollbackNginxVhost(
   }
 
   const shell = new ShellExecutor();
-  await shell.execute(
-    { method: 'shell', commands: ['nginx -t && nginx -s reload'] },
-    (line) => onLog(line),
+  await shell.execute({ method: 'shell', commands: ['nginx -t && nginx -s reload'] }, (line) =>
+    onLog(line)
   );
 }

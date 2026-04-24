@@ -112,7 +112,13 @@ export interface EndpointTestResult {
   error?: string;
 }
 
-export type TemplateCategory = 'monitoring' | 'security' | 'devops' | 'integrations' | 'data' | 'networking';
+export type TemplateCategory =
+  | 'monitoring'
+  | 'security'
+  | 'devops'
+  | 'integrations'
+  | 'data'
+  | 'networking';
 
 export interface EndpointTemplate {
   id: string;

@@ -773,7 +773,7 @@ export interface GitCommitInfo {
 export async function gitLog(root: string, limit = 50, since?: string): Promise<GitCommitInfo[]> {
   const commitMarker = '@@@COMMITSTART@@@';
   const separator = '@@@GITLOGSEG@@@';
-  
+
   const args = [
     '-C',
     root,

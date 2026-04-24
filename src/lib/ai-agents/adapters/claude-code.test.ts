@@ -43,7 +43,12 @@ import { ClaudeCodeAdapter } from './claude-code';
 const TIMESTAMP_1 = '2024-01-01T10:00:00.000Z';
 const TIMESTAMP_2 = '2024-01-01T10:05:00.000Z';
 
-function makeJsonlLine(type: 'user' | 'assistant', content: string, timestamp = TIMESTAMP_1, model?: string) {
+function makeJsonlLine(
+  type: 'user' | 'assistant',
+  content: string,
+  timestamp = TIMESTAMP_1,
+  model?: string
+) {
   return JSON.stringify({
     type,
     timestamp,

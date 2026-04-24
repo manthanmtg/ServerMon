@@ -103,7 +103,7 @@ describe('GeminiCLIAdapter', () => {
           '/root/repos/ServerMon': 'servermon',
         },
       });
-      
+
       const sessionJson = makeSessionJson('123', 'hash', [
         { type: 'user', content: [{ text: 'hi' }], timestamp: TIMESTAMP_START },
         { type: 'gemini', content: 'hello', timestamp: TIMESTAMP_UPDATE, model: 'gemini-pro' },
@@ -189,9 +189,7 @@ describe('GeminiCLIAdapter', () => {
         mtime: { getTime: () => Date.now() },
       }));
 
-      const sessionJson = makeSessionJson('logs-id', 'hash', [
-        { type: 'user', content: 'test' }
-      ]);
+      const sessionJson = makeSessionJson('logs-id', 'hash', [{ type: 'user', content: 'test' }]);
       const logsJson = JSON.stringify([
         { sessionId: 'logs-id', type: 'user', message: 'test', timestamp: TIMESTAMP_START },
         { sessionId: 'other-id', type: 'user', message: 'other', timestamp: TIMESTAMP_START },
@@ -210,40 +208,6 @@ describe('GeminiCLIAdapter', () => {
       expect(sessions[0].logs).toHaveLength(1);
       expect(sessions[0].logs[0]).toContain('test');
       expect(sessions[0].logs[0]).not.toContain('other');
-    });
-
-    it('supports .jsonl files with incremental updates', async () => {
-      mockDiscoverHomeDirs.mockReturnValue([{ username: 'root', homeDir: '/root' }]);
-      mockExistsSync.mockReturnValue(true);
-      mockReaddirSync.mockImplementation((p: string) => {
-        if (p === '/root/.gemini/tmp') return ['servermon'];
-        if (p === '/root/.gemini/tmp/servermon/chats') return ['session-123.jsonl'];
-        return [];
-      });
-      mockStatSync.mockImplementation(() => ({
-        isDirectory: () => true,
-        mtime: { getTime: () => Date.now() },
-      }));
-
-      const jsonlContent = [
-        JSON.stringify({ sessionId: '123', startTime: TIMESTAMP_START }),
-        JSON.stringify({ id: 'm1', type: 'user', content: 'hello', timestamp: TIMESTAMP_START }),
-        JSON.stringify({ $set: { lastUpdated: TIMESTAMP_UPDATE } }),
-      ].join('\n');
-
-      mockReadFileSync.mockImplementation((p: string) => {
-        if (p.includes('projects.json')) return '{}';
-        if (p.endsWith('.jsonl')) return jsonlContent;
-        return '[]';
-      });
-
-      const adapter = new GeminiCLIAdapter();
-      const sessions = await adapter.detect();
-
-      expect(sessions).toHaveLength(1);
-      expect(sessions[0].id).toBe('gemini-cli-root-123');
-      expect(sessions[0].lifecycle.lastActivity).toBe(TIMESTAMP_UPDATE);
-      expect(sessions[0].conversation).toHaveLength(1);
     });
   });
 });

@@ -62,8 +62,8 @@ describe('ai-runner schemas', () => {
       expect(result.success).toBe(false);
       if (!result.success) {
         const issues = result.error.issues;
-        expect(issues.some(i => i.path[0] === 'defaultTimeout')).toBe(true);
-        expect(issues.some(i => i.path[0] === 'maxTimeout')).toBe(true);
+        expect(issues.some((i) => i.path[0] === 'defaultTimeout')).toBe(true);
+        expect(issues.some((i) => i.path[0] === 'maxTimeout')).toBe(true);
       }
     });
   });

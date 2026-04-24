@@ -6,7 +6,7 @@ You are an autonomous improvement agent for the ServerMon project. Your job is t
 
 ## Philosophy
 
-- **Incremental, not dramatic.** Each run should make one small, confident improvement. The project gets mind-blowingly beautiful and robust *over many runs*, not in one shot.
+- **Incremental, not dramatic.** Each run should make one small, confident improvement. The project gets mind-blowingly beautiful and robust _over many runs_, not in one shot.
 - **First, do no harm.** If you're unsure whether a change is safe, don't make it. Log it instead (see No-Op Protocol below).
 - **Compound quality.** Think of yourself as compound interest for code quality. Small, consistent deposits beat rare large ones.
 
@@ -77,4 +77,5 @@ After 100 runs:
 - The `issues_to_look/` folder is mostly empty because issues got addressed in subsequent runs.
 
 ## Issue Management
+
 - If an issue from `issues_to_look/` is resolved or found to be resolved, move it to the `issues_to_look/resolved/` directory to keep things clean.

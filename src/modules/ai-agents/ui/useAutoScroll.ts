@@ -24,8 +24,7 @@ export function useAutoScroll<T extends HTMLElement = HTMLDivElement>(
   useEffect(() => {
     const prev = prevDepsRef.current;
     const depsChanged =
-      prev.length !== dependencies.length ||
-      dependencies.some((d, i) => !Object.is(d, prev[i]));
+      prev.length !== dependencies.length || dependencies.some((d, i) => !Object.is(d, prev[i]));
     const enabledChanged = prevEnabledRef.current !== enabled;
 
     prevDepsRef.current = dependencies;

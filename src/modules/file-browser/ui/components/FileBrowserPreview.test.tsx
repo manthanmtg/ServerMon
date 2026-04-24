@@ -191,9 +191,7 @@ describe('FileBrowserPreview', () => {
   // ── Download button ───────────────────────────────────────────────────────────
 
   it('shows Download button', () => {
-    render(
-      <FileBrowserPreview {...defaultProps} entry={makeEntry()} preview={makePreview()} />
-    );
+    render(<FileBrowserPreview {...defaultProps} entry={makeEntry()} preview={makePreview()} />);
     expect(screen.getByText('Download')).toBeDefined();
   });
 
@@ -286,9 +284,7 @@ describe('FileBrowserPreview', () => {
 
   it('shows spinner when loading is true', () => {
     const entry = makeEntry();
-    render(
-      <FileBrowserPreview {...defaultProps} entry={entry} preview={null} loading={true} />
-    );
+    render(<FileBrowserPreview {...defaultProps} entry={entry} preview={null} loading={true} />);
     expect(document.querySelector('.animate-spin')).toBeDefined();
   });
 

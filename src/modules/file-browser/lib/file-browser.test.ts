@@ -2,15 +2,15 @@
 import { describe, it, expect } from 'vitest';
 import path from 'path';
 import os from 'os';
-import { 
-  resolveBrowserPath, 
-  formatPermissions, 
-  formatBytes, 
-  detectKind, 
+import {
+  resolveBrowserPath,
+  formatPermissions,
+  formatBytes,
+  detectKind,
   matchesFilter,
   defaultShortcuts,
   parseStatusCode,
-  FileBrowserError
+  FileBrowserError,
 } from './file-browser';
 
 describe('file-browser lib', () => {
@@ -67,9 +67,9 @@ describe('file-browser lib', () => {
     });
 
     it('should format with decimals when small', () => {
-       // size = 1.5. toFixed(1) if size < 10 and unitIndex > 0
-       // 1.5 * 1024 * 1024 = 1572864
-       expect(formatBytes(1.5 * 1024 * 1024)).toBe('1.5 MB');
+      // size = 1.5. toFixed(1) if size < 10 and unitIndex > 0
+      // 1.5 * 1024 * 1024 = 1572864
+      expect(formatBytes(1.5 * 1024 * 1024)).toBe('1.5 MB');
     });
   });
 
@@ -128,8 +128,8 @@ describe('file-browser lib', () => {
     });
 
     it('should escape regex characters', () => {
-       expect(matchesFilter('test.txt', 'test.txt')).toBe(true);
-       expect(matchesFilter('other.txt', 'test.txt')).toBe(false);
+      expect(matchesFilter('test.txt', 'test.txt')).toBe(true);
+      expect(matchesFilter('other.txt', 'test.txt')).toBe(false);
     });
   });
 

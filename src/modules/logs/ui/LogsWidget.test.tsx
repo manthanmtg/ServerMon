@@ -3,8 +3,20 @@ import { render, screen, waitFor, act } from '@testing-library/react';
 import LogsWidget from './LogsWidget';
 
 const mockLogs = [
-  { _id: '1', moduleId: 'users', event: 'User created: admin', timestamp: new Date().toISOString(), severity: 'info' },
-  { _id: '2', moduleId: 'docker', event: 'Container started: web', timestamp: new Date().toISOString(), severity: 'warn' },
+  {
+    _id: '1',
+    moduleId: 'users',
+    event: 'User created: admin',
+    timestamp: new Date().toISOString(),
+    severity: 'info',
+  },
+  {
+    _id: '2',
+    moduleId: 'docker',
+    event: 'Container started: web',
+    timestamp: new Date().toISOString(),
+    severity: 'warn',
+  },
 ];
 
 describe('LogsWidget', () => {

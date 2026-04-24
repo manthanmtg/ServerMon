@@ -7,10 +7,7 @@ const execFileAsync = promisify(execFile);
 const log = createLogger('self-service:shell-executor');
 
 export class ShellExecutor implements Executor {
-  async execute(
-    payload: ExecutorPayload,
-    onLog: (line: string) => void,
-  ): Promise<ExecutorResult> {
+  async execute(payload: ExecutorPayload, onLog: (line: string) => void): Promise<ExecutorResult> {
     const logs: string[] = [];
     const commands = payload.commands ?? [];
 
@@ -38,10 +35,7 @@ export class ShellExecutor implements Executor {
     return { success: true, logs };
   }
 
-  private runCommand(
-    cmd: string,
-    onLog: (line: string) => void,
-  ): Promise<{ lines: string[] }> {
+  private runCommand(cmd: string, onLog: (line: string) => void): Promise<{ lines: string[] }> {
     return new Promise((resolve, reject) => {
       const lines: string[] = [];
       const proc = spawn('bash', ['-c', cmd], {
@@ -99,9 +93,16 @@ export async function detectFile(path: string): Promise<boolean> {
 
 export async function detectPort(port: string): Promise<boolean> {
   try {
-    const { stdout } = await execFileAsync('bash', ['-c', `ss -tlnp 2>/dev/null | grep ':${port} ' || netstat -tlnp 2>/dev/null | grep ':${port} '`], {
-      timeout: 5_000,
-    });
+    const { stdout } = await execFileAsync(
+      'bash',
+      [
+        '-c',
+        `ss -tlnp 2>/dev/null | grep ':${port} ' || netstat -tlnp 2>/dev/null | grep ':${port} '`,
+      ],
+      {
+        timeout: 5_000,
+      }
+    );
     return stdout.trim().length > 0;
   } catch {
     return false;

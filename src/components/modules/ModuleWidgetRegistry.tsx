@@ -95,6 +95,10 @@ const SelfServiceWidget = dynamic(() => import('@/modules/self-service/ui/SelfSe
   loading: WidgetLoader,
 });
 
+const FleetWidget = dynamic(() => import('@/modules/fleet/ui/FleetWidget'), {
+  loading: WidgetLoader,
+});
+
 const widgetMap: Record<
   string,
   { component: React.ComponentType<Record<string, unknown>>; name: string }
@@ -120,6 +124,7 @@ const widgetMap: Record<
   UsersWidget: { component: UsersWidget, name: 'Users & Access' },
   EndpointsWidget: { component: EndpointsWidget, name: 'Custom Endpoints' },
   SelfServiceWidget: { component: SelfServiceWidget, name: 'Self Service' },
+  FleetWidget: { component: FleetWidget, name: 'Fleet Overview' },
 };
 
 export function renderWidget(componentName: string, props: Record<string, unknown> = {}) {

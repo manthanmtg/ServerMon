@@ -11,11 +11,12 @@ const mockCronsSnapshot = {
 describe('CronsWidget', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    global.fetch = vi.fn(async () =>
-      new Response(JSON.stringify(mockCronsSnapshot), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-      })
+    global.fetch = vi.fn(
+      async () =>
+        new Response(JSON.stringify(mockCronsSnapshot), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
     ) as unknown as typeof fetch;
   });
 

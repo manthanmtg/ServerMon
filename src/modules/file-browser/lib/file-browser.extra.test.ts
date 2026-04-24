@@ -34,7 +34,8 @@ const {
   writeFileMock: vi.fn<(path: string, data: string, encoding: string) => Promise<void>>(),
   mkdirMock: vi.fn<(path: string) => Promise<void>>(),
   renameMock: vi.fn<(oldPath: string, newPath: string) => Promise<void>>(),
-  rmMock: vi.fn<(path: string, options?: { recursive?: boolean; force?: boolean }) => Promise<void>>(),
+  rmMock:
+    vi.fn<(path: string, options?: { recursive?: boolean; force?: boolean }) => Promise<void>>(),
   unlinkMock: vi.fn<(path: string) => Promise<void>>(),
 }));
 
@@ -482,7 +483,9 @@ describe('file-browser extra tests', () => {
       resolveAccess();
       resolveReadFile(Buffer.from('a'.repeat(5000)));
 
-      await expect(readEditableFile('/home/user/big.txt', 100)).rejects.toThrow('exceeds editor limit');
+      await expect(readEditableFile('/home/user/big.txt', 100)).rejects.toThrow(
+        'exceeds editor limit'
+      );
     });
   });
 

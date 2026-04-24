@@ -139,11 +139,7 @@ describe('DiskSettingsModal', () => {
 
   it('initialises with decimal selected when settings.unitSystem is decimal', () => {
     render(
-      <DiskSettingsModal
-        settings={{ unitSystem: 'decimal' }}
-        onClose={onClose}
-        onSaved={onSaved}
-      />
+      <DiskSettingsModal settings={{ unitSystem: 'decimal' }} onClose={onClose} onSaved={onSaved} />
     );
     // The decimal button should be in active (selected) state; check by aria or class
     const decimalButton = screen.getByText('Decimal (base 1000)').closest('button')!;

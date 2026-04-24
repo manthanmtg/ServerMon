@@ -138,16 +138,16 @@ src/modules/self-service/
 
 Every installable application is defined as an `InstallTemplate` object. A template contains:
 
-| Field | Purpose |
-|---|---|
-| `id`, `name`, `description` | Identity and display |
-| `category` | One of: `service`, `cli-tool`, `development`, `monitoring`, `database` |
-| `installMethods[]` | Multiple ways to install (Docker Compose, shell, package manager, script, binary) |
-| `defaultPipeline` | The sequence of provisioning steps to run |
-| `configSchema[]` | User-configurable fields (domain, port, passwords, etc.) |
-| `detection[]` | How to check if the software is already installed |
-| `nginxTemplate` | Templated Nginx vhost config (supports `{{variable}}` placeholders) |
-| `healthCheckUrl` / `healthCheckCommand` | How to verify the service is running |
+| Field                                   | Purpose                                                                           |
+| --------------------------------------- | --------------------------------------------------------------------------------- |
+| `id`, `name`, `description`             | Identity and display                                                              |
+| `category`                              | One of: `service`, `cli-tool`, `development`, `monitoring`, `database`            |
+| `installMethods[]`                      | Multiple ways to install (Docker Compose, shell, package manager, script, binary) |
+| `defaultPipeline`                       | The sequence of provisioning steps to run                                         |
+| `configSchema[]`                        | User-configurable fields (domain, port, passwords, etc.)                          |
+| `detection[]`                           | How to check if the software is already installed                                 |
+| `nginxTemplate`                         | Templated Nginx vhost config (supports `{{variable}}` placeholders)               |
+| `healthCheckUrl` / `healthCheckCommand` | How to verify the service is running                                              |
 
 **Example — a template with multiple install methods:**
 
@@ -169,7 +169,7 @@ export const n8nTemplate: InstallTemplate = {
       label: 'npm (global)',
       executionMethod: 'shell',
       installCommands: ['npm install -g n8n', 'n8n start --port={{port}}'],
-      pipeline: ['preflight', 'install', 'health-check'],  // lighter pipeline
+      pipeline: ['preflight', 'install', 'health-check'], // lighter pipeline
     },
   ],
   detection: [
@@ -188,6 +188,7 @@ export const n8nTemplate: InstallTemplate = {
 ```
 
 Templates are registered in `templates/index.ts` which provides:
+
 - `getAllTemplates()` — returns all templates
 - `getTemplateById(id)` — lookup by ID
 - `searchTemplates({ query, category, tags })` — filtered search
@@ -197,13 +198,13 @@ Templates are registered in `templates/index.ts` which provides:
 
 Before installation, the system can detect if software is already present. Detection methods:
 
-| Method | What it checks |
-|---|---|
-| `command` | Whether a CLI command exists (`which <command>`) |
-| `file` | Whether a file/directory exists on disk |
-| `port` | Whether a network port is currently in use (`ss -tlnp`) |
+| Method             | What it checks                                            |
+| ------------------ | --------------------------------------------------------- |
+| `command`          | Whether a CLI command exists (`which <command>`)          |
+| `file`             | Whether a file/directory exists on disk                   |
+| `port`             | Whether a network port is currently in use (`ss -tlnp`)   |
 | `docker-container` | Whether a Docker container with the given name is running |
-| `systemd-service` | Whether a systemd service is active |
+| `systemd-service`  | Whether a systemd service is active                       |
 
 The `runDetection()` function in `provisioner.ts` runs all checks for a template and returns an array of `DetectionResult` objects. These are displayed in the UI on the template detail page.
 
@@ -212,6 +213,7 @@ The `runDetection()` function in `provisioner.ts` runs all checks for a template
 The engine has **four executors**, each handling a different installation method:
 
 #### ShellExecutor
+
 Runs an array of shell commands sequentially using `spawn()`. Streams stdout/stderr to the log callback in real time. If any command exits non-zero, the executor returns a failure.
 
 ```
@@ -219,12 +221,15 @@ ShellExecutor.execute({ method: 'shell', commands: ['apt install -y nginx'] }, o
 ```
 
 #### ComposeExecutor
+
 Writes a `docker-compose.yml` file to disk (at `/opt/<domain>/<method-id>/`), then runs `docker compose up -d`.
 
 #### PackageExecutor
+
 Auto-detects the system package manager (apt, dnf, yum, brew, pacman, snap) and runs the appropriate install command.
 
 #### ScriptExecutor
+
 Writes a multi-line script to a temp file (`/tmp/self-service-<uuid>.sh`), makes it executable, runs it, and cleans up.
 
 All executors implement the same `Executor` interface:
@@ -245,26 +250,26 @@ The pipeline is the heart of the module. It's an ordered sequence of steps that 
 
 #### Full Service Pipeline (9 steps)
 
-| # | Step | What it does |
-|---|---|---|
-| 1 | **preflight** | Checks that required tools are available (docker, nginx, certbot, systemctl, ufw) based on the install method and pipeline |
-| 2 | **install** | Runs the actual installation via the appropriate executor |
-| 3 | **port-bind** | Verifies the configured port is not already in use |
-| 4 | **firewall** | Adds UFW rules to allow HTTP (80) and HTTPS (443). Skips if UFW is not available |
-| 5 | **nginx-vhost** | Renders the Nginx template with config values, writes to `/etc/nginx/sites-available/`, creates symlink in `sites-enabled/`, and tests the config |
-| 6 | **ssl-cert** | Provisions an SSL certificate — either via Let's Encrypt (`certbot`) or generates a self-signed cert with `openssl` |
-| 7 | **nginx-reload** | Reloads Nginx to pick up the new vhost and SSL config |
-| 8 | **systemd-unit** | Creates a `.service` file in `/etc/systemd/system/`, runs `daemon-reload`, enables and starts the service |
-| 9 | **health-check** | Polls the health check URL (or runs a command) with retries (10 attempts, 5s apart) until the service responds |
+| #   | Step             | What it does                                                                                                                                      |
+| --- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | **preflight**    | Checks that required tools are available (docker, nginx, certbot, systemctl, ufw) based on the install method and pipeline                        |
+| 2   | **install**      | Runs the actual installation via the appropriate executor                                                                                         |
+| 3   | **port-bind**    | Verifies the configured port is not already in use                                                                                                |
+| 4   | **firewall**     | Adds UFW rules to allow HTTP (80) and HTTPS (443). Skips if UFW is not available                                                                  |
+| 5   | **nginx-vhost**  | Renders the Nginx template with config values, writes to `/etc/nginx/sites-available/`, creates symlink in `sites-enabled/`, and tests the config |
+| 6   | **ssl-cert**     | Provisions an SSL certificate — either via Let's Encrypt (`certbot`) or generates a self-signed cert with `openssl`                               |
+| 7   | **nginx-reload** | Reloads Nginx to pick up the new vhost and SSL config                                                                                             |
+| 8   | **systemd-unit** | Creates a `.service` file in `/etc/systemd/system/`, runs `daemon-reload`, enables and starts the service                                         |
+| 9   | **health-check** | Polls the health check URL (or runs a command) with retries (10 attempts, 5s apart) until the service responds                                    |
 
 #### CLI Tool Pipeline (2 steps)
 
 For simple CLI tools (htop, neovim, lazydocker):
 
-| # | Step | What it does |
-|---|---|---|
-| 1 | **preflight** | Checks for package manager availability |
-| 2 | **install** | Installs via package manager, script, or binary download |
+| #   | Step          | What it does                                             |
+| --- | ------------- | -------------------------------------------------------- |
+| 1   | **preflight** | Checks for package manager availability                  |
+| 2   | **install**   | Installs via package manager, script, or binary download |
 
 #### Per-Method Pipeline Override
 
@@ -288,14 +293,14 @@ Each step receives an `onLog` callback that appends log lines to the step's log 
 
 The `job-manager.ts` provides an in-memory store for install jobs:
 
-| Function | Description |
-|---|---|
-| `createJob(request)` | Creates a new `InstallJob`, starts the pipeline asynchronously, returns immediately |
-| `getJob(jobId)` | Returns the current state of a job (including step progress) |
-| `getAllJobs()` | Returns all jobs sorted by start time (newest first) |
-| `getJobsByStatus(status)` | Filter jobs by status |
-| `cancelJob(jobId)` | Cancels a pending/running job |
-| `rollbackJob(jobId)` | Initiates rollback for a failed/completed job |
+| Function                  | Description                                                                         |
+| ------------------------- | ----------------------------------------------------------------------------------- |
+| `createJob(request)`      | Creates a new `InstallJob`, starts the pipeline asynchronously, returns immediately |
+| `getJob(jobId)`           | Returns the current state of a job (including step progress)                        |
+| `getAllJobs()`            | Returns all jobs sorted by start time (newest first)                                |
+| `getJobsByStatus(status)` | Filter jobs by status                                                               |
+| `cancelJob(jobId)`        | Cancels a pending/running job                                                       |
+| `rollbackJob(jobId)`      | Initiates rollback for a failed/completed job                                       |
 
 Jobs have these statuses: `pending → running → success | failed | cancelled | rolling-back`
 
@@ -305,13 +310,13 @@ The store is capped at 100 jobs. When exceeded, the oldest completed jobs are pr
 
 If a pipeline fails or a user triggers rollback, completed steps are reversed in order:
 
-| Step | Rollback Action |
-|---|---|
-| **nginx-vhost** | Removes the config from `sites-available` and `sites-enabled` |
-| **ssl-cert** | Revokes the Let's Encrypt certificate (via `certbot revoke`) or deletes self-signed certs |
-| **systemd-unit** | Stops and disables the service, removes the `.service` file, runs `daemon-reload` |
-| **nginx-reload** | Reloads Nginx again to clear the removed config |
-| Other steps | No rollback needed (preflight, port-check, firewall, health-check, install) |
+| Step             | Rollback Action                                                                           |
+| ---------------- | ----------------------------------------------------------------------------------------- |
+| **nginx-vhost**  | Removes the config from `sites-available` and `sites-enabled`                             |
+| **ssl-cert**     | Revokes the Let's Encrypt certificate (via `certbot revoke`) or deletes self-signed certs |
+| **systemd-unit** | Stops and disables the service, removes the `.service` file, runs `daemon-reload`         |
+| **nginx-reload** | Reloads Nginx again to clear the removed config                                           |
+| Other steps      | No rollback needed (preflight, port-check, firewall, health-check, install)               |
 
 ---
 
@@ -323,13 +328,14 @@ All routes are under `/api/modules/self-service/`.
 
 List all templates. Supports query parameters:
 
-| Param | Type | Description |
-|---|---|---|
-| `q` | string | Search query (matches name, description, tags) |
+| Param      | Type   | Description                                      |
+| ---------- | ------ | ------------------------------------------------ |
+| `q`        | string | Search query (matches name, description, tags)   |
 | `category` | string | Filter by category (`service`, `cli-tool`, etc.) |
-| `tags` | string | Comma-separated tag filter |
+| `tags`     | string | Comma-separated tag filter                       |
 
 **Response:**
+
 ```json
 {
   "templates": [
@@ -338,7 +344,9 @@ List all templates. Supports query parameters:
       "name": "n8n",
       "description": "...",
       "category": "service",
-      "installMethods": [{ "id": "docker-compose", "label": "Docker Compose", "recommended": true }],
+      "installMethods": [
+        { "id": "docker-compose", "label": "Docker Compose", "recommended": true }
+      ],
       "version": "1.0.0"
     }
   ],
@@ -351,9 +359,12 @@ List all templates. Supports query parameters:
 Get full template details + run detection checks.
 
 **Response:**
+
 ```json
 {
-  "template": { /* full InstallTemplate object */ },
+  "template": {
+    /* full InstallTemplate object */
+  },
   "detection": [
     { "installed": false, "method": "command", "details": "n8n" },
     { "installed": true, "method": "docker-container", "version": "1.2.3" }
@@ -366,6 +377,7 @@ Get full template details + run detection checks.
 Start a new installation job.
 
 **Request body:**
+
 ```json
 {
   "templateId": "n8n",
@@ -378,6 +390,7 @@ Start a new installation job.
 ```
 
 **Response (201):**
+
 ```json
 {
   "job": {
@@ -396,6 +409,7 @@ Start a new installation job.
 Get current job status with step-by-step progress and logs.
 
 **Response:**
+
 ```json
 {
   "job": {
@@ -445,12 +459,14 @@ List all jobs (sorted newest first).
 ### Tabs
 
 The main page has two tabs:
+
 - **Catalog** — Browse and search templates, filter by category
 - **History** — View all past installation jobs with status, timing, and rollback options
 
 ### Dashboard Widget
 
 The `SelfServiceWidget` shows on the main dashboard:
+
 - Total template count
 - Number of successful installs
 - Active/failed job count
@@ -475,7 +491,7 @@ export const myAppTemplate: InstallTemplate = {
   name: 'My App',
   description: 'Short description of what it does',
   category: 'service',
-  icon: 'Package',  // Lucide icon name
+  icon: 'Package', // Lucide icon name
   tags: ['tag1', 'tag2'],
   version: '1.0.0',
 
@@ -572,30 +588,30 @@ That's it. The template will immediately appear in the catalog, with working det
 
 ### Key Types
 
-| Type | Purpose |
-|---|---|
-| `ExecutionMethod` | `'shell' \| 'docker-compose' \| 'package-manager' \| 'binary-download' \| 'script'` |
-| `TemplateCategory` | `'service' \| 'cli-tool' \| 'development' \| 'monitoring' \| 'database'` |
-| `ProvisionStep` | The 9 pipeline step identifiers |
-| `InstallTemplate` | Full template definition |
-| `InstallMethod` | One way to install a template |
-| `DetectionCheck` | How to detect if software is installed |
-| `InstallJob` | Runtime state of an installation (status, steps, logs) |
-| `ConfigField` | A user-configurable field (with type, validation, options) |
+| Type               | Purpose                                                                             |
+| ------------------ | ----------------------------------------------------------------------------------- |
+| `ExecutionMethod`  | `'shell' \| 'docker-compose' \| 'package-manager' \| 'binary-download' \| 'script'` |
+| `TemplateCategory` | `'service' \| 'cli-tool' \| 'development' \| 'monitoring' \| 'database'`            |
+| `ProvisionStep`    | The 9 pipeline step identifiers                                                     |
+| `InstallTemplate`  | Full template definition                                                            |
+| `InstallMethod`    | One way to install a template                                                       |
+| `DetectionCheck`   | How to detect if software is installed                                              |
+| `InstallJob`       | Runtime state of an installation (status, steps, logs)                              |
+| `ConfigField`      | A user-configurable field (with type, validation, options)                          |
 
 ### Constants
 
-| Constant | Value |
-|---|---|
-| `FULL_SERVICE_PIPELINE` | All 9 steps in order |
-| `CLI_TOOL_PIPELINE` | `['preflight', 'install']` |
-| `PROVISION_STEP_LABELS` | Human-readable labels for each step |
-| `MAX_RETRIES` (health check) | 10 attempts |
-| `RETRY_DELAY_MS` (health check) | 5000ms between retries |
-| `SITES_AVAILABLE` | `/etc/nginx/sites-available` |
-| `SITES_ENABLED` | `/etc/nginx/sites-enabled` |
-| `SYSTEMD_DIR` | `/etc/systemd/system` |
-| `MAX_JOBS` (job store) | 100 jobs in memory |
+| Constant                        | Value                               |
+| ------------------------------- | ----------------------------------- |
+| `FULL_SERVICE_PIPELINE`         | All 9 steps in order                |
+| `CLI_TOOL_PIPELINE`             | `['preflight', 'install']`          |
+| `PROVISION_STEP_LABELS`         | Human-readable labels for each step |
+| `MAX_RETRIES` (health check)    | 10 attempts                         |
+| `RETRY_DELAY_MS` (health check) | 5000ms between retries              |
+| `SITES_AVAILABLE`               | `/etc/nginx/sites-available`        |
+| `SITES_ENABLED`                 | `/etc/nginx/sites-enabled`          |
+| `SYSTEMD_DIR`                   | `/etc/systemd/system`               |
+| `MAX_JOBS` (job store)          | 100 jobs in memory                  |
 
 ### Template Variable Syntax
 

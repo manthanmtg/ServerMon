@@ -413,10 +413,13 @@ describe('FileBrowserPage', () => {
   it('renders directory and file entries', async () => {
     setupFetchMock();
     await renderPage();
-    await waitFor(() => {
-      expect(screen.getByText('etc')).toBeDefined();
-      expect(screen.getByText('README.md')).toBeDefined();
-    }, { timeout: 15000 });
+    await waitFor(
+      () => {
+        expect(screen.getByText('etc')).toBeDefined();
+        expect(screen.getByText('README.md')).toBeDefined();
+      },
+      { timeout: 15000 }
+    );
   }, 15000);
 
   it('navigates into a directory when clicked', async () => {
@@ -469,21 +472,27 @@ describe('FileBrowserPage', () => {
     mockSearchParams.get.mockReturnValue('/etc');
     setupFetchMock();
     await renderPage();
-    await waitFor(() => {
-      const calls = (global.fetch as ReturnType<typeof vi.fn>).mock.calls;
-      const listingCall = calls.find((call: unknown[]) =>
-        (call[0] as string).includes('/api/modules/file-browser')
-      );
-      expect(listingCall).toBeDefined();
-    }, { timeout: 15000 });
+    await waitFor(
+      () => {
+        const calls = (global.fetch as ReturnType<typeof vi.fn>).mock.calls;
+        const listingCall = calls.find((call: unknown[]) =>
+          (call[0] as string).includes('/api/modules/file-browser')
+        );
+        expect(listingCall).toBeDefined();
+      },
+      { timeout: 15000 }
+    );
   }, 15000);
 
   it('opens settings modal when settings button is clicked', async () => {
     setupFetchMock();
     await renderPage();
-    await waitFor(() => {
-      expect(screen.getByTestId('entry-list')).toBeDefined();
-    }, { timeout: 15000 });
+    await waitFor(
+      () => {
+        expect(screen.getByTestId('entry-list')).toBeDefined();
+      },
+      { timeout: 15000 }
+    );
 
     const buttons = screen.getAllByRole('button');
     const settingsBtn = buttons.find(
@@ -494,9 +503,12 @@ describe('FileBrowserPage', () => {
 
     if (settingsBtn) {
       fireEvent.click(settingsBtn);
-      await waitFor(() => {
-        expect(screen.getByTestId('settings-modal')).toBeDefined();
-      }, { timeout: 15000 });
+      await waitFor(
+        () => {
+          expect(screen.getByTestId('settings-modal')).toBeDefined();
+        },
+        { timeout: 15000 }
+      );
     }
   }, 15000);
 
@@ -506,9 +518,9 @@ describe('FileBrowserPage', () => {
     });
     await waitFor(() => screen.getByTestId('entry-list'));
 
-    const settingsBtn = document.querySelector(
-      '[class*="lucide-settings-2"]'
-    )?.closest('button') as HTMLElement;
+    const settingsBtn = document
+      .querySelector('[class*="lucide-settings-2"]')
+      ?.closest('button') as HTMLElement;
     expect(settingsBtn).toBeDefined();
     fireEvent.click(settingsBtn);
     expect(screen.getByTestId('settings-modal')).toBeDefined();
@@ -520,9 +532,9 @@ describe('FileBrowserPage', () => {
     });
     await waitFor(() => screen.getByTestId('entry-list'));
 
-    const settingsBtn = document.querySelector(
-      '[class*="lucide-settings-2"]'
-    )?.closest('button') as HTMLElement;
+    const settingsBtn = document
+      .querySelector('[class*="lucide-settings-2"]')
+      ?.closest('button') as HTMLElement;
     fireEvent.click(settingsBtn);
     expect(screen.getByTestId('settings-modal')).toBeDefined();
 
@@ -533,10 +545,13 @@ describe('FileBrowserPage', () => {
   it('shows search input in the toolbar', async () => {
     setupFetchMock();
     await renderPage();
-    await waitFor(() => {
-      const searchInput = screen.queryByPlaceholderText(/search/i);
-      expect(searchInput).toBeDefined();
-    }, { timeout: 15000 });
+    await waitFor(
+      () => {
+        const searchInput = screen.queryByPlaceholderText(/search/i);
+        expect(searchInput).toBeDefined();
+      },
+      { timeout: 15000 }
+    );
   }, 15000);
 
   it('renders search input', async () => {
@@ -551,18 +566,24 @@ describe('FileBrowserPage', () => {
   it('filters entries when search input changes', async () => {
     setupFetchMock();
     await renderPage();
-    await waitFor(() => {
-      expect(screen.getByText('etc')).toBeDefined();
-    }, { timeout: 15000 });
+    await waitFor(
+      () => {
+        expect(screen.getByText('etc')).toBeDefined();
+      },
+      { timeout: 15000 }
+    );
 
     const searchInput = screen.queryByPlaceholderText(/search/i);
     if (searchInput) {
       fireEvent.change(searchInput, { target: { value: 'README' } });
-      await waitFor(() => {
-        const entries = screen.queryAllByText('etc');
-        expect(screen.queryByText('README.md')).toBeDefined();
-        expect(entries.length === 0 || true).toBe(true);
-      }, { timeout: 15000 });
+      await waitFor(
+        () => {
+          const entries = screen.queryAllByText('etc');
+          expect(screen.queryByText('README.md')).toBeDefined();
+          expect(entries.length === 0 || true).toBe(true);
+        },
+        { timeout: 15000 }
+      );
     }
   }, 15000);
 
@@ -579,9 +600,12 @@ describe('FileBrowserPage', () => {
     global.fetch = vi.fn().mockRejectedValue(new Error('Network error'));
     setupFetchMock();
     await renderPage();
-    await waitFor(() => {
-      expect(document.querySelector('div')).toBeDefined();
-    }, { timeout: 15000 });
+    await waitFor(
+      () => {
+        expect(document.querySelector('div')).toBeDefined();
+      },
+      { timeout: 15000 }
+    );
   }, 15000);
 
   it('shows error toast when fetching directory fails', async () => {
@@ -606,9 +630,7 @@ describe('FileBrowserPage', () => {
       render(<FileBrowserPage />);
     });
     await waitFor(() => {
-      expect(mockToast).toHaveBeenCalledWith(
-        expect.objectContaining({ variant: 'destructive' })
-      );
+      expect(mockToast).toHaveBeenCalledWith(expect.objectContaining({ variant: 'destructive' }));
     });
   });
 
@@ -679,9 +701,12 @@ describe('FileBrowserPage', () => {
     });
 
     await renderPage();
-    await waitFor(() => {
-      expect(screen.getByTestId('git-bar')).toBeDefined();
-    }, { timeout: 15000 });
+    await waitFor(
+      () => {
+        expect(screen.getByTestId('git-bar')).toBeDefined();
+      },
+      { timeout: 15000 }
+    );
   }, 15000);
 });
 

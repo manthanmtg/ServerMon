@@ -1,6 +1,16 @@
 'use client';
 
-import { Search, RefreshCcw, Sparkles, Plus, Terminal, Braces, Globe, Lock, LockOpen } from 'lucide-react';
+import {
+  Search,
+  RefreshCcw,
+  Sparkles,
+  Plus,
+  Terminal,
+  Braces,
+  Globe,
+  Lock,
+  LockOpen,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn, relativeTime } from '@/lib/utils';
 import { MethodBadge } from './common/MethodBadge';
@@ -53,7 +63,6 @@ export function EndpointList({
   onToggle,
   isResizing,
 }: EndpointListProps) {
-
   return (
     <div
       className={cn(
@@ -82,7 +91,9 @@ export function EndpointList({
             disabled={refreshing}
             className="h-11 w-11 p-0 rounded-2xl border-border/40 hover:bg-accent/50 shrink-0"
           >
-            <RefreshCcw className={cn('w-4 h-4 text-muted-foreground', refreshing && 'animate-spin')} />
+            <RefreshCcw
+              className={cn('w-4 h-4 text-muted-foreground', refreshing && 'animate-spin')}
+            />
           </Button>
           <Button
             variant="outline"
@@ -138,7 +149,7 @@ export function EndpointList({
             );
           })}
         </div>
-        
+
         <div className="flex items-center gap-1.5 p-1 bg-muted/20 rounded-xl border border-border/40">
           <button
             onClick={() => onFilterType('')}
@@ -202,7 +213,9 @@ export function EndpointList({
                 <span
                   className={cn(
                     'w-1.5 h-1.5 rounded-full',
-                    val === 'true' ? 'bg-success shadow-[0_0_8px_rgba(var(--success-rgb),0.6)]' : 'bg-muted-foreground/40'
+                    val === 'true'
+                      ? 'bg-success shadow-[0_0_8px_rgba(var(--success-rgb),0.6)]'
+                      : 'bg-muted-foreground/40'
                   )}
                 />
                 {val === 'true' ? 'Active' : 'Disabled'}
@@ -213,12 +226,12 @@ export function EndpointList({
       </div>
 
       {/* Endpoint List */}
-      <div className="flex-1 overflow-y-auto space-y-2.5 pr-2 custom-scrollbar" data-testid="endpoints-list">
+      <div
+        className="flex-1 overflow-y-auto space-y-2.5 pr-2 custom-scrollbar"
+        data-testid="endpoints-list"
+      >
         {endpoints.length === 0 && !loading ? (
-          <EmptyState
-            onCreateNew={onCreate}
-            onFromTemplate={onShowTemplates}
-          />
+          <EmptyState onCreateNew={onCreate} onFromTemplate={onShowTemplates} />
         ) : (
           endpoints.map((ep) => (
             <div
@@ -249,15 +262,11 @@ export function EndpointList({
                 </span>
                 {ep.auth === 'token' ? (
                   <span title="Protected: Requires Bearer Token">
-                    <Lock 
-                      className="w-3.5 h-3.5 text-success/80 shrink-0 drop-shadow-[0_0_8px_rgba(var(--success-rgb),0.4)]" 
-                    />
+                    <Lock className="w-3.5 h-3.5 text-success/80 shrink-0 drop-shadow-[0_0_8px_rgba(var(--success-rgb),0.4)]" />
                   </span>
                 ) : (
                   <span title="Public: Accessible without authentication">
-                    <LockOpen 
-                      className="w-3.5 h-3.5 text-destructive/70 shrink-0 drop-shadow-[0_0_8px_rgba(var(--destructive-rgb),0.3)]" 
-                    />
+                    <LockOpen className="w-3.5 h-3.5 text-destructive/70 shrink-0 drop-shadow-[0_0_8px_rgba(var(--destructive-rgb),0.3)]" />
                   </span>
                 )}
                 <span
@@ -284,7 +293,9 @@ export function EndpointList({
                 />
               </div>
               <div className="flex items-center gap-2 text-[11px] text-muted-foreground/70">
-                <code className="truncate flex-1 font-mono bg-muted/30 px-1.5 py-0.5 rounded leading-none">/api/endpoints/{ep.slug}</code>
+                <code className="truncate flex-1 font-mono bg-muted/30 px-1.5 py-0.5 rounded leading-none">
+                  /api/endpoints/{ep.slug}
+                </code>
               </div>
               <div className="flex items-center gap-3 text-[11px] text-muted-foreground/70 mt-2">
                 <div className="flex items-center gap-2 shrink-0">

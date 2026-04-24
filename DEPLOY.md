@@ -582,3 +582,256 @@ To check current memory usage:
 ```bash
 systemctl status servermon | grep Memory
 ```
+
+---
+
+## Fleet Management Deployment
+
+ServerMon can run as a **Hub** (master controller) that manages remote **Agents** through an FRP tunnel and Nginx reverse proxy. This section covers the operational setup for a multi-node fleet.
+
+### Required infrastructure
+
+| Requirement    | Detail                                                                                                                                                                             |
+| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Cloud VM       | Public IP, 2+ vCPU, 2+ GB RAM, 20+ GB disk                                                                                                                                         |
+| Firewall ports | `80` (HTTP / ACME challenge), `443` (HTTPS), `7000` (FRP control), `8080` (FRP vhost HTTP), `8443` (FRP vhost HTTPS)                                                               |
+| DNS            | Wildcard `*.example.com A <vm-ip>` **or** individual A records per custom domain (both work; wildcards let the onboarding wizard auto-provision subdomains)                        |
+| Nginx          | System nginx with the hub user holding write access to the managed directory (`/etc/nginx/servermon/` by default) and permission to run `nginx -t` + `nginx -s reload` via sudoers |
+| certbot        | Installed on the hub; outbound HTTP 80 reachable from Let's Encrypt for ACME challenges                                                                                            |
+| MongoDB        | Local `mongod` or Atlas/compatible cluster. Replica set recommended for production                                                                                                 |
+| Time sync      | `chrony` or `systemd-timesyncd` running — FRP heartbeat timestamps must be accurate                                                                                                |
+
+### Environment variables
+
+Copy from `.env.example`. The fleet-specific section:
+
+```env
+# Master Hub public URL — used by the install script and pair callbacks
+FLEET_HUB_PUBLIC_URL=https://hub.example.com
+
+# FRP server configuration (rendered into frps.toml)
+FRP_BIND_PORT=7000                   # control plane port, agents dial this
+FRP_VHOST_HTTP_PORT=8080             # HTTP vhost that nginx proxies to
+FRP_VHOST_HTTPS_PORT=8443            # HTTPS vhost (enable if terminating TLS at FRP)
+FRP_AUTH_TOKEN=change-me             # shared secret, must match every agent's frpc.toml
+FRP_SUBDOMAIN_HOST=example.com       # parent domain for agent-created subdomains
+
+# Bootstrap token returned to agents during pairing (keep secret)
+FLEET_HUB_AUTH_TOKEN=change-me
+
+# Managed nginx paths
+FLEET_NGINX_MANAGED_DIR=/etc/nginx/servermon
+FLEET_NGINX_BINARY=nginx
+
+# ACME / Let's Encrypt
+FLEET_ACME_PROVIDER=certbot
+FLEET_ACME_EMAIL=ops@example.com
+
+# Local paths for the hub process
+FLEET_BINARY_CACHE_DIR=/var/lib/servermon/frp-cache   # cached frps/frpc binaries
+FLEET_BACKUP_DIR=/var/lib/servermon/backups           # hub snapshot output
+```
+
+Agent-mode variables (on the remote machine, **not** the hub):
+
+```env
+FLEET_AGENT_MODE=true
+FLEET_AGENT_HUB_URL=https://hub.example.com
+FLEET_AGENT_PAIRING_TOKEN=<one-time-token-from-onboarding-wizard>
+FLEET_AGENT_NODE_ID=<node-id-from-hub>
+```
+
+### Hub setup steps
+
+1. **Provision the VM** — Ubuntu 22.04+ recommended. Install Node 20+, pnpm, nginx, certbot, and (optional) docker:
+   ```bash
+   curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+   sudo apt-get install -y nodejs nginx certbot python3-certbot-nginx
+   sudo npm i -g pnpm
+   ```
+2. **Clone, install, build**:
+   ```bash
+   sudo mkdir -p /opt/servermon && sudo chown $USER /opt/servermon
+   git clone https://github.com/manthanmtg/ServerMon.git /opt/servermon
+   cd /opt/servermon
+   pnpm install --frozen-lockfile
+   pnpm build
+   ```
+3. **Create `/etc/servermon/env`** with the variables above (both core and fleet). Generate strong secrets:
+   ```bash
+   openssl rand -base64 48    # for JWT_SECRET
+   openssl rand -base64 48    # for FRP_AUTH_TOKEN
+   openssl rand -base64 48    # for FLEET_HUB_AUTH_TOKEN
+   ```
+4. **Grant nginx reload permissions** to the `servermon` system user:
+   ```
+   # /etc/sudoers.d/servermon
+   servermon ALL=(root) NOPASSWD: /usr/sbin/nginx -t, /usr/sbin/nginx -s reload, /usr/bin/certbot *
+   ```
+5. **Start in hub mode**:
+   ```bash
+   FLEET_HUB_ORCHESTRATORS_ENABLED=true pnpm start
+   ```
+6. **Run the ingress wizard** — visit `https://hub.example.com/fleet/setup`. The wizard will:
+   - render `frps.toml`, start the FRP server (or hand you the command to run it under systemd),
+   - verify DNS / port reachability,
+   - request a Let's Encrypt certificate for the hub domain.
+7. **Onboard the first agent** — visit `/fleet/nodes/new`, name the node, and copy the one-shot install command the wizard produces. Paste it into a shell on the remote machine.
+
+### systemd service unit — hub
+
+`/etc/systemd/system/servermon.service`:
+
+```ini
+[Unit]
+Description=ServerMon Hub
+After=network.target mongod.service
+
+[Service]
+Type=simple
+User=servermon
+WorkingDirectory=/opt/servermon
+EnvironmentFile=/etc/servermon/env
+ExecStart=/usr/bin/pnpm start
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Enable and start:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable --now servermon
+sudo journalctl -u servermon -f
+```
+
+### Docker Compose — hub + mongo
+
+For a containerized deployment keep nginx and certbot on the host (they need kernel and DNS access). Compose runs the hub + mongo:
+
+```yaml
+# docker-compose.yml
+version: '3.8'
+
+services:
+  mongo:
+    image: mongo:7.0
+    restart: unless-stopped
+    volumes:
+      - mongo-data:/data/db
+    ports:
+      - '127.0.0.1:27017:27017'
+
+  servermon-hub:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      - mongo
+    environment:
+      NODE_ENV: production
+      MONGO_URI: mongodb://mongo:27017/servermon
+      JWT_SECRET: ${JWT_SECRET}
+      FLEET_HUB_PUBLIC_URL: https://hub.example.com
+      FLEET_HUB_AUTH_TOKEN: ${FLEET_HUB_AUTH_TOKEN}
+      FRP_BIND_PORT: '7000'
+      FRP_VHOST_HTTP_PORT: '8080'
+      FRP_AUTH_TOKEN: ${FRP_AUTH_TOKEN}
+      FRP_SUBDOMAIN_HOST: example.com
+      FLEET_HUB_ORCHESTRATORS_ENABLED: 'true'
+    ports:
+      - '8912:8912'
+      - '7000:7000'
+      - '8080:8080'
+    volumes:
+      - /etc/nginx/servermon:/etc/nginx/servermon
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+      - fleet-cache:/var/lib/servermon/frp-cache
+      - fleet-backups:/var/lib/servermon/backups
+
+volumes:
+  mongo-data:
+  fleet-cache:
+  fleet-backups:
+```
+
+### Agent installation on a remote machine
+
+The onboarding wizard generates a one-shot install command that:
+
+- downloads ServerMon,
+- writes `/etc/servermon-agent/env` with `FLEET_AGENT_MODE=true`, the hub URL, pairing token, and node ID,
+- installs a systemd service.
+
+systemd unit for agent mode:
+
+```ini
+# /etc/systemd/system/servermon-agent.service
+[Unit]
+Description=ServerMon Agent
+After=network.target
+
+[Service]
+Type=simple
+User=servermon
+WorkingDirectory=/opt/servermon
+EnvironmentFile=/etc/servermon-agent/env
+Environment=FLEET_AGENT_MODE=true
+ExecStart=/usr/bin/pnpm start
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+```
+
+The agent performs the pairing handshake against `/api/fleet/nodes/<id>/pair` using its one-time token, receives the hub FRP connection info, and establishes the tunnel. The token is consumed on first use.
+
+### Backup and restore
+
+The hub exposes full-fleet backups via the UI and API:
+
+- UI: `/fleet/backups` — click "Create snapshot", download the JSON, or restore.
+- API: `POST /api/fleet/backups` creates a snapshot; `POST /api/fleet/backups/<id>/restore` restores one.
+
+Snapshots are stored in `FLEET_BACKUP_DIR` (default `./.fleet-backups`). Include this directory in your host backup strategy.
+
+**Restoring to a new machine:**
+
+1. Provision the new VM exactly as above (same public DNS, same `FLEET_HUB_PUBLIC_URL`).
+2. Restore MongoDB dump (`mongorestore`) or point `MONGO_URI` at the original database.
+3. Copy `FLEET_BACKUP_DIR` contents to the new host.
+4. Start the hub, log in, and call `POST /api/fleet/backups/<id>/restore`. The restore will re-render all FRP and nginx configs and emit an `revision.applied` event for each.
+
+### Troubleshooting
+
+**Preflight check fails.** The ingress wizard runs `/api/fleet/server/preflight`. Common causes:
+
+- Firewall blocks a required port. Verify with `ss -lntp | grep -E '7000|8080|8443|80|443'` on the hub.
+- The systemd service user lacks permission to bind low ports (use `AmbientCapabilities=CAP_NET_BIND_SERVICE` in the unit) or to reload nginx (check the sudoers fragment above).
+- The nginx managed dir doesn't exist or isn't writable: `sudo install -d -o servermon -g servermon /etc/nginx/servermon`.
+
+**TLS renewal fails.** Certbot logs at `/var/log/letsencrypt/letsencrypt.log`. Check:
+
+- Outbound TCP 80 from the hub is open (Let's Encrypt retries the HTTP-01 challenge from multiple regions).
+- The A record for the domain still points at the hub IP (`dig +short <domain>`).
+- No conflicting server block is claiming the host (`nginx -T | grep <domain>`).
+- Rate-limited: Let's Encrypt limits 5 duplicate certs/week per domain. Use `--staging` to test.
+
+**FRP connection fails.** The agent cannot see the hub or authenticates incorrectly:
+
+- `authToken` in the agent's `frpc.toml` must exactly match `FRP_AUTH_TOKEN` on the hub. Rotate both together.
+- `serverPort` (default `7000`) must be reachable from the agent: `nc -zv hub.example.com 7000`.
+- Check agent logs: `journalctl -u servermon-agent -n 200`. Look for `auth failed` or `connection refused`.
+- If the hub is behind a load balancer, the FRP control port must be TCP-passthrough (not HTTP-terminated).
+
+**Nginx reload fails after a config change.** The apply engine captures `nginx -t` output in the revision's `lastError` and marks the route `nginx_reload_failed`:
+
+- Run `sudo nginx -t` on the hub to see the full error.
+- The most common cause is a missing Let's Encrypt cert path for a brand-new domain — the route must go through DNS + ACME first.
+- Check `/var/log/nginx/error.log` for runtime issues like duplicate `server_name`.
+- Use `POST /api/fleet/revisions/<id>/rollback` (or the UI button) to revert the route to the last known-good revision.
+
+Keep this runbook next to the on-call rotation. Each fleet operator should know how to reach `/fleet/logs` for the live audit stream and `/fleet/backups` for emergency restore.

@@ -1,4 +1,9 @@
-export type ExecutionMethod = 'shell' | 'docker-compose' | 'package-manager' | 'binary-download' | 'script';
+export type ExecutionMethod =
+  | 'shell'
+  | 'docker-compose'
+  | 'package-manager'
+  | 'binary-download'
+  | 'script';
 
 export type TemplateCategory = 'service' | 'cli-tool' | 'development' | 'monitoring' | 'database';
 
@@ -145,7 +150,12 @@ export interface TemplateListItem {
   category: TemplateCategory;
   icon?: string;
   tags: string[];
-  installMethods: Array<{ id: string; label: string; executionMethod: ExecutionMethod; recommended?: boolean }>;
+  installMethods: Array<{
+    id: string;
+    label: string;
+    executionMethod: ExecutionMethod;
+    recommended?: boolean;
+  }>;
   version: string;
 }
 

@@ -12,13 +12,7 @@ describe('AddUserModal', () => {
   });
 
   const renderModal = (isOpen = true) => {
-    return render(
-      <AddUserModal 
-        isOpen={isOpen} 
-        onClose={mockOnClose} 
-        onSuccess={mockOnSuccess} 
-      />
-    );
+    return render(<AddUserModal isOpen={isOpen} onClose={mockOnClose} onSuccess={mockOnSuccess} />);
   };
 
   it('does not render when isOpen is false', () => {
@@ -55,15 +49,18 @@ describe('AddUserModal', () => {
     const submitButton = screen.getByText('Create User');
 
     fireEvent.change(usernameInput, { target: { value: 'newuser' } });
-    
+
     await act(async () => {
       fireEvent.click(submitButton);
     });
 
-    expect(global.fetch).toHaveBeenCalledWith('/api/modules/users', expect.objectContaining({
-      method: 'POST',
-      body: JSON.stringify({ type: 'os', username: 'newuser', shell: '/bin/bash' }),
-    }));
+    expect(global.fetch).toHaveBeenCalledWith(
+      '/api/modules/users',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ type: 'os', username: 'newuser', shell: '/bin/bash' }),
+      })
+    );
 
     await waitFor(() => {
       expect(mockOnSuccess).toHaveBeenCalled();
@@ -82,7 +79,7 @@ describe('AddUserModal', () => {
     const submitButton = screen.getByText('Create User');
 
     fireEvent.change(usernameInput, { target: { value: 'existinguser' } });
-    
+
     await act(async () => {
       fireEvent.click(submitButton);
     });

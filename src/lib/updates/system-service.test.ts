@@ -297,7 +297,8 @@ describe('SystemUpdateService', () => {
       const largeLog = 'a'.repeat(128 * 1024 + 100);
       vi.mocked(existsSync).mockReturnValue(true);
       vi.mocked(readFile).mockImplementation(((path: string | Buffer | URL | number) => {
-        if (path.toString().endsWith('.json')) return Promise.resolve(JSON.stringify({ runId: 'large' }));
+        if (path.toString().endsWith('.json'))
+          return Promise.resolve(JSON.stringify({ runId: 'large' }));
         return Promise.resolve(largeLog);
       }) as unknown as typeof readFile);
 
@@ -350,7 +351,9 @@ describe('SystemUpdateService', () => {
       }
 
       vi.mocked(readdir).mockResolvedValue(files as unknown as Awaited<ReturnType<typeof readdir>>);
-      vi.mocked(stat).mockImplementation(async (p: unknown) => stats.get(String(p)) as unknown as Stats);
+      vi.mocked(stat).mockImplementation(
+        async (p: unknown) => stats.get(String(p)) as unknown as Stats
+      );
       vi.mocked(unlink).mockResolvedValue(undefined);
 
       await internal.pruneOldRuns(logDir);

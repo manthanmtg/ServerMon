@@ -17,6 +17,7 @@ Performance is part of the user experience. 60 FPS interfaces require discipline
 ### 2. Audit (Performance Gaps)
 
 Look for:
+
 - **Cascading Re-renders**: Global state accessed in parent components forcing re-renders on isolated children.
 - **Unstable References**: Callbacks passed to memoized children without `useCallback`.
 - **Expensive Computations**: Inline filtering/sorting of massive arrays on every render cycle without `useMemo`.
@@ -43,4 +44,5 @@ Look for:
 - Commit with a message like: `perf(ui): memoize data filtering in HistoryWidget`
 
 ## Issue Management
+
 - If an issue from `issues_to_look/` is resolved or found to be resolved, move it to the `issues_to_look/resolved/` directory to keep things clean.

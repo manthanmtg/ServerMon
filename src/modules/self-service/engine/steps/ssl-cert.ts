@@ -13,7 +13,7 @@ interface SslCertResult {
 export async function runSslCertSetup(
   domain: string,
   mode: 'letsencrypt' | 'self-signed' | 'none',
-  onLog: (line: string) => void,
+  onLog: (line: string) => void
 ): Promise<SslCertResult> {
   const logs: string[] = [];
 
@@ -33,17 +33,17 @@ export async function runSslCertSetup(
 
 async function runLetsEncrypt(
   domain: string,
-  onLog: (line: string) => void,
+  onLog: (line: string) => void
 ): Promise<SslCertResult> {
   const logs: string[] = [];
   const shell = new ShellExecutor();
 
-  onLog('Provisioning SSL certificate via Let\'s Encrypt...');
-  logs.push('Provisioning SSL certificate via Let\'s Encrypt...');
+  onLog("Provisioning SSL certificate via Let's Encrypt...");
+  logs.push("Provisioning SSL certificate via Let's Encrypt...");
 
   const certbotCheck = await detectCommand('which certbot');
   if (!certbotCheck.found) {
-    const msg = 'certbot not found — cannot provision Let\'s Encrypt certificate.';
+    const msg = "certbot not found — cannot provision Let's Encrypt certificate.";
     onLog(msg);
     logs.push(msg);
     log.error(msg);
@@ -54,13 +54,10 @@ async function runLetsEncrypt(
   onLog(`$ ${cmd}`);
   logs.push(`$ ${cmd}`);
 
-  const result = await shell.execute(
-    { method: 'shell', commands: [cmd] },
-    (line) => {
-      logs.push(line);
-      onLog(line);
-    },
-  );
+  const result = await shell.execute({ method: 'shell', commands: [cmd] }, (line) => {
+    logs.push(line);
+    onLog(line);
+  });
 
   if (!result.success) {
     const msg = `Let's Encrypt certificate provisioning failed for ${domain}`;
@@ -78,7 +75,7 @@ async function runLetsEncrypt(
 
 async function runSelfSignedCert(
   domain: string,
-  onLog: (line: string) => void,
+  onLog: (line: string) => void
 ): Promise<SslCertResult> {
   const logs: string[] = [];
   const shell = new ShellExecutor();
@@ -93,13 +90,10 @@ async function runSelfSignedCert(
   ];
 
   for (const cmd of commands) {
-    const result = await shell.execute(
-      { method: 'shell', commands: [cmd] },
-      (line) => {
-        logs.push(line);
-        onLog(line);
-      },
-    );
+    const result = await shell.execute({ method: 'shell', commands: [cmd] }, (line) => {
+      logs.push(line);
+      onLog(line);
+    });
 
     if (!result.success) {
       const msg = 'Self-signed certificate generation failed.';
@@ -118,7 +112,7 @@ async function runSelfSignedCert(
 
 export async function rollbackSslCert(
   domain: string,
-  onLog: (line: string) => void,
+  onLog: (line: string) => void
 ): Promise<void> {
   onLog(`Rolling back SSL certificate for ${domain}...`);
 
@@ -126,14 +120,20 @@ export async function rollbackSslCert(
   if (certbotCheck.found) {
     const shell = new ShellExecutor();
     await shell.execute(
-      { method: 'shell', commands: [`certbot delete --cert-name ${domain} --non-interactive || true`] },
-      (line) => onLog(line),
+      {
+        method: 'shell',
+        commands: [`certbot delete --cert-name ${domain} --non-interactive || true`],
+      },
+      (line) => onLog(line)
     );
   }
 
   const shell = new ShellExecutor();
   await shell.execute(
-    { method: 'shell', commands: [`rm -f /etc/ssl/self-signed/${domain}.key /etc/ssl/self-signed/${domain}.crt`] },
-    (line) => onLog(line),
+    {
+      method: 'shell',
+      commands: [`rm -f /etc/ssl/self-signed/${domain}.key /etc/ssl/self-signed/${domain}.crt`],
+    },
+    (line) => onLog(line)
   );
 }

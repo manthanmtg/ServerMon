@@ -52,7 +52,10 @@ vi.mock('@codemirror/state', () => ({
   EditorState: {
     create: vi.fn(() => ({ doc: { toString: () => '' } })),
   },
-  Compartment: vi.fn(function (this: { of: ReturnType<typeof vi.fn>; reconfigure: ReturnType<typeof vi.fn> }) {
+  Compartment: vi.fn(function (this: {
+    of: ReturnType<typeof vi.fn>;
+    reconfigure: ReturnType<typeof vi.fn>;
+  }) {
     this.of = vi.fn(() => []);
     this.reconfigure = vi.fn(() => ({ effects: [] }));
   }),

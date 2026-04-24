@@ -1,21 +1,26 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import {
-  CheckCircle2, XCircle, Loader2, Clock, RotateCcw, Eye,
-} from 'lucide-react';
+import { CheckCircle2, XCircle, Loader2, Clock, RotateCcw, Eye } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import type { InstallJob } from '../../types';
 
-const STATUS_CONFIG: Record<string, { icon: React.ComponentType<{ className?: string }>; color: string; label: string }> = {
+const STATUS_CONFIG: Record<
+  string,
+  { icon: React.ComponentType<{ className?: string }>; color: string; label: string }
+> = {
   pending: { icon: Clock, color: 'bg-muted text-muted-foreground', label: 'Pending' },
   running: { icon: Loader2, color: 'bg-blue-500/10 text-blue-500', label: 'Running' },
   success: { icon: CheckCircle2, color: 'bg-emerald-500/10 text-emerald-500', label: 'Success' },
   failed: { icon: XCircle, color: 'bg-destructive/10 text-destructive', label: 'Failed' },
   cancelled: { icon: XCircle, color: 'bg-muted text-muted-foreground', label: 'Cancelled' },
-  'rolling-back': { icon: RotateCcw, color: 'bg-amber-500/10 text-amber-500', label: 'Rolling Back' },
+  'rolling-back': {
+    icon: RotateCcw,
+    color: 'bg-amber-500/10 text-amber-500',
+    label: 'Rolling Back',
+  },
 };
 
 interface InstallHistoryProps {
@@ -60,7 +65,9 @@ export function InstallHistory({ onViewJob, onRollback }: InstallHistoryProps) {
       <div className="text-center py-12">
         <Clock className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
         <p className="text-sm text-muted-foreground">No installation history yet</p>
-        <p className="text-xs text-muted-foreground mt-1">Install something from the catalog to get started</p>
+        <p className="text-xs text-muted-foreground mt-1">
+          Install something from the catalog to get started
+        </p>
       </div>
     );
   }
@@ -89,7 +96,7 @@ export function InstallHistory({ onViewJob, onRollback }: InstallHistoryProps) {
                     job.status === 'running' && 'animate-spin',
                     job.status === 'success' && 'text-emerald-500',
                     job.status === 'failed' && 'text-destructive',
-                    job.status === 'pending' && 'text-muted-foreground',
+                    job.status === 'pending' && 'text-muted-foreground'
                   )}
                 />
                 <div className="flex-1 min-w-0">
@@ -100,9 +107,7 @@ export function InstallHistory({ onViewJob, onRollback }: InstallHistoryProps) {
                     </Badge>
                   </div>
                   <div className="flex items-center gap-2 mt-0.5">
-                    <span className="text-[11px] text-muted-foreground">
-                      via {job.methodId}
-                    </span>
+                    <span className="text-[11px] text-muted-foreground">via {job.methodId}</span>
                     {job.config.domain && (
                       <span className="text-[11px] text-muted-foreground">
                         &bull; {String(job.config.domain)}

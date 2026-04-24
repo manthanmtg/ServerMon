@@ -24,7 +24,14 @@ const mockSnapshot = {
   disks: [{ device: '/dev/sda', name: 'Samsung SSD', type: 'SSD', size: 1000000000000 }],
   gpus: [],
   usb: [],
-  os: { hostname: 'server-1', platform: 'linux', kernel: '6.1', arch: 'x64', distro: 'Ubuntu', release: '22.04' },
+  os: {
+    hostname: 'server-1',
+    platform: 'linux',
+    kernel: '6.1',
+    arch: 'x64',
+    distro: 'Ubuntu',
+    release: '22.04',
+  },
   system: { manufacturer: 'Custom', model: 'Desktop' },
   bios: { vendor: 'ASUS', version: '1.0', releaseDate: '2023-01-01' },
   baseboard: { manufacturer: 'ASUS', model: 'Z790', memSlots: 4 },
@@ -47,7 +54,10 @@ describe('HardwareWidget', () => {
   it('shows loading spinner initially', () => {
     let resolveFetch!: (v: Response) => void;
     global.fetch = vi.fn().mockImplementation(
-      () => new Promise<Response>((r) => { resolveFetch = r; })
+      () =>
+        new Promise<Response>((r) => {
+          resolveFetch = r;
+        })
     );
     render(<HardwareWidget />);
     expect(document.querySelector('.animate-spin')).toBeTruthy();

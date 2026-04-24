@@ -1,16 +1,16 @@
 'use client';
- 
+
 import { Badge } from '@/components/ui/badge';
 import { RefreshCcw } from 'lucide-react';
 import type { DockerSnapshot } from '../../types';
- 
+
 interface DockerHeaderProps {
   snapshot: DockerSnapshot | null;
   refreshMs: number;
   onRefreshChange: (refreshMs: number) => void;
   onRefreshNow: () => void;
 }
- 
+
 export function DockerHeader({
   snapshot,
   refreshMs,
@@ -38,7 +38,7 @@ export function DockerHeader({
             </p>
           </div>
         </div>
- 
+
         <div className="grid gap-3 sm:grid-cols-3">
           <label className="flex min-h-[44px] flex-col justify-center rounded-xl border border-border/60 bg-background/70 px-3 py-2 text-xs uppercase tracking-[0.18em] text-muted-foreground shadow-inner">
             Docker host
