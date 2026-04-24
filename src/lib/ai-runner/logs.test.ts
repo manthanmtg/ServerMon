@@ -40,6 +40,9 @@ import { randomUUID } from 'node:crypto';
 
 describe('ai-runner/logs', () => {
   const originalEnv = process.env;
+  const testSessionId = '00000000-0000-4000-8000-000000000001';
+  const entryId = '00000000-0000-4000-8000-000000000002';
+  const newSessionId = '00000000-0000-4000-8000-000000000003';
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -54,10 +57,10 @@ describe('ai-runner/logs', () => {
 
   describe('getAIRunnerLogSessionId', () => {
     it('should generate a new session ID if none exists', () => {
-      vi.mocked(randomUUID).mockReturnValue('test-session-id');
+      vi.mocked(randomUUID).mockReturnValue(testSessionId);
       const sessionId = getAIRunnerLogSessionId();
-      expect(sessionId).toBe('test-session-id');
-      expect(process.env.AI_RUNNER_LOG_SESSION_ID).toBe('test-session-id');
+      expect(sessionId).toBe(testSessionId);
+      expect(process.env.AI_RUNNER_LOG_SESSION_ID).toBe(testSessionId);
     });
 
     it('should return existing session ID if it exists', () => {
@@ -70,9 +73,9 @@ describe('ai-runner/logs', () => {
 
   describe('getAIRunnerLogFilePath', () => {
     it('should generate a new file path if none exists', () => {
-      vi.mocked(randomUUID).mockReturnValue('test-session-id');
+      vi.mocked(randomUUID).mockReturnValue(testSessionId);
       const filePath = getAIRunnerLogFilePath();
-      expect(filePath).toContain('servermon-ai-runner-test-session-id.ndjson');
+      expect(filePath).toContain(`servermon-ai-runner-${testSessionId}.ndjson`);
       expect(process.env.AI_RUNNER_LOG_PATH).toBe(filePath);
     });
 
@@ -85,7 +88,7 @@ describe('ai-runner/logs', () => {
 
   describe('writeAIRunnerLogEntry', () => {
     it('should append a log entry to the file', async () => {
-      vi.mocked(randomUUID).mockReturnValue('entry-id');
+      vi.mocked(randomUUID).mockReturnValue(entryId);
       process.env.AI_RUNNER_LOG_SESSION_ID = 'session-id';
       process.env.AI_RUNNER_LOG_PATH = '/tmp/log.ndjson';
       
@@ -106,7 +109,7 @@ describe('ai-runner/logs', () => {
       );
       expect(appendFile).toHaveBeenCalledWith(
         '/tmp/log.ndjson',
-        expect.stringContaining('"id":"entry-id"'),
+        expect.stringContaining(`"id":"${entryId}"`),
         'utf8'
       );
     });
@@ -217,13 +220,13 @@ describe('ai-runner/logs', () => {
 
   describe('resetAIRunnerLogSession', () => {
     it('should generate new session and cleanup old logs', async () => {
-      vi.mocked(randomUUID).mockReturnValue('new-session');
+      vi.mocked(randomUUID).mockReturnValue(newSessionId);
       vi.mocked(readdir).mockResolvedValue(['servermon-ai-runner-old.ndjson', 'other.txt'] as unknown as Awaited<ReturnType<typeof readdir>>);
       
       const newPath = await resetAIRunnerLogSession();
       
-      expect(process.env.AI_RUNNER_LOG_SESSION_ID).toBe('new-session');
-      expect(newPath).toContain('servermon-ai-runner-new-session.ndjson');
+      expect(process.env.AI_RUNNER_LOG_SESSION_ID).toBe(newSessionId);
+      expect(newPath).toContain(`servermon-ai-runner-${newSessionId}.ndjson`);
       expect(rm).toHaveBeenCalledWith(expect.stringContaining('servermon-ai-runner-old.ndjson'), expect.anything());
       expect(rm).not.toHaveBeenCalledWith(expect.stringContaining('other.txt'), expect.anything());
       expect(writeFile).toHaveBeenCalled();
