@@ -11,7 +11,7 @@ describe('renderInstallSnippet', () => {
   it('linux: curl | bash with hub-url/token/node-id flags', () => {
     const out = renderInstallSnippet({ ...base, kind: 'linux' });
     expect(out).toBe(
-      "curl -sL https://ultron.manthanby.cv/install-agent.sh | bash -s -- --hub-url 'ultron.manthanby.cv' --token 'tok-ABC-xyz' --node-id 'node-1'"
+      "curl -sL https://ultron.manthanby.cv/api/fleet/install/script | bash -s -- --hub-url 'ultron.manthanby.cv' --token 'tok-ABC-xyz' --node-id 'node-1'"
     );
   });
 
