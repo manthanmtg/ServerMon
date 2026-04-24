@@ -1,9 +1,14 @@
 'use client';
+import { useState } from 'react';
 import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Trash2 } from 'lucide-react';
 import { deriveNodeStatus, deriveNodeTransition, lastSeenLabel } from '@/lib/fleet/status';
 import { cn } from '@/lib/utils';
+import ConfirmationModal from '@/components/ui/ConfirmationModal';
+import { useToast } from '@/components/ui/toast';
 
 export interface NodeCardData {
   _id: string;
@@ -35,7 +40,19 @@ const STATUS_STYLES: Record<string, string> = {
   error: 'bg-destructive/10 text-destructive border-destructive/30',
 };
 
-export function NodeCard({ node, now = new Date() }: { node: NodeCardData; now?: Date }) {
+export function NodeCard({
+  node,
+  now = new Date(),
+  onDelete,
+}: {
+  node: NodeCardData;
+  now?: Date;
+  onDelete?: () => void;
+}) {
+  const { toast } = useToast();
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+
   const status = deriveNodeStatus({
     lastSeen: node.lastSeen ? new Date(node.lastSeen) : undefined,
     tunnelStatus: node.tunnelStatus as never,
@@ -54,26 +71,70 @@ export function NodeCard({ node, now = new Date() }: { node: NodeCardData; now?:
     ? `${(node.proxyRules ?? []).filter((p) => p.enabled).length} proxies`
     : 'No proxies';
 
+  const handleDelete = async () => {
+    setIsDeleting(true);
+    try {
+      const res = await fetch(`/api/fleet/nodes/${node._id}`, { method: 'DELETE' });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || 'Failed to delete node');
+      }
+      toast({
+        title: 'Node Deleted',
+        description: `Agent "${node.name}" has been removed.`,
+        variant: 'success',
+      });
+      onDelete?.();
+    } catch (err) {
+      toast({
+        title: 'Delete Failed',
+        description: err instanceof Error ? err.message : 'Unknown error',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsDeleting(false);
+      setShowDeleteConfirm(false);
+    }
+  };
+
   return (
-    <Link href={`/fleet/${node.slug}`} className="block group">
-      <Card className="transition-colors group-hover:border-primary/40">
-        <CardHeader className="flex flex-row items-start justify-between pb-2">
+    <>
+      <Card className="transition-colors hover:border-primary/40 group relative">
+        <Link href={`/fleet/${node.slug}`} className="absolute inset-0 z-0" />
+        <CardHeader className="flex flex-row items-start justify-between pb-2 relative z-10 pointer-events-none">
           <div>
             <CardTitle className="text-base">{node.name}</CardTitle>
             <div className="text-xs text-muted-foreground font-mono">{node.slug}</div>
           </div>
-          <div className="flex items-center gap-1">
-            <span className={cn('text-xs px-2 py-0.5 rounded-full border', STATUS_STYLES[status])}>
-              {status}
-            </span>
-            {transition && (
-              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/30 animate-pulse">
-                {transition.replace('_', ' ')}
+          <div className="flex flex-col items-end gap-1">
+            <div className="flex items-center gap-1">
+              <span
+                className={cn('text-xs px-2 py-0.5 rounded-full border', STATUS_STYLES[status])}
+              >
+                {status}
               </span>
-            )}
+              {transition && (
+                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/30 animate-pulse">
+                  {transition.replace('_', ' ')}
+                </span>
+              )}
+            </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-muted-foreground hover:text-destructive pointer-events-auto mt-1"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setShowDeleteConfirm(true);
+              }}
+              title="Delete Node"
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
           </div>
         </CardHeader>
-        <CardContent className="space-y-2 text-sm">
+        <CardContent className="space-y-2 text-sm relative z-10 pointer-events-none">
           <div className="flex justify-between text-muted-foreground text-xs">
             <span>Last seen</span>
             <span>{lastSeenLabel(node.lastSeen ? new Date(node.lastSeen) : undefined, now)}</span>
@@ -98,6 +159,18 @@ export function NodeCard({ node, now = new Date() }: { node: NodeCardData; now?:
           </div>
         </CardContent>
       </Card>
-    </Link>
+
+      <ConfirmationModal
+        isOpen={showDeleteConfirm}
+        onCancel={() => setShowDeleteConfirm(false)}
+        onConfirm={handleDelete}
+        title="Delete Node"
+        message={`Are you sure you want to delete the agent "${node.name}"? This action cannot be undone and will disconnect the agent from the fleet.`}
+        verificationText={node.slug}
+        confirmLabel="Delete Agent"
+        variant="danger"
+        isLoading={isDeleting}
+      />
+    </>
   );
 }

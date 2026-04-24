@@ -89,7 +89,7 @@ export function NodeGrid({ search = '', tag = '', status = '', pollMs = 30000 }:
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
       {nodes.map((n) => (
-        <NodeCard key={n._id} node={n} />
+        <NodeCard key={n._id} node={n} onDelete={() => refreshRef.current()} />
       ))}
     </div>
   );
