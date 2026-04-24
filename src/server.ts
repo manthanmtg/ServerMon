@@ -11,6 +11,30 @@ import { resetAIRunnerLogSession, writeAIRunnerLogEntry } from './lib/ai-runner/
 import { ensureAIRunnerSupervisor } from './lib/ai-runner/processes';
 import { getRuntimeDiagnostics } from './lib/runtime-diagnostics';
 import { handleRequestWithDiagnostics } from './lib/server-request-diagnostics';
+import { Socket } from 'socket.io';
+
+interface SessionPayload {
+  user: {
+    id: string;
+    username: string;
+    role: string;
+  };
+  expires: string;
+}
+
+interface AuthSocket extends Socket {
+  user?: SessionPayload['user'];
+}
+
+// Persistent PTY sessions
+interface ptySession {
+  ptyProcess: pty.IPty;
+  buffer: string[];
+  lastActive: number;
+  sockets: Set<string>;
+  label: string;
+  createdBy: string;
+}
 
 const log = createLogger('server');
 const diagnostics = getRuntimeDiagnostics();
@@ -110,14 +134,14 @@ app.prepare().then(async () => {
         return next(new Error('Authentication error: Session cookie not found'));
       }
 
-      const session = (await decrypt(sessionCookie).catch(() => null)) as unknown as SessionPayload;
+      const session = (await decrypt(sessionCookie).catch(() => null)) as SessionPayload | null;
       if (!session || !session.user) {
         log.warn('Socket connection rejected: Invalid or expired session');
         return next(new Error('Authentication error: Invalid session'));
       }
 
       // Attach user info to socket
-      (socket as unknown as { user: SessionPayload['user'] }).user = session.user;
+      (socket as AuthSocket).user = session.user;
       next();
     } catch (err) {
       log.error('Socket authentication middleware error', err);
@@ -125,24 +149,6 @@ app.prepare().then(async () => {
     }
   });
 
-  interface SessionPayload {
-    user: {
-      id: string;
-      username: string;
-      role: string;
-    };
-    expires: string;
-  }
-
-  // Persistent PTY sessions
-  interface ptySession {
-    ptyProcess: pty.IPty;
-    buffer: string[];
-    lastActive: number;
-    sockets: Set<string>;
-    label: string;
-    createdBy: string;
-  }
   const ptySessions = new Map<string, ptySession>();
   const BUFFER_SIZE = 1000;
 
