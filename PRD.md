@@ -908,19 +908,25 @@ Goal: allow developers to create modules quickly.
 
 ---
 
-# 15. Future Modules (Examples)
+# 16. Implemented Modules
 
-Potential modules include:
+The following modules are currently implemented in the core system:
 
-- Disk usage monitor
-- Docker manager
-- Network monitor
-- Log viewer
-- File manager
+- **Dashboard**: Real-time widgets
+- **Terminal**: Interactive shell
+- **Processes**: Process management
+- **File Browser**: Filesystem navigation and CodeMirror 6 editing
+- **Docker**: Container management
+- **Disk & Network**: Resource monitoring
+- **Services & Cron Jobs**: System daemon and schedule management
+- **AI Agents**: Passive observability of AI CLI tools
+- **AI Runner**: Active orchestration and scheduling of AI CLI tools
+- **Security & Audit Logs**: MFA, settings, and action history
+- **Certificates, Ports, Hardware, Nginx**: Infrastructure monitoring
 
 ---
 
-# 16. Module Lifecycle
+# 17. Module Lifecycle
 
 Each module follows a defined lifecycle managed by the core system.
 
@@ -948,7 +954,7 @@ This lifecycle ensures safe module startup, background worker management, and cl
 
 ---
 
-# 17. Module Permission Model
+# 18. Module Permission Model
 
 Some modules expose powerful system capabilities. A permission model ensures controlled access.
 
@@ -968,7 +974,7 @@ Future versions may introduce full **RBAC**.
 
 ---
 
-# 18. Module Dependency System
+# 19. Module Dependency System
 
 Modules may depend on other modules.
 
@@ -982,7 +988,7 @@ The module loader must validate dependencies before activating modules.
 
 ---
 
-# 19. Server Capability Detection
+# 20. Server Capability Detection
 
 The core system exposes runtime information about the host server.
 
@@ -1007,7 +1013,7 @@ This allows modules to adapt behavior based on the server environment.
 
 ---
 
-# 20. Core Module SDK
+# 21. Core Module SDK
 
 The core system exposes a stable SDK for modules to interact with the platform.
 
@@ -1027,7 +1033,7 @@ This SDK provides a consistent interface for module developers and ensures safe 
 
 ---
 
-# 21. Metrics vs Analytics
+# 22. Metrics vs Analytics
 
 ServerMon distinguishes between **analytics** and **metrics**.
 
@@ -1055,7 +1061,7 @@ Metrics power dashboards and monitoring widgets.
 
 ---
 
-# 22. First‑Time Setup Wizard
+# 23. First‑Time Setup Wizard
 
 On first launch, ServerMon should provide a guided setup wizard.
 
@@ -1077,7 +1083,7 @@ This improves usability for first‑time installations.
 
 ---
 
-# 23. Non Functional Requirements
+# 24. Non Functional Requirements
 
 Performance
 
@@ -1098,7 +1104,7 @@ Extensibility
 
 ---
 
-# 17. Future Enhancements
+# 25. Future Enhancements
 
 Possible roadmap items:
 
@@ -1106,6 +1112,8 @@ Possible roadmap items:
 - multi server monitoring
 - alerting system
 - notification integrations
+- Fleet Management
+- Remote configuration sync
 
 Examples:
 
@@ -1115,7 +1123,7 @@ Examples:
 
 ---
 
-# 18. Summary
+# 26. Summary
 
 ServerMon is a **secure, modular server management platform** designed for extensibility and ease of deployment.
 
