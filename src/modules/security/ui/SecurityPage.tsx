@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle,
   Ban,
@@ -90,13 +90,26 @@ export default function SecurityPage() {
     return () => window.clearInterval(interval);
   }, [load]);
 
+  const checksByCategory = useMemo(() => {
+    const grouped = new Map<string, SecuritySnapshot['checks']>();
+
+    for (const check of snapshot?.checks ?? []) {
+      const existing = grouped.get(check.category);
+      if (existing) {
+        existing.push(check);
+      } else {
+        grouped.set(check.category, [check]);
+      }
+    }
+
+    return grouped;
+  }, [snapshot?.checks]);
+
   if (loading && !snapshot) {
     return <PageSkeleton statCards={3} />;
   }
 
   if (!snapshot) return null;
-
-  const categories = [...new Set(snapshot.checks.map((c) => c.category))];
 
   return (
     <div className="space-y-6">
@@ -204,45 +217,43 @@ export default function SecurityPage() {
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          {categories.map((cat) => (
+          {Array.from(checksByCategory.entries()).map(([cat, checks]) => (
             <div key={cat}>
               <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
                 {cat}
               </h3>
               <div className="space-y-1.5">
-                {snapshot.checks
-                  .filter((c) => c.category === cat)
-                  .map((check) => (
-                    <div
-                      key={check.id}
-                      className="flex items-center gap-3 p-2.5 rounded-lg hover:bg-accent/30 transition-colors"
-                    >
-                      {statusIcon[check.status]}
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium">{check.title}</p>
-                        <p className="text-xs text-muted-foreground truncate">{check.details}</p>
-                      </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        <Badge variant="secondary" className="text-[10px]">
-                          {check.severity}
-                        </Badge>
-                        <Badge
-                          variant={
-                            check.status === 'pass'
-                              ? 'success'
-                              : check.status === 'fail'
-                                ? 'destructive'
-                                : check.status === 'warn'
-                                  ? 'warning'
-                                  : 'secondary'
-                          }
-                          className="text-[10px]"
-                        >
-                          {statusLabel[check.status]}
-                        </Badge>
-                      </div>
+                {checks.map((check) => (
+                  <div
+                    key={check.id}
+                    className="flex items-center gap-3 p-2.5 rounded-lg hover:bg-accent/30 transition-colors"
+                  >
+                    {statusIcon[check.status]}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium">{check.title}</p>
+                      <p className="text-xs text-muted-foreground truncate">{check.details}</p>
                     </div>
-                  ))}
+                    <div className="flex items-center gap-2 shrink-0">
+                      <Badge variant="secondary" className="text-[10px]">
+                        {check.severity}
+                      </Badge>
+                      <Badge
+                        variant={
+                          check.status === 'pass'
+                            ? 'success'
+                            : check.status === 'fail'
+                              ? 'destructive'
+                              : check.status === 'warn'
+                                ? 'warning'
+                                : 'secondary'
+                        }
+                        className="text-[10px]"
+                      >
+                        {statusLabel[check.status]}
+                      </Badge>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           ))}
