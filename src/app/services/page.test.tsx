@@ -28,9 +28,7 @@ describe('Services page route', () => {
   it('renders ProShell with correct title and subtitle', () => {
     render(<ServicesRoute />);
     expect(screen.getByTestId('title').textContent).toBe('Services Monitor');
-    expect(screen.getByTestId('subtitle').textContent).toBe(
-      'Systemd Services, Timers, and Alerts'
-    );
+    expect(screen.getByTestId('subtitle').textContent).toBe('Systemd Services, Timers, and Alerts');
   });
 
   it('renders ServicesPage inside ProShell', () => {

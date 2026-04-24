@@ -1,5 +1,5 @@
 'use client';
- 
+
 import { Fragment } from 'react';
 import { ChevronDown, ChevronRight, Trash2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { cn, formatBytes, relativeTime } from '@/lib/utils';
 import type { DockerSnapshot } from '../../types';
- 
+
 interface ContainerTableProps {
   snapshot: DockerSnapshot | null;
   expandedId: string | null;
@@ -17,13 +17,13 @@ interface ContainerTableProps {
   onLogs: (id: string, name: string) => void;
   onExec: (id: string, name: string) => void;
 }
- 
+
 function statusVariant(state: string): 'success' | 'warning' | 'destructive' {
   if (state === 'running') return 'success';
   if (state === 'paused' || state === 'restarting') return 'warning';
   return 'destructive';
 }
- 
+
 export function ContainerTable({
   snapshot,
   expandedId,
@@ -34,7 +34,10 @@ export function ContainerTable({
   onExec,
 }: ContainerTableProps) {
   return (
-    <Card className="border-border/60 bg-card/50 backdrop-blur-md shadow-sm overflow-hidden" data-testid="docker-containers-table">
+    <Card
+      className="border-border/60 bg-card/50 backdrop-blur-md shadow-sm overflow-hidden"
+      data-testid="docker-containers-table"
+    >
       <CardHeader className="pb-3 border-b border-border/40">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div>
@@ -65,13 +68,15 @@ export function ContainerTable({
             {(snapshot?.containers || []).map((container) => {
               const expanded = expandedId === container.id;
               const isPending = pendingActionId === container.id;
- 
+
               return (
                 <Fragment key={container.id}>
-                  <tr className={cn(
-                    "group transition-colors align-top hover:bg-muted/30",
-                    expanded && "bg-muted/10 border-l-2 border-primary"
-                  )}>
+                  <tr
+                    className={cn(
+                      'group transition-colors align-top hover:bg-muted/30',
+                      expanded && 'bg-muted/10 border-l-2 border-primary'
+                    )}
+                  >
                     <td className="py-2 px-4 min-w-[200px]">
                       <button
                         type="button"
@@ -97,7 +102,7 @@ export function ContainerTable({
                     </td>
                     <td className="py-4 px-4 font-mono text-xs opacity-80">{container.image}</td>
                     <td className="py-4 px-4">
-                      <Badge 
+                      <Badge
                         variant={statusVariant(container.state)}
                         className="capitalize px-2 py-0.5 rounded-full"
                       >
@@ -112,8 +117,11 @@ export function ContainerTable({
                     </td>
                     <td className="py-4 px-4">
                       <div className="flex flex-wrap gap-1">
-                        {container.networks.map(net => (
-                          <span key={net} className="text-[10px] px-1.5 py-0.5 rounded bg-muted/40 border border-border/40">
+                        {container.networks.map((net) => (
+                          <span
+                            key={net}
+                            className="text-[10px] px-1.5 py-0.5 rounded bg-muted/40 border border-border/40"
+                          >
                             {net}
                           </span>
                         )) || <span className="text-muted-foreground">n/a</span>}
@@ -189,24 +197,35 @@ export function ContainerTable({
                             <div className="rounded-xl border border-border/60 bg-background/50 p-4 space-y-2.5 shadow-inner">
                               <div className="flex justify-between items-center text-xs">
                                 <span className="text-muted-foreground">CPU usage</span>
-                                <span className="font-mono font-bold">{container.cpuPercent.toFixed(1)}%</span>
+                                <span className="font-mono font-bold">
+                                  {container.cpuPercent.toFixed(1)}%
+                                </span>
                               </div>
                               <div className="flex justify-between items-center text-xs">
                                 <span className="text-muted-foreground">Memory %</span>
-                                <span className="font-mono font-bold">{container.memoryPercent.toFixed(1)}%</span>
+                                <span className="font-mono font-bold">
+                                  {container.memoryPercent.toFixed(1)}%
+                                </span>
                               </div>
                               <div className="flex justify-between items-center text-xs">
                                 <span className="text-muted-foreground">Memory footprint</span>
-                                <span className="font-mono">{formatBytes(container.memoryUsageBytes)} / {formatBytes(container.memoryLimitBytes)}</span>
+                                <span className="font-mono">
+                                  {formatBytes(container.memoryUsageBytes)} /{' '}
+                                  {formatBytes(container.memoryLimitBytes)}
+                                </span>
                               </div>
                               <div className="h-px bg-border/40 my-1" />
                               <div className="flex justify-between items-center text-xs">
                                 <span className="text-muted-foreground">Block reads</span>
-                                <span className="font-mono">{formatBytes(container.blockReadBytes)}</span>
+                                <span className="font-mono">
+                                  {formatBytes(container.blockReadBytes)}
+                                </span>
                               </div>
                               <div className="flex justify-between items-center text-xs">
                                 <span className="text-muted-foreground">Block writes</span>
-                                <span className="font-mono">{formatBytes(container.blockWriteBytes)}</span>
+                                <span className="font-mono">
+                                  {formatBytes(container.blockWriteBytes)}
+                                </span>
                               </div>
                             </div>
                           </div>
@@ -217,20 +236,35 @@ export function ContainerTable({
                             </h4>
                             <div className="rounded-xl border border-border/60 bg-background/50 p-4 space-y-3.5 shadow-inner overflow-hidden">
                               <div>
-                                <p className="text-[10px] font-semibold text-muted-foreground mb-1">Ports</p>
-                                <p className="text-xs font-mono truncate">{container.ports.join(', ') || 'No published ports'}</p>
+                                <p className="text-[10px] font-semibold text-muted-foreground mb-1">
+                                  Ports
+                                </p>
+                                <p className="text-xs font-mono truncate">
+                                  {container.ports.join(', ') || 'No published ports'}
+                                </p>
                               </div>
                               <div>
-                                <p className="text-[10px] font-semibold text-muted-foreground mb-1">Networks</p>
-                                <p className="text-xs font-mono truncate">{container.networks.join(', ') || 'No networks'}</p>
+                                <p className="text-[10px] font-semibold text-muted-foreground mb-1">
+                                  Networks
+                                </p>
+                                <p className="text-xs font-mono truncate">
+                                  {container.networks.join(', ') || 'No networks'}
+                                </p>
                               </div>
                               <div>
-                                <p className="text-[10px] font-semibold text-muted-foreground mb-1">Volumes</p>
+                                <p className="text-[10px] font-semibold text-muted-foreground mb-1">
+                                  Volumes
+                                </p>
                                 <div className="text-[10px] font-mono leading-relaxed max-h-24 overflow-y-auto space-y-1">
                                   {container.mounts.length > 0
                                     ? container.mounts.map((mount) => (
-                                        <div key={`${mount.source}-${mount.destination}`} className="bg-muted/40 p-1 rounded">
-                                          {mount.source} <span className="text-primary italic">→</span> {mount.destination}
+                                        <div
+                                          key={`${mount.source}-${mount.destination}`}
+                                          className="bg-muted/40 p-1 rounded"
+                                        >
+                                          {mount.source}{' '}
+                                          <span className="text-primary italic">→</span>{' '}
+                                          {mount.destination}
                                         </div>
                                       ))
                                     : 'No mounts found'}
@@ -246,7 +280,10 @@ export function ContainerTable({
                             <div className="max-h-56 overflow-y-auto rounded-xl border border-border/60 bg-card p-3 font-mono text-[10px] text-muted-foreground shadow-inner custom-scrollbar">
                               {container.env.length > 0
                                 ? container.env.map((entry) => (
-                                    <div key={entry} className="py-1 border-b border-border/20 last:border-0 hover:bg-muted/40 transition-colors">
+                                    <div
+                                      key={entry}
+                                      className="py-1 border-b border-border/20 last:border-0 hover:bg-muted/40 transition-colors"
+                                    >
                                       {entry}
                                     </div>
                                   ))

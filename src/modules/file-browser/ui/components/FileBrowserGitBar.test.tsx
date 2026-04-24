@@ -16,9 +16,7 @@ vi.mock('react-dom', async (importOriginal) => {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function makeGit(
-  overrides: Partial<Parameters<typeof FileBrowserGitBar>[0]['git']> = {}
-) {
+function makeGit(overrides: Partial<Parameters<typeof FileBrowserGitBar>[0]['git']> = {}) {
   return {
     root: '/repo',
     branch: 'main',

@@ -28,9 +28,7 @@ describe('AI Agents page route', () => {
   it('renders ProShell with correct title and subtitle', () => {
     render(<AIAgentsRoute />);
     expect(screen.getByTestId('title').textContent).toBe('AI Agents');
-    expect(screen.getByTestId('subtitle').textContent).toBe(
-      'Monitor and Manage AI Coding Agents'
-    );
+    expect(screen.getByTestId('subtitle').textContent).toBe('Monitor and Manage AI Coding Agents');
   });
 
   it('renders AIAgentsPage inside ProShell', () => {

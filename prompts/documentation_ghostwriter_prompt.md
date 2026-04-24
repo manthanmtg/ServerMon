@@ -23,4 +23,5 @@ Keep the project documentation (`PRD.md`, `README.md`, `DEPLOY.md`, `CLAUDE.md`)
 - **Markdown Purity**: Use standard GFM (GitHub Flavored Markdown).
 
 ## Issue Management
+
 - If an issue from `issues_to_look/` is resolved or found to be resolved, move it to the `issues_to_look/resolved/` directory to keep things clean.

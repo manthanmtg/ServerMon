@@ -70,9 +70,7 @@ describe('UserGuidePage', () => {
 
   it('renders the description', () => {
     render(<UserGuidePage />);
-    expect(
-      screen.getByText(/Everything you need to know about monitoring/)
-    ).toBeDefined();
+    expect(screen.getByText(/Everything you need to know about monitoring/)).toBeDefined();
   });
 
   it('renders the search input', () => {

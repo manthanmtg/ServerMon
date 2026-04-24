@@ -1,0 +1,317 @@
+import crypto from 'node:crypto';
+import path from 'node:path';
+import fs from 'node:fs';
+import os from 'node:os';
+import { spawn as realSpawn } from 'node:child_process';
+import { ensureBinary } from './binary';
+import { startFrpc, type FrpHandle } from './frpProcess';
+import { renderFrpcToml } from './toml';
+import { AgentPtyBridge } from './agentPtyBridge';
+
+export interface AgentClientLogEntry {
+  level: string;
+  eventType: string;
+  message: string;
+  metadata?: Record<string, unknown>;
+}
+
+export interface AgentClientOpts {
+  hubUrl: string;
+  pairingToken: string;
+  nodeId: string;
+  binaryCacheDir?: string;
+  configDir?: string;
+  ptyListenPort?: number;
+  heartbeatIntervalMs?: number;
+  binaryVersion?: string;
+  fetchImpl?: typeof fetch;
+  spawnImpl?: typeof realSpawn;
+  writeFile?: (p: string, data: string) => Promise<void>;
+  mkdir?: (p: string, opts?: { recursive: boolean }) => Promise<void>;
+  ensureBinaryImpl?: typeof ensureBinary;
+  startFrpcImpl?: typeof startFrpc;
+  ptyBridgeFactory?: (port: number, token: string) => AgentPtyBridge;
+  setIntervalImpl?: typeof setInterval;
+  clearIntervalImpl?: typeof clearInterval;
+  logEntry?: (e: AgentClientLogEntry) => void;
+  now?: () => Date;
+}
+
+export interface AgentStatus {
+  paired: boolean;
+  tunnelStatus: 'disconnected' | 'connecting' | 'connected' | 'auth_failed' | 'config_invalid';
+  frpcPid?: number;
+  bridgeRunning: boolean;
+  lastHeartbeatAt?: Date;
+  lastError?: string;
+}
+
+interface PairResponse {
+  hub: {
+    serverAddr: string;
+    serverPort: number;
+    authToken: string;
+    subdomainHost: string | null;
+  };
+}
+
+interface NodeConfigResponse {
+  slug: string;
+  frpcConfig: Parameters<typeof renderFrpcToml>[0]['node']['frpcConfig'];
+  proxyRules: Parameters<typeof renderFrpcToml>[0]['node']['proxyRules'];
+  capabilities?: Record<string, boolean>;
+}
+
+const DEFAULT_BINARY_CACHE_DIR = '.fleet-cache/frp';
+const DEFAULT_CONFIG_DIR = '.fleet-cache/agent';
+const DEFAULT_PTY_LISTEN_PORT = 8001;
+const DEFAULT_HEARTBEAT_INTERVAL_MS = 30_000;
+const DEFAULT_BINARY_VERSION = '0.58.0';
+
+export class AgentClient {
+  private readonly opts: AgentClientOpts;
+  private readonly status_: AgentStatus = {
+    paired: false,
+    tunnelStatus: 'disconnected',
+    bridgeRunning: false,
+  };
+  private frpHandle: FrpHandle | null = null;
+  private bridge: AgentPtyBridge | null = null;
+  private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+  private bootId: string = crypto.randomUUID();
+  private bootAt: Date = new Date();
+  private ptyToken: string = '';
+  private pairResponse: PairResponse | null = null;
+  private nodeConfig: NodeConfigResponse | null = null;
+  private capabilities: Record<string, boolean> = {
+    terminal: true,
+    endpointRuns: true,
+    processes: true,
+    metrics: true,
+    publishRoutes: true,
+    tcpForward: true,
+    fileOps: false,
+    updates: true,
+  };
+
+  constructor(opts: AgentClientOpts) {
+    this.opts = opts;
+    if (opts.now) {
+      this.bootAt = opts.now();
+    }
+  }
+
+  status(): AgentStatus {
+    return { ...this.status_ };
+  }
+
+  async start(): Promise<void> {
+    const {
+      hubUrl,
+      pairingToken,
+      nodeId,
+      fetchImpl = fetch,
+      writeFile = async (p, d) => fs.promises.writeFile(p, d, 'utf8'),
+      mkdir = async (p, o) => {
+        await fs.promises.mkdir(p, o);
+      },
+      ensureBinaryImpl = ensureBinary,
+      startFrpcImpl = startFrpc,
+      ptyBridgeFactory,
+      setIntervalImpl = setInterval,
+      binaryCacheDir = DEFAULT_BINARY_CACHE_DIR,
+      configDir = DEFAULT_CONFIG_DIR,
+      ptyListenPort = DEFAULT_PTY_LISTEN_PORT,
+      heartbeatIntervalMs = DEFAULT_HEARTBEAT_INTERVAL_MS,
+      binaryVersion = DEFAULT_BINARY_VERSION,
+      spawnImpl,
+    } = this.opts;
+
+    // 1. Pair
+    const pairUrl = `${hubUrl}/api/fleet/nodes/${nodeId}/pair`;
+    const pairRes = await fetchImpl(pairUrl, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${pairingToken}`,
+        'Content-Type': 'application/json',
+      },
+    });
+    if (!pairRes.ok) {
+      this.status_.tunnelStatus = 'auth_failed';
+      this.status_.lastError = `pair-failed: ${pairRes.status}`;
+      throw new Error(`pair-failed: ${pairRes.status}`);
+    }
+    this.pairResponse = (await pairRes.json()) as PairResponse;
+    this.status_.paired = true;
+
+    // 2. Fetch node config
+    const nodeUrl = `${hubUrl}/api/fleet/nodes/${nodeId}`;
+    const nodeRes = await fetchImpl(nodeUrl, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${pairingToken}`,
+      },
+    });
+    if (!nodeRes.ok) {
+      this.status_.tunnelStatus = 'config_invalid';
+      this.status_.lastError = `node-fetch-failed: ${nodeRes.status}`;
+      throw new Error(`node-fetch-failed: ${nodeRes.status}`);
+    }
+    this.nodeConfig = (await nodeRes.json()) as NodeConfigResponse;
+
+    // 3. Ensure frpc binary
+    const binaries = await ensureBinaryImpl({
+      cacheDir: binaryCacheDir,
+      version: binaryVersion,
+      fetchImpl,
+      spawnImpl,
+    });
+
+    // 4. Render frpc.toml
+    const rendered = renderFrpcToml({
+      serverAddr: this.pairResponse.hub.serverAddr,
+      serverPort: this.pairResponse.hub.serverPort,
+      authToken: this.pairResponse.hub.authToken,
+      node: {
+        slug: this.nodeConfig.slug ?? nodeId,
+        frpcConfig: this.nodeConfig.frpcConfig,
+        proxyRules: this.nodeConfig.proxyRules,
+      },
+    });
+
+    // 5. Ensure config dir + write toml
+    await mkdir(configDir, { recursive: true });
+    const configPath = path.join(configDir, 'frpc.toml');
+    await writeFile(configPath, rendered);
+
+    // 6. Start frpc
+    this.status_.tunnelStatus = 'connecting';
+    try {
+      this.frpHandle = startFrpcImpl({
+        binary: binaries.frpc,
+        configPath,
+        spawnImpl,
+        onLog: (line, stream) => {
+          this.log('info', 'agent.frpc.log', line, { stream });
+        },
+      });
+      if (this.frpHandle.pid) {
+        this.status_.frpcPid = this.frpHandle.pid;
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      this.status_.tunnelStatus = 'config_invalid';
+      this.status_.lastError = message;
+      throw err;
+    }
+
+    // 7. Start pty bridge with random auth token
+    this.ptyToken = crypto.randomBytes(32).toString('hex');
+    const factory =
+      ptyBridgeFactory ??
+      ((port: number, token: string): AgentPtyBridge =>
+        new AgentPtyBridge({ port, authToken: token }));
+    this.bridge = factory(ptyListenPort, this.ptyToken);
+    await this.bridge.start();
+    this.status_.bridgeRunning = true;
+
+    // 8. Heartbeat loop
+    this.heartbeatTimer = setIntervalImpl(() => {
+      void this.sendHeartbeat();
+    }, heartbeatIntervalMs);
+
+    // Fire an initial heartbeat in the background; do not await start() on it.
+    void this.sendHeartbeat();
+  }
+
+  async stop(): Promise<void> {
+    const clearIntervalImplLocal = this.opts.clearIntervalImpl ?? clearInterval;
+    if (this.heartbeatTimer) {
+      clearIntervalImplLocal(this.heartbeatTimer);
+      this.heartbeatTimer = null;
+    }
+    if (this.frpHandle) {
+      try {
+        await this.frpHandle.kill();
+      } catch {
+        // swallow
+      }
+      this.frpHandle = null;
+    }
+    if (this.bridge) {
+      try {
+        await this.bridge.stop();
+      } catch {
+        // swallow
+      }
+      this.bridge = null;
+    }
+    this.status_.bridgeRunning = false;
+    this.status_.tunnelStatus = 'disconnected';
+  }
+
+  private async sendHeartbeat(): Promise<void> {
+    const { hubUrl, pairingToken, nodeId, fetchImpl = fetch } = this.opts;
+    const url = `${hubUrl}/api/fleet/nodes/${nodeId}/heartbeat`;
+    const nowDate = (this.opts.now ?? (() => new Date()))();
+    const body = {
+      nodeId,
+      bootId: this.bootId,
+      bootAt: this.bootAt.toISOString(),
+      agentVersion: '0.0.0',
+      frpcVersion: this.opts.binaryVersion ?? DEFAULT_BINARY_VERSION,
+      hardware: {
+        cpuCount: os.cpus().length,
+        arch: os.arch(),
+        osDistro: os.platform(),
+      },
+      metrics: {
+        uptime: os.uptime(),
+      },
+      tunnel: {
+        status: this.status_.tunnelStatus,
+        connectedSince: this.bootAt.toISOString(),
+      },
+      proxies: [],
+      capabilities: this.capabilities,
+      // Phase 2 simplification: include pty bridge auth token so the hub
+      // can dial the local bridge when a user opens a terminal session.
+      ptyBridge: {
+        port: this.opts.ptyListenPort ?? DEFAULT_PTY_LISTEN_PORT,
+        authToken: this.ptyToken,
+      },
+    };
+    try {
+      const res = await fetchImpl(url, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${pairingToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(body),
+      });
+      if (res.ok) {
+        this.status_.lastHeartbeatAt = nowDate;
+      } else {
+        this.status_.lastError = `heartbeat-failed: ${res.status}`;
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      this.status_.lastError = `heartbeat-error: ${message}`;
+    }
+  }
+
+  private log(
+    level: string,
+    eventType: string,
+    message: string,
+    metadata?: Record<string, unknown>
+  ): void {
+    if (!this.opts.logEntry) return;
+    try {
+      this.opts.logEntry({ level, eventType, message, metadata });
+    } catch {
+      // swallow
+    }
+  }
+}

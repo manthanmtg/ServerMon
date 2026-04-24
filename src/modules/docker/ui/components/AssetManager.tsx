@@ -1,25 +1,21 @@
 'use client';
- 
+
 import { useState } from 'react';
 import { Trash2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { cn, formatBytes, relativeTime } from '@/lib/utils';
-import type { 
-  DockerImageSummary, 
-  DockerNetworkSummary, 
-  DockerVolumeSummary 
-} from '../../types';
- 
+import type { DockerImageSummary, DockerNetworkSummary, DockerVolumeSummary } from '../../types';
+
 type DataTab = 'images' | 'volumes' | 'networks';
- 
+
 interface AssetManagerProps {
   images: DockerImageSummary[];
   volumes: DockerVolumeSummary[];
   networks: DockerNetworkSummary[];
   onDelete: (id: string, type: 'images' | 'volumes' | 'networks') => void;
 }
- 
+
 function DatasetTabs({
   activeTab,
   onChange,
@@ -47,21 +43,21 @@ function DatasetTabs({
     </div>
   );
 }
- 
-export function AssetManager({
-  images,
-  volumes,
-  networks,
-  onDelete,
-}: AssetManagerProps) {
+
+export function AssetManager({ images, volumes, networks, onDelete }: AssetManagerProps) {
   const [activeTab, setActiveTab] = useState<DataTab>('images');
- 
+
   return (
-    <Card className="border-border/60 bg-card/50 backdrop-blur-md shadow-sm overflow-hidden" data-testid="docker-assets">
+    <Card
+      className="border-border/60 bg-card/50 backdrop-blur-md shadow-sm overflow-hidden"
+      data-testid="docker-assets"
+    >
       <CardHeader className="border-b border-border/20">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <CardTitle className="text-lg font-semibold tracking-tight">Images, volumes, and networks</CardTitle>
+            <CardTitle className="text-lg font-semibold tracking-tight">
+              Images, volumes, and networks
+            </CardTitle>
             <p className="text-sm text-muted-foreground">
               Inventory views for registries, attached storage, and bridge topology.
             </p>
@@ -88,7 +84,9 @@ export function AssetManager({
                   <td className="py-3 px-4 font-semibold text-foreground">{image.repository}</td>
                   <td className="py-3 px-4 font-mono text-xs text-muted-foreground">{image.tag}</td>
                   <td className="py-3 px-4 font-mono text-xs">{formatBytes(image.sizeBytes)}</td>
-                  <td className="py-3 px-4 text-muted-foreground">{relativeTime(image.createdAt)}</td>
+                  <td className="py-3 px-4 text-muted-foreground">
+                    {relativeTime(image.createdAt)}
+                  </td>
                   <td className="py-3 px-4 text-center">
                     <span className="px-2 py-0.5 rounded-full bg-primary/10 text-primary text-[10px] font-bold">
                       {image.containersUsing}
@@ -123,7 +121,9 @@ export function AssetManager({
             <tbody className="divide-y divide-border/20">
               {volumes.map((volume) => (
                 <tr key={volume.name} className="hover:bg-muted/10 transition-colors">
-                  <td className="py-3 px-4 font-semibold text-foreground truncate max-w-[200px]">{volume.name}</td>
+                  <td className="py-3 px-4 font-semibold text-foreground truncate max-w-[200px]">
+                    {volume.name}
+                  </td>
                   <td className="py-3 px-4 text-muted-foreground">{volume.driver}</td>
                   <td className="py-3 px-4 text-xs font-mono">{volume.scope || 'local'}</td>
                   <td className="py-3 px-4 font-mono text-[10px] text-muted-foreground opacity-60 truncate max-w-[300px]">

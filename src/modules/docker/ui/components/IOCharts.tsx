@@ -1,5 +1,5 @@
 'use client';
- 
+
 import {
   Area,
   AreaChart,
@@ -33,7 +33,7 @@ interface IOChartsProps {
   networkHistory: NetworkHistoryPoint[];
   onContainerChange: (id: string) => void;
 }
- 
+
 const chartColors = [
   'var(--primary)',
   'var(--accent)',
@@ -41,12 +41,12 @@ const chartColors = [
   'var(--warning)',
   'var(--destructive)',
 ];
- 
+
 function tooltipBytes(value: string | number | readonly (string | number)[] | undefined) {
   const val = Array.isArray(value) ? value[0] : value;
   return formatBytes(typeof val === 'number' ? val : Number(val) || 0);
 }
- 
+
 export function IOCharts({
   snapshot,
   selectedContainer,
@@ -56,7 +56,10 @@ export function IOCharts({
 }: IOChartsProps) {
   return (
     <section className="grid gap-6 2xl:grid-cols-2">
-      <Card className="border-border/60 bg-card/50 backdrop-blur-md shadow-sm overflow-hidden" data-testid="docker-io-chart">
+      <Card
+        className="border-border/60 bg-card/50 backdrop-blur-md shadow-sm overflow-hidden"
+        data-testid="docker-io-chart"
+      >
         <CardHeader>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
@@ -81,7 +84,12 @@ export function IOCharts({
         <CardContent className="h-[300px]">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={ioHistory}>
-              <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" vertical={false} opacity={0.4} />
+              <CartesianGrid
+                stroke="var(--border)"
+                strokeDasharray="3 3"
+                vertical={false}
+                opacity={0.4}
+              />
               <XAxis
                 dataKey="timestamp"
                 tick={{ fill: 'var(--muted-foreground)', fontSize: 11 }}
@@ -129,10 +137,15 @@ export function IOCharts({
           </ResponsiveContainer>
         </CardContent>
       </Card>
- 
-      <Card className="border-border/60 bg-card/50 backdrop-blur-md shadow-sm overflow-hidden" data-testid="docker-network-chart">
+
+      <Card
+        className="border-border/60 bg-card/50 backdrop-blur-md shadow-sm overflow-hidden"
+        data-testid="docker-network-chart"
+      >
         <CardHeader>
-          <CardTitle className="text-lg font-semibold tracking-tight">Network I/O by container</CardTitle>
+          <CardTitle className="text-lg font-semibold tracking-tight">
+            Network I/O by container
+          </CardTitle>
           <p className="text-sm text-muted-foreground">
             Top traffic containers across the recent polling window.
           </p>
@@ -140,7 +153,12 @@ export function IOCharts({
         <CardContent className="h-[300px]">
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={networkHistory}>
-              <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" vertical={false} opacity={0.4} />
+              <CartesianGrid
+                stroke="var(--border)"
+                strokeDasharray="3 3"
+                vertical={false}
+                opacity={0.4}
+              />
               <XAxis
                 dataKey="timestamp"
                 tick={{ fill: 'var(--muted-foreground)', fontSize: 11 }}

@@ -367,8 +367,7 @@ export default function UpdatePage() {
                     </span>
                   ) : (
                     <span>
-                      Completed in{' '}
-                      {formatElapsed(activeRun.startedAt, activeRun.finishedAt)}
+                      Completed in {formatElapsed(activeRun.startedAt, activeRun.finishedAt)}
                       {activeRun.exitCode !== null && activeRun.exitCode !== 0 && (
                         <span className="ml-2 text-destructive">
                           (exit code {activeRun.exitCode})
@@ -408,7 +407,10 @@ export default function UpdatePage() {
           {/* Log Output */}
           {activeRun.logContent && (
             <div className="relative">
-              <div ref={logContainerRef} className="max-h-80 overflow-y-auto p-4 font-mono text-xs leading-relaxed scrollbar-none bg-gradient-to-b from-black/80 to-black/60">
+              <div
+                ref={logContainerRef}
+                className="max-h-80 overflow-y-auto p-4 font-mono text-xs leading-relaxed scrollbar-none bg-gradient-to-b from-black/80 to-black/60"
+              >
                 <pre className="text-green-400/90 whitespace-pre-wrap break-all">
                   {activeRun.logContent}
                 </pre>
@@ -432,9 +434,7 @@ export default function UpdatePage() {
           {phase === 'running' && !activeRun.logContent && (
             <div className="flex items-center justify-center gap-3 py-8 bg-black/90">
               <Loader2 className="w-4 h-4 text-muted-foreground animate-spin" />
-              <span className="text-xs text-muted-foreground">
-                Waiting for output...
-              </span>
+              <span className="text-xs text-muted-foreground">Waiting for output...</span>
             </div>
           )}
         </Card>

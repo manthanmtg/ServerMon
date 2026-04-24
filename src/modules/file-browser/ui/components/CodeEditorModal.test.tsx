@@ -367,10 +367,12 @@ describe('CodeEditorModal', () => {
       expect(document.querySelector('div')).toBeDefined();
     });
 
-    const closeButtons = screen.getAllByRole('button').filter(
-      (btn) =>
-        btn.querySelector('[data-lucide="x"]') !== null || btn.getAttribute('title') === 'Close'
-    );
+    const closeButtons = screen
+      .getAllByRole('button')
+      .filter(
+        (btn) =>
+          btn.querySelector('[data-lucide="x"]') !== null || btn.getAttribute('title') === 'Close'
+      );
     if (closeButtons.length > 0) {
       closeButtons[0].click();
       expect(onCloseMock).toHaveBeenCalled();

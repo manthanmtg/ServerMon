@@ -45,7 +45,14 @@ describe('GET /api/modules/updates/run', () => {
   it('returns list of runs', async () => {
     mockGetSession.mockResolvedValue({ user: { role: 'admin' } });
     mockListUpdateRuns.mockResolvedValue([
-      { runId: '123', status: 'completed', startedAt: '2024-01-01T00:00:00Z', pid: 100, exitCode: 0, timestamp: '2024-01-01T00:00:00Z' },
+      {
+        runId: '123',
+        status: 'completed',
+        startedAt: '2024-01-01T00:00:00Z',
+        pid: 100,
+        exitCode: 0,
+        timestamp: '2024-01-01T00:00:00Z',
+      },
     ]);
     const req = new Request('http://localhost/api/modules/updates/run');
     const res = await GET(req);
@@ -99,7 +106,12 @@ describe('POST /api/modules/updates/run', () => {
 
   it('defaults to servermon update when no body', async () => {
     mockGetSession.mockResolvedValue({ user: { role: 'admin' } });
-    mockTriggerUpdate.mockResolvedValue({ success: true, message: 'Update started', pid: 1234, runId: 'run-1' });
+    mockTriggerUpdate.mockResolvedValue({
+      success: true,
+      message: 'Update started',
+      pid: 1234,
+      runId: 'run-1',
+    });
     const req = new Request('http://localhost/api/modules/updates/run', { method: 'POST' });
     const res = await POST(req);
     expect(res.status).toBe(200);
@@ -112,7 +124,12 @@ describe('POST /api/modules/updates/run', () => {
 
   it('calls triggerSystemPackageUpdate when type is packages', async () => {
     mockGetSession.mockResolvedValue({ user: { role: 'admin' } });
-    mockTriggerSystemPackageUpdate.mockResolvedValue({ success: true, message: 'Update started', pid: 5678, runId: 'pkg-1' });
+    mockTriggerSystemPackageUpdate.mockResolvedValue({
+      success: true,
+      message: 'Update started',
+      pid: 5678,
+      runId: 'pkg-1',
+    });
     const req = new Request('http://localhost/api/modules/updates/run', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

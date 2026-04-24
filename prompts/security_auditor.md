@@ -17,6 +17,7 @@ Security is proactive, not reactive. Eliminating XSS vectors, preventing token l
 ### 2. Audit (Pick 1–3 Issues)
 
 Check for:
+
 - **XSS Vectors**: Usage of `dangerouslySetInnerHTML` without explicit sanitization.
 - **Sensitive Logs**: Authentication tokens, credentials, or PII exposed to `console.log`.
 - **Insecure Storage**: Sensitive parameters stored in `localStorage` or URL query params in plaintext.
@@ -42,4 +43,5 @@ Check for:
 - Commit with a message like: `fix(security): prevent potential XSS parsing in description field`
 
 ## Issue Management
+
 - If an issue from `issues_to_look/` is resolved or found to be resolved, move it to the `issues_to_look/resolved/` directory to keep things clean.

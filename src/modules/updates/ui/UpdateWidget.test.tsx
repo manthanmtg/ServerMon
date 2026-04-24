@@ -61,7 +61,7 @@ describe('UpdateWidget', () => {
 
     // Total updates = 2+5+1 = 8
     expect(screen.getByText('8')).toBeDefined();
-    
+
     // Security count
     expect(screen.getByText('Security')).toBeDefined();
     expect(screen.getByText('2')).toBeDefined();
@@ -78,10 +78,10 @@ describe('UpdateWidget', () => {
     vi.mocked(global.fetch).mockRejectedValueOnce(new Error('API Error'));
 
     const { container } = render(<UpdateWidget />);
-    
+
     await act(async () => {
       // Allow any pending promises to flush
-      await new Promise(resolve => setTimeout(resolve, 0));
+      await new Promise((resolve) => setTimeout(resolve, 0));
     });
 
     expect(container.firstChild).toBeNull();

@@ -170,8 +170,7 @@ describe('FileBrowserSettingsModal', () => {
     renderModal(makeSettings(), onCloseMock);
     const allButtons = screen.getAllByRole('button');
     const xButton = allButtons.find(
-      (btn) =>
-        btn.className.includes('min-h-[44px]') || btn.querySelector('svg.lucide-x') !== null
+      (btn) => btn.className.includes('min-h-[44px]') || btn.querySelector('svg.lucide-x') !== null
     );
     fireEvent.click(xButton ?? allButtons[0]);
     expect(onCloseMock).toHaveBeenCalled();
@@ -358,9 +357,7 @@ describe('FileBrowserSettingsModal', () => {
     });
 
     await waitFor(() => {
-      expect(mockToast).toHaveBeenCalledWith(
-        expect.objectContaining({ variant: 'destructive' })
-      );
+      expect(mockToast).toHaveBeenCalledWith(expect.objectContaining({ variant: 'destructive' }));
     });
   });
 

@@ -60,7 +60,7 @@ describe('LogsPage', () => {
   it('filters logs by search query', async () => {
     await renderPage();
     const searchInput = screen.getByPlaceholderText('Search logs...');
-    
+
     await act(async () => {
       fireEvent.change(searchInput, { target: { value: 'admin' } });
     });
@@ -90,7 +90,7 @@ describe('LogsPage', () => {
   it('renders "No matching logs found" when filters yield no results', async () => {
     await renderPage();
     const searchInput = screen.getByPlaceholderText('Search logs...');
-    
+
     await act(async () => {
       fireEvent.change(searchInput, { target: { value: 'nonexistent' } });
     });
@@ -102,8 +102,11 @@ describe('LogsPage', () => {
 
   it('handles loading state', async () => {
     let resolveFetch: (value: Response | PromiseLike<Response>) => void;
-    global.fetch = vi.fn().mockImplementation(() =>
-      new Promise<Response>(resolve => { resolveFetch = resolve; })
+    global.fetch = vi.fn().mockImplementation(
+      () =>
+        new Promise<Response>((resolve) => {
+          resolveFetch = resolve;
+        })
     );
 
     render(<LogsPage />);

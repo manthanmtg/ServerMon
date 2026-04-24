@@ -2,7 +2,7 @@
 
 ## Summary
 
-Introduce a **Prompt Templates** layer on top of the existing AI Runner prompt library. A template is a reusable *scaffold* — a pre-written instruction block with placeholders — that a user can load when authoring a new prompt or when launching an ad-hoc run, and then edit before saving or executing.
+Introduce a **Prompt Templates** layer on top of the existing AI Runner prompt library. A template is a reusable _scaffold_ — a pre-written instruction block with placeholders — that a user can load when authoring a new prompt or when launching an ad-hoc run, and then edit before saving or executing.
 
 Templates come from two sources:
 
@@ -15,7 +15,7 @@ Templates come from two sources:
 - Good agent prompts have a lot of ritual boilerplate: `checkout main`, `git pull`, `run tests`, `create PR via gh`, `open issue`, etc.
 - Users keep re-typing the same scaffolding, often inconsistently, which makes agent runs less predictable.
 - There is no way to share a "known good" prompt recipe across users, machines, or teams without copy-pasting from chat.
-- Saved prompts (`AIRunnerPrompt`) solve *reuse of a specific, finished prompt*. Templates solve *reuse of a structure* that still needs a task-specific body filled in.
+- Saved prompts (`AIRunnerPrompt`) solve _reuse of a specific, finished prompt_. Templates solve _reuse of a structure_ that still needs a task-specific body filled in.
 
 ## Example Template
 
@@ -43,7 +43,7 @@ Placeholders like `{{branch_name}}` are filled in when the template is applied.
 - Let users define, edit, and delete their own templates.
 - Ship a small, opinionated set of **built-in templates** in-repo so a fresh install is useful immediately.
 - Clearly distinguish **built-in vs user-defined** in the UI and prevent editing of built-ins (only "Clone to my templates").
-- Keep templates *completely separate* from the `AIRunnerPrompt` model. Templates are scaffolds, prompts are the finished thing actually run by the agent.
+- Keep templates _completely separate_ from the `AIRunnerPrompt` model. Templates are scaffolds, prompts are the finished thing actually run by the agent.
 - Support simple `{{placeholder}}` variable substitution with a lightweight variable picker before insertion.
 
 ## Non-Goals
@@ -98,18 +98,18 @@ New Mongoose model alongside `AIRunnerPrompt`:
 ```ts
 // src/models/AIRunnerPromptTemplate.ts
 interface IAIRunnerPromptTemplate {
-  name: string;            // required, max 160
-  description?: string;    // optional short one-liner
-  content: string;         // template body, may contain {{placeholders}}, max 100_000
+  name: string; // required, max 160
+  description?: string; // optional short one-liner
+  content: string; // template body, may contain {{placeholders}}, max 100_000
   variables: Array<{
-    key: string;           // matches /^[a-z][a-z0-9_]*$/i
-    label?: string;        // human label shown in picker
+    key: string; // matches /^[a-z][a-z0-9_]*$/i
+    label?: string; // human label shown in picker
     description?: string;
     default?: string;
   }>;
   tags: string[];
-  source: 'builtin' | 'user';   // stored for built-ins that get seeded; user-created are always 'user'
-  builtinId?: string;           // stable id if source === 'builtin'
+  source: 'builtin' | 'user'; // stored for built-ins that get seeded; user-created are always 'user'
+  builtinId?: string; // stable id if source === 'builtin'
   createdAt: Date;
   updatedAt: Date;
 }
@@ -200,7 +200,7 @@ Each phase is independently shippable.
 ## Risks
 
 - **Confusion between Templates and Prompts.** Mitigate with copy: Templates are "scaffolds you fill in", Prompts are "ready-to-run instructions". Visually separate tabs and distinct icons.
-- **Built-in churn.** Changing a built-in template silently rewrites cloned-from-scratch content — but cloning creates a user-owned copy, so clones are safe. We must *never* overwrite a user template during seed. The seed path must only upsert docs where `source === 'builtin'`.
+- **Built-in churn.** Changing a built-in template silently rewrites cloned-from-scratch content — but cloning creates a user-owned copy, so clones are safe. We must _never_ overwrite a user template during seed. The seed path must only upsert docs where `source === 'builtin'`.
 - **Placeholder collisions** with shell syntax (`${VAR}` is common). Using `{{name}}` avoids this cleanly.
 
 ## Acceptance Criteria

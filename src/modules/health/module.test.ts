@@ -49,9 +49,7 @@ describe('healthModule definition', () => {
 
     it('init() logs initialization', () => {
       healthModule.init!(ctx);
-      expect(ctx.logger.info).toHaveBeenCalledWith(
-        expect.stringContaining('Initializing'),
-      );
+      expect(ctx.logger.info).toHaveBeenCalledWith(expect.stringContaining('Initializing'));
     });
 
     it('start() logs start message', () => {
@@ -64,7 +62,7 @@ describe('healthModule definition', () => {
       vi.advanceTimersByTime(10000);
       expect(ctx.events.emit).toHaveBeenCalledWith(
         'system:health',
-        expect.objectContaining({ status: 'healthy' }),
+        expect.objectContaining({ status: 'healthy' })
       );
     });
 

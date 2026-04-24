@@ -151,7 +151,9 @@ describe('ai-agents type shapes', () => {
       completed: 1,
     };
     expect(summary.total).toBe(10);
-    expect(summary.running + summary.idle + summary.waiting + summary.error + summary.completed).toBe(10);
+    expect(
+      summary.running + summary.idle + summary.waiting + summary.error + summary.completed
+    ).toBe(10);
   });
 
   it('AgentsSnapshot wraps summary and sessions', () => {

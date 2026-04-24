@@ -8,7 +8,7 @@ const log = createLogger('api:self-service:rollback');
 
 export async function POST(
   _request: NextRequest,
-  { params }: { params: Promise<{ jobId: string }> },
+  { params }: { params: Promise<{ jobId: string }> }
 ) {
   try {
     const { jobId } = await params;

@@ -27,6 +27,7 @@ import {
   Cpu,
   ShieldCheck,
   Server,
+  ServerCog,
   Shield,
   Power,
   LoaderCircle,
@@ -34,6 +35,7 @@ import {
   Users as UsersIcon,
   Waypoints,
   Zap,
+  Bell,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/components/ui/toast';
@@ -51,6 +53,15 @@ const navGroups = [
   {
     label: 'Overview',
     items: [{ label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard }],
+  },
+  {
+    label: 'Fleet',
+    items: [
+      { label: 'Fleet', href: '/fleet', icon: ServerCog },
+      { label: 'Hub Setup', href: '/fleet/setup', icon: Cog },
+      { label: 'Endpoint Runner', href: '/fleet/endpoint-runner', icon: Zap },
+      { label: 'Alerts', href: '/fleet/alerts', icon: Bell },
+    ],
   },
   {
     label: 'Modules',

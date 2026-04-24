@@ -1,5 +1,5 @@
 'use client';
- 
+
 import {
   Bar,
   BarChart,
@@ -17,7 +17,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { formatBytes } from '@/lib/utils';
 import type { DockerSnapshot } from '../../types';
- 
+
 interface ResourceChartsProps {
   snapshot: DockerSnapshot | null;
   topContainers: {
@@ -27,7 +27,7 @@ interface ResourceChartsProps {
     memoryPercent: number;
   }[];
 }
- 
+
 const chartColors = [
   'var(--primary)',
   'var(--accent)',
@@ -45,7 +45,7 @@ function tooltipBytes(value: string | number | readonly (string | number)[] | un
   const val = Array.isArray(value) ? value[0] : value;
   return formatBytes(typeof val === 'number' ? val : Number(val) || 0);
 }
- 
+
 export function ResourceCharts({ snapshot, topContainers }: ResourceChartsProps) {
   const diskChart = snapshot
     ? [
@@ -55,25 +55,37 @@ export function ResourceCharts({ snapshot, topContainers }: ResourceChartsProps)
         { name: 'Build Cache', value: snapshot.diskUsage.buildCacheBytes },
       ]
     : [];
- 
+
   return (
     <section className="grid gap-6 2xl:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
-      <Card className="border-border/60 bg-card/50 backdrop-blur-md shadow-sm overflow-hidden" data-testid="docker-resource-chart">
+      <Card
+        className="border-border/60 bg-card/50 backdrop-blur-md shadow-sm overflow-hidden"
+        data-testid="docker-resource-chart"
+      >
         <CardHeader>
           <div className="flex items-center justify-between gap-3">
             <div>
-              <CardTitle className="text-lg font-semibold tracking-tight">Container resource usage</CardTitle>
+              <CardTitle className="text-lg font-semibold tracking-tight">
+                Container resource usage
+              </CardTitle>
               <p className="text-sm text-muted-foreground">
                 CPU and memory percentages for the busiest containers.
               </p>
             </div>
-            <Badge variant="outline" className="bg-background/40">Top 5</Badge>
+            <Badge variant="outline" className="bg-background/40">
+              Top 5
+            </Badge>
           </div>
         </CardHeader>
         <CardContent className="h-[320px]">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={topContainers}>
-              <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" vertical={false} opacity={0.4} />
+              <CartesianGrid
+                stroke="var(--border)"
+                strokeDasharray="3 3"
+                vertical={false}
+                opacity={0.4}
+              />
               <XAxis
                 dataKey="name"
                 tick={{ fill: 'var(--muted-foreground)', fontSize: 11 }}
@@ -118,8 +130,11 @@ export function ResourceCharts({ snapshot, topContainers }: ResourceChartsProps)
           </ResponsiveContainer>
         </CardContent>
       </Card>
- 
-      <Card className="border-border/60 bg-card/50 backdrop-blur-md shadow-sm overflow-hidden" data-testid="docker-disk-chart">
+
+      <Card
+        className="border-border/60 bg-card/50 backdrop-blur-md shadow-sm overflow-hidden"
+        data-testid="docker-disk-chart"
+      >
         <CardHeader>
           <CardTitle className="text-lg font-semibold tracking-tight">Docker disk usage</CardTitle>
           <p className="text-sm text-muted-foreground">

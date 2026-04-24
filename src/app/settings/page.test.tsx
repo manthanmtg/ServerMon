@@ -5,13 +5,7 @@ import SettingsPage from './page';
 // ---- Mocks ----
 
 vi.mock('@/components/layout/ProShell', () => ({
-  default: ({
-    children,
-    title,
-  }: {
-    children: React.ReactNode;
-    title: string;
-  }) => (
+  default: ({ children, title }: { children: React.ReactNode; title: string }) => (
     <div data-testid="pro-shell">
       <span data-testid="title">{title}</span>
       {children}
@@ -22,11 +16,44 @@ vi.mock('@/components/layout/ProShell', () => ({
 const mockSetTheme = vi.fn();
 vi.mock('@/lib/ThemeContext', () => ({
   useTheme: () => ({
-    theme: { id: 'dark', name: 'Dark', type: 'dark', colors: { primary: '#6366f1', secondary: '#4f46e5', accent: '#818cf8', background: '#0f172a', border: '#1e293b' } },
+    theme: {
+      id: 'dark',
+      name: 'Dark',
+      type: 'dark',
+      colors: {
+        primary: '#6366f1',
+        secondary: '#4f46e5',
+        accent: '#818cf8',
+        background: '#0f172a',
+        border: '#1e293b',
+      },
+    },
     setTheme: mockSetTheme,
     availableThemes: [
-      { id: 'dark', name: 'Dark', type: 'dark', colors: { primary: '#6366f1', secondary: '#4f46e5', accent: '#818cf8', background: '#0f172a', border: '#1e293b' } },
-      { id: 'light', name: 'Light', type: 'light', colors: { primary: '#4f46e5', secondary: '#6366f1', accent: '#818cf8', background: '#ffffff', border: '#e2e8f0' } },
+      {
+        id: 'dark',
+        name: 'Dark',
+        type: 'dark',
+        colors: {
+          primary: '#6366f1',
+          secondary: '#4f46e5',
+          accent: '#818cf8',
+          background: '#0f172a',
+          border: '#1e293b',
+        },
+      },
+      {
+        id: 'light',
+        name: 'Light',
+        type: 'light',
+        colors: {
+          primary: '#4f46e5',
+          secondary: '#6366f1',
+          accent: '#818cf8',
+          background: '#ffffff',
+          border: '#e2e8f0',
+        },
+      },
     ],
   }),
 }));
@@ -198,9 +225,7 @@ describe('SettingsPage', () => {
     });
 
     await waitFor(() => {
-      expect(mockUpdateSettings).toHaveBeenCalledWith(
-        expect.objectContaining({ logoBase64: '' })
-      );
+      expect(mockUpdateSettings).toHaveBeenCalledWith(expect.objectContaining({ logoBase64: '' }));
     });
 
     expect(mockToast).toHaveBeenCalledWith(
@@ -242,9 +267,7 @@ describe('SettingsPage', () => {
     await waitFor(() => expect(screen.getByTestId('update-history-modal')).toBeDefined());
 
     fireEvent.click(screen.getByText('Close History'));
-    await waitFor(() =>
-      expect(screen.queryByTestId('update-history-modal')).toBeNull()
-    );
+    await waitFor(() => expect(screen.queryByTestId('update-history-modal')).toBeNull());
   });
 
   it('shows confirmation modal when update button is clicked', async () => {
@@ -266,9 +289,7 @@ describe('SettingsPage', () => {
     await waitFor(() => expect(screen.getByTestId('confirmation-modal')).toBeDefined());
 
     fireEvent.click(screen.getByText('Cancel'));
-    await waitFor(() =>
-      expect(screen.queryByTestId('confirmation-modal')).toBeNull()
-    );
+    await waitFor(() => expect(screen.queryByTestId('confirmation-modal')).toBeNull());
   });
 
   it('triggers system update when confirmed', async () => {

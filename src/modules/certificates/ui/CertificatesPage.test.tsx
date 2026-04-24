@@ -66,8 +66,11 @@ describe('CertificatesPage', () => {
 
   it('renders loading state initially', async () => {
     let resolveFetch: (value: Response | PromiseLike<Response>) => void;
-    global.fetch = vi.fn().mockImplementation(() => 
-      new Promise<Response>(resolve => { resolveFetch = resolve; })
+    global.fetch = vi.fn().mockImplementation(
+      () =>
+        new Promise<Response>((resolve) => {
+          resolveFetch = resolve;
+        })
     );
 
     const { container } = render(<CertificatesPage />);
@@ -128,15 +131,18 @@ describe('CertificatesPage', () => {
 
     await renderPage();
     const renewButtons = screen.getAllByText('Renew');
-    
+
     await act(async () => {
       fireEvent.click(renewButtons[0]);
     });
 
-    expect(global.fetch).toHaveBeenCalledWith('/api/modules/certificates/renew', expect.objectContaining({
-      method: 'POST',
-      body: JSON.stringify({ domain: 'example.com' }),
-    }));
+    expect(global.fetch).toHaveBeenCalledWith(
+      '/api/modules/certificates/renew',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ domain: 'example.com' }),
+      })
+    );
 
     await waitFor(() => {
       expect(screen.getByText('Renewal successful for example.com')).toBeDefined();
@@ -160,7 +166,7 @@ describe('CertificatesPage', () => {
 
     await renderPage();
     const renewButtons = screen.getAllByText('Renew');
-    
+
     await act(async () => {
       fireEvent.click(renewButtons[0]);
     });

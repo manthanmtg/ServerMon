@@ -57,8 +57,12 @@ describe('coreModules registry', () => {
     expect(coreModules.some((m) => m.id === 'endpoints-manager')).toBe(true);
   });
 
-  it('includes exactly 24 modules', () => {
-    expect(coreModules).toHaveLength(24);
+  it('includes the fleet-management module', () => {
+    expect(coreModules.some((m) => m.id === 'fleet-management')).toBe(true);
+  });
+
+  it('includes exactly 25 modules', () => {
+    expect(coreModules).toHaveLength(25);
   });
 
   it('every module with widgets has valid widget objects', () => {

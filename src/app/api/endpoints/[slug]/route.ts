@@ -16,7 +16,9 @@ async function handleRequest(req: NextRequest, { params }: { params: Promise<{ s
     const { slug } = await params;
 
     const endpoint = await CustomEndpoint.findOne({ slug })
-      .select('enabled method auth endpointType scriptLang scriptContent logicConfig webhookConfig envVars responseHeaders timeout')
+      .select(
+        'enabled method auth endpointType scriptLang scriptContent logicConfig webhookConfig envVars responseHeaders timeout'
+      )
       .lean();
 
     if (!endpoint) {

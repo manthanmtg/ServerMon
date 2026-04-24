@@ -18,7 +18,7 @@ function sleep(ms: number): Promise<void> {
 
 export async function runHealthCheck(
   opts: { url?: string; command?: string },
-  onLog: (line: string) => void,
+  onLog: (line: string) => void
 ): Promise<HealthCheckResult> {
   const logs: string[] = [];
 
@@ -36,9 +36,7 @@ export async function runHealthCheck(
   logs.push(`Will retry up to ${MAX_RETRIES} times with ${RETRY_DELAY_MS / 1000}s delay...`);
 
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-    const cmd = opts.url
-      ? `curl -sf -o /dev/null -w "%{http_code}" ${opts.url}`
-      : opts.command!;
+    const cmd = opts.url ? `curl -sf -o /dev/null -w "%{http_code}" ${opts.url}` : opts.command!;
 
     const result = await detectCommand(cmd);
 

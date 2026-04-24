@@ -1,9 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import {
-  FULL_SERVICE_PIPELINE,
-  CLI_TOOL_PIPELINE,
-  PROVISION_STEP_LABELS,
-} from './types';
+import { FULL_SERVICE_PIPELINE, CLI_TOOL_PIPELINE, PROVISION_STEP_LABELS } from './types';
 import type {
   InstallTemplate,
   InstallMethod,
@@ -105,7 +101,12 @@ describe('Self Service Types', () => {
         installMethods: [
           { id: 'docker', label: 'Docker', executionMethod: 'docker-compose', recommended: true },
           { id: 'native', label: 'Native', executionMethod: 'shell' },
-          { id: 'script', label: 'Script', executionMethod: 'script', installScript: '#!/bin/bash\necho test' },
+          {
+            id: 'script',
+            label: 'Script',
+            executionMethod: 'script',
+            installScript: '#!/bin/bash\necho test',
+          },
         ],
         defaultPipeline: FULL_SERVICE_PIPELINE,
         configSchema: [],

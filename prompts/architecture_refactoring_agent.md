@@ -17,6 +17,7 @@ Monolithic components (God objects) stifle agility, mask bugs, and inhibit testi
 ### 2. Audit (Plan Decomposition)
 
 Check for these code smells:
+
 - **Mixed Concerns**: Fetching data, managing complex local state, and rendering exhaustive UI in one file.
 - **Prop Drilling**: Passing props 4-5 layers deep within nested render functions.
 - **God Components**: A single file handling an entire feature domain's UI.
@@ -41,4 +42,5 @@ Check for these code smells:
 - Commit with a message like: `refactor(ui): extract list rendering logic from AdminView`
 
 ## Issue Management
+
 - If an issue from `issues_to_look/` is resolved or found to be resolved, move it to the `issues_to_look/resolved/` directory to keep things clean.

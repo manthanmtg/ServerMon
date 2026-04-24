@@ -10,7 +10,8 @@ const templates: EndpointTemplate[] = [
   {
     id: 'health-check',
     name: 'Health Check',
-    description: 'Simple health check endpoint that returns server status, uptime, and load average',
+    description:
+      'Simple health check endpoint that returns server status, uptime, and load average',
     icon: 'HeartPulse',
     category: 'monitoring',
     method: 'GET',
@@ -62,7 +63,8 @@ curl https://your-server/api/endpoints/health-check
   {
     id: 'status-page',
     name: 'Status Page JSON',
-    description: 'Returns a structured JSON status page with CPU, memory, and uptime for external monitoring',
+    description:
+      'Returns a structured JSON status page with CPU, memory, and uptime for external monitoring',
     icon: 'BarChart3',
     category: 'monitoring',
     method: 'GET',
@@ -571,7 +573,8 @@ Each port object:
   {
     id: 'file-integrity',
     name: 'File Integrity Check',
-    description: 'Computes SHA-256 checksums of critical system files to detect unauthorized changes',
+    description:
+      'Computes SHA-256 checksums of critical system files to detect unauthorized changes',
     icon: 'FileCheck',
     category: 'security',
     method: 'POST',
@@ -1013,7 +1016,8 @@ An array of service objects:
   {
     id: 'webhook-receiver',
     name: 'Webhook Receiver',
-    description: 'Receives webhook payloads from any service, logs them, and returns a confirmation',
+    description:
+      'Receives webhook payloads from any service, logs them, and returns a confirmation',
     icon: 'Webhook',
     category: 'integrations',
     method: 'POST',
@@ -1439,7 +1443,8 @@ Fetches Redis server information including memory, clients, and keyspace stats.
   {
     id: 'json-transform',
     name: 'JSON Transform',
-    description: 'A logic endpoint that validates, transforms, and reshapes JSON payloads using custom mapping',
+    description:
+      'A logic endpoint that validates, transforms, and reshapes JSON payloads using custom mapping',
     icon: 'Braces',
     category: 'data',
     method: 'POST',
@@ -1565,7 +1570,8 @@ Bob,25,LA
   {
     id: 'request-validator',
     name: 'Request Validator',
-    description: 'A logic endpoint that validates incoming JSON payloads against a schema and returns errors',
+    description:
+      'A logic endpoint that validates incoming JSON payloads against a schema and returns errors',
     icon: 'CheckSquare',
     category: 'data',
     method: 'POST',
@@ -1721,7 +1727,8 @@ Pings a host and returns latency statistics.
   {
     id: 'dns-lookup',
     name: 'DNS Lookup',
-    description: 'Performs DNS resolution for a domain and returns all A, AAAA, CNAME, and MX records',
+    description:
+      'Performs DNS resolution for a domain and returns all A, AAAA, CNAME, and MX records',
     icon: 'Globe',
     category: 'networking',
     method: 'POST',
@@ -1796,7 +1803,8 @@ Performs DNS resolution for a domain and returns A, AAAA, and MX records.
   {
     id: 'http-probe',
     name: 'HTTP Probe',
-    description: 'Probes an HTTP endpoint and returns status code, headers, response time, and TLS info',
+    description:
+      'Probes an HTTP endpoint and returns status code, headers, response time, and TLS info',
     icon: 'Radar',
     category: 'networking',
     method: 'POST',

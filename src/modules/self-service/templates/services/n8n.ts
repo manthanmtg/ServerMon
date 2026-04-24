@@ -74,10 +74,7 @@ services:
       id: 'npm',
       label: 'npm (Native)',
       executionMethod: 'shell',
-      installCommands: [
-        'npm install -g n8n',
-        'mkdir -p {{config.dataDir}}',
-      ],
+      installCommands: ['npm install -g n8n', 'mkdir -p {{config.dataDir}}'],
       systemdTemplate: `[Unit]
 Description=n8n Workflow Automation
 After=network.target

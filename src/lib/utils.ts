@@ -26,7 +26,7 @@ export function formatDuration(seconds: number): string {
 
   return parts.join(' ');
 }
- 
+
 export function relativeTime(value?: string | number | Date | null): string {
   if (!value) return '—';
   const diff = Date.now() - new Date(value).getTime();

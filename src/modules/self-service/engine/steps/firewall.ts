@@ -13,7 +13,7 @@ interface FirewallResult {
 
 export async function runFirewallSetup(
   _servicePort: number | string,
-  onLog: (line: string) => void,
+  onLog: (line: string) => void
 ): Promise<FirewallResult> {
   const logs: string[] = [];
   const shell = new ShellExecutor();
@@ -29,22 +29,16 @@ export async function runFirewallSetup(
     return { success: true, logs, skipped: true };
   }
 
-  const commands = [
-    'ufw allow 80/tcp comment "HTTP"',
-    'ufw allow 443/tcp comment "HTTPS"',
-  ];
+  const commands = ['ufw allow 80/tcp comment "HTTP"', 'ufw allow 443/tcp comment "HTTPS"'];
 
   for (const cmd of commands) {
     onLog(`$ ${cmd}`);
     logs.push(`$ ${cmd}`);
 
-    const result = await shell.execute(
-      { method: 'shell', commands: [cmd] },
-      (line) => {
-        logs.push(line);
-        onLog(line);
-      },
-    );
+    const result = await shell.execute({ method: 'shell', commands: [cmd] }, (line) => {
+      logs.push(line);
+      onLog(line);
+    });
 
     if (!result.success) {
       log.warn(`Firewall command failed: ${cmd}`, result.error);
@@ -57,9 +51,7 @@ export async function runFirewallSetup(
   return { success: true, logs };
 }
 
-export async function rollbackFirewall(
-  onLog: (line: string) => void,
-): Promise<void> {
+export async function rollbackFirewall(onLog: (line: string) => void): Promise<void> {
   const logs: string[] = [];
   const ufwCheck = await detectCommand('which ufw');
   if (!ufwCheck.found) return;

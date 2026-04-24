@@ -53,9 +53,7 @@ describe('ai-runner ui utils', () => {
       expect(formatCountdown(undefined, now)).toBe('Waiting for enablement');
       expect(formatCountdown('2026-04-22T11:38:00.000Z', now)).toBe('due now');
       expect(formatCountdown('2026-04-22T11:39:05.000Z', now)).toBe('in 1m 5s');
-      expect(formatCountdown('2026-04-21T10:36:56.000Z', now)).toBe(
-        'overdue by 1d 1h 1m 4s'
-      );
+      expect(formatCountdown('2026-04-21T10:36:56.000Z', now)).toBe('overdue by 1d 1h 1m 4s');
     });
   });
 

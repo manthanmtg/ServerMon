@@ -30,13 +30,7 @@ vi.mock('./TerminalHistoryModal', () => ({
 }));
 
 vi.mock('./SavedCommandsModal', () => ({
-  default: ({
-    onClose,
-    onRun,
-  }: {
-    onClose: () => void;
-    onRun: (cmd: string) => void;
-  }) => (
+  default: ({ onClose, onRun }: { onClose: () => void; onRun: (cmd: string) => void }) => (
     <div data-testid="saved-commands-modal">
       <button onClick={onClose}>Close Commands</button>
       <button onClick={() => onRun('ls -la')}>Run Command</button>
@@ -84,7 +78,10 @@ const mockSettings = {
 
 function setupFetchMock(sessions = mockSessions) {
   global.fetch = vi.fn().mockImplementation((url: string, options?: RequestInit) => {
-    if (url === '/api/terminal/sessions' && (!options || options.method === 'GET' || !options.method)) {
+    if (
+      url === '/api/terminal/sessions' &&
+      (!options || options.method === 'GET' || !options.method)
+    ) {
       return Promise.resolve({
         ok: true,
         json: async () => ({ sessions }),
@@ -334,9 +331,7 @@ describe('TerminalPage', () => {
 
     // Find the + (Plus) button
     const buttons = screen.getAllByRole('button');
-    const addBtn = buttons.find(
-      (btn) => btn.querySelector('[data-lucide="plus"]') !== null
-    );
+    const addBtn = buttons.find((btn) => btn.querySelector('[data-lucide="plus"]') !== null);
 
     if (addBtn) {
       await act(async () => {

@@ -56,64 +56,74 @@ export default function SelfServicePage() {
     setView({ kind: 'wizard', template, method });
   }, []);
 
-  const handleStartInstall = useCallback(async (
-    template: InstallTemplate,
-    method: InstallMethod,
-    config: Record<string, string | number | boolean>,
-  ) => {
-    try {
-      const res = await fetch('/api/modules/self-service/install', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          templateId: template.id,
-          methodId: method.id,
-          config,
-        }),
-      });
+  const handleStartInstall = useCallback(
+    async (
+      template: InstallTemplate,
+      method: InstallMethod,
+      config: Record<string, string | number | boolean>
+    ) => {
+      try {
+        const res = await fetch('/api/modules/self-service/install', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            templateId: template.id,
+            methodId: method.id,
+            config,
+          }),
+        });
 
-      if (!res.ok) {
+        if (!res.ok) {
+          const data = await res.json();
+          throw new Error(data.error || 'Failed to start install');
+        }
+
         const data = await res.json();
-        throw new Error(data.error || 'Failed to start install');
+        setView({ kind: 'progress', jobId: data.job.id });
+
+        toast({
+          title: 'Installation started',
+          description: `Installing ${template.name} via ${method.label}`,
+          variant: 'default',
+        });
+      } catch (err: unknown) {
+        const e = err as { message?: string };
+        toast({
+          title: 'Install failed',
+          description: e.message || 'Unknown error',
+          variant: 'destructive',
+        });
       }
+    },
+    [toast]
+  );
 
-      const data = await res.json();
-      setView({ kind: 'progress', jobId: data.job.id });
-
-      toast({
-        title: 'Installation started',
-        description: `Installing ${template.name} via ${method.label}`,
-        variant: 'default',
-      });
-    } catch (err: unknown) {
-      const e = err as { message?: string };
-      toast({
-        title: 'Install failed',
-        description: e.message || 'Unknown error',
-        variant: 'destructive',
-      });
-    }
-  }, [toast]);
-
-  const handleRollback = useCallback(async (jobId: string) => {
-    try {
-      const res = await fetch(`/api/modules/self-service/install/${jobId}/rollback`, {
-        method: 'POST',
-      });
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || 'Rollback failed');
+  const handleRollback = useCallback(
+    async (jobId: string) => {
+      try {
+        const res = await fetch(`/api/modules/self-service/install/${jobId}/rollback`, {
+          method: 'POST',
+        });
+        if (!res.ok) {
+          const data = await res.json();
+          throw new Error(data.error || 'Rollback failed');
+        }
+        toast({
+          title: 'Rollback initiated',
+          description: 'Rolling back installation...',
+          variant: 'default',
+        });
+      } catch (err: unknown) {
+        const e = err as { message?: string };
+        toast({
+          title: 'Rollback failed',
+          description: e.message || 'Unknown error',
+          variant: 'destructive',
+        });
       }
-      toast({ title: 'Rollback initiated', description: 'Rolling back installation...', variant: 'default' });
-    } catch (err: unknown) {
-      const e = err as { message?: string };
-      toast({
-        title: 'Rollback failed',
-        description: e.message || 'Unknown error',
-        variant: 'destructive',
-      });
-    }
-  }, [toast]);
+    },
+    [toast]
+  );
 
   const handleViewJob = useCallback((jobId: string) => {
     setView({ kind: 'history-job', jobId });
@@ -126,24 +136,30 @@ export default function SelfServicePage() {
       {showingMainView && (
         <div className="flex items-center gap-1 border-b border-border pb-0">
           <button
-            onClick={() => { setActiveTab('catalog'); setView({ kind: 'catalog' }); }}
+            onClick={() => {
+              setActiveTab('catalog');
+              setView({ kind: 'catalog' });
+            }}
             className={cn(
               'flex items-center gap-1.5 px-3 py-2 text-sm font-medium border-b-2 -mb-px transition-colors',
               activeTab === 'catalog'
                 ? 'border-primary text-foreground'
-                : 'border-transparent text-muted-foreground hover:text-foreground',
+                : 'border-transparent text-muted-foreground hover:text-foreground'
             )}
           >
             <Package className="w-3.5 h-3.5" />
             Catalog
           </button>
           <button
-            onClick={() => { setActiveTab('history'); setView({ kind: 'history' }); }}
+            onClick={() => {
+              setActiveTab('history');
+              setView({ kind: 'history' });
+            }}
             className={cn(
               'flex items-center gap-1.5 px-3 py-2 text-sm font-medium border-b-2 -mb-px transition-colors',
               activeTab === 'history'
                 ? 'border-primary text-foreground'
-                : 'border-transparent text-muted-foreground hover:text-foreground',
+                : 'border-transparent text-muted-foreground hover:text-foreground'
             )}
           >
             <History className="w-3.5 h-3.5" />
@@ -152,15 +168,14 @@ export default function SelfServicePage() {
         </div>
       )}
 
-      {view.kind === 'catalog' && (
-        loading ? (
+      {view.kind === 'catalog' &&
+        (loading ? (
           <div className="flex items-center justify-center py-20">
             <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
           </div>
         ) : (
           <TemplateCatalog templates={templates} onSelectTemplate={handleSelectTemplate} />
-        )
-      )}
+        ))}
 
       {view.kind === 'history' && (
         <InstallHistory onViewJob={handleViewJob} onRollback={handleRollback} />
@@ -186,7 +201,10 @@ export default function SelfServicePage() {
       {(view.kind === 'progress' || view.kind === 'history-job') && (
         <InstallProgress
           jobId={view.kind === 'progress' ? view.jobId : view.jobId}
-          onDone={() => { setActiveTab('catalog'); setView({ kind: 'catalog' }); }}
+          onDone={() => {
+            setActiveTab('catalog');
+            setView({ kind: 'catalog' });
+          }}
           onRollback={handleRollback}
         />
       )}

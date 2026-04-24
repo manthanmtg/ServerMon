@@ -128,9 +128,9 @@ describe('ProcessWidget', () => {
     // The component refetches after the debounce window elapses.
     await waitFor(() => {
       expect(
-        vi.mocked(global.fetch).mock.calls.some(
-          ([input]) => typeof input === 'string' && input.includes('search=node')
-        )
+        vi
+          .mocked(global.fetch)
+          .mock.calls.some(([input]) => typeof input === 'string' && input.includes('search=node'))
       ).toBe(true);
     });
   });

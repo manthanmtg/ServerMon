@@ -9,10 +9,7 @@ const log = createLogger('self-service:compose-executor');
 export class ComposeExecutor implements Executor {
   private shell = new ShellExecutor();
 
-  async execute(
-    payload: ExecutorPayload,
-    onLog: (line: string) => void,
-  ): Promise<ExecutorResult> {
+  async execute(payload: ExecutorPayload, onLog: (line: string) => void): Promise<ExecutorResult> {
     const logs: string[] = [];
     const composeContent = payload.composeContent;
     const composeDir = payload.composeDir;
@@ -42,7 +39,7 @@ export class ComposeExecutor implements Executor {
         (line) => {
           logs.push(line);
           onLog(line);
-        },
+        }
       );
 
       if (!result.success) {

@@ -30,21 +30,27 @@ describe('TerminalSettingsModal', () => {
   });
 
   it('renders modal title', () => {
-    render(<TerminalSettingsModal settings={defaultSettings} onClose={onClose} onSaved={onSaved} />);
+    render(
+      <TerminalSettingsModal settings={defaultSettings} onClose={onClose} onSaved={onSaved} />
+    );
     expect(screen.getByText('Terminal Settings')).toBeDefined();
   });
 
   it('renders all setting fields with current values', () => {
-    render(<TerminalSettingsModal settings={defaultSettings} onClose={onClose} onSaved={onSaved} />);
+    render(
+      <TerminalSettingsModal settings={defaultSettings} onClose={onClose} onSaved={onSaved} />
+    );
     expect(screen.getByDisplayValue('30')).toBeDefined(); // idleTimeout
-    expect(screen.getByDisplayValue('5')).toBeDefined();  // maxSessions
+    expect(screen.getByDisplayValue('5')).toBeDefined(); // maxSessions
     expect(screen.getByDisplayValue('14')).toBeDefined(); // fontSize
     expect(screen.getByDisplayValue('root')).toBeDefined();
     expect(screen.getByDisplayValue('/home')).toBeDefined();
   });
 
   it('renders setting labels and descriptions', () => {
-    render(<TerminalSettingsModal settings={defaultSettings} onClose={onClose} onSaved={onSaved} />);
+    render(
+      <TerminalSettingsModal settings={defaultSettings} onClose={onClose} onSaved={onSaved} />
+    );
     expect(screen.getByText('Idle timeout')).toBeDefined();
     expect(screen.getByText('Max sessions')).toBeDefined();
     expect(screen.getByText('Font size')).toBeDefined();
@@ -53,13 +59,17 @@ describe('TerminalSettingsModal', () => {
   });
 
   it('calls onClose when Cancel is clicked', () => {
-    render(<TerminalSettingsModal settings={defaultSettings} onClose={onClose} onSaved={onSaved} />);
+    render(
+      <TerminalSettingsModal settings={defaultSettings} onClose={onClose} onSaved={onSaved} />
+    );
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
     expect(onClose).toHaveBeenCalled();
   });
 
   it('calls onClose when backdrop is clicked', () => {
-    render(<TerminalSettingsModal settings={defaultSettings} onClose={onClose} onSaved={onSaved} />);
+    render(
+      <TerminalSettingsModal settings={defaultSettings} onClose={onClose} onSaved={onSaved} />
+    );
     // Click the outer div which has onClick={onClose}
     const backdrop = document.querySelector('.fixed.inset-0') as HTMLElement;
     fireEvent.click(backdrop);
@@ -67,7 +77,9 @@ describe('TerminalSettingsModal', () => {
   });
 
   it('calls onClose when X button clicked', () => {
-    render(<TerminalSettingsModal settings={defaultSettings} onClose={onClose} onSaved={onSaved} />);
+    render(
+      <TerminalSettingsModal settings={defaultSettings} onClose={onClose} onSaved={onSaved} />
+    );
     // The X button is the one inside the header
     const buttons = screen.getAllByRole('button');
     const xButton = buttons.find((b) => b.querySelector('svg'));
@@ -76,21 +88,27 @@ describe('TerminalSettingsModal', () => {
   });
 
   it('updates idle timeout when input changes', () => {
-    render(<TerminalSettingsModal settings={defaultSettings} onClose={onClose} onSaved={onSaved} />);
+    render(
+      <TerminalSettingsModal settings={defaultSettings} onClose={onClose} onSaved={onSaved} />
+    );
     const input = screen.getByDisplayValue('30');
     fireEvent.change(input, { target: { value: '60' } });
     expect(screen.getByDisplayValue('60')).toBeDefined();
   });
 
   it('updates max sessions when input changes', () => {
-    render(<TerminalSettingsModal settings={defaultSettings} onClose={onClose} onSaved={onSaved} />);
+    render(
+      <TerminalSettingsModal settings={defaultSettings} onClose={onClose} onSaved={onSaved} />
+    );
     const input = screen.getByDisplayValue('5');
     fireEvent.change(input, { target: { value: '10' } });
     expect(screen.getByDisplayValue('10')).toBeDefined();
   });
 
   it('updates loginAsUser when input changes', () => {
-    render(<TerminalSettingsModal settings={defaultSettings} onClose={onClose} onSaved={onSaved} />);
+    render(
+      <TerminalSettingsModal settings={defaultSettings} onClose={onClose} onSaved={onSaved} />
+    );
     const input = screen.getByDisplayValue('root');
     fireEvent.change(input, { target: { value: 'ubuntu' } });
     expect(screen.getByDisplayValue('ubuntu')).toBeDefined();

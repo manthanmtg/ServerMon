@@ -35,13 +35,7 @@ describe('security type shapes', () => {
   });
 
   it('SecurityCheck severity covers all levels', () => {
-    const severities: SecurityCheck['severity'][] = [
-      'critical',
-      'high',
-      'medium',
-      'low',
-      'info',
-    ];
+    const severities: SecurityCheck['severity'][] = ['critical', 'high', 'medium', 'low', 'info'];
     expect(severities).toHaveLength(5);
   });
 
@@ -79,9 +73,7 @@ describe('security type shapes', () => {
     const status: Fail2BanStatus = {
       available: true,
       running: true,
-      jails: [
-        { name: 'sshd', enabled: true, currentlyBanned: 2, totalBanned: 10, bannedIps: [] },
-      ],
+      jails: [{ name: 'sshd', enabled: true, currentlyBanned: 2, totalBanned: 10, bannedIps: [] }],
       totalBanned: 2,
     };
     expect(status.jails).toHaveLength(1);

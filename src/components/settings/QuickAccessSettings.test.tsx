@@ -207,9 +207,7 @@ describe('QuickAccessSettings', () => {
     await waitFor(() => {
       const putCall = vi
         .mocked(global.fetch)
-        .mock.calls.find(
-          (c) => typeof c[1] === 'object' && (c[1] as RequestInit).method === 'PUT'
-        );
+        .mock.calls.find((c) => typeof c[1] === 'object' && (c[1] as RequestInit).method === 'PUT');
       expect(putCall).toBeDefined();
     });
   });
@@ -239,9 +237,7 @@ describe('QuickAccessSettings', () => {
     });
 
     await waitFor(() => {
-      expect(mockToast).toHaveBeenCalledWith(
-        expect.objectContaining({ variant: 'success' })
-      );
+      expect(mockToast).toHaveBeenCalledWith(expect.objectContaining({ variant: 'success' }));
     });
   });
 
@@ -270,9 +266,7 @@ describe('QuickAccessSettings', () => {
     });
 
     await waitFor(() => {
-      expect(mockToast).toHaveBeenCalledWith(
-        expect.objectContaining({ variant: 'destructive' })
-      );
+      expect(mockToast).toHaveBeenCalledWith(expect.objectContaining({ variant: 'destructive' }));
     });
   });
 
@@ -298,9 +292,7 @@ describe('QuickAccessSettings', () => {
     });
 
     await waitFor(() => {
-      expect(mockToast).toHaveBeenCalledWith(
-        expect.objectContaining({ variant: 'destructive' })
-      );
+      expect(mockToast).toHaveBeenCalledWith(expect.objectContaining({ variant: 'destructive' }));
     });
   });
 

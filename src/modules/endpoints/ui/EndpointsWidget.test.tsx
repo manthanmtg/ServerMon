@@ -63,12 +63,18 @@ describe('EndpointsWidget', () => {
   it('shows loading spinner initially', () => {
     let resolveFetch!: (v: Response) => void;
     global.fetch = vi.fn().mockImplementation(
-      () => new Promise<Response>((r) => { resolveFetch = r; })
+      () =>
+        new Promise<Response>((r) => {
+          resolveFetch = r;
+        })
     );
     render(<EndpointsWidget />);
     expect(document.querySelector('.animate-spin')).toBeTruthy();
     act(() => {
-      resolveFetch({ ok: true, json: async () => ({ endpoints: mockEndpoints, total: 3 }) } as Response);
+      resolveFetch({
+        ok: true,
+        json: async () => ({ endpoints: mockEndpoints, total: 3 }),
+      } as Response);
     });
   });
 

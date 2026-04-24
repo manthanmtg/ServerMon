@@ -29,24 +29,12 @@ describe('updates type shapes', () => {
   });
 
   it('PackageUpdate category covers all types', () => {
-    const categories: PackageUpdate['category'][] = [
-      'security',
-      'regular',
-      'optional',
-      'language',
-    ];
+    const categories: PackageUpdate['category'][] = ['security', 'regular', 'optional', 'language'];
     expect(categories).toHaveLength(4);
   });
 
   it('PackageUpdate manager covers all supported package managers', () => {
-    const managers: PackageUpdate['manager'][] = [
-      'apt',
-      'dnf',
-      'npm',
-      'pip',
-      'snap',
-      'flatpak',
-    ];
+    const managers: PackageUpdate['manager'][] = ['apt', 'dnf', 'npm', 'pip', 'snap', 'flatpak'];
     expect(managers).toHaveLength(6);
   });
 

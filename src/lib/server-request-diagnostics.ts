@@ -35,8 +35,7 @@ interface HandleRequestInput {
 
 export function shouldInstrumentRequest(pathname?: string | null): boolean {
   return !(
-    pathname &&
-    DIAGNOSTIC_IGNORED_PATH_PREFIXES.some((prefix) => pathname.startsWith(prefix))
+    pathname && DIAGNOSTIC_IGNORED_PATH_PREFIXES.some((prefix) => pathname.startsWith(prefix))
   );
 }
 

@@ -20,11 +20,18 @@ export function EmptyState({ onCreateNew, onFromTemplate }: EmptyStateProps) {
         from here.
       </p>
       <div className="flex items-center gap-4">
-        <Button onClick={onCreateNew} className="gap-2.5 h-12 px-6 rounded-2xl font-bold shadow-lg shadow-primary/20 transition-transform hover:scale-[1.02] active:scale-[0.98]">
+        <Button
+          onClick={onCreateNew}
+          className="gap-2.5 h-12 px-6 rounded-2xl font-bold shadow-lg shadow-primary/20 transition-transform hover:scale-[1.02] active:scale-[0.98]"
+        >
           <Plus className="w-5 h-5" />
           New Endpoint
         </Button>
-        <Button variant="outline" onClick={onFromTemplate} className="gap-2.5 h-12 px-6 rounded-2xl font-bold border-border/60 hover:bg-accent/50 transition-transform hover:scale-[1.02] active:scale-[0.98]">
+        <Button
+          variant="outline"
+          onClick={onFromTemplate}
+          className="gap-2.5 h-12 px-6 rounded-2xl font-bold border-border/60 hover:bg-accent/50 transition-transform hover:scale-[1.02] active:scale-[0.98]"
+        >
           <Sparkles className="w-5 h-5" />
           From Template
         </Button>

@@ -36,6 +36,13 @@ export const CustomEndpointZodSchema = z.object({
   timeout: z.number().min(1000).max(120_000).default(30_000),
   docs: z.string().max(100_000).optional(),
   responseHeaders: z.record(z.string(), z.string()).optional(),
+  target: z
+    .object({
+      mode: z.enum(['local', 'single', 'fleet', 'tag', 'list']).default('local'),
+      nodeIds: z.array(z.string()).default([]),
+      tag: z.string().optional(),
+    })
+    .default({ mode: 'local', nodeIds: [] }),
 });
 
 export type ICustomEndpointDTO = z.infer<typeof CustomEndpointZodSchema>;
@@ -98,6 +105,15 @@ const CustomEndpointSchema: Schema = new Schema(
     timeout: { type: Number, default: 30_000, min: 1000, max: 120_000 },
     docs: { type: String },
     responseHeaders: { type: Map, of: String },
+    target: {
+      mode: {
+        type: String,
+        enum: ['local', 'single', 'fleet', 'tag', 'list'],
+        default: 'local',
+      },
+      nodeIds: { type: [String], default: [] },
+      tag: { type: String },
+    },
     lastExecutedAt: { type: Date },
     executionCount: { type: Number, default: 0 },
     lastStatus: { type: Number },

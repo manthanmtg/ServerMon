@@ -5,7 +5,11 @@ import { LoaderCircle, X, Terminal, Link, Braces, Sparkles } from 'lucide-react'
 import dynamic from 'next/dynamic';
 import { cn } from '@/lib/utils';
 import { LANGUAGES, METHODS } from './common/constants';
-import { LOGIC_BOILERPLATES, SCRIPT_BOILERPLATES, WEBHOOK_BOILERPLATES } from './common/boilerplates';
+import {
+  LOGIC_BOILERPLATES,
+  SCRIPT_BOILERPLATES,
+  WEBHOOK_BOILERPLATES,
+} from './common/boilerplates';
 import type { EndpointCreateRequest, HttpMethod, ScriptLanguage } from '../../types';
 import ConfirmationModal from '@/components/ui/ConfirmationModal';
 
@@ -20,7 +24,10 @@ const ScriptEditor = dynamic(() => import('./ScriptEditor'), {
 
 interface EndpointEditorProps {
   form: EndpointCreateRequest;
-  onUpdateForm: <K extends keyof EndpointCreateRequest>(key: K, value: EndpointCreateRequest[K]) => void;
+  onUpdateForm: <K extends keyof EndpointCreateRequest>(
+    key: K,
+    value: EndpointCreateRequest[K]
+  ) => void;
   onRun?: () => void;
   onSave: () => void;
 }
@@ -31,7 +38,9 @@ export function EndpointEditor({ form, onUpdateForm, onRun, onSave }: EndpointEd
   const handleLoadBoilerplate = () => {
     const lang = form.scriptLang || 'python';
     const method = (form.method as string) === 'POST' ? 'POST' : 'GET';
-    const bp = SCRIPT_BOILERPLATES[lang as ScriptLanguage][method] || SCRIPT_BOILERPLATES[lang as ScriptLanguage]['GET'];
+    const bp =
+      SCRIPT_BOILERPLATES[lang as ScriptLanguage][method] ||
+      SCRIPT_BOILERPLATES[lang as ScriptLanguage]['GET'];
     onUpdateForm('scriptContent', bp.content);
     setShowBoilerplateConfirm(false);
   };
@@ -80,7 +89,7 @@ export function EndpointEditor({ form, onUpdateForm, onRun, onSave }: EndpointEd
           <div className="group relative">
             <div className="absolute -inset-1 bg-gradient-to-r from-primary/20 to-blue-500/20 rounded-[2rem] blur opacity-25 group-hover:opacity-40 transition duration-1000 group-hover:duration-200" />
             <div className="relative">
-               <ScriptEditor
+              <ScriptEditor
                 value={form.scriptContent || ''}
                 onChange={(val) => onUpdateForm('scriptContent', val)}
                 language={form.scriptLang || 'python'}
@@ -111,9 +120,12 @@ export function EndpointEditor({ form, onUpdateForm, onRun, onSave }: EndpointEd
             </div>
             <div className="space-y-3">
               {Object.entries(form.envVars || {}).map(([key, value], i) => (
-                <div key={i} className="flex items-center gap-3 p-2 bg-muted/10 rounded-2xl border border-border/30 group/var transition-colors hover:border-border/60 animate-in slide-in-from-left-4 duration-300">
+                <div
+                  key={i}
+                  className="flex items-center gap-3 p-2 bg-muted/10 rounded-2xl border border-border/30 group/var transition-colors hover:border-border/60 animate-in slide-in-from-left-4 duration-300"
+                >
                   <div className="flex-1 flex items-center gap-2">
-                     <input
+                    <input
                       type="text"
                       value={key}
                       placeholder="KEY (e.g. API_KEY)"
@@ -139,9 +151,7 @@ export function EndpointEditor({ form, onUpdateForm, onRun, onSave }: EndpointEd
                   </div>
                   <button
                     onClick={() => {
-                      const entries = Object.entries(form.envVars || {}).filter(
-                        (_, j) => j !== i
-                      );
+                      const entries = Object.entries(form.envVars || {}).filter((_, j) => j !== i);
                       onUpdateForm('envVars', Object.fromEntries(entries));
                     }}
                     className="p-2 text-muted-foreground/40 hover:text-destructive hover:bg-destructive/10 rounded-xl transition-all"
@@ -164,7 +174,7 @@ export function EndpointEditor({ form, onUpdateForm, onRun, onSave }: EndpointEd
       {form.endpointType === 'webhook' && (
         <div className="space-y-6">
           <div className="space-y-3">
-             <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2 ml-1">
                 <Link className="w-4 h-4 text-primary" />
                 <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-[0.2em]">
@@ -173,8 +183,14 @@ export function EndpointEditor({ form, onUpdateForm, onRun, onSave }: EndpointEd
               </div>
               {!form.webhookConfig?.transformBody && (
                 <button
-                    onClick={() => onUpdateForm('webhookConfig', { ...form.webhookConfig, targetUrl: form.webhookConfig?.targetUrl || '', transformBody: WEBHOOK_BOILERPLATES.transform })}
-                    className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-primary/5 border border-primary/20 text-[10px] font-black text-primary uppercase tracking-tighter hover:bg-primary/10 transition-all active:scale-95"
+                  onClick={() =>
+                    onUpdateForm('webhookConfig', {
+                      ...form.webhookConfig,
+                      targetUrl: form.webhookConfig?.targetUrl || '',
+                      transformBody: WEBHOOK_BOILERPLATES.transform,
+                    })
+                  }
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-primary/5 border border-primary/20 text-[10px] font-black text-primary uppercase tracking-tighter hover:bg-primary/10 transition-all active:scale-95"
                 >
                   <Sparkles className="w-3 h-3" />
                   Magic Transform
@@ -225,8 +241,12 @@ export function EndpointEditor({ form, onUpdateForm, onRun, onSave }: EndpointEd
 
           <div className="flex items-center justify-between p-6 rounded-3xl bg-primary/2 border border-primary/10 transition-all hover:bg-primary/5">
             <div className="space-y-1">
-              <div className="text-sm font-black text-foreground uppercase tracking-tight">Transparent Proxying</div>
-              <div className="text-[11px] text-muted-foreground font-medium">Forward all incoming HTTP headers to the target upstream</div>
+              <div className="text-sm font-black text-foreground uppercase tracking-tight">
+                Transparent Proxying
+              </div>
+              <div className="text-[11px] text-muted-foreground font-medium">
+                Forward all incoming HTTP headers to the target upstream
+              </div>
             </div>
             <button
               onClick={() =>
@@ -252,13 +272,13 @@ export function EndpointEditor({ form, onUpdateForm, onRun, onSave }: EndpointEd
 
           <div className="space-y-3">
             <div className="flex items-center gap-2 ml-1">
-               <Braces className="w-4 h-4 text-primary" />
-               <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-[0.2em]">
+              <Braces className="w-4 h-4 text-primary" />
+              <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-[0.2em]">
                 Payload Transformer (JavaScript)
               </label>
             </div>
             <div className="rounded-2xl overflow-hidden border border-border/40 bg-[#1e1e2e] shadow-xl">
-               <textarea
+              <textarea
                 value={form.webhookConfig?.transformBody || ''}
                 onChange={(e) =>
                   onUpdateForm('webhookConfig', {
@@ -274,7 +294,8 @@ export function EndpointEditor({ form, onUpdateForm, onRun, onSave }: EndpointEd
               />
             </div>
             <p className="px-1 text-[10px] text-muted-foreground/60 italic font-medium">
-              Reference incoming payload as <code className="text-primary font-bold">input</code>. Returns a JSON object.
+              Reference incoming payload as <code className="text-primary font-bold">input</code>.
+              Returns a JSON object.
             </p>
           </div>
         </div>
@@ -282,7 +303,7 @@ export function EndpointEditor({ form, onUpdateForm, onRun, onSave }: EndpointEd
 
       {form.endpointType === 'logic' && (
         <div className="space-y-8">
-           <div className="space-y-4">
+          <div className="space-y-4">
             <div className="flex items-center justify-between ml-1">
               <div className="flex items-center gap-2">
                 <Braces className="w-4 h-4 text-primary" />
@@ -292,8 +313,15 @@ export function EndpointEditor({ form, onUpdateForm, onRun, onSave }: EndpointEd
               </div>
               {!form.logicConfig?.requestSchema && (
                 <button
-                   onClick={() => onUpdateForm('logicConfig', { ...form.logicConfig, requestSchema: LOGIC_BOILERPLATES.schema, handlerCode: LOGIC_BOILERPLATES.handler, responseMapping: LOGIC_BOILERPLATES.mapping })}
-                   className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-primary/5 border border-primary/20 text-[10px] font-black text-primary uppercase tracking-tighter hover:bg-primary/10 transition-all"
+                  onClick={() =>
+                    onUpdateForm('logicConfig', {
+                      ...form.logicConfig,
+                      requestSchema: LOGIC_BOILERPLATES.schema,
+                      handlerCode: LOGIC_BOILERPLATES.handler,
+                      responseMapping: LOGIC_BOILERPLATES.mapping,
+                    })
+                  }
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-primary/5 border border-primary/20 text-[10px] font-black text-primary uppercase tracking-tighter hover:bg-primary/10 transition-all"
                 >
                   <Sparkles className="w-3 h-3" />
                   Apply Standard Logic Template
@@ -319,8 +347,8 @@ export function EndpointEditor({ form, onUpdateForm, onRun, onSave }: EndpointEd
 
           <div className="space-y-4">
             <div className="flex items-center gap-2 ml-1">
-               <Terminal className="w-4 h-4 text-primary" />
-               <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-[0.2em]">
+              <Terminal className="w-4 h-4 text-primary" />
+              <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-[0.2em]">
                 Edge Handler Logic (JS)
               </label>
             </div>
@@ -342,7 +370,7 @@ export function EndpointEditor({ form, onUpdateForm, onRun, onSave }: EndpointEd
           </div>
 
           <div className="space-y-4">
-             <div className="flex items-center gap-2 ml-1">
+            <div className="flex items-center gap-2 ml-1">
               <Link className="w-4 h-4 text-primary" />
               <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-[0.2em]">
                 Response Mapping (JSON)

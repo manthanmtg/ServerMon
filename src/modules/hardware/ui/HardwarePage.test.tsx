@@ -80,7 +80,6 @@ vi.mock('@/components/layout/ProShell', () => ({
   ),
 }));
 
-
 describe('HardwarePage', () => {
   beforeEach(() => {
     vi.clearAllMocks();

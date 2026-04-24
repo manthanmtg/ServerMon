@@ -138,7 +138,14 @@ class UsersService {
     if (!this.isValidShell(shell)) {
       throw new Error('Invalid shell path');
     }
-    const { stderr } = await this.runCommand('sudo', ['useradd', '-m', '-s', shell, '--', username]);
+    const { stderr } = await this.runCommand('sudo', [
+      'useradd',
+      '-m',
+      '-s',
+      shell,
+      '--',
+      username,
+    ]);
     if (stderr && !stderr.includes('already exists')) {
       throw new Error(stderr);
     }

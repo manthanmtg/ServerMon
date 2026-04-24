@@ -320,8 +320,10 @@ describe('DockerPage', () => {
     await waitFor(() => screen.getByText('Docker operations center'));
 
     const tableContainer = screen.getByTestId('docker-containers-table');
-    const removeButtons = within(tableContainer).getAllByRole('button').filter(b => b.querySelector('svg.lucide-trash2') || b.innerHTML.includes('lucide-trash2'));
-    
+    const removeButtons = within(tableContainer)
+      .getAllByRole('button')
+      .filter((b) => b.querySelector('svg.lucide-trash2') || b.innerHTML.includes('lucide-trash2'));
+
     await act(async () => {
       fireEvent.click(removeButtons[0]);
     });

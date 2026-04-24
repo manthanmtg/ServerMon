@@ -32,7 +32,10 @@ describe('ServicesWidget', () => {
   it('shows skeleton while loading', () => {
     let resolveFetch!: (v: Response) => void;
     global.fetch = vi.fn().mockImplementation(
-      () => new Promise<Response>((r) => { resolveFetch = r; })
+      () =>
+        new Promise<Response>((r) => {
+          resolveFetch = r;
+        })
     );
     render(<ServicesWidget />);
     expect(screen.queryByText('Services')).toBeNull();

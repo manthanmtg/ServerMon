@@ -1,20 +1,23 @@
 'use client';
- 
+
 import { AlertTriangle, Boxes } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { cn, formatBytes, relativeTime } from '@/lib/utils';
 import type { DockerSnapshot } from '../../types';
- 
+
 interface DockerSidebarProps {
   snapshot: DockerSnapshot | null;
 }
- 
+
 export function DockerSidebar({ snapshot }: DockerSidebarProps) {
   return (
     <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
       {/* Daemon Profile */}
-      <Card className="border-border/60 bg-card/40 backdrop-blur-md shadow-sm overflow-hidden" data-testid="docker-sidebar">
+      <Card
+        className="border-border/60 bg-card/40 backdrop-blur-md shadow-sm overflow-hidden"
+        data-testid="docker-sidebar"
+      >
         <CardHeader className="pb-4 border-b border-border/20 bg-muted/10">
           <CardTitle className="text-sm font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
             <span className="w-1.5 h-1.5 rounded-full bg-primary" />
@@ -24,26 +27,34 @@ export function DockerSidebar({ snapshot }: DockerSidebarProps) {
         <CardContent className="space-y-4 p-5 text-sm">
           <div className="grid gap-3">
             <div className="rounded-xl border border-border/40 bg-muted/10 p-3.5 transition-colors hover:bg-muted/20">
-              <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Version</p>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                Version
+              </p>
               <p className="mt-1 font-mono font-bold text-foreground">
                 {snapshot?.daemon.serverVersion || 'Unavailable'}
               </p>
             </div>
             <div className="rounded-xl border border-border/40 bg-muted/10 p-3.5 transition-colors hover:bg-muted/20">
-              <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">API version</p>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                API version
+              </p>
               <p className="mt-1 font-mono font-bold text-foreground">
                 {snapshot?.daemon.apiVersion || 'Unavailable'}
               </p>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="rounded-xl border border-border/40 bg-muted/10 p-3.5 transition-colors hover:bg-muted/20">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Driver</p>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                  Driver
+                </p>
                 <p className="mt-1 font-mono text-xs font-bold truncate">
                   {snapshot?.daemon.storageDriver || 'Unavailable'}
                 </p>
               </div>
               <div className="rounded-xl border border-border/40 bg-muted/10 p-3.5 transition-colors hover:bg-muted/20">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Disk usage</p>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                  Disk usage
+                </p>
                 <p className="mt-1 font-mono font-bold">
                   {formatBytes(snapshot?.diskUsage.totalBytes || 0)}
                 </p>
@@ -55,9 +66,12 @@ export function DockerSidebar({ snapshot }: DockerSidebarProps) {
           </div>
         </CardContent>
       </Card>
- 
+
       {/* Alerts */}
-      <Card className="border-border/60 bg-card/40 backdrop-blur-md shadow-sm overflow-hidden" data-testid="docker-alerts">
+      <Card
+        className="border-border/60 bg-card/40 backdrop-blur-md shadow-sm overflow-hidden"
+        data-testid="docker-alerts"
+      >
         <CardHeader className="pb-4 border-b border-border/20 bg-muted/10">
           <div className="flex items-center justify-between gap-3">
             <CardTitle className="text-sm font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
@@ -90,10 +104,12 @@ export function DockerSidebar({ snapshot }: DockerSidebarProps) {
                   )}
                 >
                   <div className="flex items-start gap-4">
-                    <div className={cn(
-                      "p-2 rounded-lg",
-                      alert.severity === 'critical' ? 'bg-destructive/10' : 'bg-warning/10'
-                    )}>
+                    <div
+                      className={cn(
+                        'p-2 rounded-lg',
+                        alert.severity === 'critical' ? 'bg-destructive/10' : 'bg-warning/10'
+                      )}
+                    >
                       <AlertTriangle
                         className={cn(
                           'h-4 w-4',
@@ -123,16 +139,24 @@ export function DockerSidebar({ snapshot }: DockerSidebarProps) {
           </div>
         </CardContent>
       </Card>
- 
+
       {/* Events */}
-      <Card className="border-border/60 bg-card/40 backdrop-blur-md shadow-sm overflow-hidden" data-testid="docker-events">
+      <Card
+        className="border-border/60 bg-card/40 backdrop-blur-md shadow-sm overflow-hidden"
+        data-testid="docker-events"
+      >
         <CardHeader className="pb-4 border-b border-border/20 bg-muted/10">
           <div className="flex items-center justify-between gap-3">
             <CardTitle className="text-sm font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
               <span className="w-1.5 h-1.5 rounded-full bg-success" />
               Container events
             </CardTitle>
-            <Badge variant="outline" className="font-mono text-[10px] bg-background/50 animate-pulse">Live feed</Badge>
+            <Badge
+              variant="outline"
+              className="font-mono text-[10px] bg-background/50 animate-pulse"
+            >
+              Live feed
+            </Badge>
           </div>
         </CardHeader>
         <CardContent className="p-4">
@@ -151,7 +175,8 @@ export function DockerSidebar({ snapshot }: DockerSidebarProps) {
                       <div>
                         <p className="font-bold text-xs">{event.actor}</p>
                         <p className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/80 mt-0.5">
-                          {event.type} <span className="text-primary/60 mx-1">/</span> {event.action}
+                          {event.type} <span className="text-primary/60 mx-1">/</span>{' '}
+                          {event.action}
                         </p>
                       </div>
                     </div>

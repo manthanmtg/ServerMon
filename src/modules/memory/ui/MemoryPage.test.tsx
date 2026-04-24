@@ -178,16 +178,18 @@ describe('MemoryPage', () => {
   });
 
   it('kills a process when the kill button is clicked', async () => {
-    (global.fetch as ReturnType<typeof vi.fn>).mockImplementation((url: string, opts?: RequestInit) => {
-      if (url.includes('/stats')) {
-        return Promise.resolve({ ok: true, json: async () => mockDetailedStats });
+    (global.fetch as ReturnType<typeof vi.fn>).mockImplementation(
+      (url: string, opts?: RequestInit) => {
+        if (url.includes('/stats')) {
+          return Promise.resolve({ ok: true, json: async () => mockDetailedStats });
+        }
+        if (url.includes('/processes') && (!opts || opts.method !== 'DELETE')) {
+          return Promise.resolve({ ok: true, json: async () => mockTopProcs });
+        }
+        // DELETE call for kill
+        return Promise.resolve({ ok: true, json: async () => ({}) });
       }
-      if (url.includes('/processes') && (!opts || opts.method !== 'DELETE')) {
-        return Promise.resolve({ ok: true, json: async () => mockTopProcs });
-      }
-      // DELETE call for kill
-      return Promise.resolve({ ok: true, json: async () => ({}) });
-    });
+    );
 
     await renderWithToast(<MemoryPage />);
 

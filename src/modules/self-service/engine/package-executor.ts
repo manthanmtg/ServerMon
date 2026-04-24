@@ -52,10 +52,7 @@ function buildInstallCommand(pm: PackageManager, packages: string[]): string {
 export class PackageExecutor implements Executor {
   private shell = new ShellExecutor();
 
-  async execute(
-    payload: ExecutorPayload,
-    onLog: (line: string) => void,
-  ): Promise<ExecutorResult> {
+  async execute(payload: ExecutorPayload, onLog: (line: string) => void): Promise<ExecutorResult> {
     const logs: string[] = [];
     const packages = payload.packageNames ?? payload.commands ?? [];
 
@@ -86,7 +83,7 @@ export class PackageExecutor implements Executor {
         (line) => {
           logs.push(line);
           onLog(line);
-        },
+        }
       );
       if (!updateResult.success) {
         log.warn('apt-get update failed, continuing with install anyway');
@@ -102,7 +99,7 @@ export class PackageExecutor implements Executor {
       (line) => {
         logs.push(line);
         onLog(line);
-      },
+      }
     );
 
     if (!result.success) {

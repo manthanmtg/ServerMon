@@ -2,9 +2,25 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import {
-  Workflow, Bot, GitBranch, BarChart3, HeartPulse, Monitor, Container, FileCode,
-  Package, Terminal, Download, FileText, Server,
-  ArrowLeft, ExternalLink, CheckCircle2, XCircle, AlertCircle, Star,
+  Workflow,
+  Bot,
+  GitBranch,
+  BarChart3,
+  HeartPulse,
+  Monitor,
+  Container,
+  FileCode,
+  Package,
+  Terminal,
+  Download,
+  FileText,
+  Server,
+  ArrowLeft,
+  ExternalLink,
+  CheckCircle2,
+  XCircle,
+  AlertCircle,
+  Star,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -13,8 +29,19 @@ import type { InstallTemplate, DetectionResult, InstallMethod } from '../../type
 import { PROVISION_STEP_LABELS } from '../../types';
 
 const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
-  Workflow, Bot, GitBranch, BarChart3, HeartPulse, Monitor, Container, FileCode,
-  Package, Terminal, Download, FileText, Server,
+  Workflow,
+  Bot,
+  GitBranch,
+  BarChart3,
+  HeartPulse,
+  Monitor,
+  Container,
+  FileCode,
+  Package,
+  Terminal,
+  Download,
+  FileText,
+  Server,
 };
 
 const METHOD_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -43,7 +70,9 @@ export function TemplateDetail({ templateId, onBack, onInstall }: TemplateDetail
 
   const load = useCallback(async () => {
     try {
-      const res = await fetch(`/api/modules/self-service/templates/${templateId}`, { cache: 'no-store' });
+      const res = await fetch(`/api/modules/self-service/templates/${templateId}`, {
+        cache: 'no-store',
+      });
       if (!res.ok) throw new Error('Failed to load template');
       const json = await res.json();
       setData(json);
@@ -71,7 +100,9 @@ export function TemplateDetail({ templateId, onBack, onInstall }: TemplateDetail
     return (
       <div className="text-center py-12">
         <p className="text-sm text-destructive">{error || 'Template not found'}</p>
-        <button onClick={onBack} className="text-sm text-primary mt-2 hover:underline">Go back</button>
+        <button onClick={onBack} className="text-sm text-primary mt-2 hover:underline">
+          Go back
+        </button>
       </div>
     );
   }
@@ -114,7 +145,9 @@ export function TemplateDetail({ templateId, onBack, onInstall }: TemplateDetail
           <p className="text-sm text-muted-foreground mb-2">{template.description}</p>
           <div className="flex items-center gap-2 flex-wrap">
             {template.tags.map((tag) => (
-              <Badge key={tag} variant="secondary" className="text-[10px]">{tag}</Badge>
+              <Badge key={tag} variant="secondary" className="text-[10px]">
+                {tag}
+              </Badge>
             ))}
             {template.homepage && (
               <a
@@ -156,7 +189,7 @@ export function TemplateDetail({ templateId, onBack, onInstall }: TemplateDetail
                     key={method.id}
                     className={cn(
                       'flex items-center justify-between p-3 rounded-lg border transition-colors',
-                      'hover:border-primary/40 hover:bg-accent/50',
+                      'hover:border-primary/40 hover:bg-accent/50'
                     )}
                   >
                     <div className="flex items-center gap-3">
@@ -195,7 +228,10 @@ export function TemplateDetail({ templateId, onBack, onInstall }: TemplateDetail
               </CardHeader>
               <CardContent>
                 <div className="text-sm text-muted-foreground whitespace-pre-line leading-relaxed">
-                  {template.longDescription.replace(/^#.*\n/gm, '').replace(/##\s*/g, '').trim()}
+                  {template.longDescription
+                    .replace(/^#.*\n/gm, '')
+                    .replace(/##\s*/g, '')
+                    .trim()}
                 </div>
               </CardContent>
             </Card>
@@ -219,7 +255,9 @@ export function TemplateDetail({ templateId, onBack, onInstall }: TemplateDetail
                     {d.method}: {d.details || template.detection[i]?.value}
                   </span>
                   {d.version && (
-                    <Badge variant="secondary" className="text-[9px] ml-auto">{d.version}</Badge>
+                    <Badge variant="secondary" className="text-[9px] ml-auto">
+                      {d.version}
+                    </Badge>
                   )}
                 </div>
               ))}
@@ -254,15 +292,16 @@ export function TemplateDetail({ templateId, onBack, onInstall }: TemplateDetail
                   <div key={field.key} className="text-xs">
                     <div className="flex items-center gap-1.5">
                       <span className="font-medium">{field.label}</span>
-                      {field.required && (
-                        <AlertCircle className="w-3 h-3 text-amber-500" />
-                      )}
+                      {field.required && <AlertCircle className="w-3 h-3 text-amber-500" />}
                     </div>
                     {field.description && (
                       <p className="text-muted-foreground mt-0.5">{field.description}</p>
                     )}
                     <p className="text-muted-foreground/70 mt-0.5">
-                      Default: <code className="text-[10px] bg-muted px-1 rounded">{String(field.default)}</code>
+                      Default:{' '}
+                      <code className="text-[10px] bg-muted px-1 rounded">
+                        {String(field.default)}
+                      </code>
                     </p>
                   </div>
                 ))}

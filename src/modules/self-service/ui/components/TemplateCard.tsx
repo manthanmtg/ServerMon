@@ -1,8 +1,19 @@
 'use client';
 
 import {
-  Workflow, Bot, GitBranch, BarChart3, HeartPulse, Monitor, Container, FileCode,
-  Package, Terminal, Download, FileText, Server,
+  Workflow,
+  Bot,
+  GitBranch,
+  BarChart3,
+  HeartPulse,
+  Monitor,
+  Container,
+  FileCode,
+  Package,
+  Terminal,
+  Download,
+  FileText,
+  Server,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -10,8 +21,19 @@ import { cn } from '@/lib/utils';
 import type { TemplateListItem } from '../../types';
 
 const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
-  Workflow, Bot, GitBranch, BarChart3, HeartPulse, Monitor, Container, FileCode,
-  Package, Terminal, Download, FileText, Server,
+  Workflow,
+  Bot,
+  GitBranch,
+  BarChart3,
+  HeartPulse,
+  Monitor,
+  Container,
+  FileCode,
+  Package,
+  Terminal,
+  Download,
+  FileText,
+  Server,
 };
 
 const CATEGORY_COLORS: Record<string, string> = {
@@ -48,7 +70,7 @@ export function TemplateCard({ template, onClick }: TemplateCardProps) {
       className={cn(
         'cursor-pointer transition-all duration-200',
         'hover:border-primary/40 hover:shadow-md hover:-translate-y-0.5',
-        'group',
+        'group'
       )}
       onClick={() => onClick(template)}
     >
@@ -60,7 +82,10 @@ export function TemplateCard({ template, onClick }: TemplateCardProps) {
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1">
               <h3 className="font-semibold text-sm truncate">{template.name}</h3>
-              <Badge variant="outline" className={cn('text-[10px] px-1.5 py-0 shrink-0', categoryColor)}>
+              <Badge
+                variant="outline"
+                className={cn('text-[10px] px-1.5 py-0 shrink-0', categoryColor)}
+              >
                 {categoryLabel}
               </Badge>
             </div>

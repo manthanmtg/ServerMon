@@ -154,9 +154,7 @@ describe('QuickAccessBar', () => {
 
     await waitFor(() => {
       const dockerLinks = document.querySelectorAll('a[href="/docker"]');
-      const activeLink = Array.from(dockerLinks).find((el) =>
-        el.className.includes('bg-primary')
-      );
+      const activeLink = Array.from(dockerLinks).find((el) => el.className.includes('bg-primary'));
       expect(activeLink).toBeUndefined();
     });
   });

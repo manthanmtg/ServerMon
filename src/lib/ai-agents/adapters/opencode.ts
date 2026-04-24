@@ -1,11 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import {
-  execPromise,
-  detectGitInfo,
-  discoverHomeDirs,
-  getHostnameCached,
-} from '../process-utils';
+import { execPromise, detectGitInfo, discoverHomeDirs, getHostnameCached } from '../process-utils';
 import { createLogger } from '@/lib/logger';
 import type {
   AgentAdapter,
@@ -79,11 +74,15 @@ export class OpenCodeAdapter implements AgentAdapter {
     let pid = 0;
     if (isActive && dbSes.directory) {
       try {
-        const { stdout } = await execPromise(`ps aux | grep "opencode" | grep "${dbSes.directory}" | grep -v grep | awk '{print $2}' | head -n 1`);
+        const { stdout } = await execPromise(
+          `ps aux | grep "opencode" | grep "${dbSes.directory}" | grep -v grep | awk '{print $2}' | head -n 1`
+        );
         if (stdout.trim()) {
           pid = parseInt(stdout.trim(), 10);
         }
-      } catch { /* ignore */ }
+      } catch {
+        /* ignore */
+      }
     }
 
     return {
@@ -182,12 +181,14 @@ export class OpenCodeAdapter implements AgentAdapter {
                   data.model = msgData.model.modelID;
                 }
               }
-            } catch { /* ignore */ }
+            } catch {
+              /* ignore */
+            }
           }
 
           try {
             const partData = JSON.parse(row.part_data);
-            
+
             // Add to logs
             if (partData.type) {
               logs.push(`[${timestamp}] ${partData.type}`);
@@ -205,7 +206,7 @@ export class OpenCodeAdapter implements AgentAdapter {
             } else if (partData.type === 'tool') {
               const toolName = partData.tool_name || partData.name;
               const toolInput = partData.input || {};
-              
+
               timeline.push({
                 timestamp,
                 action: `Tool Call: ${toolName}`,
@@ -218,7 +219,9 @@ export class OpenCodeAdapter implements AgentAdapter {
                 if (toolInput.command) commandsExecuted.add(toolInput.command);
               }
             }
-          } catch { /* ignore */ }
+          } catch {
+            /* ignore */
+          }
         }
         data.conversation = conversation;
         data.timeline = timeline;

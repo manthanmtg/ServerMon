@@ -11,10 +11,7 @@ const log = createLogger('self-service:script-executor');
 export class ScriptExecutor implements Executor {
   private shell = new ShellExecutor();
 
-  async execute(
-    payload: ExecutorPayload,
-    onLog: (line: string) => void,
-  ): Promise<ExecutorResult> {
+  async execute(payload: ExecutorPayload, onLog: (line: string) => void): Promise<ExecutorResult> {
     const logs: string[] = [];
     const scriptContent = payload.script;
 
@@ -38,7 +35,7 @@ export class ScriptExecutor implements Executor {
         (line) => {
           logs.push(line);
           onLog(line);
-        },
+        }
       );
 
       if (!result.success) {

@@ -193,9 +193,12 @@ describe('SetupPage', () => {
     });
 
     // Wait for the redirect timer (uses real timers now)
-    await waitFor(() => {
-      expect(mockPush).toHaveBeenCalledWith('/login');
-    }, { timeout: 5000 });
+    await waitFor(
+      () => {
+        expect(mockPush).toHaveBeenCalledWith('/login');
+      },
+      { timeout: 5000 }
+    );
   });
 
   it('shows error from step 2 when complete setup fails', async () => {

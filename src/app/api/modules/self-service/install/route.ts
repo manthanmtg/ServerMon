@@ -14,7 +14,7 @@ export async function POST(request: NextRequest) {
     if (!body.templateId || !body.methodId || !body.config) {
       return NextResponse.json(
         { error: 'Missing required fields: templateId, methodId, config' },
-        { status: 400 },
+        { status: 400 }
       );
     }
 

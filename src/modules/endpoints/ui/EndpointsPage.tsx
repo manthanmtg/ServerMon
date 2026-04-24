@@ -350,22 +350,23 @@ export default function EndpointsPage() {
   const generateCopySnippet = useCallback(
     (format: EndpointSnippetFormat) => {
       // Create a temporary DTO from form for compatibility
-      const ep = { 
-        slug: form.slug, 
-        method: form.method, 
-        auth: form.auth 
+      const ep = {
+        slug: form.slug,
+        method: form.method,
+        auth: form.auth,
       } as CustomEndpointDTO;
-      
+
       const snippet = generateCopySnippetForEndpoint(ep, format);
-      
+
       // Inject test body if it's not the generic version
       if (testBody && testBody !== '{}') {
         if (format === 'curl') return snippet.replace("-d '{}'", `-d '${testBody}'`);
         if (format === 'powershell') return snippet.replace("-Body '{}'", `-Body '${testBody}'`);
-        if (format === 'fetch' || format === 'node') return snippet.replace('body: null', `body: JSON.stringify(${testBody})`);
+        if (format === 'fetch' || format === 'node')
+          return snippet.replace('body: null', `body: JSON.stringify(${testBody})`);
         if (format === 'python') return snippet.replace('json={}', `json=${testBody}`);
       }
-      
+
       return snippet;
     },
     [form, testBody, generateCopySnippetForEndpoint]
@@ -611,13 +612,13 @@ export default function EndpointsPage() {
   const showDetail = isCreating || selectedId !== null;
 
   return (
-    <div ref={containerRef} className="flex gap-6 h-[calc(100vh-6.5rem)] sm:h-[calc(100vh-6rem)] relative overflow-hidden">
+    <div
+      ref={containerRef}
+      className="flex gap-6 h-[calc(100vh-6.5rem)] sm:h-[calc(100vh-6rem)] relative overflow-hidden"
+    >
       {/* List Panel */}
-      <div 
-        className={cn(
-          "flex flex-col min-w-0 h-full",
-          showDetail ? "hidden lg:flex" : "flex-1"
-        )}
+      <div
+        className={cn('flex flex-col min-w-0 h-full', showDetail ? 'hidden lg:flex' : 'flex-1')}
         style={showDetail && !isResizing ? { width: listWidth } : { flex: 1 }}
       >
         <EndpointList
@@ -662,11 +663,11 @@ export default function EndpointsPage() {
 
       {/* Detail/Editor Panel */}
       {showDetail && (
-        <div 
+        <div
           className={cn(
-            "flex-1 flex flex-col min-w-0 h-full z-50 lg:z-auto transition-all duration-500 ease-in-out",
-            "fixed inset-0 bg-background lg:relative lg:inset-auto lg:bg-transparent",
-            "animate-in slide-in-from-right-full lg:animate-none"
+            'flex-1 flex flex-col min-w-0 h-full z-50 lg:z-auto transition-all duration-500 ease-in-out',
+            'fixed inset-0 bg-background lg:relative lg:inset-auto lg:bg-transparent',
+            'animate-in slide-in-from-right-full lg:animate-none'
           )}
         >
           <EndpointDetail
@@ -685,15 +686,13 @@ export default function EndpointsPage() {
             onTest={handleTest}
             onTabChange={setDetailTab}
             onCopySnippet={handleCopySnippet}
-            generateCopySnippet={(format) => generateCopySnippetForEndpoint(selectedEndpoint!, format)}
+            generateCopySnippet={(format) =>
+              generateCopySnippetForEndpoint(selectedEndpoint!, format)
+            }
             showTestConsole={showTestConsole}
           >
             {detailTab === 'configure' && (
-              <EndpointConfig 
-                form={form} 
-                onUpdateForm={updateForm} 
-                autoSlugRef={autoSlugRef} 
-              />
+              <EndpointConfig form={form} onUpdateForm={updateForm} autoSlugRef={autoSlugRef} />
             )}
 
             {detailTab === 'code' && (
@@ -706,11 +705,7 @@ export default function EndpointsPage() {
             )}
 
             {detailTab === 'docs' && (
-              <EndpointDocs
-                form={form}
-                onUpdateForm={updateForm}
-                onSave={handleSave}
-              />
+              <EndpointDocs form={form} onUpdateForm={updateForm} onSave={handleSave} />
             )}
 
             {detailTab === 'auth' && (
@@ -732,11 +727,7 @@ export default function EndpointsPage() {
             )}
 
             {detailTab === 'logs' && (
-              <EndpointLogs 
-                logs={logs} 
-                logsLoading={logsLoading} 
-                isCreating={isCreating} 
-              />
+              <EndpointLogs logs={logs} logsLoading={logsLoading} isCreating={isCreating} />
             )}
 
             {detailTab === 'settings' && (
@@ -752,32 +743,32 @@ export default function EndpointsPage() {
             )}
 
             {showTestConsole && (
-               <div className="fixed bottom-0 right-0 left-0 lg:left-[auto] lg:w-[calc(100%-listWidth-3rem)] pointer-events-none">
-                  <div className="pointer-events-auto">
-                      <EndpointTestConsole
-                        testBody={testBody}
-                        testResult={testResult}
-                        testLoading={testLoading}
-                        showCopyRequestMenu={showCopyRequestMenu}
-                        copyRequestMenuRef={copyRequestMenuRef}
-                        onSetTestBody={setTestBody}
-                        onToggleCopyMenu={() => setShowCopyRequestMenu(!showCopyRequestMenu)}
-                        onClose={() => setShowTestConsole(false)}
-                        onCopySnippet={(format) => {
-                          navigator.clipboard.writeText(generateCopySnippet(format));
-                          toast({ title: 'Copied to clipboard', variant: 'success' });
-                          setShowCopyRequestMenu(false);
-                        }}
-                        onCopyResponse={() => {
-                          if (testResult) {
-                            navigator.clipboard.writeText(testResult.body);
-                            toast({ title: 'Response copied', variant: 'success' });
-                          }
-                        }}
-                        onRun={handleTest}
-                      />
-                  </div>
-               </div>
+              <div className="fixed bottom-0 right-0 left-0 lg:left-[auto] lg:w-[calc(100%-listWidth-3rem)] pointer-events-none">
+                <div className="pointer-events-auto">
+                  <EndpointTestConsole
+                    testBody={testBody}
+                    testResult={testResult}
+                    testLoading={testLoading}
+                    showCopyRequestMenu={showCopyRequestMenu}
+                    copyRequestMenuRef={copyRequestMenuRef}
+                    onSetTestBody={setTestBody}
+                    onToggleCopyMenu={() => setShowCopyRequestMenu(!showCopyRequestMenu)}
+                    onClose={() => setShowTestConsole(false)}
+                    onCopySnippet={(format) => {
+                      navigator.clipboard.writeText(generateCopySnippet(format));
+                      toast({ title: 'Copied to clipboard', variant: 'success' });
+                      setShowCopyRequestMenu(false);
+                    }}
+                    onCopyResponse={() => {
+                      if (testResult) {
+                        navigator.clipboard.writeText(testResult.body);
+                        toast({ title: 'Response copied', variant: 'success' });
+                      }
+                    }}
+                    onRun={handleTest}
+                  />
+                </div>
+              </div>
             )}
           </EndpointDetail>
         </div>

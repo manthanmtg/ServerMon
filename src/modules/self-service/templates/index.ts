@@ -19,9 +19,7 @@ const allTemplates: InstallTemplate[] = [
   neovimTemplate,
 ];
 
-const templateMap = new Map<string, InstallTemplate>(
-  allTemplates.map((t) => [t.id, t]),
-);
+const templateMap = new Map<string, InstallTemplate>(allTemplates.map((t) => [t.id, t]));
 
 export function getAllTemplates(): InstallTemplate[] {
   return allTemplates;
@@ -44,9 +42,7 @@ export function searchTemplates(opts: {
 
   if (opts.tags && opts.tags.length > 0) {
     const tagsLower = opts.tags.map((tag) => tag.toLowerCase());
-    results = results.filter((t) =>
-      tagsLower.some((tag) => t.tags.includes(tag)),
-    );
+    results = results.filter((t) => tagsLower.some((tag) => t.tags.includes(tag)));
   }
 
   if (opts.query) {
@@ -55,7 +51,7 @@ export function searchTemplates(opts: {
       (t) =>
         t.name.toLowerCase().includes(q) ||
         t.description.toLowerCase().includes(q) ||
-        t.tags.some((tag) => tag.includes(q)),
+        t.tags.some((tag) => tag.includes(q))
     );
   }
 

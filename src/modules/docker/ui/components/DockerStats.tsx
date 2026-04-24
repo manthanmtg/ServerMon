@@ -1,13 +1,13 @@
 'use client';
- 
+
 import { Card, CardContent } from '@/components/ui/card';
 import { PlayCircle, Square, PauseCircle } from 'lucide-react';
 import type { DockerSnapshot } from '../../types';
- 
+
 interface DockerStatsProps {
   snapshot: DockerSnapshot | null;
 }
- 
+
 function stateSummary(snapshot: DockerSnapshot | null) {
   if (!snapshot) {
     return [
@@ -37,7 +37,7 @@ function stateSummary(snapshot: DockerSnapshot | null) {
     },
   ];
 }
- 
+
 export function DockerStats({ snapshot }: DockerStatsProps) {
   return (
     <section className="grid gap-4 sm:grid-cols-3">

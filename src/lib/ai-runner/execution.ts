@@ -71,7 +71,12 @@ async function writeEnvironmentFile(jobId: string, env: NodeJS.ProcessEnv): Prom
 
 async function lookupSystemdUnitMainPid(unitName: string): Promise<number | undefined> {
   try {
-    const { stdout } = await execFileAsync('systemctl', ['show', '--property=MainPID', '--value', unitName]);
+    const { stdout } = await execFileAsync('systemctl', [
+      'show',
+      '--property=MainPID',
+      '--value',
+      unitName,
+    ]);
     const value = Number(stdout.trim());
     return Number.isFinite(value) && value > 0 ? value : undefined;
   } catch {

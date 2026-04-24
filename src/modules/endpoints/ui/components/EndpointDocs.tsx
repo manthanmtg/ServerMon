@@ -19,7 +19,10 @@ const MarkdownEditor = dynamic(() => import('./MarkdownEditor'), {
 
 interface EndpointDocsProps {
   form: EndpointCreateRequest;
-  onUpdateForm: <K extends keyof EndpointCreateRequest>(key: K, value: EndpointCreateRequest[K]) => void;
+  onUpdateForm: <K extends keyof EndpointCreateRequest>(
+    key: K,
+    value: EndpointCreateRequest[K]
+  ) => void;
   onSave: () => void;
 }
 
@@ -36,7 +39,9 @@ export function EndpointDocs({ form, onUpdateForm, onSave }: EndpointDocsProps) 
             <BookOpen className="w-4 h-4 text-primary" />
           </div>
           <div>
-            <h3 className="text-sm font-black text-foreground uppercase tracking-tight">Documentation</h3>
+            <h3 className="text-sm font-black text-foreground uppercase tracking-tight">
+              Documentation
+            </h3>
             <p className="text-[10px] text-muted-foreground/60 font-medium">
               {mode === 'edit' ? 'Editing markdown' : `${content.length.toLocaleString()} chars`}
             </p>
@@ -102,7 +107,9 @@ export function EndpointDocs({ form, onUpdateForm, onSave }: EndpointDocsProps) 
               </div>
               <div>
                 <p className="text-sm font-bold text-muted-foreground/50">No documentation yet</p>
-                <p className="text-xs text-muted-foreground/30 mt-1">Switch to Edit mode to start writing</p>
+                <p className="text-xs text-muted-foreground/30 mt-1">
+                  Switch to Edit mode to start writing
+                </p>
               </div>
               <button
                 onClick={() => setMode('edit')}

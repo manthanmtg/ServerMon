@@ -11,7 +11,7 @@ interface PortCheckResult {
 
 export async function runPortCheck(
   port: number | string,
-  onLog: (line: string) => void,
+  onLog: (line: string) => void
 ): Promise<PortCheckResult> {
   const logs: string[] = [];
   const portStr = String(port);

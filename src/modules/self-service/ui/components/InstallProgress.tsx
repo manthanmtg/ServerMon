@@ -2,18 +2,28 @@
 
 import { useCallback, useEffect, useState, useRef } from 'react';
 import {
-  CheckCircle2, XCircle, Loader2, Circle, SkipForward, RotateCcw, ChevronDown, ChevronRight,
+  CheckCircle2,
+  XCircle,
+  Loader2,
+  Circle,
+  SkipForward,
+  RotateCcw,
+  ChevronDown,
+  ChevronRight,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import type { InstallJob, StepStatusValue } from '../../types';
 
-const STATUS_CONFIG: Record<StepStatusValue, {
-  icon: React.ComponentType<{ className?: string }>;
-  color: string;
-  label: string;
-}> = {
+const STATUS_CONFIG: Record<
+  StepStatusValue,
+  {
+    icon: React.ComponentType<{ className?: string }>;
+    color: string;
+    label: string;
+  }
+> = {
   pending: { icon: Circle, color: 'text-muted-foreground', label: 'Pending' },
   running: { icon: Loader2, color: 'text-blue-500', label: 'Running' },
   success: { icon: CheckCircle2, color: 'text-emerald-500', label: 'Done' },
@@ -120,14 +130,16 @@ export function InstallProgress({ jobId, onDone, onRollback }: InstallProgressPr
         <CardContent>
           <div className="mb-4">
             <div className="flex items-center justify-between text-xs text-muted-foreground mb-1">
-              <span>{completedCount}/{totalSteps} steps</span>
+              <span>
+                {completedCount}/{totalSteps} steps
+              </span>
               <span>{progressPct}%</span>
             </div>
             <div className="h-2 bg-muted rounded-full overflow-hidden">
               <div
                 className={cn(
                   'h-full rounded-full transition-all duration-500',
-                  job.status === 'failed' ? 'bg-destructive' : 'bg-primary',
+                  job.status === 'failed' ? 'bg-destructive' : 'bg-primary'
                 )}
                 style={{ width: `${progressPct}%` }}
               />
@@ -148,14 +160,14 @@ export function InstallProgress({ jobId, onDone, onRollback }: InstallProgressPr
                     className={cn(
                       'w-full flex items-center gap-2.5 px-3 py-2 text-left transition-colors',
                       hasLogs && 'hover:bg-accent/50 cursor-pointer',
-                      !hasLogs && 'cursor-default',
+                      !hasLogs && 'cursor-default'
                     )}
                   >
                     <StepIcon
                       className={cn(
                         'w-4 h-4 shrink-0',
                         conf.color,
-                        step.status === 'running' && 'animate-spin',
+                        step.status === 'running' && 'animate-spin'
                       )}
                     />
                     <span className="text-xs font-medium flex-1">{step.label}</span>
@@ -164,11 +176,12 @@ export function InstallProgress({ jobId, onDone, onRollback }: InstallProgressPr
                         {step.error}
                       </span>
                     )}
-                    {hasLogs && (
-                      isExpanded
-                        ? <ChevronDown className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-                        : <ChevronRight className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-                    )}
+                    {hasLogs &&
+                      (isExpanded ? (
+                        <ChevronDown className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                      ) : (
+                        <ChevronRight className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                      ))}
                   </button>
 
                   {isExpanded && hasLogs && (

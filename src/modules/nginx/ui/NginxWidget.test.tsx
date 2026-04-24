@@ -27,7 +27,10 @@ describe('NginxWidget', () => {
   it('shows loading spinner initially', () => {
     let resolveFetch!: (v: Response) => void;
     global.fetch = vi.fn().mockImplementation(
-      () => new Promise<Response>((r) => { resolveFetch = r; })
+      () =>
+        new Promise<Response>((r) => {
+          resolveFetch = r;
+        })
     );
     render(<NginxWidget />);
     expect(document.querySelector('.animate-spin')).toBeTruthy();

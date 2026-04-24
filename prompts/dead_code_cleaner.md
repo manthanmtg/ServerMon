@@ -41,4 +41,5 @@ Pick one category per run:
 - List what was removed and why in the commit body.
 
 ## Issue Management
+
 - If an issue from `issues_to_look/` is resolved or found to be resolved, move it to the `issues_to_look/resolved/` directory to keep things clean.

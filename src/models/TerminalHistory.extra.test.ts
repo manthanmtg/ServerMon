@@ -68,7 +68,7 @@ describe('TerminalHistory — pre-save hook', () => {
     // Access the registered pre-save callback via our mock
     const mongoose = await import('mongoose');
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const SchemaConstructor = (mongoose.default.Schema as any) as {
+    const SchemaConstructor = mongoose.default.Schema as any as {
       _getPreSave: () => ((this: Record<string, unknown>) => void) | null;
     };
     const preSave = SchemaConstructor._getPreSave();
@@ -93,7 +93,7 @@ describe('TerminalHistory — pre-save hook', () => {
 
     const mongoose = await import('mongoose');
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const SchemaConstructor = (mongoose.default.Schema as any) as {
+    const SchemaConstructor = mongoose.default.Schema as any as {
       _getPreSave: () => ((this: Record<string, unknown>) => void) | null;
     };
     const preSave = SchemaConstructor._getPreSave();
@@ -114,7 +114,7 @@ describe('TerminalHistory — pre-save hook', () => {
 
     const mongoose = await import('mongoose');
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const SchemaConstructor = (mongoose.default.Schema as any) as {
+    const SchemaConstructor = mongoose.default.Schema as any as {
       _getPreSave: () => ((this: Record<string, unknown>) => void) | null;
     };
     const preSave = SchemaConstructor._getPreSave();
@@ -133,7 +133,7 @@ describe('TerminalHistory — pre-save hook', () => {
 
     const mongoose = await import('mongoose');
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const SchemaConstructor = (mongoose.default.Schema as any) as {
+    const SchemaConstructor = mongoose.default.Schema as any as {
       _getPreSave: () => ((this: Record<string, unknown>) => void) | null;
     };
     const preSave = SchemaConstructor._getPreSave();
@@ -152,7 +152,7 @@ describe('TerminalHistory — pre-save hook', () => {
 
     const mongoose = await import('mongoose');
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const SchemaConstructor = (mongoose.default.Schema as any) as {
+    const SchemaConstructor = mongoose.default.Schema as any as {
       _getPreSave: () => ((this: Record<string, unknown>) => void) | null;
     };
     const preSave = SchemaConstructor._getPreSave();

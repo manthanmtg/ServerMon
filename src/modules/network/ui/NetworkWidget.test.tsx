@@ -59,7 +59,10 @@ describe('NetworkWidget', () => {
   it('shows 0 B before data loads', () => {
     let resolveFetch!: (v: Response) => void;
     global.fetch = vi.fn().mockImplementation(
-      () => new Promise<Response>((r) => { resolveFetch = r; })
+      () =>
+        new Promise<Response>((r) => {
+          resolveFetch = r;
+        })
     );
     render(<NetworkWidget />);
     const zeroValues = screen.getAllByText('0 B/s');

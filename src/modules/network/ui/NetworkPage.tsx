@@ -195,7 +195,6 @@ export default function NetworkPage() {
               </select>
             </label>
             <div className="flex gap-2">
-
               <button
                 type="button"
                 onClick={() => loadSnapshot()}
@@ -208,8 +207,6 @@ export default function NetworkPage() {
           </div>
         </div>
       </section>
-
-
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {snapshot?.interfaces

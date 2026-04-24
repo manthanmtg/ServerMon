@@ -108,7 +108,15 @@ function CpuBarBase({ value }: { value: number }) {
 
 const CpuBar = React.memo(CpuBarBase);
 
-function StatBoxBase({ label, value, icon }: { label: string; value: string; icon: React.ReactNode }) {
+function StatBoxBase({
+  label,
+  value,
+  icon,
+}: {
+  label: string;
+  value: string;
+  icon: React.ReactNode;
+}) {
   return (
     <div className="flex items-center gap-2.5 px-3 py-2 rounded-lg bg-secondary/50 border border-border min-w-0">
       <span className="text-muted-foreground shrink-0">{icon}</span>
@@ -130,22 +138,24 @@ interface SortHeaderProps {
   onSort: (field: SortField) => void;
 }
 
-const SortHeader = React.memo(({ field, children, className, currentSort, onSort }: SortHeaderProps) => (
-  <th
-    className={cn('px-3 py-2.5 text-xs font-medium text-muted-foreground', className)}
-    aria-sort={currentSort === field ? 'descending' : 'none'}
-  >
-    <button
-      type="button"
-      className="inline-flex items-center gap-1 cursor-pointer hover:text-foreground transition-colors select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 rounded-sm"
-      onClick={() => onSort(field)}
-      aria-label={`Sort by ${String(children)}`}
+const SortHeader = React.memo(
+  ({ field, children, className, currentSort, onSort }: SortHeaderProps) => (
+    <th
+      className={cn('px-3 py-2.5 text-xs font-medium text-muted-foreground', className)}
+      aria-sort={currentSort === field ? 'descending' : 'none'}
     >
-      {children}
-      {currentSort === field && <ArrowUpDown className="w-3 h-3 text-primary" />}
-    </button>
-  </th>
-));
+      <button
+        type="button"
+        className="inline-flex items-center gap-1 cursor-pointer hover:text-foreground transition-colors select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 rounded-sm"
+        onClick={() => onSort(field)}
+        aria-label={`Sort by ${String(children)}`}
+      >
+        {children}
+        {currentSort === field && <ArrowUpDown className="w-3 h-3 text-primary" />}
+      </button>
+    </th>
+  )
+);
 
 SortHeader.displayName = 'SortHeader';
 

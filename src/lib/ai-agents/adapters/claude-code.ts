@@ -74,11 +74,15 @@ export class ClaudeCodeAdapter implements AgentAdapter {
     let pid = 0;
     if (isActive && cwd) {
       try {
-        const { stdout } = await execPromise(`ps aux | grep "claude" | grep "${cwd}" | grep -v grep | awk '{print $2}' | head -n 1`);
+        const { stdout } = await execPromise(
+          `ps aux | grep "claude" | grep "${cwd}" | grep -v grep | awk '{print $2}' | head -n 1`
+        );
         if (stdout.trim()) {
           pid = parseInt(stdout.trim(), 10);
         }
-      } catch { /* ignore */ }
+      } catch {
+        /* ignore */
+      }
     }
 
     return {
@@ -206,10 +210,13 @@ export class ClaudeCodeAdapter implements AgentAdapter {
           logs.push(logMsg);
 
           if (item.message?.content) {
-            const contentSnippet = typeof item.message.content === 'string' 
-              ? item.message.content 
-              : JSON.stringify(item.message.content);
-            logs.push(`  > ${contentSnippet.substring(0, 80)}${contentSnippet.length > 80 ? '...' : ''}`);
+            const contentSnippet =
+              typeof item.message.content === 'string'
+                ? item.message.content
+                : JSON.stringify(item.message.content);
+            logs.push(
+              `  > ${contentSnippet.substring(0, 80)}${contentSnippet.length > 80 ? '...' : ''}`
+            );
           }
 
           if (item.type === 'user' || item.type === 'assistant') {
@@ -225,7 +232,7 @@ export class ClaudeCodeAdapter implements AgentAdapter {
                 } else if (part.type === 'tool_use') {
                   const toolName = part.name;
                   const toolInput = part.input || {};
-                  
+
                   timeline.push({
                     timestamp,
                     action: `Tool Call: ${toolName}`,

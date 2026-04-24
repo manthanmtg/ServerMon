@@ -8,7 +8,7 @@ const log = createLogger('api:self-service:job');
 
 export async function GET(
   _request: NextRequest,
-  { params }: { params: Promise<{ jobId: string }> },
+  { params }: { params: Promise<{ jobId: string }> }
 ) {
   try {
     const { jobId } = await params;
@@ -27,7 +27,7 @@ export async function GET(
 
 export async function DELETE(
   _request: NextRequest,
-  { params }: { params: Promise<{ jobId: string }> },
+  { params }: { params: Promise<{ jobId: string }> }
 ) {
   try {
     const { jobId } = await params;

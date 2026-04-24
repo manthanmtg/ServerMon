@@ -10,7 +10,14 @@ import type {
 } from '../types';
 import { PROVISION_STEP_LABELS } from '../types';
 import { renderTemplate, renderTemplateArray } from './executor';
-import { ShellExecutor, detectCommand, detectFile, detectPort, detectDockerContainer, detectSystemdService } from './shell-executor';
+import {
+  ShellExecutor,
+  detectCommand,
+  detectFile,
+  detectPort,
+  detectDockerContainer,
+  detectSystemdService,
+} from './shell-executor';
 import { ComposeExecutor } from './compose-executor';
 import { PackageExecutor } from './package-executor';
 import { ScriptExecutor } from './script-executor';
@@ -24,9 +31,7 @@ import { runHealthCheck } from './steps/health-check';
 
 const log = createLogger('self-service:provisioner');
 
-export async function runDetection(
-  checks: DetectionCheck[],
-): Promise<DetectionResult[]> {
+export async function runDetection(checks: DetectionCheck[]): Promise<DetectionResult[]> {
   const results: DetectionResult[] = [];
 
   for (const check of checks) {
@@ -85,11 +90,7 @@ function getStepStatus(job: InstallJob, step: ProvisionStep): StepStatus | undef
   return job.steps.find((s) => s.step === step);
 }
 
-function updateStep(
-  job: InstallJob,
-  step: ProvisionStep,
-  updates: Partial<StepStatus>,
-): void {
+function updateStep(job: InstallJob, step: ProvisionStep, updates: Partial<StepStatus>): void {
   const s = getStepStatus(job, step);
   if (s) {
     Object.assign(s, updates);
@@ -101,7 +102,7 @@ export async function runProvisionPipeline(
   method: InstallMethod,
   config: Record<string, string | number | boolean>,
   job: InstallJob,
-  onUpdate: (job: InstallJob) => void,
+  onUpdate: (job: InstallJob) => void
 ): Promise<void> {
   const pipeline = method.pipeline ?? template.defaultPipeline;
   job.steps = createStepStatuses(pipeline);
@@ -183,14 +184,14 @@ async function executeStep(
   template: InstallTemplate,
   method: InstallMethod,
   config: Record<string, string | number | boolean>,
-  onLog: (line: string) => void,
+  onLog: (line: string) => void
 ): Promise<StepResult> {
   switch (step) {
     case 'preflight': {
       const r = await runPreflight(
         method.executionMethod,
         (method.pipeline ?? template.defaultPipeline) as string[],
-        onLog,
+        onLog
       );
       return r;
     }
@@ -235,7 +236,7 @@ async function executeStep(
       const r = await runSslCertSetup(
         domain,
         sslMode as 'letsencrypt' | 'self-signed' | 'none',
-        onLog,
+        onLog
       );
       return { success: r.success, skipped: r.skipped, error: r.error };
     }
@@ -243,10 +244,7 @@ async function executeStep(
     case 'nginx-reload': {
       const shell = new ShellExecutor();
       onLog('Reloading Nginx...');
-      const r = await shell.execute(
-        { method: 'shell', commands: ['nginx -s reload'] },
-        onLog,
-      );
+      const r = await shell.execute({ method: 'shell', commands: ['nginx -s reload'] }, onLog);
       return r;
     }
 
@@ -279,7 +277,7 @@ async function executeStep(
 async function runInstallStep(
   method: InstallMethod,
   config: Record<string, string | number | boolean>,
-  onLog: (line: string) => void,
+  onLog: (line: string) => void
 ): Promise<StepResult> {
   switch (method.executionMethod) {
     case 'shell': {
@@ -298,10 +296,7 @@ async function runInstallStep(
       const composeContent = renderTemplate(method.composeTemplate, config);
       const composeDir = `/opt/${config.domain || 'services'}/${method.id}`;
       const executor = new ComposeExecutor();
-      return executor.execute(
-        { method: 'docker-compose', composeContent, composeDir },
-        onLog,
-      );
+      return executor.execute({ method: 'docker-compose', composeContent, composeDir }, onLog);
     }
 
     case 'package-manager': {
@@ -311,7 +306,7 @@ async function runInstallStep(
       const executor = new PackageExecutor();
       return executor.execute(
         { method: 'package-manager', packageNames: method.installCommands },
-        onLog,
+        onLog
       );
     }
 
@@ -350,7 +345,7 @@ export async function rollbackPipeline(
   template: InstallTemplate,
   config: Record<string, string | number | boolean>,
   completedSteps: ProvisionStep[],
-  onLog: (line: string) => void,
+  onLog: (line: string) => void
 ): Promise<void> {
   const domain = config.domain as string | undefined;
 
@@ -368,10 +363,7 @@ export async function rollbackPipeline(
           break;
         case 'nginx-reload': {
           const shell = new ShellExecutor();
-          await shell.execute(
-            { method: 'shell', commands: ['nginx -s reload || true'] },
-            onLog,
-          );
+          await shell.execute({ method: 'shell', commands: ['nginx -s reload || true'] }, onLog);
           break;
         }
         default:

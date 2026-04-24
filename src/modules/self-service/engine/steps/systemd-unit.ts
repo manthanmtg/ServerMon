@@ -17,7 +17,7 @@ interface SystemdUnitResult {
 export async function runSystemdUnitSetup(
   serviceName: string,
   unitContent: string | undefined,
-  onLog: (line: string) => void,
+  onLog: (line: string) => void
 ): Promise<SystemdUnitResult> {
   const logs: string[] = [];
 
@@ -47,13 +47,10 @@ export async function runSystemdUnitSetup(
       onLog(`$ ${cmd}`);
       logs.push(`$ ${cmd}`);
 
-      const result = await shell.execute(
-        { method: 'shell', commands: [cmd] },
-        (line) => {
-          logs.push(line);
-          onLog(line);
-        },
-      );
+      const result = await shell.execute({ method: 'shell', commands: [cmd] }, (line) => {
+        logs.push(line);
+        onLog(line);
+      });
 
       if (!result.success) {
         const msg = `Systemd command failed: ${cmd}`;
@@ -80,7 +77,7 @@ export async function runSystemdUnitSetup(
 
 export async function rollbackSystemdUnit(
   serviceName: string,
-  onLog: (line: string) => void,
+  onLog: (line: string) => void
 ): Promise<void> {
   const unitName = serviceName.endsWith('.service') ? serviceName : `${serviceName}.service`;
   const unitPath = join(SYSTEMD_DIR, unitName);
@@ -88,16 +85,10 @@ export async function rollbackSystemdUnit(
 
   onLog(`Rolling back systemd service: ${unitName}`);
 
-  const commands = [
-    `systemctl stop ${unitName} || true`,
-    `systemctl disable ${unitName} || true`,
-  ];
+  const commands = [`systemctl stop ${unitName} || true`, `systemctl disable ${unitName} || true`];
 
   for (const cmd of commands) {
-    await shell.execute(
-      { method: 'shell', commands: [cmd] },
-      (line) => onLog(line),
-    );
+    await shell.execute({ method: 'shell', commands: [cmd] }, (line) => onLog(line));
   }
 
   try {
@@ -107,8 +98,7 @@ export async function rollbackSystemdUnit(
     // might not exist
   }
 
-  await shell.execute(
-    { method: 'shell', commands: ['systemctl daemon-reload'] },
-    (line) => onLog(line),
+  await shell.execute({ method: 'shell', commands: ['systemctl daemon-reload'] }, (line) =>
+    onLog(line)
   );
 }

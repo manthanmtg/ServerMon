@@ -17,7 +17,7 @@ export default function MemoryWidget() {
   const percent = latest.memory;
 
   return (
-    <motion.div 
+    <motion.div
       initial={{ opacity: 0, scale: 0.98 }}
       animate={{ opacity: 1, scale: 1 }}
       layout
@@ -36,31 +36,39 @@ export default function MemoryWidget() {
           </div>
         </div>
         <div className="text-right">
-          <div className="text-2xl font-bold tracking-tighter leading-none">{percent.toFixed(1)}%</div>
-          <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider mt-1 opacity-70">Usage</p>
+          <div className="text-2xl font-bold tracking-tighter leading-none">
+            {percent.toFixed(1)}%
+          </div>
+          <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider mt-1 opacity-70">
+            Usage
+          </p>
         </div>
       </div>
 
       <div className="grid grid-cols-2 gap-3">
-        <motion.div 
+        <motion.div
           whileHover={{ scale: 1.01, backgroundColor: 'rgba(var(--card-rgb), 0.6)' }}
           whileTap={{ scale: 0.99 }}
           className="p-3 rounded-xl bg-card/40 backdrop-blur-md border border-white/5 shadow-sm transition-colors group"
         >
           <div className="flex items-center gap-2 mb-1.5">
             <Activity className="w-3.5 h-3.5 text-primary group-hover:scale-110 transition-transform" />
-            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Used</span>
+            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+              Used
+            </span>
           </div>
           <div className="text-sm font-bold truncate tracking-tight">{usedGb.toFixed(2)} GB</div>
         </motion.div>
-        <motion.div 
+        <motion.div
           whileHover={{ scale: 1.01, backgroundColor: 'rgba(var(--card-rgb), 0.6)' }}
           whileTap={{ scale: 0.99 }}
           className="p-3 rounded-xl bg-card/40 backdrop-blur-md border border-white/5 shadow-sm transition-colors group"
         >
           <div className="flex items-center gap-2 mb-1.5">
             <Database className="w-3.5 h-3.5 text-muted-foreground group-hover:scale-110 transition-transform" />
-            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Total</span>
+            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+              Total
+            </span>
           </div>
           <div className="text-sm font-bold truncate tracking-tight">{totalGb.toFixed(2)} GB</div>
         </motion.div>
@@ -101,9 +109,11 @@ export default function MemoryWidget() {
             <div
               className={cn(
                 'absolute inset-0 rounded-full blur-[4px] opacity-60 animate-pulse',
-                percent > 90 ? 'bg-destructive shadow-[0_0_8px_var(--destructive)]' : 
-                percent > 70 ? 'bg-warning shadow-[0_0_8px_var(--warning)]' : 
-                'bg-emerald-500 shadow-[0_0_8px_#10b981]'
+                percent > 90
+                  ? 'bg-destructive shadow-[0_0_8px_var(--destructive)]'
+                  : percent > 70
+                    ? 'bg-warning shadow-[0_0_8px_var(--warning)]'
+                    : 'bg-emerald-500 shadow-[0_0_8px_#10b981]'
               )}
             />
           </div>
