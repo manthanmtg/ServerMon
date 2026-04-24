@@ -22,7 +22,7 @@ Real-time metrics · Web terminal · Docker management · File browser · AI age
 
 - **Multi-factor authentication** — Argon2 password hashing + TOTP (Google Authenticator compatible)
 - **Real-time dashboard** — Live CPU, memory, and network charts via Server-Sent Events
-- **19 built-in modules** — Terminal, processes, Docker, disk, network, file browser, services, cron jobs, AI agents, and more
+- **24 built-in feature modules** — Terminal, processes, Docker, disk, network, file browser, services, cron jobs, AI agents, self-service installs, and more
 - **6 stunning themes** — Light, Obsidian, Monokai, Solarized, Nord, and Cyberpunk
 - **One-command deployment** — Interactive installer handles Node.js, MongoDB, Nginx, and SSL
 - **Modular architecture** — Error boundaries per widget, shared UI components, and a module registry for easy extension
@@ -42,17 +42,24 @@ ServerMon ships with a rich set of modules out of the box:
 | **File Browser** | Navigate the filesystem, preview files, and edit with a built-in CodeMirror 6 editor (20+ languages) |
 | **Docker**       | Monitor containers, images, volumes, and networks                                                    |
 | **Disk**         | Disk usage, I/O performance, and storage health monitoring                                           |
+| **Memory**       | RAM and swap pressure analysis with top memory consumers                                             |
+| **Metrics**      | Real-time CPU and memory chart widgets backed by the shared metrics stream                           |
+| **Health**       | Core health status widgets for CPU, memory, and disk pressure                                        |
 | **Network**      | Real-time bandwidth, interface stats, and connection monitoring                                      |
 | **Services**     | Monitor and manage systemd services                                                                  |
 | **Cron Jobs**    | View and manage cron schedules and execution history                                                 |
 | **Updates**      | Track available system and package updates                                                           |
 | **AI Agents**    | Monitor AI coding agent sessions running on the server                                               |
+| **AI Runner**    | Configure AI automation profiles, prompts, schedules, and run history                                |
+| **Self Service** | Browse and install managed apps, CLI tools, and services                                             |
+| **Endpoints**    | Define and execute custom API endpoints, scripts, and webhook proxies                                |
 | **Certificates** | Manage SSL/TLS certificates and renewals                                                             |
 | **Ports**        | Monitor open ports and listening services                                                            |
 | **Hardware**     | Detailed hardware specifications and health info                                                     |
 | **Nginx**        | Manage Nginx configurations and site status                                                          |
 | **Security**     | Security configuration and MFA management                                                            |
-| **Audit Logs**   | Filterable, searchable event history for all system actions                                          |
+| **System Logs**  | Search and inspect host and application log output                                                   |
+| **Users**        | Manage user accounts, roles, and permissions                                                         |
 | **Guide**        | Built-in interactive onboarding and documentation                                                    |
 
 ---
