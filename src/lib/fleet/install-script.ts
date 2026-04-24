@@ -85,14 +85,17 @@ esac
 log_info "Installing ServerMon Agent for $TRIPLE..."
 sudo mkdir -p "$INSTALL_DIR"
 
-# For now, we use the main ServerMon binary in agent mode
-# In a real production scenario, you would download a dedicated agent binary
-# But since ServerMon is a monolith, we can use the same binary with FLEET_AGENT_MODE=true
-
 if ! command -v node &> /dev/null; then
-  log_info "Installing Node.js 20..."
-  curl -fsSL https://deb.nodejsource.com/setup_20.x | sudo bash -
-  sudo apt-get install -y nodejs
+  log_info "Node.js not found. Installing Node.js..."
+  # Try standard repo first
+  if sudo apt-get update -y &>/dev/null; then
+    sudo apt-get install -y nodejs npm || {
+      # Fallback to nodesource if standard fails
+      log_info "Standard repository failed, trying NodeSource..."
+      curl -fsSL https://deb.nodejsource.com/setup_20.x | sudo -E bash -
+      sudo apt-get install -y nodejs
+    }
+  fi
 fi
 
 log_info "Downloading ServerMon agent..."
