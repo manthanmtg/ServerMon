@@ -181,7 +181,7 @@ export function IngressSetupWizard() {
       }
 
       setCompleted(true);
-      router.push('/fleet/server');
+      router.push('/fleet');
     } catch (e) {
       setError((e as Error).message);
     } finally {
