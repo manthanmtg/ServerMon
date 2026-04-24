@@ -45,6 +45,7 @@ FRP_BIND_PORT=7000
 FRP_VHOST_HTTP_PORT=8080
 FRP_AUTH_TOKEN=""
 FRP_SUBDOMAIN_HOST=""
+HUB_FRP_VERSION="latest"
 FLEET_ACME_EMAIL=""
 
 # ── Helpers ──────────────────────────────────────────────
@@ -274,6 +275,7 @@ if [ "$USE_EXISTING" = "true" ]; then
     EXISTING_FRP_VHOST=$(grep "^FRP_VHOST_HTTP_PORT=" "${CONFIG_DIR}/env" 2>/dev/null | cut -d'=' -f2- | head -1 || true)
     EXISTING_FRP_TOKEN=$(grep "^FRP_AUTH_TOKEN=" "${CONFIG_DIR}/env" 2>/dev/null | cut -d'=' -f2- | head -1 || true)
     EXISTING_FRP_SUBDOMAIN=$(grep "^FRP_SUBDOMAIN_HOST=" "${CONFIG_DIR}/env" 2>/dev/null | cut -d'=' -f2- | head -1 || true)
+    EXISTING_FRP_VERSION=$(grep "^FLEET_FRP_VERSION=" "${CONFIG_DIR}/env" 2>/dev/null | cut -d'=' -f2- | head -1 || true)
     EXISTING_ACME_EMAIL=$(grep "^FLEET_ACME_EMAIL=" "${CONFIG_DIR}/env" 2>/dev/null | cut -d'=' -f2- | head -1 || true)
 
     [ "$EXISTING_HUB_MODE" = "true" ] && HUB_MODE="true"
@@ -283,6 +285,7 @@ if [ "$USE_EXISTING" = "true" ]; then
     [ -n "$EXISTING_FRP_VHOST" ] && FRP_VHOST_HTTP_PORT="$EXISTING_FRP_VHOST"
     [ -n "$EXISTING_FRP_TOKEN" ] && FRP_AUTH_TOKEN="$EXISTING_FRP_TOKEN"
     [ -n "$EXISTING_FRP_SUBDOMAIN" ] && FRP_SUBDOMAIN_HOST="$EXISTING_FRP_SUBDOMAIN"
+    [ -n "$EXISTING_FRP_VERSION" ] && HUB_FRP_VERSION="$EXISTING_FRP_VERSION"
     [ -n "$EXISTING_ACME_EMAIL" ] && FLEET_ACME_EMAIL="$EXISTING_ACME_EMAIL"
     
     if [[ "$MONGO_URI" != *"localhost"* && "$MONGO_URI" != *"127.0.0.1"* ]]; then
@@ -371,6 +374,7 @@ if [ "$UNATTENDED" != "true" ]; then
         ask "Hub Public URL" "${HUB_PUBLIC_URL:-$DEFAULT_HUB_URL}" "HUB_PUBLIC_URL"
         ask "FRP Subdomain Host (e.g., example.com)" "${FRP_SUBDOMAIN_HOST:-$DEFAULT_SUBDOMAIN}" "FRP_SUBDOMAIN_HOST"
         ask "FRP Bind Port" "$FRP_BIND_PORT" "FRP_BIND_PORT"
+        ask "FRP Version (e.g., 0.61.0 or 'latest')" "$HUB_FRP_VERSION" "HUB_FRP_VERSION"
         
         if [ -z "$HUB_AUTH_TOKEN" ]; then
             HUB_AUTH_TOKEN=$(openssl rand -base64 32)
@@ -594,6 +598,7 @@ if [ "$EXISTING_INSTALL" = "true" ] && [ -f "${CONFIG_DIR}/env" ]; then
         update_env_line "FRP_VHOST_HTTP_PORT" "${FRP_VHOST_HTTP_PORT}"
         update_env_line "FRP_AUTH_TOKEN" "${FRP_AUTH_TOKEN}"
         update_env_line "FRP_SUBDOMAIN_HOST" "${FRP_SUBDOMAIN_HOST}"
+        update_env_line "FLEET_FRP_VERSION" "${HUB_FRP_VERSION}"
         [ -n "$FLEET_ACME_EMAIL" ] && update_env_line "FLEET_ACME_EMAIL" "${FLEET_ACME_EMAIL}"
     fi
 
@@ -624,6 +629,7 @@ FRP_BIND_PORT=${FRP_BIND_PORT}
 FRP_VHOST_HTTP_PORT=${FRP_VHOST_HTTP_PORT}
 FRP_AUTH_TOKEN=${FRP_AUTH_TOKEN}
 FRP_SUBDOMAIN_HOST=${FRP_SUBDOMAIN_HOST}
+FLEET_FRP_VERSION=${HUB_FRP_VERSION}
 HUBEOF
         [ -n "$FLEET_ACME_EMAIL" ] && echo "FLEET_ACME_EMAIL=${FLEET_ACME_EMAIL}" >> "${CONFIG_DIR}/env"
     fi
