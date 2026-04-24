@@ -219,7 +219,7 @@ export class CodexAdapter implements AgentAdapter {
           } else if (evt.type === 'response_item') {
             const payload = evt.payload;
             if (payload.type === 'function_call') {
-              let args = {};
+              let args: any = {};
               try {
                 args = typeof payload.arguments === 'string' ? JSON.parse(payload.arguments) : payload.arguments;
               } catch { /* ignore */ }
