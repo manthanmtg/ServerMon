@@ -81,8 +81,9 @@ The user experience must be "1-click" simple:
    ```bash
    curl -sL https://ultron.manthanby.cv/install-agent.sh | bash -s -- --hub-url ultron.manthanby.cv --token MY_TOKEN
    ```
-5. **Agent Setup:** The script downloads ServerMon (or pulls the Docker image), detects the environment, registers the `frpc` service, and connects.
+5. **Agent Setup:** The script downloads ServerMon (or pulls the Docker image), detects the environment, registers the `frpc` service, enables automatic start on boot, and connects.
    - *Docker Alternative:* User can simply run `docker run -d --name servermon-agent ...` with the token passed as an env var.
+   - *Reboot Persistence:* Linux installs a `systemd` unit with `WantedBy=multi-user.target`, restart policy, dependency on network readiness, and boot enablement. macOS installs a `launchd` plist with `RunAtLoad` and keepalive behavior. Docker installs with an explicit restart policy such as `unless-stopped`.
 6. **First Connection Verification:** The Hub waits for the agent heartbeat, confirms `frpc` is connected, verifies configured proxies are registered in `frps`, and shows any failed proxy with a specific error.
 7. **Success:** The Hub UI instantly lights up green for "Orion: Online".
 
@@ -248,6 +249,11 @@ The `Node` model tracks the fleet state:
 - `pairingToken`: string (hashed)
 - `lastSeen`: Date
 - `connectedSince`: Date
+- `lastBootAt`: Date
+- `bootId`: string
+- `serviceManager`: "systemd" | "launchd" | "docker" | "manual" | "unknown"
+- `serviceStatus`: "running" | "stopped" | "restarting" | "failed" | "disabled" | "unknown"
+- `autoStartEnabled`: boolean
 - `agentVersion`: string
 - `frpcVersion`: string
 - `lastError`: { code, message, occurredAt, correlationId }
@@ -345,10 +351,25 @@ For this to be a production-ready management solution, it must be resilient to n
 - **Daemonization:** On the Agent machine, ServerMon will be installed as a system-level service (`systemd` on Linux, `launchd` on MacOS). This ensures that if the machine reboots or the process crashes, the Agent (and its FRP tunnel) starts back up immediately without user intervention.
 - **Watchdog:** The Master Hub will maintain a "State of Health" loop. If a Node hasn't checked in for > 60 seconds, it's marked as `offline` in the UI, and an alert can be triggered.
 
-### C. Graceful Terminal Sessions
-- **Session Recovery:** If a user is in a Terminal session and the network drops briefly, the `node-pty` process on the Agent stays alive. When the tunnel reconnects, the WebSocket can re-attach to the existing terminal session so the user doesn't lose their work.
+### C. Client Reboot Handling
+Client reboot behavior must be designed and tested as a first-class production path.
+- **Auto-Start on Boot:** Agent installation must enable automatic startup after reboot:
+  - Linux: install and enable a `systemd` service with `Restart=always` or equivalent, sane restart delay, dependency on network readiness, and `systemctl enable`.
+  - macOS: install a `launchd` plist with `RunAtLoad` and keepalive settings.
+  - Docker: use a restart policy such as `unless-stopped` or `always`.
+- **Service Composition:** The agent process owns or supervises `frpc` so both the ServerMon agent and tunnel come back together after reboot.
+- **Boot Detection:** On reconnect, the agent reports boot time/boot ID so the Hub can distinguish a reboot from a short network drop.
+- **Post-Boot Verification:** After a reboot, the Hub verifies heartbeat, `frpc` connection, proxy registration, public route health, and agent capabilities before marking the node fully `online`.
+- **Backoff & Recovery:** If the Hub is unreachable during boot, the agent retries with backoff and keeps local logs until it can reconnect.
+- **Logs:** Reboot/startup logs must capture service start time, `frpc` start result, config revision, reconnect attempts, and the first successful heartbeat.
+- **UI State:** During reboot recovery, the node should show statuses like `rebooting`, `starting agent`, `reconnecting tunnel`, `restoring proxies`, or `online`, instead of only `offline`.
+- **Install Verification:** The onboarding flow must confirm the service is enabled for boot and warn if the current platform only supports manual startup.
 
-### D. Stale Rule Cleanup
+### D. Graceful Terminal Sessions
+- **Session Recovery:** If a user is in a Terminal session and the network drops briefly, the `node-pty` process on the Agent stays alive. When the tunnel reconnects, the WebSocket can re-attach to the existing terminal session so the user doesn't lose their work.
+- **Reboot Boundary:** If the client actually reboots, terminal sessions are marked as ended with reason `client_rebooted`, and the UI should offer a clean reconnect once the agent is back online.
+
+### E. Stale Rule Cleanup
 - If an Agent is deleted or re-installed, the Master Hub automatically flushes all associated `frps` proxy rules and dynamic DNS entries to prevent ghost traffic.
 - If a public route is deleted, the Master Hub removes the associated generated Nginx config, reloads Nginx after validation, disables the matching FRP proxy if no other route uses it, and records an audit event.
 
@@ -401,6 +422,7 @@ The module should be ready to rock on first deployment, not merely demo-ready.
 
 ### D. Reliability & Recovery
 - Agents should survive reboot, network loss, Hub restart, FRP restart, DNS hiccups, and temporary certificate renewal windows.
+- Client reboot handling must verify service auto-start, tunnel reconnection, proxy restoration, public route health, and clear reboot-specific UI status.
 - Hub should safely recover from process crash and reconcile actual FRP state with database state on boot.
 - Hub should reconcile actual Nginx managed config, certificates, and route health with database state on boot.
 - Failed agent installs should be resumable and provide exact remediation steps.
@@ -457,6 +479,7 @@ The module should be ready to rock on first deployment, not merely demo-ready.
 - Build the cloud ingress setup flow for Nginx, DNS, TLS, and managed config permissions.
 - Build agent version inventory, compatibility checks, update jobs, staged rollout, and rollback support.
 - Build diagnostics engine for client and route troubleshooting chains.
+- Build agent boot/reboot detection, service-manager status reporting, auto-start verification, and post-reboot reconciliation.
 
 ### Phase 4: Capabilities
 - Implement the WebSocket TTY bridge for the terminal.
@@ -475,6 +498,7 @@ The module should be ready to rock on first deployment, not merely demo-ready.
 - Add configurable resource guards and quota dashboards.
 - Add emergency controls for disabling all public routes, stopping sessions/jobs, rotating tokens, pausing updates, and fleet maintenance mode.
 - Add install/reconnect/restart/delete integration tests.
+- Add client reboot integration tests for systemd, launchd, and Docker restart policies where feasible.
 - Add update/rollback, backup/restore, config import/adoption, firewall preflight, and diagnostics integration tests.
 - Add operational documentation for DNS, TLS, Docker, systemd, backup/restore, and troubleshooting.
 
@@ -502,5 +526,6 @@ This module is production-ready only when all of the following are true:
 - Server-level, client-level, Nginx, public-route, and fleet-wide logs exist with filtering, live tail, retention, and correlation IDs.
 - Config changes are validated, versioned, previewed, audited, and rollback-capable.
 - Agents recover automatically after reboot, network drops, Hub restarts, and FRP restarts.
+- After a client reboot, the agent service starts automatically, `frpc` reconnects, proxies/routes are restored, logs capture the startup path, and the UI shows reboot-specific status until health checks pass.
 - Security defaults are production-safe: TLS on, unique tokens, no public admin endpoints, RBAC for dangerous actions, and no secrets leaked in logs.
 - The first deployment includes clear preflight checks, guided setup, and actionable failure messages.
