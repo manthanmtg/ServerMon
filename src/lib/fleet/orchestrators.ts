@@ -19,15 +19,10 @@ let frpOrch: unknown = null;
 let nginxOrch: unknown = null;
 
 function buildFrp(): unknown {
-  const cacheDir = process.env.FLEET_BINARY_CACHE_DIR;
-  const configDir = process.env.FLEET_FRPS_CONFIG_DIR;
+  const cacheDir = process.env.FLEET_BINARY_CACHE_DIR || '/var/lib/servermon/frp-cache';
+  const configDir = process.env.FLEET_FRPS_CONFIG_DIR || '/etc/servermon/frp';
   const version = process.env.FLEET_FRP_VERSION;
-  if (!cacheDir || !configDir) {
-    log.warn(
-      'FLEET_BINARY_CACHE_DIR or FLEET_FRPS_CONFIG_DIR not configured; FRP orchestrator disabled'
-    );
-    return makeNoopFrp();
-  }
+
   return new FrpOrchestrator({
     FrpServerState: FrpServerState as unknown as ConstructorParameters<
       typeof FrpOrchestrator
