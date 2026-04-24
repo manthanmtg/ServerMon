@@ -83,28 +83,32 @@ esac
 
 # ── Installation ─────────────────────────────────────────
 log_info "Installing ServerMon Agent for $TRIPLE..."
+
+# Ensure core tools are present
+sudo apt-get update -y &>/dev/null
+sudo apt-get install -y curl git &>/dev/null
+
 sudo mkdir -p "$INSTALL_DIR"
 
 if ! command -v node &> /dev/null; then
   log_info "Node.js not found. Installing Node.js..."
   # Try standard repo first
-  if sudo apt-get update -y &>/dev/null; then
-    sudo apt-get install -y nodejs npm || {
-      // Fallback to nodesource if standard fails
-      log_info "Standard repository failed, trying NodeSource..."
-      curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
-      sudo apt-get install -y nodejs
-
-    }
-  fi
+  sudo apt-get install -y nodejs npm || {
+    # Fallback to nodesource if standard fails
+    log_info "Standard repository failed, trying NodeSource..."
+    curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+    sudo apt-get install -y nodejs
+  }
 fi
 
 log_info "Downloading ServerMon agent..."
-# NOTE: This part assumes you have a compiled binary or we use pnpm to run from source
-# For this prototype, we'll assume the user has pnpm and we clone/install
 if ! command -v pnpm &> /dev/null; then
-  sudo npm install -g pnpm
+  log_info "pnpm not found. Installing pnpm..."
+  sudo npm install -g pnpm &>/dev/null
 fi
+
+# Resolve pnpm path for the service file
+PNPM_BIN=$(command -v pnpm)
 
 sudo git clone https://github.com/manthanmtg/ServerMon.git "$INSTALL_DIR/source" || {
   cd "$INSTALL_DIR/source" && sudo git pull
@@ -116,7 +120,7 @@ sudo pnpm build
 
 # ── Service Configuration ────────────────────────────────
 log_info "Configuring systemd service..."
-cat <<EOF | sudo tee /etc/systemd/system/servermon-agent.service
+cat <<EOF | sudo tee /etc/systemd/system/servermon-agent.service > /dev/null
 [Unit]
 Description=ServerMon Agent
 After=network.target
@@ -130,7 +134,7 @@ Environment=FLEET_AGENT_MODE=true
 Environment=FLEET_AGENT_HUB_URL=$HUB_URL
 Environment=FLEET_AGENT_PAIRING_TOKEN=$TOKEN
 Environment=FLEET_AGENT_NODE_ID=$NODE_ID
-ExecStart=$(which pnpm) start
+ExecStart=$PNPM_BIN start
 Restart=always
 RestartSec=10
 
