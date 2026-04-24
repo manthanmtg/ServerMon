@@ -184,7 +184,7 @@ describe('UsersService', () => {
   // ── createOSUser ─────────────────────────────────────────────────────────
 
   describe('createOSUser()', () => {
-    it('runs useradd with the correct arguments', async () => {
+    it('runs useradd with the correct arguments including -- separator', async () => {
       mockExec({ 'sudo useradd': '' });
 
       await usersService.createOSUser('newuser');
@@ -193,6 +193,10 @@ describe('UsersService', () => {
       const usraddCall = calls.find((c: unknown[]) => (c[1] as string[]).includes('useradd'));
       expect(usraddCall).toBeDefined();
       expect(usraddCall![1]).toContain('newuser');
+      expect(usraddCall![1]).toContain('--');
+      // Ensure -- comes before username
+      const args = usraddCall![1] as string[];
+      expect(args.indexOf('--')).toBeLessThan(args.indexOf('newuser'));
     });
 
     it('uses the provided shell', async () => {
@@ -203,6 +207,16 @@ describe('UsersService', () => {
       const calls = (execFile as unknown as ReturnType<typeof vi.fn>).mock.calls;
       const usraddCall = calls.find((c: unknown[]) => (c[1] as string[]).includes('useradd'));
       expect(usraddCall![1]).toContain('/bin/zsh');
+    });
+
+    it('throws for invalid username format', async () => {
+      await expect(usersService.createOSUser('Invalid User!')).rejects.toThrow('Invalid username format');
+      await expect(usersService.createOSUser('123user')).rejects.toThrow('Invalid username format');
+      await expect(usersService.createOSUser('-baduser')).rejects.toThrow('Invalid username format');
+    });
+
+    it('throws for invalid shell path', async () => {
+      await expect(usersService.createOSUser('newuser', '/usr/bin/evil-shell')).rejects.toThrow('Invalid shell path');
     });
 
     it('throws when useradd returns an error stderr', async () => {
@@ -219,7 +233,7 @@ describe('UsersService', () => {
   // ── deleteOSUser ─────────────────────────────────────────────────────────
 
   describe('deleteOSUser()', () => {
-    it('runs userdel with the username', async () => {
+    it('runs userdel with the username and -- separator', async () => {
       mockExec({ 'sudo userdel': '' });
 
       await usersService.deleteOSUser('olduser');
@@ -228,13 +242,18 @@ describe('UsersService', () => {
       const delCall = calls.find((c: unknown[]) => (c[1] as string[]).includes('userdel'));
       expect(delCall).toBeDefined();
       expect(delCall![1]).toContain('olduser');
+      expect(delCall![1]).toContain('--');
+    });
+
+    it('throws for invalid username format', async () => {
+      await expect(usersService.deleteOSUser('; rm -rf /')).rejects.toThrow('Invalid username format');
     });
   });
 
   // ── toggleSudo ───────────────────────────────────────────────────────────
 
   describe('toggleSudo()', () => {
-    it('adds user to sudo group when enabling', async () => {
+    it('adds user to sudo group when enabling with -- separator', async () => {
       mockExec({
         'groups alice': 'alice : alice developers\n',
         'sudo usermod': '',
@@ -247,6 +266,7 @@ describe('UsersService', () => {
       expect(usermodCall).toBeDefined();
       expect(usermodCall![1]).toContain('-aG');
       expect(usermodCall![1]).toContain('sudo');
+      expect(usermodCall![1]).toContain('--');
     });
 
     it('does nothing if user is already in sudo group when enabling', async () => {
@@ -272,6 +292,7 @@ describe('UsersService', () => {
       const calls = (execFile as unknown as ReturnType<typeof vi.fn>).mock.calls;
       const usermodCall = calls.find((c: unknown[]) => (c[1] as string[]).includes('usermod'));
       expect(usermodCall).toBeDefined();
+      expect(usermodCall![1]).toContain('--');
       // The new groups list should not contain 'sudo'
       const groupsArg = (usermodCall![1] as string[]).find((a) => a.includes('developers'));
       expect(groupsArg).toBeDefined();

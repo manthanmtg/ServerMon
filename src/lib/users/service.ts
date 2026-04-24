@@ -55,6 +55,26 @@ class UsersService {
     }
   }
 
+  private isValidUsername(username: string): boolean {
+    // Linux username regex: starts with letter/underscore, followed by letters, numbers, hyphens, underscores.
+    // Length is usually limited to 32 characters.
+    return /^[a-z_][a-z0-9_-]{0,31}\$?$/.test(username);
+  }
+
+  private isValidShell(shell: string): boolean {
+    const allowedShells = [
+      '/bin/bash',
+      '/bin/sh',
+      '/bin/zsh',
+      '/usr/bin/bash',
+      '/usr/bin/sh',
+      '/usr/bin/zsh',
+      '/usr/sbin/nologin',
+      '/bin/false',
+    ];
+    return allowedShells.includes(shell);
+  }
+
   // --- OS Users ---
 
   public async listOSUsers(): Promise<OSUser[]> {
@@ -94,6 +114,7 @@ class UsersService {
   }
 
   private async getUserGroups(username: string): Promise<string[]> {
+    if (!this.isValidUsername(username)) return [];
     const { stdout } = await this.runCommand('groups', [username]);
     // Output format: "username : group1 group2 ..."
     return stdout.split(':')[1]?.trim().split(/\s+/) || [];
@@ -101,6 +122,7 @@ class UsersService {
 
   private async getSSHKeysCount(username: string, home: string): Promise<number> {
     try {
+      if (!this.isValidUsername(username)) return 0;
       const authKeysPath = path.join(home, '.ssh', 'authorized_keys');
       const content = await fs.readFile(authKeysPath, 'utf8').catch(() => '');
       return content.split('\n').filter((line) => line.trim() && !line.startsWith('#')).length;
@@ -110,29 +132,41 @@ class UsersService {
   }
 
   public async createOSUser(username: string, shell: string = '/bin/bash'): Promise<void> {
-    const { stderr } = await this.runCommand('sudo', ['useradd', '-m', '-s', shell, username]);
+    if (!this.isValidUsername(username)) {
+      throw new Error('Invalid username format');
+    }
+    if (!this.isValidShell(shell)) {
+      throw new Error('Invalid shell path');
+    }
+    const { stderr } = await this.runCommand('sudo', ['useradd', '-m', '-s', shell, '--', username]);
     if (stderr && !stderr.includes('already exists')) {
       throw new Error(stderr);
     }
   }
 
   public async deleteOSUser(username: string): Promise<void> {
-    const { stderr } = await this.runCommand('sudo', ['userdel', '-r', username]);
+    if (!this.isValidUsername(username)) {
+      throw new Error('Invalid username format');
+    }
+    const { stderr } = await this.runCommand('sudo', ['userdel', '-r', '--', username]);
     if (stderr) throw new Error(stderr);
   }
 
   public async toggleSudo(username: string, enable: boolean): Promise<void> {
+    if (!this.isValidUsername(username)) {
+      throw new Error('Invalid username format');
+    }
     // Toggle sudo access
     const groups = await this.getUserGroups(username);
     let newGroups = [];
 
     if (enable) {
       if (groups.includes('sudo')) return;
-      await this.runCommand('sudo', ['usermod', '-aG', 'sudo', username]);
+      await this.runCommand('sudo', ['usermod', '-aG', 'sudo', '--', username]);
     } else {
       if (!groups.includes('sudo')) return;
       newGroups = groups.filter((g) => g !== 'sudo');
-      await this.runCommand('sudo', ['usermod', '-G', newGroups.join(','), username]);
+      await this.runCommand('sudo', ['usermod', '-G', newGroups.join(','), '--', username]);
     }
   }
 
