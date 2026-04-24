@@ -38,6 +38,7 @@ export interface ConversationEntry {
   role: 'user' | 'assistant' | 'system';
   content: string;
   timestamp: string;
+  thoughts?: Array<{ subject: string; description: string; timestamp: string }>;
 }
 
 export interface ActionTimelineEntry {
@@ -98,9 +99,10 @@ export interface GeminiToolCall {
 export interface GeminiMessage {
   id: string;
   timestamp: string;
-  type: 'user' | 'gemini' | 'system';
+  type: 'user' | 'gemini' | 'system' | 'info';
   content: string | Array<{ text: string }>;
   model?: string;
+  thoughts?: Array<{ subject: string; description: string; timestamp: string }>;
   tokens?: {
     input: number;
     output: number;
