@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -67,8 +67,48 @@ export function IngressSetupWizard() {
   const [nginxResults, setNginxResults] = useState<PreflightResult[] | null>(null);
   const [dnsResults, setDnsResults] = useState<PreflightResult[] | null>(null);
   const [busy, setBusy] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [completed, setCompleted] = useState(false);
+
+  // Load current state and env defaults on mount
+  useEffect(() => {
+    async function load() {
+      try {
+        const res = await fetch('/api/fleet/server');
+        if (!res.ok) return;
+        const data = await res.json();
+        
+        setForm(prev => ({
+          ...prev,
+          hubPublicUrl: data.envDefaults?.hubPublicUrl || prev.hubPublicUrl,
+          acmeEmail: data.envDefaults?.acmeEmail || prev.acmeEmail,
+          managedDir: data.envDefaults?.managedDir || prev.managedDir,
+          binaryPath: data.envDefaults?.binaryPath || prev.binaryPath,
+          subdomainHost: data.state?.subdomainHost || data.envDefaults?.subdomainHost || prev.subdomainHost,
+          bindPort: data.state?.bindPort || prev.bindPort,
+          vhostHttpPort: data.state?.vhostHttpPort || prev.vhostHttpPort,
+          vhostHttpsPort: data.state?.vhostHttpsPort || prev.vhostHttpsPort,
+        }));
+      } catch (err) {
+        console.error('Failed to load initial setup state', err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    load();
+  }, []);
+
+  if (loading) {
+    return (
+      <Card>
+        <CardContent className="pt-6 flex flex-col items-center justify-center min-h-[300px]">
+          <Spinner size="lg" />
+          <p className="mt-4 text-muted-foreground">Loading existing configuration...</p>
+        </CardContent>
+      </Card>
+    );
+  }
 
   const defaultHubUrl =
     form.hubPublicUrl || (form.subdomainHost ? `https://hub.${form.subdomainHost}` : '');

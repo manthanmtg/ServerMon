@@ -106,7 +106,19 @@ export async function GET() {
 
     await connectDB();
     const state = await getOrCreateState();
-    return NextResponse.json({ state: state.toObject() });
+
+    // Include environment defaults to help the setup wizard prepopulate
+    const envDefaults = {
+      hubPublicUrl: process.env.FLEET_HUB_PUBLIC_URL || '',
+      acmeEmail: process.env.FLEET_ACME_EMAIL || '',
+      managedDir: process.env.FLEET_NGINX_MANAGED_DIR || '/etc/nginx/servermon',
+      binaryPath: process.env.FLEET_NGINX_BINARY || 'nginx',
+    };
+
+    return NextResponse.json({
+      state: state.toObject(),
+      envDefaults,
+    });
   } catch (error) {
     log.error('Failed to fetch FRP server state', error);
     return NextResponse.json({ error: 'Failed to fetch FRP server state' }, { status: 500 });
