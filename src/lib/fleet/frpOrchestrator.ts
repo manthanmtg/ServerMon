@@ -63,7 +63,7 @@ export interface FrpReconcileResult {
 }
 
 const DEFAULT_RECONCILE_INTERVAL_MS = 15_000;
-const DEFAULT_BINARY_VERSION = '0.61.2';
+const DEFAULT_BINARY_VERSION = 'latest';
 
 function buildRenderedToml(state: FrpServerStateLike): string {
   const authToken = process.env.FLEET_HUB_AUTH_TOKEN ?? state.authTokenHash ?? 'pending';

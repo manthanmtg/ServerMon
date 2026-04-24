@@ -11,7 +11,7 @@ import * as nodeOs from 'node:os';
 import { spawn as realSpawn } from 'node:child_process';
 import path from 'node:path';
 import connectDB from '@/lib/db';
-import { platformTriple } from './binary';
+import { platformTriple, resolveVersion } from './binary';
 import type { PreflightExecutors } from './preflight';
 
 type NetModule = typeof nodeNet;
@@ -384,11 +384,12 @@ export function createDefaultExecutors(opts: DefaultExecutorsOpts = {}): Preflig
 
   async function checkFrpBinary(): Promise<{ present: boolean; version?: string }> {
     const cacheDir = process.env.FLEET_BINARY_CACHE_DIR || '/var/lib/servermon/frp-cache';
-    const version = process.env.FLEET_FRP_VERSION || '0.58.1';
+    const versionRaw = process.env.FLEET_FRP_VERSION || 'latest';
     if (!fsImpl.stat) {
       return { present: false };
     }
     try {
+      const version = await resolveVersion(versionRaw);
       const triple = platformTriple();
       const frpsPath = path.join(cacheDir, version, triple, 'frps');
       await fsImpl.stat(frpsPath);

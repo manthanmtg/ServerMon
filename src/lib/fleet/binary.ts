@@ -58,12 +58,40 @@ export interface EnsureBinaryOpts {
   };
 }
 
+let cachedLatestVersion: { version: string; expiresAt: number } | null = null;
+const CACHE_TTL_MS = 1000 * 60 * 60; // 1 hour
+
+export async function resolveVersion(version: string, fetchImpl = fetch): Promise<string> {
+  if (version !== 'latest') {
+    return version;
+  }
+
+  const now = Date.now();
+  if (cachedLatestVersion && cachedLatestVersion.expiresAt > now) {
+    return cachedLatestVersion.version;
+  }
+
+  try {
+    const res = await fetchImpl('https://api.github.com/repos/fatedier/frp/releases/latest', {
+      headers: { Accept: 'application/vnd.github.v3+json', 'User-Agent': 'ServerMon-Hub' },
+    });
+    if (!res.ok) throw new Error(`GitHub API error: ${res.status}`);
+    const data = await res.json();
+    const latest = data.tag_name.replace(/^v/, '');
+    cachedLatestVersion = { version: latest, expiresAt: now + CACHE_TTL_MS };
+    return latest;
+  } catch (err) {
+    console.warn('Failed to fetch latest FRP version, falling back to 0.61.2', err);
+    return '0.61.2'; // Fallback
+  }
+}
+
 export async function ensureBinary(
   opts: EnsureBinaryOpts
 ): Promise<{ frps: string; frpc: string }> {
   const {
     cacheDir,
-    version,
+    version: versionRaw,
     fetchImpl = fetch,
     spawnImpl = realSpawn,
     fsImpl = {
@@ -73,6 +101,7 @@ export async function ensureBinary(
     },
   } = opts;
 
+  const version = await resolveVersion(versionRaw, fetchImpl);
   const triple = platformTriple();
   const binDir = path.join(cacheDir, version, triple);
   const frps = path.join(binDir, 'frps');
