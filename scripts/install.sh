@@ -250,9 +250,9 @@ if [ "$USE_EXISTING" = "true" ]; then
     if [[ "$EXISTING_MONGO" == *"MONGO_URI="* ]]; then
         EXISTING_MONGO=${EXISTING_MONGO%%MONGO_URI=*}
     fi
-    EXISTING_DOMAIN=$(grep "^DOMAIN=" "${CONFIG_DIR}/env" 2>/dev/null | cut -d'=' -f2- | head -1)
+    EXISTING_DOMAIN=$(grep "^DOMAIN=" "${CONFIG_DIR}/env" 2>/dev/null | cut -d'=' -f2- | head -1 || true)
     if [ -z "$EXISTING_DOMAIN" ] && [ -f "/etc/nginx/sites-available/servermon" ]; then
-        EXISTING_DOMAIN=$(grep -oP 'server_name \K[^;]*' /etc/nginx/sites-available/servermon 2>/dev/null | head -1 | xargs || echo "")
+        EXISTING_DOMAIN=$(grep -oP 'server_name \K[^;]*' /etc/nginx/sites-available/servermon 2>/dev/null | head -1 | xargs 2>/dev/null || echo "")
         [ "$EXISTING_DOMAIN" = "_" ] && EXISTING_DOMAIN=""
     fi
     if grep -q "^User=root" /etc/systemd/system/${SERVICE_NAME}.service 2>/dev/null; then
@@ -267,14 +267,14 @@ if [ "$USE_EXISTING" = "true" ]; then
     [ "$EXISTING_ALLOW_ROOT" = "true" ] && ALLOW_ROOT="true"
 
     # Load Fleet Hub values
-    EXISTING_HUB_MODE=$(grep "^FLEET_HUB_ORCHESTRATORS_ENABLED=" "${CONFIG_DIR}/env" 2>/dev/null | cut -d'=' -f2- | head -1)
-    EXISTING_HUB_URL=$(grep "^FLEET_HUB_PUBLIC_URL=" "${CONFIG_DIR}/env" 2>/dev/null | cut -d'=' -f2- | head -1)
-    EXISTING_HUB_TOKEN=$(grep "^FLEET_HUB_AUTH_TOKEN=" "${CONFIG_DIR}/env" 2>/dev/null | cut -d'=' -f2- | head -1)
-    EXISTING_FRP_PORT=$(grep "^FRP_BIND_PORT=" "${CONFIG_DIR}/env" 2>/dev/null | cut -d'=' -f2- | head -1)
-    EXISTING_FRP_VHOST=$(grep "^FRP_VHOST_HTTP_PORT=" "${CONFIG_DIR}/env" 2>/dev/null | cut -d'=' -f2- | head -1)
-    EXISTING_FRP_TOKEN=$(grep "^FRP_AUTH_TOKEN=" "${CONFIG_DIR}/env" 2>/dev/null | cut -d'=' -f2- | head -1)
-    EXISTING_FRP_SUBDOMAIN=$(grep "^FRP_SUBDOMAIN_HOST=" "${CONFIG_DIR}/env" 2>/dev/null | cut -d'=' -f2- | head -1)
-    EXISTING_ACME_EMAIL=$(grep "^FLEET_ACME_EMAIL=" "${CONFIG_DIR}/env" 2>/dev/null | cut -d'=' -f2- | head -1)
+    EXISTING_HUB_MODE=$(grep "^FLEET_HUB_ORCHESTRATORS_ENABLED=" "${CONFIG_DIR}/env" 2>/dev/null | cut -d'=' -f2- | head -1 || true)
+    EXISTING_HUB_URL=$(grep "^FLEET_HUB_PUBLIC_URL=" "${CONFIG_DIR}/env" 2>/dev/null | cut -d'=' -f2- | head -1 || true)
+    EXISTING_HUB_TOKEN=$(grep "^FLEET_HUB_AUTH_TOKEN=" "${CONFIG_DIR}/env" 2>/dev/null | cut -d'=' -f2- | head -1 || true)
+    EXISTING_FRP_PORT=$(grep "^FRP_BIND_PORT=" "${CONFIG_DIR}/env" 2>/dev/null | cut -d'=' -f2- | head -1 || true)
+    EXISTING_FRP_VHOST=$(grep "^FRP_VHOST_HTTP_PORT=" "${CONFIG_DIR}/env" 2>/dev/null | cut -d'=' -f2- | head -1 || true)
+    EXISTING_FRP_TOKEN=$(grep "^FRP_AUTH_TOKEN=" "${CONFIG_DIR}/env" 2>/dev/null | cut -d'=' -f2- | head -1 || true)
+    EXISTING_FRP_SUBDOMAIN=$(grep "^FRP_SUBDOMAIN_HOST=" "${CONFIG_DIR}/env" 2>/dev/null | cut -d'=' -f2- | head -1 || true)
+    EXISTING_ACME_EMAIL=$(grep "^FLEET_ACME_EMAIL=" "${CONFIG_DIR}/env" 2>/dev/null | cut -d'=' -f2- | head -1 || true)
 
     [ "$EXISTING_HUB_MODE" = "true" ] && HUB_MODE="true"
     [ -n "$EXISTING_HUB_URL" ] && HUB_PUBLIC_URL="$EXISTING_HUB_URL"
