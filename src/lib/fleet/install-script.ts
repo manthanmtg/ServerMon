@@ -90,10 +90,11 @@ if ! command -v node &> /dev/null; then
   # Try standard repo first
   if sudo apt-get update -y &>/dev/null; then
     sudo apt-get install -y nodejs npm || {
-      # Fallback to nodesource if standard fails
+      // Fallback to nodesource if standard fails
       log_info "Standard repository failed, trying NodeSource..."
-      curl -fsSL https://deb.nodejsource.com/setup_20.x | sudo -E bash -
+      curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
       sudo apt-get install -y nodejs
+
     }
   fi
 fi
