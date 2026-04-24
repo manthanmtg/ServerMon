@@ -98,24 +98,35 @@ The `Node` model tracks the fleet state:
 - `proxyRules`: Array<{ subdomain, localPort, enabled }>
 - `metrics`: { cpuLoad, ramUsed, uptime } (last snapshot)
 
----
+## 4. UI Component Architecture (Modular Design)
 
-## 4. UI Component Breakdown (`src/app/nodes/`)
+To ensure high maintainability and avoid "Prop Drilling" or massive single-page files, the UI is strictly divided into functional components.
 
-### Management Dashboard
-- **`FleetOverview`**: High-level stats (Total Nodes, Online count, Total BW usage).
-- **`NodeCardGrid`**: Visual cards per machine with real-time health rings.
-- **`OnboardingWizard`**: The multi-step modal for adding new machines.
+### A. Dashboard Components (`src/modules/nodes/ui/dashboard/`)
+- **`NodeGrid.tsx`**: A responsive CSS grid container that handles the fetching and rendering of `NodeCard` components.
+- **`NodeCard.tsx`**: Isolated component for a single Node. Contains its own polling logic (SWR) for high-frequency health updates.
+- **`NodeSearch.tsx`**: Filter and search component to quickly find machines in a large fleet.
+- **`FleetStatsBanner.tsx`**: Summarized stats (e.g., "12/15 Nodes Online", "Total Throughput: 4.5 MB/s").
+
+### B. Onboarding Components (`src/modules/nodes/ui/onboarding/`)
+- **`OnboardingWizard.tsx`**: Wrapper for the multi-step modal setup.
   - *Step 1: Identity:* Set machine name and tags.
   - *Step 2: DNS Guide:* Automated check/guide for setting up the wildcard DNS CNAME/A record if required for subdomains.
   - *Step 3: Installation:* Interactive terminal snippet based on the OS (detection for Linux/Docker/Mac).
   - *Step 4: Verification:* Real-time polling to confirm the agent has established its first tunnel.
+- **`InstallerSnippet.tsx`**: A library of copy-pasteable blocks for different environments (Ubuntu, CentOS, Docker, MacOS).
+- **`DnsVerifier.tsx`**: A small utility within the wizard that does server-side DNS lookups to confirm the user's wildcard record is active.
 
-### Node Detail View
-- **`TerminalTab`**: Full-screen `xterm.js` environment.
-- **`ProxyControl`**: Table to add/edit subdomain routes (`orion.manthanby.cv` -> `3000`).
-- **`SystemMetrics`**: Time-series charts for that specific machine.
-- **`ProcessManager`**: List and kill processes on the remote machine.
+### C. Detail View Components (`src/modules/nodes/ui/details/`)
+- **`NodeTerminal.tsx`**: Wrapper for `xterm.js`. Manages the WebSocket connection lifecycle.
+- **`NodeHardwareCharts.tsx`**: Renders time-series data using a chart library (e.g., Recharts) specifically for that node.
+- **`ProxyRuleTable.tsx`**: Dedicated CRUD table for editing the reverse proxy routes.
+- **`RemoteProcessTable.tsx`**: Fetches and displays the top processes solely from that remote agent.
+
+### D. State Management Strategy
+- **SWR/React Query**: Each component fetches its own data based on the `nodeId`. This prevents a single parent component from having a massive state object.
+- **Zustand (Optional)**: For global fleet states like "Active Node Selection" or "Fleet-wide Sidebar State".
+
 
 ---
 
@@ -148,7 +159,7 @@ For this to be a production-ready management solution, it must be resilient to n
 
 ---
 
-## 6. Implementation Roadmap
+## 7. Implementation Roadmap
 
 ### Phase 1: Foundation (Current)
 - Resource the `Node` Schema.
