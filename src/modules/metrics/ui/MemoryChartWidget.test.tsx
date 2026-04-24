@@ -4,7 +4,7 @@ import MemoryChartWidget from './MemoryChartWidget';
 
 vi.mock('recharts', () => ({
   AreaChart: ({ children }: { children: React.ReactNode }) => (
-    <div data-testid="area-chart">{children}</div>
+    <svg data-testid="area-chart">{children}</svg>
   ),
   Area: () => null,
   XAxis: () => null,

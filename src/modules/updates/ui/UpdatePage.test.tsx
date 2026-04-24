@@ -6,7 +6,7 @@ import { ToastProvider } from '@/components/ui/toast';
 // Mock Recharts to avoid issues in JSDOM
 vi.mock('recharts', () => ({
   ResponsiveContainer: ({ children }: { children: React.ReactNode }) => <div style={{ width: '100%', height: '100%' }}>{children}</div>,
-  AreaChart: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  AreaChart: ({ children }: { children: React.ReactNode }) => <svg>{children}</svg>,
   Area: () => null,
   XAxis: () => null,
   YAxis: () => null,
