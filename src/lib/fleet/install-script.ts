@@ -26,10 +26,10 @@ export function renderInstallSnippet(i: InstallSnippetInput): string {
   const nodeArg = shellEscape(i.nodeId);
 
   if (i.kind === 'linux') {
-    return `curl -sL ${base}/api/fleet/install/script | bash -s -- --hub-url ${hubArg} --token ${tokenArg} --node-id ${nodeArg}`;
+    return `curl -sL ${base}/api/fleet/public/install-script | bash -s -- --hub-url ${hubArg} --token ${tokenArg} --node-id ${nodeArg}`;
   }
   if (i.kind === 'macos') {
-    return `curl -sL ${base}/api/fleet/install/script | bash -s -- --hub-url ${hubArg} --token ${tokenArg} --node-id ${nodeArg} --platform macos`;
+    return `curl -sL ${base}/api/fleet/public/install-script | bash -s -- --hub-url ${hubArg} --token ${tokenArg} --node-id ${nodeArg} --platform macos`;
   }
   if (i.kind === 'docker') {
     const image = i.agentImage ?? 'servermon/agent:latest';

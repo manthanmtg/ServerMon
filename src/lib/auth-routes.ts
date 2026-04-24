@@ -8,6 +8,7 @@ export const PUBLIC_API_ROUTE_PREFIXES = [
   '/api/setup',
   '/api/settings/branding',
   '/api/endpoints',
+  '/api/fleet/public',
 ] as const;
 
 export function isPublicRoute(pathname: string) {

@@ -68,7 +68,7 @@ describe('GET /api/fleet/install', () => {
     expect(res.status).toBe(200);
     expect(res.headers.get('content-type')).toBe('text/x-shellscript');
     const body = await res.text();
-    expect(body).toContain('api/fleet/install/script');
+    expect(body).toContain('api/fleet/public/install-script');
     expect(body).toContain('--node-id');
   });
 
