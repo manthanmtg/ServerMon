@@ -206,47 +206,72 @@ export class CodexAdapter implements AgentAdapter {
           if (evt.type === 'session_meta') {
             if (evt.payload.cwd) data.cwd = evt.payload.cwd;
             if (evt.payload.model_provider) data.model = evt.payload.model_provider.toUpperCase();
-          } else if (evt.type === 'response_item' && evt.payload.type === 'message') {
+          } else if (evt.type === 'event_msg' && evt.payload.type === 'agent_message') {
+            conversation.push({
+              role: 'assistant',
+              content: evt.payload.message,
+              timestamp,
+            });
+          } else if (evt.type === 'response_item') {
             const payload = evt.payload;
-            if (payload.role === 'developer') continue;
+            if (payload.type === 'function_call') {
+              let args = {};
+              try {
+                args = typeof payload.arguments === 'string' ? JSON.parse(payload.arguments) : payload.arguments;
+              } catch { /* ignore */ }
+              
+              timeline.push({
+                timestamp,
+                action: `Action: ${payload.name}`,
+                detail: JSON.stringify(args),
+              });
 
-            let text = '';
-            if (Array.isArray(payload.content)) {
-              for (const part of payload.content) {
-                if (part.text) {
-                  text += part.text + '\n';
-                }
-                if (part.type === 'tool_use' || part.tool_call) {
-                  const tool = part.tool_call || part;
-                  timeline.push({
-                    timestamp,
-                    action: `Action: ${tool.name || 'tool'}`,
-                    detail: JSON.stringify(tool.input || {}),
-                  });
-                  // Extract files/commands if possible
-                  if (tool.name === 'write' || tool.name === 'edit') {
-                    if (tool.input?.path) filesModified.add(tool.input.path);
-                  } else if (tool.name === 'shell' || tool.name === 'run') {
-                    if (tool.input?.command) commandsExecuted.add(tool.input.command);
+              if (payload.name === 'write_file' || payload.name === 'edit_file') {
+                if (args.path) filesModified.add(args.path);
+              } else if (payload.name === 'exec_command' || payload.name === 'run_shell') {
+                if (args.cmd) commandsExecuted.add(args.cmd);
+              }
+            } else if (payload.type === 'message') {
+              if (payload.role === 'developer') continue;
+
+              let text = '';
+              if (Array.isArray(payload.content)) {
+                for (const part of payload.content) {
+                  if (part.text) {
+                    text += part.text + '\n';
+                  }
+                  if (part.type === 'tool_use' || part.tool_call) {
+                    const tool = part.tool_call || part;
+                    timeline.push({
+                      timestamp,
+                      action: `Action: ${tool.name || 'tool'}`,
+                      detail: JSON.stringify(tool.input || {}),
+                    });
+                    // Extract files/commands if possible
+                    if (tool.name === 'write' || tool.name === 'edit') {
+                      if (tool.input?.path) filesModified.add(tool.input.path);
+                    } else if (tool.name === 'shell' || tool.name === 'run') {
+                      if (tool.input?.command) commandsExecuted.add(tool.input.command);
+                    }
                   }
                 }
+                text = text.trim();
+              } else if (typeof payload.content === 'string') {
+                text = payload.content;
               }
-              text = text.trim();
-            } else if (typeof payload.content === 'string') {
-              text = payload.content;
-            }
 
-            if (text) {
-              conversation.push({
-                role: payload.role === 'user' ? 'user' : 'assistant',
-                content: text,
-                timestamp,
-              });
-            }
+              if (text) {
+                conversation.push({
+                  role: payload.role === 'user' ? 'user' : 'assistant',
+                  content: text,
+                  timestamp,
+                });
+              }
 
-            if (evt.usage) {
-              data.usage.inputTokens += evt.usage.prompt_tokens || 0;
-              data.usage.outputTokens += evt.usage.completion_tokens || 0;
+              if (evt.usage) {
+                data.usage.inputTokens += evt.usage.prompt_tokens || 0;
+                data.usage.outputTokens += evt.usage.completion_tokens || 0;
+              }
             }
           }
         } catch {

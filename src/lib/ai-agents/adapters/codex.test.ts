@@ -238,6 +238,46 @@ describe('CodexAdapter', () => {
       const sessions = await adapter.detect();
       expect(sessions).toHaveLength(0);
     });
+
+    it('parses agent_message and function_call events', async () => {
+      const rolloutPath = '/home/user1/.codex/sessions/rollout-events.jsonl';
+      const now = Date.now();
+      mockDiscoverHomeDirs.mockReturnValue([{ username: 'user1', homeDir: '/home/user1' }]);
+      mockExistsSync.mockReturnValue(true);
+      mockExecPromise.mockImplementation(async (cmd: string) => {
+        if (cmd.includes('find')) return { stdout: rolloutPath };
+        return { stdout: 'localhost\n' };
+      });
+      mockStatSync.mockReturnValue({ mtime: { getTime: () => now } });
+
+      const content = [
+        JSON.stringify({
+          type: 'event_msg',
+          timestamp: TIMESTAMP_1,
+          payload: { type: 'agent_message', message: 'I am starting' },
+        }),
+        JSON.stringify({
+          type: 'response_item',
+          timestamp: TIMESTAMP_2,
+          payload: {
+            type: 'function_call',
+            name: 'exec_command',
+            arguments: JSON.stringify({ cmd: 'ls', workdir: '/root' }),
+          },
+        }),
+      ].join('\n');
+      mockReadFileSync.mockReturnValue(content);
+
+      const adapter = new CodexAdapter();
+      const sessions = await adapter.detect();
+
+      expect(sessions).toHaveLength(1);
+      expect(sessions[0].conversation).toHaveLength(1);
+      expect(sessions[0].conversation[0].content).toBe('I am starting');
+      expect(sessions[0].timeline).toHaveLength(1);
+      expect(sessions[0].timeline[0].action).toBe('Action: exec_command');
+      expect(sessions[0].commandsExecuted).toContain('ls');
+    });
   });
 
   describe('agentType and displayName', () => {
