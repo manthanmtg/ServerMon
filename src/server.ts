@@ -73,7 +73,12 @@ if (process.env.FLEET_AGENT_MODE === 'true') {
       );
       process.exit(1);
     }
-    const agent = new AgentClient({ hubUrl, pairingToken, nodeId });
+    const agent = new AgentClient({
+      hubUrl,
+      pairingToken,
+      nodeId,
+      ptySpawn: pty.spawn as any,
+    });
     try {
       await agent.start();
       log.info('Fleet agent started');

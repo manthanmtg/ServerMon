@@ -120,6 +120,14 @@ sudo pnpm build
 
 # ── Service Configuration ────────────────────────────────
 log_info "Configuring systemd service..."
+
+# Ensure protocol is present for the service environment
+if [[ ! "$HUB_URL" =~ ^http ]]; then
+  SVC_HUB_URL="https://$HUB_URL"
+else
+  SVC_HUB_URL="$HUB_URL"
+fi
+
 cat <<EOF | sudo tee /etc/systemd/system/servermon-agent.service > /dev/null
 [Unit]
 Description=ServerMon Agent
@@ -131,7 +139,7 @@ User=root
 WorkingDirectory=$INSTALL_DIR/source
 Environment=NODE_ENV=production
 Environment=FLEET_AGENT_MODE=true
-Environment=FLEET_AGENT_HUB_URL=$HUB_URL
+Environment=FLEET_AGENT_HUB_URL=$SVC_HUB_URL
 Environment=FLEET_AGENT_PAIRING_TOKEN=$TOKEN
 Environment=FLEET_AGENT_NODE_ID=$NODE_ID
 ExecStart=$PNPM_BIN start
