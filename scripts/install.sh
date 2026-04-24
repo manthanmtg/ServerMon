@@ -589,8 +589,15 @@ if [ "$EXISTING_INSTALL" = "true" ] && [ -f "${CONFIG_DIR}/env" ]; then
     update_env_line "DOMAIN" "${DOMAIN}"
     update_env_line "SERVERMON_REPO_DIR" "${SOURCE_DIR}"
 
-    # Fleet Hub Persistence
     if [ "$HUB_MODE" = "true" ]; then
+        # Ensure managed directory exists for Hub snippets
+        MANAGED_DIR="${FLEET_NGINX_MANAGED_DIR:-/etc/nginx/servermon}"
+        if [ ! -d "$MANAGED_DIR" ]; then
+            log_info "Creating Nginx managed directory: ${MANAGED_DIR}"
+            mkdir -p "$MANAGED_DIR"
+        fi
+        chown -R "${SERVICE_USER}:${SERVICE_USER}" "$MANAGED_DIR"
+        
         update_env_line "FLEET_HUB_ORCHESTRATORS_ENABLED" "true"
         update_env_line "FLEET_HUB_PUBLIC_URL" "${HUB_PUBLIC_URL}"
         update_env_line "FLEET_HUB_AUTH_TOKEN" "${HUB_AUTH_TOKEN}"
