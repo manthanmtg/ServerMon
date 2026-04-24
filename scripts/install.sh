@@ -37,6 +37,16 @@ SKIP_MONGO_INSTALL="false"
 ALLOW_ROOT="false"
 USE_EXISTING="false"
 
+# Fleet Hub Defaults
+HUB_MODE="false"
+HUB_PUBLIC_URL=""
+HUB_AUTH_TOKEN=""
+FRP_BIND_PORT=7000
+FRP_VHOST_HTTP_PORT=8080
+FRP_AUTH_TOKEN=""
+FRP_SUBDOMAIN_HOST=""
+FLEET_ACME_EMAIL=""
+
 # ── Helpers ──────────────────────────────────────────────
 log()      { echo -e "  ${GREEN}✓${NC} $1"; }
 log_info() { echo -e "  ${BLUE}→${NC} $1"; }
@@ -255,6 +265,25 @@ if [ "$USE_EXISTING" = "true" ]; then
     [ -n "$EXISTING_MONGO" ] && MONGO_URI="$EXISTING_MONGO"
     [ -n "$EXISTING_DOMAIN" ] && DOMAIN="$EXISTING_DOMAIN"
     [ "$EXISTING_ALLOW_ROOT" = "true" ] && ALLOW_ROOT="true"
+
+    # Load Fleet Hub values
+    EXISTING_HUB_MODE=$(grep "^FLEET_HUB_ORCHESTRATORS_ENABLED=" "${CONFIG_DIR}/env" 2>/dev/null | cut -d'=' -f2- | head -1)
+    EXISTING_HUB_URL=$(grep "^FLEET_HUB_PUBLIC_URL=" "${CONFIG_DIR}/env" 2>/dev/null | cut -d'=' -f2- | head -1)
+    EXISTING_HUB_TOKEN=$(grep "^FLEET_HUB_AUTH_TOKEN=" "${CONFIG_DIR}/env" 2>/dev/null | cut -d'=' -f2- | head -1)
+    EXISTING_FRP_PORT=$(grep "^FRP_BIND_PORT=" "${CONFIG_DIR}/env" 2>/dev/null | cut -d'=' -f2- | head -1)
+    EXISTING_FRP_VHOST=$(grep "^FRP_VHOST_HTTP_PORT=" "${CONFIG_DIR}/env" 2>/dev/null | cut -d'=' -f2- | head -1)
+    EXISTING_FRP_TOKEN=$(grep "^FRP_AUTH_TOKEN=" "${CONFIG_DIR}/env" 2>/dev/null | cut -d'=' -f2- | head -1)
+    EXISTING_FRP_SUBDOMAIN=$(grep "^FRP_SUBDOMAIN_HOST=" "${CONFIG_DIR}/env" 2>/dev/null | cut -d'=' -f2- | head -1)
+    EXISTING_ACME_EMAIL=$(grep "^FLEET_ACME_EMAIL=" "${CONFIG_DIR}/env" 2>/dev/null | cut -d'=' -f2- | head -1)
+
+    [ "$EXISTING_HUB_MODE" = "true" ] && HUB_MODE="true"
+    [ -n "$EXISTING_HUB_URL" ] && HUB_PUBLIC_URL="$EXISTING_HUB_URL"
+    [ -n "$EXISTING_HUB_TOKEN" ] && HUB_AUTH_TOKEN="$EXISTING_HUB_TOKEN"
+    [ -n "$EXISTING_FRP_PORT" ] && FRP_BIND_PORT="$EXISTING_FRP_PORT"
+    [ -n "$EXISTING_FRP_VHOST" ] && FRP_VHOST_HTTP_PORT="$EXISTING_FRP_VHOST"
+    [ -n "$EXISTING_FRP_TOKEN" ] && FRP_AUTH_TOKEN="$EXISTING_FRP_TOKEN"
+    [ -n "$EXISTING_FRP_SUBDOMAIN" ] && FRP_SUBDOMAIN_HOST="$EXISTING_FRP_SUBDOMAIN"
+    [ -n "$EXISTING_ACME_EMAIL" ] && FLEET_ACME_EMAIL="$EXISTING_ACME_EMAIL"
     
     if [[ "$MONGO_URI" != *"localhost"* && "$MONGO_URI" != *"127.0.0.1"* ]]; then
         SKIP_MONGO_INSTALL="true"
@@ -323,6 +352,35 @@ if [ "$UNATTENDED" != "true" ]; then
     if [ "$ALLOW_ROOT" = "false" ]; then
         ask_yn "Run as root? (WARNING: Not recommended for security)" "true" "ALLOW_ROOT"
     fi
+
+    # Fleet Hub Configuration
+    echo ""
+    echo -e "  ${BOLD}Fleet Hub Configuration:${NC}"
+    divider
+    ask_yn "Enable Fleet Hub mode? (To manage remote nodes)" "$HUB_MODE" "HUB_MODE"
+    if [ "$HUB_MODE" = "true" ]; then
+        if [ -n "$DOMAIN" ]; then
+            DEFAULT_HUB_URL="https://${DOMAIN}"
+            DEFAULT_SUBDOMAIN="${DOMAIN}"
+        else
+            LOCAL_IP=$(hostname -I 2>/dev/null | awk '{print $1}' || echo "your-ip")
+            DEFAULT_HUB_URL="http://${LOCAL_IP}:${APP_PORT}"
+            DEFAULT_SUBDOMAIN=""
+        fi
+        
+        ask "Hub Public URL" "${HUB_PUBLIC_URL:-$DEFAULT_HUB_URL}" "HUB_PUBLIC_URL"
+        ask "FRP Subdomain Host (e.g., example.com)" "${FRP_SUBDOMAIN_HOST:-$DEFAULT_SUBDOMAIN}" "FRP_SUBDOMAIN_HOST"
+        ask "FRP Bind Port" "$FRP_BIND_PORT" "FRP_BIND_PORT"
+        
+        if [ -z "$HUB_AUTH_TOKEN" ]; then
+            HUB_AUTH_TOKEN=$(openssl rand -base64 32)
+            log "Generated FLEET_HUB_AUTH_TOKEN"
+        fi
+        if [ -z "$FRP_AUTH_TOKEN" ]; then
+            FRP_AUTH_TOKEN=$(openssl rand -base64 32)
+            log "Generated FRP_AUTH_TOKEN"
+        fi
+    fi
 fi
 
 # SSL requires domain
@@ -346,6 +404,7 @@ echo -e "  Domain:          ${BOLD}${DOMAIN:-"— (IP access only)"}${NC}"
 echo -e "  Nginx:           ${BOLD}$([ "$SETUP_NGINX" = "true" ] && echo "Yes" || echo "No")${NC}"
 echo -e "  SSL:             ${BOLD}$([ "$SETUP_SSL" = "true" ] && echo "Yes (Let's Encrypt)" || echo "No")${NC}"
 echo -e "  Run as root:     ${BOLD}$([ "$ALLOW_ROOT" = "true" ] && echo "Yes (WARNING)" || echo "No")${NC}"
+echo -e "  Fleet Hub:       ${BOLD}$([ "$HUB_MODE" = "true" ] && echo "Enabled (${HUB_PUBLIC_URL})" || echo "Disabled")${NC}"
 echo -e "  Mode:            ${BOLD}$([ "$EXISTING_INSTALL" = "true" ] && echo "Upgrade" || echo "Fresh install")${NC}"
 divider
 
@@ -526,6 +585,18 @@ if [ "$EXISTING_INSTALL" = "true" ] && [ -f "${CONFIG_DIR}/env" ]; then
     update_env_line "DOMAIN" "${DOMAIN}"
     update_env_line "SERVERMON_REPO_DIR" "${SOURCE_DIR}"
 
+    # Fleet Hub Persistence
+    if [ "$HUB_MODE" = "true" ]; then
+        update_env_line "FLEET_HUB_ORCHESTRATORS_ENABLED" "true"
+        update_env_line "FLEET_HUB_PUBLIC_URL" "${HUB_PUBLIC_URL}"
+        update_env_line "FLEET_HUB_AUTH_TOKEN" "${HUB_AUTH_TOKEN}"
+        update_env_line "FRP_BIND_PORT" "${FRP_BIND_PORT}"
+        update_env_line "FRP_VHOST_HTTP_PORT" "${FRP_VHOST_HTTP_PORT}"
+        update_env_line "FRP_AUTH_TOKEN" "${FRP_AUTH_TOKEN}"
+        update_env_line "FRP_SUBDOMAIN_HOST" "${FRP_SUBDOMAIN_HOST}"
+        [ -n "$FLEET_ACME_EMAIL" ] && update_env_line "FLEET_ACME_EMAIL" "${FLEET_ACME_EMAIL}"
+    fi
+
     # Add JWT_SECRET if missing
     if ! grep -q "^JWT_SECRET=" "${CONFIG_DIR}/env"; then
         JWT_SECRET=$(openssl rand -base64 32)
@@ -543,6 +614,19 @@ JWT_SECRET=${JWT_SECRET}
 DOMAIN=${DOMAIN}
 SERVERMON_REPO_DIR=${SOURCE_DIR}
 ENVEOF
+
+    if [ "$HUB_MODE" = "true" ]; then
+        cat >> "${CONFIG_DIR}/env" <<HUBEOF
+FLEET_HUB_ORCHESTRATORS_ENABLED=true
+FLEET_HUB_PUBLIC_URL=${HUB_PUBLIC_URL}
+FLEET_HUB_AUTH_TOKEN=${HUB_AUTH_TOKEN}
+FRP_BIND_PORT=${FRP_BIND_PORT}
+FRP_VHOST_HTTP_PORT=${FRP_VHOST_HTTP_PORT}
+FRP_AUTH_TOKEN=${FRP_AUTH_TOKEN}
+FRP_SUBDOMAIN_HOST=${FRP_SUBDOMAIN_HOST}
+HUBEOF
+        [ -n "$FLEET_ACME_EMAIL" ] && echo "FLEET_ACME_EMAIL=${FLEET_ACME_EMAIL}" >> "${CONFIG_DIR}/env"
+    fi
     log "Environment config created at ${CONFIG_DIR}/env"
 fi
 
@@ -793,6 +877,14 @@ elif [ "$SETUP_NGINX" = "true" ] && [ -n "$DOMAIN" ]; then
 else
     LOCAL_IP=$(hostname -I 2>/dev/null | awk '{print $1}' || echo "your-server-ip")
     echo -e "  URL:      ${BOLD}http://${LOCAL_IP}:${APP_PORT}${NC}"
+fi
+
+if [ "$HUB_MODE" = "true" ]; then
+    echo ""
+    echo -e "  ${CYAN}${BOLD}Fleet Hub Post-Install:${NC}"
+    echo -e "  1. Visit: ${BOLD}${HUB_PUBLIC_URL}/fleet/setup${NC}"
+    echo -e "  2. Run the Ingress Wizard to verify DNS and ports."
+    echo -e "  3. Go to /fleet/nodes/new to onboard your first agent."
 fi
 
 echo ""
