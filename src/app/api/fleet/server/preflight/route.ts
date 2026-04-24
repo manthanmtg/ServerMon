@@ -35,7 +35,7 @@ export async function POST() {
       frpBindPort: frp?.bindPort ?? 7000,
       vhostHttpPort: frp?.vhostHttpPort ?? 8080,
       vhostHttpsPort: frp?.vhostHttpsPort,
-      publicHostname: frp?.subdomainHost,
+      publicHostname: frp?.subdomainHost || process.env.DOMAIN,
       nginxManagedDir: nginx?.managedDir,
       nginxBinaryPath: nginx?.binaryPath,
       frpEnabled: frp?.enabled,
