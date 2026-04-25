@@ -80,11 +80,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const parsed = BodyZ.parse(body);
 
-    const endpoint = await CustomEndpoint.findById(parsed.endpointId).lean<{
-      _id: unknown;
-      slug: string;
-      target?: { mode: string; nodeIds?: string[]; tag?: string };
-    } | null>();
+    const endpoint = await CustomEndpoint.findById(parsed.endpointId).lean();
     if (!endpoint) {
       return NextResponse.json({ error: 'Endpoint not found' }, { status: 404 });
     }
