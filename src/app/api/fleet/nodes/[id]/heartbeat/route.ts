@@ -20,7 +20,7 @@ function extractBearer(req: NextRequest): string | null {
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  console.error(`[CRITICAL_DEBUG] Received heartbeat POST for node ${id}`);
+  console.error(`[CRITICAL_DEBUG_2] Received heartbeat POST for node ${id}`);
   try {
     const token = extractBearer(req);
     if (!token) {
