@@ -32,21 +32,30 @@ export interface FrpcRenderInput {
 }
 
 export function renderFrpcToml(i: FrpcRenderInput): string {
-  const cfg = i.node.frpcConfig;
+  const cfg = i.node.frpcConfig ?? {
+    protocol: 'tcp',
+    tlsEnabled: false,
+    tlsVerify: false,
+    heartbeatInterval: 30,
+    heartbeatTimeout: 90,
+    poolCount: 1,
+    transportEncryptionEnabled: false,
+    compressionEnabled: false,
+  };
   const out: string[] = [];
   out.push(`serverAddr = ${escapeStr(i.serverAddr)}`);
   out.push(`serverPort = ${i.serverPort}`);
   out.push(`auth.method = "token"`);
   out.push(`auth.token = ${escapeStr(i.authToken)}`);
-  out.push(`transport.protocol = ${escapeStr(cfg.protocol)}`);
-  out.push(`transport.tls.enable = ${cfg.tlsEnabled}`);
+  out.push(`transport.protocol = ${escapeStr(cfg.protocol || 'tcp')}`);
+  out.push(`transport.tls.enable = ${!!cfg.tlsEnabled}`);
   out.push(`transport.tls.disableCustomTLSFirstByte = ${!cfg.tlsVerify}`);
-  out.push(`transport.heartbeatInterval = ${cfg.heartbeatInterval}`);
-  out.push(`transport.heartbeatTimeout = ${cfg.heartbeatTimeout}`);
-  out.push(`transport.poolCount = ${cfg.poolCount}`);
-  out.push(`transport.useEncryption = ${cfg.transportEncryptionEnabled}`);
-  out.push(`transport.useCompression = ${cfg.compressionEnabled}`);
-  for (const p of i.node.proxyRules) {
+  out.push(`transport.heartbeatInterval = ${cfg.heartbeatInterval || 30}`);
+  out.push(`transport.heartbeatTimeout = ${cfg.heartbeatTimeout || 90}`);
+  out.push(`transport.poolCount = ${cfg.poolCount || 1}`);
+  out.push(`transport.useEncryption = ${!!cfg.transportEncryptionEnabled}`);
+  out.push(`transport.useCompression = ${!!cfg.compressionEnabled}`);
+  for (const p of i.node.proxyRules || []) {
     if (!p.enabled) continue;
     out.push('');
     out.push('[[proxies]]');

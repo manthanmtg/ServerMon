@@ -157,7 +157,8 @@ export class AgentClient {
       this.status_.lastError = `node-fetch-failed: ${nodeRes.status}`;
       throw new Error(`node-fetch-failed: ${nodeRes.status}`);
     }
-    this.nodeConfig = (await nodeRes.json()) as NodeConfigResponse;
+    const data = (await nodeRes.json()) as { node: NodeConfigResponse };
+    this.nodeConfig = data.node;
 
     // 3. Ensure frpc binary
     const binaries = await ensureBinaryImpl({
