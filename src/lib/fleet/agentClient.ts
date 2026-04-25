@@ -193,6 +193,7 @@ export class AgentClient {
         slug: this.nodeConfig.slug ?? nodeId,
         frpcConfig: this.nodeConfig.frpcConfig,
         proxyRules: this.nodeConfig.proxyRules,
+        capabilities: this.nodeConfig.capabilities,
       },
     });
 
@@ -467,6 +468,7 @@ export class AgentClient {
           slug: this.nodeConfig.slug ?? nodeId,
           frpcConfig: this.nodeConfig.frpcConfig,
           proxyRules: this.nodeConfig.proxyRules,
+          capabilities: this.nodeConfig.capabilities,
         },
       });
 
