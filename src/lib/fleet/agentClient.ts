@@ -94,6 +94,7 @@ export class AgentClient {
   private ptyToken: string = '';
   private pairResponse: PairResponse | null = null;
   private nodeConfig: NodeConfigResponse | null = null;
+  private activeProxies = new Map<string, { status: string; lastError?: string }>();
   private capabilities: Record<string, boolean> = {
     terminal: true,
     endpointRuns: true,
@@ -217,14 +218,25 @@ export class AgentClient {
               this.status_.tunnelStatus = 'connected';
               this.log('info', 'agent.tunnel.connected', 'FRP tunnel established');
               console.log('[INFO] [tunnel] Connection established successfully');
-              // Send an out-of-band heartbeat right now so the hub flips
-              // the node from "connecting/degraded" to "online" immediately
-              // instead of waiting for the next heartbeat tick (~30s).
               void this.sendHeartbeat();
+            }
+
+            const match = cleanLine.match(/\[([^\]]+)\] start proxy success/);
+            if (match) {
+              this.activeProxies.set(match[1], { status: 'active' });
+              void this.sendHeartbeat(); // report this specific proxy immediately
             }
           }
           if (cleanLine.includes('work connection closed') || cleanLine.includes('login to server failed')) {
             this.status_.tunnelStatus = 'reconnecting';
+            for (const key of this.activeProxies.keys()) {
+              this.activeProxies.set(key, { status: 'disabled' });
+            }
+          }
+          const errMatch = cleanLine.match(/\[([^\]]+)\] start proxy error: (.+)/);
+          if (errMatch) {
+            this.activeProxies.set(errMatch[1], { status: 'error', lastError: errMatch[2] });
+            void this.sendHeartbeat();
           }
         },
       });
@@ -320,7 +332,11 @@ export class AgentClient {
         status: this.status_.tunnelStatus,
         connectedSince: this.bootAt.toISOString(),
       },
-      proxies: [],
+      proxies: Array.from(this.activeProxies.entries()).map(([name, s]) => ({
+        name,
+        status: s.status,
+        lastError: s.lastError,
+      })),
       capabilities: this.capabilities,
       // Phase 2 simplification: include pty bridge auth token so the hub
       // can dial the local bridge when a user opens a terminal session.
@@ -474,12 +490,26 @@ export class AgentClient {
         onLog: (line) => {
           this.log('info', 'agent.frpc.log', line);
           const cleanLine = line.replace(/\u001b\[[0-9;]*[mGKH]/g, '').toLowerCase();
+
           if (cleanLine.includes('login to server success') || cleanLine.includes('start proxy success')) {
             this.status_.tunnelStatus = 'connected';
+            
+            const match = cleanLine.match(/\[([^\]]+)\] start proxy success/);
+            if (match) {
+              this.activeProxies.set(match[1], { status: 'active' });
+            }
             void this.sendHeartbeat();
           }
           if (cleanLine.includes('work connection closed') || cleanLine.includes('login to server failed')) {
             this.status_.tunnelStatus = 'reconnecting';
+            // Mark all as disabled on global tunnel failure
+            for (const key of this.activeProxies.keys()) {
+              this.activeProxies.set(key, { status: 'disabled' });
+            }
+          }
+          const errMatch = cleanLine.match(/\[([^\]]+)\] start proxy error: (.+)/);
+          if (errMatch) {
+            this.activeProxies.set(errMatch[1], { status: 'error', lastError: errMatch[2] });
           }
         },
       });
