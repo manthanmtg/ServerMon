@@ -348,10 +348,23 @@ export class AgentClient {
 
     if (cmd.command === 'update') {
       this.log('info', 'agent.update.starting', 'Executing remote update...');
-      // In a real environment, we'd spawn the update script.
-      // For this implementation, we simulate it by pulling and restarting.
       const spawn = this.opts.spawnImpl ?? realSpawn;
-      const child = spawn('bash', ['-c', 'cd /opt/servermon-agent/source && sudo git pull && sudo pnpm install && sudo pnpm build && sudo systemctl restart servermon-agent'], {
+      
+      // Robust update command:
+      // 1. Ensure a standard PATH
+      // 2. Hard reset git to ignore any local file changes
+      // 3. Rebuild and restart
+      const updateCmd = [
+        'export PATH=$PATH:/usr/local/bin:/usr/bin:/bin',
+        'cd /opt/servermon-agent/source',
+        'git reset --hard origin/main',
+        'git pull',
+        'pnpm install',
+        'pnpm build',
+        'systemctl restart servermon-agent'
+      ].join(' && ');
+
+      const child = spawn('bash', ['-c', updateCmd], {
         detached: true,
         stdio: 'ignore'
       });
