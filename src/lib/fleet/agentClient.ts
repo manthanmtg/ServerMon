@@ -333,11 +333,15 @@ export class AgentClient {
         status: this.status_.tunnelStatus,
         connectedSince: this.bootAt.toISOString(),
       },
-      proxies: Array.from(this.activeProxies.entries()).map(([name, s]) => ({
-        name,
-        status: s.status,
-        lastError: s.lastError,
-      })),
+      proxies: (() => {
+        const p = Array.from(this.activeProxies.entries()).map(([name, s]) => ({
+          name,
+          status: s.status,
+          lastError: s.lastError,
+        }));
+        console.log(`[DEBUG] Agent sending ${p.length} proxies in heartbeat: ${JSON.stringify(p.map(x => x.name))}`);
+        return p;
+      })(),
       capabilities: this.capabilities,
       // Phase 2 simplification: include pty bridge auth token so the hub
       // can dial the local bridge when a user opens a terminal session.
