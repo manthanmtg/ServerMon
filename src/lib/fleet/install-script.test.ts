@@ -21,15 +21,13 @@ describe('renderInstallSnippet', () => {
       kind: 'linux',
       installerBaseUrl: 'https://staging.example.com',
     });
-    expect(out).toContain(
-      'curl -sL https://staging.example.com/api/fleet/public/install-script |'
-    );
+    expect(out).toContain('curl -sL https://staging.example.com/api/fleet/public/install-script |');
   });
 
   it('docker: docker run with env vars and default image', () => {
     const out = renderInstallSnippet({ ...base, kind: 'docker' });
     expect(out).toBe(
-      "docker run -d --name servermon-agent --restart unless-stopped -e FLEET_HUB_URL='ultron.manthanby.cv' -e FLEET_PAIRING_TOKEN='tok-ABC-xyz' -e FLEET_NODE_ID='node-1' servermon/agent:latest"
+      "docker run -d --name servermon-agent --restart unless-stopped -e PORT=8918 -e FLEET_AGENT_PTY_PORT=8918 -e FLEET_HUB_URL='ultron.manthanby.cv' -e FLEET_PAIRING_TOKEN='tok-ABC-xyz' -e FLEET_NODE_ID='node-1' servermon/agent:latest"
     );
   });
 

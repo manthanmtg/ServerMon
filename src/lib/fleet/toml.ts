@@ -72,7 +72,7 @@ export function renderFrpcToml(i: FrpcRenderInput): string {
       name: 'terminal-bridge',
       type: 'tcp',
       localIp: '127.0.0.1',
-      localPort: ptyConfig.ptyListenPort || 8001,
+      localPort: ptyConfig.ptyListenPort || 8918,
       remotePort: 0,
       enabled: true,
       status: 'disabled',

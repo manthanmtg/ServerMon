@@ -19,6 +19,11 @@ const app = next({ dev });
 const handle = app.getRequestHandler();
 const port = parseInt(process.env.PORT || '8912', 10);
 
+function parsePort(value: string | undefined, fallback: number): number {
+  const parsed = Number.parseInt(value ?? '', 10);
+  return Number.isInteger(parsed) && parsed > 0 && parsed <= 65535 ? parsed : fallback;
+}
+
 // Database imports for settings
 import connectDB from './lib/db';
 import TerminalSettings from './models/TerminalSettings';
@@ -68,6 +73,7 @@ if (process.env.FLEET_AGENT_MODE === 'true') {
     const hubUrl = process.env.FLEET_AGENT_HUB_URL;
     const pairingToken = process.env.FLEET_AGENT_PAIRING_TOKEN;
     const nodeId = process.env.FLEET_AGENT_NODE_ID;
+    const ptyListenPort = parsePort(process.env.FLEET_AGENT_PTY_PORT ?? process.env.PORT, 8918);
     if (!hubUrl || !pairingToken || !nodeId) {
       log.error(
         'FLEET_AGENT_MODE=true requires FLEET_AGENT_HUB_URL, FLEET_AGENT_PAIRING_TOKEN, FLEET_AGENT_NODE_ID'
@@ -78,6 +84,7 @@ if (process.env.FLEET_AGENT_MODE === 'true') {
       hubUrl,
       pairingToken,
       nodeId,
+      ptyListenPort,
       // Plumb node-pty into the bridge factory so the hub can open
       // terminal sessions on the agent. Without this the bridge is
       // started but every OPEN frame returns "pty-unavailable".
@@ -104,16 +111,18 @@ if (process.env.FLEET_AGENT_MODE === 'true') {
             hardware: {},
             metrics: {},
             tunnel: { status: (agent.status() as any).tunnelStatus },
-            logs: [{
-              level: entry.level,
-              eventType: entry.eventType,
-              message: entry.message,
-              metadata: entry.metadata,
-              timestamp: new Date().toISOString()
-            }]
-          })
+            logs: [
+              {
+                level: entry.level,
+                eventType: entry.eventType,
+                message: entry.message,
+                metadata: entry.metadata,
+                timestamp: new Date().toISOString(),
+              },
+            ],
+          }),
         }).catch(() => {}); // ignore log delivery errors
-      }
+      },
     });
     try {
       await agent.start();
@@ -485,12 +494,14 @@ if (process.env.FLEET_AGENT_MODE === 'true') {
 
             // Check if the agent has a terminal-bridge proxy active
             const terminalBridge = (node.proxyRules || []).find(
-              (p: any) => (p.name === 'terminal-bridge' || `${node.slug}-terminal-bridge` === p.name) && p.status === 'active'
+              (p: any) =>
+                (p.name === 'terminal-bridge' || `${node.slug}-terminal-bridge` === p.name) &&
+                p.status === 'active'
             );
 
             if (terminalBridge && terminalBridge.remotePort) {
               // Remote agent reachable via the Hub's public domain on the mapped remote port.
-              // Note: For simplicity and security, we dial 127.0.0.1 on the hub since 
+              // Note: For simplicity and security, we dial 127.0.0.1 on the hub since
               // frps is running locally and mapped ports are bound to the hub.
               return {
                 host: '127.0.0.1',
@@ -563,7 +574,7 @@ if (process.env.FLEET_AGENT_MODE === 'true') {
     // Graceful Shutdown Handler
     const shutdown = async (signal: string) => {
       log.info(`Received ${signal}, shutting down...`);
-      
+
       // Stop Hub Orchestrators
       if (process.env.FLEET_HUB_ORCHESTRATORS_ENABLED === 'true') {
         const { getFrpOrchestrator } = await import('./lib/fleet/orchestrators');

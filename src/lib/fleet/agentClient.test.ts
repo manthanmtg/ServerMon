@@ -159,10 +159,10 @@ describe('AgentClient', () => {
     // heartbeat interval scheduled
     expect(setIntervalImpl).toHaveBeenCalled();
 
-    // Status is connecting after start
+    // Status is reconnecting until frpc logs a successful connection.
     const status = client.status();
     expect(status.paired).toBe(true);
-    expect(status.tunnelStatus).toBe('connecting');
+    expect(status.tunnelStatus).toBe('reconnecting');
     expect(status.bridgeRunning).toBe(true);
     expect(status.frpcPid).toBe(4242);
 

@@ -18,7 +18,7 @@ export function renderInstallSnippet(i: InstallSnippetInput): string {
   // If hubUrl starts with http/https, use it as is, otherwise prepend https://
   const hubBase = i.hubUrl.startsWith('http') ? i.hubUrl : `https://${i.hubUrl}`;
   const base = i.installerBaseUrl ?? hubBase;
-  
+
   // For the --hub-url argument, we want the protocol-less version if possible
   // or the full one if that's what was provided.
   const hubArg = shellEscape(i.hubUrl);
@@ -33,7 +33,7 @@ export function renderInstallSnippet(i: InstallSnippetInput): string {
   }
   if (i.kind === 'docker') {
     const image = i.agentImage ?? 'servermon/agent:latest';
-    return `docker run -d --name servermon-agent --restart unless-stopped -e FLEET_HUB_URL=${hubArg} -e FLEET_PAIRING_TOKEN=${tokenArg} -e FLEET_NODE_ID=${nodeArg} ${image}`;
+    return `docker run -d --name servermon-agent --restart unless-stopped -e PORT=8918 -e FLEET_AGENT_PTY_PORT=8918 -e FLEET_HUB_URL=${hubArg} -e FLEET_PAIRING_TOKEN=${tokenArg} -e FLEET_NODE_ID=${nodeArg} ${image}`;
   }
   throw new Error(`Unknown installer kind: ${String(i.kind)}`);
 }
@@ -138,7 +138,9 @@ Type=simple
 User=root
 WorkingDirectory=$INSTALL_DIR/source
 Environment=NODE_ENV=production
+Environment=PORT=8918
 Environment=FLEET_AGENT_MODE=true
+Environment=FLEET_AGENT_PTY_PORT=8918
 Environment=FLEET_AGENT_HUB_URL=$SVC_HUB_URL
 Environment=FLEET_AGENT_PAIRING_TOKEN=$TOKEN
 Environment=FLEET_AGENT_NODE_ID=$NODE_ID

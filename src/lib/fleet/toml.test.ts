@@ -119,7 +119,7 @@ describe('renderFrpcToml', () => {
     expect(out).toContain('[[proxies]]');
     expect(out).toContain('name = "orion-terminal"');
     expect(out).toContain('type = "tcp"');
-    expect(out).toContain('localPort = 8001');
+    expect(out).toContain('localPort = 8918');
     expect(out).toContain('remotePort = 9001');
   });
   it('emits http proxy with subdomain + customDomains', () => {

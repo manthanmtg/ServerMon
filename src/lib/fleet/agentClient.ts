@@ -72,12 +72,18 @@ interface NodeConfigResponse {
   capabilities?: Record<string, boolean>;
 }
 
+function unwrapNodeConfig(
+  data: NodeConfigResponse | { node?: NodeConfigResponse }
+): NodeConfigResponse {
+  if ('node' in data && data.node) return data.node;
+  return data as NodeConfigResponse;
+}
+
 const DEFAULT_BINARY_CACHE_DIR = '.fleet-cache/frp';
 const DEFAULT_CONFIG_DIR = '.fleet-cache/agent';
-const DEFAULT_PTY_LISTEN_PORT = 8001;
+const DEFAULT_PTY_LISTEN_PORT = 8918;
 const DEFAULT_HEARTBEAT_INTERVAL_MS = 30_000;
 const DEFAULT_BINARY_VERSION = 'latest';
-
 
 export class AgentClient {
   private readonly opts: AgentClientOpts;
@@ -173,8 +179,8 @@ export class AgentClient {
       this.status_.lastError = `node-fetch-failed: ${nodeRes.status}`;
       throw new Error(`node-fetch-failed: ${nodeRes.status}`);
     }
-    const data = (await nodeRes.json()) as { node: NodeConfigResponse };
-    this.nodeConfig = data.node;
+    const data = (await nodeRes.json()) as NodeConfigResponse | { node?: NodeConfigResponse };
+    this.nodeConfig = unwrapNodeConfig(data);
 
     // 3. Ensure frpc binary
     const binaries = await ensureBinaryImpl({
@@ -211,11 +217,14 @@ export class AgentClient {
         spawnImpl,
         onLog: (line) => {
           this.log('info', 'agent.frpc.log', line);
-          
+
           // Strip ANSI color codes so we can read the clean text
           const cleanLine = line.replace(/\u001b\[[0-9;]*[mGKH]/g, '').toLowerCase();
-          
-          if (cleanLine.includes('login to server success') || cleanLine.includes('start proxy success')) {
+
+          if (
+            cleanLine.includes('login to server success') ||
+            cleanLine.includes('start proxy success')
+          ) {
             if (this.status_.tunnelStatus !== 'connected') {
               this.status_.tunnelStatus = 'connected';
               this.log('info', 'agent.tunnel.connected', 'FRP tunnel established');
@@ -229,7 +238,10 @@ export class AgentClient {
               void this.sendHeartbeat(); // report this specific proxy immediately
             }
           }
-          if (cleanLine.includes('work connection closed') || cleanLine.includes('login to server failed')) {
+          if (
+            cleanLine.includes('work connection closed') ||
+            cleanLine.includes('login to server failed')
+          ) {
             this.status_.tunnelStatus = 'reconnecting';
             for (const key of this.activeProxies.keys()) {
               this.activeProxies.set(key, { status: 'disabled' });
@@ -263,9 +275,7 @@ export class AgentClient {
     this.status_.bridgeRunning = true;
 
     // 8. Heartbeat loop
-    this.heartbeatTimer = setIntervalImpl(() => {
-      void this.sendHeartbeat();
-    }, heartbeatIntervalMs);
+    this.heartbeatTimer = setIntervalImpl(() => this.sendHeartbeat(), heartbeatIntervalMs);
 
     // Fire an initial heartbeat in the background; do not await start() on it.
     void this.sendHeartbeat();
@@ -340,7 +350,9 @@ export class AgentClient {
           status: s.status,
           lastError: s.lastError,
         }));
-        console.log(`[DEBUG] Agent sending ${p.length} proxies in heartbeat: ${JSON.stringify(p.map(x => x.name))}`);
+        console.log(
+          `[DEBUG] Agent sending ${p.length} proxies in heartbeat: ${JSON.stringify(p.map((x) => x.name))}`
+        );
         return p;
       })(),
       capabilities: this.capabilities,
@@ -388,7 +400,7 @@ export class AgentClient {
     if (cmd.command === 'update') {
       this.log('info', 'agent.update.starting', 'Executing remote update...');
       const spawn = this.opts.spawnImpl ?? realSpawn;
-      
+
       const updateCmd = [
         'export PATH=$PATH:/usr/local/bin:/usr/bin:/bin',
         'cd /opt/servermon-agent/source',
@@ -397,12 +409,12 @@ export class AgentClient {
         'rm -rf .next',
         'pnpm install',
         'pnpm build',
-        'systemctl restart servermon-agent'
+        'systemctl restart servermon-agent',
       ].join(' && ');
 
       const child = spawn('bash', ['-c', updateCmd], {
         detached: true,
-        stdio: 'ignore'
+        stdio: 'ignore',
       });
       child.unref();
     }
@@ -440,7 +452,7 @@ export class AgentClient {
     try {
       this.log('info', 'agent.sync.starting', 'Syncing node configuration...');
       this.activeProxies.clear();
-      
+
       // 1. Fetch node config
       const nodeUrl = `${hubUrl}/api/fleet/nodes/${nodeId}`;
       const nodeRes = await fetchImpl(nodeUrl, {
@@ -452,8 +464,8 @@ export class AgentClient {
       if (!nodeRes.ok) {
         throw new Error(`node-fetch-failed: ${nodeRes.status}`);
       }
-      const data = (await nodeRes.json()) as { node: NodeConfigResponse };
-      this.nodeConfig = data.node;
+      const data = (await nodeRes.json()) as NodeConfigResponse | { node?: NodeConfigResponse };
+      this.nodeConfig = unwrapNodeConfig(data);
 
       // 2. Render frpc.toml
       if (!this.pairResponse) {
@@ -499,16 +511,22 @@ export class AgentClient {
           this.log('info', 'agent.frpc.log', line);
           const cleanLine = line.replace(/\u001b\[[0-9;]*[mGKH]/g, '').toLowerCase();
 
-          if (cleanLine.includes('login to server success') || cleanLine.includes('start proxy success')) {
+          if (
+            cleanLine.includes('login to server success') ||
+            cleanLine.includes('start proxy success')
+          ) {
             this.status_.tunnelStatus = 'connected';
-            
+
             const match = cleanLine.match(/\[([^\]]+)\] start proxy success/);
             if (match) {
               this.activeProxies.set(match[1], { status: 'active' });
             }
             void this.sendHeartbeat();
           }
-          if (cleanLine.includes('work connection closed') || cleanLine.includes('login to server failed')) {
+          if (
+            cleanLine.includes('work connection closed') ||
+            cleanLine.includes('login to server failed')
+          ) {
             this.status_.tunnelStatus = 'reconnecting';
             // Mark all as disabled on global tunnel failure
             for (const key of this.activeProxies.keys()) {
@@ -531,7 +549,16 @@ export class AgentClient {
   }
 
   private async handleEndpointRun(commandId: string, args: any): Promise<void> {
-    const { endpointId, endpointSlug, scriptLang, scriptContent, timeout, envVars, payload, method } = args;
+    const {
+      endpointId,
+      endpointSlug,
+      scriptLang,
+      scriptContent,
+      timeout,
+      envVars,
+      payload,
+      method,
+    } = args;
 
     this.log('info', 'agent.endpoint.starting', `Executing fleet endpoint: ${endpointSlug}`, {
       commandId,
@@ -561,8 +588,12 @@ export class AgentClient {
       const result = await executeScript(config, input);
       const isSuccess = result.statusCode === 200;
 
-      this.log(isSuccess ? 'info' : 'error', isSuccess ? 'endpoint.succeeded' : 'endpoint.failed', 
-        isSuccess ? `Endpoint ${endpointSlug} succeeded` : `Endpoint ${endpointSlug} failed: ${result.error || 'Unknown error'}`, 
+      this.log(
+        isSuccess ? 'info' : 'error',
+        isSuccess ? 'endpoint.succeeded' : 'endpoint.failed',
+        isSuccess
+          ? `Endpoint ${endpointSlug} succeeded`
+          : `Endpoint ${endpointSlug} failed: ${result.error || 'Unknown error'}`,
         {
           commandId,
           endpointId,
