@@ -118,6 +118,7 @@ export function NodeStatusPanel({ nodeId }: { nodeId: string }) {
         toast({
           title: 'Update Queued',
           description: 'The update command will be received on the next heartbeat (within 30s).',
+          variant: 'success',
         });
       } else {
         throw new Error('Failed to queue update');
