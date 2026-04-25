@@ -145,6 +145,10 @@ Environment=FLEET_AGENT_NODE_ID=$NODE_ID
 ExecStart=$PNPM_BIN start
 Restart=always
 RestartSec=10
+TimeoutStopSec=15
+KillMode=control-group
+KillSignal=SIGTERM
+FinalKillSignal=SIGKILL
 
 [Install]
 WantedBy=multi-user.target
