@@ -50,6 +50,12 @@ export const HeartbeatZodSchema = z.object({
     })
     .partial()
     .default({}),
+  ptyBridge: z
+    .object({
+      port: z.number().int(),
+      authToken: z.string(),
+    })
+    .optional(),
   correlationId: z.string().optional(),
 });
 
