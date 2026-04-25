@@ -5,11 +5,13 @@ import { existsSync, openSync, closeSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { readdir, readFile, stat, unlink, writeFile, mkdir } from 'node:fs/promises';
-import { UpdateRunStatus } from '@/types/updates';
+import type { ServermonAgentStatus, UpdateRunStatus } from '@/types/updates';
 
 const execFileAsync = promisify(execFile);
 const log = createLogger('system-update-service');
 const MAX_OUTPUT_BYTES = 128 * 1024;
+const AGENT_SERVICE_NAME = 'servermon-agent.service';
+const DEFAULT_AGENT_REPO_DIR = '/opt/servermon-agent/source';
 
 class SystemUpdateService {
   private static instance: SystemUpdateService;
@@ -385,6 +387,114 @@ class SystemUpdateService {
     const spawnArgs = useSystemd
       ? ['--scope', '--quiet', '--', 'sudo', updateScript]
       : [updateScript];
+
+    return this.spawnTrackedRun(spawnCmd, spawnArgs);
+  }
+
+  private parseSystemctlShow(output: string): Record<string, string> {
+    const parsed: Record<string, string> = {};
+    for (const line of output.split('\n')) {
+      const idx = line.indexOf('=');
+      if (idx <= 0) continue;
+      parsed[line.slice(0, idx)] = line.slice(idx + 1);
+    }
+    return parsed;
+  }
+
+  private parseWorkingDirectory(serviceFile: string): string | undefined {
+    for (const rawLine of serviceFile.split('\n')) {
+      const line = rawLine.trim();
+      if (!line.startsWith('WorkingDirectory=')) continue;
+      const value = line.slice('WorkingDirectory='.length).trim();
+      return value || undefined;
+    }
+    return undefined;
+  }
+
+  public async getServermonAgentStatus(): Promise<ServermonAgentStatus> {
+    try {
+      const output = await execFileAsync('systemctl', [
+        'show',
+        AGENT_SERVICE_NAME,
+        '--property=LoadState',
+        '--property=ActiveState',
+        '--property=UnitFileState',
+        '--property=FragmentPath',
+        '--no-pager',
+      ]);
+      const fields = this.parseSystemctlShow(String(output.stdout));
+      const fragmentPath = fields.FragmentPath || undefined;
+      let repoDir = process.env.SERVERMON_AGENT_REPO_DIR || DEFAULT_AGENT_REPO_DIR;
+
+      if (fragmentPath && existsSync(fragmentPath)) {
+        try {
+          const serviceFile = await readFile(fragmentPath, 'utf-8');
+          repoDir = this.parseWorkingDirectory(serviceFile) ?? repoDir;
+        } catch (err) {
+          log.warn(`Failed to read ${AGENT_SERVICE_NAME} unit file`, err);
+        }
+      }
+
+      const installed = fields.LoadState === 'loaded';
+      const repoExists = existsSync(repoDir);
+      return {
+        serviceName: AGENT_SERVICE_NAME,
+        installed,
+        active: fields.ActiveState === 'active',
+        enabled: fields.UnitFileState === 'enabled',
+        loadState: fields.LoadState,
+        activeState: fields.ActiveState,
+        unitFileState: fields.UnitFileState,
+        fragmentPath,
+        repoDir: repoExists ? repoDir : undefined,
+        updateSupported: installed && repoExists,
+        message: installed
+          ? repoExists
+            ? undefined
+            : `Agent repository not found at ${repoDir}`
+          : 'servermon-agent service is not installed on this host',
+      };
+    } catch (err) {
+      return {
+        serviceName: AGENT_SERVICE_NAME,
+        installed: false,
+        active: false,
+        enabled: false,
+        updateSupported: false,
+        message: err instanceof Error ? err.message : 'Unable to inspect servermon-agent',
+      };
+    }
+  }
+
+  public async triggerAgentUpdate(): Promise<{
+    success: boolean;
+    pid?: number;
+    message: string;
+    runId?: string;
+  }> {
+    const status = await this.getServermonAgentStatus();
+    if (!status.updateSupported || !status.repoDir) {
+      return {
+        success: false,
+        message: status.message || 'ServerMon agent update is not available on this host',
+      };
+    }
+
+    const updateScript = [
+      'set -euo pipefail',
+      `cd ${JSON.stringify(status.repoDir)}`,
+      'git pull --rebase',
+      'pnpm install --frozen-lockfile',
+      'pnpm build',
+      `systemctl restart ${AGENT_SERVICE_NAME}`,
+      `systemctl is-active --quiet ${AGENT_SERVICE_NAME}`,
+    ].join('\n');
+
+    const useSystemd = await this.checkSystemdRun();
+    const spawnCmd = useSystemd ? 'systemd-run' : 'sudo';
+    const spawnArgs = useSystemd
+      ? ['--scope', '--quiet', '--', 'sudo', 'bash', '-lc', updateScript]
+      : ['bash', '-lc', updateScript];
 
     return this.spawnTrackedRun(spawnCmd, spawnArgs);
   }

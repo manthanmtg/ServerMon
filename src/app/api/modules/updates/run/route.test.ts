@@ -5,12 +5,14 @@ const {
   mockGetSession,
   mockTriggerUpdate,
   mockTriggerSystemPackageUpdate,
+  mockTriggerAgentUpdate,
   mockListUpdateRuns,
   mockGetUpdateRunDetails,
 } = vi.hoisted(() => ({
   mockGetSession: vi.fn(),
   mockTriggerUpdate: vi.fn(),
   mockTriggerSystemPackageUpdate: vi.fn(),
+  mockTriggerAgentUpdate: vi.fn(),
   mockListUpdateRuns: vi.fn(),
   mockGetUpdateRunDetails: vi.fn(),
 }));
@@ -20,6 +22,7 @@ vi.mock('@/lib/updates/system-service', () => ({
   systemUpdateService: {
     triggerUpdate: mockTriggerUpdate,
     triggerSystemPackageUpdate: mockTriggerSystemPackageUpdate,
+    triggerAgentUpdate: mockTriggerAgentUpdate,
     listUpdateRuns: mockListUpdateRuns,
     getUpdateRunDetails: mockGetUpdateRunDetails,
   },
@@ -140,6 +143,28 @@ describe('POST /api/modules/updates/run', () => {
     const json = await res.json();
     expect(json.runId).toBe('pkg-1');
     expect(mockTriggerSystemPackageUpdate).toHaveBeenCalled();
+    expect(mockTriggerUpdate).not.toHaveBeenCalled();
+  });
+
+  it('calls triggerAgentUpdate when type is agent', async () => {
+    mockGetSession.mockResolvedValue({ user: { role: 'admin' } });
+    mockTriggerAgentUpdate.mockResolvedValue({
+      success: true,
+      message: 'Agent update started',
+      pid: 5679,
+      runId: 'agent-1',
+    });
+    const req = new Request('http://localhost/api/modules/updates/run', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'agent' }),
+    });
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.runId).toBe('agent-1');
+    expect(mockTriggerAgentUpdate).toHaveBeenCalled();
+    expect(mockTriggerSystemPackageUpdate).not.toHaveBeenCalled();
     expect(mockTriggerUpdate).not.toHaveBeenCalled();
   });
 

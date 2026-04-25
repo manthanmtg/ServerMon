@@ -7,6 +7,7 @@ import { getSession } from '@/lib/session';
 export const dynamic = 'force-dynamic';
 
 const log = createLogger('api:updates:run');
+type UpdateRunType = 'servermon' | 'packages' | 'agent';
 
 // GET — list runs or get details for a specific run
 export async function GET(request: Request) {
@@ -36,7 +37,7 @@ export async function GET(request: Request) {
 }
 
 // POST — trigger an update
-// Body: { type: "packages" } for system package update, omit or "servermon" for ServerMon self-update
+// Body: { type: "packages" | "agent" | "servermon" }
 export async function POST(request: Request) {
   try {
     const session = await getSession();
@@ -44,19 +45,21 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    let type = 'servermon';
+    let type: UpdateRunType = 'servermon';
     try {
       const body = await request.json();
       if (body?.type === 'packages') type = 'packages';
+      if (body?.type === 'agent') type = 'agent';
     } catch {
       // no body — default to servermon
     }
 
     log.info(`Manual ${type} update triggered via API`);
-    const result =
-      type === 'packages'
-        ? await systemUpdateService.triggerSystemPackageUpdate()
-        : await systemUpdateService.triggerUpdate();
+    const result = await (type === 'packages'
+      ? systemUpdateService.triggerSystemPackageUpdate()
+      : type === 'agent'
+        ? systemUpdateService.triggerAgentUpdate()
+        : systemUpdateService.triggerUpdate());
 
     if (result.success) {
       return NextResponse.json({

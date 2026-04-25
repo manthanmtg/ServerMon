@@ -38,6 +38,13 @@ describe('SystemUpdateService', () => {
       message: string;
       runId?: string;
     }>;
+    triggerAgentUpdate: () => Promise<{
+      success: boolean;
+      pid?: number;
+      message: string;
+      runId?: string;
+    }>;
+    getServermonAgentStatus: () => Promise<unknown>;
     listUpdateRuns: () => Promise<unknown[]>;
     getUpdateRunDetails: (id: string) => Promise<unknown>;
     activeRuns: Map<string, unknown>;
@@ -164,6 +171,104 @@ describe('SystemUpdateService', () => {
       const result = await systemUpdateService.triggerUpdate();
       expect(result.success).toBe(false);
       expect(result.message).toBe('Failed to get PID');
+    });
+  });
+
+  describe('getServermonAgentStatus', () => {
+    it('detects an installed and active colocated agent', async () => {
+      (
+        execFile as unknown as { mockImplementation: (fn: (...a: unknown[]) => void) => void }
+      ).mockImplementation((...args: unknown[]) => {
+        const callback = args[args.length - 1] as (
+          err: Error | null,
+          result: { stdout: string; stderr: string }
+        ) => void;
+        callback(null, {
+          stdout:
+            'LoadState=loaded\nActiveState=active\nUnitFileState=enabled\nFragmentPath=/etc/systemd/system/servermon-agent.service\n',
+          stderr: '',
+        });
+      });
+      vi.mocked(readFile).mockResolvedValue('WorkingDirectory=/opt/servermon-agent/source\n');
+      vi.mocked(existsSync).mockImplementation(
+        ((p: unknown) =>
+          p === '/etc/systemd/system/servermon-agent.service' ||
+          p === '/opt/servermon-agent/source') as typeof existsSync
+      );
+
+      const status = (await systemUpdateService.getServermonAgentStatus()) as {
+        installed: boolean;
+        active: boolean;
+        enabled: boolean;
+        repoDir?: string;
+        updateSupported: boolean;
+      };
+
+      expect(status.installed).toBe(true);
+      expect(status.active).toBe(true);
+      expect(status.enabled).toBe(true);
+      expect(status.repoDir).toBe('/opt/servermon-agent/source');
+      expect(status.updateSupported).toBe(true);
+    });
+
+    it('reports update unsupported when the agent service is missing', async () => {
+      (
+        execFile as unknown as { mockImplementation: (fn: (...a: unknown[]) => void) => void }
+      ).mockImplementation((...args: unknown[]) => {
+        const callback = args[args.length - 1] as (
+          err: Error | null,
+          result: { stdout: string; stderr: string }
+        ) => void;
+        callback(new Error('not found'), { stdout: '', stderr: 'not found' });
+      });
+
+      const status = (await systemUpdateService.getServermonAgentStatus()) as {
+        installed: boolean;
+        updateSupported: boolean;
+      };
+
+      expect(status.installed).toBe(false);
+      expect(status.updateSupported).toBe(false);
+    });
+  });
+
+  describe('triggerAgentUpdate', () => {
+    it('updates the colocated agent repo and restarts the agent service', async () => {
+      (
+        execFile as unknown as { mockImplementation: (fn: (...a: unknown[]) => void) => void }
+      ).mockImplementation((...args: unknown[]) => {
+        const commandArgs = args[1] as string[];
+        const callback = args[args.length - 1] as (
+          err: Error | null,
+          result: { stdout: string; stderr: string }
+        ) => void;
+        if (commandArgs.includes('servermon-agent.service')) {
+          callback(null, {
+            stdout:
+              'LoadState=loaded\nActiveState=active\nUnitFileState=enabled\nFragmentPath=/etc/systemd/system/servermon-agent.service\n',
+            stderr: '',
+          });
+          return;
+        }
+        callback(null, { stdout: 'v255', stderr: '' });
+      });
+      vi.mocked(readFile).mockResolvedValue('WorkingDirectory=/opt/servermon-agent/source\n');
+      vi.mocked(existsSync).mockImplementation(
+        ((p: unknown) =>
+          p === '/etc/systemd/system/servermon-agent.service' ||
+          p === '/opt/servermon-agent/source') as typeof existsSync
+      );
+      const child = mockChild(2468);
+      vi.mocked(spawn).mockReturnValue(child as unknown as ReturnType<typeof spawn>);
+
+      const result = await systemUpdateService.triggerAgentUpdate();
+      expect(result.success).toBe(true);
+
+      const lastCall = vi.mocked(spawn).mock.calls.at(-1)!;
+      const commandText = JSON.stringify(lastCall);
+      expect(commandText).toContain('/opt/servermon-agent/source');
+      expect(commandText).toContain('pnpm build');
+      expect(commandText).toContain('systemctl restart servermon-agent.service');
     });
   });
 

@@ -72,11 +72,27 @@ const mockSnapshot = {
 };
 
 const mockRunHistory = { runs: [] };
+const mockAgentStatus = {
+  agent: {
+    serviceName: 'servermon-agent.service',
+    installed: true,
+    active: true,
+    enabled: true,
+    repoDir: '/opt/servermon-agent/source',
+    updateSupported: true,
+  },
+};
 
 describe('UpdatePage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     global.fetch = vi.fn().mockImplementation((url: string) => {
+      if (url === '/api/modules/updates/agent') {
+        return Promise.resolve({
+          ok: true,
+          json: async () => mockAgentStatus,
+        } as Response);
+      }
       if (url === '/api/modules/updates/run') {
         return Promise.resolve({
           ok: true,
@@ -167,6 +183,12 @@ describe('UpdatePage', () => {
 
   it('triggers update when confirmation is accepted', async () => {
     global.fetch = vi.fn().mockImplementation((url: string, opts?: RequestInit) => {
+      if (url === '/api/modules/updates/agent') {
+        return Promise.resolve({
+          ok: true,
+          json: async () => mockAgentStatus,
+        } as Response);
+      }
       if (url === '/api/modules/updates/run' && opts?.method === 'POST') {
         return Promise.resolve({
           ok: true,
@@ -229,6 +251,12 @@ describe('UpdatePage', () => {
 
   it('renders "System is Secure" when no updates are available', async () => {
     global.fetch = vi.fn().mockImplementation((url: string) => {
+      if (url === '/api/modules/updates/agent') {
+        return Promise.resolve({
+          ok: true,
+          json: async () => mockAgentStatus,
+        } as Response);
+      }
       if (url === '/api/modules/updates/run') {
         return Promise.resolve({
           ok: true,
@@ -260,5 +288,66 @@ describe('UpdatePage', () => {
     await renderPage();
 
     expect(global.fetch).toHaveBeenCalled();
+  });
+
+  it('renders colocated ServerMon agent status and triggers an agent update', async () => {
+    global.fetch = vi.fn().mockImplementation((url: string, opts?: RequestInit) => {
+      if (url === '/api/modules/updates/agent') {
+        return Promise.resolve({
+          ok: true,
+          json: async () => mockAgentStatus,
+        } as Response);
+      }
+      if (url === '/api/modules/updates/run' && opts?.method === 'POST') {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({ success: true, runId: 'agent-run', pid: 1001 }),
+        } as Response);
+      }
+      if (typeof url === 'string' && url.startsWith('/api/modules/updates/run?runId=')) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            runId: 'agent-run',
+            status: 'running',
+            pid: 1001,
+            startedAt: new Date().toISOString(),
+            exitCode: null,
+            timestamp: new Date().toISOString(),
+          }),
+        } as Response);
+      }
+      if (url === '/api/modules/updates/run') {
+        return Promise.resolve({
+          ok: true,
+          json: async () => mockRunHistory,
+        } as Response);
+      }
+      return Promise.resolve({
+        ok: true,
+        json: async () => mockSnapshot,
+      } as Response);
+    });
+
+    await renderPage();
+
+    expect(screen.getByText('ServerMon Services')).toBeDefined();
+    expect(screen.getByText('Agent Installed')).toBeDefined();
+    expect(screen.getByText('/opt/servermon-agent/source')).toBeDefined();
+
+    await act(async () => {
+      fireEvent.click(screen.getByText('Update Agent'));
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByText('Confirm'));
+    });
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      '/api/modules/updates/run',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ type: 'agent' }),
+      })
+    );
   });
 });

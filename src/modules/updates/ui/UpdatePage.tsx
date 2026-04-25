@@ -42,9 +42,37 @@ import { useToast } from '@/components/ui/toast';
 import ConfirmationModal from '@/components/ui/ConfirmationModal';
 import { cn } from '@/lib/utils';
 import type { UpdateSnapshot } from '../types';
-import type { UpdateRunStatus } from '@/types/updates';
+import type { ServermonAgentStatus, UpdateRunStatus } from '@/types/updates';
 
 type UpdatePhase = 'idle' | 'confirming' | 'running' | 'completed' | 'failed';
+type UpdateRunType = 'packages' | 'servermon' | 'agent';
+
+const RUN_COPY: Record<
+  UpdateRunType,
+  { confirmTitle: string; confirmLabel: string; running: string; completed: string; failed: string }
+> = {
+  packages: {
+    confirmTitle: 'Install System Updates',
+    confirmLabel: 'Install Updates',
+    running: 'Installing Updates...',
+    completed: 'Updates Installed Successfully',
+    failed: 'Update Failed',
+  },
+  servermon: {
+    confirmTitle: 'Update ServerMon App',
+    confirmLabel: 'Update ServerMon',
+    running: 'Updating ServerMon...',
+    completed: 'ServerMon Updated Successfully',
+    failed: 'ServerMon Update Failed',
+  },
+  agent: {
+    confirmTitle: 'Update ServerMon Agent',
+    confirmLabel: 'Update Agent',
+    running: 'Updating ServerMon Agent...',
+    completed: 'Agent Updated Successfully',
+    failed: 'Agent Update Failed',
+  },
+};
 
 export default function UpdatePage() {
   const [snapshot, setSnapshot] = useState<UpdateSnapshot | null>(null);
@@ -54,9 +82,12 @@ export default function UpdatePage() {
 
   // Update run state
   const [phase, setPhase] = useState<UpdatePhase>('idle');
+  const [runType, setRunType] = useState<UpdateRunType>('packages');
   const [activeRunId, setActiveRunId] = useState<string | null>(null);
   const [activeRun, setActiveRun] = useState<UpdateRunStatus | null>(null);
   const [runHistory, setRunHistory] = useState<UpdateRunStatus[]>([]);
+  const [agentStatus, setAgentStatus] = useState<ServermonAgentStatus | null>(null);
+  const [agentLoading, setAgentLoading] = useState(true);
   const [showHistory, setShowHistory] = useState(false);
   const [selectedHistoryRun, setSelectedHistoryRun] = useState<UpdateRunStatus | null>(null);
   const logContainerRef = useRef<HTMLDivElement>(null);
@@ -108,6 +139,24 @@ export default function UpdatePage() {
     loadRunHistory();
   }, [loadRunHistory]);
 
+  const loadAgentStatus = useCallback(async () => {
+    setAgentLoading(true);
+    try {
+      const res = await fetch('/api/modules/updates/agent');
+      if (!res.ok) return;
+      const data = (await res.json()) as { agent?: ServermonAgentStatus };
+      setAgentStatus(data.agent ?? null);
+    } catch {
+      setAgentStatus(null);
+    } finally {
+      setAgentLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadAgentStatus();
+  }, [loadAgentStatus]);
+
   // Poll active run status
   useEffect(() => {
     if (!activeRunId || phase === 'idle' || phase === 'confirming') return;
@@ -149,13 +198,18 @@ export default function UpdatePage() {
     loadSnapshot(true);
   };
 
+  const openConfirm = (type: UpdateRunType) => {
+    setRunType(type);
+    setPhase('confirming');
+  };
+
   const handleTriggerUpdate = async () => {
     setPhase('running');
     try {
       const res = await fetch('/api/modules/updates/run', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: 'packages' }),
+        body: JSON.stringify({ type: runType }),
       });
       const data = await res.json();
 
@@ -166,6 +220,7 @@ export default function UpdatePage() {
           description: 'Tracking progress in real-time...',
           variant: 'success',
         });
+        if (runType === 'agent') loadAgentStatus();
       } else {
         setPhase('failed');
         toast({
@@ -233,6 +288,7 @@ export default function UpdatePage() {
   const totalUpdates = counts.security + counts.regular + counts.optional + counts.language;
 
   const isRunning = phase === 'running' && activeRun?.status === 'running';
+  const currentRunCopy = RUN_COPY[runType];
 
   return (
     <div className="space-y-6 container mx-auto py-6 animate-in fade-in duration-500">
@@ -241,14 +297,20 @@ export default function UpdatePage() {
         isOpen={phase === 'confirming'}
         onConfirm={handleTriggerUpdate}
         onCancel={() => setPhase('idle')}
-        title="Install System Updates"
-        message={`This will install ${totalUpdates} package update${totalUpdates !== 1 ? 's' : ''} on the system. The process runs in the background and you can monitor its progress in real-time.`}
+        title={currentRunCopy.confirmTitle}
+        message={
+          runType === 'packages'
+            ? `This will install ${totalUpdates} package update${totalUpdates !== 1 ? 's' : ''} on the system. The process runs in the background and you can monitor its progress in real-time.`
+            : runType === 'agent'
+              ? 'This will pull, build, and restart the colocated servermon-agent service. The ServerMon app will stay running while the agent updates.'
+              : 'This will run the ServerMon self-update script and may restart this ServerMon app while the update completes.'
+        }
         description={
-          counts.security > 0
+          runType === 'packages' && counts.security > 0
             ? `Includes ${counts.security} security update${counts.security !== 1 ? 's' : ''} (recommended)`
             : undefined
         }
-        confirmLabel="Install Updates"
+        confirmLabel={currentRunCopy.confirmLabel}
         cancelLabel="Cancel"
         variant="warning"
       />
@@ -301,7 +363,7 @@ export default function UpdatePage() {
             <Button
               size="sm"
               className="gap-2 h-10 px-5 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg shadow-primary/25 transition-all active:scale-95"
-              onClick={() => setPhase('confirming')}
+              onClick={() => openConfirm('packages')}
               disabled={isRunning}
             >
               {isRunning ? (
@@ -319,6 +381,99 @@ export default function UpdatePage() {
           )}
         </div>
       </div>
+
+      <Card className="bg-card/50 backdrop-blur-sm border-border/50 overflow-hidden">
+        <CardHeader className="px-6 py-5 border-b border-border/50">
+          <div className="flex items-center justify-between gap-3">
+            <div className="space-y-1">
+              <CardTitle className="text-base font-bold">ServerMon Services</CardTitle>
+              <CardDescription className="text-xs">
+                Update this ServerMon app separately from a colocated Fleet agent.
+              </CardDescription>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-2 h-9 px-4 rounded-xl"
+              onClick={() => openConfirm('servermon')}
+              disabled={isRunning}
+            >
+              <RefreshCcw className="w-4 h-4" />
+              Update ServerMon
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent className="p-6">
+          <div className="grid grid-cols-1 lg:grid-cols-[1fr_auto] gap-4 items-center">
+            <div className="space-y-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge
+                  variant={agentStatus?.installed ? 'success' : 'outline'}
+                  className="text-[10px] uppercase font-bold tracking-wider"
+                >
+                  {agentLoading
+                    ? 'Checking Agent'
+                    : agentStatus?.installed
+                      ? 'Agent Installed'
+                      : 'Agent Not Installed'}
+                </Badge>
+                {agentStatus?.installed && (
+                  <>
+                    <Badge
+                      variant={agentStatus.active ? 'success' : 'warning'}
+                      className="text-[10px] uppercase font-bold tracking-wider"
+                    >
+                      {agentStatus.active ? 'Running' : 'Stopped'}
+                    </Badge>
+                    <Badge
+                      variant={agentStatus.enabled ? 'success' : 'outline'}
+                      className="text-[10px] uppercase font-bold tracking-wider"
+                    >
+                      {agentStatus.enabled ? 'Auto-start On' : 'Auto-start Off'}
+                    </Badge>
+                  </>
+                )}
+              </div>
+              <div className="text-sm">
+                <span className="text-muted-foreground">Service: </span>
+                <span className="font-mono">
+                  {agentStatus?.serviceName ?? 'servermon-agent.service'}
+                </span>
+              </div>
+              {agentStatus?.repoDir && (
+                <div className="text-sm">
+                  <span className="text-muted-foreground">Repo: </span>
+                  <span className="font-mono">{agentStatus.repoDir}</span>
+                </div>
+              )}
+              {agentStatus?.message && (
+                <p className="text-xs text-muted-foreground">{agentStatus.message}</p>
+              )}
+            </div>
+            <div className="flex flex-wrap gap-2 lg:justify-end">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="gap-2 h-9 px-3 rounded-xl"
+                onClick={loadAgentStatus}
+                disabled={agentLoading}
+              >
+                <RefreshCcw className={cn('w-4 h-4', agentLoading && 'animate-spin')} />
+                Refresh Agent
+              </Button>
+              <Button
+                size="sm"
+                className="gap-2 h-9 px-4 rounded-xl"
+                onClick={() => openConfirm('agent')}
+                disabled={isRunning || agentLoading || !agentStatus?.updateSupported}
+              >
+                <Download className="w-4 h-4" />
+                Update Agent
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Live Progress Panel */}
       {(phase === 'running' || phase === 'completed' || phase === 'failed') && activeRun && (
@@ -354,10 +509,10 @@ export default function UpdatePage() {
               <div>
                 <h3 className="text-sm font-bold">
                   {phase === 'running'
-                    ? 'Installing Updates...'
+                    ? currentRunCopy.running
                     : phase === 'completed'
-                      ? 'Updates Installed Successfully'
-                      : 'Update Failed'}
+                      ? currentRunCopy.completed
+                      : currentRunCopy.failed}
                 </h3>
                 <p className="text-xs text-muted-foreground mt-0.5">
                   {phase === 'running' ? (
@@ -664,7 +819,7 @@ export default function UpdatePage() {
                 <Button
                   size="sm"
                   className="h-9 gap-2 bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg shadow-primary/20 transition-all active:scale-95"
-                  onClick={() => setPhase('confirming')}
+                  onClick={() => openConfirm('packages')}
                   disabled={isRunning}
                 >
                   {isRunning ? (
