@@ -17,6 +17,7 @@ interface MetricsSample {
   timestamp: string;
   cpuLoad: number;
   ramUsed: number;
+  ramUsedFormatted: string;
 }
 
 interface RawEvent {
@@ -24,6 +25,15 @@ interface RawEvent {
   createdAt: string;
   eventType: string;
   metadata?: Record<string, unknown>;
+}
+
+function formatBytes(bytes: number, decimals = 2) {
+  if (!+bytes) return '0 Bytes';
+  const k = 1024;
+  const dm = decimals < 0 ? 0 : decimals;
+  const sizes = ['Bytes', 'KiB', 'MiB', 'GiB', 'TiB', 'PiB', 'EiB', 'ZiB', 'YiB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
 }
 
 export function toSamples(events: RawEvent[]): MetricsSample[] {
@@ -35,12 +45,29 @@ export function toSamples(events: RawEvent[]): MetricsSample[] {
     if (cpuLoad === undefined && ramUsed === undefined) continue;
     samples.push({
       timestamp: new Date(ev.createdAt).toLocaleTimeString(),
-      cpuLoad: cpuLoad ?? 0,
+      cpuLoad: cpuLoad !== undefined ? Number(cpuLoad.toFixed(2)) : 0,
       ramUsed: ramUsed ?? 0,
+      ramUsedFormatted: ramUsed !== undefined ? formatBytes(ramUsed) : '0 Bytes',
     });
   }
   return samples.reverse();
 }
+
+const CustomTooltip = ({ active, payload, label }: any) => {
+  if (active && payload && payload.length) {
+    return (
+      <div className="bg-popover border border-border p-3 rounded-lg shadow-lg">
+        <p className="text-sm font-medium mb-1">{label}</p>
+        {payload.map((entry: any, index: number) => (
+          <p key={index} className="text-sm" style={{ color: entry.color }}>
+            {entry.name}: {entry.name === 'RAM' ? entry.payload.ramUsedFormatted : `${entry.value}%`}
+          </p>
+        ))}
+      </div>
+    );
+  }
+  return null;
+};
 
 export function NodeHardwareCharts({ nodeId }: { nodeId: string }) {
   const [samples, setSamples] = useState<MetricsSample[] | null>(null);
@@ -103,8 +130,11 @@ export function NodeHardwareCharts({ nodeId }: { nodeId: string }) {
                     dataKey="timestamp"
                     tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }}
                   />
-                  <YAxis tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }} />
-                  <Tooltip />
+                  <YAxis 
+                    tickFormatter={(val: any) => `${val}%`}
+                    tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }} 
+                  />
+                  <Tooltip content={<CustomTooltip />} />
                   <Legend />
                   <Line
                     type="monotone"
@@ -137,8 +167,11 @@ export function NodeHardwareCharts({ nodeId }: { nodeId: string }) {
                     dataKey="timestamp"
                     tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }}
                   />
-                  <YAxis tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }} />
-                  <Tooltip />
+                  <YAxis 
+                    tickFormatter={(val: any) => formatBytes(val, 0)}
+                    tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }} 
+                  />
+                  <Tooltip content={<CustomTooltip />} />
                   <Legend />
                   <Line
                     type="monotone"

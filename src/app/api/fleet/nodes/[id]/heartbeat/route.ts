@@ -111,6 +111,85 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       return NextResponse.json({ error: 'Node lost' }, { status: 404 });
     }
 
+    // Persist a metrics sample for the charts
+    await FleetLogEvent.create({
+      nodeId: id,
+      service: 'agent',
+      level: 'info',
+      eventType: 'metrics_sample',
+      message: `Metrics sample from ${id}`,
+      metadata: {
+        cpuLoad: hb.metrics.cpuLoad,
+        ramUsed: hb.metrics.ramUsed,
+        uptime: hb.metrics.uptime,
+      },
+    }).catch((err) => log.warn('Failed to insert metrics sample', err));
+
+    // Persist any agent-side log entries...
+    if (Array.isArray(hb.logs) && hb.logs.length > 0) {
+      const docs = hb.logs.map((entry) => ({
+        nodeId: id,
+        service: 'agent',
+        level: entry.level || 'info',
+        eventType: entry.eventType,
+        message: entry.message,
+        metadata: entry.metadata,
+        createdAt: entry.timestamp ?? now,
+      }));
+      await FleetLogEvent.insertMany(docs, { ordered: false }).catch((err) =>
+        log.warn('Failed to insert agent logs', err)
+      );
+    }
+
+    if (previousTunnelStatus === 'disconnected' && hb.tunnel.status === 'connected') {
+      await FleetLogEvent.create({
+        nodeId: id,
+        service: 'agent',
+        level: 'info',
+        eventType: 'node.reconnected',
+        message: 'Agent tunnel reconnected',
+      });
+    }
+
+    const nowIso = now.toISOString();
+    fleetEventBus.emit({
+      kind: 'node.heartbeat',
+      nodeId: id,
+      at: nowIso,
+      data: { tunnelStatus: hb.tunnel.status, lastSeen: now.toISOString() },
+    });
+
+    if (previousBootId && previousBootId !== hb.bootId) {
+      await FleetLogEvent.create({
+        nodeId: id,
+        service: 'agent',
+        level: 'info',
+        eventType: 'node.reboot_detected',
+        message: 'Agent reported a new boot id',
+        metadata: { previousBootId, newBootId: hb.bootId },
+      });
+
+      fleetEventBus.emit({
+        kind: 'node.reboot',
+        nodeId: id,
+        at: nowIso,
+        data: {
+          previousBootId,
+          newBootId: hb.bootId,
+          bootAt: hb.bootAt,
+        },
+      });
+    }
+
+    if (previousTunnelStatus !== hb.tunnel.status) {
+      fleetEventBus.emit({
+        kind: 'node.status_change',
+        nodeId: id,
+        at: nowIso,
+        data: { from: previousTunnelStatus, to: hb.tunnel.status },
+      });
+    }
+
     const commands = (updatedNode as any).pendingCommands || [];
     if (commands.length > 0) {
       await Node.updateOne({ _id: id }, { $set: { pendingCommands: [] } });
