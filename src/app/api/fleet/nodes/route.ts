@@ -143,6 +143,7 @@ export async function POST(req: NextRequest) {
         slug: node.slug,
         frpcConfig: node.frpcConfig,
         proxyRules: node.proxyRules,
+        capabilities: node.capabilities,
       },
     });
 
