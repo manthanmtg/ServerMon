@@ -186,14 +186,22 @@ export class AgentClient {
     await writeFile(configPath, rendered);
 
     // 6. Start frpc
-    this.status_.tunnelStatus = 'connecting';
+    this.status_.tunnelStatus = 'reconnecting';
     try {
       this.frpHandle = startFrpcImpl({
         binary: binaries.frpc,
         configPath,
         spawnImpl,
-        onLog: (line, stream) => {
-          this.log('info', 'agent.frpc.log', line, { stream });
+        onLog: (line) => {
+          this.log('info', 'agent.frpc.log', line);
+          // Detect successful connection from logs
+          if (line.includes('login to server success')) {
+            this.status_.tunnelStatus = 'connected';
+            this.log('info', 'agent.tunnel.connected', 'FRP tunnel established');
+          }
+          if (line.includes('work connection closed') || line.includes('login to server failed')) {
+            this.status_.tunnelStatus = 'reconnecting';
+          }
         },
       });
       if (this.frpHandle.pid) {
