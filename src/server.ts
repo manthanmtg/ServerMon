@@ -482,8 +482,25 @@ if (process.env.FLEET_AGENT_MODE === 'true') {
             if (!node || !node.ptyBridge?.port || !node.ptyBridge?.authToken) {
               return null;
             }
-            // The agent's PTY bridge is reached via the Hub's loopback
-            // since frps maps the remote agent's local port to a hub-side port.
+
+            // Check if the agent has a terminal-bridge proxy active
+            const terminalBridge = (node.proxyRules || []).find(
+              (p: any) => p.name === 'terminal-bridge' && p.status === 'active'
+            );
+
+            if (terminalBridge && terminalBridge.remotePort) {
+              // Remote agent reachable via the Hub's public domain on the mapped remote port.
+              // Note: For simplicity and security, we dial 127.0.0.1 on the hub since 
+              // frps is running locally and mapped ports are bound to the hub.
+              return {
+                host: '127.0.0.1',
+                port: terminalBridge.remotePort,
+                authToken: node.ptyBridge.authToken,
+              };
+            }
+
+            // Fallback for local agents or agents not using the auto-proxy yet.
+            // Reached via the Hub's loopback directly if on the same machine.
             return {
               host: '127.0.0.1',
               port: node.ptyBridge.port,

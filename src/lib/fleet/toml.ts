@@ -62,17 +62,32 @@ export function renderFrpcToml(i: FrpcRenderInput): string {
   out.push(`transport.heartbeatInterval = ${cfg.heartbeatInterval || 30}`);
   out.push(`transport.heartbeatTimeout = ${cfg.heartbeatTimeout || 90}`);
   out.push(`transport.poolCount = ${cfg.poolCount || 1}`);
+
+  // 1. Automatically expose the PTY bridge if terminal capability is enabled.
+  // This allows the hub to connect to the agent's terminal even if the agent
+  // is behind a NAT/Firewall.
+  out.push('');
+  out.push('[[proxies]]');
+  out.push(`name = ${escapeStr(`${i.node.slug}-terminal-bridge`)}`);
+  out.push(`type = "tcp"`);
+  out.push(`localIP = "127.0.0.1"`);
+  out.push(`localPort = ${cfg.ptyListenPort || 8001}`);
+  out.push(`remotePort = 0`); // Auto-assign a port on the hub
+  out.push(`transport.useEncryption = true`);
+  out.push(`transport.useCompression = true`);
+
   for (const p of i.node.proxyRules || []) {
     if (!p.enabled) continue;
     out.push('');
     out.push('[[proxies]]');
     out.push(`name = ${escapeStr(`${i.node.slug}-${p.name}`)}`);
     out.push(`type = ${escapeStr(p.type)}`);
-    out.push(`localIP = ${escapeStr(p.localIp)}`);
+    out.push(`localIP = ${escapeStr(p.localIP)}`);
     out.push(`localPort = ${p.localPort}`);
-    if (p.type === 'tcp' || p.type === 'udp') {
-      if (p.remotePort) out.push(`remotePort = ${p.remotePort}`);
-    }
+    if (p.remotePort) out.push(`remotePort = ${p.remotePort}`);
+    out.push(`transport.useEncryption = true`);
+    out.push(`transport.useCompression = true`);
+
     if (p.type === 'http' || p.type === 'https') {
       if (p.subdomain) out.push(`subdomain = ${escapeStr(p.subdomain)}`);
       if (p.customDomains.length)
