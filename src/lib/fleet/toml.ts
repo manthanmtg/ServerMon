@@ -82,7 +82,7 @@ export function renderFrpcToml(i: FrpcRenderInput): string {
     out.push('[[proxies]]');
     out.push(`name = ${escapeStr(`${i.node.slug}-${p.name}`)}`);
     out.push(`type = ${escapeStr(p.type)}`);
-    out.push(`localIP = ${escapeStr(p.localIP)}`);
+    out.push(`localIP = ${escapeStr(p.localIp)}`);
     out.push(`localPort = ${p.localPort}`);
     if (p.remotePort) out.push(`remotePort = ${p.remotePort}`);
     out.push(`transport.useEncryption = true`);
