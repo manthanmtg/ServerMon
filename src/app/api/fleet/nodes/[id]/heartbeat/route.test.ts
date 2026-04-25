@@ -2,12 +2,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { NextRequest } from 'next/server';
 
-const { mockFindById, mockFleetLogCreate, mockVerifyPairingToken, mockEmit } = vi.hoisted(() => ({
-  mockFindById: vi.fn(),
-  mockFleetLogCreate: vi.fn(),
-  mockVerifyPairingToken: vi.fn(),
-  mockEmit: vi.fn(),
-}));
+const { mockFindById, mockFleetLogCreate, mockFleetLogInsertMany, mockVerifyPairingToken, mockEmit } =
+  vi.hoisted(() => ({
+    mockFindById: vi.fn(),
+    mockFleetLogCreate: vi.fn(),
+    mockFleetLogInsertMany: vi.fn(),
+    mockVerifyPairingToken: vi.fn(),
+    mockEmit: vi.fn(),
+  }));
 
 vi.mock('@/lib/db', () => ({ default: vi.fn().mockResolvedValue(undefined) }));
 vi.mock('@/lib/logger', () => ({
@@ -27,7 +29,7 @@ vi.mock('@/models/Node', () => ({
   default: { findById: mockFindById },
 }));
 vi.mock('@/models/FleetLogEvent', () => ({
-  default: { create: mockFleetLogCreate },
+  default: { create: mockFleetLogCreate, insertMany: mockFleetLogInsertMany },
 }));
 
 import { POST } from './route';
@@ -61,6 +63,7 @@ describe('POST /api/fleet/nodes/[id]/heartbeat', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockFleetLogCreate.mockResolvedValue({});
+    mockFleetLogInsertMany.mockResolvedValue([]);
   });
 
   it('returns 401 without Authorization', async () => {
@@ -233,6 +236,74 @@ describe('POST /api/fleet/nodes/[id]/heartbeat', () => {
         }),
       })
     );
+  });
+
+  it('persists piggy-backed log entries via FleetLogEvent.insertMany', async () => {
+    const saveFn = vi.fn().mockResolvedValue(undefined);
+    const nodeDoc = {
+      pairingTokenHash: 'h',
+      bootId: 'boot-xyz',
+      tunnelStatus: 'connected',
+      proxyRules: [],
+      capabilities: {},
+      save: saveFn,
+    };
+    mockFindById.mockResolvedValue(nodeDoc);
+    mockVerifyPairingToken.mockResolvedValue(true);
+
+    const beat = {
+      ...validHeartbeat,
+      logs: [
+        {
+          level: 'info',
+          eventType: 'agent.frpc.log',
+          message: 'login to server success',
+          timestamp: new Date().toISOString(),
+        },
+        {
+          level: 'warn',
+          eventType: 'agent.frpc.log',
+          message: 'work connection closed',
+        },
+      ],
+    };
+
+    const res = await POST(
+      makeReq(beat, { Authorization: 'Bearer tok' }),
+      makeContext('node-1')
+    );
+    expect(res.status).toBe(200);
+    expect(mockFleetLogInsertMany).toHaveBeenCalledTimes(1);
+    const docs = mockFleetLogInsertMany.mock.calls[0][0] as Array<Record<string, unknown>>;
+    expect(docs).toHaveLength(2);
+    expect(docs[0]).toMatchObject({
+      nodeId: 'node-1',
+      service: 'agent',
+      level: 'info',
+      eventType: 'agent.frpc.log',
+      message: 'login to server success',
+    });
+    expect(docs[1]).toMatchObject({ level: 'warn', message: 'work connection closed' });
+  });
+
+  it('does not call insertMany when no logs are provided', async () => {
+    const saveFn = vi.fn().mockResolvedValue(undefined);
+    mockFindById.mockResolvedValue({
+      pairingTokenHash: 'h',
+      bootId: 'boot-xyz',
+      tunnelStatus: 'connected',
+      proxyRules: [],
+      capabilities: {},
+      save: saveFn,
+    });
+    mockVerifyPairingToken.mockResolvedValue(true);
+
+    const res = await POST(
+      makeReq(validHeartbeat, { Authorization: 'Bearer tok' }),
+      makeContext('node-1')
+    );
+    expect(res.status).toBe(200);
+    expect(mockFleetLogInsertMany).not.toHaveBeenCalled();
   });
 
   it('emits fleet event bus node.status_change when tunnel status changes', async () => {

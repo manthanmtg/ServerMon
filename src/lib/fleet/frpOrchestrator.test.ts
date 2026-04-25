@@ -364,6 +364,25 @@ describe('FrpOrchestrator.start / stop', () => {
     vi.useRealTimers();
   });
 
+  it('start fires an immediate reconcile so frps boots up alongside the hub', async () => {
+    const { deps } = makeDeps({
+      stateDoc: {
+        key: 'global',
+        enabled: false,
+        bindPort: 7000,
+        vhostHttpPort: 8080,
+      },
+    });
+    const orch = new FrpOrchestrator({ ...deps, reconcileIntervalMs: 60_000 });
+    const spy = vi.spyOn(orch, 'reconcileOnce').mockResolvedValue({ action: 'none' });
+    orch.start();
+    // Flush any pending microtasks from the synchronous void-call.
+    await Promise.resolve();
+    expect(spy).toHaveBeenCalledTimes(1);
+    await orch.stop();
+    vi.useRealTimers();
+  });
+
   it('stop clears interval and kills handle if present', async () => {
     vi.useRealTimers();
     const fakeHandle = makeFakeHandle();

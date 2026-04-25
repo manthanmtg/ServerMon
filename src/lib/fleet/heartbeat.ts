@@ -56,6 +56,24 @@ export const HeartbeatZodSchema = z.object({
       authToken: z.string(),
     })
     .optional(),
+  /**
+   * Optional batch of log entries piggy-backed onto the heartbeat. The hub
+   * persists each entry as a FleetLogEvent so the user can see frpc output
+   * and other agent-side events in the fleet logs UI. Capped to keep
+   * heartbeat payloads bounded.
+   */
+  logs: z
+    .array(
+      z.object({
+        level: z.string().max(20).default('info'),
+        eventType: z.string().max(80),
+        message: z.string().max(4096),
+        metadata: z.record(z.string(), z.unknown()).optional(),
+        timestamp: z.coerce.date().optional(),
+      })
+    )
+    .max(200)
+    .optional(),
   correlationId: z.string().optional(),
 });
 

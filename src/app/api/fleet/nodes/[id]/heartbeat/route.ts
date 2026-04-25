@@ -137,6 +137,28 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     await node.save();
 
+    // Persist any agent-side log entries piggy-backed on the heartbeat so
+    // they show up in the fleet logs UI. Without this, frpc output and
+    // other agent diagnostics are completely invisible to operators.
+    if (Array.isArray(hb.logs) && hb.logs.length > 0) {
+      const docs = hb.logs.map((entry) => ({
+        nodeId: id,
+        service: 'agent',
+        level: entry.level || 'info',
+        eventType: entry.eventType,
+        message: entry.message,
+        metadata: entry.metadata,
+        createdAt: entry.timestamp ?? now,
+      }));
+      // insertMany with ordered:false so a single bad doc doesn't drop the
+      // rest, and unknown errors don't fail the heartbeat itself.
+      try {
+        await FleetLogEvent.insertMany(docs, { ordered: false });
+      } catch (err) {
+        log.warn(`Failed to persist ${docs.length} agent log entries`, err);
+      }
+    }
+
     const now2 = new Date().toISOString();
     fleetEventBus.emit({
       kind: 'node.heartbeat',

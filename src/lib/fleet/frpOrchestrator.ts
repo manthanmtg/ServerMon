@@ -208,6 +208,11 @@ export class FrpOrchestrator {
 
   start(): void {
     if (this.intervalTimer) return;
+    // Run an initial reconcile immediately so frps boots up alongside the
+    // hub instead of leaving a 15 s window where the agent's frpc has
+    // nothing to connect to. Without this, an agent installed during hub
+    // startup would log "connection refused" and stay in `reconnecting`.
+    void this.reconcileOnce();
     this.intervalTimer = setInterval(() => {
       // Fire-and-forget; errors are caught inside reconcileOnce.
       void this.reconcileOnce();
