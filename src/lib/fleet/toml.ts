@@ -37,7 +37,7 @@ export interface FrpcRenderInput {
   serverAddr: string;
   serverPort: number;
   authToken: string;
-  node: Pick<INodeDTO, 'slug' | 'frpcConfig' | 'proxyRules'>;
+  node: Pick<INodeDTO, 'slug' | 'frpcConfig' | 'proxyRules' | 'capabilities'>;
 }
 
 export function renderFrpcToml(i: FrpcRenderInput): string {
