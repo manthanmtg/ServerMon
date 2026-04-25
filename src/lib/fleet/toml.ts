@@ -64,8 +64,8 @@ export function renderFrpcToml(i: FrpcRenderInput): string {
   out.push(`transport.poolCount = ${cfg.poolCount || 1}`);
 
   const rules = [...(i.node.proxyRules || [])];
-  // 1. Ensure terminal-bridge exists if not already present
-  if (!rules.some(r => r.name === 'terminal-bridge')) {
+  // 1. Ensure terminal-bridge exists if enabled and not already present
+  if (i.node.capabilities?.terminal !== false && !rules.some(r => r.name === 'terminal-bridge')) {
     rules.push({
       name: 'terminal-bridge',
       type: 'tcp',
