@@ -78,6 +78,33 @@ if (process.env.FLEET_AGENT_MODE === 'true') {
       pairingToken,
       nodeId,
       ptySpawn: pty.spawn as any,
+      logEntry: (entry) => {
+        // Send logs to hub via a fire-and-forget fetch
+        const logUrl = `${hubUrl}/api/fleet/nodes/${nodeId}/heartbeat`;
+        fetch(logUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${pairingToken}`,
+          },
+          body: JSON.stringify({
+            nodeId,
+            bootId: (agent as any).bootId,
+            bootAt: (agent as any).bootAt?.toISOString(),
+            agentVersion: '0.0.0',
+            hardware: {},
+            metrics: {},
+            tunnel: { status: (agent.status() as any).tunnelStatus },
+            logs: [{
+              level: entry.level,
+              eventType: entry.eventType,
+              message: entry.message,
+              metadata: entry.metadata,
+              timestamp: new Date().toISOString()
+            }]
+          })
+        }).catch(() => {}); // ignore log delivery errors
+      }
     });
     try {
       await agent.start();
