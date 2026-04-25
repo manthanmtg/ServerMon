@@ -141,9 +141,9 @@ export async function POST(req: NextRequest) {
       authToken,
       node: {
         slug: node.slug,
-        frpcConfig: node.frpcConfig,
-        proxyRules: node.proxyRules,
-        capabilities: node.capabilities,
+        frpcConfig: node.frpcConfig as any,
+        proxyRules: (node as any).proxyRules,
+        capabilities: node.capabilities as any,
       },
     });
 

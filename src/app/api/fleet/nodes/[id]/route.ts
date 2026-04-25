@@ -186,9 +186,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       authToken,
       node: {
         slug: updated.slug,
-        frpcConfig: updated.frpcConfig,
-        proxyRules: updated.proxyRules,
-        capabilities: updated.capabilities,
+        frpcConfig: updated.frpcConfig as any,
+        proxyRules: (updated as any).proxyRules,
+        capabilities: updated.capabilities as any,
       },
     });
 
