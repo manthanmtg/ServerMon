@@ -83,7 +83,7 @@ export async function POST(req: NextRequest) {
     }
 
     const guard = await enforceResourceGuard({
-      key: 'maxNodes',
+      key: 'maxAgents',
       scope: 'global',
       currentCounter: async () => Node.countDocuments(),
       ResourcePolicy: ResourcePolicy as unknown as Parameters<
