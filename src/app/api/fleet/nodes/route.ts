@@ -6,15 +6,14 @@ import Node, { NodeZodSchema } from '@/models/Node';
 import FleetLogEvent from '@/models/FleetLogEvent';
 import ConfigRevision from '@/models/ConfigRevision';
 import FrpServerState from '@/models/FrpServerState';
-import PublicRoute from '@/models/PublicRoute';
 import ResourcePolicy from '@/models/ResourcePolicy';
 import { generatePairingToken, hashPairingToken } from '@/lib/fleet/pairing';
 import { renderFrpcToml, hashToml } from '@/lib/fleet/toml';
 import { saveRevision } from '@/lib/fleet/revisions';
 import { recordAudit } from '@/lib/fleet/audit';
-import { deriveNodeStatus } from '@/lib/fleet/status';
 import { enforceResourceGuard } from '@/lib/fleet/resourceGuardMiddleware';
 import { getSession } from '@/lib/session';
+import { enforceRbac } from '@/lib/fleet/rbac';
 import type { Model } from 'mongoose';
 
 export const dynamic = 'force-dynamic';
@@ -33,20 +32,18 @@ export async function GET(req: NextRequest) {
     }
 
     await connectDB();
-
     const { searchParams } = new URL(req.url);
-    const search = searchParams.get('search') || '';
-    const status = searchParams.get('status') || '';
-    const tag = searchParams.get('tag') || '';
-    const limit = Math.min(Number(searchParams.get('limit')) || 100, 200);
-    const offset = Number(searchParams.get('offset')) || 0;
+    const search = searchParams.get('search');
+    const status = searchParams.get('status');
+    const tag = searchParams.get('tag');
+    const limit = Math.min(parseInt(searchParams.get('limit') || '50', 10), 100);
+    const offset = parseInt(searchParams.get('offset') || '0', 10);
 
-    const filter: Record<string, unknown> = {};
+    const filter: any = {};
     if (search) {
       filter.$or = [
         { name: { $regex: search, $options: 'i' } },
         { slug: { $regex: search, $options: 'i' } },
-        { description: { $regex: search, $options: 'i' } },
       ];
     }
     if (status) filter.status = status;
@@ -57,36 +54,23 @@ export async function GET(req: NextRequest) {
       Node.countDocuments(filter),
     ]);
 
-    const now = new Date();
-    const nodesWithStatus = nodes.map((n) => {
-      const computedStatus = deriveNodeStatus({
-        lastSeen: n.lastSeen,
-        tunnelStatus: n.tunnelStatus,
-        maintenanceEnabled: n.maintenance?.enabled === true,
-        disabled: n.status === 'disabled',
-        unpaired: !n.pairingVerifiedAt && n.status === 'unpaired',
-        lastError: n.lastError ? { occurredAt: n.lastError.occurredAt } : null,
-        now,
-      });
-      return { ...n, computedStatus };
-    });
-
-    return NextResponse.json({ nodes: nodesWithStatus, total });
+    return NextResponse.json({ nodes, total, limit, offset });
   } catch (error) {
-    log.error('Failed to fetch nodes', error);
-    return NextResponse.json({ error: 'Failed to fetch nodes' }, { status: 500 });
+    log.error('Failed to list nodes', error);
+    return NextResponse.json({ error: 'Failed to list nodes' }, { status: 500 });
   }
 }
 
 export async function POST(req: NextRequest) {
   try {
     const session = (await getSession()) as SessionUser | null;
+    const rbacResp = enforceRbac(session?.user, 'can_mutate_node_config');
+    if (rbacResp) return rbacResp;
     if (!session) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     await connectDB();
-
     const body = await req.json();
     const parsed = NodeZodSchema.parse(body);
 
@@ -99,9 +83,9 @@ export async function POST(req: NextRequest) {
     }
 
     const guard = await enforceResourceGuard({
-      key: 'maxAgents',
+      key: 'maxNodes',
       scope: 'global',
-      currentCounter: () => Node.countDocuments(),
+      currentCounter: async () => Node.countDocuments(),
       ResourcePolicy: ResourcePolicy as unknown as Parameters<
         typeof enforceResourceGuard
       >[0]['ResourcePolicy'],
@@ -124,81 +108,69 @@ export async function POST(req: NextRequest) {
 
     const pairingToken = generatePairingToken();
     const pairingTokenHash = await hashPairingToken(pairingToken);
-    const pairingTokenPrefix = pairingToken.slice(0, 8);
-    const now = new Date();
-
-    const created = await Node.create({
-      ...parsed,
-      status: 'unpaired',
-      pairingTokenHash,
-      pairingTokenPrefix,
-      pairingIssuedAt: now,
-      createdBy: session.user.username,
-    });
 
     const frpServer = await FrpServerState.findOne({ key: 'global' }).lean();
     const authToken = process.env.FLEET_HUB_AUTH_TOKEN ?? 'pending';
-    const serverAddr = process.env.FLEET_HUB_PUBLIC_URL ?? frpServer?.subdomainHost ?? 'localhost';
+    
+    // Safety: ensure only hostname is used for serverAddr
+    const publicUrl = process.env.FLEET_HUB_PUBLIC_URL;
+    let serverAddr = frpServer?.subdomainHost ?? 'localhost';
+    if (publicUrl) {
+      try {
+        serverAddr = new URL(publicUrl).hostname;
+      } catch {
+        serverAddr = publicUrl;
+      }
+    }
     const serverPort = frpServer?.bindPort ?? 7000;
+
+    const node = new Node({
+      ...parsed,
+      pairingTokenHash,
+      pairingTokenPrefix: pairingToken.substring(0, 8),
+      pairingIssuedAt: new Date(),
+      status: 'unpaired',
+      tunnelStatus: 'disconnected',
+      createdBy: session.user.username,
+    });
 
     const rendered = renderFrpcToml({
       serverAddr,
       serverPort,
       authToken,
       node: {
-        slug: parsed.slug,
-        frpcConfig: parsed.frpcConfig,
-        proxyRules: parsed.proxyRules,
+        slug: node.slug,
+        frpcConfig: node.frpcConfig,
+        proxyRules: node.proxyRules,
       },
     });
 
-    const nodeId = String(created._id);
     const revision = await saveRevision(ConfigRevision as unknown as Model<unknown>, {
       kind: 'frpc',
-      targetId: nodeId,
-      structured: created.toObject(),
+      targetId: String(node._id),
+      structured: node.toObject(),
       rendered,
       createdBy: session.user.username,
     });
 
-    created.generatedToml = {
+    node.generatedToml = {
       hash: hashToml(rendered),
-      renderedAt: now,
+      renderedAt: new Date(),
       version: revision.version,
     };
-    await created.save();
+
+    await node.save();
 
     await recordAudit(FleetLogEvent as unknown as Model<unknown>, {
       action: 'node.create',
       actorUserId: session.user.username,
-      nodeId,
+      nodeId: String(node._id),
     });
 
-    if (process.env.FLEET_AUTO_APPLY_REVISIONS === 'true') {
-      const { getFrpOrchestrator, getNginxOrchestrator } =
-        await import('@/lib/fleet/orchestrators');
-      const { applyRevision } = await import('@/lib/fleet/applyEngine');
-      await applyRevision(revision.id, {
-        frp: getFrpOrchestrator(),
-        nginx: getNginxOrchestrator(),
-        ConfigRevision: ConfigRevision as unknown as Parameters<
-          typeof applyRevision
-        >[1]['ConfigRevision'],
-        FrpServerState: FrpServerState as unknown as Parameters<
-          typeof applyRevision
-        >[1]['FrpServerState'],
-        PublicRoute: PublicRoute as unknown as Parameters<typeof applyRevision>[1]['PublicRoute'],
-        Node: Node as unknown as Parameters<typeof applyRevision>[1]['Node'],
-      }).catch((err) => log.warn('applyRevision failed post-save', err));
-    }
-
-    return NextResponse.json(
-      {
-        node: created.toObject(),
-        pairingToken,
-      },
-      { status: 201 }
-    );
+    return NextResponse.json({
+      node: node.toObject(),
+      pairingToken,
+    });
   } catch (error) {
     if (error instanceof ZodError) {
       return NextResponse.json({ error: 'Invalid input', details: error.issues }, { status: 400 });
