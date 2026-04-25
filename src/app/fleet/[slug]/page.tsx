@@ -30,16 +30,14 @@ export default function NodeDetailPage() {
     let cancelled = false;
     const load = async () => {
       try {
-        const res = await fetch(`/api/fleet/nodes?search=${encodeURIComponent(slug)}&limit=5`);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json();
-        const match = (data.nodes ?? []).find((n: { slug: string }) => n.slug === slug);
-        if (cancelled) return;
-        if (!match) {
-          setError('Node not found');
-          return;
+        const res = await fetch(`/api/fleet/nodes/by-slug/${encodeURIComponent(slug)}`);
+        if (!res.ok) {
+          if (res.status === 404) throw new Error('Node not found');
+          throw new Error(`HTTP ${res.status}`);
         }
-        setNode({ _id: match._id, name: match.name, slug: match.slug });
+        const data = await res.json();
+        if (cancelled) return;
+        setNode({ _id: data._id, name: data.name, slug: data.slug });
       } catch (e) {
         if (!cancelled) setError((e as Error).message);
       }
