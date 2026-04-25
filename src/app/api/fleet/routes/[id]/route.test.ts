@@ -18,6 +18,9 @@ const {
   mockGetNginxOrchestrator,
   mockEmit,
   mockResolveDomain,
+  mockEnsureLetsEncryptCertificate,
+  mockProbePublicRoute,
+  mockShouldUseLetsEncrypt,
 } = vi.hoisted(() => ({
   mockGetSession: vi.fn(),
   mockRouteFindById: vi.fn(),
@@ -34,6 +37,9 @@ const {
   mockGetNginxOrchestrator: vi.fn(() => ({})),
   mockEmit: vi.fn(),
   mockResolveDomain: vi.fn(),
+  mockEnsureLetsEncryptCertificate: vi.fn(),
+  mockProbePublicRoute: vi.fn(),
+  mockShouldUseLetsEncrypt: vi.fn(),
 }));
 
 vi.mock('@/lib/db', () => ({ default: vi.fn().mockResolvedValue(undefined) }));
@@ -87,6 +93,11 @@ vi.mock('@/lib/fleet/eventBus', () => ({
 }));
 vi.mock('@/lib/fleet/dns', () => ({
   resolveDomain: mockResolveDomain,
+}));
+vi.mock('@/lib/fleet/publicRouteLifecycle', () => ({
+  ensureLetsEncryptCertificate: mockEnsureLetsEncryptCertificate,
+  probePublicRoute: mockProbePublicRoute,
+  shouldUseLetsEncrypt: mockShouldUseLetsEncrypt,
 }));
 
 import { GET, PATCH, DELETE } from './route';
@@ -159,6 +170,15 @@ describe('PATCH /api/fleet/routes/[id]', () => {
     mockConfigCreate.mockResolvedValue({ _id: 'rev1' });
     mockFleetLogCreate.mockResolvedValue({});
     mockResolveDomain.mockResolvedValue({ ips: ['203.0.113.10'] });
+    mockShouldUseLetsEncrypt.mockReturnValue(false);
+    mockEnsureLetsEncryptCertificate.mockResolvedValue({ ok: true, tlsStatus: 'active' });
+    mockProbePublicRoute.mockResolvedValue({
+      status: 'active',
+      dnsStatus: 'ok',
+      tlsStatus: 'active',
+      healthStatus: 'healthy',
+      lastCheckedAt: new Date('2026-04-25T00:00:00.000Z'),
+    });
   });
 
   function makeReq(body: unknown): NextRequest {

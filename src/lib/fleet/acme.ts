@@ -23,6 +23,7 @@ export interface CertbotProviderOpts {
   email?: string;
   nonInteractive?: boolean;
   agreeTos?: boolean;
+  installer?: 'standalone' | 'webroot' | 'nginx';
   webrootPath?: string;
   staging?: boolean;
 }
@@ -84,6 +85,7 @@ export class CertbotProvider implements AcmeProvider {
   private email?: string;
   private nonInteractive: boolean;
   private agreeTos: boolean;
+  private installer: 'standalone' | 'webroot' | 'nginx';
   private webrootPath?: string;
   private staging: boolean;
 
@@ -94,6 +96,7 @@ export class CertbotProvider implements AcmeProvider {
     this.email = opts.email;
     this.nonInteractive = opts.nonInteractive ?? true;
     this.agreeTos = opts.agreeTos ?? true;
+    this.installer = opts.installer ?? (opts.webrootPath ? 'webroot' : 'standalone');
     this.webrootPath = opts.webrootPath;
     this.staging = opts.staging ?? false;
   }
@@ -109,14 +112,17 @@ export class CertbotProvider implements AcmeProvider {
   }
 
   private buildCertonlyArgs(domain: string): string[] {
-    const args: string[] = ['certonly'];
+    const args: string[] = this.installer === 'nginx' ? ['--nginx'] : ['certonly'];
     if (this.nonInteractive) args.push('--non-interactive');
     if (this.agreeTos) args.push('--agree-tos');
     if (this.email) args.push('-m', this.email);
     args.push('-d', domain);
-    if (this.webrootPath) {
+    if (this.installer === 'webroot') {
+      if (!this.webrootPath) {
+        throw new Error('webrootPath is required when installer=webroot');
+      }
       args.push('--webroot', '-w', this.webrootPath);
-    } else {
+    } else if (this.installer === 'standalone') {
       args.push('--standalone');
     }
     if (this.staging) args.push('--staging');

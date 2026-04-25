@@ -18,6 +18,9 @@ const {
   mockGetNginxOrchestrator,
   mockNodeFindById,
   mockResourcePolicyFind,
+  mockEnsureLetsEncryptCertificate,
+  mockProbePublicRoute,
+  mockShouldUseLetsEncrypt,
 } = vi.hoisted(() => ({
   mockGetSession: vi.fn(),
   mockFind: vi.fn(),
@@ -34,6 +37,9 @@ const {
   mockGetNginxOrchestrator: vi.fn(() => ({})),
   mockNodeFindById: vi.fn(),
   mockResourcePolicyFind: vi.fn(),
+  mockEnsureLetsEncryptCertificate: vi.fn(),
+  mockProbePublicRoute: vi.fn(),
+  mockShouldUseLetsEncrypt: vi.fn(),
 }));
 
 vi.mock('@/lib/db', () => ({ default: vi.fn().mockResolvedValue(undefined) }));
@@ -80,6 +86,11 @@ vi.mock('@/lib/fleet/orchestrators', () => ({
 }));
 vi.mock('@/lib/fleet/applyEngine', () => ({
   applyRevision: mockApplyRevision,
+}));
+vi.mock('@/lib/fleet/publicRouteLifecycle', () => ({
+  ensureLetsEncryptCertificate: mockEnsureLetsEncryptCertificate,
+  probePublicRoute: mockProbePublicRoute,
+  shouldUseLetsEncrypt: mockShouldUseLetsEncrypt,
 }));
 
 import { GET, POST } from './route';
@@ -201,6 +212,15 @@ describe('POST /api/fleet/routes', () => {
       lean: vi.fn().mockResolvedValue([]),
     });
     mockResolveDomain.mockResolvedValue({ ips: ['203.0.113.10'] });
+    mockShouldUseLetsEncrypt.mockReturnValue(false);
+    mockEnsureLetsEncryptCertificate.mockResolvedValue({ ok: true, tlsStatus: 'active' });
+    mockProbePublicRoute.mockResolvedValue({
+      status: 'active',
+      dnsStatus: 'ok',
+      tlsStatus: 'active',
+      healthStatus: 'healthy',
+      lastCheckedAt: new Date('2026-04-25T00:00:00.000Z'),
+    });
     mockFrpFindOne.mockReturnValue({
       lean: vi.fn().mockResolvedValue({
         key: 'global',
@@ -346,6 +366,37 @@ describe('POST /api/fleet/routes', () => {
       const res = await POST(makePostRequest(validRouteInput));
       expect(res.status).toBe(201);
       expect(mockApplyRevision).toHaveBeenCalledTimes(1);
+    } finally {
+      if (prev === undefined) delete process.env.FLEET_AUTO_APPLY_REVISIONS;
+      else process.env.FLEET_AUTO_APPLY_REVISIONS = prev;
+    }
+  });
+
+  it('bootstraps letsencrypt and probes route during auto-apply', async () => {
+    const prev = process.env.FLEET_AUTO_APPLY_REVISIONS;
+    process.env.FLEET_AUTO_APPLY_REVISIONS = 'true';
+    try {
+      mockShouldUseLetsEncrypt.mockReturnValue(true);
+      mockApplyRevision.mockResolvedValue({ kind: 'nginx', reloaded: true });
+      const res = await POST(
+        makePostRequest({
+          ...validRouteInput,
+          tlsEnabled: true,
+          tlsProvider: 'letsencrypt',
+          websocketEnabled: true,
+          timeoutSeconds: 300,
+        })
+      );
+      expect(res.status).toBe(201);
+      expect(mockEnsureLetsEncryptCertificate).toHaveBeenCalledWith(
+        expect.objectContaining({ domain: 'docs.example.com' }),
+        expect.objectContaining({
+          bootstrapSnippet: expect.stringContaining('listen 80;'),
+        })
+      );
+      expect(mockProbePublicRoute).toHaveBeenCalledWith(
+        expect.objectContaining({ domain: 'docs.example.com' })
+      );
     } finally {
       if (prev === undefined) delete process.env.FLEET_AUTO_APPLY_REVISIONS;
       else process.env.FLEET_AUTO_APPLY_REVISIONS = prev;

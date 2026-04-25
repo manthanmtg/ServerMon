@@ -34,6 +34,11 @@ export const ExposeFormSchema = z.object({
   accessMode: z.enum(ACCESS_MODES).default('servermon_auth'),
   tlsEnabled: z.boolean().default(true),
   tlsProvider: z.enum(['letsencrypt', 'manual', 'reverse_proxy']).optional(),
+  websocketEnabled: z.boolean().default(false),
+  timeoutSeconds: z.number().int().min(1).max(3600).default(60),
+  maxBodyMb: z.number().int().min(1).max(1024).default(32),
+  compression: z.boolean().default(true),
+  headers: z.record(z.string(), z.string()).default({}),
 });
 
 export type ExposeForm = z.infer<typeof ExposeFormSchema>;
@@ -51,6 +56,11 @@ export const INITIAL_FORM: ExposeForm = {
   accessMode: 'servermon_auth',
   tlsEnabled: true,
   tlsProvider: 'letsencrypt',
+  websocketEnabled: false,
+  timeoutSeconds: 60,
+  maxBodyMb: 32,
+  compression: true,
+  headers: {},
 };
 
 export interface ExposeFormErrors {

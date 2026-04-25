@@ -674,7 +674,7 @@ else
         useradd -r -s /bin/false "$SERVICE_USER"
         log "Service user '${SERVICE_USER}' created"
     fi
-    chown -R "${SERVICE_USER}:${SERVICE_USER}" "$INSTALL_DIR"
+    chown -R "${SERVICE_USER}:${SERVICE_USER}" "$NEW_RELEASE_DIR"
 
     # Create manual cron run log directory
     CRON_LOG_DIR="/var/log/servermon_cron_manual_run"
@@ -722,6 +722,10 @@ if [ -d "$INSTALL_DIR" ] && [ ! -L "$INSTALL_DIR" ]; then
     log_info "Legacy directory moved to ${INSTALL_DIR}.legacy-*"
 fi
 ln -sfn "$NEW_RELEASE_DIR" "$INSTALL_DIR"
+if [ "$ALLOW_ROOT" != "true" ] && id "$SERVICE_USER" &>/dev/null; then
+    chown -h "${SERVICE_USER}:${SERVICE_USER}" "$INSTALL_DIR" 2>/dev/null || true
+    chown -R "${SERVICE_USER}:${SERVICE_USER}" "$NEW_RELEASE_DIR"
+fi
 log_info "Current release linked to ${INSTALL_DIR}"
 
 cat > "/etc/systemd/system/${SERVICE_NAME}.service" <<SVCEOF

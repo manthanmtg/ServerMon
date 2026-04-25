@@ -16,6 +16,7 @@ interface Template {
     websocket: boolean;
     timeoutSec: number;
     uploadBodyMb: number;
+    headers?: Record<string, string>;
     accessMode:
       | 'public'
       | 'servermon_auth'
@@ -23,6 +24,8 @@ interface Template {
       | 'basic_auth'
       | 'temporary_share'
       | 'disabled';
+    healthPath?: string;
+    logLevel?: 'debug' | 'info' | 'warn' | 'error';
   };
 }
 
@@ -121,6 +124,10 @@ export function StepIdentity({ form, setForm, next, onCancel }: Props) {
         localPort: t.defaults.localPort ?? form.target.localPort,
       },
       accessMode: t.defaults.accessMode,
+      websocketEnabled: t.defaults.websocket,
+      timeoutSeconds: t.defaults.timeoutSec,
+      maxBodyMb: t.defaults.uploadBodyMb,
+      headers: t.defaults.headers ?? form.headers,
     });
   };
 

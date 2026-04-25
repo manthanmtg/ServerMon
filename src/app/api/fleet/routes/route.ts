@@ -22,6 +22,11 @@ import {
   type PublicRouteProxyRule,
   upsertPublicRouteProxyRule,
 } from '@/lib/fleet/publicRouteProxy';
+import {
+  ensureLetsEncryptCertificate,
+  probePublicRoute,
+  shouldUseLetsEncrypt,
+} from '@/lib/fleet/publicRouteLifecycle';
 import { normalizeHostname, validatePublicRouteDomain } from '@/lib/fleet/domain';
 
 export const dynamic = 'force-dynamic';
@@ -272,9 +277,11 @@ export async function POST(req: NextRequest) {
       const { getFrpOrchestrator, getNginxOrchestrator } =
         await import('@/lib/fleet/orchestrators');
       const { applyRevision } = await import('@/lib/fleet/applyEngine');
+      const frp = getFrpOrchestrator();
+      const nginx = getNginxOrchestrator();
       const deps = {
-        frp: getFrpOrchestrator(),
-        nginx: getNginxOrchestrator(),
+        frp,
+        nginx,
         ConfigRevision: ConfigRevision as unknown as Parameters<
           typeof applyRevision
         >[1]['ConfigRevision'],
@@ -284,12 +291,75 @@ export async function POST(req: NextRequest) {
         PublicRoute: PublicRoute as unknown as Parameters<typeof applyRevision>[1]['PublicRoute'],
         Node: Node as unknown as Parameters<typeof applyRevision>[1]['Node'],
       };
-      for (const revisionId of [frpcRevisionId, revision.id].filter(
-        (id): id is string => typeof id === 'string'
-      )) {
-        await applyRevision(revisionId, deps).catch((err) =>
-          log.warn('applyRevision failed post-save', err)
+
+      if (frpcRevisionId) {
+        await applyRevision(frpcRevisionId, deps).catch((err) =>
+          log.warn('frpc applyRevision failed post-save', err)
         );
+      }
+
+      let canApplyNginx = true;
+      if (shouldUseLetsEncrypt(created)) {
+        const bootstrap = renderServerBlock(
+          {
+            domain: created.domain,
+            path: created.path,
+            tlsEnabled: false,
+            http2Enabled: created.http2Enabled,
+            websocketEnabled: created.websocketEnabled,
+            maxBodyMb: created.maxBodyMb,
+            timeoutSeconds: created.timeoutSeconds,
+            compression: created.compression,
+            accessMode: created.accessMode,
+            headers: normalizeNginxHeaders(created.headers),
+            slug: created.slug,
+          },
+          { frpsVhostPort }
+        );
+        const cert = await ensureLetsEncryptCertificate(created, {
+          nginx,
+          bootstrapSnippet: bootstrap,
+          email: process.env.FLEET_ACME_EMAIL,
+        });
+        created.tlsStatus = cert.tlsStatus;
+        if (!cert.ok) {
+          canApplyNginx = false;
+          created.status = 'cert_failed';
+          created.healthStatus = 'down';
+          created.lastError = cert.error;
+          created.lastCheckedAt = new Date();
+          await created.save();
+        }
+      }
+
+      if (canApplyNginx) {
+        await applyRevision(revision.id, deps).catch(async (err) => {
+          log.warn('nginx applyRevision failed post-save', err);
+          created.status = 'nginx_reload_failed';
+          created.healthStatus = 'down';
+          created.lastError = err instanceof Error ? err.message : String(err);
+          created.lastCheckedAt = new Date();
+          await created.save();
+          canApplyNginx = false;
+        });
+      }
+
+      if (canApplyNginx) {
+        const runtime = await probePublicRoute(created).catch((err) => ({
+          status: 'degraded' as const,
+          dnsStatus: created.dnsStatus ?? 'unknown',
+          tlsStatus: created.tlsEnabled ? 'unknown' : ('unknown' as const),
+          healthStatus: 'unknown' as const,
+          lastCheckedAt: new Date(),
+          lastError: err instanceof Error ? err.message : String(err),
+        }));
+        created.status = runtime.status;
+        created.dnsStatus = runtime.dnsStatus;
+        created.tlsStatus = runtime.tlsStatus;
+        created.healthStatus = runtime.healthStatus;
+        created.lastCheckedAt = runtime.lastCheckedAt;
+        created.lastError = runtime.lastError;
+        await created.save();
       }
     }
 

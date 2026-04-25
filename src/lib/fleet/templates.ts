@@ -27,6 +27,24 @@ export interface BuiltinTemplate {
 
 export const BUILTIN_TEMPLATES: BuiltinTemplate[] = [
   {
+    slug: 'servermon',
+    name: 'ServerMon',
+    kind: 'builtin',
+    source: 'system',
+    description: 'Expose a full ServerMon instance running on this Fleet node.',
+    defaults: {
+      localPort: 8912,
+      protocol: 'http',
+      websocket: true,
+      timeoutSec: 300,
+      uploadBodyMb: 32,
+      headers: {},
+      accessMode: 'public',
+      healthPath: '/login',
+      logLevel: 'info',
+    },
+  },
+  {
     slug: 'generic-http',
     name: 'Generic HTTP',
     kind: 'builtin',

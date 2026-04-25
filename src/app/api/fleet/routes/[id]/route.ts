@@ -21,6 +21,11 @@ import {
   type PublicRouteProxyRule,
   upsertPublicRouteProxyRule,
 } from '@/lib/fleet/publicRouteProxy';
+import {
+  ensureLetsEncryptCertificate,
+  probePublicRoute,
+  shouldUseLetsEncrypt,
+} from '@/lib/fleet/publicRouteLifecycle';
 import { normalizeHostname, validatePublicRouteDomain } from '@/lib/fleet/domain';
 
 export const dynamic = 'force-dynamic';
@@ -211,22 +216,15 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       service: 'nginx',
     });
 
-    if (previousStatus !== updated.status) {
-      fleetEventBus.emit({
-        kind: 'route.status_change',
-        routeId: id,
-        at: new Date().toISOString(),
-        data: { from: previousStatus, to: updated.status },
-      });
-    }
-
     if (process.env.FLEET_AUTO_APPLY_REVISIONS === 'true') {
       const { getFrpOrchestrator, getNginxOrchestrator } =
         await import('@/lib/fleet/orchestrators');
       const { applyRevision } = await import('@/lib/fleet/applyEngine');
+      const frp = getFrpOrchestrator();
+      const nginx = getNginxOrchestrator();
       const deps = {
-        frp: getFrpOrchestrator(),
-        nginx: getNginxOrchestrator(),
+        frp,
+        nginx,
         ConfigRevision: ConfigRevision as unknown as Parameters<
           typeof applyRevision
         >[1]['ConfigRevision'],
@@ -236,13 +234,85 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         PublicRoute: PublicRoute as unknown as Parameters<typeof applyRevision>[1]['PublicRoute'],
         Node: Node as unknown as Parameters<typeof applyRevision>[1]['Node'],
       };
-      for (const revisionId of [frpcRevisionId, revision.id].filter(
-        (candidate): candidate is string => typeof candidate === 'string'
-      )) {
-        await applyRevision(revisionId, deps).catch((err) =>
-          log.warn('applyRevision failed post-save', err)
+
+      if (frpcRevisionId) {
+        await applyRevision(frpcRevisionId, deps).catch((err) =>
+          log.warn('frpc applyRevision failed post-save', err)
         );
       }
+
+      let canApplyNginx = true;
+      if (shouldUseLetsEncrypt(updated)) {
+        const bootstrap = renderServerBlock(
+          {
+            domain: updated.domain,
+            path: updated.path,
+            tlsEnabled: false,
+            http2Enabled: updated.http2Enabled,
+            websocketEnabled: updated.websocketEnabled,
+            maxBodyMb: updated.maxBodyMb,
+            timeoutSeconds: updated.timeoutSeconds,
+            compression: updated.compression,
+            accessMode: updated.accessMode,
+            headers: normalizeNginxHeaders(updated.headers),
+            slug: updated.slug,
+          },
+          { frpsVhostPort }
+        );
+        const cert = await ensureLetsEncryptCertificate(updated, {
+          nginx,
+          bootstrapSnippet: bootstrap,
+          email: process.env.FLEET_ACME_EMAIL,
+        });
+        updated.tlsStatus = cert.tlsStatus;
+        if (!cert.ok) {
+          canApplyNginx = false;
+          updated.status = 'cert_failed';
+          updated.healthStatus = 'down';
+          updated.lastError = cert.error;
+          updated.lastCheckedAt = new Date();
+          await updated.save();
+        }
+      }
+
+      if (canApplyNginx) {
+        await applyRevision(revision.id, deps).catch(async (err) => {
+          log.warn('nginx applyRevision failed post-save', err);
+          updated.status = 'nginx_reload_failed';
+          updated.healthStatus = 'down';
+          updated.lastError = err instanceof Error ? err.message : String(err);
+          updated.lastCheckedAt = new Date();
+          await updated.save();
+          canApplyNginx = false;
+        });
+      }
+
+      if (canApplyNginx) {
+        const runtime = await probePublicRoute(updated).catch((err) => ({
+          status: 'degraded' as const,
+          dnsStatus: updated.dnsStatus ?? 'unknown',
+          tlsStatus: updated.tlsEnabled ? 'unknown' : ('unknown' as const),
+          healthStatus: 'unknown' as const,
+          lastCheckedAt: new Date(),
+          lastError: err instanceof Error ? err.message : String(err),
+        }));
+        updated.status = runtime.status;
+        updated.dnsStatus = runtime.dnsStatus;
+        updated.tlsStatus = runtime.tlsStatus;
+        updated.healthStatus = runtime.healthStatus;
+        updated.lastCheckedAt = runtime.lastCheckedAt;
+        updated.lastError = runtime.lastError;
+        await updated.save();
+      }
+    }
+
+    if (previousStatus !== updated.status) {
+      fleetEventBus.emit({
+        kind: 'route.status_change',
+        routeId: id,
+        at: new Date().toISOString(),
+        data: { from: previousStatus, to: updated.status },
+      });
     }
 
     return NextResponse.json({ route: updated.toObject() });

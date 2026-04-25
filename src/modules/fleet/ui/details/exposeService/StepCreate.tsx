@@ -41,6 +41,11 @@ export function StepCreate({ form, back, onCreated, onCancel }: Props) {
         tlsEnabled: form.tlsEnabled,
         tlsProvider: form.tlsProvider,
         accessMode: form.accessMode,
+        websocketEnabled: form.websocketEnabled,
+        timeoutSeconds: form.timeoutSeconds,
+        maxBodyMb: form.maxBodyMb,
+        compression: form.compression,
+        headers: form.headers,
         templateId: form.templateSlug,
       };
       const res = await fetch('/api/fleet/routes', {
@@ -186,6 +191,11 @@ export function StepCreate({ form, back, onCreated, onCancel }: Props) {
         <li>
           <span className="text-muted-foreground">Access: </span>
           {form.accessMode} · TLS {form.tlsEnabled ? 'on' : 'off'}
+        </li>
+        <li>
+          <span className="text-muted-foreground">HTTP: </span>
+          websockets {form.websocketEnabled ? 'on' : 'off'} · timeout {form.timeoutSeconds}s · body{' '}
+          {form.maxBodyMb}MB
         </li>
       </ul>
       <div className="flex justify-between gap-2 pt-2">

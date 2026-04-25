@@ -3,6 +3,7 @@ import { BUILTIN_TEMPLATES, seedBuiltinTemplates } from './templates';
 import { ACCESS_MODES } from './enums';
 
 const EXPECTED_SLUGS = [
+  'servermon',
   'generic-http',
   'generic-tcp',
   'nextjs',
@@ -19,8 +20,8 @@ const VALID_PROTOCOLS = ['http', 'https', 'tcp'] as const;
 const VALID_LOG_LEVELS = ['debug', 'info', 'warn', 'error'] as const;
 
 describe('BUILTIN_TEMPLATES', () => {
-  it('has exactly 10 entries', () => {
-    expect(BUILTIN_TEMPLATES).toHaveLength(10);
+  it('has exactly 11 entries', () => {
+    expect(BUILTIN_TEMPLATES).toHaveLength(11);
   });
 
   it('contains all expected slugs', () => {
@@ -79,6 +80,16 @@ describe('BUILTIN_TEMPLATES', () => {
     const t = BUILTIN_TEMPLATES.find((x) => x.slug === 'grafana')!;
     expect(t.defaults.localPort).toBe(3000);
     expect(t.defaults.accessMode).toBe('basic_auth');
+  });
+
+  it('servermon template exposes the full app defaults', () => {
+    const t = BUILTIN_TEMPLATES.find((x) => x.slug === 'servermon')!;
+    expect(t.defaults.localPort).toBe(8912);
+    expect(t.defaults.protocol).toBe('http');
+    expect(t.defaults.websocket).toBe(true);
+    expect(t.defaults.timeoutSec).toBe(300);
+    expect(t.defaults.accessMode).toBe('public');
+    expect(t.defaults.healthPath).toBe('/login');
   });
 });
 

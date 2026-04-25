@@ -137,6 +137,32 @@ describe('CertbotProvider.ensureCertificate', () => {
     ]);
   });
 
+  it('uses the nginx installer when requested', async () => {
+    const { spawnImpl, calls } = makeSpawnQueue([
+      (p) => p._exit(0, null),
+      (p) => {
+        p.stdout.push('    Expiry Date: 2026-07-15 12:34:56+00:00\n');
+        p.stdout.push(null);
+        p._exit(0, null);
+      },
+    ]);
+    const provider = new CertbotProvider({
+      spawnImpl: spawnImpl as unknown as typeof import('node:child_process').spawn,
+      email: 'ops@example.com',
+      installer: 'nginx',
+    });
+    await provider.ensureCertificate('foo.example.com');
+    expect(calls[0].args).toEqual([
+      '--nginx',
+      '--non-interactive',
+      '--agree-tos',
+      '-m',
+      'ops@example.com',
+      '-d',
+      'foo.example.com',
+    ]);
+  });
+
   it('rejects when certonly exits non-zero', async () => {
     const { spawnImpl } = makeSpawnQueue([
       (p) => {

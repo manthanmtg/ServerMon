@@ -99,4 +99,37 @@ describe('StepIdentity', () => {
     });
     expect(next).toHaveBeenCalledTimes(1);
   });
+
+  it('applies the ServerMon template defaults', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, json: async () => ({}) }));
+    const filled: ExposeForm = {
+      ...INITIAL_FORM,
+      name: 'Orion ServerMon',
+      slug: 'orion-servermon',
+      domain: 'orion-servermon.example.com',
+    };
+    const setForm = vi.fn();
+    const next = vi.fn();
+    await act(async () => {
+      render(<StepIdentity form={filled} setForm={setForm} next={next} />);
+    });
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('Template (optional)'), {
+        target: { value: 'servermon' },
+      });
+    });
+    expect(setForm).toHaveBeenCalledWith(
+      expect.objectContaining({
+        templateSlug: 'servermon',
+        accessMode: 'public',
+        websocketEnabled: true,
+        timeoutSeconds: 300,
+        maxBodyMb: 32,
+        target: expect.objectContaining({
+          localPort: 8912,
+          protocol: 'http',
+        }),
+      })
+    );
+  });
 });

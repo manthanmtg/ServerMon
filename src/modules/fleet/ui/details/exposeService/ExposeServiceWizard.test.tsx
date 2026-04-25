@@ -173,6 +173,10 @@ describe('ExposeServiceWizard (orchestrator)', () => {
       proxyRuleName: 'web',
       accessMode: 'servermon_auth',
       tlsEnabled: true,
+      websocketEnabled: false,
+      timeoutSeconds: 60,
+      maxBodyMb: 32,
+      compression: true,
       target: { localIp: '127.0.0.1', localPort: 3000, protocol: 'http' },
     });
     expect(onCreated).toHaveBeenCalledWith(
