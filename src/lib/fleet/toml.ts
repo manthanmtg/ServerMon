@@ -63,20 +63,22 @@ export function renderFrpcToml(i: FrpcRenderInput): string {
   out.push(`transport.heartbeatTimeout = ${cfg.heartbeatTimeout || 90}`);
   out.push(`transport.poolCount = ${cfg.poolCount || 1}`);
 
-  // 1. Automatically expose the PTY bridge if terminal capability is enabled.
-  // This allows the hub to connect to the agent's terminal even if the agent
-  // is behind a NAT/Firewall.
-  out.push('');
-  out.push('[[proxies]]');
-  out.push(`name = ${escapeStr(`${i.node.slug}-terminal-bridge`)}`);
-  out.push(`type = "tcp"`);
-  out.push(`localIP = "127.0.0.1"`);
-  out.push(`localPort = ${(cfg as any).ptyListenPort || 8001}`);
-  out.push(`remotePort = 0`); // Auto-assign a port on the hub
-  out.push(`transport.useEncryption = true`);
-  out.push(`transport.useCompression = true`);
+  const rules = [...(i.node.proxyRules || [])];
+  // 1. Ensure terminal-bridge exists if not already present
+  if (!rules.some(r => r.name === 'terminal-bridge')) {
+    rules.push({
+      name: 'terminal-bridge',
+      type: 'tcp',
+      localIp: '127.0.0.1',
+      localPort: (cfg as any).ptyListenPort || 8001,
+      remotePort: 0,
+      enabled: true,
+      status: 'disabled',
+      customDomains: []
+    } as any);
+  }
 
-  for (const p of i.node.proxyRules || []) {
+  for (const p of rules) {
     if (!p.enabled) continue;
     out.push('');
     out.push('[[proxies]]');
