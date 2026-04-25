@@ -324,6 +324,12 @@ export class AgentClient {
       });
       if (res.ok) {
         this.status_.lastHeartbeatAt = nowDate;
+        const data = await res.json().catch(() => ({}));
+        if (Array.isArray(data.commands) && data.commands.length > 0) {
+          for (const cmd of data.commands) {
+            void this.handleCommand(cmd);
+          }
+        }
       } else {
         this.status_.lastError = `heartbeat-failed: ${res.status}`;
         console.error(`[ERROR] [heartbeat] Heartbeat failed with status ${res.status}`);
@@ -332,6 +338,24 @@ export class AgentClient {
       const message = err instanceof Error ? err.message : String(err);
       this.status_.lastError = `heartbeat-error: ${message}`;
       console.error(`[ERROR] [heartbeat] Heartbeat error: ${message}`);
+    }
+  }
+
+  private async handleCommand(cmd: { id: string; command: string; args?: any }): Promise<void> {
+    this.log('info', 'agent.command.received', `Received remote command: ${cmd.command}`, {
+      commandId: cmd.id,
+    });
+
+    if (cmd.command === 'update') {
+      this.log('info', 'agent.update.starting', 'Executing remote update...');
+      // In a real environment, we'd spawn the update script.
+      // For this implementation, we simulate it by pulling and restarting.
+      const spawn = this.opts.spawnImpl ?? realSpawn;
+      const child = spawn('bash', ['-c', 'cd /opt/servermon-agent/source && sudo git pull && sudo pnpm install && sudo pnpm build && sudo systemctl restart servermon-agent'], {
+        detached: true,
+        stdio: 'ignore'
+      });
+      child.unref();
     }
   }
 

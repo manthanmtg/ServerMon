@@ -155,7 +155,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       });
     }
 
-    return NextResponse.json({ ok: true });
+    const commands = (node as any).pendingCommands || [];
+    if (commands.length > 0) {
+      await Node.updateOne({ _id: id }, { $set: { pendingCommands: [] } });
+    }
+
+    return NextResponse.json({ ok: true, commands });
   } catch (error) {
     if (error instanceof ZodError) {
       return NextResponse.json({ error: 'Invalid input', details: error.issues }, { status: 400 });

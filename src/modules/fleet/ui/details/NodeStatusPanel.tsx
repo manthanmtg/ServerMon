@@ -8,6 +8,7 @@ import { deriveNodeTransition, lastSeenLabel } from '@/lib/fleet/status';
 import type { TunnelStatus } from '@/lib/fleet/enums';
 import type { ReconcileReport } from '@/lib/fleet/reconcile';
 import { useFleetStream } from '../lib/useFleetStream';
+import { useToast } from '@/components/ui/toast';
 
 interface Node {
   _id: string;
@@ -36,6 +37,7 @@ interface Node {
 }
 
 export function NodeStatusPanel({ nodeId }: { nodeId: string }) {
+  const { toast } = useToast();
   const [node, setNode] = useState<Node | null>(null);
   const [computedStatus, setComputedStatus] = useState<string>('unknown');
   const [busy, setBusy] = useState(false);
@@ -103,6 +105,29 @@ export function NodeStatusPanel({ nodeId }: { nodeId: string }) {
     setBusy(true);
     try {
       await fetch(`/api/fleet/nodes/${nodeId}/diagnose`, { method: 'POST' });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const runUpdate = async () => {
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/fleet/nodes/${nodeId}/updates`, { method: 'POST' });
+      if (res.ok) {
+        toast({
+          title: 'Update Queued',
+          description: 'The update command will be received on the next heartbeat (within 30s).',
+        });
+      } else {
+        throw new Error('Failed to queue update');
+      }
+    } catch (err) {
+      toast({
+        title: 'Update Failed',
+        description: err instanceof Error ? err.message : 'Unknown error',
+        variant: 'destructive',
+      });
     } finally {
       setBusy(false);
     }
@@ -228,6 +253,9 @@ export function NodeStatusPanel({ nodeId }: { nodeId: string }) {
               </Button>
               <Button variant="outline" disabled={busy} onClick={runDiagnose}>
                 Run diagnose
+              </Button>
+              <Button variant="outline" disabled={busy} onClick={runUpdate}>
+                Update Agent
               </Button>
             </div>
             <div className="text-sm">

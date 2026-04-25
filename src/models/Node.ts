@@ -205,6 +205,12 @@ const NodeSchema = new Schema(
     },
     generatedToml: { hash: String, renderedAt: Date, version: Number },
     metrics: { cpuLoad: Number, ramUsed: Number, uptime: Number, capturedAt: Date },
+    pendingCommands: [{
+      id: { type: String, required: true },
+      command: { type: String, required: true },
+      args: { type: Schema.Types.Mixed },
+      issuedAt: { type: Date, default: Date.now },
+    }],
     createdBy: { type: String },
     updatedBy: { type: String },
   },
