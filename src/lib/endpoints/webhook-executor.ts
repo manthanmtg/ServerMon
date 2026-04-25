@@ -1,6 +1,6 @@
 import { createLogger } from '@/lib/logger';
 import type { ICustomEndpoint } from '@/models/CustomEndpoint';
-import type { ExecutionInput, ExecutionResult } from './executor';
+import type { ExecutionInput, ExecutionResult } from './types';
 
 const log = createLogger('endpoints:webhook');
 
