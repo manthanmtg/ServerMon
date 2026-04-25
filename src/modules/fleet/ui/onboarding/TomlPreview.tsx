@@ -12,6 +12,16 @@ export function TomlPreview({ form }: { form: OnboardingForm }) {
       node: {
         slug: form.slug || 'pending',
         frpcConfig: { ...form.frpcConfig, advanced: {} },
+        capabilities: {
+          terminal: true,
+          endpointRuns: true,
+          processes: true,
+          metrics: true,
+          publishRoutes: true,
+          tcpForward: true,
+          fileOps: false,
+          updates: true,
+        },
         proxyRules: (form.proxyRules ?? []).map((p) => ({
           ...p,
           status: 'disabled' as const,
