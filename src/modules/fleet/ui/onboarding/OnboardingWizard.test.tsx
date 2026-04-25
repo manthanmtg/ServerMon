@@ -1,5 +1,13 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, act, waitFor } from '@testing-library/react';
+
+// Mock next/navigation: the wizard only uses router.push on completion,
+// which never fires in these tests. A no-op mock keeps useRouter() from
+// throwing the "app router not mounted" invariant in jsdom.
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), back: vi.fn() }),
+}));
+
 import { OnboardingWizard } from './OnboardingWizard';
 
 function typeInto(el: HTMLElement, value: string) {
@@ -28,15 +36,15 @@ describe('OnboardingWizard', () => {
   it('shows the Identity step first', () => {
     render(<OnboardingWizard hubUrl="hub.test" />);
     expect(screen.getByText('Onboard an Agent')).toBeDefined();
-    expect(screen.getByPlaceholderText('Home Desktop')).toBeDefined();
-    expect(screen.getByPlaceholderText('orion')).toBeDefined();
+    expect(screen.getByPlaceholderText('e.g. Home Server')).toBeDefined();
+    expect(screen.getByPlaceholderText('e.g. home-server')).toBeDefined();
   });
 
   it('validates Identity step: shows error when slug is invalid', async () => {
     render(<OnboardingWizard hubUrl="hub.test" />);
-    typeInto(screen.getByPlaceholderText('Home Desktop'), 'My Node');
-    typeInto(screen.getByPlaceholderText('orion'), 'BadSlug!');
-    const next = screen.getByText('Next');
+    typeInto(screen.getByPlaceholderText('e.g. Home Server'), 'My Node');
+    typeInto(screen.getByPlaceholderText('e.g. home-server'), 'BadSlug!');
+    const next = screen.getByText(/^\s*Next\s*$/);
     await act(async () => {
       fireEvent.click(next);
     });
@@ -58,38 +66,38 @@ describe('OnboardingWizard', () => {
     render(<OnboardingWizard hubUrl="hub.test" />);
 
     // Step 1
-    typeInto(screen.getByPlaceholderText('Home Desktop'), 'My Node');
-    typeInto(screen.getByPlaceholderText('orion'), 'my-node');
+    typeInto(screen.getByPlaceholderText('e.g. Home Server'), 'My Node');
+    typeInto(screen.getByPlaceholderText('e.g. home-server'), 'my-node');
     await act(async () => {
-      fireEvent.click(screen.getByText('Next'));
+      fireEvent.click(screen.getByText(/^\s*Next\s*$/));
     });
 
     // Step 2 (DNS step, non-blocking)
     await waitFor(() => {
-      expect(screen.getByText(/Verify DNS and TLS/i)).toBeDefined();
+      expect(screen.getByText(/DNS Requirement/i)).toBeDefined();
     });
     await act(async () => {
-      fireEvent.click(screen.getByText('Next'));
+      fireEvent.click(screen.getByText(/^\s*Next\s*$/));
     });
 
     // Step 3 (FRPC + proxy rules)
     await waitFor(() => {
-      expect(screen.getByText('FRPC Transport')).toBeDefined();
+      expect(screen.getByText('Proxy Rules')).toBeDefined();
     });
-    expect(screen.getByText('Proxy Rules')).toBeDefined();
     await act(async () => {
-      fireEvent.click(screen.getByText('Next'));
+      fireEvent.click(screen.getByText(/^\s*Next\s*$/));
     });
 
-    // Step 4 (TOML review + Create agent button)
+    // Step 4 (TOML review)
     await waitFor(() => {
-      expect(screen.getByText(/Preview the generated frpc.toml/i)).toBeDefined();
+      expect(
+        screen.getByText(/Review the generated FRP configuration/i)
+      ).toBeDefined();
     });
-    expect(screen.getByText('Create agent')).toBeDefined();
 
-    // Click Create agent -> POST to /api/fleet/nodes
+    // Click Next -> POST to /api/fleet/nodes
     await act(async () => {
-      fireEvent.click(screen.getByText('Create agent'));
+      fireEvent.click(screen.getByText(/^\s*Next\s*$/));
     });
 
     await waitFor(() => {
@@ -116,28 +124,30 @@ describe('OnboardingWizard', () => {
 
     render(<OnboardingWizard hubUrl="hub.test" />);
 
-    typeInto(screen.getByPlaceholderText('Home Desktop'), 'My Node');
-    typeInto(screen.getByPlaceholderText('orion'), 'my-node');
+    typeInto(screen.getByPlaceholderText('e.g. Home Server'), 'My Node');
+    typeInto(screen.getByPlaceholderText('e.g. home-server'), 'my-node');
     await act(async () => {
-      fireEvent.click(screen.getByText('Next'));
+      fireEvent.click(screen.getByText(/^\s*Next\s*$/));
     });
 
     // Step 2
     await act(async () => {
-      fireEvent.click(screen.getByText('Next'));
+      fireEvent.click(screen.getByText(/^\s*Next\s*$/));
     });
 
     // Step 3
     await act(async () => {
-      fireEvent.click(screen.getByText('Next'));
+      fireEvent.click(screen.getByText(/^\s*Next\s*$/));
     });
 
-    // Step 4
+    // Step 4 -> click Next which triggers the POST
     await waitFor(() => {
-      expect(screen.getByText('Create agent')).toBeDefined();
+      expect(
+        screen.getByText(/Review the generated FRP configuration/i)
+      ).toBeDefined();
     });
     await act(async () => {
-      fireEvent.click(screen.getByText('Create agent'));
+      fireEvent.click(screen.getByText(/^\s*Next\s*$/));
     });
 
     await waitFor(() => {
@@ -145,7 +155,7 @@ describe('OnboardingWizard', () => {
     });
   });
 
-  it('reaches step 6 Verify and renders an Open node link to the slug', async () => {
+  it('reaches step 6 Verify after install step is acknowledged', async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
       json: async () => ({
@@ -158,25 +168,27 @@ describe('OnboardingWizard', () => {
     render(<OnboardingWizard hubUrl="hub.test" />);
 
     // Step 1
-    typeInto(screen.getByPlaceholderText('Home Desktop'), 'My Node');
-    typeInto(screen.getByPlaceholderText('orion'), 'my-node');
+    typeInto(screen.getByPlaceholderText('e.g. Home Server'), 'My Node');
+    typeInto(screen.getByPlaceholderText('e.g. home-server'), 'my-node');
     await act(async () => {
-      fireEvent.click(screen.getByText('Next'));
+      fireEvent.click(screen.getByText(/^\s*Next\s*$/));
     });
     // Step 2
     await act(async () => {
-      fireEvent.click(screen.getByText('Next'));
+      fireEvent.click(screen.getByText(/^\s*Next\s*$/));
     });
     // Step 3
     await act(async () => {
-      fireEvent.click(screen.getByText('Next'));
+      fireEvent.click(screen.getByText(/^\s*Next\s*$/));
     });
     // Step 4 create
     await waitFor(() => {
-      expect(screen.getByText('Create agent')).toBeDefined();
+      expect(
+        screen.getByText(/Review the generated FRP configuration/i)
+      ).toBeDefined();
     });
     await act(async () => {
-      fireEvent.click(screen.getByText('Create agent'));
+      fireEvent.click(screen.getByText(/^\s*Next\s*$/));
     });
 
     // Step 5 installer
@@ -184,16 +196,13 @@ describe('OnboardingWizard', () => {
       expect(screen.getByText(/Run this on the target machine/i)).toBeDefined();
     });
 
-    // Move to step 6
+    // Move to step 6 via the "I've run the command" button
     await act(async () => {
-      fireEvent.click(screen.getByText('Next'));
+      fireEvent.click(screen.getByText(/I've run the command/i));
     });
 
     await waitFor(() => {
       expect(screen.getByText(/Waiting for the agent to connect/i)).toBeDefined();
     });
-
-    const openLink = screen.getByText('Open node');
-    expect(openLink.getAttribute('href')).toBe('/fleet/my-node');
   });
 });

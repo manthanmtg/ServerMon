@@ -215,6 +215,10 @@ export class AgentClient {
               this.status_.tunnelStatus = 'connected';
               this.log('info', 'agent.tunnel.connected', 'FRP tunnel established');
               console.log('[INFO] [tunnel] Connection established successfully');
+              // Send an out-of-band heartbeat right now so the hub flips
+              // the node from "connecting/degraded" to "online" immediately
+              // instead of waiting for the next heartbeat tick (~30s).
+              void this.sendHeartbeat();
             }
           }
           if (cleanLine.includes('work connection closed') || cleanLine.includes('login to server failed')) {

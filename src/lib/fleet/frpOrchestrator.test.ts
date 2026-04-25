@@ -75,6 +75,7 @@ function makeDeps(
     binaryVersion: '0.61.2',
     binaryCacheDir: '/tmp/cache',
     configDir: '/tmp/config',
+    getHubAuthToken: async () => 'test-hub-auth-token',
     ...partial,
   };
 

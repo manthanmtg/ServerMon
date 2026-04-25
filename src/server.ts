@@ -64,6 +64,7 @@ async function cleanupStaleSessions() {
 if (process.env.FLEET_AGENT_MODE === 'true') {
   void (async () => {
     const { AgentClient } = await import('./lib/fleet/agentClient');
+    const { AgentPtyBridge } = await import('./lib/fleet/agentPtyBridge');
     const hubUrl = process.env.FLEET_AGENT_HUB_URL;
     const pairingToken = process.env.FLEET_AGENT_PAIRING_TOKEN;
     const nodeId = process.env.FLEET_AGENT_NODE_ID;
@@ -77,7 +78,15 @@ if (process.env.FLEET_AGENT_MODE === 'true') {
       hubUrl,
       pairingToken,
       nodeId,
-      ptySpawn: pty.spawn as any,
+      // Plumb node-pty into the bridge factory so the hub can open
+      // terminal sessions on the agent. Without this the bridge is
+      // started but every OPEN frame returns "pty-unavailable".
+      ptyBridgeFactory: (port, token) =>
+        new AgentPtyBridge({
+          port,
+          authToken: token,
+          ptySpawn: pty.spawn,
+        }),
       logEntry: (entry) => {
         // Send logs to hub via a fire-and-forget fetch
         const logUrl = `${hubUrl}/api/fleet/nodes/${nodeId}/heartbeat`;
@@ -465,10 +474,11 @@ if (process.env.FLEET_AGENT_MODE === 'true') {
         void getNginxOrchestrator();
         const frpOrch = getFrpOrchestrator() as { start?: () => void };
         frpOrch.start?.();
+        const { default: NodeModel } = await import('./models/Node');
         const bridge = new HubTtyBridge({
           resolveAgentEndpoint: async (nodeId) => {
             await connectDB();
-            const node = await Node.findById(nodeId).lean();
+            const node = await NodeModel.findById(nodeId).lean();
             if (!node || !node.ptyBridge?.port || !node.ptyBridge?.authToken) {
               return null;
             }

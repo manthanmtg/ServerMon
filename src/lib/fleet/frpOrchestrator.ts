@@ -4,6 +4,7 @@ import type { ServiceState } from './enums';
 import { ensureBinary } from './binary';
 import { startFrps, type FrpHandle } from './frpProcess';
 import { renderFrpsToml, hashToml } from './toml';
+import { getOrCreateHubAuthToken } from './hubAuth';
 
 export interface FrpOrchestratorLogEntry {
   level: 'info' | 'warn' | 'error';
@@ -48,6 +49,11 @@ export interface FrpOrchestratorDeps {
   configDir?: string;
   reconcileIntervalMs?: number;
   now?: () => Date;
+  /**
+   * Optional override for the shared hub auth token resolver.
+   * Tests inject this to avoid hitting the FrpServerState collection.
+   */
+  getHubAuthToken?: () => Promise<string>;
 }
 
 export interface FrpCurrentState {
@@ -65,8 +71,11 @@ export interface FrpReconcileResult {
 const DEFAULT_RECONCILE_INTERVAL_MS = 15_000;
 const DEFAULT_BINARY_VERSION = 'latest';
 
-function buildRenderedToml(state: FrpServerStateLike): string {
-  const authToken = process.env.FLEET_HUB_AUTH_TOKEN ?? state.authTokenHash ?? 'pending';
+async function buildRenderedToml(
+  state: FrpServerStateLike,
+  getHubAuthToken: () => Promise<string>
+): Promise<string> {
+  const authToken = await getHubAuthToken();
   return renderFrpsToml({
     bindPort: state.bindPort,
     vhostHttpPort: state.vhostHttpPort,
@@ -87,6 +96,7 @@ export class FrpOrchestrator {
   private readonly ensureBinaryImpl: typeof ensureBinary;
   private readonly startFrpsImpl: typeof startFrps;
   private readonly now: () => Date;
+  private readonly getHubAuthToken: () => Promise<string>;
 
   private handle: FrpHandle | null = null;
   private runtimeState: ServiceState = 'stopped';
@@ -112,6 +122,7 @@ export class FrpOrchestrator {
     this.ensureBinaryImpl = deps.ensureBinaryImpl ?? ensureBinary;
     this.startFrpsImpl = deps.startFrpsImpl ?? startFrps;
     this.now = deps.now ?? (() => new Date());
+    this.getHubAuthToken = deps.getHubAuthToken ?? getOrCreateHubAuthToken;
   }
 
   currentState(): FrpCurrentState {
@@ -137,7 +148,7 @@ export class FrpOrchestrator {
       }
 
       // enabled === true
-      const rendered = buildRenderedToml(state);
+      const rendered = await buildRenderedToml(state, this.getHubAuthToken);
       const nextHash = hashToml(rendered);
 
       if (!this.handle) {

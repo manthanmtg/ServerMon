@@ -122,6 +122,12 @@ export interface INode extends Document, INodeDTO {
   lastError?: { code: string; message: string; occurredAt: Date; correlationId?: string };
   generatedToml?: { hash: string; renderedAt: Date; version: number };
   metrics?: { cpuLoad?: number; ramUsed?: number; uptime?: number; capturedAt?: Date };
+  /**
+   * Reported by the agent every heartbeat: the local TCP port and shared
+   * auth token of the agent's PTY bridge. The hub uses these to dial into
+   * the agent for terminal sessions through the FRP TCP tunnel.
+   */
+  ptyBridge?: { port: number; authToken: string };
   createdBy?: string;
   updatedBy?: string;
 }
@@ -205,6 +211,10 @@ const NodeSchema = new Schema(
     },
     generatedToml: { hash: String, renderedAt: Date, version: Number },
     metrics: { cpuLoad: Number, ramUsed: Number, uptime: Number, capturedAt: Date },
+    ptyBridge: {
+      port: { type: Number },
+      authToken: { type: String },
+    },
     pendingCommands: [{
       id: { type: String, required: true },
       command: { type: String, required: true },

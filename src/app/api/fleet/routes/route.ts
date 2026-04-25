@@ -17,6 +17,7 @@ import { resolveDomain } from '@/lib/fleet/dns';
 import { getSession } from '@/lib/session';
 import { enforceRbac } from '@/lib/fleet/rbac';
 import { enforceResourceGuard } from '@/lib/fleet/resourceGuardMiddleware';
+import { getOrCreateHubAuthToken } from '@/lib/fleet/hubAuth';
 
 export const dynamic = 'force-dynamic';
 
@@ -157,7 +158,7 @@ export async function POST(req: NextRequest) {
       node.proxyRules.push(newRule);
       await node.save();
 
-      const authToken = process.env.FLEET_HUB_AUTH_TOKEN ?? 'pending';
+      const authToken = await getOrCreateHubAuthToken();
       const frpServerState = await FrpServerState.findOne({ key: 'global' }).lean();
       const serverAddr =
         process.env.FLEET_HUB_PUBLIC_URL ?? frpServerState?.subdomainHost ?? 'localhost';

@@ -21,7 +21,9 @@ describe('renderInstallSnippet', () => {
       kind: 'linux',
       installerBaseUrl: 'https://staging.example.com',
     });
-    expect(out).toContain('curl -sL https://staging.example.com/install-agent.sh |');
+    expect(out).toContain(
+      'curl -sL https://staging.example.com/api/fleet/public/install-script |'
+    );
   });
 
   it('docker: docker run with env vars and default image', () => {
@@ -44,7 +46,7 @@ describe('renderInstallSnippet', () => {
   it('macos: curl | bash with --platform macos flag', () => {
     const out = renderInstallSnippet({ ...base, kind: 'macos' });
     expect(out).toBe(
-      "curl -sL https://ultron.manthanby.cv/install-agent.sh | bash -s -- --hub-url 'ultron.manthanby.cv' --token 'tok-ABC-xyz' --node-id 'node-1' --platform macos"
+      "curl -sL https://ultron.manthanby.cv/api/fleet/public/install-script | bash -s -- --hub-url 'ultron.manthanby.cv' --token 'tok-ABC-xyz' --node-id 'node-1' --platform macos"
     );
   });
 

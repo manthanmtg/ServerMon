@@ -125,6 +125,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       updates: hb.capabilities.updates ?? node.capabilities?.updates ?? true,
     };
 
+    // Persist the agent's pty bridge details so the hub can dial it for
+    // remote terminal sessions. Without this, opening a terminal returns
+    // null endpoint and the user gets "agent unreachable".
+    if (hb.ptyBridge) {
+      node.ptyBridge = {
+        port: hb.ptyBridge.port,
+        authToken: hb.ptyBridge.authToken,
+      };
+    }
+
     await node.save();
 
     const now2 = new Date().toISOString();

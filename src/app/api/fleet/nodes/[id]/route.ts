@@ -15,6 +15,7 @@ import { deriveNodeStatus } from '@/lib/fleet/status';
 import { enforceResourceGuard } from '@/lib/fleet/resourceGuardMiddleware';
 import { getSession } from '@/lib/session';
 import { enforceRbac } from '@/lib/fleet/rbac';
+import { getOrCreateHubAuthToken } from '@/lib/fleet/hubAuth';
 import type { Model } from 'mongoose';
 
 export const dynamic = 'force-dynamic';
@@ -167,7 +168,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     }
 
     const frpServer = await FrpServerState.findOne({ key: 'global' }).lean();
-    const authToken = process.env.FLEET_HUB_AUTH_TOKEN ?? 'pending';
+    const authToken = await getOrCreateHubAuthToken();
     const publicUrl = process.env.FLEET_HUB_PUBLIC_URL;
     let serverAddr = frpServer?.subdomainHost ?? 'localhost';
     if (publicUrl) {

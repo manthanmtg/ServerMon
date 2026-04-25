@@ -16,6 +16,7 @@ import { enforceRbac } from '@/lib/fleet/rbac';
 import { getFrpOrchestrator, getNginxOrchestrator } from '@/lib/fleet/orchestrators';
 import { applyRevision } from '@/lib/fleet/applyEngine';
 import { fleetEventBus, type FleetEventKind } from '@/lib/fleet/eventBus';
+import { getOrCreateHubAuthToken } from '@/lib/fleet/hubAuth';
 
 export const dynamic = 'force-dynamic';
 
@@ -120,7 +121,7 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
       }
       await state.save();
 
-      const authToken = process.env.FLEET_HUB_AUTH_TOKEN ?? 'pending';
+      const authToken = await getOrCreateHubAuthToken();
       rendered = renderFrpsToml({
         bindPort: state.bindPort,
         vhostHttpPort: state.vhostHttpPort,
@@ -196,7 +197,7 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
       await node.save();
 
       const frpServer = await FrpServerState.findOne({ key: 'global' }).lean();
-      const authToken = process.env.FLEET_HUB_AUTH_TOKEN ?? 'pending';
+      const authToken = await getOrCreateHubAuthToken();
       const serverAddr =
         process.env.FLEET_HUB_PUBLIC_URL ?? frpServer?.subdomainHost ?? 'localhost';
       const serverPort = frpServer?.bindPort ?? 7000;

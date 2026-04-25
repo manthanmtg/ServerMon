@@ -41,6 +41,8 @@ interface CreatedInfo {
 interface VerificationInfo {
   status: string;
   lastSeen?: string;
+  tunnelStatus?: string;
+  lastError?: { code?: string; message?: string };
 }
 
 export function OnboardingWizard({ hubUrl }: { hubUrl: string }) {
@@ -64,6 +66,8 @@ export function OnboardingWizard({ hubUrl }: { hubUrl: string }) {
         setVerification({
           status: data.computedStatus ?? data.node?.status ?? 'waiting',
           lastSeen: data.node?.lastSeen,
+          tunnelStatus: data.node?.tunnelStatus,
+          lastError: data.node?.lastError,
         });
       } catch {
         // ignore polling errors
@@ -171,17 +175,25 @@ export function OnboardingWizard({ hubUrl }: { hubUrl: string }) {
                 I've run the command <ChevronRight className="h-4 w-4" />
               </Button>
             )}
-            {step === 6 && (
-              <Button
-                onClick={() => setCompleted(true)}
-                disabled={
-                  !verification ||
-                  (verification.status !== 'online' && verification.status !== 'connecting')
-                }
-              >
-                Finish Onboarding
-              </Button>
-            )}
+            {step === 6 && (() => {
+              // Allow finishing once the agent has reported any heartbeat, even
+              // if the derived status is still "degraded"/"connecting". The
+              // node detail page surfaces ongoing connection issues with full
+              // diagnostics; we don't want the wizard to silently block the
+              // user when the agent is up but the tunnel handshake is racy.
+              const reachable = !!verification?.lastSeen;
+              const healthy =
+                verification?.status === 'online' || verification?.status === 'connecting';
+              return (
+                <Button
+                  onClick={() => setCompleted(true)}
+                  disabled={!reachable && !healthy}
+                  variant={healthy ? 'default' : 'outline'}
+                >
+                  {healthy ? 'Finish Onboarding' : 'Finish anyway'}
+                </Button>
+              );
+            })()}
           </div>
         )}
       </CardContent>
@@ -310,21 +322,44 @@ function StepVerify({
   verification: VerificationInfo | null;
 }) {
   const status = verification?.status ?? 'waiting';
+  const tunnelStatus = verification?.tunnelStatus;
+  const lastError = verification?.lastError;
+  const isHealthy = status === 'online' || status === 'connecting';
+  const isProblem = status === 'degraded' || status === 'error';
   return (
     <div className="space-y-2">
       <p className="text-sm text-muted-foreground">Waiting for the agent to connect...</p>
       <div className="rounded-lg border border-border bg-card/50 p-4 space-y-2">
         <div className="flex items-center gap-2">
           <Badge>{status}</Badge>
+          {tunnelStatus && tunnelStatus !== status && (
+            <span className="text-xs text-muted-foreground">tunnel: {tunnelStatus}</span>
+          )}
           <span className="text-sm">
             {verification?.lastSeen
               ? `Last seen ${new Date(verification.lastSeen).toLocaleTimeString()}`
               : 'Not yet reported.'}
           </span>
         </div>
-        {(status === 'online' || status === 'connecting') && (
+        {isHealthy && (
           <div className="text-sm text-[color:var(--success,#16a34a)]">
             Agent is connected — onboarding complete.
+          </div>
+        )}
+        {isProblem && (
+          <div className="space-y-1 text-sm">
+            <div className="text-amber-500">
+              Agent reached the hub but the FRP tunnel has not stabilized.
+            </div>
+            {lastError?.message && (
+              <div className="text-xs text-muted-foreground">
+                Last error: <code>{lastError.code ?? 'unknown'}</code> — {lastError.message}
+              </div>
+            )}
+            <div className="text-xs text-muted-foreground">
+              You can finish anyway and inspect logs from the node detail page, or wait for the
+              next heartbeat to flip the status.
+            </div>
           </div>
         )}
       </div>

@@ -14,6 +14,7 @@ import { recordAudit } from '@/lib/fleet/audit';
 import { enforceResourceGuard } from '@/lib/fleet/resourceGuardMiddleware';
 import { getSession } from '@/lib/session';
 import { enforceRbac } from '@/lib/fleet/rbac';
+import { getOrCreateHubAuthToken } from '@/lib/fleet/hubAuth';
 import type { Model } from 'mongoose';
 
 export const dynamic = 'force-dynamic';
@@ -110,7 +111,7 @@ export async function POST(req: NextRequest) {
     const pairingTokenHash = await hashPairingToken(pairingToken);
 
     const frpServer = await FrpServerState.findOne({ key: 'global' }).lean();
-    const authToken = process.env.FLEET_HUB_AUTH_TOKEN ?? 'pending';
+    const authToken = await getOrCreateHubAuthToken();
     
     // Safety: ensure only hostname is used for serverAddr
     const publicUrl = process.env.FLEET_HUB_PUBLIC_URL;

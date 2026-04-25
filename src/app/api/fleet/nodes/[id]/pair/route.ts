@@ -6,6 +6,7 @@ import FleetLogEvent from '@/models/FleetLogEvent';
 import FrpServerState from '@/models/FrpServerState';
 import { verifyPairingToken } from '@/lib/fleet/pairing';
 import { recordAudit } from '@/lib/fleet/audit';
+import { getOrCreateHubAuthToken } from '@/lib/fleet/hubAuth';
 import type { Model } from 'mongoose';
 
 export const dynamic = 'force-dynamic';
@@ -62,7 +63,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       nodeId: id,
     });
 
-    const authToken = process.env.FLEET_HUB_AUTH_TOKEN ?? 'placeholder-pending-config';
+    const authToken = await getOrCreateHubAuthToken();
     const publicUrl = process.env.FLEET_HUB_PUBLIC_URL;
     let serverAddr = frpServer.subdomainHost ?? 'localhost';
     

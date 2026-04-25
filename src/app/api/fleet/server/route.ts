@@ -14,6 +14,7 @@ import { recordAudit } from '@/lib/fleet/audit';
 import { getSession } from '@/lib/session';
 import { enforceRbac } from '@/lib/fleet/rbac';
 import { fleetEventBus } from '@/lib/fleet/eventBus';
+import { getOrCreateHubAuthToken } from '@/lib/fleet/hubAuth';
 
 export const dynamic = 'force-dynamic';
 
@@ -58,7 +59,7 @@ async function rerenderAndSaveRevision(
   state: Awaited<ReturnType<typeof getOrCreateState>>,
   actor: string
 ) {
-  const authToken = process.env.FLEET_HUB_AUTH_TOKEN ?? 'pending';
+  const authToken = await getOrCreateHubAuthToken();
   const rendered = renderFrpsToml({
     bindPort: state.bindPort,
     vhostHttpPort: state.vhostHttpPort,

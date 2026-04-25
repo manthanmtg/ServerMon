@@ -1,7 +1,13 @@
 import type { Model } from 'mongoose';
+import { getOrCreateHubAuthToken } from './hubAuth';
 
 export interface ResolveAgentEndpointDeps {
   Node: Model<unknown>;
+  /**
+   * Optional override; defaults to {@link getOrCreateHubAuthToken}.
+   * Tests inject this to avoid touching the FrpServerState collection.
+   */
+  getHubAuthToken?: () => Promise<string>;
 }
 
 export interface ResolvedAgentEndpoint {
@@ -39,7 +45,8 @@ export async function resolveAgentEndpoint(
     (r) => r?.name === 'terminal' && r.enabled === true && typeof r.remotePort === 'number'
   );
   if (!terminal || typeof terminal.remotePort !== 'number') return null;
-  const authToken = process.env.FLEET_HUB_AUTH_TOKEN ?? 'pending';
+  const getToken = deps.getHubAuthToken ?? getOrCreateHubAuthToken;
+  const authToken = await getToken();
   return {
     host: '127.0.0.1',
     port: terminal.remotePort,

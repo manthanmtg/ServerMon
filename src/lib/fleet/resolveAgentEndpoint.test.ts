@@ -81,17 +81,20 @@ describe('resolveAgentEndpoint', () => {
     });
   });
 
-  it('uses pending authToken when env is unset', async () => {
+  it('falls back to injected getHubAuthToken when env is unset', async () => {
     delete process.env.FLEET_HUB_AUTH_TOKEN;
     const Node = makeNodeModel({
       _id: 'n',
       proxyRules: [{ name: 'terminal', type: 'tcp', enabled: true, remotePort: 7001 }],
     });
-    const r = await resolveAgentEndpoint('n', { Node });
+    const r = await resolveAgentEndpoint('n', {
+      Node,
+      getHubAuthToken: async () => 'fallback-token',
+    });
     expect(r).toEqual({
       host: '127.0.0.1',
       port: 7001,
-      authToken: 'pending',
+      authToken: 'fallback-token',
     });
   });
 });

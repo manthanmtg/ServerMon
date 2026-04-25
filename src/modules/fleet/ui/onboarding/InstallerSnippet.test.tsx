@@ -18,12 +18,12 @@ describe('InstallerSnippet', () => {
     vi.restoreAllMocks();
   });
 
-  it('renders the linux tab by default with install-agent.sh snippet', () => {
+  it('renders the linux tab by default with the install-script snippet', () => {
     const { container } = render(
       <InstallerSnippet token="tok-1" nodeId="node-1" hubUrl="hub.test" />
     );
     const text = container.textContent ?? '';
-    expect(text).toContain('install-agent.sh');
+    expect(text).toContain('/api/fleet/public/install-script');
     expect(text).toContain("--token 'tok-1'");
     expect(text).toContain("--node-id 'node-1'");
     expect(text).toContain("--hub-url 'hub.test'");
@@ -67,7 +67,7 @@ describe('InstallerSnippet', () => {
       expect(writeText).toHaveBeenCalledTimes(1);
     });
     const arg = writeText.mock.calls[0][0] as string;
-    expect(arg).toContain('install-agent.sh');
+    expect(arg).toContain('/api/fleet/public/install-script');
     expect(arg).toContain("--token 'tok-1'");
   });
 });

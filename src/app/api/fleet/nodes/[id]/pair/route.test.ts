@@ -110,7 +110,8 @@ describe('POST /api/fleet/nodes/[id]/pair', () => {
     expect(res.status).toBe(200);
     const json = await res.json();
     expect(json.hub.authToken).toBe('env-token');
-    expect(json.hub.serverAddr).toBe('https://hub.example.com');
+    // serverAddr must be hostname-only (no scheme) so frpc can dial it as a TCP host.
+    expect(json.hub.serverAddr).toBe('hub.example.com');
     expect(json.hub.serverPort).toBe(7000);
     expect(json.hub.subdomainHost).toBe('hub.example.com');
 
