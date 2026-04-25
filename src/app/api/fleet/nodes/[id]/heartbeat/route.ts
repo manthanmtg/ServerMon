@@ -97,7 +97,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     // Proxy rules need special handling because they are an array of subdocs
     if (hb.proxies.length > 0) {
-      console.error(`[DEBUG_PROXIES] Node ${id} reported: ${JSON.stringify(hb.proxies)}`);
+      console.error(`[DEBUG_PROXIES_LOUD] Node ${id} reported: ${JSON.stringify(hb.proxies)}`);
     }
     if (Array.isArray(node.proxyRules) && hb.proxies.length > 0) {
       const updatedRules = [...node.proxyRules];
