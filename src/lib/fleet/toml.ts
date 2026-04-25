@@ -19,6 +19,7 @@ export function renderFrpsToml(i: FrpsRenderInput): string {
     `bindAddr = "0.0.0.0"`,
     `bindPort = ${i.bindPort}`,
     `vhostHTTPPort = ${i.vhostHttpPort}`,
+    `log.level = "info"`,
   ];
   if (i.vhostHttpsPort) lines.push(`vhostHTTPSPort = ${i.vhostHttpsPort}`);
   lines.push(`subDomainHost = ${escapeStr(i.subdomainHost)}`);

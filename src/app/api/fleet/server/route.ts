@@ -107,11 +107,11 @@ export async function GET() {
     await connectDB();
     const state = await getOrCreateState();
 
-    // Auto-repair/Sync: If env vars are set but DB is empty/different, update DB to match Env.
+    // Auto-repair/Sync: If env vars are set but DB is empty, update DB to match Env.
     // This ensures that changes in /etc/servermon/env are reflected in the UI/Wizard.
     let needsSave = false;
     const envSubdomain = process.env.FRP_SUBDOMAIN_HOST;
-    if (envSubdomain && state.subdomainHost !== envSubdomain) {
+    if (envSubdomain && !state.subdomainHost) {
       state.subdomainHost = envSubdomain;
       needsSave = true;
     }

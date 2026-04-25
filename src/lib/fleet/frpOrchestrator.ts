@@ -101,6 +101,7 @@ export class FrpOrchestrator {
     this.binaryVersion = deps.binaryVersion ?? DEFAULT_BINARY_VERSION;
     this.binaryCacheDir = deps.binaryCacheDir ?? '/var/lib/servermon/frp-cache';
     this.configDir = deps.configDir ?? '/etc/servermon/frp';
+
     this.reconcileIntervalMs = deps.reconcileIntervalMs ?? DEFAULT_RECONCILE_INTERVAL_MS;
     this.writeFile = deps.writeFile ?? ((p, data) => fs.promises.writeFile(p, data, 'utf8'));
     this.mkdir =
