@@ -398,11 +398,22 @@ export class AgentClient {
    * Syncs node configuration from the hub and restarts frpc if needed.
    */
   public async syncConfig(): Promise<void> {
-    const hubUrl = this.opts.hubUrl;
-    const nodeId = this.opts.nodeId;
-    const pairingToken = this.opts.pairingToken;
-    const fetchImpl = this.opts.fetchImpl ?? fetch;
-    const configDir = this.opts.configDir ?? DEFAULT_CONFIG_DIR;
+    const {
+      hubUrl,
+      nodeId,
+      pairingToken,
+      fetchImpl = fetch,
+      writeFile = async (p, d) => fs.promises.writeFile(p, d, 'utf8'),
+      mkdir = async (p, o) => {
+        await fs.promises.mkdir(p, o);
+      },
+      ensureBinaryImpl = ensureBinary,
+      startFrpcImpl = startFrpc,
+      binaryCacheDir = DEFAULT_BINARY_CACHE_DIR,
+      configDir = DEFAULT_CONFIG_DIR,
+      binaryVersion = DEFAULT_BINARY_VERSION,
+      spawnImpl = realSpawn,
+    } = this.opts;
 
     try {
       this.log('info', 'agent.sync.starting', 'Syncing node configuration...');
