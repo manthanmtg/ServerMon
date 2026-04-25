@@ -5,6 +5,8 @@ import { executeLogic } from './logic-executor';
 import type { ICustomEndpoint } from '@/models/CustomEndpoint';
 import type { ExecutionInput, ExecutionResult } from './types';
 
+export type { ExecutionInput, ExecutionResult } from './types';
+
 const log = createLogger('endpoints:executor');
 
 export async function executeEndpoint(

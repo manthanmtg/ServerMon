@@ -20,6 +20,34 @@ export type NginxRenderRoute = Pick<
   | 'slug'
 >;
 
+const HEADER_NAME_RE = /^[A-Za-z0-9!#$%&'*+.^_`|~-]+$/;
+
+export function normalizeNginxHeaders(headers: unknown): Record<string, string> {
+  if (!headers || typeof headers !== 'object') return {};
+
+  if (headers instanceof Map) {
+    return Object.fromEntries(
+      Array.from(headers.entries())
+        .filter(([k]) => typeof k === 'string' && HEADER_NAME_RE.test(k))
+        .map(([k, v]) => [String(k), String(v)])
+    );
+  }
+
+  const maybeMongooseMap = headers as { toObject?: () => unknown };
+  if (typeof maybeMongooseMap.toObject === 'function') {
+    return normalizeNginxHeaders(maybeMongooseMap.toObject());
+  }
+
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(headers as Record<string, unknown>)) {
+    if (!HEADER_NAME_RE.test(k)) continue;
+    if (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean') {
+      out[k] = String(v);
+    }
+  }
+  return out;
+}
+
 export function renderServerBlock(route: NginxRenderRoute, opts: NginxRenderOpts): string {
   if (route.domain.startsWith('*')) {
     throw new Error(`Refusing to render server block for unsafe wildcard domain: ${route.domain}`);
@@ -40,10 +68,7 @@ export function renderServerBlock(route: NginxRenderRoute, opts: NginxRenderOpts
   lines.push('server {');
   lines.push('  listen 80;');
   if (route.tlsEnabled) {
-    lines.push('  listen 443 ssl;');
-    if (route.http2Enabled) {
-      lines.push('  http2 on;');
-    }
+    lines.push(`  listen 443 ssl${route.http2Enabled ? ' http2' : ''};`);
     lines.push(`  ssl_certificate /etc/letsencrypt/live/${route.domain}/fullchain.pem;`);
     lines.push(`  ssl_certificate_key /etc/letsencrypt/live/${route.domain}/privkey.pem;`);
     lines.push(
@@ -62,7 +87,7 @@ export function renderServerBlock(route: NginxRenderRoute, opts: NginxRenderOpts
     lines.push('  gzip_vary on;');
   }
 
-  for (const [k, v] of Object.entries(route.headers || {})) {
+  for (const [k, v] of Object.entries(normalizeNginxHeaders(route.headers))) {
     lines.push(`  add_header ${k} ${v};`);
   }
 

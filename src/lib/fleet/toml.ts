@@ -28,7 +28,7 @@ export function renderFrpsToml(i: FrpsRenderInput): string {
   lines.push(`auth.method = "token"`);
   lines.push(`auth.token = ${escapeStr(i.authToken)}`);
   // Enable TLS support on the Hub
-  lines.push(`transport.tls.force = false`); 
+  lines.push(`transport.tls.force = false`);
   if (i.tlsOnly) lines.push(`transport.tls.force = true`);
   return lines.join('\n') + '\n';
 }
@@ -37,7 +37,8 @@ export interface FrpcRenderInput {
   serverAddr: string;
   serverPort: number;
   authToken: string;
-  node: Pick<INodeDTO, 'slug' | 'frpcConfig' | 'proxyRules' | 'capabilities'>;
+  node: Pick<INodeDTO, 'slug' | 'frpcConfig' | 'proxyRules'> &
+    Partial<Pick<INodeDTO, 'capabilities'>>;
 }
 
 export function renderFrpcToml(i: FrpcRenderInput): string {
@@ -64,18 +65,19 @@ export function renderFrpcToml(i: FrpcRenderInput): string {
   out.push(`transport.poolCount = ${cfg.poolCount || 1}`);
 
   const rules = [...(i.node.proxyRules || [])];
+  const ptyConfig = cfg as typeof cfg & { ptyListenPort?: number };
   // 1. Ensure terminal-bridge exists if enabled and not already present
-  if (i.node.capabilities?.terminal !== false && !rules.some(r => r.name === 'terminal-bridge')) {
+  if (i.node.capabilities?.terminal !== false && !rules.some((r) => r.name === 'terminal-bridge')) {
     rules.push({
       name: 'terminal-bridge',
       type: 'tcp',
       localIp: '127.0.0.1',
-      localPort: (cfg as any).ptyListenPort || 8001,
+      localPort: ptyConfig.ptyListenPort || 8001,
       remotePort: 0,
       enabled: true,
       status: 'disabled',
-      customDomains: []
-    } as any);
+      customDomains: [],
+    });
   }
 
   for (const p of rules) {
@@ -87,8 +89,8 @@ export function renderFrpcToml(i: FrpcRenderInput): string {
     out.push(`localIP = ${escapeStr(p.localIp)}`);
     out.push(`localPort = ${p.localPort}`);
     if (p.remotePort) out.push(`remotePort = ${p.remotePort}`);
-    out.push(`transport.useEncryption = true`);
-    out.push(`transport.useCompression = true`);
+    out.push(`transport.useEncryption = ${!!cfg.transportEncryptionEnabled}`);
+    out.push(`transport.useCompression = ${!!cfg.compressionEnabled}`);
 
     if (p.type === 'http' || p.type === 'https') {
       if (p.subdomain) out.push(`subdomain = ${escapeStr(p.subdomain)}`);

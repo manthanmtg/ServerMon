@@ -8,13 +8,19 @@ import Node from '@/models/Node';
 import ConfigRevision from '@/models/ConfigRevision';
 import FleetLogEvent from '@/models/FleetLogEvent';
 import FrpServerState from '@/models/FrpServerState';
-import { renderServerBlock } from '@/lib/fleet/nginx';
+import { normalizeNginxHeaders, renderServerBlock } from '@/lib/fleet/nginx';
+import { renderFrpcToml } from '@/lib/fleet/toml';
 import { saveRevision } from '@/lib/fleet/revisions';
 import { recordAudit } from '@/lib/fleet/audit';
 import { resolveDomain } from '@/lib/fleet/dns';
 import { getSession } from '@/lib/session';
 import { enforceRbac } from '@/lib/fleet/rbac';
 import { fleetEventBus } from '@/lib/fleet/eventBus';
+import { getOrCreateHubAuthToken } from '@/lib/fleet/hubAuth';
+import {
+  type PublicRouteProxyRule,
+  upsertPublicRouteProxyRule,
+} from '@/lib/fleet/publicRouteProxy';
 
 export const dynamic = 'force-dynamic';
 
@@ -30,6 +36,15 @@ const PatchZ = PublicRouteZodSchema.omit({
   tlsStatus: true,
   healthStatus: true,
 }).partial();
+
+function resolveServerAddr(publicUrl: string | undefined, fallback: string | undefined): string {
+  if (!publicUrl) return fallback ?? 'localhost';
+  try {
+    return new URL(publicUrl).hostname;
+  } catch {
+    return publicUrl;
+  }
+}
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -86,6 +101,57 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
     const frpServer = await FrpServerState.findOne({ key: 'global' }).lean();
     const frpsVhostPort = frpServer?.vhostHttpPort ?? 8080;
+    let frpcRevisionId: string | null = null;
+
+    if (updated.enabled !== false) {
+      const node = await Node.findById(updated.nodeId);
+      if (node) {
+        const proxyRules = node.proxyRules as PublicRouteProxyRule[];
+        const proxyChanged = upsertPublicRouteProxyRule(
+          proxyRules,
+          {
+            slug: updated.slug,
+            domain: updated.domain,
+            proxyRuleName: updated.proxyRuleName,
+            target: updated.target,
+            enabled: updated.enabled,
+          },
+          frpServer?.subdomainHost
+        );
+        if (proxyChanged) {
+          await node.save();
+
+          const authToken = await getOrCreateHubAuthToken();
+          const serverAddr = resolveServerAddr(
+            process.env.FLEET_HUB_PUBLIC_URL,
+            frpServer?.subdomainHost
+          );
+          const frpcRendered = renderFrpcToml({
+            serverAddr,
+            serverPort: frpServer?.bindPort ?? 7000,
+            authToken,
+            node: {
+              slug: node.slug,
+              frpcConfig: node.frpcConfig,
+              proxyRules: node.proxyRules,
+              capabilities: node.capabilities,
+            },
+          });
+          const frpcRevision = await saveRevision(ConfigRevision as unknown as Model<unknown>, {
+            kind: 'frpc',
+            targetId: String(node._id),
+            structured: {
+              slug: node.slug,
+              frpcConfig: node.frpcConfig,
+              proxyRules: node.proxyRules,
+            },
+            rendered: frpcRendered,
+            createdBy: session.user.username,
+          });
+          frpcRevisionId = frpcRevision.id;
+        }
+      }
+    }
 
     const rendered = renderServerBlock(
       {
@@ -98,9 +164,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         timeoutSeconds: updated.timeoutSeconds,
         compression: updated.compression,
         accessMode: updated.accessMode,
-        headers: Object.fromEntries(
-          Object.entries(updated.headers || {}).map(([k, v]) => [k, String(v)])
-        ),
+        headers: normalizeNginxHeaders(updated.headers),
         slug: updated.slug,
       },
       { frpsVhostPort }
@@ -115,6 +179,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     });
 
     updated.nginxConfigRevisionId = revision.id;
+    if (frpcRevisionId) updated.frpConfigRevisionId = frpcRevisionId;
 
     // Re-check DNS after snippet is persisted so the stored status reflects the
     // (potentially new) domain on the updated doc.
@@ -147,7 +212,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       const { getFrpOrchestrator, getNginxOrchestrator } =
         await import('@/lib/fleet/orchestrators');
       const { applyRevision } = await import('@/lib/fleet/applyEngine');
-      await applyRevision(revision.id, {
+      const deps = {
         frp: getFrpOrchestrator(),
         nginx: getNginxOrchestrator(),
         ConfigRevision: ConfigRevision as unknown as Parameters<
@@ -158,7 +223,14 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         >[1]['FrpServerState'],
         PublicRoute: PublicRoute as unknown as Parameters<typeof applyRevision>[1]['PublicRoute'],
         Node: Node as unknown as Parameters<typeof applyRevision>[1]['Node'],
-      }).catch((err) => log.warn('applyRevision failed post-save', err));
+      };
+      for (const revisionId of [frpcRevisionId, revision.id].filter(
+        (candidate): candidate is string => typeof candidate === 'string'
+      )) {
+        await applyRevision(revisionId, deps).catch((err) =>
+          log.warn('applyRevision failed post-save', err)
+        );
+      }
     }
 
     return NextResponse.json({ route: updated.toObject() });

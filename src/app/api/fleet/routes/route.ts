@@ -9,7 +9,7 @@ import FleetLogEvent from '@/models/FleetLogEvent';
 import FrpServerState from '@/models/FrpServerState';
 import Node from '@/models/Node';
 import ResourcePolicy from '@/models/ResourcePolicy';
-import { renderServerBlock } from '@/lib/fleet/nginx';
+import { normalizeNginxHeaders, renderServerBlock } from '@/lib/fleet/nginx';
 import { renderFrpcToml } from '@/lib/fleet/toml';
 import { saveRevision } from '@/lib/fleet/revisions';
 import { recordAudit } from '@/lib/fleet/audit';
@@ -18,6 +18,10 @@ import { getSession } from '@/lib/session';
 import { enforceRbac } from '@/lib/fleet/rbac';
 import { enforceResourceGuard } from '@/lib/fleet/resourceGuardMiddleware';
 import { getOrCreateHubAuthToken } from '@/lib/fleet/hubAuth';
+import {
+  type PublicRouteProxyRule,
+  upsertPublicRouteProxyRule,
+} from '@/lib/fleet/publicRouteProxy';
 
 export const dynamic = 'force-dynamic';
 
@@ -33,6 +37,15 @@ const CreateZ = PublicRouteZodSchema.omit({
   tlsStatus: true,
   healthStatus: true,
 });
+
+function resolveServerAddr(publicUrl: string | undefined, fallback: string | undefined): string {
+  if (!publicUrl) return fallback ?? 'localhost';
+  try {
+    return new URL(publicUrl).hostname;
+  } catch {
+    return publicUrl;
+  }
+}
 
 export async function GET(req: NextRequest) {
   try {
@@ -130,6 +143,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const frpServer = await FrpServerState.findOne({ key: 'global' }).lean();
+
     // Ensure a matching proxy rule exists on the target Node. Auto-insert if
     // absent so the user can expose a service without first provisioning
     // an FRP proxy rule manually.
@@ -139,30 +154,21 @@ export async function POST(req: NextRequest) {
     }
 
     let autoInsertedProxy = false;
+    let frpcRevisionId: string | null = null;
     const existingProxyRule = Array.isArray(node.proxyRules)
       ? node.proxyRules.find((p) => p.name === parsed.proxyRuleName)
       : undefined;
-    if (!existingProxyRule) {
-      const type: 'tcp' | 'http' = parsed.target.protocol === 'tcp' ? 'tcp' : 'http';
-      const newRule = {
-        name: parsed.proxyRuleName,
-        type,
-        localIp: parsed.target.localIp,
-        localPort: parsed.target.localPort,
-        customDomains: type === 'http' ? [parsed.domain] : [],
-        ...(type === 'http' ? { subdomain: parsed.slug } : {}),
-        ...(type === 'tcp' ? { remotePort: Math.floor(Math.random() * 10000) + 9000 } : {}),
-        enabled: true,
-        status: 'disabled' as const,
-      };
-      node.proxyRules.push(newRule);
+    const proxyRules = node.proxyRules as PublicRouteProxyRule[];
+    const proxyChanged = upsertPublicRouteProxyRule(proxyRules, parsed, frpServer?.subdomainHost);
+    if (proxyChanged) {
       await node.save();
 
       const authToken = await getOrCreateHubAuthToken();
-      const frpServerState = await FrpServerState.findOne({ key: 'global' }).lean();
-      const serverAddr =
-        process.env.FLEET_HUB_PUBLIC_URL ?? frpServerState?.subdomainHost ?? 'localhost';
-      const serverPort = frpServerState?.bindPort ?? 7000;
+      const serverAddr = resolveServerAddr(
+        process.env.FLEET_HUB_PUBLIC_URL,
+        frpServer?.subdomainHost
+      );
+      const serverPort = frpServer?.bindPort ?? 7000;
       const frpcRendered = renderFrpcToml({
         serverAddr,
         serverPort,
@@ -174,7 +180,7 @@ export async function POST(req: NextRequest) {
           capabilities: node.capabilities,
         },
       });
-      await saveRevision(ConfigRevision as unknown as Model<unknown>, {
+      const frpcRevision = await saveRevision(ConfigRevision as unknown as Model<unknown>, {
         kind: 'frpc',
         targetId: String(node._id),
         structured: {
@@ -185,7 +191,8 @@ export async function POST(req: NextRequest) {
         rendered: frpcRendered,
         createdBy: session.user.username,
       });
-      autoInsertedProxy = true;
+      frpcRevisionId = frpcRevision.id;
+      autoInsertedProxy = !existingProxyRule;
     }
 
     // DNS resolution
@@ -197,7 +204,6 @@ export async function POST(req: NextRequest) {
       dnsStatus = 'missing';
     }
 
-    const frpServer = await FrpServerState.findOne({ key: 'global' }).lean();
     const frpsVhostPort = frpServer?.vhostHttpPort ?? 8080;
 
     const created = await PublicRoute.create({
@@ -222,9 +228,7 @@ export async function POST(req: NextRequest) {
         timeoutSeconds: created.timeoutSeconds,
         compression: created.compression,
         accessMode: created.accessMode,
-        headers: Object.fromEntries(
-          Object.entries(created.headers || {}).map(([k, v]) => [k, String(v)])
-        ),
+        headers: normalizeNginxHeaders(created.headers),
         slug: created.slug,
       },
       { frpsVhostPort }
@@ -239,6 +243,7 @@ export async function POST(req: NextRequest) {
     });
 
     created.nginxConfigRevisionId = revision.id;
+    if (frpcRevisionId) created.frpConfigRevisionId = frpcRevisionId;
     await created.save();
 
     await recordAudit(FleetLogEvent as unknown as Model<unknown>, {
@@ -252,7 +257,7 @@ export async function POST(req: NextRequest) {
       const { getFrpOrchestrator, getNginxOrchestrator } =
         await import('@/lib/fleet/orchestrators');
       const { applyRevision } = await import('@/lib/fleet/applyEngine');
-      await applyRevision(revision.id, {
+      const deps = {
         frp: getFrpOrchestrator(),
         nginx: getNginxOrchestrator(),
         ConfigRevision: ConfigRevision as unknown as Parameters<
@@ -263,7 +268,14 @@ export async function POST(req: NextRequest) {
         >[1]['FrpServerState'],
         PublicRoute: PublicRoute as unknown as Parameters<typeof applyRevision>[1]['PublicRoute'],
         Node: Node as unknown as Parameters<typeof applyRevision>[1]['Node'],
-      }).catch((err) => log.warn('applyRevision failed post-save', err));
+      };
+      for (const revisionId of [frpcRevisionId, revision.id].filter(
+        (id): id is string => typeof id === 'string'
+      )) {
+        await applyRevision(revisionId, deps).catch((err) =>
+          log.warn('applyRevision failed post-save', err)
+        );
+      }
     }
 
     return NextResponse.json({ route: created.toObject(), autoInsertedProxy }, { status: 201 });

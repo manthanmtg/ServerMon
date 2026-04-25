@@ -58,8 +58,7 @@ describe('renderServerBlock', () => {
     const out = renderServerBlock(baseRoute({ tlsEnabled: true, http2Enabled: true }), {
       frpsVhostPort: 8080,
     });
-    expect(out).toContain('listen 443 ssl;');
-    expect(out).toContain('http2 on;');
+    expect(out).toContain('listen 443 ssl http2;');
     expect(out).toContain(
       'ssl_certificate /etc/letsencrypt/live/photos.example.com/fullchain.pem;'
     );
@@ -76,7 +75,7 @@ describe('renderServerBlock', () => {
       frpsVhostPort: 8080,
     });
     expect(out).toContain('listen 443 ssl;');
-    expect(out).not.toContain('http2 on;');
+    expect(out).not.toContain('listen 443 ssl http2;');
   });
 
   it('emits websocket directives when websocketEnabled', () => {

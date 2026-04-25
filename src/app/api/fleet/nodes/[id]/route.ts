@@ -16,6 +16,11 @@ import { enforceResourceGuard } from '@/lib/fleet/resourceGuardMiddleware';
 import { getSession } from '@/lib/session';
 import { enforceRbac } from '@/lib/fleet/rbac';
 import { getOrCreateHubAuthToken } from '@/lib/fleet/hubAuth';
+import {
+  type PublicRouteProxyRule,
+  type PublicRouteProxySource,
+  upsertPublicRouteProxyRule,
+} from '@/lib/fleet/publicRouteProxy';
 import type { Model } from 'mongoose';
 
 export const dynamic = 'force-dynamic';
@@ -84,9 +89,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       now,
     });
 
-    return NextResponse.json({ 
-      node: { ...node, _id: String(node._id) }, 
-      computedStatus 
+    return NextResponse.json({
+      node: { ...node, _id: String(node._id) },
+      computedStatus,
     });
   } catch (error) {
     log.error('Failed to fetch node', error);
@@ -98,7 +103,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   try {
     const { id } = await params;
     const session = (await getSession()) as SessionUser | null;
-    
+
     await connectDB();
     const existing = await Node.findById(id);
     if (!existing) {
@@ -158,6 +163,23 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       }
     }
 
+    const frpServer = await FrpServerState.findOne({ key: 'global' }).lean();
+
+    if (Array.isArray(updates.proxyRules)) {
+      const routeQuery = PublicRoute.find({
+        nodeId: id,
+        enabled: true,
+        target: { $exists: true },
+      }) as unknown as {
+        lean: () => Promise<PublicRouteProxySource[]> | PublicRouteProxySource[];
+      };
+      const publicRoutes = await routeQuery.lean();
+      const proxyRules = updates.proxyRules as PublicRouteProxyRule[];
+      for (const route of publicRoutes) {
+        upsertPublicRouteProxyRule(proxyRules, route, frpServer?.subdomainHost);
+      }
+    }
+
     const updated = await Node.findByIdAndUpdate(
       id,
       { ...updates, updatedBy: actorUsername },
@@ -167,7 +189,6 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       return NextResponse.json({ error: 'Node not found' }, { status: 404 });
     }
 
-    const frpServer = await FrpServerState.findOne({ key: 'global' }).lean();
     const authToken = await getOrCreateHubAuthToken();
     const publicUrl = process.env.FLEET_HUB_PUBLIC_URL;
     let serverAddr = frpServer?.subdomainHost ?? 'localhost';
@@ -186,9 +207,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       authToken,
       node: {
         slug: updated.slug,
-        frpcConfig: updated.frpcConfig as any,
-        proxyRules: (updated as any).proxyRules,
-        capabilities: updated.capabilities as any,
+        frpcConfig: updated.frpcConfig,
+        proxyRules: updated.proxyRules,
+        capabilities: updated.capabilities,
       },
     });
 

@@ -56,6 +56,15 @@ log_err()  { echo -e "  ${RED}✗${NC} $1"; }
 step()     { echo -e "\n${BOLD}${CYAN}[$1]${NC} ${BOLD}$2${NC}"; }
 divider()  { echo -e "${DIM}──────────────────────────────────────────────${NC}"; }
 
+ensure_nginx_managed_include() {
+    local managed_dir="$1"
+    local include_file="/etc/nginx/conf.d/servermon-public-routes.conf"
+    if [ -d /etc/nginx/conf.d ]; then
+        printf "include %s/*.conf;\n" "$managed_dir" > "$include_file"
+        log_info "Ensured Nginx includes ServerMon public routes from ${managed_dir}"
+    fi
+}
+
 format_duration_ms() {
     local ms="$1"
     if [ "$ms" -lt 1000 ]; then
@@ -596,7 +605,10 @@ if [ "$EXISTING_INSTALL" = "true" ] && [ -f "${CONFIG_DIR}/env" ]; then
             log_info "Creating Nginx managed directory: ${MANAGED_DIR}"
             mkdir -p "$MANAGED_DIR"
         fi
-        chown -R "${SERVICE_USER}:${SERVICE_USER}" "$MANAGED_DIR"
+        if id "$SERVICE_USER" &>/dev/null; then
+            chown -R "${SERVICE_USER}:${SERVICE_USER}" "$MANAGED_DIR"
+        fi
+        ensure_nginx_managed_include "$MANAGED_DIR"
         
         update_env_line "FLEET_HUB_ORCHESTRATORS_ENABLED" "true"
         update_env_line "FLEET_HUB_PUBLIC_URL" "${HUB_PUBLIC_URL}"
@@ -628,6 +640,13 @@ SERVERMON_REPO_DIR=${SOURCE_DIR}
 ENVEOF
 
     if [ "$HUB_MODE" = "true" ]; then
+        MANAGED_DIR="${FLEET_NGINX_MANAGED_DIR:-/etc/nginx/servermon}"
+        mkdir -p "$MANAGED_DIR"
+        if id "$SERVICE_USER" &>/dev/null; then
+            chown -R "${SERVICE_USER}:${SERVICE_USER}" "$MANAGED_DIR"
+        fi
+        ensure_nginx_managed_include "$MANAGED_DIR"
+
         cat >> "${CONFIG_DIR}/env" <<HUBEOF
 FLEET_HUB_ORCHESTRATORS_ENABLED=true
 FLEET_HUB_PUBLIC_URL=${HUB_PUBLIC_URL}
@@ -794,11 +813,23 @@ if [ "$SETUP_NGINX" = "true" ]; then
 
     SERVER_NAME="${DOMAIN:-_}"
     NGINX_CONF="/etc/nginx/sites-available/servermon"
+    TLS_LISTEN=""
+    TLS_BLOCK=""
+    if [ "$SETUP_SSL" = "true" ] && [ -n "$DOMAIN" ] \
+        && [ -f "/etc/letsencrypt/live/${DOMAIN}/fullchain.pem" ] \
+        && [ -f "/etc/letsencrypt/live/${DOMAIN}/privkey.pem" ]; then
+        TLS_LISTEN="    listen 443 ssl;"
+        TLS_BLOCK="    ssl_certificate /etc/letsencrypt/live/${DOMAIN}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/${DOMAIN}/privkey.pem;
+    include /etc/letsencrypt/options-ssl-nginx.conf;
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;"
+    fi
     log_info "Creating Nginx configuration at ${NGINX_CONF}..."
 
     cat > "$NGINX_CONF" <<NGXEOF
     server {
     listen 80;
+${TLS_LISTEN}
     server_name ${SERVER_NAME};
     client_max_body_size 2m;
 
@@ -843,6 +874,7 @@ if [ "$SETUP_NGINX" = "true" ]; then
         proxy_read_timeout 300s;
         proxy_send_timeout 300s;
     }
+${TLS_BLOCK}
     }
 NGXEOF
     # Enable the site

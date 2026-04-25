@@ -15,6 +15,7 @@ const {
   mockGetFrpOrchestrator,
   mockGetNginxOrchestrator,
   mockResourcePolicyFind,
+  mockPublicRouteFind,
 } = vi.hoisted(() => ({
   mockGetSession: vi.fn(),
   mockFindById: vi.fn(),
@@ -28,6 +29,7 @@ const {
   mockGetFrpOrchestrator: vi.fn(() => ({})),
   mockGetNginxOrchestrator: vi.fn(() => ({})),
   mockResourcePolicyFind: vi.fn(),
+  mockPublicRouteFind: vi.fn(),
 }));
 
 vi.mock('@/lib/db', () => ({ default: vi.fn().mockResolvedValue(undefined) }));
@@ -58,7 +60,7 @@ vi.mock('@/models/FrpServerState', () => ({
   default: { findOne: mockFrpFindOne },
 }));
 vi.mock('@/models/PublicRoute', () => ({
-  default: {},
+  default: { find: mockPublicRouteFind },
 }));
 vi.mock('@/models/ResourcePolicy', () => ({
   default: { find: mockResourcePolicyFind },
@@ -150,6 +152,9 @@ describe('PATCH /api/fleet/nodes/[id]', () => {
     mockConfigCreate.mockResolvedValue({ _id: 'rev1' });
     mockFleetLogCreate.mockResolvedValue({});
     mockResourcePolicyFind.mockReturnValue({
+      lean: vi.fn().mockResolvedValue([]),
+    });
+    mockPublicRouteFind.mockReturnValue({
       lean: vi.fn().mockResolvedValue([]),
     });
   });
