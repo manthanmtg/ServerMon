@@ -388,6 +388,97 @@ export class AgentClient {
     if (cmd.command === 'endpoint-run') {
       void this.handleEndpointRun(cmd.id, cmd.args);
     }
+
+    if (cmd.command === 'reconcile') {
+      void this.syncConfig();
+    }
+  }
+
+  /**
+   * Syncs node configuration from the hub and restarts frpc if needed.
+   */
+  public async syncConfig(): Promise<void> {
+    const hubUrl = this.opts.hubUrl;
+    const nodeId = this.opts.nodeId;
+    const pairingToken = this.opts.pairingToken;
+    const fetchImpl = this.opts.fetchImpl ?? fetch;
+    const configDir = this.opts.configDir ?? DEFAULT_CONFIG_DIR;
+
+    try {
+      this.log('info', 'agent.sync.starting', 'Syncing node configuration...');
+      
+      // 1. Fetch node config
+      const nodeUrl = `${hubUrl}/api/fleet/nodes/${nodeId}`;
+      const nodeRes = await fetchImpl(nodeUrl, {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${pairingToken}`,
+        },
+      });
+      if (!nodeRes.ok) {
+        throw new Error(`node-fetch-failed: ${nodeRes.status}`);
+      }
+      const data = (await nodeRes.json()) as { node: NodeConfigResponse };
+      this.nodeConfig = data.node;
+
+      // 2. Render frpc.toml
+      if (!this.pairResponse) {
+        throw new Error('agent not paired');
+      }
+
+      const rendered = renderFrpcToml({
+        serverAddr: this.pairResponse.hub.serverAddr,
+        serverPort: this.pairResponse.hub.serverPort,
+        authToken: this.pairResponse.hub.authToken,
+        node: {
+          slug: this.nodeConfig.slug ?? nodeId,
+          frpcConfig: this.nodeConfig.frpcConfig,
+          proxyRules: this.nodeConfig.proxyRules,
+        },
+      });
+
+      // 3. Ensure config dir + write toml
+      await mkdir(configDir, { recursive: true });
+      const configPath = path.join(configDir, 'frpc.toml');
+      await writeFile(configPath, rendered);
+
+      // 4. Restart frpc
+      this.log('info', 'agent.frpc.restarting', 'Restarting FRP client with new configuration...');
+      if (this.frpHandle) {
+        this.frpHandle.kill();
+      }
+
+      // Re-ensure binaries (in case they were deleted or version changed)
+      const binaries = await ensureBinaryImpl({
+        cacheDir: this.opts.binaryCacheDir ?? DEFAULT_BINARY_CACHE_DIR,
+        version: this.opts.binaryVersion ?? DEFAULT_BINARY_VERSION,
+        fetchImpl,
+        spawnImpl: this.opts.spawnImpl ?? realSpawn,
+      });
+
+      this.frpHandle = startFrpcImpl({
+        binary: binaries.frpc,
+        configPath,
+        spawnImpl: this.opts.spawnImpl ?? realSpawn,
+        onLog: (line) => {
+          this.log('info', 'agent.frpc.log', line);
+          const cleanLine = line.replace(/\u001b\[[0-9;]*[mGKH]/g, '').toLowerCase();
+          if (cleanLine.includes('login to server success') || cleanLine.includes('start proxy success')) {
+            this.status_.tunnelStatus = 'connected';
+            void this.sendHeartbeat();
+          }
+          if (cleanLine.includes('work connection closed') || cleanLine.includes('login to server failed')) {
+            this.status_.tunnelStatus = 'reconnecting';
+          }
+        },
+      });
+
+      this.log('info', 'agent.sync.finished', 'Node configuration synced successfully');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      this.log('error', 'agent.sync.failed', `Configuration sync failed: ${message}`);
+      console.error(`[ERROR] [sync] Configuration sync failed: ${message}`);
+    }
   }
 
   private async handleEndpointRun(commandId: string, args: any): Promise<void> {
