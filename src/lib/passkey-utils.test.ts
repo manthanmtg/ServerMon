@@ -43,6 +43,34 @@ describe('passkey-utils', () => {
       expect(getOrigin(req)).toBe('https://example.com');
     });
 
+    it('should use the public forwarded host behind a reverse proxy', () => {
+      const req = makeRequest({
+        host: '127.0.0.1:8912',
+        'x-forwarded-host': 'orion-servermon.ultron.example',
+        'x-forwarded-proto': 'https',
+      });
+      expect(getOrigin(req)).toBe('https://orion-servermon.ultron.example');
+    });
+
+    it('should use the browser origin header when present', () => {
+      const req = makeRequest({
+        host: '127.0.0.1:8912',
+        origin: 'https://orion-servermon.ultron.example',
+        'x-forwarded-host': 'internal.local',
+        'x-forwarded-proto': 'http',
+      });
+      expect(getOrigin(req)).toBe('https://orion-servermon.ultron.example');
+    });
+
+    it('should handle comma-separated forwarded header values', () => {
+      const req = makeRequest({
+        host: '127.0.0.1:8912',
+        'x-forwarded-host': 'orion-servermon.ultron.example, 127.0.0.1:8912',
+        'x-forwarded-proto': 'https, http',
+      });
+      expect(getOrigin(req)).toBe('https://orion-servermon.ultron.example');
+    });
+
     it('should default to http when x-forwarded-proto is absent and NODE_ENV is not production', () => {
       vi.stubEnv('NODE_ENV', 'test');
 
@@ -67,6 +95,13 @@ describe('passkey-utils', () => {
 
       const req = makeRequest({ host: 'dev.example.com', 'x-forwarded-proto': 'http' });
       expect(getOrigin(req)).toBe('http://dev.example.com');
+    });
+
+    it('should prefer WEBAUTHN_ORIGIN when configured', () => {
+      vi.stubEnv('WEBAUTHN_ORIGIN', 'https://configured.example/path');
+
+      const req = makeRequest({ host: 'dev.example.com', 'x-forwarded-proto': 'http' });
+      expect(getOrigin(req)).toBe('https://configured.example');
     });
   });
 
@@ -93,6 +128,29 @@ describe('passkey-utils', () => {
 
     it('should handle IP addresses without port', () => {
       expect(getRPID('192.168.1.1')).toBe('192.168.1.1');
+    });
+
+    it('should use x-forwarded-host when a request is provided', () => {
+      const req = makeRequest({
+        host: '127.0.0.1:8912',
+        'x-forwarded-host': 'orion-servermon.ultron.example',
+      });
+      expect(getRPID(req)).toBe('orion-servermon.ultron.example');
+    });
+
+    it('should handle comma-separated x-forwarded-host values', () => {
+      const req = makeRequest({
+        host: '127.0.0.1:8912',
+        'x-forwarded-host': 'orion-servermon.ultron.example, 127.0.0.1:8912',
+      });
+      expect(getRPID(req)).toBe('orion-servermon.ultron.example');
+    });
+
+    it('should prefer WEBAUTHN_RP_ID when configured', () => {
+      vi.stubEnv('WEBAUTHN_RP_ID', 'ultron.example');
+
+      const req = makeRequest({ host: 'orion-servermon.ultron.example' });
+      expect(getRPID(req)).toBe('ultron.example');
     });
   });
 

@@ -25,8 +25,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
-    const host = req.headers.get('host') || 'localhost';
-    const rpID = getRPID(host);
+    const rpID = getRPID(req);
 
     const options = await getPasskeyRegistrationOptions({
       rpName: RP_NAME,

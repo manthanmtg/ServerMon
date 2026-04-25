@@ -52,8 +52,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Passkey not found on user' }, { status: 400 });
     }
 
-    const host = req.headers.get('host') || 'localhost';
-    const rpID = getRPID(host);
+    const rpID = getRPID(req);
     const origin = getOrigin(req);
 
     // 3. Verify the authentication response

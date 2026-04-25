@@ -31,8 +31,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const host = req.headers.get('host') || 'localhost';
-    const rpID = getRPID(host);
+    const rpID = getRPID(req);
 
     const options = await getPasskeyLoginOptions({
       rpID,

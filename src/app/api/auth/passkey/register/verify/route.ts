@@ -34,8 +34,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
-    const host = req.headers.get('host') || 'localhost';
-    const rpID = getRPID(host);
+    const rpID = getRPID(req);
     const origin = getOrigin(req);
 
     const verification = await verifyPasskeyRegistration({

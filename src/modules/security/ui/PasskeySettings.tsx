@@ -16,6 +16,15 @@ interface Passkey {
   createdAt: string;
 }
 
+async function responseError(res: Response, fallback: string): Promise<string> {
+  try {
+    const data = (await res.json()) as { error?: string };
+    return data.error || fallback;
+  } catch {
+    return fallback;
+  }
+}
+
 export default function PasskeySettings() {
   const { toast } = useToast();
   const [passkeys, setPasskeys] = useState<Passkey[]>([]);
@@ -47,7 +56,9 @@ export default function PasskeySettings() {
     try {
       // 1. Get options from server
       const optionsRes = await fetch('/api/auth/passkey/register/options');
-      if (!optionsRes.ok) throw new Error('Failed to get registration options');
+      if (!optionsRes.ok) {
+        throw new Error(await responseError(optionsRes, 'Failed to get registration options'));
+      }
       const options = await optionsRes.json();
 
       // 2. Start registration in browser
@@ -60,7 +71,9 @@ export default function PasskeySettings() {
         body: JSON.stringify(attResp),
       });
 
-      if (!verifyRes.ok) throw new Error('Failed to verify registration');
+      if (!verifyRes.ok) {
+        throw new Error(await responseError(verifyRes, 'Failed to verify registration'));
+      }
 
       toast({
         title: 'Passkey added',

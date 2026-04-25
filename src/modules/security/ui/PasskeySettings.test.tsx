@@ -212,7 +212,10 @@ describe('PasskeySettings', () => {
         .fn()
         .mockResolvedValueOnce({ ok: true, json: async () => ({ passkeys: [] }) })
         .mockResolvedValueOnce({ ok: true, json: async () => ({ challenge: 'test' }) })
-        .mockResolvedValueOnce({ ok: false, json: async () => ({}) });
+        .mockResolvedValueOnce({
+          ok: false,
+          json: async () => ({ error: 'Registration challenge missing or expired' }),
+        });
       vi.mocked(startRegistration).mockResolvedValueOnce({} as never);
 
       await act(async () => {
@@ -222,7 +225,9 @@ describe('PasskeySettings', () => {
       await act(async () => {
         fireEvent.click(screen.getByText('Add Passkey'));
       });
-      await waitFor(() => expect(screen.getByText('Failed to verify registration')).toBeDefined());
+      await waitFor(() =>
+        expect(screen.getByText('Registration challenge missing or expired')).toBeDefined()
+      );
     });
   });
 
