@@ -295,10 +295,12 @@ export class AgentClient {
         this.status_.lastHeartbeatAt = nowDate;
       } else {
         this.status_.lastError = `heartbeat-failed: ${res.status}`;
+        console.error(`[ERROR] [heartbeat] Heartbeat failed with status ${res.status}`);
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       this.status_.lastError = `heartbeat-error: ${message}`;
+      console.error(`[ERROR] [heartbeat] Heartbeat error: ${message}`);
     }
   }
 

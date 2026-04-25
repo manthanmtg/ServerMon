@@ -21,25 +21,29 @@ function extractBearer(req: NextRequest): string | null {
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const { id } = await params;
     const token = extractBearer(req);
     if (!token) {
+      log.warn(`Heartbeat rejected: No token for node ${id}`);
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     await connectDB();
-    const { id } = await params;
 
     const node = await Node.findById(id);
     if (!node) {
+      log.warn(`Heartbeat rejected: Node ${id} not found`);
       return NextResponse.json({ error: 'Node not found' }, { status: 404 });
     }
 
     if (!node.pairingTokenHash) {
+      log.warn(`Heartbeat rejected: Node ${id} has no token hash`);
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const valid = await verifyPairingToken(token, node.pairingTokenHash);
     if (!valid) {
+      log.warn(`Heartbeat rejected: Invalid token for node ${id}`);
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
