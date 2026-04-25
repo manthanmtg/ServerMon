@@ -505,5 +505,29 @@ if (process.env.FLEET_AGENT_MODE === 'true') {
       if (err) throw err;
       log.info(`> Ready on http://localhost:${port}`);
     });
+
+    // Graceful Shutdown Handler
+    const shutdown = async (signal: string) => {
+      log.info(`Received ${signal}, shutting down...`);
+      
+      // Stop Hub Orchestrators
+      if (process.env.FLEET_HUB_ORCHESTRATORS_ENABLED === 'true') {
+        const { getFrpOrchestrator } = await import('./lib/fleet/orchestrators');
+        const frp = getFrpOrchestrator() as any;
+        if (frp && typeof frp.stop === 'function') {
+          await frp.stop().catch(() => {});
+        }
+      }
+
+      // Stop Agent
+      if (typeof (global as any).fleetAgent?.stop === 'function') {
+        await (global as any).fleetAgent.stop().catch(() => {});
+      }
+
+      process.exit(0);
+    };
+
+    process.on('SIGTERM', () => shutdown('SIGTERM'));
+    process.on('SIGINT', () => shutdown('SIGINT'));
   });
 }
