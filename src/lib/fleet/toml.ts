@@ -15,7 +15,11 @@ function escapeStr(v: string): string {
 }
 
 export function renderFrpsToml(i: FrpsRenderInput): string {
-  const lines = [`bindPort = ${i.bindPort}`, `vhostHTTPPort = ${i.vhostHttpPort}`];
+  const lines = [
+    `bindAddr = "0.0.0.0"`,
+    `bindPort = ${i.bindPort}`,
+    `vhostHTTPPort = ${i.vhostHttpPort}`,
+  ];
   if (i.vhostHttpsPort) lines.push(`vhostHTTPSPort = ${i.vhostHttpsPort}`);
   lines.push(`subDomainHost = ${escapeStr(i.subdomainHost)}`);
   lines.push(`auth.method = "token"`);
