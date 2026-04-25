@@ -76,6 +76,7 @@ const DEFAULT_PTY_LISTEN_PORT = 8001;
 const DEFAULT_HEARTBEAT_INTERVAL_MS = 30_000;
 const DEFAULT_BINARY_VERSION = 'latest';
 
+
 export class AgentClient {
   private readonly opts: AgentClientOpts;
   private readonly status_: AgentStatus = {
@@ -362,6 +363,7 @@ export class AgentClient {
         'cd /opt/servermon-agent/source',
         'git reset --hard origin/main',
         'git pull',
+        'rm -rf .next',
         'pnpm install',
         'pnpm build',
         'systemctl restart servermon-agent'
