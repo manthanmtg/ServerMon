@@ -19,8 +19,6 @@ function extractBearer(req: NextRequest): string | null {
 }
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
-  console.error(`[CRITICAL_DEBUG_2] Received heartbeat POST for node ${id}`);
   try {
     const token = extractBearer(req);
     if (!token) {
@@ -37,7 +35,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     }
 
     const raw = await req.json();
-    console.error(`[FULL_HEARTBEAT_DEBUG] Node ${id} payload: ${JSON.stringify(raw)}`);
     let hb;
     try {
       hb = HeartbeatZodSchema.parse(raw);
@@ -96,22 +93,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     }
 
     // Proxy rules need special handling because they are an array of subdocs
-    if (hb.proxies.length > 0) {
-      console.error(`[DEBUG_PROXIES_LOUD] Node ${id} reported: ${JSON.stringify(hb.proxies)}`);
-    }
     if (Array.isArray(node.proxyRules) && hb.proxies.length > 0) {
       const updatedRules = [...node.proxyRules];
       for (const p of updatedRules) {
-        // Prefixed name used in frpc configuration: slug-name
+        // Match by name, accounting for the node-slug- prefix used in frpc.toml
         const prefixedName = `${node.slug}-${p.name}`;
-        
-        // Find a match in the heartbeat payload
-        const match = hb.proxies.find(reported => 
-          reported.name === p.name || 
-          reported.name === prefixedName ||
-          reported.name === `orion-${p.name}` // Hardcoded fallback for orion machine if slug mismatch
-        );
-
+        const match = hb.proxies.find((x) => x.name === p.name || x.name === prefixedName);
         if (match) {
           p.status = match.status;
           if (match.lastError !== undefined) p.lastError = match.lastError;
@@ -119,7 +106,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       }
       updateData.$set.proxyRules = updatedRules;
     }
-
 
     // Execute the update and RELOAD the node to get latest pendingCommands
     const updatedNode = await Node.findByIdAndUpdate(id, updateData, { returnDocument: 'after' }).lean();
