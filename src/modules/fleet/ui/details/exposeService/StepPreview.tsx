@@ -56,6 +56,16 @@ export function StepPreview({ form, next, back }: Props) {
             poolCount: 1,
             advanced: {},
           },
+          capabilities: {
+            terminal: true,
+            endpointRuns: true,
+            processes: true,
+            metrics: true,
+            publishRoutes: true,
+            tcpForward: true,
+            fileOps: false,
+            updates: true,
+          },
           proxyRules: [
             {
               name: form.proxyRuleName || 'route',
