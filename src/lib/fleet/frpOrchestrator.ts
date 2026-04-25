@@ -99,7 +99,7 @@ export class FrpOrchestrator {
   constructor(deps: FrpOrchestratorDeps) {
     this.deps = deps;
     this.binaryVersion = deps.binaryVersion ?? DEFAULT_BINARY_VERSION;
-    this.binaryCacheDir = deps.binaryCacheDir ?? '/var/cache/servermon/frp';
+    this.binaryCacheDir = deps.binaryCacheDir ?? '/var/lib/servermon/frp-cache';
     this.configDir = deps.configDir ?? '/etc/servermon/frp';
     this.reconcileIntervalMs = deps.reconcileIntervalMs ?? DEFAULT_RECONCILE_INTERVAL_MS;
     this.writeFile = deps.writeFile ?? ((p, data) => fs.promises.writeFile(p, data, 'utf8'));
@@ -245,6 +245,9 @@ export class FrpOrchestrator {
   }
 
   private async startChild(rendered: string, configHash: string): Promise<void> {
+    // Ensure no orphaned processes are holding the ports
+    await this.killZombies();
+
     const { frps: binary } = await this.ensureBinaryImpl({
       cacheDir: this.binaryCacheDir,
       version: this.binaryVersion,
@@ -261,15 +264,30 @@ export class FrpOrchestrator {
   }
 
   private async killHandle(): Promise<void> {
-    if (!this.handle) return;
-    try {
-      await this.handle.kill();
-    } catch {
-      // ignore kill errors
+    if (this.handle) {
+      try {
+        await this.handle.kill();
+      } catch {
+        // ignore kill errors
+      }
+      this.handle = null;
     }
-    this.handle = null;
     this.pid = undefined;
     this.runtimeState = 'stopped';
+    
+    // Safety: ensure no other instances are lingering
+    await this.killZombies();
+  }
+
+  private async killZombies(): Promise<void> {
+    return new Promise((resolve) => {
+      // We use pkill -9 to ensure any zombie frps is immediately released.
+      // This is safe because frps is stateless and only holds network ports.
+      const { spawn } = require('node:child_process');
+      const proc = spawn('pkill', ['-9', 'frps']);
+      proc.on('exit', () => resolve());
+      proc.on('error', () => resolve()); // ignore if pkill is missing
+    });
   }
 
   private async updateState(
