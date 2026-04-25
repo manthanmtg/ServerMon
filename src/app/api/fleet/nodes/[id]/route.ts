@@ -21,6 +21,13 @@ export const dynamic = 'force-dynamic';
 
 const log = createLogger('api:fleet:nodes:detail');
 
+function extractBearer(req: Request): string | null {
+  const auth = req.headers.get('authorization') || req.headers.get('Authorization');
+  if (!auth) return null;
+  const match = /^Bearer (.+)$/.exec(auth);
+  return match ? match[1] : null;
+}
+
 const NodePatchZodSchema = NodeZodSchema.pick({
   name: true,
   description: true,
@@ -41,19 +48,28 @@ interface SessionUser {
   user: { id?: string; username: string; role: string };
 }
 
-export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const { id } = await params;
     const session = (await getSession()) as SessionUser | null;
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
 
     await connectDB();
-    const { id } = await params;
-
-    const node = await Node.findById(id).lean();
+    const node = await Node.findById(id);
     if (!node) {
       return NextResponse.json({ error: 'Node not found' }, { status: 404 });
+    }
+
+    // Authenticate: Either browser session OR Bearer token from agent
+    if (!session) {
+      const token = extractBearer(req);
+      if (!token || !node.pairingTokenHash) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      }
+      const { verifyPairingToken } = await import('@/lib/fleet/pairing');
+      const valid = await verifyPairingToken(token, node.pairingTokenHash);
+      if (!valid) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      }
     }
 
     const now = new Date();
@@ -67,7 +83,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       now,
     });
 
-    return NextResponse.json({ node, computedStatus });
+    return NextResponse.json({ node: node.toObject(), computedStatus });
   } catch (error) {
     log.error('Failed to fetch node', error);
     return NextResponse.json({ error: 'Failed to fetch node' }, { status: 500 });
@@ -76,19 +92,32 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const session = (await getSession()) as SessionUser | null;
-    const rbacResp = enforceRbac(session?.user, 'can_mutate_node_config');
-    if (rbacResp) return rbacResp;
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    await connectDB();
     const { id } = await params;
-
+    const session = (await getSession()) as SessionUser | null;
+    
+    await connectDB();
     const existing = await Node.findById(id);
     if (!existing) {
       return NextResponse.json({ error: 'Node not found' }, { status: 404 });
+    }
+
+    // Authenticate: Either browser session (RBAC checked) OR Bearer token from agent
+    let actorUsername = 'system';
+    if (session) {
+      const rbacResp = enforceRbac(session.user, 'can_mutate_node_config');
+      if (rbacResp) return rbacResp;
+      actorUsername = session.user.username;
+    } else {
+      const token = extractBearer(req);
+      if (!token || !existing.pairingTokenHash) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      }
+      const { verifyPairingToken } = await import('@/lib/fleet/pairing');
+      const valid = await verifyPairingToken(token, existing.pairingTokenHash);
+      if (!valid) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      }
+      actorUsername = `agent:${id}`;
     }
 
     const body = await req.json();
@@ -109,7 +138,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
           FleetLogEvent: FleetLogEvent as unknown as Parameters<
             typeof enforceResourceGuard
           >[0]['FleetLogEvent'],
-          actorUserId: session.user.username,
+          actorUserId: actorUsername,
         });
         if (!guard.allowed) {
           return NextResponse.json(
@@ -127,7 +156,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
     const updated = await Node.findByIdAndUpdate(
       id,
-      { ...updates, updatedBy: session.user.username },
+      { ...updates, updatedBy: actorUsername },
       { new: true }
     );
     if (!updated) {
@@ -155,7 +184,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       targetId: id,
       structured: updated.toObject(),
       rendered,
-      createdBy: session.user.username,
+      createdBy: actorUsername,
     });
 
     updated.generatedToml = {
@@ -167,7 +196,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
     await recordAudit(FleetLogEvent as unknown as Model<unknown>, {
       action: 'node.update',
-      actorUserId: session.user.username,
+      actorUserId: actorUsername,
       nodeId: id,
     });
 
