@@ -74,7 +74,7 @@ const DEFAULT_BINARY_CACHE_DIR = '.fleet-cache/frp';
 const DEFAULT_CONFIG_DIR = '.fleet-cache/agent';
 const DEFAULT_PTY_LISTEN_PORT = 8001;
 const DEFAULT_HEARTBEAT_INTERVAL_MS = 30_000;
-const DEFAULT_BINARY_VERSION = '0.58.0';
+const DEFAULT_BINARY_VERSION = 'latest';
 
 export class AgentClient {
   private readonly opts: AgentClientOpts;
@@ -134,6 +134,9 @@ export class AgentClient {
       binaryVersion = DEFAULT_BINARY_VERSION,
       spawnImpl,
     } = this.opts;
+
+    // 0. Cleanup orphaned processes
+    await this.killZombies(ptyListenPort);
 
     // 1. Pair
     const pairUrl = `${hubUrl}/api/fleet/nodes/${nodeId}/pair`;
@@ -350,10 +353,6 @@ export class AgentClient {
       this.log('info', 'agent.update.starting', 'Executing remote update...');
       const spawn = this.opts.spawnImpl ?? realSpawn;
       
-      // Robust update command:
-      // 1. Ensure a standard PATH
-      // 2. Hard reset git to ignore any local file changes
-      // 3. Rebuild and restart
       const updateCmd = [
         'export PATH=$PATH:/usr/local/bin:/usr/bin:/bin',
         'cd /opt/servermon-agent/source',
@@ -370,6 +369,16 @@ export class AgentClient {
       });
       child.unref();
     }
+  }
+
+  private async killZombies(ptyPort: number): Promise<void> {
+    return new Promise((resolve) => {
+      const spawn = this.opts.spawnImpl ?? realSpawn;
+      const cmd = `pkill -9 frpc || true; fuser -k ${ptyPort}/tcp || true`;
+      const proc = spawn('bash', ['-c', cmd]);
+      proc.on('exit', () => resolve());
+      proc.on('error', () => resolve());
+    });
   }
 
   private log(
