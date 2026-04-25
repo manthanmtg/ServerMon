@@ -1,5 +1,11 @@
 import { z } from 'zod';
 import { ACCESS_MODES } from '@/lib/fleet/enums';
+import {
+  buildHubRouteDomain,
+  isValidPublicHostname,
+  slugifyRouteName,
+  validatePublicRouteDomain,
+} from '@/lib/fleet/domain';
 
 export const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
@@ -16,6 +22,7 @@ export const ExposeFormSchema = z.object({
     .min(1, 'Slug is required')
     .regex(SLUG_RE, 'Slug must be lowercase letters, numbers, and hyphens'),
   domain: z.string().min(1, 'Domain is required').max(253),
+  domainMode: z.enum(['hub_subdomain', 'custom']).default('hub_subdomain'),
   templateSlug: z.string().optional(),
   nodeId: z.string().min(1, 'Node is required'),
   proxyRuleName: z
@@ -35,6 +42,7 @@ export const INITIAL_FORM: ExposeForm = {
   name: '',
   slug: '',
   domain: '',
+  domainMode: 'hub_subdomain',
   templateSlug: undefined,
   nodeId: '',
   proxyRuleName: '',
@@ -54,6 +62,8 @@ export interface ExposeFormErrors {
   target?: string;
 }
 
+export { buildHubRouteDomain, slugifyRouteName };
+
 /** Validates just the identity step (name/slug/domain). */
 export function validateIdentity(form: ExposeForm): ExposeFormErrors {
   const errs: ExposeFormErrors = {};
@@ -62,6 +72,13 @@ export function validateIdentity(form: ExposeForm): ExposeFormErrors {
   else if (!SLUG_RE.test(form.slug))
     errs.slug = 'Slug must be lowercase letters, numbers, and hyphens';
   if (!form.domain.trim()) errs.domain = 'Domain is required';
+  else if (!isValidPublicHostname(form.domain)) {
+    errs.domain =
+      'Use a hostname like app.example.com. Wildcards, underscores, and single-label hosts are not supported.';
+  } else {
+    const domainError = validatePublicRouteDomain(form.domain);
+    if (domainError) errs.domain = domainError;
+  }
   return errs;
 }
 

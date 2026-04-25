@@ -1,5 +1,7 @@
 'use client';
+import type { ReactNode } from 'react';
 import { useEffect, useMemo, useState } from 'react';
+import { HelpCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ExposeForm, validateTarget } from './schema';
@@ -21,6 +23,28 @@ interface Props {
   setForm: (f: ExposeForm) => void;
   next: () => void;
   back: () => void;
+}
+
+function FieldLabel({
+  htmlFor,
+  children,
+  help,
+}: {
+  htmlFor: string;
+  children: ReactNode;
+  help: string;
+}) {
+  return (
+    <label
+      className="flex items-center gap-1.5 text-sm font-medium text-foreground"
+      htmlFor={htmlFor}
+    >
+      {children}
+      <span title={help} aria-label={`${children} help`}>
+        <HelpCircle className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
+      </span>
+    </label>
+  );
 }
 
 export function StepTarget({ form, setForm, next, back }: Props) {
@@ -134,9 +158,12 @@ export function StepTarget({ form, setForm, next, back }: Props) {
         </div>
 
         <div className="space-y-1.5 md:col-span-2">
-          <label className="block text-sm font-medium text-foreground" htmlFor="expose-proxyrule">
+          <FieldLabel
+            htmlFor="expose-proxyrule"
+            help="The FRP proxy name on this node. Reusing a rule exposes its existing local target; creating one lets the Hub add it to the agent config."
+          >
             Proxy rule
-          </label>
+          </FieldLabel>
           <select
             id="expose-proxyrule"
             value={
@@ -169,37 +196,53 @@ export function StepTarget({ form, setForm, next, back }: Props) {
               onChange={(e) => setForm({ ...form, proxyRuleName: e.target.value.toLowerCase() })}
               placeholder="my-app"
             />
-            <Input
-              label="Target IP"
-              value={form.target.localIp}
-              onChange={(e) =>
-                setForm({
-                  ...form,
-                  target: { ...form.target, localIp: e.target.value },
-                })
-              }
-            />
-            <Input
-              label="Target port"
-              type="number"
-              value={form.target.localPort}
-              onChange={(e) =>
-                setForm({
-                  ...form,
-                  target: {
-                    ...form.target,
-                    localPort: Number(e.target.value),
-                  },
-                })
-              }
-            />
             <div className="space-y-1.5">
-              <label
-                className="block text-sm font-medium text-foreground"
+              <FieldLabel
+                htmlFor="target-ip"
+                help="The address as seen from the remote agent. Use 127.0.0.1 when the service runs on the same remote machine."
+              >
+                Target IP
+              </FieldLabel>
+              <Input
+                id="target-ip"
+                value={form.target.localIp}
+                onChange={(e) =>
+                  setForm({
+                    ...form,
+                    target: { ...form.target, localIp: e.target.value },
+                  })
+                }
+              />
+            </div>
+            <div className="space-y-1.5">
+              <FieldLabel
+                htmlFor="target-port"
+                help="The local port on the remote machine. For Orion's test server this is 9090."
+              >
+                Target port
+              </FieldLabel>
+              <Input
+                id="target-port"
+                type="number"
+                value={form.target.localPort}
+                onChange={(e) =>
+                  setForm({
+                    ...form,
+                    target: {
+                      ...form.target,
+                      localPort: Number(e.target.value),
+                    },
+                  })
+                }
+              />
+            </div>
+            <div className="space-y-1.5">
+              <FieldLabel
                 htmlFor="expose-protocol"
+                help="Choose HTTP for normal web apps, HTTPS when the remote service itself speaks TLS, and TCP for raw socket forwarding."
               >
                 Protocol
-              </label>
+              </FieldLabel>
               <select
                 id="expose-protocol"
                 value={form.target.protocol}

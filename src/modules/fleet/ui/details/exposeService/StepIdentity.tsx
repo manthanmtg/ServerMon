@@ -1,9 +1,10 @@
 'use client';
 import { useEffect, useMemo, useState } from 'react';
+import { HelpCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { BUILTIN_TEMPLATES } from '@/lib/fleet/templates';
-import { ExposeForm, validateIdentity } from './schema';
+import { buildHubRouteDomain, ExposeForm, slugifyRouteName, validateIdentity } from './schema';
 
 interface Template {
   slug: string;
@@ -42,6 +43,7 @@ export function StepIdentity({ form, setForm, next, onCancel }: Props) {
     }))
   );
   const [attemptedNext, setAttemptedNext] = useState(false);
+  const [subdomainHost, setSubdomainHost] = useState('');
 
   useEffect(() => {
     let cancelled = false;
@@ -60,6 +62,42 @@ export function StepIdentity({ form, setForm, next, onCancel }: Props) {
     return () => {
       cancelled = true;
     };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadServer = async () => {
+      try {
+        const res = await fetch('/api/fleet/server');
+        if (!res.ok) return;
+        const data = (await res.json()) as {
+          state?: { subdomainHost?: string };
+          envDefaults?: { hubPublicUrl?: string };
+        };
+        if (cancelled) return;
+        const host =
+          data.state?.subdomainHost ||
+          (data.envDefaults?.hubPublicUrl ? new URL(data.envDefaults.hubPublicUrl).hostname : '');
+        setSubdomainHost(host);
+        if (host && !form.domain) {
+          const nextSlug = form.slug || slugifyRouteName(form.name);
+          setForm({
+            ...form,
+            slug: nextSlug,
+            domain: buildHubRouteDomain(nextSlug, host),
+            domainMode: 'hub_subdomain',
+          });
+        }
+      } catch {
+        // Keep manual domain entry available.
+      }
+    };
+    loadServer();
+    return () => {
+      cancelled = true;
+    };
+    // Run once on mount; later edits are handled by local change handlers.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const errs = useMemo(() => (attemptedNext ? validateIdentity(form) : {}), [attemptedNext, form]);
@@ -86,6 +124,48 @@ export function StepIdentity({ form, setForm, next, onCancel }: Props) {
     });
   };
 
+  const updateName = (name: string) => {
+    const previousAutoSlug = slugifyRouteName(form.name);
+    const shouldUpdateSlug = !form.slug || form.slug === previousAutoSlug;
+    const nextSlug = shouldUpdateSlug ? slugifyRouteName(name) : form.slug;
+    setForm({
+      ...form,
+      name,
+      slug: nextSlug,
+      domain:
+        form.domainMode === 'hub_subdomain'
+          ? buildHubRouteDomain(nextSlug, subdomainHost)
+          : form.domain,
+      proxyRuleName:
+        !form.proxyRuleName || form.proxyRuleName === form.slug ? nextSlug : form.proxyRuleName,
+    });
+  };
+
+  const updateSlug = (slug: string) => {
+    const nextSlug = slugifyRouteName(slug);
+    setForm({
+      ...form,
+      slug: nextSlug,
+      domain:
+        form.domainMode === 'hub_subdomain'
+          ? buildHubRouteDomain(nextSlug, subdomainHost)
+          : form.domain,
+      proxyRuleName:
+        !form.proxyRuleName || form.proxyRuleName === form.slug ? nextSlug : form.proxyRuleName,
+    });
+  };
+
+  const updateDomainMode = (domainMode: ExposeForm['domainMode']) => {
+    setForm({
+      ...form,
+      domainMode,
+      domain:
+        domainMode === 'hub_subdomain'
+          ? buildHubRouteDomain(form.slug || slugifyRouteName(form.name), subdomainHost)
+          : '',
+    });
+  };
+
   const handleNext = () => {
     setAttemptedNext(true);
     const errors = validateIdentity(form);
@@ -106,24 +186,62 @@ export function StepIdentity({ form, setForm, next, onCancel }: Props) {
         <Input
           label="Name"
           value={form.name}
-          onChange={(e) => setForm({ ...form, name: e.target.value })}
+          onChange={(e) => updateName(e.target.value)}
           placeholder="My App"
           error={errs.name}
         />
         <Input
           label="Slug"
           value={form.slug}
-          onChange={(e) => setForm({ ...form, slug: e.target.value })}
+          onChange={(e) => updateSlug(e.target.value)}
           placeholder="my-app"
           error={errs.slug}
         />
-        <Input
-          label="Domain"
-          value={form.domain}
-          onChange={(e) => setForm({ ...form, domain: e.target.value })}
-          placeholder="app.example.com"
-          error={errs.domain}
-        />
+        <div className="space-y-2 md:col-span-2">
+          <div className="flex flex-wrap gap-2" role="group" aria-label="Domain type">
+            <Button
+              type="button"
+              size="sm"
+              variant={form.domainMode === 'hub_subdomain' ? 'default' : 'outline'}
+              onClick={() => updateDomainMode('hub_subdomain')}
+              disabled={!subdomainHost}
+            >
+              Hub subdomain
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={form.domainMode === 'custom' ? 'default' : 'outline'}
+              onClick={() => updateDomainMode('custom')}
+            >
+              Custom domain
+            </Button>
+            <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+              <HelpCircle className="h-3.5 w-3.5" aria-hidden="true" />
+              {form.domainMode === 'hub_subdomain'
+                ? `Uses ${subdomainHost || 'the Hub subdomain host'} automatically.`
+                : 'Use a domain whose DNS points to this Hub.'}
+            </span>
+          </div>
+          <Input
+            label={form.domainMode === 'hub_subdomain' ? 'Public URL' : 'Custom domain'}
+            value={form.domain}
+            onChange={(e) =>
+              setForm({
+                ...form,
+                domain: e.target.value.toLowerCase(),
+                domainMode: 'custom',
+              })
+            }
+            placeholder={
+              form.domainMode === 'hub_subdomain'
+                ? `my-app.${subdomainHost || 'example.com'}`
+                : 'app.example.com'
+            }
+            error={errs.domain}
+            readOnly={form.domainMode === 'hub_subdomain'}
+          />
+        </div>
         <div className="space-y-1.5">
           <label className="block text-sm font-medium text-foreground" htmlFor="expose-template">
             Template (optional)

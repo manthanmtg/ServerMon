@@ -72,8 +72,12 @@ export function StepPreview({ form, next, back }: Props) {
               type,
               localIp: form.target.localIp,
               localPort: form.target.localPort,
-              subdomain: type === 'http' ? form.slug || 'route' : undefined,
-              customDomains: type === 'http' && form.domain ? [form.domain] : [],
+              subdomain:
+                type === 'http' && form.domainMode === 'hub_subdomain'
+                  ? form.slug || 'route'
+                  : undefined,
+              customDomains:
+                type === 'http' && form.domainMode === 'custom' && form.domain ? [form.domain] : [],
               enabled: true,
               status: 'disabled',
             },

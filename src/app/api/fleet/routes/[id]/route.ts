@@ -21,6 +21,7 @@ import {
   type PublicRouteProxyRule,
   upsertPublicRouteProxyRule,
 } from '@/lib/fleet/publicRouteProxy';
+import { normalizeHostname, validatePublicRouteDomain } from '@/lib/fleet/domain';
 
 export const dynamic = 'force-dynamic';
 
@@ -90,6 +91,18 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     const body = await req.json();
     const updates = PatchZ.parse(body);
 
+    const frpServer = await FrpServerState.findOne({ key: 'global' }).lean();
+    if (updates.domain !== undefined) {
+      const domainError = validatePublicRouteDomain(updates.domain, {
+        hubDomain: process.env.DOMAIN,
+        subdomainHost: frpServer?.subdomainHost,
+      });
+      if (domainError) {
+        return NextResponse.json({ error: domainError }, { status: 400 });
+      }
+      updates.domain = normalizeHostname(updates.domain);
+    }
+
     const updated = await PublicRoute.findByIdAndUpdate(
       id,
       { ...updates, updatedBy: session.user.username },
@@ -99,7 +112,6 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       return NextResponse.json({ error: 'Route not found' }, { status: 404 });
     }
 
-    const frpServer = await FrpServerState.findOne({ key: 'global' }).lean();
     const frpsVhostPort = frpServer?.vhostHttpPort ?? 8080;
     let frpcRevisionId: string | null = null;
 

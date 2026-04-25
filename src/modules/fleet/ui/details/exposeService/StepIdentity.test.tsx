@@ -28,7 +28,7 @@ describe('StepIdentity', () => {
     });
     expect(screen.getByPlaceholderText('My App')).toBeDefined();
     expect(screen.getByPlaceholderText('my-app')).toBeDefined();
-    expect(screen.getByPlaceholderText('app.example.com')).toBeDefined();
+    expect(screen.getByLabelText('Public URL')).toBeDefined();
     expect(screen.getByLabelText('Template (optional)')).toBeDefined();
   });
 

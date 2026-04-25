@@ -22,6 +22,7 @@ import {
   type PublicRouteProxyRule,
   upsertPublicRouteProxyRule,
 } from '@/lib/fleet/publicRouteProxy';
+import { normalizeHostname, validatePublicRouteDomain } from '@/lib/fleet/domain';
 
 export const dynamic = 'force-dynamic';
 
@@ -102,6 +103,16 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const parsed = CreateZ.parse(body);
 
+    const frpServer = await FrpServerState.findOne({ key: 'global' }).lean();
+    const domainError = validatePublicRouteDomain(parsed.domain, {
+      hubDomain: process.env.DOMAIN,
+      subdomainHost: frpServer?.subdomainHost,
+    });
+    if (domainError) {
+      return NextResponse.json({ error: domainError }, { status: 400 });
+    }
+    const routeDomain = normalizeHostname(parsed.domain);
+
     // Uniqueness checks
     const slugExists = await PublicRoute.findOne({ slug: parsed.slug });
     if (slugExists) {
@@ -111,7 +122,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const domainExists = await PublicRoute.findOne({ domain: parsed.domain });
+    const domainExists = await PublicRoute.findOne({ domain: routeDomain });
     if (domainExists) {
       return NextResponse.json(
         { error: `Domain "${parsed.domain}" is already configured` },
@@ -143,8 +154,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const frpServer = await FrpServerState.findOne({ key: 'global' }).lean();
-
     // Ensure a matching proxy rule exists on the target Node. Auto-insert if
     // absent so the user can expose a service without first provisioning
     // an FRP proxy rule manually.
@@ -159,7 +168,12 @@ export async function POST(req: NextRequest) {
       ? node.proxyRules.find((p) => p.name === parsed.proxyRuleName)
       : undefined;
     const proxyRules = node.proxyRules as PublicRouteProxyRule[];
-    const proxyChanged = upsertPublicRouteProxyRule(proxyRules, parsed, frpServer?.subdomainHost);
+    const routeConfig = { ...parsed, domain: routeDomain };
+    const proxyChanged = upsertPublicRouteProxyRule(
+      proxyRules,
+      routeConfig,
+      frpServer?.subdomainHost
+    );
     if (proxyChanged) {
       await node.save();
 
@@ -198,7 +212,7 @@ export async function POST(req: NextRequest) {
     // DNS resolution
     let dnsStatus: 'ok' | 'missing' = 'missing';
     try {
-      const { ips } = await resolveDomain(parsed.domain);
+      const { ips } = await resolveDomain(routeDomain);
       dnsStatus = ips.length > 0 ? 'ok' : 'missing';
     } catch {
       dnsStatus = 'missing';
@@ -208,6 +222,7 @@ export async function POST(req: NextRequest) {
 
     const created = await PublicRoute.create({
       ...parsed,
+      domain: routeDomain,
       status: 'pending_dns',
       dnsStatus,
       tlsStatus: 'unknown',

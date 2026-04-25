@@ -270,6 +270,13 @@ describe('POST /api/fleet/routes', () => {
     expect(json.error).toBe('Invalid input');
   });
 
+  it('rejects unsafe public route domains', async () => {
+    const res = await POST(makePostRequest({ ...validRouteInput, domain: '*.example.com' }));
+    expect(res.status).toBe(400);
+    const json = await res.json();
+    expect(json.error).toMatch(/hostname/i);
+  });
+
   it('returns 409 on duplicate slug', async () => {
     mockFindOne.mockResolvedValueOnce({ _id: 'existing' });
     const res = await POST(makePostRequest(validRouteInput));

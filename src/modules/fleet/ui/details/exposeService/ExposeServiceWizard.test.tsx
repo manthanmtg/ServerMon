@@ -20,6 +20,15 @@ function buildFetchMock(routeResponse: unknown, options?: { autoInserted?: boole
     if (typeof url === 'string' && url.startsWith('/api/fleet/templates')) {
       return { ok: true, json: async () => templatesResponse };
     }
+    if (typeof url === 'string' && url === '/api/fleet/server') {
+      return {
+        ok: true,
+        json: async () => ({
+          state: { subdomainHost: 'ultron.manthanby.cv' },
+          envDefaults: { hubPublicUrl: 'https://ultron.manthanby.cv' },
+        }),
+      };
+    }
     if (typeof url === 'string' && url.startsWith('/api/fleet/nodes')) {
       return { ok: true, json: async () => nodesResponse };
     }
@@ -48,10 +57,12 @@ async function walkIdentity() {
     fireEvent.change(screen.getByPlaceholderText('My App'), {
       target: { value: 'My App' },
     });
-    fireEvent.change(screen.getByPlaceholderText('my-app'), {
-      target: { value: 'my-app' },
-    });
-    fireEvent.change(screen.getByPlaceholderText('app.example.com'), {
+  });
+  await act(async () => {
+    fireEvent.click(screen.getByText('Custom domain'));
+  });
+  await act(async () => {
+    fireEvent.change(screen.getByLabelText('Custom domain'), {
       target: { value: 'app.example.com' },
     });
   });

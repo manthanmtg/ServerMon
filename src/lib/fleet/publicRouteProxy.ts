@@ -1,3 +1,5 @@
+import { domainBelongsToSubdomainHost } from './domain';
+
 export interface PublicRouteProxySource {
   slug: string;
   domain: string;
@@ -27,20 +29,6 @@ export interface PublicRouteProxyRule {
     | 'dns_missing'
     | 'upstream_unreachable';
   lastError?: string;
-}
-
-function normalizeHost(host: string | null | undefined): string {
-  return (host ?? '').trim().toLowerCase().replace(/\.$/, '');
-}
-
-export function domainBelongsToSubdomainHost(
-  domain: string,
-  subdomainHost: string | null | undefined
-): boolean {
-  const normalizedDomain = normalizeHost(domain);
-  const normalizedHost = normalizeHost(subdomainHost);
-  if (!normalizedDomain || !normalizedHost) return false;
-  return normalizedDomain === normalizedHost || normalizedDomain.endsWith(`.${normalizedHost}`);
 }
 
 export function buildPublicRouteProxyRule(
