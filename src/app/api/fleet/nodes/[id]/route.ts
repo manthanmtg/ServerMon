@@ -188,6 +188,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         slug: updated.slug,
         frpcConfig: updated.frpcConfig,
         proxyRules: updated.proxyRules,
+        capabilities: updated.capabilities,
       },
     });
 
