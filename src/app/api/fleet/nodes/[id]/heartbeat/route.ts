@@ -48,7 +48,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     }
 
     const raw = await req.json();
-    const hb = HeartbeatZodSchema.parse(raw);
+    let hb;
+    try {
+      hb = HeartbeatZodSchema.parse(raw);
+    } catch (ve) {
+      if (ve instanceof ZodError) {
+        log.warn(`Heartbeat data validation failed for node ${id}:`, ve.format());
+        return NextResponse.json({ error: 'Invalid input', details: ve.issues }, { status: 400 });
+      }
+      throw ve;
+    }
 
     const now = new Date();
     const previousBootId = node.bootId;
