@@ -39,7 +39,14 @@ export interface AgentClientOpts {
 
 export interface AgentStatus {
   paired: boolean;
-  tunnelStatus: 'disconnected' | 'connecting' | 'connected' | 'auth_failed' | 'config_invalid';
+  tunnelStatus:
+    | 'connected'
+    | 'reconnecting'
+    | 'disconnected'
+    | 'auth_failed'
+    | 'config_invalid'
+    | 'proxy_conflict'
+    | 'unsupported_config';
   frpcPid?: number;
   bridgeRunning: boolean;
   lastHeartbeatAt?: Date;
