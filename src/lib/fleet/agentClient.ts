@@ -158,6 +158,7 @@ export class AgentClient {
     }
     this.pairResponse = (await pairRes.json()) as PairResponse;
     this.status_.paired = true;
+    this.activeProxies.clear();
 
     // 2. Fetch node config
     const nodeUrl = `${hubUrl}/api/fleet/nodes/${nodeId}`;
@@ -433,6 +434,7 @@ export class AgentClient {
 
     try {
       this.log('info', 'agent.sync.starting', 'Syncing node configuration...');
+      this.activeProxies.clear();
       
       // 1. Fetch node config
       const nodeUrl = `${hubUrl}/api/fleet/nodes/${nodeId}`;
