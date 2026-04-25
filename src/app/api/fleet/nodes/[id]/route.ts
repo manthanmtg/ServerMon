@@ -54,7 +54,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     const session = (await getSession()) as SessionUser | null;
 
     await connectDB();
-    const node = await Node.findById(id);
+    const node = await Node.findById(id).lean();
     if (!node) {
       return NextResponse.json({ error: 'Node not found' }, { status: 404 });
     }
@@ -79,11 +79,14 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       maintenanceEnabled: node.maintenance?.enabled === true,
       disabled: node.status === 'disabled',
       unpaired: !node.pairingVerifiedAt && node.status === 'unpaired',
-      lastError: node.lastError ? { occurredAt: node.lastError.occurredAt } : null,
+      lastError: node.lastError ? { occurredAt: node.lastError.occurredAt as Date } : null,
       now,
     });
 
-    return NextResponse.json({ node: node.toObject(), computedStatus });
+    return NextResponse.json({ 
+      node: { ...node, _id: String(node._id) }, 
+      computedStatus 
+    });
   } catch (error) {
     log.error('Failed to fetch node', error);
     return NextResponse.json({ error: 'Failed to fetch node' }, { status: 500 });

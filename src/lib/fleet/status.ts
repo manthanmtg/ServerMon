@@ -14,7 +14,8 @@ export function deriveNodeStatus(i: DeriveNodeStatusInput): NodeStatus {
   if (i.unpaired) return 'unpaired';
   if (i.disabled) return 'disabled';
   if (i.maintenanceEnabled) return 'maintenance';
-  const seen = i.lastSeen ? i.now.getTime() - i.lastSeen.getTime() : Infinity;
+  const nowTime = i.now?.getTime() ?? Date.now();
+  const seen = i.lastSeen?.getTime ? nowTime - i.lastSeen.getTime() : Infinity;
   if (seen > 60_000) return 'offline';
   if (i.tunnelStatus === 'auth_failed' || i.tunnelStatus === 'config_invalid') return 'error';
   if (
@@ -24,13 +25,14 @@ export function deriveNodeStatus(i: DeriveNodeStatusInput): NodeStatus {
   )
     return 'degraded';
   if (i.tunnelStatus === 'disconnected') return 'connecting';
-  const errFresh = i.lastError && i.now.getTime() - i.lastError.occurredAt.getTime() < 60_000;
+  const errFresh =
+    i.lastError?.occurredAt?.getTime && nowTime - i.lastError.occurredAt.getTime() < 60_000;
   if (errFresh) return 'error';
   return 'online';
 }
 
 export function lastSeenLabel(lastSeen: Date | undefined, now: Date): string {
-  if (!lastSeen) return 'never';
+  if (!lastSeen || !lastSeen.getTime) return 'never';
   const s = Math.floor((now.getTime() - lastSeen.getTime()) / 1000);
   if (s < 60) return `${s}s ago`;
   if (s < 3600) return `${Math.floor(s / 60)}m ago`;
