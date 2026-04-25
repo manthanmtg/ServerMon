@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import path from 'node:path';
 import fs from 'node:fs';
 import os from 'node:os';
+import * as si from 'systeminformation';
 import { spawn as realSpawn } from 'node:child_process';
 import { ensureBinary } from './binary';
 import { startFrpc, type FrpHandle } from './frpProcess';
@@ -270,6 +271,18 @@ export class AgentClient {
     const { hubUrl, pairingToken, nodeId, fetchImpl = fetch } = this.opts;
     const url = `${hubUrl}/api/fleet/nodes/${nodeId}/heartbeat`;
     const nowDate = (this.opts.now ?? (() => new Date()))();
+
+    let cpuLoad = 0;
+    let ramUsed = 0;
+    try {
+      const load = await si.currentLoad();
+      const mem = await si.mem();
+      cpuLoad = load.currentLoad;
+      ramUsed = mem.active;
+    } catch {
+      // ignore collection errors
+    }
+
     const body = {
       nodeId,
       bootId: this.bootId,
@@ -280,9 +293,12 @@ export class AgentClient {
         cpuCount: os.cpus().length,
         arch: os.arch(),
         osDistro: os.platform(),
+        totalRam: os.totalmem(),
       },
       metrics: {
         uptime: os.uptime(),
+        cpuLoad,
+        ramUsed,
       },
       tunnel: {
         status: this.status_.tunnelStatus,
