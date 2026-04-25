@@ -96,7 +96,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if (Array.isArray(node.proxyRules) && hb.proxies.length > 0) {
       const updatedRules = [...node.proxyRules];
       for (const p of updatedRules) {
-        const match = hb.proxies.find((x) => x.name === p.name);
+        // Match by name, accounting for the node-slug- prefix used in frpc.toml
+        const prefixedName = `${node.slug}-${p.name}`;
+        const match = hb.proxies.find((x) => x.name === p.name || x.name === prefixedName);
         if (match) {
           p.status = match.status;
           if (match.lastError !== undefined) p.lastError = match.lastError;
