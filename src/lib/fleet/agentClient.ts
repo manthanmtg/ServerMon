@@ -205,12 +205,16 @@ export class AgentClient {
         spawnImpl,
         onLog: (line) => {
           this.log('info', 'agent.frpc.log', line);
-          // Detect successful connection from logs
-          if (line.includes('login to server success')) {
-            this.status_.tunnelStatus = 'connected';
-            this.log('info', 'agent.tunnel.connected', 'FRP tunnel established');
+          // More robust detection: look for 'success' anywhere in a login/start line
+          const lower = line.toLowerCase();
+          if (lower.includes('login to server success') || lower.includes('start proxy success')) {
+            if (this.status_.tunnelStatus !== 'connected') {
+              this.status_.tunnelStatus = 'connected';
+              this.log('info', 'agent.tunnel.connected', 'FRP tunnel established');
+              console.log('[INFO] [tunnel] Connection established successfully');
+            }
           }
-          if (line.includes('work connection closed') || line.includes('login to server failed')) {
+          if (lower.includes('work connection closed') || lower.includes('login to server failed')) {
             this.status_.tunnelStatus = 'reconnecting';
           }
         },
