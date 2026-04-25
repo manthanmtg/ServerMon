@@ -73,7 +73,10 @@ export function useTtySession(opts: UseTtySessionOpts): UseTtySessionState {
     if (!enabled) return;
 
     const connect = socketFactory ?? ((url, o) => io(url, o) as Socket);
-    const socket = connect(FLEET_TTY_SOCKET_NAMESPACE, { transports: ['websocket'] });
+    const socket = connect(FLEET_TTY_SOCKET_NAMESPACE, {
+      transports: ['websocket'],
+      path: '/api/socket',
+    });
     socketRef.current = socket;
 
     const handleConnect = (): void => {
