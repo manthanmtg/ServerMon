@@ -3,27 +3,9 @@ import { executeScript } from './script-executor';
 import { executeWebhook } from './webhook-executor';
 import { executeLogic } from './logic-executor';
 import type { ICustomEndpoint } from '@/models/CustomEndpoint';
+import type { ExecutionInput, ExecutionResult } from './types';
 
 const log = createLogger('endpoints:executor');
-
-export interface ExecutionInput {
-  method: string;
-  body?: string;
-  headers: Record<string, string>;
-  query: Record<string, string>;
-  ip?: string;
-  userAgent?: string;
-}
-
-export interface ExecutionResult {
-  statusCode: number;
-  headers: Record<string, string>;
-  body: string;
-  stdout?: string;
-  stderr?: string;
-  error?: string;
-  duration: number;
-}
 
 export async function executeEndpoint(
   endpoint: ICustomEndpoint,

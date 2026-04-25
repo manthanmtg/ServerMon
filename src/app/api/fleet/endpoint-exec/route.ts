@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ZodError, z } from 'zod';
 import type { Model } from 'mongoose';
+import crypto from 'node:crypto';
 import { createLogger } from '@/lib/logger';
 import connectDB from '@/lib/db';
 import CustomEndpoint from '@/models/CustomEndpoint';
@@ -132,26 +133,57 @@ export async function POST(req: NextRequest) {
     }
 
     const nodeIds = await resolveNodeIds(resolvedTarget);
+    const commandId = crypto.randomBytes(8).toString('hex');
 
     for (const nodeId of nodeIds) {
+      // 1. Queue command in the node's pendingCommands for agent pickup
+      await Node.updateOne(
+        { _id: nodeId },
+        {
+          $push: {
+            pendingCommands: {
+              id: commandId,
+              command: 'endpoint-run',
+              args: {
+                endpointId: parsed.endpointId,
+                endpointSlug: endpoint.slug,
+                endpointType: endpoint.endpointType,
+                scriptLang: endpoint.scriptLang,
+                scriptContent: endpoint.scriptContent,
+                timeout: endpoint.timeout,
+                envVars: endpoint.envVars,
+                payload: parsed.payload,
+                method: endpoint.method,
+              },
+              issuedAt: new Date(),
+            },
+          },
+        }
+      );
+
+      // 2. Create dispatch log event
       await FleetLogEvent.create({
         service: 'endpoint-runner',
         level: 'info',
         eventType: 'endpoint.dispatched',
         nodeId,
-        message: 'Endpoint dispatched',
+        message: `Endpoint ${endpoint.slug} dispatched to node`,
         metadata: {
+          commandId,
           endpointId: parsed.endpointId,
           endpointSlug: endpoint.slug,
           payload: parsed.payload,
         },
       });
+
+      // 3. Emit bus event for real-time UI updates
       fleetEventBus.emit({
         kind: 'node.heartbeat',
         nodeId,
         at: new Date().toISOString(),
         data: {
           type: 'endpoint.dispatched',
+          commandId,
           endpointId: parsed.endpointId,
           endpointSlug: endpoint.slug,
         },

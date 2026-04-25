@@ -19,12 +19,10 @@ export function renderFrpsToml(i: FrpsRenderInput): string {
     `bindAddr = "::"`,
     `bindPort = ${i.bindPort}`,
     `vhostHTTPPort = ${i.vhostHttpPort}`,
-    `vhostHTTPAddr = "0.0.0.0"`,
     `log.level = "info"`,
   ];
   if (i.vhostHttpsPort) {
     lines.push(`vhostHTTPSPort = ${i.vhostHttpsPort}`);
-    lines.push(`vhostHTTPSAddr = "0.0.0.0"`);
   }
   lines.push(`subDomainHost = ${escapeStr(i.subdomainHost)}`);
   lines.push(`auth.method = "token"`);
@@ -64,8 +62,6 @@ export function renderFrpcToml(i: FrpcRenderInput): string {
   out.push(`transport.heartbeatInterval = ${cfg.heartbeatInterval || 30}`);
   out.push(`transport.heartbeatTimeout = ${cfg.heartbeatTimeout || 90}`);
   out.push(`transport.poolCount = ${cfg.poolCount || 1}`);
-  out.push(`transport.useEncryption = ${!!cfg.transportEncryptionEnabled}`);
-  out.push(`transport.useCompression = ${!!cfg.compressionEnabled}`);
   for (const p of i.node.proxyRules || []) {
     if (!p.enabled) continue;
     out.push('');

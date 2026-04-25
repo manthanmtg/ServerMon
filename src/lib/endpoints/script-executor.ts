@@ -1,7 +1,6 @@
 import { spawn, ChildProcess } from 'child_process';
 import { createLogger } from '@/lib/logger';
-import type { ICustomEndpoint } from '@/models/CustomEndpoint';
-import type { ExecutionInput, ExecutionResult } from './executor';
+import type { ExecutionInput, ExecutionResult } from './types';
 
 const log = createLogger('endpoints:script');
 
@@ -17,7 +16,15 @@ const LANG_FLAG: Record<string, string[]> = {
   node: ['-e'],
 };
 
-function buildEnv(endpoint: ICustomEndpoint, input: ExecutionInput): Record<string, string> {
+export interface ScriptExecutionConfig {
+  scriptLang?: 'python' | 'bash' | 'node';
+  scriptContent?: string;
+  timeout?: number;
+  envVars?: Record<string, string> | Map<string, string>;
+  slug?: string;
+}
+
+function buildEnv(endpoint: ScriptExecutionConfig, input: ExecutionInput): Record<string, string> {
   const safeEnv: Record<string, string> = {
     PATH: '/usr/local/bin:/usr/bin:/bin',
     HOME: '/tmp',
@@ -46,7 +53,7 @@ function buildEnv(endpoint: ICustomEndpoint, input: ExecutionInput): Record<stri
 }
 
 export async function executeScript(
-  endpoint: ICustomEndpoint,
+  endpoint: ScriptExecutionConfig,
   input: ExecutionInput
 ): Promise<ExecutionResult> {
   const lang = endpoint.scriptLang || 'bash';
@@ -79,15 +86,31 @@ export async function executeScript(
 
   return new Promise<ExecutionResult>((resolve) => {
     const args = [...flags, code];
-    const child: ChildProcess = spawn(binary, args, {
-      env: env as NodeJS.ProcessEnv,
-      timeout,
-      cwd: '/tmp',
-    });
+    let child: ChildProcess;
+    try {
+      child = spawn(binary, args, {
+        env: env as NodeJS.ProcessEnv,
+        timeout,
+        cwd: '/tmp',
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      return resolve({
+        statusCode: 500,
+        headers: {},
+        body: JSON.stringify({ error: `Failed to spawn: ${message}` }),
+        error: message,
+        duration: 0,
+      });
+    }
 
     let stdout = '';
     let stderr = '';
     let killed = false;
+
+    child.on('error', (err) => {
+      stderr += `Process error: ${err.message}\n`;
+    });
 
     child.stdout?.on('data', (data: Buffer) => {
       stdout += data.toString();
@@ -103,8 +126,11 @@ export async function executeScript(
       }
     });
 
-    if (input.body) {
-      child.stdin?.write(input.body);
+    if (input.body && child.stdin) {
+      child.stdin.on('error', (err) => {
+        log.warn(`stdin error: ${err.message}`);
+      });
+      child.stdin.write(input.body);
     }
     child.stdin?.end();
 

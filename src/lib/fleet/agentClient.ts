@@ -8,6 +8,8 @@ import { ensureBinary } from './binary';
 import { startFrpc, type FrpHandle } from './frpProcess';
 import { renderFrpcToml } from './toml';
 import { AgentPtyBridge } from './agentPtyBridge';
+import { executeScript, type ScriptExecutionConfig } from '../endpoints/script-executor';
+import type { ExecutionInput } from '../endpoints/types';
 
 export interface AgentClientLogEntry {
   level: string;
@@ -327,6 +329,7 @@ export class AgentClient {
         authToken: this.ptyToken,
       },
     };
+
     try {
       const res = await fetchImpl(url, {
         method: 'POST',
@@ -380,6 +383,69 @@ export class AgentClient {
         stdio: 'ignore'
       });
       child.unref();
+    }
+
+    if (cmd.command === 'endpoint-run') {
+      void this.handleEndpointRun(cmd.id, cmd.args);
+    }
+  }
+
+  private async handleEndpointRun(commandId: string, args: any): Promise<void> {
+    const { endpointId, endpointSlug, scriptLang, scriptContent, timeout, envVars, payload, method } = args;
+
+    this.log('info', 'agent.endpoint.starting', `Executing fleet endpoint: ${endpointSlug}`, {
+      commandId,
+      endpointId,
+      endpointSlug,
+    });
+
+    const config: ScriptExecutionConfig = {
+      scriptLang,
+      scriptContent,
+      timeout,
+      envVars,
+      slug: endpointSlug,
+    };
+
+    const input: ExecutionInput = {
+      method: method || 'GET',
+      body: typeof payload === 'string' ? payload : JSON.stringify(payload || {}),
+      headers: {
+        'x-servermon-fleet-dispatch': 'true',
+        'x-servermon-command-id': commandId,
+      },
+      query: {},
+    };
+
+    try {
+      const result = await executeScript(config, input);
+      const isSuccess = result.statusCode === 200;
+
+      this.log(isSuccess ? 'info' : 'error', isSuccess ? 'endpoint.succeeded' : 'endpoint.failed', 
+        isSuccess ? `Endpoint ${endpointSlug} succeeded` : `Endpoint ${endpointSlug} failed: ${result.error || 'Unknown error'}`, 
+        {
+          commandId,
+          endpointId,
+          endpointSlug,
+          statusCode: result.statusCode,
+          duration: result.duration,
+          stdout: result.stdout,
+          stderr: result.stderr,
+          error: result.error,
+        }
+      );
+
+      // Force a heartbeat to report the result immediately
+      void this.sendHeartbeat();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      this.log('error', 'endpoint.failed', `Endpoint ${endpointSlug} crashed: ${message}`, {
+        commandId,
+        endpointId,
+        endpointSlug,
+        error: message,
+      });
+      void this.sendHeartbeat();
     }
   }
 

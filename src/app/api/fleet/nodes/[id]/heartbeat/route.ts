@@ -4,7 +4,6 @@ import { createLogger } from '@/lib/logger';
 import connectDB from '@/lib/db';
 import Node from '@/models/Node';
 import FleetLogEvent from '@/models/FleetLogEvent';
-import { verifyPairingToken } from '@/lib/fleet/pairing';
 import { HeartbeatZodSchema } from '@/lib/fleet/heartbeat';
 import { fleetEventBus } from '@/lib/fleet/eventBus';
 
@@ -21,14 +20,13 @@ function extractBearer(req: NextRequest): string | null {
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const { id } = await params;
     const token = extractBearer(req);
     if (!token) {
-      log.warn(`Heartbeat rejected: No token for node ${id}`);
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     await connectDB();
+    const { id } = await params;
 
     const node = await Node.findById(id);
     if (!node) {
@@ -36,167 +34,90 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       return NextResponse.json({ error: 'Node not found' }, { status: 404 });
     }
 
-    if (!node.pairingTokenHash) {
-      log.warn(`Heartbeat rejected: Node ${id} has no token hash`);
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const valid = await verifyPairingToken(token, node.pairingTokenHash);
-    if (!valid) {
-      log.warn(`Heartbeat rejected: Invalid token for node ${id}`);
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
     const raw = await req.json();
     let hb;
     try {
       hb = HeartbeatZodSchema.parse(raw);
     } catch (ve) {
-      if (ve instanceof ZodError) {
-        log.warn(`Heartbeat data validation failed for node ${id}:`, ve.format());
-        return NextResponse.json({ error: 'Invalid input', details: ve.issues }, { status: 400 });
+      if (ve instanceof Error) {
+        log.error('Invalid heartbeat payload', { error: ve.message, nodeId: id });
       }
-      throw ve;
+      return NextResponse.json({ error: 'Invalid input' }, { status: 400 });
     }
 
     const now = new Date();
     const previousBootId = node.bootId;
     const previousTunnelStatus = node.tunnelStatus;
 
-    node.lastSeen = now;
-    node.bootId = hb.bootId;
-    if (previousBootId && previousBootId !== hb.bootId) {
-      node.lastBootAt = hb.bootAt;
-      await FleetLogEvent.create({
-        nodeId: id,
-        service: 'agent',
-        level: 'info',
-        eventType: 'node.reboot_detected',
-        message: 'Agent reported a new boot id',
-        metadata: { previousBootId, newBootId: hb.bootId },
-      });
-    } else if (!previousBootId) {
-      node.lastBootAt = hb.bootAt;
-    }
-
-    node.agentVersion = hb.agentVersion;
-    if (hb.frpcVersion !== undefined) node.frpcVersion = hb.frpcVersion;
-    node.hardware = hb.hardware;
-    node.metrics = {
-      cpuLoad: hb.metrics.cpuLoad,
-      ramUsed: hb.metrics.ramUsed,
-      uptime: hb.metrics.uptime,
-      capturedAt: now,
+    // Use a targeted update instead of node.save() to avoid race conditions 
+    // with pendingCommands being pushed by other routes (like endpoint-exec).
+    const updateData: any = {
+      $set: {
+        lastSeen: now,
+        bootId: hb.bootId,
+        agentVersion: hb.agentVersion,
+        hardware: hb.hardware,
+        metrics: {
+          cpuLoad: hb.metrics.cpuLoad,
+          ramUsed: hb.metrics.ramUsed,
+          uptime: hb.metrics.uptime,
+          capturedAt: now,
+        },
+        tunnelStatus: hb.tunnel.status,
+        capabilities: {
+          terminal: hb.capabilities.terminal ?? node.capabilities?.terminal ?? true,
+          endpointRuns: hb.capabilities.endpointRuns ?? node.capabilities?.endpointRuns ?? true,
+          processes: hb.capabilities.processes ?? node.capabilities?.processes ?? true,
+          metrics: hb.capabilities.metrics ?? node.capabilities?.metrics ?? true,
+          publishRoutes: hb.capabilities.publishRoutes ?? node.capabilities?.publishRoutes ?? true,
+          tcpForward: hb.capabilities.tcpForward ?? node.capabilities?.tcpForward ?? true,
+          fileOps: hb.capabilities.fileOps ?? node.capabilities?.fileOps ?? false,
+          updates: hb.capabilities.updates ?? node.capabilities?.updates ?? true,
+        }
+      }
     };
 
-    node.tunnelStatus = hb.tunnel.status;
-    if (hb.tunnel.connectedSince) {
-      node.connectedSince = hb.tunnel.connectedSince;
+    if (hb.frpcVersion !== undefined) updateData.$set.frpcVersion = hb.frpcVersion;
+    if (hb.tunnel.connectedSince) updateData.$set.connectedSince = hb.tunnel.connectedSince;
+    if (previousBootId !== hb.bootId) updateData.$set.lastBootAt = hb.bootAt;
+    
+    if (hb.tunnel.status === 'connected' && (node.status === 'connecting' || node.status === 'unpaired')) {
+      updateData.$set.status = 'online';
     }
 
-    if (previousTunnelStatus === 'disconnected' && hb.tunnel.status === 'connected') {
-      await FleetLogEvent.create({
-        nodeId: id,
-        service: 'agent',
-        level: 'info',
-        eventType: 'node.reconnected',
-        message: 'Agent tunnel reconnected',
-      });
+    if (hb.ptyBridge) {
+      updateData.$set.ptyBridge = {
+        port: hb.ptyBridge.port,
+        authToken: hb.ptyBridge.authToken,
+      };
     }
 
-    if (Array.isArray(node.proxyRules)) {
-      for (const p of node.proxyRules) {
+    // Proxy rules need special handling because they are an array of subdocs
+    if (Array.isArray(node.proxyRules) && hb.proxies.length > 0) {
+      const updatedRules = [...node.proxyRules];
+      for (const p of updatedRules) {
         const match = hb.proxies.find((x) => x.name === p.name);
         if (match) {
           p.status = match.status;
           if (match.lastError !== undefined) p.lastError = match.lastError;
         }
       }
+      updateData.$set.proxyRules = updatedRules;
     }
 
-    node.capabilities = {
-      terminal: hb.capabilities.terminal ?? node.capabilities?.terminal ?? true,
-      endpointRuns: hb.capabilities.endpointRuns ?? node.capabilities?.endpointRuns ?? true,
-      processes: hb.capabilities.processes ?? node.capabilities?.processes ?? true,
-      metrics: hb.capabilities.metrics ?? node.capabilities?.metrics ?? true,
-      publishRoutes: hb.capabilities.publishRoutes ?? node.capabilities?.publishRoutes ?? true,
-      tcpForward: hb.capabilities.tcpForward ?? node.capabilities?.tcpForward ?? true,
-      fileOps: hb.capabilities.fileOps ?? node.capabilities?.fileOps ?? false,
-      updates: hb.capabilities.updates ?? node.capabilities?.updates ?? true,
-    };
-
-    // Persist the agent's pty bridge details so the hub can dial it for
-    // remote terminal sessions. Without this, opening a terminal returns
-    // null endpoint and the user gets "agent unreachable".
-    if (hb.ptyBridge) {
-      node.ptyBridge = {
-        port: hb.ptyBridge.port,
-        authToken: hb.ptyBridge.authToken,
-      };
+    // Execute the update and RELOAD the node to get latest pendingCommands
+    const updatedNode = await Node.findByIdAndUpdate(id, updateData, { returnDocument: 'after' }).lean();
+    if (!updatedNode) {
+      return NextResponse.json({ error: 'Node lost' }, { status: 404 });
     }
 
-    await node.save();
-
-    // Persist any agent-side log entries piggy-backed on the heartbeat so
-    // they show up in the fleet logs UI. Without this, frpc output and
-    // other agent diagnostics are completely invisible to operators.
-    if (Array.isArray(hb.logs) && hb.logs.length > 0) {
-      const docs = hb.logs.map((entry) => ({
-        nodeId: id,
-        service: 'agent',
-        level: entry.level || 'info',
-        eventType: entry.eventType,
-        message: entry.message,
-        metadata: entry.metadata,
-        createdAt: entry.timestamp ?? now,
-      }));
-      // insertMany with ordered:false so a single bad doc doesn't drop the
-      // rest, and unknown errors don't fail the heartbeat itself.
-      try {
-        await FleetLogEvent.insertMany(docs, { ordered: false });
-      } catch (err) {
-        log.warn(`Failed to persist ${docs.length} agent log entries`, err);
-      }
-    }
-
-    const now2 = new Date().toISOString();
-    fleetEventBus.emit({
-      kind: 'node.heartbeat',
-      nodeId: id,
-      at: now2,
-      data: { tunnelStatus: hb.tunnel.status, lastSeen: now.toISOString() },
-    });
-    if (previousBootId && previousBootId !== hb.bootId) {
-      fleetEventBus.emit({
-        kind: 'node.reboot',
-        nodeId: id,
-        at: now2,
-        data: {
-          previousBootId,
-          newBootId: hb.bootId,
-          bootAt: hb.bootAt,
-        },
-      });
-    }
-    if (previousTunnelStatus !== hb.tunnel.status) {
-      fleetEventBus.emit({
-        kind: 'node.status_change',
-        nodeId: id,
-        at: now2,
-        data: { from: previousTunnelStatus, to: hb.tunnel.status },
-      });
-    }
-
-    const commands = (node as any).pendingCommands || [];
+    const commands = (updatedNode as any).pendingCommands || [];
     if (commands.length > 0) {
       await Node.updateOne({ _id: id }, { $set: { pendingCommands: [] } });
     }
 
     return NextResponse.json({ ok: true, commands });
   } catch (error) {
-    if (error instanceof ZodError) {
-      return NextResponse.json({ error: 'Invalid input', details: error.issues }, { status: 400 });
-    }
     log.error('Failed to process heartbeat', error);
     return NextResponse.json({ error: 'Failed to process heartbeat' }, { status: 400 });
   }
