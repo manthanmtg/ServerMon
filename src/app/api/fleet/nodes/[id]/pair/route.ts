@@ -64,7 +64,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     const authToken = process.env.FLEET_HUB_AUTH_TOKEN ?? 'placeholder-pending-config';
     const publicUrl = process.env.FLEET_HUB_PUBLIC_URL;
-    const serverAddr = publicUrl ?? frpServer.subdomainHost ?? 'localhost';
+    let serverAddr = frpServer.subdomainHost ?? 'localhost';
+    
+    if (publicUrl) {
+      try {
+        serverAddr = new URL(publicUrl).hostname;
+      } catch {
+        serverAddr = publicUrl;
+      }
+    }
 
     return NextResponse.json({
       hub: {

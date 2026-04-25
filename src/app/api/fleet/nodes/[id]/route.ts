@@ -168,7 +168,15 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
     const frpServer = await FrpServerState.findOne({ key: 'global' }).lean();
     const authToken = process.env.FLEET_HUB_AUTH_TOKEN ?? 'pending';
-    const serverAddr = process.env.FLEET_HUB_PUBLIC_URL ?? frpServer?.subdomainHost ?? 'localhost';
+    const publicUrl = process.env.FLEET_HUB_PUBLIC_URL;
+    let serverAddr = frpServer?.subdomainHost ?? 'localhost';
+    if (publicUrl) {
+      try {
+        serverAddr = new URL(publicUrl).hostname;
+      } catch {
+        serverAddr = publicUrl;
+      }
+    }
     const serverPort = frpServer?.bindPort ?? 7000;
 
     const rendered = renderFrpcToml({
