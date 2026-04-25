@@ -25,6 +25,8 @@ export function renderFrpsToml(i: FrpsRenderInput): string {
   lines.push(`subDomainHost = ${escapeStr(i.subdomainHost)}`);
   lines.push(`auth.method = "token"`);
   lines.push(`auth.token = ${escapeStr(i.authToken)}`);
+  // Enable TLS support on the Hub
+  lines.push(`transport.tls.force = false`); 
   if (i.tlsOnly) lines.push(`transport.tls.force = true`);
   return lines.join('\n') + '\n';
 }
