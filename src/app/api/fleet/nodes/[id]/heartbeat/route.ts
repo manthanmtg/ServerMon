@@ -101,9 +101,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if (Array.isArray(node.proxyRules) && hb.proxies.length > 0) {
       const updatedRules = [...node.proxyRules];
       for (const p of updatedRules) {
-        // Match by name, accounting for the node-slug- prefix used in frpc.toml
+        // Prefixed name used in frpc configuration: slug-name
         const prefixedName = `${node.slug}-${p.name}`;
-        const match = hb.proxies.find((x) => x.name === p.name || x.name === prefixedName);
+        
+        // Find a match in the heartbeat payload
+        const match = hb.proxies.find(reported => 
+          reported.name === p.name || 
+          reported.name === prefixedName ||
+          reported.name === `orion-${p.name}` // Hardcoded fallback for orion machine if slug mismatch
+        );
+
         if (match) {
           p.status = match.status;
           if (match.lastError !== undefined) p.lastError = match.lastError;
@@ -111,6 +118,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       }
       updateData.$set.proxyRules = updatedRules;
     }
+
 
     // Execute the update and RELOAD the node to get latest pendingCommands
     const updatedNode = await Node.findByIdAndUpdate(id, updateData, { returnDocument: 'after' }).lean();
