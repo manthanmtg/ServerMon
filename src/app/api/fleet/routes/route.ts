@@ -171,6 +171,7 @@ export async function POST(req: NextRequest) {
           slug: node.slug,
           frpcConfig: node.frpcConfig,
           proxyRules: node.proxyRules,
+          capabilities: node.capabilities,
         },
       });
       await saveRevision(ConfigRevision as unknown as Model<unknown>, {
