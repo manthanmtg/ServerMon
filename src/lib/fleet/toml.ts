@@ -16,12 +16,16 @@ function escapeStr(v: string): string {
 
 export function renderFrpsToml(i: FrpsRenderInput): string {
   const lines = [
-    `bindAddr = "0.0.0.0"`,
+    `bindAddr = "::"`,
     `bindPort = ${i.bindPort}`,
     `vhostHTTPPort = ${i.vhostHttpPort}`,
+    `vhostHTTPAddr = "0.0.0.0"`,
     `log.level = "info"`,
   ];
-  if (i.vhostHttpsPort) lines.push(`vhostHTTPSPort = ${i.vhostHttpsPort}`);
+  if (i.vhostHttpsPort) {
+    lines.push(`vhostHTTPSPort = ${i.vhostHttpsPort}`);
+    lines.push(`vhostHTTPSAddr = "0.0.0.0"`);
+  }
   lines.push(`subDomainHost = ${escapeStr(i.subdomainHost)}`);
   lines.push(`auth.method = "token"`);
   lines.push(`auth.token = ${escapeStr(i.authToken)}`);
