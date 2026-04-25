@@ -1,16 +1,16 @@
 'use client';
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Spinner } from '@/components/ui/spinner';
-import { Check, ChevronRight, ChevronLeft } from 'lucide-react';
-import { FrpcConfigForm } from './FrpcConfigForm';
-import { TomlPreview } from './TomlPreview';
-import { DnsVerifier } from './DnsVerifier';
+import { ChevronLeft, ChevronRight, Check } from 'lucide-react';
 import { InstallerSnippet } from './InstallerSnippet';
 import { OnboardingFormSchema, type OnboardingForm } from './schema';
+import { FrpcConfigForm } from './FrpcConfigForm';
+import { TomlPreview } from './TomlPreview';
 
 type Step = 1 | 2 | 3 | 4 | 5 | 6;
 
@@ -18,6 +18,7 @@ const INITIAL: OnboardingForm = {
   name: '',
   slug: '',
   tags: [],
+  description: '',
   frpcConfig: {
     protocol: 'tcp',
     tlsEnabled: true,
@@ -42,11 +43,13 @@ interface VerificationInfo {
   lastSeen?: string;
 }
 
-export function OnboardingWizard({ hubUrl = 'hub.local' }: { hubUrl?: string }) {
+export function OnboardingWizard({ hubUrl }: { hubUrl: string }) {
+  const router = useRouter();
   const [step, setStep] = useState<Step>(1);
   const [form, setForm] = useState<OnboardingForm>(INITIAL);
   const [errors, setErrors] = useState<string[]>([]);
-  const [submitting, setSubmitting] = useState(false);
+  const [busy, setSubmitting] = useState(false);
+  const [completed, setCompleted] = useState(false);
   const [created, setCreated] = useState<CreatedInfo | null>(null);
   const [verification, setVerification] = useState<VerificationInfo | null>(null);
 
@@ -131,68 +134,71 @@ export function OnboardingWizard({ hubUrl = 'hub.local' }: { hubUrl?: string }) 
         <StepIndicator step={step} />
       </CardHeader>
       <CardContent className="space-y-4">
-        {errors.length > 0 && (
-          <div
-            role="alert"
-            className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive space-y-1"
-          >
-            {errors.map((e, i) => (
-              <div key={i}>{e}</div>
-            ))}
+        {completed ? (
+          <OnboardingFinish onDone={() => router.push('/fleet')} />
+        ) : (
+          <>
+            {errors.length > 0 && (
+              <div
+                role="alert"
+                className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive space-y-1"
+              >
+                {errors.map((e, i) => (
+                  <div key={i}>{e}</div>
+                ))}
+              </div>
+            )}
+            {step === 1 && <StepIdentity form={form} setForm={setForm} />}
+            {step === 2 && <StepDns />}
+            {step === 3 && <StepFrpcConfig form={form} setForm={setForm} />}
+            {step === 4 && <StepTomlReview form={form} />}
+            {step === 5 && created && <StepInstall created={created} hubUrl={hubUrl} />}
+            {step === 6 && created && <StepVerify created={created} verification={verification} />}
+          </>
+        )}
+        {!completed && (
+          <div className="flex justify-between pt-2">
+            <Button variant="outline" onClick={back} disabled={step === 1 || busy}>
+              <ChevronLeft className="h-4 w-4" /> Back
+            </Button>
+            {step < 5 && (
+              <Button onClick={validateAndNext} disabled={busy}>
+                Next <ChevronRight className="h-4 w-4" />
+              </Button>
+            )}
+            {step === 5 && (
+              <Button onClick={() => setStep(6)} disabled={!created}>
+                I've run the command <ChevronRight className="h-4 w-4" />
+              </Button>
+            )}
+            {step === 6 && (
+              <Button
+                onClick={() => setCompleted(true)}
+                disabled={
+                  !verification ||
+                  (verification.status !== 'online' && verification.status !== 'connecting')
+                }
+              >
+                Finish Onboarding
+              </Button>
+            )}
           </div>
         )}
-        {step === 1 && <StepIdentity form={form} setForm={setForm} />}
-        {step === 2 && <StepDns />}
-        {step === 3 && <StepFrpcConfig form={form} setForm={setForm} />}
-        {step === 4 && <StepTomlReview form={form} />}
-        {step === 5 && created && <StepInstall created={created} hubUrl={hubUrl} />}
-        {step === 6 && created && <StepVerify created={created} verification={verification} />}
-        <div className="flex justify-between pt-2">
-          <Button onClick={back} variant="outline" disabled={step === 1 || step === 6}>
-            <ChevronLeft className="h-4 w-4" /> Back
-          </Button>
-          {step < 6 && (
-            <Button onClick={validateAndNext} disabled={submitting}>
-              {submitting ? (
-                <Spinner />
-              ) : (
-                <>
-                  {step === 4 ? 'Create agent' : 'Next'} <ChevronRight className="h-4 w-4" />
-                </>
-              )}
-            </Button>
-          )}
-          {step === 6 && created && (
-            <a
-              href={`/fleet/${created.slug}`}
-              className="inline-flex items-center justify-center gap-2 h-9 px-4 text-sm rounded-lg bg-primary text-primary-foreground font-medium shadow-sm hover:bg-primary/90 transition-colors"
-            >
-              Open node
-            </a>
-          )}
-        </div>
       </CardContent>
     </Card>
   );
 }
 
 function StepIndicator({ step }: { step: Step }) {
-  const labels = ['Identity', 'DNS', 'FRPC', 'TOML', 'Install', 'Verify'];
   return (
-    <div className="flex flex-wrap gap-2 mt-2">
-      {labels.map((l, i) => (
-        <div key={l} className="flex items-center gap-1 text-xs">
-          <span
-            className={`h-5 w-5 rounded-full flex items-center justify-center text-[10px] ${
-              i + 1 <= step
-                ? 'bg-primary text-primary-foreground'
-                : 'bg-muted text-muted-foreground'
-            }`}
-          >
-            {i + 1 < step ? <Check className="h-3 w-3" /> : i + 1}
-          </span>
-          <span className={i + 1 === step ? 'text-foreground' : 'text-muted-foreground'}>{l}</span>
-        </div>
+    <div className="flex gap-1 mt-2">
+      {[1, 2, 3, 4, 5, 6].map((i) => (
+        <div
+          key={i}
+          className={`h-1.5 flex-1 rounded-full ${
+            i === step ? 'bg-primary' : i < step ? 'bg-primary/40' : 'bg-muted'
+          }`}
+        />
       ))}
     </div>
   );
@@ -203,60 +209,52 @@ function StepIdentity({
   setForm,
 }: {
   form: OnboardingForm;
-  setForm: (f: OnboardingForm) => void;
+  setForm: (v: OnboardingForm) => void;
 }) {
   return (
     <div className="space-y-3">
-      <label className="block">
-        <span className="text-sm text-muted-foreground">Name</span>
+      <div className="space-y-1">
+        <label className="text-sm font-medium">Agent Name</label>
         <Input
+          placeholder="e.g. Home Server"
           value={form.name}
-          onChange={(e) => setForm({ ...form, name: e.target.value })}
-          placeholder="Home Desktop"
+          onChange={(e) => {
+            const name = e.target.value;
+            const slug = name
+              .toLowerCase()
+              .replace(/[^a-z0-9]/g, '-')
+              .replace(/-+/g, '-')
+              .replace(/^-|-$/g, '');
+            setForm({ ...form, name, slug });
+          }}
         />
-      </label>
-      <label className="block">
-        <span className="text-sm text-muted-foreground">Slug</span>
+      </div>
+      <div className="space-y-1">
+        <label className="text-sm font-medium">Identifier (Slug)</label>
         <Input
+          placeholder="e.g. home-server"
           value={form.slug}
           onChange={(e) => setForm({ ...form, slug: e.target.value })}
-          placeholder="orion"
         />
-      </label>
-      <label className="block">
-        <span className="text-sm text-muted-foreground">Description (optional)</span>
-        <Input
-          value={form.description ?? ''}
-          onChange={(e) => setForm({ ...form, description: e.target.value })}
-        />
-      </label>
-      <label className="block">
-        <span className="text-sm text-muted-foreground">Tags (comma-separated)</span>
-        <Input
-          value={form.tags.join(', ')}
-          onChange={(e) =>
-            setForm({
-              ...form,
-              tags: e.target.value
-                .split(',')
-                .map((t) => t.trim())
-                .filter(Boolean),
-            })
-          }
-          placeholder="home, edge"
-        />
-      </label>
+        <p className="text-[10px] text-muted-foreground">
+          Must be unique and URL-friendly (lowercase letters, numbers, hyphens).
+        </p>
+      </div>
     </div>
   );
 }
 
 function StepDns() {
   return (
-    <div>
-      <p className="text-sm text-muted-foreground mb-3">
-        Verify DNS and TLS prerequisites. This is optional for Phase 1 and can be deferred.
-      </p>
-      <DnsVerifier />
+    <div className="space-y-3">
+      <div className="rounded-lg border border-blue-500/30 bg-blue-500/5 p-4 text-sm text-blue-400">
+        <h4 className="font-semibold mb-1">DNS Requirement</h4>
+        <p>
+          Before adding this agent, ensure you have a wildcard DNS record (e.g. <code>*.ultron.manthanby.cv</code>)
+          pointing to this Hub's IP address. This allows the Hub to route traffic to your agent
+          automatically.
+        </p>
+      </div>
     </div>
   );
 }
@@ -266,7 +264,7 @@ function StepFrpcConfig({
   setForm,
 }: {
   form: OnboardingForm;
-  setForm: (f: OnboardingForm) => void;
+  setForm: (v: OnboardingForm) => void;
 }) {
   return (
     <div className="space-y-4">
@@ -284,9 +282,9 @@ function StepFrpcConfig({
 
 function StepTomlReview({ form }: { form: OnboardingForm }) {
   return (
-    <div className="space-y-3">
+    <div className="space-y-2">
       <p className="text-sm text-muted-foreground">
-        Preview the generated frpc.toml. Once you click Create, this will be stored as revision 1.
+        Review the generated FRP configuration for this agent.
       </p>
       <TomlPreview form={form} />
     </div>
@@ -324,15 +322,32 @@ function StepVerify({
               : 'Not yet reported.'}
           </span>
         </div>
-        {status === 'online' && (
+        {(status === 'online' || status === 'connecting') && (
           <div className="text-sm text-[color:var(--success,#16a34a)]">
-            Agent is online — onboarding complete.
+            Agent is connected — onboarding complete.
           </div>
         )}
       </div>
       <p className="text-xs text-muted-foreground">
         Node id: <code>{created.nodeId}</code>
       </p>
+    </div>
+  );
+}
+
+function OnboardingFinish({ onDone }: { onDone: () => void }) {
+  return (
+    <div className="flex flex-col items-center justify-center py-8 space-y-4 text-center">
+      <div className="h-12 w-12 rounded-full bg-[color:var(--success,#16a34a)]/10 flex items-center justify-center">
+        <Check className="h-6 w-6 text-[color:var(--success,#16a34a)]" />
+      </div>
+      <div>
+        <h3 className="text-lg font-semibold">Agent Onboarded!</h3>
+        <p className="text-sm text-muted-foreground">
+          Your remote machine is now securely connected to the fleet.
+        </p>
+      </div>
+      <Button onClick={onDone}>Go to Dashboard</Button>
     </div>
   );
 }
@@ -378,60 +393,57 @@ function ProxyRulesEditor({
       {list.map((r, i) => (
         <div
           key={i}
-          className="grid grid-cols-2 md:grid-cols-6 gap-2 rounded border border-border p-2"
+          className="rounded-lg border border-border bg-muted/20 p-3 grid grid-cols-2 sm:grid-cols-4 gap-3 relative group"
         >
-          <Input
-            value={r.name}
-            onChange={(e) => update(i, { name: e.target.value })}
-            placeholder="name"
-            aria-label={`Rule ${i + 1} name`}
-          />
-          <select
-            value={r.type}
-            onChange={(e) => update(i, { type: e.target.value as ProxyRule['type'] })}
-            aria-label={`Rule ${i + 1} type`}
-            className="h-10 rounded-md border border-input bg-background px-2 text-sm"
+          <Button
+            variant="ghost"
+            size="sm"
+            className="absolute -top-2 -right-2 h-6 w-6 p-0 rounded-full opacity-0 group-hover:opacity-100 transition-opacity bg-background border border-border"
+            onClick={() => remove(i)}
+            type="button"
           >
-            {(['tcp', 'http', 'https', 'udp', 'stcp', 'xtcp'] as const).map((t) => (
-              <option key={t} value={t}>
-                {t}
-              </option>
-            ))}
-          </select>
-          <Input
-            value={r.localIp}
-            onChange={(e) => update(i, { localIp: e.target.value })}
-            placeholder="127.0.0.1"
-            aria-label={`Rule ${i + 1} local IP`}
-          />
-          <Input
-            type="number"
-            value={r.localPort}
-            onChange={(e) => update(i, { localPort: Number(e.target.value) })}
-            placeholder="local port"
-            aria-label={`Rule ${i + 1} local port`}
-          />
-          <Input
-            type="number"
-            value={r.remotePort ?? ''}
-            onChange={(e) =>
-              update(i, {
-                remotePort: e.target.value ? Number(e.target.value) : undefined,
-              })
-            }
-            placeholder="remote port (tcp/udp)"
-            aria-label={`Rule ${i + 1} remote port`}
-          />
-          <div className="flex gap-2 items-center">
+            ×
+          </Button>
+          <div className="space-y-1">
+            <label className="text-[10px] uppercase font-bold text-muted-foreground">Name</label>
             <Input
-              value={r.subdomain ?? ''}
-              onChange={(e) => update(i, { subdomain: e.target.value })}
-              placeholder="subdomain (http)"
-              aria-label={`Rule ${i + 1} subdomain`}
+              className="h-8 text-xs"
+              value={r.name}
+              onChange={(e) => update(i, { name: e.target.value })}
             />
-            <Button variant="outline" onClick={() => remove(i)} type="button">
-              Remove
-            </Button>
+          </div>
+          <div className="space-y-1">
+            <label className="text-[10px] uppercase font-bold text-muted-foreground">Type</label>
+            <select
+              value={r.type}
+              onChange={(e) => update(i, { type: e.target.value as any })}
+              className="w-full h-8 rounded-md border border-input bg-background px-2 text-sm"
+            >
+              {(['tcp', 'http', 'https', 'udp', 'stcp', 'xtcp'] as const).map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="space-y-1">
+            <label className="text-[10px] uppercase font-bold text-muted-foreground">Local IP</label>
+            <Input
+              className="h-8 text-xs"
+              value={r.localIp}
+              onChange={(e) => update(i, { localIp: e.target.value })}
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="text-[10px] uppercase font-bold text-muted-foreground">
+              Local Port
+            </label>
+            <Input
+              className="h-8 text-xs"
+              type="number"
+              value={r.localPort}
+              onChange={(e) => update(i, { localPort: parseInt(e.target.value, 10) })}
+            />
           </div>
         </div>
       ))}
