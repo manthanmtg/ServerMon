@@ -20,6 +20,7 @@ export type NodeTransition = (typeof NODE_TRANSITIONS)[number];
 
 export const TUNNEL_STATUSES = [
   'connected',
+  'connecting',
   'reconnecting',
   'disconnected',
   'auth_failed',
