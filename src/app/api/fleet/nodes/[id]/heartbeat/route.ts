@@ -37,6 +37,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     }
 
     const raw = await req.json();
+    console.error(`[FULL_HEARTBEAT_DEBUG] Node ${id} payload: ${JSON.stringify(raw)}`);
     let hb;
     try {
       hb = HeartbeatZodSchema.parse(raw);
