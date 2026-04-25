@@ -439,7 +439,39 @@ if (process.env.FLEET_AGENT_MODE === 'true') {
         const frpOrch = getFrpOrchestrator() as { start?: () => void };
         frpOrch.start?.();
         const bridge = new HubTtyBridge({
-          resolveAgentEndpoint: async () => null, // wired in future wave
+          resolveAgentEndpoint: async (nodeId) => {
+            await connectDB();
+            const node = await Node.findById(nodeId).lean();
+            if (!node || !node.ptyBridge?.port || !node.ptyBridge?.authToken) {
+              return null;
+            }
+            // The agent's PTY bridge is reached via the Hub's loopback
+            // since frps maps the remote agent's local port to a hub-side port.
+            return {
+              host: '127.0.0.1',
+              port: node.ptyBridge.port,
+              authToken: node.ptyBridge.authToken,
+            };
+          },
+          wsFactory: (url, _protocols, headers) => {
+            const WS = require('ws');
+            const ws = new WS(url, { headers });
+            const emitter = new (require('node:events').EventEmitter)();
+
+            ws.on('open', () => emitter.emit('open'));
+            ws.on('message', (data: any) => emitter.emit('message', data));
+            ws.on('error', (err: any) => emitter.emit('error', err));
+            ws.on('close', (code: any, reason: any) => emitter.emit('close', code, reason));
+
+            return Object.assign(emitter, {
+              send: (data: any) => ws.send(data),
+              close: (code: any, reason: any) => ws.close(code, reason),
+              get readyState() {
+                return ws.readyState;
+              },
+              off: (event: string, listener: any) => emitter.removeListener(event, listener),
+            }) as any;
+          },
         });
         registerFleetTtyNamespace({
           io,
