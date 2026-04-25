@@ -71,7 +71,7 @@ export function renderFrpcToml(i: FrpcRenderInput): string {
   out.push(`name = ${escapeStr(`${i.node.slug}-terminal-bridge`)}`);
   out.push(`type = "tcp"`);
   out.push(`localIP = "127.0.0.1"`);
-  out.push(`localPort = ${cfg.ptyListenPort || 8001}`);
+  out.push(`localPort = ${(cfg as any).ptyListenPort || 8001}`);
   out.push(`remotePort = 0`); // Auto-assign a port on the hub
   out.push(`transport.useEncryption = true`);
   out.push(`transport.useCompression = true`);
