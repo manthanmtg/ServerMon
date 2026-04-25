@@ -485,7 +485,7 @@ if (process.env.FLEET_AGENT_MODE === 'true') {
 
             // Check if the agent has a terminal-bridge proxy active
             const terminalBridge = (node.proxyRules || []).find(
-              (p: any) => p.name === 'terminal-bridge' && p.status === 'active'
+              (p: any) => (p.name === 'terminal-bridge' || `${node.slug}-terminal-bridge` === p.name) && p.status === 'active'
             );
 
             if (terminalBridge && terminalBridge.remotePort) {
