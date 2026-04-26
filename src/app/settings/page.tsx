@@ -24,6 +24,7 @@ import { useToast } from '@/components/ui/toast';
 import UpdateHistoryModal from '@/components/settings/UpdateHistoryModal';
 import QuickAccessSettings from '@/components/settings/QuickAccessSettings';
 import ServerMonServicesCard from '@/components/settings/ServerMonServicesCard';
+import ServerMonUptimeCard from '@/components/settings/ServerMonUptimeCard';
 
 interface ModuleInfo {
   id: string;
@@ -326,6 +327,8 @@ export default function SettingsPage() {
             </Card>
 
             <PasskeySettings />
+
+            <ServerMonUptimeCard />
 
             <ServerMonServicesCard onOpenHistory={() => setShowHistory(true)} />
 
