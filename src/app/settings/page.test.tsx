@@ -424,7 +424,7 @@ describe('SettingsPage', () => {
 
     expect(screen.getByText('ServerMon Services')).toBeDefined();
     await waitFor(() => expect(screen.getByText('Scheduled updater')).toBeDefined());
-    expect(screen.getByText('Enabled at 03:00')).toBeDefined();
+    expect(screen.getByText('Enabled at 03:00 AM')).toBeDefined();
     expect(screen.getByText('IST')).toBeDefined();
     await waitFor(() => expect(screen.getByText('Agent Installed')).toBeDefined());
     expect(screen.getByText('/opt/servermon-agent/source')).toBeDefined();
@@ -463,7 +463,7 @@ describe('SettingsPage', () => {
     expect(switchButton.firstElementChild).toHaveClass('left-0', 'translate-x-1');
   });
 
-  it('opens and saves the local auto-update schedule modal with a timezone dropdown', async () => {
+  it('opens and saves the local auto-update schedule modal with time and timezone dropdowns', async () => {
     (global.fetch as ReturnType<typeof vi.fn>).mockImplementation(
       (url: string, opts?: RequestInit) => {
         if (url === '/api/system/update/auto' && opts?.method === 'PATCH') {
@@ -504,7 +504,15 @@ describe('SettingsPage', () => {
 
     await waitFor(() => expect(screen.getByText('Local Auto-Update Schedule')).toBeDefined());
     fireEvent.click(screen.getByLabelText('Enable local auto-update'));
-    fireEvent.change(screen.getByLabelText('Daily time'), { target: { value: '04:30' } });
+    const hourSelect = screen.getByRole('combobox', { name: 'Daily hour' });
+    const minuteSelect = screen.getByRole('combobox', { name: 'Daily minute' });
+    const periodSelect = screen.getByRole('combobox', { name: 'Daily period' });
+    expect(hourSelect).toHaveValue('03');
+    expect(minuteSelect).toHaveValue('00');
+    expect(periodSelect).toHaveValue('AM');
+    fireEvent.change(hourSelect, { target: { value: '04' } });
+    fireEvent.change(minuteSelect, { target: { value: '30' } });
+    fireEvent.change(periodSelect, { target: { value: 'AM' } });
     const timezoneSelect = screen.getByRole('combobox', { name: 'Timezone' });
     expect(timezoneSelect).toBeDefined();
     expect(screen.getByRole('option', { name: /IST/ })).toBeDefined();

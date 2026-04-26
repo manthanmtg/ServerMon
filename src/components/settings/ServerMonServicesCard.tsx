@@ -39,6 +39,8 @@ const TIMEZONE_OPTIONS = [
   { value: 'Asia/Tokyo', label: 'JST', description: 'Japan Standard Time' },
   { value: 'Australia/Sydney', label: 'AEST/AEDT', description: 'Sydney' },
 ];
+const HOUR_OPTIONS = Array.from({ length: 12 }, (_, index) => String(index + 1).padStart(2, '0'));
+const MINUTE_OPTIONS = Array.from({ length: 12 }, (_, index) => String(index * 5).padStart(2, '0'));
 
 const UPDATE_COPY: Record<
   ServiceUpdateType,
@@ -81,6 +83,8 @@ export default function ServerMonServicesCard({ onOpenHistory }: ServerMonServic
     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
   });
   const timezoneOptions = getTimezoneOptions(scheduleForm.timezone, autoSettings?.timezone);
+  const scheduleTimeParts = parseScheduleTime(scheduleForm.time);
+  const minuteOptions = getMinuteOptions(scheduleTimeParts.minute);
 
   const loadAgentStatus = useCallback(async () => {
     setAgentLoading(true);
@@ -201,6 +205,13 @@ export default function ServerMonServicesCard({ onOpenHistory }: ServerMonServic
     }
   };
 
+  const updateScheduleTime = (patch: Partial<TimeParts>) => {
+    setScheduleForm((form) => ({
+      ...form,
+      time: buildScheduleTime({ ...parseScheduleTime(form.time), ...patch }),
+    }));
+  };
+
   const copy = confirmType ? UPDATE_COPY[confirmType] : UPDATE_COPY.servermon;
   const isUpdating = updating !== null;
 
@@ -235,7 +246,7 @@ export default function ServerMonServicesCard({ onOpenHistory }: ServerMonServic
                       {autoLoading
                         ? 'Loading schedule'
                         : autoSettings?.enabled
-                          ? `Enabled at ${autoSettings.time}`
+                          ? `Enabled at ${formatScheduleTime(autoSettings.time)}`
                           : 'Disabled'}
                     </p>
                   </div>
@@ -271,7 +282,11 @@ export default function ServerMonServicesCard({ onOpenHistory }: ServerMonServic
               </div>
 
               <div className="grid grid-cols-2 gap-2 p-3">
-                <ScheduleStat label="Time" value={autoSettings?.time ?? '03:00'} mono />
+                <ScheduleStat
+                  label="Time"
+                  value={formatScheduleTime(autoSettings?.time ?? '03:00')}
+                  mono
+                />
                 <ScheduleStat
                   label="Timezone"
                   value={getTimezoneLabel(autoSettings?.timezone ?? 'UTC')}
@@ -462,20 +477,50 @@ export default function ServerMonServicesCard({ onOpenHistory }: ServerMonServic
                 />
               </label>
 
-              <label className="block space-y-2">
+              <div className="space-y-2">
                 <span className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
                   Daily time
                 </span>
-                <input
-                  aria-label="Daily time"
-                  type="time"
-                  value={scheduleForm.time}
-                  onChange={(event) =>
-                    setScheduleForm((form) => ({ ...form, time: event.target.value }))
-                  }
-                  className="h-11 w-full rounded-xl border border-input bg-background px-3 text-sm font-semibold text-foreground outline-none transition-all focus:ring-2 focus:ring-primary/20"
-                />
-              </label>
+                <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_96px] gap-2">
+                  <select
+                    aria-label="Daily hour"
+                    value={scheduleTimeParts.hour}
+                    onChange={(event) =>
+                      updateScheduleTime({ hour: event.target.value as TimeParts['hour'] })
+                    }
+                    className="h-11 min-w-0 rounded-xl border border-input bg-background px-3 text-sm font-semibold text-foreground outline-none transition-all focus:ring-2 focus:ring-primary/20"
+                  >
+                    {HOUR_OPTIONS.map((hour) => (
+                      <option key={hour} value={hour}>
+                        {hour}
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    aria-label="Daily minute"
+                    value={scheduleTimeParts.minute}
+                    onChange={(event) => updateScheduleTime({ minute: event.target.value })}
+                    className="h-11 min-w-0 rounded-xl border border-input bg-background px-3 text-sm font-semibold text-foreground outline-none transition-all focus:ring-2 focus:ring-primary/20"
+                  >
+                    {minuteOptions.map((minute) => (
+                      <option key={minute} value={minute}>
+                        {minute}
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    aria-label="Daily period"
+                    value={scheduleTimeParts.period}
+                    onChange={(event) =>
+                      updateScheduleTime({ period: event.target.value as TimeParts['period'] })
+                    }
+                    className="h-11 min-w-0 rounded-xl border border-input bg-background px-3 text-sm font-semibold text-foreground outline-none transition-all focus:ring-2 focus:ring-primary/20"
+                  >
+                    <option value="AM">AM</option>
+                    <option value="PM">PM</option>
+                  </select>
+                </div>
+              </div>
 
               <label className="block space-y-2">
                 <span className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
@@ -574,6 +619,42 @@ function getTimezoneOptions(...timezones: Array<string | null | undefined>) {
     options.push({ value: timezone, label: timezone, description: 'Custom timezone' });
   }
   return options;
+}
+
+function getMinuteOptions(currentMinute: string): string[] {
+  return MINUTE_OPTIONS.includes(currentMinute)
+    ? MINUTE_OPTIONS
+    : [...MINUTE_OPTIONS, currentMinute].sort();
+}
+
+type TimeParts = {
+  hour: string;
+  minute: string;
+  period: 'AM' | 'PM';
+};
+
+function parseScheduleTime(time: string): TimeParts {
+  const [hourText = '03', minuteText = '00'] = time.split(':');
+  const hour24 = Number.parseInt(hourText, 10);
+  const period = hour24 >= 12 ? 'PM' : 'AM';
+  const hour12 = hour24 % 12 || 12;
+  return {
+    hour: String(hour12).padStart(2, '0'),
+    minute: minuteText.padStart(2, '0'),
+    period,
+  };
+}
+
+function buildScheduleTime(parts: TimeParts): string {
+  const hour12 = Number.parseInt(parts.hour, 10);
+  const hour24 =
+    parts.period === 'AM' ? (hour12 === 12 ? 0 : hour12) : hour12 === 12 ? 12 : hour12 + 12;
+  return `${String(hour24).padStart(2, '0')}:${parts.minute}`;
+}
+
+function formatScheduleTime(time: string): string {
+  const parts = parseScheduleTime(time);
+  return `${parts.hour}:${parts.minute} ${parts.period}`;
 }
 
 function formatNextRun(value?: string | null): string {
