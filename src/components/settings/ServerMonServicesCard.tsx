@@ -295,24 +295,6 @@ export default function ServerMonServicesCard({ onOpenHistory }: ServerMonServic
                 <ScheduleStat label="Retry" value="2h, once" />
               </div>
 
-              <div className="mx-3 mb-3 rounded-lg bg-muted/40 px-3 py-2 text-xs leading-relaxed text-muted-foreground">
-                Checks upstream changes first. Clean repos are recorded as skipped with no restart.
-              </div>
-
-              <div className="grid grid-cols-2 gap-2 px-3 pb-3">
-                {['Check app', 'Update app', 'Check agent', 'Update agent'].map((step, index) => (
-                  <div
-                    key={step}
-                    className="flex min-h-[44px] items-center gap-2 rounded-lg border border-border bg-card px-2 text-xs font-semibold text-foreground"
-                  >
-                    <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[10px] font-black text-primary">
-                      {index + 1}
-                    </span>
-                    {step}
-                  </div>
-                ))}
-              </div>
-
               <div className="border-t border-border p-3">
                 <Button
                   variant="outline"

@@ -426,6 +426,11 @@ describe('SettingsPage', () => {
     await waitFor(() => expect(screen.getByText('Scheduled updater')).toBeDefined());
     expect(screen.getByText('Enabled at 03:00 AM')).toBeDefined();
     expect(screen.getByText('IST')).toBeDefined();
+    expect(screen.queryByText('Check app')).toBeNull();
+    expect(screen.queryByText('Update app')).toBeNull();
+    expect(screen.queryByText('Check agent')).toBeNull();
+    expect(screen.queryByText('Update agent')).toBeNull();
+    expect(screen.queryByText(/Checks upstream changes first/i)).toBeNull();
     await waitFor(() => expect(screen.getByText('Agent Installed')).toBeDefined());
     expect(screen.getByText('/opt/servermon-agent/source')).toBeDefined();
   });
