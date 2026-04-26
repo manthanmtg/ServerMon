@@ -1,8 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
-import PortsPage from './PortsPage';
+import PortsPage, { getFilteredListeningPorts } from './PortsPage';
+import type { PortsSnapshot } from '../types';
 
-const mockSnapshot = {
+const mockSnapshot: PortsSnapshot = {
   timestamp: new Date().toISOString(),
   source: 'live',
   listening: [
@@ -176,5 +177,18 @@ describe('PortsPage', () => {
       expect(screen.getByText('22')).toBeTruthy();
       expect(screen.getAllByText('ALLOW').length).toBeGreaterThanOrEqual(1);
     });
+  });
+
+  it('filters and sorts listening ports without mutating the snapshot', () => {
+    const listening: PortsSnapshot['listening'] = [
+      { ...mockSnapshot.listening[0], port: 443, process: 'nginx' },
+      { ...mockSnapshot.listening[1], port: 53, process: 'systemd-resolved' },
+      { ...mockSnapshot.listening[0], port: 80, process: 'caddy' },
+    ];
+
+    const filtered = getFilteredListeningPorts(listening, 'tcp', 'http');
+
+    expect(filtered.map((port) => port.port)).toEqual([80, 443]);
+    expect(listening.map((port) => port.port)).toEqual([443, 53, 80]);
   });
 });

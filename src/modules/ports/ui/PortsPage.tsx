@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Cable,
   CheckCircle,
@@ -17,6 +17,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import type { PortsSnapshot, PortCheckResult } from '../types';
+
+type ProtocolFilter = 'all' | 'tcp' | 'udp';
 
 const WELL_KNOWN: Record<number, string> = {
   21: 'FTP',
@@ -50,11 +52,35 @@ function isValidPortValue(value: string): boolean {
   return Number.isInteger(port) && port >= 1 && port <= 65535;
 }
 
+export function getFilteredListeningPorts(
+  listening: PortsSnapshot['listening'],
+  protocolFilter: ProtocolFilter,
+  search: string
+): PortsSnapshot['listening'] {
+  const query = search.trim().toLowerCase();
+
+  return listening
+    .filter((port) => {
+      if (protocolFilter === 'tcp' && !port.protocol.startsWith('tcp')) return false;
+      if (protocolFilter === 'udp' && !port.protocol.startsWith('udp')) return false;
+      if (!query) return true;
+
+      return (
+        port.port.toString().includes(query) ||
+        port.process.toLowerCase().includes(query) ||
+        port.address.toLowerCase().includes(query) ||
+        (port.pid?.toString() || '').includes(query) ||
+        (WELL_KNOWN[port.port] || '').toLowerCase().includes(query)
+      );
+    })
+    .sort((left, right) => left.port - right.port);
+}
+
 export default function PortsPage() {
   const [snapshot, setSnapshot] = useState<PortsSnapshot | null>(null);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [protocolFilter, setProtocolFilter] = useState<'all' | 'tcp' | 'udp'>('all');
+  const [protocolFilter, setProtocolFilter] = useState<ProtocolFilter>('all');
   const [checkPort, setCheckPort] = useState('');
   const [checkResult, setCheckResult] = useState<PortCheckResult | null>(null);
   const [checking, setChecking] = useState(false);
@@ -138,22 +164,10 @@ export default function PortsPage() {
     };
   }, [checkPort]);
 
-  const filtered =
-    snapshot?.listening.filter((p) => {
-      if (protocolFilter === 'tcp' && !p.protocol.startsWith('tcp')) return false;
-      if (protocolFilter === 'udp' && !p.protocol.startsWith('udp')) return false;
-      if (search) {
-        const q = search.toLowerCase();
-        return (
-          p.port.toString().includes(q) ||
-          p.process.toLowerCase().includes(q) ||
-          p.address.toLowerCase().includes(q) ||
-          (p.pid?.toString() || '').includes(q) ||
-          (WELL_KNOWN[p.port] || '').toLowerCase().includes(q)
-        );
-      }
-      return true;
-    }) ?? [];
+  const filtered = useMemo(
+    () => getFilteredListeningPorts(snapshot?.listening ?? [], protocolFilter, search),
+    [snapshot?.listening, protocolFilter, search]
+  );
 
   if (loading && !snapshot) {
     return (
@@ -355,46 +369,44 @@ export default function PortsPage() {
                     </td>
                   </tr>
                 ) : (
-                  filtered
-                    .sort((a, b) => a.port - b.port)
-                    .map((p, i) => (
-                      <tr
-                        key={`${p.protocol}-${p.port}-${p.address}-${i}`}
-                        className="border-b border-border/50 hover:bg-accent/30 transition-colors"
-                      >
-                        <td className="px-4 py-2.5 font-mono font-semibold">{p.port}</td>
-                        <td className="px-4 py-2.5">
-                          {WELL_KNOWN[p.port] ? (
-                            <Badge variant="secondary" className="text-[10px]">
-                              {WELL_KNOWN[p.port]}
-                            </Badge>
-                          ) : (
-                            <span className="text-muted-foreground">-</span>
-                          )}
-                        </td>
-                        <td className="px-4 py-2.5">
-                          <Badge
-                            variant={p.protocol.startsWith('tcp') ? 'success' : 'warning'}
-                            className="text-[10px]"
-                          >
-                            {p.protocol.toUpperCase()}
-                          </Badge>
-                        </td>
-                        <td className="px-4 py-2.5 font-mono text-muted-foreground">
-                          {p.address || '*'}
-                        </td>
-                        <td className="px-4 py-2.5 font-medium">{p.process || '-'}</td>
-                        <td className="px-4 py-2.5 font-mono text-muted-foreground">
-                          {p.pid ?? '-'}
-                        </td>
-                        <td className="px-4 py-2.5 text-muted-foreground">{p.user || '-'}</td>
-                        <td className="px-4 py-2.5">
+                  filtered.map((p, i) => (
+                    <tr
+                      key={`${p.protocol}-${p.port}-${p.address}-${i}`}
+                      className="border-b border-border/50 hover:bg-accent/30 transition-colors"
+                    >
+                      <td className="px-4 py-2.5 font-mono font-semibold">{p.port}</td>
+                      <td className="px-4 py-2.5">
+                        {WELL_KNOWN[p.port] ? (
                           <Badge variant="secondary" className="text-[10px]">
-                            {p.state}
+                            {WELL_KNOWN[p.port]}
                           </Badge>
-                        </td>
-                      </tr>
-                    ))
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-2.5">
+                        <Badge
+                          variant={p.protocol.startsWith('tcp') ? 'success' : 'warning'}
+                          className="text-[10px]"
+                        >
+                          {p.protocol.toUpperCase()}
+                        </Badge>
+                      </td>
+                      <td className="px-4 py-2.5 font-mono text-muted-foreground">
+                        {p.address || '*'}
+                      </td>
+                      <td className="px-4 py-2.5 font-medium">{p.process || '-'}</td>
+                      <td className="px-4 py-2.5 font-mono text-muted-foreground">
+                        {p.pid ?? '-'}
+                      </td>
+                      <td className="px-4 py-2.5 text-muted-foreground">{p.user || '-'}</td>
+                      <td className="px-4 py-2.5">
+                        <Badge variant="secondary" className="text-[10px]">
+                          {p.state}
+                        </Badge>
+                      </td>
+                    </tr>
+                  ))
                 )}
               </tbody>
             </table>
