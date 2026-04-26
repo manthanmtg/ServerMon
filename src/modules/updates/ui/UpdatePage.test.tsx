@@ -149,6 +149,21 @@ describe('UpdatePage', () => {
     );
   });
 
+  it('announces the history panel expanded state', async () => {
+    await renderPage();
+    const historyButton = screen.getByRole('button', { name: 'History' });
+
+    expect(historyButton.getAttribute('aria-expanded')).toBe('false');
+    expect(historyButton.getAttribute('aria-controls')).toBe('update-run-history');
+
+    await act(async () => {
+      fireEvent.click(historyButton);
+    });
+
+    expect(historyButton.getAttribute('aria-expanded')).toBe('true');
+    expect(screen.getByTestId('update-run-history').id).toBe('update-run-history');
+  });
+
   it('opens confirmation modal when "Update All" is clicked', async () => {
     await renderPage();
 
@@ -224,6 +239,69 @@ describe('UpdatePage', () => {
     await waitFor(() => {
       expect(screen.getByText('Installing Updates...')).toBeDefined();
     });
+  });
+
+  it('labels the update log auto-scroll control with its pressed state', async () => {
+    global.fetch = vi.fn().mockImplementation((url: string, opts?: RequestInit) => {
+      if (url === '/api/modules/updates/run' && opts?.method === 'POST') {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({ success: true, runId: 'test-123', pid: 9999 }),
+        } as Response);
+      }
+      if (typeof url === 'string' && url.startsWith('/api/modules/updates/run?runId=')) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            runId: 'test-123',
+            status: 'running',
+            pid: 9999,
+            startedAt: new Date().toISOString(),
+            exitCode: null,
+            timestamp: new Date().toISOString(),
+            logContent: 'Reading package lists...\nInstalling nginx...',
+          }),
+        } as Response);
+      }
+      if (url === '/api/modules/updates/run') {
+        return Promise.resolve({
+          ok: true,
+          json: async () => mockRunHistory,
+        } as Response);
+      }
+      return Promise.resolve({
+        ok: true,
+        json: async () => mockSnapshot,
+      } as Response);
+    });
+
+    await renderPage();
+
+    const updateButtons = screen.getAllByText('Update All');
+    await act(async () => {
+      fireEvent.click(updateButtons[0]);
+    });
+
+    const confirmButton = screen.getByText('Confirm');
+    await act(async () => {
+      fireEvent.click(confirmButton);
+    });
+
+    const autoScrollButton = await screen.findByRole('button', {
+      name: 'Disable update log auto-scroll',
+    });
+
+    expect(autoScrollButton.getAttribute('aria-pressed')).toBe('true');
+
+    await act(async () => {
+      fireEvent.click(autoScrollButton);
+    });
+
+    expect(
+      screen
+        .getByRole('button', { name: 'Enable update log auto-scroll' })
+        .getAttribute('aria-pressed')
+    ).toBe('false');
   });
 
   it('renders "System is Secure" when no updates are available', async () => {
