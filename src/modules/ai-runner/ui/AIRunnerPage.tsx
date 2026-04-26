@@ -27,6 +27,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import ConfirmationModal from '@/components/ui/ConfirmationModal';
 import { PageSkeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/components/ui/toast';
 import { cn } from '@/lib/utils';
@@ -136,6 +137,11 @@ interface AIRunnerRuntimeDiagnostics {
     platform?: string;
   };
 }
+
+type LinkedDeleteTarget =
+  | { kind: 'prompt'; id: string; name: string; scheduleCount: number }
+  | { kind: 'profile'; id: string; name: string; scheduleCount: number }
+  | { kind: 'workspace'; id: string; name: string; scheduleCount: number };
 
 function getActiveScheduleRunLabel(run?: AIRunnerRunDTO | null): string | null {
   if (!run) return null;
@@ -273,6 +279,8 @@ export default function AIRunnerPage() {
   const [bundleMode, setBundleMode] = useState<'export' | 'import'>('export');
   const [scheduleModalOpen, setScheduleModalOpen] = useState(false);
   const [scheduleVisualizationOpen, setScheduleVisualizationOpen] = useState(false);
+  const [linkedDeleteTarget, setLinkedDeleteTarget] = useState<LinkedDeleteTarget | null>(null);
+  const [linkedDeletePending, setLinkedDeletePending] = useState(false);
   const [scheduleVisualizationProfileId, setScheduleVisualizationProfileId] = useState<
     string | null
   >(null);
@@ -751,6 +759,22 @@ export default function AIRunnerPage() {
     () => Object.fromEntries(schedules.map((schedule) => [schedule._id, schedule])),
     [schedules]
   );
+  const getLinkedScheduleCount = (kind: LinkedDeleteTarget['kind'], id: string): number => {
+    if (kind === 'prompt') {
+      return schedules.filter((schedule) => schedule.promptId === id).length;
+    }
+    if (kind === 'profile') {
+      return schedules.filter((schedule) => schedule.agentProfileId === id).length;
+    }
+    return schedules.filter((schedule) => schedule.workspaceId === id).length;
+  };
+  const getScheduleMissingReferences = (schedule: AIRunnerScheduleDTO): string[] => {
+    const missing: string[] = [];
+    if (!promptMap[schedule.promptId]) missing.push('prompt');
+    if (!profileMap[schedule.agentProfileId]) missing.push('profile');
+    if (schedule.workspaceId && !workspaceMap[schedule.workspaceId]) missing.push('workspace');
+    return missing;
+  };
   const filteredPrompts = useMemo(() => prompts, [prompts]);
   const activeWorkspaceCount = workspaces.filter((workspace) => workspace.enabled).length;
   const blockingWorkspaceCount = workspaces.filter((workspace) => workspace.blocking).length;
@@ -1256,21 +1280,64 @@ export default function AIRunnerPage() {
     await loadAll();
   };
 
-  const deleteProfile = async (id: string) => {
-    const response = await fetch(`/api/modules/ai-runner/profiles/${id}`, { method: 'DELETE' });
+  const executeLinkedDelete = async (target: LinkedDeleteTarget, force = false) => {
+    const path =
+      target.kind === 'prompt' ? 'prompts' : target.kind === 'profile' ? 'profiles' : 'workspaces';
+    const response = await fetch(
+      `/api/modules/ai-runner/${path}/${target.id}${force ? '?force=true' : ''}`,
+      { method: 'DELETE' }
+    );
     const payload = await response.json();
     if (!response.ok) {
       toast({
         title: 'Delete failed',
-        description: payload.error || 'Unable to delete profile',
+        description: payload.error || `Unable to delete ${target.kind}`,
         variant: 'destructive',
       });
       return;
     }
-    if (editingProfileId === id) {
+    if (target.kind === 'profile' && editingProfileId === target.id) {
       closeProfileModal();
     }
+    if (target.kind === 'prompt' && editingPromptId === target.id) {
+      closePromptModal();
+    }
+    if (target.kind === 'workspace' && editingWorkspaceId === target.id) {
+      closeWorkspaceModal();
+    }
+    if (force && target.scheduleCount > 0) {
+      toast({
+        title: 'Schedules paused',
+        description: `${target.scheduleCount} linked schedule${target.scheduleCount === 1 ? '' : 's'} must be repaired before being enabled again.`,
+        variant: 'warning',
+      });
+    }
     await loadAll();
+  };
+
+  const requestLinkedDelete = (target: Omit<LinkedDeleteTarget, 'scheduleCount'>) => {
+    const scheduleCount = getLinkedScheduleCount(target.kind, target.id);
+    if (scheduleCount > 0) {
+      setLinkedDeleteTarget({ ...target, scheduleCount });
+      return;
+    }
+    void executeLinkedDelete({ ...target, scheduleCount: 0 });
+  };
+
+  const confirmLinkedDelete = async () => {
+    if (!linkedDeleteTarget) return;
+    setLinkedDeletePending(true);
+    try {
+      await executeLinkedDelete(linkedDeleteTarget, true);
+      setLinkedDeleteTarget(null);
+    } finally {
+      setLinkedDeletePending(false);
+    }
+  };
+
+  const deleteProfile = async (id: string) => {
+    const profile = profileMap[id];
+    requestLinkedDelete({ kind: 'profile', id, name: profile?.name ?? 'this profile' });
   };
 
   const submitPrompt = async () => {
@@ -1307,20 +1374,8 @@ export default function AIRunnerPage() {
   };
 
   const deletePrompt = async (id: string) => {
-    const response = await fetch(`/api/modules/ai-runner/prompts/${id}`, { method: 'DELETE' });
-    const payload = await response.json();
-    if (!response.ok) {
-      toast({
-        title: 'Delete failed',
-        description: payload.error || 'Unable to delete prompt',
-        variant: 'destructive',
-      });
-      return;
-    }
-    if (editingPromptId === id) {
-      closePromptModal();
-    }
-    await loadAll();
+    const prompt = promptMap[id];
+    requestLinkedDelete({ kind: 'prompt', id, name: prompt?.name ?? 'this prompt' });
   };
 
   const submitPromptTemplate = async () => {
@@ -1400,17 +1455,8 @@ export default function AIRunnerPage() {
   };
 
   const deleteWorkspace = async (id: string) => {
-    const response = await fetch(`/api/modules/ai-runner/workspaces/${id}`, { method: 'DELETE' });
-    const payload = await response.json();
-    if (!response.ok) {
-      toast({
-        title: 'Delete failed',
-        description: payload.error || 'Unable to delete workspace',
-        variant: 'destructive',
-      });
-      return;
-    }
-    await loadAll();
+    const workspace = workspaceMap[id];
+    requestLinkedDelete({ kind: 'workspace', id, name: workspace?.name ?? 'this workspace' });
   };
 
   const submitSchedule = async () => {
@@ -2444,134 +2490,162 @@ export default function AIRunnerPage() {
                   </div>
                 </CardHeader>
                 <CardContent className="pt-2">
-                  {sortedSchedules.map((schedule, index) => (
-                    <div
-                      key={schedule._id}
-                      className={cn(
-                        'border-b border-border/60 px-5 py-4 last:border-b-0',
-                        schedule.enabled ? 'bg-card/40' : 'bg-muted/10'
-                      )}
-                    >
-                      <div className="flex flex-col gap-4 xl:grid xl:grid-cols-[minmax(0,1fr)_auto] xl:gap-x-6 xl:gap-y-3">
-                        <div className="min-w-0 space-y-2">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <Badge variant={schedule.enabled ? 'success' : 'warning'}>
-                              {schedule.enabled ? 'Enabled' : 'Paused'}
-                            </Badge>
-                            <Badge variant="outline">
-                              {getScheduleModeLabel(schedule.cronExpression)}
-                            </Badge>
-                            {schedule.lastRunStatus ? (
-                              <Badge variant={getScheduleStatusVariant(schedule.lastRunStatus)}>
-                                {schedule.lastRunStatus}
+                  {sortedSchedules.map((schedule, index) => {
+                    const missingReferences = getScheduleMissingReferences(schedule);
+                    const hasMissingReferences = missingReferences.length > 0;
+                    const canStartSchedule = !hasMissingReferences;
+                    const canToggleSchedule = schedule.enabled || !hasMissingReferences;
+                    const missingReferenceLabel = missingReferences.join(', ');
+
+                    return (
+                      <div
+                        key={schedule._id}
+                        className={cn(
+                          'border-b border-border/60 px-5 py-4 last:border-b-0',
+                          schedule.enabled ? 'bg-card/40' : 'bg-muted/10'
+                        )}
+                      >
+                        <div className="flex flex-col gap-4 xl:grid xl:grid-cols-[minmax(0,1fr)_auto] xl:gap-x-6 xl:gap-y-3">
+                          <div className="min-w-0 space-y-2">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <Badge variant={schedule.enabled ? 'success' : 'warning'}>
+                                {schedule.enabled ? 'Enabled' : 'Paused'}
                               </Badge>
-                            ) : null}
-                            <span className="text-xs text-muted-foreground">#{index + 1}</span>
+                              {hasMissingReferences ? (
+                                <Badge variant="destructive">Missing {missingReferenceLabel}</Badge>
+                              ) : null}
+                              <Badge variant="outline">
+                                {getScheduleModeLabel(schedule.cronExpression)}
+                              </Badge>
+                              {schedule.lastRunStatus ? (
+                                <Badge variant={getScheduleStatusVariant(schedule.lastRunStatus)}>
+                                  {schedule.lastRunStatus}
+                                </Badge>
+                              ) : null}
+                              <span className="text-xs text-muted-foreground">#{index + 1}</span>
+                            </div>
+                            <div>
+                              <h3 className="text-base font-semibold tracking-tight">
+                                {schedule.name}
+                              </h3>
+                              <p className="mt-1 text-sm text-muted-foreground">
+                                {humanizeCron(schedule.cronExpression)}
+                              </p>
+                            </div>
                           </div>
-                          <div>
-                            <h3 className="text-base font-semibold tracking-tight">
-                              {schedule.name}
-                            </h3>
-                            <p className="mt-1 text-sm text-muted-foreground">
-                              {humanizeCron(schedule.cronExpression)}
-                            </p>
+                          <div className="flex flex-wrap gap-2 xl:justify-end">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => void duplicateSchedule(schedule)}
+                              title="Duplicate Schedule"
+                            >
+                              <Copy className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              onClick={() => void runScheduleNow(schedule)}
+                              disabled={!canStartSchedule}
+                              title={
+                                canStartSchedule
+                                  ? 'Run schedule now'
+                                  : `Repair missing ${missingReferenceLabel} before running`
+                              }
+                            >
+                              <Play className="w-4 h-4" />
+                              Run Now
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => void toggleSchedule(schedule._id)}
+                              disabled={!canToggleSchedule}
+                              title={
+                                canToggleSchedule
+                                  ? schedule.enabled
+                                    ? 'Pause schedule'
+                                    : 'Enable schedule'
+                                  : `Repair missing ${missingReferenceLabel} before enabling`
+                              }
+                            >
+                              <Clock3 className="w-4 h-4" />
+                              {schedule.enabled ? 'Pause' : 'Enable'}
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => selectScheduleForEdit(schedule)}
+                            >
+                              Edit
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              onClick={() => void deleteSchedule(schedule._id)}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                              Delete
+                            </Button>
                           </div>
-                        </div>
-                        <div className="flex flex-wrap gap-2 xl:justify-end">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => void duplicateSchedule(schedule)}
-                            title="Duplicate Schedule"
-                          >
-                            <Copy className="w-4 h-4" />
-                          </Button>
-                          <Button size="sm" onClick={() => void runScheduleNow(schedule)}>
-                            <Play className="w-4 h-4" />
-                            Run Now
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => void toggleSchedule(schedule._id)}
-                          >
-                            <Clock3 className="w-4 h-4" />
-                            {schedule.enabled ? 'Pause' : 'Enable'}
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => selectScheduleForEdit(schedule)}
-                          >
-                            Edit
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="destructive"
-                            onClick={() => void deleteSchedule(schedule._id)}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                            Delete
-                          </Button>
-                        </div>
-                        <div className="grid gap-x-6 gap-y-3 text-sm sm:grid-cols-2 xl:col-span-2 xl:grid-cols-[minmax(0,1.25fr)_minmax(0,1.15fr)_minmax(150px,0.9fr)_minmax(150px,0.9fr)_minmax(0,1.5fr)]">
-                          <div className="min-w-0">
-                            <span className="text-xs text-muted-foreground">Prompt</span>
-                            <p className="mt-1 font-medium leading-6 whitespace-normal break-words">
-                              {promptMap[schedule.promptId]?.name || 'Unknown prompt'}
-                            </p>
-                          </div>
-                          <div className="min-w-0">
-                            <span className="text-xs text-muted-foreground">Profile</span>
-                            <p className="mt-1 font-medium leading-6 whitespace-normal break-words">
-                              {profileMap[schedule.agentProfileId]?.name || 'Unknown profile'}
-                            </p>
-                          </div>
-                          <div className="min-w-0">
-                            <span className="text-xs text-muted-foreground">Next launch</span>
-                            <p className="mt-1 font-medium">
-                              {formatScheduleDate(schedule.nextRunTime)}
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                              {getActiveScheduleRunLabel(activeScheduleRunMap[schedule._id]) ??
-                                formatCountdown(schedule.nextRunTime, liveNow)}
-                            </p>
-                          </div>
-                          <div className="min-w-0">
-                            <span className="text-xs text-muted-foreground">Last run</span>
-                            <p className="mt-1 font-medium">
-                              {schedule.lastRunAt
-                                ? formatScheduleDate(schedule.lastRunAt)
-                                : 'No runs yet'}
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                              {schedule.lastRunAt
-                                ? formatRelative(schedule.lastRunAt)
-                                : 'Fresh automation'}
-                            </p>
-                          </div>
-                          <div className="min-w-0">
-                            <span className="text-xs text-muted-foreground">Workspace</span>
-                            <p className="mt-1 text-sm font-medium">
-                              {schedule.workspaceId
-                                ? workspaceMap[schedule.workspaceId]?.name || 'Unknown workspace'
-                                : 'Custom path'}
-                            </p>
-                            <p className="mt-1 font-mono text-xs leading-5 whitespace-normal break-all">
-                              {schedule.workingDirectory || 'No directory'}
-                            </p>
-                            <p className="mt-1 text-xs text-muted-foreground">
-                              {schedule.timeout} min runtime
-                              {' · '}
-                              {schedule.retries === 0
-                                ? 'no retries'
-                                : `${schedule.retries} retr${schedule.retries === 1 ? 'y' : 'ies'}`}
-                            </p>
+                          <div className="grid gap-x-6 gap-y-3 text-sm sm:grid-cols-2 xl:col-span-2 xl:grid-cols-[minmax(0,1.25fr)_minmax(0,1.15fr)_minmax(150px,0.9fr)_minmax(150px,0.9fr)_minmax(0,1.5fr)]">
+                            <div className="min-w-0">
+                              <span className="text-xs text-muted-foreground">Prompt</span>
+                              <p className="mt-1 font-medium leading-6 whitespace-normal break-words">
+                                {promptMap[schedule.promptId]?.name || 'Unknown prompt'}
+                              </p>
+                            </div>
+                            <div className="min-w-0">
+                              <span className="text-xs text-muted-foreground">Profile</span>
+                              <p className="mt-1 font-medium leading-6 whitespace-normal break-words">
+                                {profileMap[schedule.agentProfileId]?.name || 'Unknown profile'}
+                              </p>
+                            </div>
+                            <div className="min-w-0">
+                              <span className="text-xs text-muted-foreground">Next launch</span>
+                              <p className="mt-1 font-medium">
+                                {formatScheduleDate(schedule.nextRunTime)}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                {getActiveScheduleRunLabel(activeScheduleRunMap[schedule._id]) ??
+                                  formatCountdown(schedule.nextRunTime, liveNow)}
+                              </p>
+                            </div>
+                            <div className="min-w-0">
+                              <span className="text-xs text-muted-foreground">Last run</span>
+                              <p className="mt-1 font-medium">
+                                {schedule.lastRunAt
+                                  ? formatScheduleDate(schedule.lastRunAt)
+                                  : 'No runs yet'}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                {schedule.lastRunAt
+                                  ? formatRelative(schedule.lastRunAt)
+                                  : 'Fresh automation'}
+                              </p>
+                            </div>
+                            <div className="min-w-0">
+                              <span className="text-xs text-muted-foreground">Workspace</span>
+                              <p className="mt-1 text-sm font-medium">
+                                {schedule.workspaceId
+                                  ? workspaceMap[schedule.workspaceId]?.name || 'Unknown workspace'
+                                  : 'Custom path'}
+                              </p>
+                              <p className="mt-1 font-mono text-xs leading-5 whitespace-normal break-all">
+                                {schedule.workingDirectory || 'No directory'}
+                              </p>
+                              <p className="mt-1 text-xs text-muted-foreground">
+                                {schedule.timeout} min runtime
+                                {' · '}
+                                {schedule.retries === 0
+                                  ? 'no retries'
+                                  : `${schedule.retries} retr${schedule.retries === 1 ? 'y' : 'ies'}`}
+                              </p>
+                            </div>
                           </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
 
                   {sortedSchedules.length === 0 && (
                     <div className="rounded-[28px] border border-dashed border-primary/25 bg-gradient-to-br from-primary/5 via-background to-warning/5 px-6 py-16 text-center">
@@ -4788,6 +4862,23 @@ export default function AIRunnerPage() {
         promptMap={promptMap}
         profileMap={profileMap}
         scopeLabel={scheduleVisualizationProfile?.name}
+      />
+
+      <ConfirmationModal
+        isOpen={Boolean(linkedDeleteTarget)}
+        onConfirm={() => void confirmLinkedDelete()}
+        onCancel={() => setLinkedDeleteTarget(null)}
+        title="Delete linked item?"
+        message={
+          linkedDeleteTarget
+            ? `${linkedDeleteTarget.name} is used by ${linkedDeleteTarget.scheduleCount} schedule${linkedDeleteTarget.scheduleCount === 1 ? '' : 's'}.`
+            : ''
+        }
+        description="Deleting it will pause the linked schedules. They cannot be enabled again until their missing prompt, profile, or workspace is replaced."
+        confirmLabel="Pause and Delete"
+        cancelLabel="Keep"
+        variant="warning"
+        isLoading={linkedDeletePending}
       />
 
       {historyDetailOpen && selectedRun && (

@@ -29,13 +29,15 @@ export async function PUT(request: NextRequest, context: { params: Promise<{ id:
   }
 }
 
-export async function DELETE(_request: NextRequest, context: { params: Promise<{ id: string }> }) {
+export async function DELETE(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   const unauthorized = await requireSession();
   if (unauthorized) return unauthorized;
 
   try {
     const { id } = await context.params;
-    const deleted = await getAIRunnerService().deleteWorkspace(id);
+    const deleted = await getAIRunnerService().deleteWorkspace(id, {
+      force: request.nextUrl.searchParams.get('force') === 'true',
+    });
     if (!deleted) return NextResponse.json({ error: 'Workspace not found' }, { status: 404 });
     return NextResponse.json({ ok: true });
   } catch (error) {

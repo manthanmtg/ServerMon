@@ -159,6 +159,25 @@ describe('AIRunnerService', () => {
       (AIRunnerSchedule.countDocuments as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(1);
       await expect(service.deleteProfile('1')).rejects.toThrow('referenced by schedules');
     });
+
+    it('pauses linked schedules when force deleting a profile in use', async () => {
+      (AIRunnerSchedule.countDocuments as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(2);
+      (AIRunnerSchedule.updateMany as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
+        modifiedCount: 2,
+      });
+      (AIRunnerProfile.findByIdAndDelete as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
+        _id: '1',
+      });
+
+      const result = await service.deleteProfile('1', { force: true });
+
+      expect(result).toBe(true);
+      expect(AIRunnerSchedule.updateMany).toHaveBeenCalledWith(
+        { agentProfileId: '1' },
+        { $set: { enabled: false }, $unset: { nextRunTime: '' } }
+      );
+      expect(AIRunnerProfile.findByIdAndDelete).toHaveBeenCalledWith('1');
+    });
   });
 
   describe('Prompts', () => {
@@ -184,6 +203,25 @@ describe('AIRunnerService', () => {
       });
       const result = await service.createPrompt(input);
       expect(result.name).toBe('Prompt');
+    });
+
+    it('pauses linked schedules when force deleting a prompt in use', async () => {
+      (AIRunnerSchedule.countDocuments as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(1);
+      (AIRunnerSchedule.updateMany as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
+        modifiedCount: 1,
+      });
+      (AIRunnerPrompt.findByIdAndDelete as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
+        _id: 'prompt-1',
+      });
+
+      const result = await service.deletePrompt('prompt-1', { force: true });
+
+      expect(result).toBe(true);
+      expect(AIRunnerSchedule.updateMany).toHaveBeenCalledWith(
+        { promptId: 'prompt-1' },
+        { $set: { enabled: false }, $unset: { nextRunTime: '' } }
+      );
+      expect(AIRunnerPrompt.findByIdAndDelete).toHaveBeenCalledWith('prompt-1');
     });
   });
 
@@ -221,6 +259,55 @@ describe('AIRunnerService', () => {
       expect(ensureAIRunnerSupervisor).toHaveBeenCalled();
     });
 
+    it('does not enable a schedule when its prompt was deleted', async () => {
+      const mockSchedule = {
+        _id: 'schedule-1',
+        promptId: 'missing-prompt',
+        agentProfileId: 'profile-1',
+        enabled: false,
+        cronExpression: '* * * * *',
+        save: vi.fn().mockResolvedValue(true),
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+      (AIRunnerSchedule.findById as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(
+        mockSchedule
+      );
+      (AIRunnerPrompt.findById as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(null);
+
+      await expect(service.toggleSchedule('schedule-1')).rejects.toThrow('Prompt is not available');
+
+      expect(mockSchedule.save).not.toHaveBeenCalled();
+      expect(ensureAIRunnerSupervisor).not.toHaveBeenCalled();
+    });
+
+    it('does not enable a schedule when its profile was deleted', async () => {
+      const mockSchedule = {
+        _id: 'schedule-1',
+        promptId: 'prompt-1',
+        agentProfileId: 'missing-profile',
+        enabled: false,
+        cronExpression: '* * * * *',
+        save: vi.fn().mockResolvedValue(true),
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+      (AIRunnerSchedule.findById as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(
+        mockSchedule
+      );
+      (AIRunnerPrompt.findById as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
+        _id: 'prompt-1',
+      });
+      (AIRunnerProfile.findById as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(null);
+
+      await expect(service.toggleSchedule('schedule-1')).rejects.toThrow(
+        'Profile is not available'
+      );
+
+      expect(mockSchedule.save).not.toHaveBeenCalled();
+      expect(ensureAIRunnerSupervisor).not.toHaveBeenCalled();
+    });
+
     it('returns persisted runner settings', async () => {
       (getAIRunnerSettings as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
         schedulesGloballyEnabled: false,
@@ -244,6 +331,42 @@ describe('AIRunnerService', () => {
         schedulesGloballyEnabled: false,
       });
       expect(ensureAIRunnerSupervisor).toHaveBeenCalled();
+    });
+  });
+
+  describe('Workspaces', () => {
+    it('pauses linked schedules when force deleting a workspace in use', async () => {
+      (AIRunnerSchedule.countDocuments as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(1);
+      (AIRunnerRun.countDocuments as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(0);
+      (AIRunnerSchedule.updateMany as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
+        modifiedCount: 1,
+      });
+      (
+        AIRunnerWorkspace.findByIdAndDelete as unknown as ReturnType<typeof vi.fn>
+      ).mockResolvedValue({
+        _id: 'workspace-1',
+      });
+
+      const result = await service.deleteWorkspace('workspace-1', { force: true });
+
+      expect(result).toBe(true);
+      expect(AIRunnerSchedule.updateMany).toHaveBeenCalledWith(
+        { workspaceId: 'workspace-1' },
+        { $set: { enabled: false }, $unset: { nextRunTime: '' } }
+      );
+      expect(AIRunnerWorkspace.findByIdAndDelete).toHaveBeenCalledWith('workspace-1');
+    });
+
+    it('does not force delete a workspace with active runs', async () => {
+      (AIRunnerSchedule.countDocuments as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(0);
+      (AIRunnerRun.countDocuments as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(1);
+
+      await expect(service.deleteWorkspace('workspace-1', { force: true })).rejects.toThrow(
+        'active runs'
+      );
+
+      expect(AIRunnerSchedule.updateMany).not.toHaveBeenCalled();
+      expect(AIRunnerWorkspace.findByIdAndDelete).not.toHaveBeenCalled();
     });
   });
 

@@ -20,6 +20,9 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
     return NextResponse.json(schedule);
   } catch (error) {
     log.error('Failed to toggle AI runner schedule', error);
-    return NextResponse.json({ error: 'Failed to toggle schedule' }, { status: 500 });
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Failed to toggle schedule' },
+      { status: 400 }
+    );
   }
 }

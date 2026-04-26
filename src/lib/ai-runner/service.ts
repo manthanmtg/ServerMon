@@ -133,6 +133,56 @@ function shouldOverwriteConflict(
   );
 }
 
+interface DeleteLinkedResourceOptions {
+  force?: boolean;
+}
+
+type ScheduleReferenceInput = {
+  promptId?: string;
+  agentProfileId?: string;
+  workspaceId?: string;
+};
+
+const PAUSE_LINKED_SCHEDULES_UPDATE = {
+  $set: { enabled: false },
+  $unset: { nextRunTime: '' },
+} as const;
+
+async function pauseLinkedSchedules(filter: Record<string, string>): Promise<void> {
+  await AIRunnerSchedule.updateMany(filter, PAUSE_LINKED_SCHEDULES_UPDATE);
+}
+
+async function resolveScheduleReferenceUpdates(
+  input: ScheduleReferenceInput
+): Promise<{ workingDirectory?: string }> {
+  if (!input.promptId) {
+    throw new Error('Prompt is not available');
+  }
+  const prompt = await AIRunnerPrompt.findById(input.promptId);
+  if (!prompt) {
+    throw new Error('Prompt is not available');
+  }
+
+  if (!input.agentProfileId) {
+    throw new Error('Profile is not available');
+  }
+  const profile = await AIRunnerProfile.findById(input.agentProfileId);
+  if (!profile || !profile.enabled) {
+    throw new Error('Profile is not available');
+  }
+
+  if (!input.workspaceId) {
+    return {};
+  }
+
+  const workspace = await AIRunnerWorkspace.findById(input.workspaceId);
+  if (!workspace || !workspace.enabled) {
+    throw new Error('Workspace is not available');
+  }
+
+  return { workingDirectory: workspace.path };
+}
+
 export interface AIRunnerServiceOptions {
   autoStartSupervisor?: boolean;
 }
@@ -202,11 +252,14 @@ export class AIRunnerService {
     return mapProfile(existing);
   }
 
-  async deleteProfile(id: string): Promise<boolean> {
+  async deleteProfile(id: string, options: DeleteLinkedResourceOptions = {}): Promise<boolean> {
     await connectDB();
     const inUseCount = await AIRunnerSchedule.countDocuments({ agentProfileId: id });
     if (inUseCount > 0) {
-      throw new Error('Cannot delete a profile that is still referenced by schedules');
+      if (!options.force) {
+        throw new Error('Cannot delete a profile that is still referenced by schedules');
+      }
+      await pauseLinkedSchedules({ agentProfileId: id });
     }
     const result = await AIRunnerProfile.findByIdAndDelete(id);
     return Boolean(result);
@@ -258,11 +311,14 @@ export class AIRunnerService {
     return doc ? mapPrompt(doc) : null;
   }
 
-  async deletePrompt(id: string): Promise<boolean> {
+  async deletePrompt(id: string, options: DeleteLinkedResourceOptions = {}): Promise<boolean> {
     await connectDB();
     const scheduleCount = await AIRunnerSchedule.countDocuments({ promptId: id });
     if (scheduleCount > 0) {
-      throw new Error('Cannot delete a prompt that is still referenced by schedules');
+      if (!options.force) {
+        throw new Error('Cannot delete a prompt that is still referenced by schedules');
+      }
+      await pauseLinkedSchedules({ promptId: id });
     }
     const result = await AIRunnerPrompt.findByIdAndDelete(id);
     return Boolean(result);
@@ -324,7 +380,7 @@ export class AIRunnerService {
     return doc ? mapWorkspace(doc) : null;
   }
 
-  async deleteWorkspace(id: string): Promise<boolean> {
+  async deleteWorkspace(id: string, options: DeleteLinkedResourceOptions = {}): Promise<boolean> {
     await connectDB();
     const [scheduleCount, activeRunCount] = await Promise.all([
       AIRunnerSchedule.countDocuments({ workspaceId: id }),
@@ -333,8 +389,14 @@ export class AIRunnerService {
         status: { $in: ['queued', 'running', 'retrying'] },
       }),
     ]);
-    if (scheduleCount > 0 || activeRunCount > 0) {
-      throw new Error('Cannot delete a workspace that is still referenced by schedules or runs');
+    if (activeRunCount > 0) {
+      throw new Error('Cannot delete a workspace while it has active runs');
+    }
+    if (scheduleCount > 0) {
+      if (!options.force) {
+        throw new Error('Cannot delete a workspace that is still referenced by schedules');
+      }
+      await pauseLinkedSchedules({ workspaceId: id });
     }
     const result = await AIRunnerWorkspace.findByIdAndDelete(id);
     return Boolean(result);
@@ -365,12 +427,13 @@ export class AIRunnerService {
   ): Promise<AIRunnerScheduleDTO> {
     await connectDB();
     const scheduleInput = { ...input };
-    if (scheduleInput.workspaceId) {
-      const workspace = await AIRunnerWorkspace.findById(scheduleInput.workspaceId);
-      if (!workspace || !workspace.enabled) {
-        throw new Error('Workspace is not available');
-      }
-      scheduleInput.workingDirectory = workspace.path;
+    const referenceUpdates = await resolveScheduleReferenceUpdates({
+      promptId: scheduleInput.promptId,
+      agentProfileId: scheduleInput.agentProfileId,
+      workspaceId: scheduleInput.workspaceId,
+    });
+    if (referenceUpdates.workingDirectory) {
+      scheduleInput.workingDirectory = referenceUpdates.workingDirectory;
     }
     const nextRunTime = input.enabled
       ? getNextRunTimeFromExpression(scheduleInput.cronExpression)
@@ -397,12 +460,20 @@ export class AIRunnerService {
     const cronExpression = input.cronExpression ?? schedule.cronExpression;
     const enabled = input.enabled ?? schedule.enabled;
     const updateInput = { ...input };
-    if (updateInput.workspaceId) {
-      const workspace = await AIRunnerWorkspace.findById(updateInput.workspaceId);
-      if (!workspace || !workspace.enabled) {
-        throw new Error('Workspace is not available');
+    const shouldValidateReferences =
+      enabled ||
+      Boolean(input.promptId) ||
+      Boolean(input.agentProfileId) ||
+      Boolean(input.workspaceId);
+    if (shouldValidateReferences) {
+      const referenceUpdates = await resolveScheduleReferenceUpdates({
+        promptId: input.promptId ?? stringifyId(schedule.promptId),
+        agentProfileId: input.agentProfileId ?? stringifyId(schedule.agentProfileId),
+        workspaceId: input.workspaceId ?? stringifyId(schedule.workspaceId),
+      });
+      if (referenceUpdates.workingDirectory) {
+        updateInput.workingDirectory = referenceUpdates.workingDirectory;
       }
-      updateInput.workingDirectory = workspace.path;
     }
     const nextRunTime = enabled ? getNextRunTimeFromExpression(cronExpression) : undefined;
     if (enabled && !nextRunTime) {
@@ -427,7 +498,15 @@ export class AIRunnerService {
     await connectDB();
     const schedule = await AIRunnerSchedule.findById(id);
     if (!schedule) return null;
-    schedule.enabled = !schedule.enabled;
+    const enabled = !schedule.enabled;
+    if (enabled) {
+      await resolveScheduleReferenceUpdates({
+        promptId: stringifyId(schedule.promptId),
+        agentProfileId: stringifyId(schedule.agentProfileId),
+        workspaceId: stringifyId(schedule.workspaceId),
+      });
+    }
+    schedule.enabled = enabled;
     schedule.nextRunTime =
       schedule.enabled && getNextRunTimeFromExpression(schedule.cronExpression)
         ? new Date(getNextRunTimeFromExpression(schedule.cronExpression)!)

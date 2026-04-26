@@ -32,7 +32,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 }
 
 export async function DELETE(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const unauthorized = await requireSession();
@@ -40,7 +40,9 @@ export async function DELETE(
 
   try {
     const { id } = await params;
-    const deleted = await getAIRunnerService().deleteProfile(id);
+    const deleted = await getAIRunnerService().deleteProfile(id, {
+      force: request.nextUrl.searchParams.get('force') === 'true',
+    });
     if (!deleted) {
       return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
     }
