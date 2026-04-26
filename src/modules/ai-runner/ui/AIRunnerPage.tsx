@@ -4046,63 +4046,36 @@ export default function AIRunnerPage() {
               aria-labelledby="tab-settings"
               className="space-y-5"
             >
-              <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_260px] xl:items-start">
-                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                  <CompactStat
-                    label="Profiles"
-                    value={profiles.length}
-                    tone="primary"
-                    detail="Reusable AI CLI configurations."
-                  />
-                  <CompactStat
-                    label="Workspaces"
-                    value={activeWorkspaceCount}
-                    tone="success"
-                    detail={`${blockingWorkspaceCount} blocking workspace${blockingWorkspaceCount === 1 ? '' : 's'}.`}
-                  />
-                  <CompactStat
-                    label="Templates"
-                    value={promptTemplates.length}
-                    tone="warning"
-                    detail="Reusable wrappers for prompt editors."
-                  />
-                  <CompactStat
-                    label="Enabled Profiles"
-                    value={enabledProfileCount}
-                    tone="success"
-                    detail="Available for runs and schedules."
-                  />
-                  <CompactStat
-                    label="Scheduled Profiles"
-                    value={scheduledProfileCount}
-                    detail="Profiles currently attached to automations."
-                  />
-                </div>
-
-                <div className="flex flex-col gap-3 xl:sticky xl:top-4">
-                  <Button
-                    size="lg"
-                    variant="outline"
-                    onClick={() =>
-                      void runExclusiveAction('schedule:visualize:settings-all', () =>
-                        openScheduleVisualization()
-                      )
-                    }
-                    loading={isActionPending('schedule:visualize:settings-all')}
-                    className="w-full justify-start"
-                  >
-                    <Eye className="w-4 h-4" />
-                    Visualize All Schedules
-                  </Button>
-                  <Button
-                    size="lg"
-                    onClick={openCreateProfileModal}
-                    className="w-full justify-start"
-                  >
-                    <Bot className="w-4 h-4" />
-                    Create Profile
-                  </Button>
-                </div>
+              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                <CompactStat
+                  label="Profiles"
+                  value={profiles.length}
+                  tone="primary"
+                  detail="Reusable AI CLI configurations."
+                />
+                <CompactStat
+                  label="Workspaces"
+                  value={activeWorkspaceCount}
+                  tone="success"
+                  detail={`${blockingWorkspaceCount} blocking workspace${blockingWorkspaceCount === 1 ? '' : 's'}.`}
+                />
+                <CompactStat
+                  label="Templates"
+                  value={promptTemplates.length}
+                  tone="warning"
+                  detail="Reusable wrappers for prompt editors."
+                />
+                <CompactStat
+                  label="Enabled Profiles"
+                  value={enabledProfileCount}
+                  tone="success"
+                  detail="Available for runs and schedules."
+                />
+                <CompactStat
+                  label="Scheduled Profiles"
+                  value={scheduledProfileCount}
+                  detail="Profiles currently attached to automations."
+                />
               </div>
 
               <Card className="border-border/60">
@@ -4567,14 +4540,14 @@ export default function AIRunnerPage() {
                       <p className="mt-3 text-sm leading-6 text-muted-foreground">
                         Open the profile studio and define your first reusable AI CLI config.
                       </p>
-                      <div className="mt-6">
-                        <Button onClick={openCreateProfileModal}>
-                          <Bot className="w-4 h-4" />
-                          Create Profile
-                        </Button>
-                      </div>
                     </div>
                   )}
+                  <div className="border-t border-border/60 px-5 py-4">
+                    <Button onClick={openCreateProfileModal} className="justify-start">
+                      <Bot className="w-4 h-4" />
+                      Create Profile
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
 

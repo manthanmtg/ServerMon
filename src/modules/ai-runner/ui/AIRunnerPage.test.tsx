@@ -1,6 +1,6 @@
 import { createElement, type ImgHTMLAttributes } from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, waitFor, fireEvent, act } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent, act, within } from '@testing-library/react';
 
 vi.mock('next/image', () => ({
   default: (props: ImgHTMLAttributes<HTMLImageElement>) =>
@@ -494,6 +494,28 @@ describe('AIRunnerPage', () => {
     expect(screen.getByText('Portable Configuration')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Export AI Runner/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Import AI Runner/i })).toBeInTheDocument();
+  });
+
+  it('keeps schedule visualization out of settings and places create profile in profile list', async () => {
+    await act(async () => {
+      render(<AIRunnerPage />);
+    });
+
+    await waitFor(() => expect(screen.getByText('AI Agent Runner')).toBeInTheDocument());
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('tab', { name: /Settings/i }));
+    });
+
+    expect(
+      screen.queryByRole('button', { name: /Visualize All Schedules/i })
+    ).not.toBeInTheDocument();
+
+    const profileListCard = screen.getByText('Profile List').closest('.overflow-hidden');
+    expect(profileListCard).not.toBeNull();
+    expect(
+      within(profileListCard as HTMLElement).getByRole('button', { name: /Create Profile/i })
+    ).toBeInTheDocument();
   });
 
   it('edits storage and retention settings from the settings tab', async () => {
