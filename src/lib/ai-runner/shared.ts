@@ -270,6 +270,15 @@ export function shellEscape(value: string): string {
   return `'${value.replace(/'/g, `'\"'\"'`)}'`;
 }
 
+function replaceShellPlaceholder(template: string, name: string, value: string): string {
+  const escapedValue = shellEscape(value);
+  const quotedPlaceholder = new RegExp(`(["'])(\\$\\{${name}\\}|\\$${name})\\1`, 'g');
+  return template
+    .replace(quotedPlaceholder, escapedValue)
+    .replaceAll(`\${${name}}`, escapedValue)
+    .replaceAll(`$${name}`, escapedValue);
+}
+
 function hasBalancedDelimiters(template: string): boolean {
   let single = false;
   let double = false;
@@ -382,13 +391,11 @@ export function resolveInvocationTemplate(
   prompt: string,
   workingDirectory: string
 ): string {
-  const escapedPrompt = shellEscape(prompt);
-  const escapedWorkingDir = shellEscape(workingDirectory);
-  return template
-    .replaceAll('${PROMPT}', escapedPrompt)
-    .replaceAll('$PROMPT', escapedPrompt)
-    .replaceAll('${WORKING_DIR}', escapedWorkingDir)
-    .replaceAll('$WORKING_DIR', escapedWorkingDir);
+  return replaceShellPlaceholder(
+    replaceShellPlaceholder(template, 'PROMPT', prompt),
+    'WORKING_DIR',
+    workingDirectory
+  );
 }
 
 export function getNextRunTimeFromExpression(
