@@ -546,8 +546,8 @@ cd "$NEW_RELEASE_DIR"
 
 log_info "Installing dependencies..."
 # Pre-approve native builds for pnpm v10+ to avoid interactive prompts
-log_info "Configuring pre-approved built dependencies (lzma-native, node-pty, argon2)..."
-pnpm config set only-built-dependencies --json '["lzma-native", "node-pty", "argon2"]' > /dev/null 2>&1
+log_info "Configuring pre-approved built dependencies (node-pty, argon2)..."
+pnpm config set only-built-dependencies --json '["node-pty", "argon2"]' > /dev/null 2>&1
 
 pnpm install --frozen-lockfile 2>&1 | tail -5 || pnpm install 2>&1 | tail -5
 

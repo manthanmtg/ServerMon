@@ -1,7 +1,7 @@
 import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
-  serverExternalPackages: ['systeminformation', 'node-pty', 'lzma-native', 'argon2', 'mongoose'],
+  serverExternalPackages: ['systeminformation', 'node-pty', 'argon2', 'mongoose'],
   turbopack: {
     resolveAlias: {
       fs: { browser: '' },
