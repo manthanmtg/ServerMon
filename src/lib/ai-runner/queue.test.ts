@@ -117,6 +117,59 @@ describe('ai-runner queue', () => {
       expect(shared.ensureDirectoryExists).toHaveBeenCalledWith('/tmp');
     });
 
+    it('adds saved prompt attachment paths before building the command', async () => {
+      vi.mocked(AIRunnerProfile.findById).mockResolvedValue(mockProfile);
+      vi.mocked(AIRunnerPrompt.findById).mockResolvedValue({
+        ...mockPrompt,
+        attachments: [
+          {
+            name: 'screen.png',
+            contentType: 'image/png',
+            size: 4,
+            data: Buffer.from('test'),
+          },
+        ],
+      } as unknown as IAIRunnerPrompt);
+
+      await queue.resolveExecutionRequest({
+        promptId: 'prompt-1',
+        agentProfileId: 'profile-1',
+        workingDirectory: '/tmp',
+        triggeredBy: 'manual',
+      });
+
+      expect(shared.resolveInvocationTemplate).toHaveBeenCalledWith(
+        mockProfile.invocationTemplate,
+        expect.stringContaining('Refer images/files in below paths:'),
+        '/tmp'
+      );
+    });
+
+    it('adds ad-hoc attachment paths before building the command', async () => {
+      vi.mocked(AIRunnerProfile.findById).mockResolvedValue(mockProfile);
+
+      await queue.resolveExecutionRequest({
+        content: 'Review attachments',
+        type: 'inline',
+        agentProfileId: 'profile-1',
+        workingDirectory: '/tmp',
+        attachments: [
+          {
+            name: 'notes.txt',
+            path: '/tmp/servermon-ai-runner-attachments/notes.txt',
+            contentType: 'text/plain',
+            size: 12,
+          },
+        ],
+      });
+
+      expect(shared.resolveInvocationTemplate).toHaveBeenCalledWith(
+        mockProfile.invocationTemplate,
+        expect.stringContaining('- /tmp/servermon-ai-runner-attachments/notes.txt'),
+        '/tmp'
+      );
+    });
+
     it('resolves a valid schedule request', async () => {
       const mockSchedule = {
         _id: 'schedule-1',

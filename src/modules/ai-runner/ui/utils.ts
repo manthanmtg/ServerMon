@@ -11,6 +11,7 @@ export function emptyPromptForm(): PromptFormState {
     content: '',
     type: 'inline',
     tags: [],
+    attachments: [],
   };
 }
 

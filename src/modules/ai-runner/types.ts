@@ -68,8 +68,23 @@ export interface AIRunnerPromptDTO {
   content: string;
   type: AIRunnerPromptType;
   tags: string[];
+  attachments: AIRunnerPromptAttachmentDTO[];
   createdAt: string;
   updatedAt: string;
+}
+
+export interface AIRunnerPromptAttachmentDTO {
+  name: string;
+  contentType: string;
+  size: number;
+  data: string;
+}
+
+export interface AIRunnerPromptAttachmentRefDTO {
+  name: string;
+  path: string;
+  contentType: string;
+  size: number;
 }
 
 export interface AIRunnerPromptTemplateDTO {
@@ -178,6 +193,7 @@ export interface AIRunnerExecuteRequest {
   name?: string;
   content?: string;
   type?: AIRunnerPromptType;
+  attachments?: AIRunnerPromptAttachmentRefDTO[];
   agentProfileId?: string;
   workspaceId?: string;
   workingDirectory?: string;
@@ -203,6 +219,7 @@ export interface AIRunnerAutoflowItemDTO {
   promptId?: string;
   promptContent?: string;
   promptType: AIRunnerPromptType;
+  attachments?: AIRunnerPromptAttachmentRefDTO[];
   agentProfileId: string;
   workspaceId?: string;
   workingDirectory: string;
@@ -264,6 +281,7 @@ export interface AIRunnerPortablePrompt {
   content: string;
   type: AIRunnerPromptType;
   tags: string[];
+  attachments?: AIRunnerPromptAttachmentDTO[];
 }
 
 export interface AIRunnerPortablePromptTemplate {

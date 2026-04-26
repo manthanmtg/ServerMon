@@ -21,6 +21,7 @@ import type { IAIRunnerRun } from '@/models/AIRunnerRun';
 import type { IAIRunnerSchedule } from '@/models/AIRunnerSchedule';
 import type { IAIRunnerWorkspace } from '@/models/AIRunnerWorkspace';
 import { computeNextRuns } from '@/lib/crons/service';
+import { encodeStoredPromptAttachment, normalizeAttachmentRefs } from './attachments';
 
 export const DEFAULT_MAX_CONCURRENT_RUNS = 3;
 export const MAX_CONCURRENT_RUNS_CAP = 8;
@@ -104,12 +105,16 @@ export function mapProfile(
 export function mapPrompt(
   doc: IAIRunnerPrompt | (Record<string, unknown> & { _id: unknown })
 ): AIRunnerPromptDTO {
+  const attachments = Array.isArray(doc.attachments) ? doc.attachments : [];
   return {
     _id: stringifyId(doc._id),
     name: String(doc.name),
     content: String(doc.content),
     type: doc.type as AIRunnerPromptDTO['type'],
     tags: Array.isArray(doc.tags) ? doc.tags.map(String) : [],
+    attachments: attachments.map((attachment) =>
+      encodeStoredPromptAttachment(attachment as Record<string, unknown>)
+    ),
     createdAt: new Date(doc.createdAt as Date | string).toISOString(),
     updatedAt: new Date(doc.updatedAt as Date | string).toISOString(),
   };
@@ -242,6 +247,7 @@ export function mapAutoflow(
       promptId: item.promptId ? stringifyId(item.promptId) : undefined,
       promptContent: item.promptContent ? String(item.promptContent) : undefined,
       promptType: item.promptType as AIRunnerAutoflowDTO['items'][number]['promptType'],
+      attachments: normalizeAttachmentRefs(item.attachments),
       agentProfileId: stringifyId(item.agentProfileId),
       workspaceId: item.workspaceId ? stringifyId(item.workspaceId) : undefined,
       workingDirectory: String(item.workingDirectory),

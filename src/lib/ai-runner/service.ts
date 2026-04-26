@@ -50,6 +50,7 @@ import {
   stringifyId,
   validateProfileTemplate,
 } from './shared';
+import { decodeStoredPromptAttachments, normalizeAttachmentRefs } from './attachments';
 
 const execFileAsync = promisify(execFile);
 const RUN_LIST_PROJECTION = {
@@ -63,6 +64,7 @@ type AIRunnerAutoflowInputItem = {
   promptId?: string;
   promptContent?: string;
   promptType: 'inline' | 'file-reference';
+  attachments?: AIRunnerExecuteRequest['attachments'];
   agentProfileId: string;
   workspaceId?: string;
   workingDirectory: string;
@@ -94,6 +96,7 @@ function toOptionalObjectId(value?: string): mongoose.Types.ObjectId | undefined
 function normalizeAutoflowItems(input: AIRunnerAutoflowInputItem[]) {
   return input.map((item) => ({
     ...item,
+    attachments: normalizeAttachmentRefs(item.attachments),
     promptId: toOptionalObjectId(item.promptId),
     agentProfileId: new mongoose.Types.ObjectId(item.agentProfileId),
     workspaceId: toOptionalObjectId(item.workspaceId),
@@ -298,7 +301,10 @@ export class AIRunnerService {
     input: Omit<AIRunnerPromptDTO, '_id' | 'createdAt' | 'updatedAt'>
   ): Promise<AIRunnerPromptDTO> {
     await connectDB();
-    const doc = await AIRunnerPrompt.create(input);
+    const doc = await AIRunnerPrompt.create({
+      ...input,
+      attachments: decodeStoredPromptAttachments(input.attachments),
+    });
     return mapPrompt(doc);
   }
 
@@ -307,7 +313,13 @@ export class AIRunnerService {
     input: Partial<Omit<AIRunnerPromptDTO, '_id' | 'createdAt' | 'updatedAt'>>
   ): Promise<AIRunnerPromptDTO | null> {
     await connectDB();
-    const doc = await AIRunnerPrompt.findByIdAndUpdate(id, input, { new: true });
+    const doc = await AIRunnerPrompt.findByIdAndUpdate(
+      id,
+      input.attachments
+        ? { ...input, attachments: decodeStoredPromptAttachments(input.attachments) }
+        : input,
+      { new: true }
+    );
     return doc ? mapPrompt(doc) : null;
   }
 
@@ -591,11 +603,12 @@ export class AIRunnerService {
 
     if (selected.has('prompts')) {
       const prompts = await this.listPrompts();
-      bundle.resources.prompts = prompts.map(({ name, content, type, tags }) => ({
+      bundle.resources.prompts = prompts.map(({ name, content, type, tags, attachments }) => ({
         name,
         content,
         type,
         tags,
+        attachments,
       }));
     }
 
@@ -872,11 +885,17 @@ export class AIRunnerService {
             imported.prompts.skipped += 1;
             continue;
           }
-          Object.assign(existing, prompt);
+          Object.assign(existing, {
+            ...prompt,
+            attachments: decodeStoredPromptAttachments(prompt.attachments),
+          });
           await existing.save();
           imported.prompts.updated += 1;
         } else {
-          await AIRunnerPrompt.create(prompt);
+          await AIRunnerPrompt.create({
+            ...prompt,
+            attachments: decodeStoredPromptAttachments(prompt.attachments),
+          });
           imported.prompts.created += 1;
         }
       }

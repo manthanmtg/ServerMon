@@ -1,4 +1,9 @@
 import { z } from 'zod';
+import {
+  MAX_PROMPT_ATTACHMENT_BYTES,
+  MAX_PROMPT_ATTACHMENTS,
+  MAX_PROMPT_ATTACHMENTS_TOTAL_BYTES,
+} from './attachments';
 
 const agentTypeSchema = z.enum([
   'claude-code',
@@ -19,6 +24,41 @@ const portableResourceSchema = z.enum([
   'promptTemplates',
   'schedules',
 ]);
+
+const base64DataSchema = z
+  .string()
+  .min(1)
+  .refine((value) => Buffer.from(value, 'base64').toString('base64') === value, {
+    message: 'Attachment data must be base64 encoded',
+  });
+
+const promptAttachmentSchema = z.object({
+  name: z.string().trim().min(1).max(255),
+  contentType: z.string().trim().min(1).max(255).default('application/octet-stream'),
+  size: z.number().int().min(0).max(MAX_PROMPT_ATTACHMENT_BYTES),
+  data: base64DataSchema,
+});
+
+const promptAttachmentRefSchema = z.object({
+  name: z.string().trim().min(1).max(255),
+  path: z.string().trim().min(1).max(2000),
+  contentType: z.string().trim().min(1).max(255).default('application/octet-stream'),
+  size: z.number().int().min(0).max(MAX_PROMPT_ATTACHMENT_BYTES),
+});
+
+function validateAttachmentTotal(
+  attachments: Array<{ size: number }> | undefined,
+  ctx: z.RefinementCtx
+) {
+  const total = attachments?.reduce((sum, attachment) => sum + attachment.size, 0) ?? 0;
+  if (total > MAX_PROMPT_ATTACHMENTS_TOTAL_BYTES) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['attachments'],
+      message: 'Prompt attachments cannot exceed 10 MB total',
+    });
+  }
+}
 
 export const workspaceCreateSchema = z.object({
   name: z.string().trim().min(1).max(160),
@@ -59,14 +99,21 @@ export const profileValidateSchema = z.object({
   shell: z.string().trim().min(1).max(260).default('/bin/bash'),
 });
 
-export const promptCreateSchema = z.object({
+const promptBaseSchema = z.object({
   name: z.string().trim().min(1).max(160),
   content: z.string().min(1).max(100_000),
   type: promptTypeSchema,
   tags: z.array(z.string().trim().min(1).max(40)).max(20).default([]),
+  attachments: z.array(promptAttachmentSchema).max(MAX_PROMPT_ATTACHMENTS).default([]),
 });
 
-export const promptUpdateSchema = promptCreateSchema.partial();
+export const promptCreateSchema = promptBaseSchema.superRefine((value, ctx) =>
+  validateAttachmentTotal(value.attachments, ctx)
+);
+
+export const promptUpdateSchema = promptBaseSchema
+  .partial()
+  .superRefine((value, ctx) => validateAttachmentTotal(value.attachments, ctx));
 
 export const promptTemplateCreateSchema = z.object({
   name: z.string().trim().min(1).max(160),
@@ -106,6 +153,7 @@ const autoflowItemCreateSchema = z
     promptId: z.string().trim().min(1).optional(),
     promptContent: z.string().max(100_000).optional(),
     promptType: promptTypeSchema.default('inline'),
+    attachments: z.array(promptAttachmentRefSchema).max(MAX_PROMPT_ATTACHMENTS).default([]),
     agentProfileId: z.string().trim().min(1),
     workspaceId: z.string().trim().min(1).optional(),
     workingDirectory: z.string().trim().min(1).max(2000),
@@ -123,6 +171,7 @@ const autoflowItemCreateSchema = z
         message: 'Prompt content is required when promptId is not provided',
       });
     }
+    validateAttachmentTotal(value.attachments, ctx);
   });
 
 export const autoflowCreateSchema = z.object({
@@ -142,6 +191,7 @@ export const runExecuteSchema = z
     name: z.string().trim().max(160).optional(),
     content: z.string().max(100_000).optional(),
     type: promptTypeSchema.optional(),
+    attachments: z.array(promptAttachmentRefSchema).max(MAX_PROMPT_ATTACHMENTS).default([]),
     agentProfileId: z.string().trim().min(1).optional(),
     workspaceId: z.string().trim().min(1).optional(),
     workingDirectory: z.string().trim().max(2000).optional(),
@@ -187,6 +237,7 @@ export const runExecuteSchema = z
         message: 'Working directory is required when scheduleId is not provided',
       });
     }
+    validateAttachmentTotal(value.attachments, ctx);
   });
 
 export const exportBundleQuerySchema = z.object({
