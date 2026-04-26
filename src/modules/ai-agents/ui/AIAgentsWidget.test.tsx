@@ -35,7 +35,7 @@ describe('AIAgentsWidget', () => {
     vi.useRealTimers();
   });
 
-  it('shows skeleton while loading', () => {
+  it('shows skeleton while loading', async () => {
     let resolveFetch!: (v: Response) => void;
     global.fetch = vi.fn().mockImplementation(
       () =>
@@ -46,8 +46,9 @@ describe('AIAgentsWidget', () => {
     render(<AIAgentsWidget />);
     // Skeleton is shown – no session list yet
     expect(screen.queryByText('AI Agents')).toBeNull();
-    act(() => {
+    await act(async () => {
       resolveFetch({ ok: true, json: async () => mockSnapshot } as Response);
+      await Promise.resolve();
     });
   });
 

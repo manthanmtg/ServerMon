@@ -1,5 +1,6 @@
 import path from 'node:path';
 import fs from 'node:fs';
+import { spawn } from 'node:child_process';
 import type { ServiceState } from './enums';
 import { ensureBinary } from './binary';
 import { startFrps, type FrpHandle } from './frpProcess';
@@ -291,7 +292,7 @@ export class FrpOrchestrator {
     }
     this.pid = undefined;
     this.runtimeState = 'stopped';
-    
+
     // Safety: ensure no other instances are lingering
     await this.killZombies();
   }
@@ -300,7 +301,6 @@ export class FrpOrchestrator {
     return new Promise((resolve) => {
       // We use pkill -9 to ensure any zombie frps is immediately released.
       // This is safe because frps is stateless and only holds network ports.
-      const { spawn } = require('node:child_process');
       const proc = spawn('pkill', ['-9', 'frps']);
       proc.on('exit', () => resolve());
       proc.on('error', () => resolve()); // ignore if pkill is missing

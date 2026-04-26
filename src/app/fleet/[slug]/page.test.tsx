@@ -68,8 +68,9 @@ describe('NodeDetailPage', () => {
       vi.fn().mockResolvedValue({
         ok: true,
         json: async () => ({
-          nodes: [{ _id: 'node-abc', name: 'Edge One', slug: 'edge-01' }],
-          total: 1,
+          _id: 'node-abc',
+          name: 'Edge One',
+          slug: 'edge-01',
         }),
       })
     );
@@ -122,8 +123,9 @@ describe('NodeDetailPage', () => {
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue({
-        ok: true,
-        json: async () => ({ nodes: [], total: 0 }),
+        ok: false,
+        status: 404,
+        json: async () => ({ error: 'Node not found' }),
       })
     );
 

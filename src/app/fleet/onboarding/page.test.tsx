@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, act } from '@testing-library/react';
+import { render, screen, act, waitFor } from '@testing-library/react';
 import Page from './page';
 
 vi.mock('next/navigation', () => ({
@@ -32,7 +32,7 @@ describe('Onboarding Page', () => {
       'fetch',
       vi.fn().mockResolvedValue({
         ok: true,
-        json: async () => ({ results: [] }),
+        json: async () => ({ envDefaults: { hubPublicUrl: 'http://localhost:8912' } }),
       })
     );
   });
@@ -49,8 +49,9 @@ describe('Onboarding Page', () => {
     // Title in header
     expect(screen.getByText('Onboard Agent')).toBeDefined();
     // Wizard card title
-    expect(screen.getByText('Onboard an Agent')).toBeDefined();
-    // Step indicator (Identity label)
-    expect(screen.getByText('Identity')).toBeDefined();
+    await waitFor(() => {
+      expect(screen.getByText('Onboard an Agent')).toBeDefined();
+    });
+    expect(screen.getByText('Agent Name')).toBeDefined();
   });
 });

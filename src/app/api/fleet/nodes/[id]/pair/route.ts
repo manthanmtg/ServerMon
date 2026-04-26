@@ -66,7 +66,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const authToken = await getOrCreateHubAuthToken();
     const publicUrl = process.env.FLEET_HUB_PUBLIC_URL;
     let serverAddr = frpServer.subdomainHost ?? 'localhost';
-    
+
     if (publicUrl) {
       try {
         serverAddr = new URL(publicUrl).hostname;

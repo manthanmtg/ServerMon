@@ -16,6 +16,13 @@ function typeInto(el: HTMLElement, value: string) {
   });
 }
 
+async function renderLoaded() {
+  render(<IngressSetupWizard />);
+  await waitFor(() => {
+    expect(screen.queryByText('Loading existing configuration...')).toBeNull();
+  });
+}
+
 describe('IngressSetupWizard', () => {
   beforeEach(() => {
     mockPush.mockReset();
@@ -26,12 +33,12 @@ describe('IngressSetupWizard', () => {
     vi.restoreAllMocks();
   });
 
-  it('mounts on step 1 (Hub URL)', () => {
+  it('mounts on step 1 (Hub URL)', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue({ ok: true, json: async () => ({ results: [] }) })
     );
-    render(<IngressSetupWizard />);
+    await renderLoaded();
     expect(screen.getByText('Cloud ingress setup')).toBeDefined();
     expect(screen.getByText('Verify reachability')).toBeDefined();
     expect(screen.getByPlaceholderText('example.com')).toBeDefined();
@@ -42,7 +49,7 @@ describe('IngressSetupWizard', () => {
       'fetch',
       vi.fn().mockResolvedValue({ ok: true, json: async () => ({ results: [] }) })
     );
-    render(<IngressSetupWizard />);
+    await renderLoaded();
     typeInto(screen.getByPlaceholderText('example.com'), 'example.com');
     await act(async () => {
       fireEvent.click(screen.getByText('Next'));
@@ -70,7 +77,7 @@ describe('IngressSetupWizard', () => {
     });
     vi.stubGlobal('fetch', fetchMock);
 
-    render(<IngressSetupWizard />);
+    await renderLoaded();
 
     // Step 1 -> 2
     await act(async () => {
@@ -126,7 +133,7 @@ describe('IngressSetupWizard', () => {
     });
     vi.stubGlobal('fetch', fetchMock);
 
-    render(<IngressSetupWizard />);
+    await renderLoaded();
 
     // Fill subdomain on step 1
     typeInto(screen.getByPlaceholderText('example.com'), 'example.com');
@@ -171,7 +178,12 @@ describe('IngressSetupWizard', () => {
 
     // Body check for /api/fleet/server
     const serverCall = fetchMock.mock.calls.find(
-      (c: unknown[]) => c[0] === '/api/fleet/server'
+      (c: unknown[]) =>
+        c[0] === '/api/fleet/server' &&
+        typeof c[1] === 'object' &&
+        c[1] !== null &&
+        'method' in c[1] &&
+        c[1].method === 'PATCH'
     ) as [string, { body: string }];
     const serverBody = JSON.parse(serverCall[1].body);
     expect(serverBody.subdomainHost).toBe('example.com');
@@ -188,7 +200,7 @@ describe('IngressSetupWizard', () => {
     expect(nginxBody.binaryPath).toBe('nginx');
 
     await waitFor(() => {
-      expect(mockPush).toHaveBeenCalledWith('/fleet/server');
+      expect(mockPush).toHaveBeenCalledWith('/fleet');
     });
   });
 
@@ -197,7 +209,7 @@ describe('IngressSetupWizard', () => {
       'fetch',
       vi.fn().mockResolvedValue({ ok: true, json: async () => ({ results: [] }) })
     );
-    render(<IngressSetupWizard />);
+    await renderLoaded();
 
     await act(async () => {
       fireEvent.click(screen.getByText('Next'));

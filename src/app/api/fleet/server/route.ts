@@ -116,7 +116,7 @@ export async function GET() {
       state.subdomainHost = envSubdomain;
       needsSave = true;
     }
-    
+
     const envBindPort = process.env.FRP_BIND_PORT ? parseInt(process.env.FRP_BIND_PORT, 10) : null;
     if (envBindPort && !isNaN(envBindPort) && state.bindPort !== envBindPort) {
       state.bindPort = envBindPort;

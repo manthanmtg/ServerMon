@@ -15,7 +15,11 @@ export default function Page() {
         if (res.ok) {
           const data = await res.json();
           // Use the public URL if set, otherwise fallback to current host
-          const url = data.envDefaults?.hubPublicUrl || (typeof window !== 'undefined' ? `${window.location.protocol}//${window.location.host}` : '');
+          const url =
+            data.envDefaults?.hubPublicUrl ||
+            (typeof window !== 'undefined'
+              ? `${window.location.protocol}//${window.location.host}`
+              : '');
           setHubUrl(url);
         }
       } catch (err) {

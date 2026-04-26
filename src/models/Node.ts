@@ -128,6 +128,7 @@ export interface INode extends Document, INodeDTO {
    * the agent for terminal sessions through the FRP TCP tunnel.
    */
   ptyBridge?: { port: number; authToken: string };
+  pendingCommands?: Array<{ id: string; command: string; args?: unknown; issuedAt?: Date }>;
   createdBy?: string;
   updatedBy?: string;
 }
@@ -215,12 +216,14 @@ const NodeSchema = new Schema(
       port: { type: Number },
       authToken: { type: String },
     },
-    pendingCommands: [{
-      id: { type: String, required: true },
-      command: { type: String, required: true },
-      args: { type: Schema.Types.Mixed },
-      issuedAt: { type: Date, default: Date.now },
-    }],
+    pendingCommands: [
+      {
+        id: { type: String, required: true },
+        command: { type: String, required: true },
+        args: { type: Schema.Types.Mixed },
+        issuedAt: { type: Date, default: Date.now },
+      },
+    ],
     createdBy: { type: String },
     updatedBy: { type: String },
   },

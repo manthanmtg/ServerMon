@@ -51,10 +51,11 @@ describe('parseRendered', () => {
       node,
     });
     const p = parseRendered(toml);
-    expect(p.proxies.length).toBe(1);
+    expect(p.proxies.length).toBe(2);
     expect(p.proxies[0].name).toBe('orion-term');
     expect(p.proxies[0].type).toBe('tcp');
     expect(p.proxies[0].localPort).toBe(8001);
     expect(p.proxies[0].remotePort).toBe(9001);
+    expect(p.proxies[1].name).toBe('orion-terminal-bridge');
   });
 });

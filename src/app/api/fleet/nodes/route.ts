@@ -6,6 +6,7 @@ import Node, { NodeZodSchema } from '@/models/Node';
 import FleetLogEvent from '@/models/FleetLogEvent';
 import ConfigRevision from '@/models/ConfigRevision';
 import FrpServerState from '@/models/FrpServerState';
+import PublicRoute from '@/models/PublicRoute';
 import ResourcePolicy from '@/models/ResourcePolicy';
 import { generatePairingToken, hashPairingToken } from '@/lib/fleet/pairing';
 import { renderFrpcToml, hashToml } from '@/lib/fleet/toml';
@@ -15,7 +16,9 @@ import { enforceResourceGuard } from '@/lib/fleet/resourceGuardMiddleware';
 import { getSession } from '@/lib/session';
 import { enforceRbac } from '@/lib/fleet/rbac';
 import { getOrCreateHubAuthToken } from '@/lib/fleet/hubAuth';
+import { deriveNodeStatus } from '@/lib/fleet/status';
 import type { Model } from 'mongoose';
+import type { INodeDTO } from '@/models/Node';
 
 export const dynamic = 'force-dynamic';
 
@@ -37,10 +40,10 @@ export async function GET(req: NextRequest) {
     const search = searchParams.get('search');
     const status = searchParams.get('status');
     const tag = searchParams.get('tag');
-    const limit = Math.min(parseInt(searchParams.get('limit') || '50', 10), 100);
+    const limit = Math.min(parseInt(searchParams.get('limit') || '50', 10), 200);
     const offset = parseInt(searchParams.get('offset') || '0', 10);
 
-    const filter: any = {};
+    const filter: Record<string, unknown> = {};
     if (search) {
       filter.$or = [
         { name: { $regex: search, $options: 'i' } },
@@ -55,7 +58,21 @@ export async function GET(req: NextRequest) {
       Node.countDocuments(filter),
     ]);
 
-    return NextResponse.json({ nodes, total, limit, offset });
+    const now = new Date();
+    const nodesWithComputedStatus = nodes.map((node) => ({
+      ...node,
+      computedStatus: deriveNodeStatus({
+        lastSeen: node.lastSeen ? new Date(node.lastSeen) : undefined,
+        tunnelStatus: node.tunnelStatus,
+        maintenanceEnabled: node.maintenance?.enabled === true,
+        disabled: node.status === 'disabled',
+        unpaired: !node.pairingVerifiedAt && node.status === 'unpaired',
+        lastError: node.lastError ? { occurredAt: node.lastError.occurredAt } : null,
+        now,
+      }),
+    }));
+
+    return NextResponse.json({ nodes: nodesWithComputedStatus, total, limit, offset });
   } catch (error) {
     log.error('Failed to list nodes', error);
     return NextResponse.json({ error: 'Failed to list nodes' }, { status: 500 });
@@ -112,7 +129,7 @@ export async function POST(req: NextRequest) {
 
     const frpServer = await FrpServerState.findOne({ key: 'global' }).lean();
     const authToken = await getOrCreateHubAuthToken();
-    
+
     // Safety: ensure only hostname is used for serverAddr
     const publicUrl = process.env.FLEET_HUB_PUBLIC_URL;
     let serverAddr = frpServer?.subdomainHost ?? 'localhost';
@@ -125,7 +142,7 @@ export async function POST(req: NextRequest) {
     }
     const serverPort = frpServer?.bindPort ?? 7000;
 
-    const node = new Node({
+    const node = await Node.create({
       ...parsed,
       pairingTokenHash,
       pairingTokenPrefix: pairingToken.substring(0, 8),
@@ -141,9 +158,9 @@ export async function POST(req: NextRequest) {
       authToken,
       node: {
         slug: node.slug,
-        frpcConfig: node.frpcConfig as any,
-        proxyRules: (node as any).proxyRules,
-        capabilities: node.capabilities as any,
+        frpcConfig: node.frpcConfig as INodeDTO['frpcConfig'],
+        proxyRules: node.proxyRules as INodeDTO['proxyRules'],
+        capabilities: node.capabilities as INodeDTO['capabilities'],
       },
     });
 
@@ -169,10 +186,25 @@ export async function POST(req: NextRequest) {
       nodeId: String(node._id),
     });
 
-    return NextResponse.json({
-      node: node.toObject(),
-      pairingToken,
-    });
+    if (process.env.FLEET_AUTO_APPLY_REVISIONS === 'true') {
+      const { getFrpOrchestrator, getNginxOrchestrator } =
+        await import('@/lib/fleet/orchestrators');
+      const { applyRevision } = await import('@/lib/fleet/applyEngine');
+      await applyRevision(revision.id, {
+        frp: getFrpOrchestrator(),
+        nginx: getNginxOrchestrator(),
+        ConfigRevision: ConfigRevision as unknown as Parameters<
+          typeof applyRevision
+        >[1]['ConfigRevision'],
+        FrpServerState: FrpServerState as unknown as Parameters<
+          typeof applyRevision
+        >[1]['FrpServerState'],
+        PublicRoute: PublicRoute as unknown as Parameters<typeof applyRevision>[1]['PublicRoute'],
+        Node: Node as unknown as Parameters<typeof applyRevision>[1]['Node'],
+      }).catch((err) => log.warn('applyRevision failed post-create', err));
+    }
+
+    return NextResponse.json({ node: node.toObject(), pairingToken }, { status: 201 });
   } catch (error) {
     if (error instanceof ZodError) {
       return NextResponse.json({ error: 'Invalid input', details: error.issues }, { status: 400 });

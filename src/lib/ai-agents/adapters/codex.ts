@@ -21,6 +21,12 @@ const log = createLogger('ai-agents:codex');
 // If the latest rollout file was modified within this window, consider the session active
 const ACTIVE_THRESHOLD_MS = 120_000;
 
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
 export class CodexAdapter implements AgentAdapter {
   readonly agentType: AgentType = 'codex';
   readonly displayName = 'Codex CLI';
@@ -219,11 +225,17 @@ export class CodexAdapter implements AgentAdapter {
           } else if (evt.type === 'response_item') {
             const payload = evt.payload;
             if (payload.type === 'function_call') {
-              let args: any = {};
+              let args: Record<string, unknown> = {};
               try {
-                args = typeof payload.arguments === 'string' ? JSON.parse(payload.arguments) : payload.arguments;
-              } catch { /* ignore */ }
-              
+                args = asRecord(
+                  typeof payload.arguments === 'string'
+                    ? JSON.parse(payload.arguments)
+                    : payload.arguments
+                );
+              } catch {
+                /* ignore */
+              }
+
               timeline.push({
                 timestamp,
                 action: `Action: ${payload.name}`,
@@ -231,9 +243,9 @@ export class CodexAdapter implements AgentAdapter {
               });
 
               if (payload.name === 'write_file' || payload.name === 'edit_file') {
-                if (args.path) filesModified.add(args.path);
+                if (typeof args.path === 'string') filesModified.add(args.path);
               } else if (payload.name === 'exec_command' || payload.name === 'run_shell') {
-                if (args.cmd) commandsExecuted.add(args.cmd);
+                if (typeof args.cmd === 'string') commandsExecuted.add(args.cmd);
               }
             } else if (payload.type === 'message') {
               if (payload.role === 'developer') continue;

@@ -508,16 +508,18 @@ describe('checkFrpBinary', () => {
     expect(r.present).toBe(false);
   });
 
-  it('returns present:false when env not set', async () => {
+  it('checks the default binary cache when env is not set', async () => {
     delete process.env.FLEET_BINARY_CACHE_DIR;
     delete process.env.FLEET_FRP_VERSION;
     const fsImpl = {
       access: vi.fn(),
-      stat: vi.fn(),
+      stat: vi.fn().mockRejectedValue(new Error('ENOENT')),
     };
     const ex = createDefaultExecutors({ fsImpl });
     const r = await ex.checkFrpBinary!();
     expect(r.present).toBe(false);
-    expect(fsImpl.stat).not.toHaveBeenCalled();
+    expect(fsImpl.stat).toHaveBeenCalledWith(
+      expect.stringMatching(/\/frp-cache\/[^/]+\/.+\/frps$/)
+    );
   });
 });

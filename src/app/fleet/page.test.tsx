@@ -50,7 +50,7 @@ describe('FleetPage', () => {
     // Title in header
     expect(screen.getAllByText('Fleet').length).toBeGreaterThan(0);
     // Stats banner labels
-    expect(screen.getByText('Total')).toBeDefined();
+    expect(screen.getByText('Total Nodes')).toBeDefined();
     expect(screen.getByText('Online')).toBeDefined();
     // Search inputs
     expect(screen.getByPlaceholderText(/Search by name/i)).toBeDefined();

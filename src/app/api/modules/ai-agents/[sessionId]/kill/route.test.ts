@@ -2,12 +2,16 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { NextRequest } from 'next/server';
 
-const { mockKillSession } = vi.hoisted(() => ({
+const { mockAuthSession, mockKillSession } = vi.hoisted(() => ({
+  mockAuthSession: vi.fn(),
   mockKillSession: vi.fn(),
 }));
 
 vi.mock('@/lib/ai-agents/service', () => ({
   getAIAgentsService: () => ({ killSession: mockKillSession }),
+}));
+vi.mock('@/lib/session', () => ({
+  getSession: mockAuthSession,
 }));
 vi.mock('@/lib/logger', () => ({
   createLogger: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }),
@@ -22,6 +26,19 @@ function makeContext(sessionId: string) {
 describe('POST /api/modules/ai-agents/[sessionId]/kill', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockAuthSession.mockResolvedValue({ user: { username: 'alice', role: 'admin' } });
+  });
+
+  it('returns 401 without an authenticated session', async () => {
+    mockAuthSession.mockResolvedValue(null);
+    const res = await POST(
+      new NextRequest('http://localhost', { method: 'POST' }),
+      makeContext('session-abc')
+    );
+    expect(res.status).toBe(401);
+    const json = await res.json();
+    expect(json.error).toBe('Unauthorized');
+    expect(mockKillSession).not.toHaveBeenCalled();
   });
 
   it('kills session successfully', async () => {

@@ -5,7 +5,6 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Spinner } from '@/components/ui/spinner';
 import { ChevronLeft, ChevronRight, Check } from 'lucide-react';
 import { InstallerSnippet } from './InstallerSnippet';
 import { OnboardingFormSchema, type OnboardingForm } from './schema';
@@ -172,28 +171,29 @@ export function OnboardingWizard({ hubUrl }: { hubUrl: string }) {
             )}
             {step === 5 && (
               <Button onClick={() => setStep(6)} disabled={!created}>
-                I've run the command <ChevronRight className="h-4 w-4" />
+                I&apos;ve run the command <ChevronRight className="h-4 w-4" />
               </Button>
             )}
-            {step === 6 && (() => {
-              // Allow finishing once the agent has reported any heartbeat, even
-              // if the derived status is still "degraded"/"connecting". The
-              // node detail page surfaces ongoing connection issues with full
-              // diagnostics; we don't want the wizard to silently block the
-              // user when the agent is up but the tunnel handshake is racy.
-              const reachable = !!verification?.lastSeen;
-              const healthy =
-                verification?.status === 'online' || verification?.status === 'connecting';
-              return (
-                <Button
-                  onClick={() => setCompleted(true)}
-                  disabled={!reachable && !healthy}
-                  variant={healthy ? 'default' : 'outline'}
-                >
-                  {healthy ? 'Finish Onboarding' : 'Finish anyway'}
-                </Button>
-              );
-            })()}
+            {step === 6 &&
+              (() => {
+                // Allow finishing once the agent has reported any heartbeat, even
+                // if the derived status is still "degraded"/"connecting". The
+                // node detail page surfaces ongoing connection issues with full
+                // diagnostics; we don't want the wizard to silently block the
+                // user when the agent is up but the tunnel handshake is racy.
+                const reachable = !!verification?.lastSeen;
+                const healthy =
+                  verification?.status === 'online' || verification?.status === 'connecting';
+                return (
+                  <Button
+                    onClick={() => setCompleted(true)}
+                    disabled={!reachable && !healthy}
+                    variant={healthy ? 'default' : 'outline'}
+                  >
+                    {healthy ? 'Finish Onboarding' : 'Finish anyway'}
+                  </Button>
+                );
+              })()}
           </div>
         )}
       </CardContent>
@@ -262,9 +262,9 @@ function StepDns() {
       <div className="rounded-lg border border-blue-500/30 bg-blue-500/5 p-4 text-sm text-blue-400">
         <h4 className="font-semibold mb-1">DNS Requirement</h4>
         <p>
-          Before adding this agent, ensure you have a wildcard DNS record (e.g. <code>*.ultron.manthanby.cv</code>)
-          pointing to this Hub's IP address. This allows the Hub to route traffic to your agent
-          automatically.
+          Before adding this agent, ensure you have a wildcard DNS record (e.g.{' '}
+          <code>*.ultron.manthanby.cv</code>) pointing to this Hub&apos;s IP address. This allows
+          the Hub to route traffic to your agent automatically.
         </p>
       </div>
     </div>
@@ -357,8 +357,8 @@ function StepVerify({
               </div>
             )}
             <div className="text-xs text-muted-foreground">
-              You can finish anyway and inspect logs from the node detail page, or wait for the
-              next heartbeat to flip the status.
+              You can finish anyway and inspect logs from the node detail page, or wait for the next
+              heartbeat to flip the status.
             </div>
           </div>
         )}
@@ -451,7 +451,9 @@ function ProxyRulesEditor({
             <label className="text-[10px] uppercase font-bold text-muted-foreground">Type</label>
             <select
               value={r.type}
-              onChange={(e) => update(i, { type: e.target.value as any })}
+              onChange={(e) =>
+                update(i, { type: e.target.value as OnboardingForm['proxyRules'][number]['type'] })
+              }
               className="w-full h-8 rounded-md border border-input bg-background px-2 text-sm"
             >
               {(['tcp', 'http', 'https', 'udp', 'stcp', 'xtcp'] as const).map((t) => (
@@ -462,7 +464,9 @@ function ProxyRulesEditor({
             </select>
           </div>
           <div className="space-y-1">
-            <label className="text-[10px] uppercase font-bold text-muted-foreground">Local IP</label>
+            <label className="text-[10px] uppercase font-bold text-muted-foreground">
+              Local IP
+            </label>
             <Input
               className="h-8 text-xs"
               value={r.localIp}

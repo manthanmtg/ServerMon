@@ -2,14 +2,23 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { NextRequest } from 'next/server';
 
-const { mockFindById, mockFleetLogCreate, mockFleetLogInsertMany, mockVerifyPairingToken, mockEmit } =
-  vi.hoisted(() => ({
-    mockFindById: vi.fn(),
-    mockFleetLogCreate: vi.fn(),
-    mockFleetLogInsertMany: vi.fn(),
-    mockVerifyPairingToken: vi.fn(),
-    mockEmit: vi.fn(),
-  }));
+const {
+  mockFindById,
+  mockFindByIdAndUpdate,
+  mockUpdateOne,
+  mockFleetLogCreate,
+  mockFleetLogInsertMany,
+  mockVerifyPairingToken,
+  mockEmit,
+} = vi.hoisted(() => ({
+  mockFindById: vi.fn(),
+  mockFindByIdAndUpdate: vi.fn(),
+  mockUpdateOne: vi.fn(),
+  mockFleetLogCreate: vi.fn(),
+  mockFleetLogInsertMany: vi.fn(),
+  mockVerifyPairingToken: vi.fn(),
+  mockEmit: vi.fn(),
+}));
 
 vi.mock('@/lib/db', () => ({ default: vi.fn().mockResolvedValue(undefined) }));
 vi.mock('@/lib/logger', () => ({
@@ -26,7 +35,11 @@ vi.mock('@/lib/fleet/eventBus', () => ({
   },
 }));
 vi.mock('@/models/Node', () => ({
-  default: { findById: mockFindById },
+  default: {
+    findById: mockFindById,
+    findByIdAndUpdate: mockFindByIdAndUpdate,
+    updateOne: mockUpdateOne,
+  },
 }));
 vi.mock('@/models/FleetLogEvent', () => ({
   default: { create: mockFleetLogCreate, insertMany: mockFleetLogInsertMany },
@@ -64,6 +77,10 @@ describe('POST /api/fleet/nodes/[id]/heartbeat', () => {
     vi.clearAllMocks();
     mockFleetLogCreate.mockResolvedValue({});
     mockFleetLogInsertMany.mockResolvedValue([]);
+    mockFindByIdAndUpdate.mockReturnValue({
+      lean: vi.fn().mockResolvedValue({ pendingCommands: [] }),
+    });
+    mockUpdateOne.mockResolvedValue({});
   });
 
   it('returns 401 without Authorization', async () => {
@@ -129,9 +146,17 @@ describe('POST /api/fleet/nodes/[id]/heartbeat', () => {
     expect(res.status).toBe(200);
     const json = await res.json();
     expect(json.ok).toBe(true);
-    expect(nodeDoc.tunnelStatus).toBe('connected');
-    expect(nodeDoc.bootId).toBe('boot-xyz');
-    expect(saveFn).toHaveBeenCalled();
+    expect(mockFindByIdAndUpdate).toHaveBeenCalledWith(
+      'node-1',
+      expect.objectContaining({
+        $set: expect.objectContaining({
+          tunnelStatus: 'connected',
+          bootId: 'boot-xyz',
+        }),
+      }),
+      { returnDocument: 'after' }
+    );
+    expect(saveFn).not.toHaveBeenCalled();
   });
 
   it('emits node.reboot_detected on boot id change', async () => {
@@ -268,10 +293,7 @@ describe('POST /api/fleet/nodes/[id]/heartbeat', () => {
       ],
     };
 
-    const res = await POST(
-      makeReq(beat, { Authorization: 'Bearer tok' }),
-      makeContext('node-1')
-    );
+    const res = await POST(makeReq(beat, { Authorization: 'Bearer tok' }), makeContext('node-1'));
     expect(res.status).toBe(200);
     expect(mockFleetLogInsertMany).toHaveBeenCalledTimes(1);
     const docs = mockFleetLogInsertMany.mock.calls[0][0] as Array<Record<string, unknown>>;
