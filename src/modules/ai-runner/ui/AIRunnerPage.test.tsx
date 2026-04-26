@@ -270,6 +270,29 @@ describe('AIRunnerPage', () => {
     expect(screen.getByText('Global schedule pause is active')).toBeInTheDocument();
   });
 
+  it('keeps import and export controls in settings instead of schedules', async () => {
+    await act(async () => {
+      render(<AIRunnerPage />);
+    });
+
+    await waitFor(() => expect(screen.getByText('AI Agent Runner')).toBeInTheDocument());
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('tab', { name: /Schedules/i }));
+    });
+
+    expect(screen.queryByRole('button', { name: /Export AI Runner/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Import AI Runner/i })).not.toBeInTheDocument();
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('tab', { name: /Settings/i }));
+    });
+
+    expect(screen.getByText('Portable Configuration')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Export AI Runner/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Import AI Runner/i })).toBeInTheDocument();
+  });
+
   it('shows a live countdown and last run label on schedule rows', async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-04-21T09:25:00.000Z'));

@@ -2839,24 +2839,6 @@ export default function AIRunnerPage() {
                   <Button
                     size="lg"
                     variant="outline"
-                    onClick={() => openBundleModal('export')}
-                    className="w-full justify-start"
-                  >
-                    <Download className="w-4 h-4" />
-                    Export AI Runner
-                  </Button>
-                  <Button
-                    size="lg"
-                    variant="outline"
-                    onClick={() => openBundleModal('import')}
-                    className="w-full justify-start"
-                  >
-                    <Upload className="w-4 h-4" />
-                    Import AI Runner
-                  </Button>
-                  <Button
-                    size="lg"
-                    variant="outline"
                     onClick={() => void openScheduleVisualization()}
                     className="w-full justify-start"
                   >
@@ -3959,6 +3941,35 @@ export default function AIRunnerPage() {
                   </Button>
                 </div>
               </div>
+
+              <Card className="border-border/60">
+                <CardContent className="flex flex-col gap-4 p-5 md:flex-row md:items-center md:justify-between">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <FileJson className="w-4 h-4 text-primary" />
+                      <p className="text-sm font-semibold">Portable Configuration</p>
+                    </div>
+                    <p className="mt-1 max-w-3xl text-sm leading-6 text-muted-foreground">
+                      Export or import AI Runner profiles, saved prompts, schedules, workspaces,
+                      prompt templates, and settings from this Settings page.
+                    </p>
+                  </div>
+                  <div className="flex flex-col gap-2 sm:flex-row md:shrink-0">
+                    <Button
+                      variant="outline"
+                      onClick={() => openBundleModal('export')}
+                      className="justify-start"
+                    >
+                      <Download className="w-4 h-4" />
+                      Export AI Runner
+                    </Button>
+                    <Button onClick={() => openBundleModal('import')} className="justify-start">
+                      <Upload className="w-4 h-4" />
+                      Import AI Runner
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
 
               <Card className="border-border/60">
                 <CardContent className="flex flex-col gap-4 p-5 md:flex-row md:items-center md:justify-between">
