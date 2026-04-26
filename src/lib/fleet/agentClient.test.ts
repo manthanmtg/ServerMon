@@ -70,6 +70,15 @@ function defaultNodeConfig(): unknown {
   };
 }
 
+vi.mock('@/lib/logger', () => ({
+  createLogger: () => ({
+    debug: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+  }),
+}));
+
 describe('AgentClient', () => {
   it('start() pairs, fetches node, ensures binary, writes toml, spawns frpc, and starts bridge', async () => {
     const fetchImpl = vi.fn(async (url: string | URL | Request): Promise<Response> => {
