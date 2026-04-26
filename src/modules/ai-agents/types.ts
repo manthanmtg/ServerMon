@@ -83,7 +83,33 @@ export interface AgentToolStatus {
   installed: boolean;
   path?: string;
   version?: string;
+  latestVersion?: string;
+  updateAvailable?: boolean;
   checkedAt: string;
+  error?: string;
+}
+
+export type AgentToolAction = 'install' | 'update';
+
+export type AgentToolJobStatus = 'queued' | 'running' | 'succeeded' | 'failed';
+
+export interface AgentToolCommand {
+  command: string[];
+  label: string;
+  description: string;
+}
+
+export interface AgentToolJob {
+  id: string;
+  toolType: AgentType;
+  action: AgentToolAction;
+  status: AgentToolJobStatus;
+  command: string[];
+  output: string;
+  startedAt: string;
+  updatedAt: string;
+  finishedAt?: string;
+  exitCode?: number;
   error?: string;
 }
 

@@ -1,5 +1,6 @@
 import { execFile } from 'node:child_process';
 import type { AgentToolStatus, AgentType } from '@/modules/ai-agents/types';
+import { AGENT_TOOL_DEFINITIONS } from './tool-catalog';
 
 function execFileAsync(
   file: string,
@@ -22,20 +23,21 @@ interface AgentToolProbe {
   displayName: string;
   command: string;
   versionArgs: string[];
+  latestVersionCommand?: string[];
 }
 
-const AGENT_TOOL_PROBES: AgentToolProbe[] = [
-  { type: 'codex', displayName: 'Codex', command: 'codex', versionArgs: ['--version'] },
-  {
-    type: 'claude-code',
-    displayName: 'Claude Code',
-    command: 'claude',
-    versionArgs: ['--version'],
-  },
-  { type: 'opencode', displayName: 'OpenCode', command: 'opencode', versionArgs: ['--version'] },
-  { type: 'gemini-cli', displayName: 'Gemini CLI', command: 'gemini', versionArgs: ['--version'] },
-  { type: 'aider', displayName: 'Aider', command: 'aider', versionArgs: ['--version'] },
-];
+const AGENT_TOOL_PROBES: AgentToolProbe[] = AGENT_TOOL_DEFINITIONS.filter(
+  (tool): tool is typeof tool & { command: string } => Boolean(tool.command)
+).map((tool) => ({
+  type: tool.type,
+  displayName: tool.name,
+  command: tool.command,
+  versionArgs: ['--version'],
+  latestVersionCommand: tool.latestVersionCommand,
+}));
+
+const latestVersionCache = new Map<string, { version?: string; checkedAt: number }>();
+const LATEST_VERSION_CACHE_MS = 10 * 60 * 1000;
 
 async function findCommand(command: string): Promise<string | undefined> {
   try {
@@ -59,6 +61,23 @@ async function readVersion(command: string, args: string[]): Promise<string | un
   }
 }
 
+async function readLatestVersion(probe: AgentToolProbe): Promise<string | undefined> {
+  if (!probe.latestVersionCommand) return undefined;
+  const cached = latestVersionCache.get(probe.type);
+  if (cached && Date.now() - cached.checkedAt < LATEST_VERSION_CACHE_MS) return cached.version;
+
+  const [command, ...args] = probe.latestVersionCommand;
+  if (!command) return undefined;
+
+  const version = await readVersion(command, args);
+  latestVersionCache.set(probe.type, { version, checkedAt: Date.now() });
+  return version;
+}
+
+function normalizeVersion(version?: string): string | undefined {
+  return version?.match(/\d+\.\d+\.\d+(?:[-+][\w.-]+)?/)?.[0] ?? version?.trim();
+}
+
 export async function getAgentToolStatuses(): Promise<AgentToolStatus[]> {
   const checkedAt = new Date().toISOString();
   const statuses = await Promise.all(
@@ -75,7 +94,12 @@ export async function getAgentToolStatuses(): Promise<AgentToolStatus[]> {
         };
       }
 
-      const version = await readVersion(probe.command, probe.versionArgs);
+      const [version, latestVersion] = await Promise.all([
+        readVersion(probe.command, probe.versionArgs),
+        readLatestVersion(probe),
+      ]);
+      const current = normalizeVersion(version);
+      const latest = normalizeVersion(latestVersion);
       return {
         type: probe.type,
         displayName: probe.displayName,
@@ -83,6 +107,8 @@ export async function getAgentToolStatuses(): Promise<AgentToolStatus[]> {
         installed: true,
         path,
         version,
+        latestVersion: latest,
+        updateAvailable: Boolean(current && latest && current !== latest),
         checkedAt,
       };
     })

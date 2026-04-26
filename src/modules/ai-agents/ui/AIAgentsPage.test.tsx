@@ -171,7 +171,7 @@ describe('AIAgentsPage', () => {
       expect(screen.getByRole('button', { name: /Codex/i })).toBeDefined();
       expect(screen.getByRole('button', { name: /Claude Code/i })).toBeDefined();
       expect(screen.getByText('Configured tools')).toBeDefined();
-      expect(screen.getByText('not installed')).toBeDefined();
+      expect(screen.getAllByText('not installed').length).toBeGreaterThan(0);
     });
   });
 
