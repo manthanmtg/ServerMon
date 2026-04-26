@@ -1,6 +1,15 @@
 'use client';
 
 import { useState } from 'react';
+import {
+  CalendarDays,
+  CalendarRange,
+  Clock3,
+  Code2,
+  Repeat2,
+  TimerReset,
+  type LucideIcon,
+} from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import type { ScheduleBuilderMode } from '../types';
@@ -17,6 +26,50 @@ import {
   padCronNumber,
   parseScheduleBuilder,
 } from '../utils';
+
+const MODE_OPTIONS: Array<{
+  id: ScheduleBuilderMode;
+  label: string;
+  description: string;
+  icon: LucideIcon;
+}> = [
+  {
+    id: 'every',
+    label: 'Every X Minutes',
+    description: 'Pulse loop',
+    icon: Repeat2,
+  },
+  {
+    id: 'hourly',
+    label: 'Hourly',
+    description: 'Same minute',
+    icon: TimerReset,
+  },
+  {
+    id: 'daily',
+    label: 'Daily',
+    description: 'One daily run',
+    icon: Clock3,
+  },
+  {
+    id: 'weekly',
+    label: 'Weekly',
+    description: 'Selected weekdays',
+    icon: CalendarDays,
+  },
+  {
+    id: 'monthly',
+    label: 'Monthly',
+    description: 'Month day',
+    icon: CalendarRange,
+  },
+  {
+    id: 'advanced',
+    label: 'Advanced Cron',
+    description: 'Raw expression',
+    icon: Code2,
+  },
+];
 
 export function ScheduleBuilder({
   cronExpression,
@@ -108,108 +161,78 @@ export function ScheduleBuilder({
   };
 
   return (
-    <div className="relative overflow-hidden rounded-[28px] border border-primary/20 bg-gradient-to-br from-primary/10 via-background to-warning/10 p-5 shadow-[0_24px_90px_-55px_rgba(99,102,241,0.55)]">
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-28 bg-[radial-gradient(circle_at_top_left,rgba(99,102,241,0.18),transparent_55%)]" />
-      <div className="pointer-events-none absolute right-0 top-8 h-40 w-40 rounded-full bg-primary/10 blur-3xl" />
-      <div className="pointer-events-none absolute bottom-0 left-8 h-28 w-28 rounded-full bg-warning/10 blur-3xl" />
-      <div className="relative space-y-5">
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-          <div className="max-w-2xl">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-primary/80">
-              Cadence Studio
-            </p>
-            <h3 className="mt-2 text-xl font-semibold tracking-tight">
-              Design exactly when this automation wakes up
-            </h3>
-            <p className="mt-2 text-sm leading-6 text-muted-foreground">
-              Build a rhythm that feels intentional: quick pulse loops, polished daily launches,
-              weekly workday routines, or fully custom cron logic when you want total control.
+    <div className="space-y-4 rounded-lg border border-border/70 bg-background/95 p-4 shadow-sm">
+      <div className="rounded-lg border border-primary/20 bg-primary/5 p-4">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-xs font-semibold uppercase text-primary">Cadence</p>
+            <h3 className="mt-1 text-lg font-semibold">Schedule timing</h3>
+            <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">
+              {humanizeCron(cronExpression)}
             </p>
           </div>
-          <div className="grid gap-2 sm:grid-cols-3 xl:min-w-[360px] xl:grid-cols-1">
-            <div className="rounded-2xl border border-primary/20 bg-background/80 px-4 py-3 backdrop-blur">
-              <p className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">
-                Cadence
-              </p>
-              <p className="mt-1 text-sm font-semibold">{modeLabel}</p>
-            </div>
-            <div className="rounded-2xl border border-border/60 bg-background/80 px-4 py-3 backdrop-blur">
-              <p className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">
-                Launch Window
-              </p>
-              <p className="mt-1 text-sm font-semibold">{timeLabel}</p>
-            </div>
-            <div className="rounded-2xl border border-border/60 bg-background/80 px-4 py-3 backdrop-blur">
-              <p className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">
-                Pattern
-              </p>
-              <p className="mt-1 text-sm font-semibold">{patternLabel}</p>
-            </div>
-          </div>
+          <Badge variant="outline" className="bg-background/80">
+            {modeLabel}
+          </Badge>
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {[
-            {
-              id: 'every' as const,
-              label: 'Every X Minutes',
-              description: 'Fast recurring checks like queue sweeps or watch loops.',
-            },
-            {
-              id: 'hourly' as const,
-              label: 'Hourly',
-              description: 'Run at the same minute every hour.',
-            },
-            {
-              id: 'daily' as const,
-              label: 'Daily',
-              description: 'One clean daily run at a specific time.',
-            },
-            {
-              id: 'weekly' as const,
-              label: 'Weekly',
-              description: 'Pick specific weekdays and a run time.',
-            },
-            {
-              id: 'monthly' as const,
-              label: 'Monthly',
-              description: 'Run on a specific day of the month.',
-            },
-            {
-              id: 'advanced' as const,
-              label: 'Advanced Cron',
-              description: 'Edit the raw 5-field cron expression directly.',
-            },
-          ].map((option) => (
+        <div className="mt-4 grid gap-2 sm:grid-cols-3">
+          <div className="rounded-lg border border-border/60 bg-background px-3 py-2">
+            <p className="text-xs text-muted-foreground">Window</p>
+            <p className="mt-1 truncate text-sm font-semibold">{timeLabel}</p>
+          </div>
+          <div className="rounded-lg border border-border/60 bg-background px-3 py-2">
+            <p className="text-xs text-muted-foreground">Pattern</p>
+            <p className="mt-1 truncate text-sm font-semibold">{patternLabel}</p>
+          </div>
+          <div className="rounded-lg border border-border/60 bg-background px-3 py-2">
+            <p className="text-xs text-muted-foreground">Cron</p>
+            <p className="mt-1 truncate font-mono text-sm font-semibold">{cronExpression}</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-2 lg:grid-cols-3">
+        {MODE_OPTIONS.map((option) => {
+          const Icon = option.icon;
+          const selected = mode === option.id;
+          return (
             <button
               key={option.id}
               type="button"
               onClick={() => setModeAndExpression(option.id)}
               className={cn(
-                'rounded-[24px] border px-4 py-4 text-left transition-all duration-200',
-                mode === option.id
-                  ? 'border-primary/40 bg-background/90 shadow-[0_20px_45px_-28px_rgba(99,102,241,0.55)]'
-                  : 'border-border/60 bg-background/75 hover:border-primary/20 hover:bg-background'
+                'min-h-[84px] rounded-lg border p-3 text-left transition-colors',
+                selected
+                  ? 'border-primary/45 bg-primary/10 text-foreground shadow-sm'
+                  : 'border-border/60 bg-card hover:border-primary/30 hover:bg-accent/20'
               )}
+              aria-pressed={selected}
             >
-              <div className="flex items-center justify-between gap-3">
-                <p className="text-sm font-semibold">{option.label}</p>
+              <div className="flex items-center gap-2">
                 <span
                   className={cn(
-                    'h-2.5 w-2.5 rounded-full',
-                    mode === option.id
-                      ? 'bg-primary shadow-[0_0_0_6px_rgba(99,102,241,0.15)]'
-                      : 'bg-border'
+                    'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border',
+                    selected
+                      ? 'border-primary/30 bg-background text-primary'
+                      : 'border-border/60 bg-background text-muted-foreground'
                   )}
-                />
+                >
+                  <Icon className="h-4 w-4" />
+                </span>
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold">{option.label}</p>
+                  <p className="truncate text-xs text-muted-foreground">{option.description}</p>
+                </div>
               </div>
-              <p className="mt-2 text-xs leading-5 text-muted-foreground">{option.description}</p>
             </button>
-          ))}
-        </div>
+          );
+        })}
+      </div>
 
+      <div className="rounded-lg border border-border/60 bg-card p-4">
         {mode === 'every' && (
-          <div className="rounded-[24px] border border-border/60 bg-background/80 p-5 backdrop-blur">
+          <div>
             <div className="flex flex-wrap items-center gap-3">
               <span className="text-sm font-medium">Run every</span>
               <input
@@ -225,15 +248,11 @@ export function ScheduleBuilder({
               />
               <span className="text-sm text-muted-foreground">minutes</span>
             </div>
-            <p className="mt-3 text-xs text-muted-foreground">
-              Great for watchdogs, tiny cleanup jobs, or any agent you want pulsing throughout the
-              day.
-            </p>
           </div>
         )}
 
         {mode === 'hourly' && (
-          <div className="rounded-[24px] border border-border/60 bg-background/80 p-5 backdrop-blur">
+          <div>
             <div className="flex flex-wrap items-center gap-3">
               <span className="text-sm font-medium">Run every hour at</span>
               <select
@@ -248,15 +267,11 @@ export function ScheduleBuilder({
                 ))}
               </select>
             </div>
-            <p className="mt-3 text-xs text-muted-foreground">
-              Use hourly launches for recurring review passes or regular health sweeps on a stable
-              minute mark.
-            </p>
           </div>
         )}
 
         {(mode === 'daily' || mode === 'weekly' || mode === 'monthly') && (
-          <div className="rounded-[24px] border border-border/60 bg-background/80 p-5 space-y-4 backdrop-blur">
+          <div className="space-y-4">
             {mode === 'weekly' && (
               <div className="space-y-2">
                 <p className="text-sm font-medium">Run on</p>
@@ -288,9 +303,6 @@ export function ScheduleBuilder({
                     );
                   })}
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  Choose the days this automation should appear on your calendar.
-                </p>
               </div>
             )}
 
@@ -347,7 +359,7 @@ export function ScheduleBuilder({
         )}
 
         {mode === 'advanced' && (
-          <div className="rounded-[24px] border border-border/60 bg-background/80 p-5 space-y-3 backdrop-blur">
+          <div className="space-y-3">
             <label className="space-y-1.5">
               <span className="block text-sm font-medium">Cron Expression</span>
               <input
@@ -361,39 +373,27 @@ export function ScheduleBuilder({
               {['Minute', 'Hour', 'Day', 'Month', 'Weekday'].map((label) => (
                 <div
                   key={label}
-                  className="rounded-lg border border-border/50 bg-background px-2 py-2 text-center"
+                  className="rounded-md border border-border/50 bg-background px-2 py-2 text-center"
                 >
                   {label}
                 </div>
               ))}
             </div>
-            <p className="text-xs text-muted-foreground">
-              Advanced mode stays raw on purpose. If you paste a custom cron, the preview still
-              helps you keep your bearings.
-            </p>
           </div>
         )}
+      </div>
 
-        <div className="grid gap-3 lg:grid-cols-[1.1fr_0.9fr]">
-          <div className="rounded-[24px] border border-primary/20 bg-background/85 px-4 py-4 backdrop-blur">
-            <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Narrative</p>
-            <p className="mt-2 text-base font-semibold tracking-tight">
-              {humanizeCron(cronExpression)}
-            </p>
-            <p className="mt-2 text-xs leading-5 text-muted-foreground">
-              This is the human version of the cadence your cron string currently describes.
-            </p>
-          </div>
-          <div className="rounded-[24px] border border-border/60 bg-slate-950/95 px-4 py-4 text-slate-50 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
-            <div className="flex items-center justify-between">
-              <p className="text-xs uppercase tracking-[0.16em] text-slate-400">Raw Cron</p>
-              <Badge variant="outline" className="border-slate-700 text-slate-300">
-                5 fields
-              </Badge>
-            </div>
-            <p className="mt-3 font-mono text-sm">{cronExpression}</p>
-          </div>
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border/60 bg-muted/20 px-4 py-3">
+        <div className="min-w-0">
+          <p className="text-xs text-muted-foreground">Preview</p>
+          <p className="mt-1 truncate text-sm font-semibold">{humanizeCron(cronExpression)}</p>
         </div>
+        <Badge
+          variant="outline"
+          className="max-w-full shrink overflow-hidden text-ellipsis whitespace-nowrap font-mono"
+        >
+          {cronExpression}
+        </Badge>
       </div>
     </div>
   );

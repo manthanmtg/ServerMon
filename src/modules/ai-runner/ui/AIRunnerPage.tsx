@@ -3028,18 +3028,15 @@ export default function AIRunnerPage() {
                     className="absolute inset-0 bg-background/80 backdrop-blur-sm animate-in fade-in duration-300"
                     onClick={closeScheduleModal}
                   />
-                  <div className="relative flex max-h-[92dvh] w-full max-w-6xl flex-col overflow-hidden rounded-[32px] border border-primary/20 bg-card/95 shadow-2xl animate-in fade-in zoom-in-95 slide-in-from-bottom-4 duration-300">
+                  <div className="relative flex max-h-[92dvh] w-full max-w-7xl flex-col overflow-hidden rounded-xl border border-border/70 bg-card shadow-2xl animate-in fade-in zoom-in-95 slide-in-from-bottom-4 duration-300">
                     <div className="flex items-center justify-between border-b border-border/60 bg-background/80 px-6 py-5 backdrop-blur">
                       <div>
-                        <p className="text-[11px] uppercase tracking-[0.26em] text-primary/80">
-                          Automation Studio
-                        </p>
-                        <h3 className="mt-2 text-2xl font-semibold tracking-tight">
+                        <p className="text-xs font-semibold uppercase text-primary">Automation</p>
+                        <h3 className="mt-2 text-2xl font-semibold">
                           {editingScheduleId ? 'Edit schedule' : 'Create schedule'}
                         </h3>
                         <p className="mt-2 text-sm text-muted-foreground">
-                          A full-width studio for prompt selection, runtime scene, and cadence
-                          design.
+                          Set the prompt, runtime, and cron cadence in one pass.
                         </p>
                       </div>
                       <button
@@ -3054,31 +3051,29 @@ export default function AIRunnerPage() {
                     <div className="overflow-y-auto px-6 py-6">
                       <div className="space-y-6">
                         <div className="grid gap-3 sm:grid-cols-3">
-                          <div className="rounded-2xl border border-border/60 bg-background/85 px-4 py-3">
-                            <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
-                              Prompt
+                          <div className="min-w-0 rounded-lg border border-border/60 bg-background/85 px-4 py-3">
+                            <p className="text-xs text-muted-foreground">Prompt</p>
+                            <p className="mt-1 truncate text-sm font-semibold">
+                              {scheduleFormPromptName}
                             </p>
-                            <p className="mt-1 text-sm font-semibold">{scheduleFormPromptName}</p>
                           </div>
-                          <div className="rounded-2xl border border-border/60 bg-background/85 px-4 py-3">
-                            <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
-                              Profile
+                          <div className="min-w-0 rounded-lg border border-border/60 bg-background/85 px-4 py-3">
+                            <p className="text-xs text-muted-foreground">Profile</p>
+                            <p className="mt-1 truncate text-sm font-semibold">
+                              {scheduleFormProfileName}
                             </p>
-                            <p className="mt-1 text-sm font-semibold">{scheduleFormProfileName}</p>
                           </div>
-                          <div className="rounded-2xl border border-border/60 bg-background/85 px-4 py-3">
-                            <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
-                              Cadence
-                            </p>
-                            <p className="mt-1 text-sm font-semibold">
+                          <div className="min-w-0 rounded-lg border border-border/60 bg-background/85 px-4 py-3">
+                            <p className="text-xs text-muted-foreground">Cadence</p>
+                            <p className="mt-1 truncate text-sm font-semibold">
                               {humanizeCron(scheduleForm.cronExpression)}
                             </p>
                           </div>
                         </div>
 
-                        <div className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
+                        <div className="grid gap-6 2xl:grid-cols-[minmax(420px,0.9fr)_minmax(560px,1.1fr)]">
                           <div className="space-y-6">
-                            <div className="rounded-[24px] border border-border/60 bg-background/80 p-5 space-y-4">
+                            <div className="rounded-lg border border-border/60 bg-background/80 p-5 space-y-4">
                               <div>
                                 <p className="text-sm font-semibold">Identity</p>
                                 <p className="mt-1 text-xs text-muted-foreground">
@@ -3143,7 +3138,7 @@ export default function AIRunnerPage() {
                               </label>
                             </div>
 
-                            <div className="rounded-[24px] border border-border/60 bg-background/80 p-5 space-y-4">
+                            <div className="rounded-lg border border-border/60 bg-background/80 p-5 space-y-4">
                               <div>
                                 <p className="text-sm font-semibold">Runtime Scene</p>
                                 <p className="mt-1 text-xs text-muted-foreground">
