@@ -42,6 +42,38 @@ Create PR using gh cli
 
 Templates are managed from `Settings` and can be loaded from inline prompt editors across the module.
 
+## Import And Export
+
+The `Settings` tab includes `Export AI Runner` and `Import AI Runner` actions for moving production configuration between ServerMon installs.
+
+Exports are JSON bundles with stable references instead of MongoDB IDs:
+
+- Profiles are referenced by `slug`.
+- Workspaces are referenced by `path`.
+- Prompts and prompt templates are referenced by `name`.
+- Schedules store their prompt/profile/workspace references by those portable keys.
+
+Export can include any combination of:
+
+- Settings.
+- Agent Profiles.
+- Workspaces.
+- Saved Prompts.
+- Prompt Templates.
+- Schedules.
+
+Run history, logs, jobs, and AutoFlow executions are intentionally excluded because they are runtime state, not reusable configuration.
+
+The export modal can generate JSON, copy it to the clipboard, or download it as a `.json` file.
+
+The import modal supports both pasted JSON and uploaded JSON files. Before applying an import, ServerMon previews:
+
+- Incoming item counts by resource type.
+- Conflicts with existing records.
+- Missing schedule references.
+
+Each conflict can be skipped or overwritten independently. Imports are blocked when a selected schedule references a prompt, profile, or workspace that is neither already present nor included in the same import selection.
+
 ## Runs
 
 The `Run` tab is for immediate work. Choose:

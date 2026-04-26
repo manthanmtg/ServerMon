@@ -7,7 +7,9 @@ import {
   CalendarClock,
   Clock3,
   Copy,
+  Download,
   Eye,
+  FileJson,
   FolderOpen,
   ListFilter,
   Plus,
@@ -19,6 +21,7 @@ import {
   Square,
   TerminalSquare,
   Trash2,
+  Upload,
   X,
   Zap,
 } from 'lucide-react';
@@ -33,6 +36,12 @@ import type {
   AIRunnerLogEntry,
   AIRunnerLogsResponse,
   AIRunnerAutoflowDTO,
+  AIRunnerImportConflictDTO,
+  AIRunnerImportDecision,
+  AIRunnerImportPreviewDTO,
+  AIRunnerImportResultDTO,
+  AIRunnerPortableBundle,
+  AIRunnerPortableResource,
   AIRunnerProfileDTO,
   AIRunnerPromptDTO,
   AIRunnerPromptTemplateDTO,
@@ -81,6 +90,43 @@ const HISTORY_REFRESH_MS = 5_000;
 const ACTIVE_SCHEDULE_RUN_REFRESH_MS = 5_000;
 const LOG_ENTRY_LIMIT = 500;
 const PROMPT_TEMPLATE_PLACEHOLDER = '<YOUR_PROMPT>';
+const PORTABLE_RESOURCE_OPTIONS: Array<{
+  id: AIRunnerPortableResource;
+  label: string;
+  description: string;
+}> = [
+  {
+    id: 'settings',
+    label: 'Settings',
+    description: 'Global schedule queue and default AutoFlow mode.',
+  },
+  {
+    id: 'profiles',
+    label: 'Agent Profiles',
+    description: 'CLI invocation templates, timeouts, env, icons, and enabled state.',
+  },
+  {
+    id: 'workspaces',
+    label: 'Workspaces',
+    description: 'Named paths, blocking behavior, and availability.',
+  },
+  {
+    id: 'prompts',
+    label: 'Saved Prompts',
+    description: 'Reusable prompts that can be run or scheduled.',
+  },
+  {
+    id: 'promptTemplates',
+    label: 'Prompt Templates',
+    description: 'Prompt wrappers loaded into editors.',
+  },
+  {
+    id: 'schedules',
+    label: 'Schedules',
+    description: 'Cron automations with portable prompt/profile/workspace references.',
+  },
+];
+const DEFAULT_PORTABLE_RESOURCES = PORTABLE_RESOURCE_OPTIONS.map((item) => item.id);
 
 interface AIRunnerRuntimeDiagnostics {
   runtime?: {
@@ -171,6 +217,10 @@ function emptyPromptTemplateForm(): PromptTemplateFormState {
   };
 }
 
+function getResourceLabel(resource: AIRunnerPortableResource): string {
+  return PORTABLE_RESOURCE_OPTIONS.find((item) => item.id === resource)?.label ?? resource;
+}
+
 export default function AIRunnerPage() {
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState<ViewTab>('run');
@@ -223,6 +273,8 @@ export default function AIRunnerPage() {
   const [promptModalOpen, setPromptModalOpen] = useState(false);
   const [promptTemplateModalOpen, setPromptTemplateModalOpen] = useState(false);
   const [workspaceModalOpen, setWorkspaceModalOpen] = useState(false);
+  const [bundleModalOpen, setBundleModalOpen] = useState(false);
+  const [bundleMode, setBundleMode] = useState<'export' | 'import'>('export');
   const [scheduleModalOpen, setScheduleModalOpen] = useState(false);
   const [scheduleVisualizationOpen, setScheduleVisualizationOpen] = useState(false);
   const [scheduleVisualizationProfileId, setScheduleVisualizationProfileId] = useState<
@@ -233,6 +285,18 @@ export default function AIRunnerPage() {
   const [promptTemplateForm, setPromptTemplateForm] =
     useState<PromptTemplateFormState>(emptyPromptTemplateForm());
   const [workspaceForm, setWorkspaceForm] = useState<WorkspaceFormState>(emptyWorkspaceForm());
+  const [selectedExportResources, setSelectedExportResources] = useState<
+    AIRunnerPortableResource[]
+  >(DEFAULT_PORTABLE_RESOURCES);
+  const [selectedImportResources, setSelectedImportResources] = useState<
+    AIRunnerPortableResource[]
+  >(DEFAULT_PORTABLE_RESOURCES);
+  const [exportJson, setExportJson] = useState('');
+  const [importJson, setImportJson] = useState('');
+  const [importPreview, setImportPreview] = useState<AIRunnerImportPreviewDTO | null>(null);
+  const [importResult, setImportResult] = useState<AIRunnerImportResultDTO | null>(null);
+  const [importDecisions, setImportDecisions] = useState<AIRunnerImportDecision[]>([]);
+  const [bundlePending, setBundlePending] = useState(false);
   const [scheduleForm, setScheduleForm] = useState<ScheduleFormState>(emptyScheduleForm());
   const [autoflowName, setAutoflowName] = useState('');
   const [autoflowMode, setAutoflowMode] = useState<'sequential' | 'parallel'>('sequential');
@@ -985,6 +1049,24 @@ export default function AIRunnerPage() {
     setWorkspaceForm(emptyWorkspaceForm());
   };
 
+  const openBundleModal = (mode: 'export' | 'import') => {
+    setBundleMode(mode);
+    setBundleModalOpen(true);
+    setActiveTab('settings');
+    if (mode === 'export') {
+      setExportJson('');
+    } else {
+      setImportPreview(null);
+      setImportResult(null);
+      setImportDecisions([]);
+    }
+  };
+
+  const closeBundleModal = () => {
+    setBundleModalOpen(false);
+    setBundlePending(false);
+  };
+
   const openCreateProfileModal = () => {
     resetProfileForm();
     setProfileModalOpen(true);
@@ -1658,6 +1740,180 @@ export default function AIRunnerPage() {
         description: error instanceof Error ? error.message : 'Unable to update AutoFlow mode',
         variant: 'destructive',
       });
+    }
+  };
+
+  const togglePortableResource = (
+    resource: AIRunnerPortableResource,
+    mode: 'export' | 'import'
+  ) => {
+    const setter = mode === 'export' ? setSelectedExportResources : setSelectedImportResources;
+    setter((current) => {
+      if (current.includes(resource)) {
+        const next = current.filter((item) => item !== resource);
+        return next.length > 0 ? next : current;
+      }
+      return [...current, resource];
+    });
+  };
+
+  const generateExportBundle = async () => {
+    try {
+      setBundlePending(true);
+      const response = await fetch(
+        `/api/modules/ai-runner/bundle/export?resources=${encodeURIComponent(
+          selectedExportResources.join(',')
+        )}`,
+        { cache: 'no-store' }
+      );
+      const payload = await response.json();
+      if (!response.ok) {
+        throw new Error(payload.error || 'Unable to export AI Runner bundle');
+      }
+      setExportJson(JSON.stringify(payload, null, 2));
+      toast({
+        title: 'Export ready',
+        description: 'The selected AI Runner configuration is ready to copy or download.',
+        variant: 'success',
+      });
+    } catch (error) {
+      toast({
+        title: 'Export failed',
+        description: error instanceof Error ? error.message : 'Unable to export AI Runner bundle',
+        variant: 'destructive',
+      });
+    } finally {
+      setBundlePending(false);
+    }
+  };
+
+  const copyExportJson = async () => {
+    if (!exportJson) return;
+    await navigator.clipboard.writeText(exportJson);
+    toast({
+      title: 'Copied',
+      description: 'AI Runner export JSON copied to clipboard.',
+      variant: 'success',
+    });
+  };
+
+  const downloadExportJson = () => {
+    if (!exportJson) return;
+    const blob = new Blob([exportJson], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `ai-runner-export-${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  };
+
+  const parseImportBundle = (): AIRunnerPortableBundle => {
+    const parsed = JSON.parse(importJson) as unknown;
+    return parsed as AIRunnerPortableBundle;
+  };
+
+  const previewImportBundle = async () => {
+    try {
+      setBundlePending(true);
+      setImportResult(null);
+      const bundle = parseImportBundle();
+      const response = await fetch('/api/modules/ai-runner/bundle/import?mode=preview', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          bundle,
+          selectedResources: selectedImportResources,
+          decisions: importDecisions,
+        }),
+      });
+      const payload = await response.json();
+      if (!response.ok) {
+        throw new Error(payload.error || 'Unable to preview AI Runner import');
+      }
+      const preview = payload as AIRunnerImportPreviewDTO;
+      setImportPreview(preview);
+      setImportDecisions((current) => {
+        const existing = new Set(current.map((decision) => `${decision.resource}:${decision.key}`));
+        return [
+          ...current,
+          ...preview.conflicts
+            .filter((conflict) => !existing.has(`${conflict.resource}:${conflict.key}`))
+            .map((conflict) => ({
+              resource: conflict.resource,
+              key: conflict.key,
+              overwrite: false,
+            })),
+        ];
+      });
+    } catch (error) {
+      toast({
+        title: 'Import preview failed',
+        description:
+          error instanceof Error ? error.message : 'Paste or upload a valid AI Runner export JSON',
+        variant: 'destructive',
+      });
+    } finally {
+      setBundlePending(false);
+    }
+  };
+
+  const setImportConflictDecision = (conflict: AIRunnerImportConflictDTO, overwrite: boolean) => {
+    setImportDecisions((current) => {
+      const withoutConflict = current.filter(
+        (decision) => !(decision.resource === conflict.resource && decision.key === conflict.key)
+      );
+      return [...withoutConflict, { resource: conflict.resource, key: conflict.key, overwrite }];
+    });
+  };
+
+  const shouldOverwriteImportConflict = (conflict: AIRunnerImportConflictDTO): boolean => {
+    return importDecisions.some(
+      (decision) =>
+        decision.resource === conflict.resource &&
+        decision.key === conflict.key &&
+        decision.overwrite
+    );
+  };
+
+  const applyImportBundle = async () => {
+    try {
+      setBundlePending(true);
+      const bundle = parseImportBundle();
+      const response = await fetch('/api/modules/ai-runner/bundle/import?mode=apply', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          bundle,
+          selectedResources: selectedImportResources,
+          decisions: importDecisions,
+        }),
+      });
+      const payload = await response.json();
+      if (!response.ok) {
+        throw new Error(payload.error || 'Unable to import AI Runner bundle');
+      }
+      const result = payload as AIRunnerImportResultDTO;
+      setImportResult(result);
+      setImportPreview(result);
+      await loadAll();
+      toast({
+        title: result.valid ? 'Import complete' : 'Import blocked',
+        description: result.valid
+          ? 'AI Runner configuration was imported.'
+          : 'Resolve missing references before applying this bundle.',
+        variant: result.valid ? 'success' : 'warning',
+      });
+    } catch (error) {
+      toast({
+        title: 'Import failed',
+        description: error instanceof Error ? error.message : 'Unable to import AI Runner bundle',
+        variant: 'destructive',
+      });
+    } finally {
+      setBundlePending(false);
     }
   };
 
@@ -2581,6 +2837,24 @@ export default function AIRunnerPage() {
                 </div>
 
                 <div className="flex flex-col gap-3 xl:sticky xl:top-4">
+                  <Button
+                    size="lg"
+                    variant="outline"
+                    onClick={() => openBundleModal('export')}
+                    className="w-full justify-start"
+                  >
+                    <Download className="w-4 h-4" />
+                    Export AI Runner
+                  </Button>
+                  <Button
+                    size="lg"
+                    variant="outline"
+                    onClick={() => openBundleModal('import')}
+                    className="w-full justify-start"
+                  >
+                    <Upload className="w-4 h-4" />
+                    Import AI Runner
+                  </Button>
                   <Button
                     size="lg"
                     variant="outline"
@@ -4501,6 +4775,332 @@ export default function AIRunnerPage() {
                         <Save className="w-4 h-4" />
                         Save Template
                       </Button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {bundleModalOpen && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 md:p-6">
+                  <div
+                    className="absolute inset-0 bg-background/80 backdrop-blur-sm"
+                    onClick={closeBundleModal}
+                  />
+                  <div className="relative flex max-h-[92dvh] w-full max-w-6xl flex-col overflow-hidden rounded-[28px] border border-border bg-card shadow-2xl">
+                    <div className="flex items-start justify-between gap-4 border-b border-border/60 px-6 py-5">
+                      <div>
+                        <p className="text-[11px] uppercase tracking-[0.22em] text-primary/80">
+                          Portable Configuration
+                        </p>
+                        <h3 className="mt-2 text-2xl font-semibold tracking-tight">
+                          {bundleMode === 'export' ? 'Export AI Runner' : 'Import AI Runner'}
+                        </h3>
+                        <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                          Move profiles, workspaces, prompts, templates, schedules, and settings
+                          without exporting run history or AutoFlow executions.
+                        </p>
+                      </div>
+                      <button
+                        onClick={closeBundleModal}
+                        className="flex h-10 w-10 items-center justify-center rounded-full text-muted-foreground hover:bg-muted/50"
+                        aria-label="Close import export modal"
+                      >
+                        <X className="h-5 w-5" />
+                      </button>
+                    </div>
+
+                    <div className="overflow-y-auto px-6 py-5">
+                      <div className="mb-5 flex rounded-lg border border-border bg-background p-1">
+                        {(['export', 'import'] as const).map((mode) => (
+                          <button
+                            key={mode}
+                            type="button"
+                            onClick={() => setBundleMode(mode)}
+                            className={cn(
+                              'h-10 flex-1 rounded-md px-4 text-sm font-medium capitalize transition-colors',
+                              bundleMode === mode
+                                ? 'bg-primary text-primary-foreground'
+                                : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'
+                            )}
+                          >
+                            {mode}
+                          </button>
+                        ))}
+                      </div>
+
+                      <div className="grid gap-5 xl:grid-cols-[0.86fr_1.14fr]">
+                        <Card className="border-border/60">
+                          <CardHeader>
+                            <CardTitle className="text-sm">Bundle Contents</CardTitle>
+                            <CardDescription>
+                              Select the configuration families included in this operation.
+                            </CardDescription>
+                          </CardHeader>
+                          <CardContent className="space-y-2">
+                            {PORTABLE_RESOURCE_OPTIONS.map((resource) => {
+                              const selected =
+                                bundleMode === 'export'
+                                  ? selectedExportResources.includes(resource.id)
+                                  : selectedImportResources.includes(resource.id);
+                              return (
+                                <label
+                                  key={resource.id}
+                                  className={cn(
+                                    'flex cursor-pointer items-start gap-3 rounded-xl border px-4 py-3 transition-colors',
+                                    selected
+                                      ? 'border-primary/30 bg-primary/5'
+                                      : 'border-border/60 bg-background/70 hover:bg-accent/30'
+                                  )}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={selected}
+                                    onChange={() => togglePortableResource(resource.id, bundleMode)}
+                                    className="mt-1"
+                                  />
+                                  <span>
+                                    <span className="block text-sm font-semibold">
+                                      {resource.label}
+                                    </span>
+                                    <span className="mt-1 block text-xs leading-5 text-muted-foreground">
+                                      {resource.description}
+                                    </span>
+                                  </span>
+                                </label>
+                              );
+                            })}
+                          </CardContent>
+                        </Card>
+
+                        {bundleMode === 'export' ? (
+                          <Card className="border-border/60">
+                            <CardHeader>
+                              <CardTitle className="text-sm">Export JSON</CardTitle>
+                              <CardDescription>
+                                Generate once, then copy to clipboard or download as a JSON file.
+                              </CardDescription>
+                            </CardHeader>
+                            <CardContent className="space-y-4">
+                              <div className="flex flex-wrap gap-2">
+                                <Button
+                                  onClick={() => void generateExportBundle()}
+                                  loading={bundlePending}
+                                >
+                                  <FileJson className="w-4 h-4" />
+                                  Generate JSON
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  disabled={!exportJson}
+                                  onClick={() => void copyExportJson()}
+                                >
+                                  <Copy className="w-4 h-4" />
+                                  Copy JSON
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  disabled={!exportJson}
+                                  onClick={downloadExportJson}
+                                >
+                                  <Download className="w-4 h-4" />
+                                  Download
+                                </Button>
+                              </div>
+                              <textarea
+                                value={exportJson}
+                                readOnly
+                                className="min-h-[420px] w-full rounded-xl border border-input bg-background px-3 py-3 font-mono text-xs outline-none focus:ring-2 focus:ring-ring/40"
+                                placeholder="Generated export JSON will appear here."
+                              />
+                            </CardContent>
+                          </Card>
+                        ) : (
+                          <Card className="border-border/60">
+                            <CardHeader>
+                              <CardTitle className="text-sm">Import Review</CardTitle>
+                              <CardDescription>
+                                Paste JSON or upload a bundle, preview conflicts, then choose
+                                overwrite or skip.
+                              </CardDescription>
+                            </CardHeader>
+                            <CardContent className="space-y-4">
+                              <div className="flex flex-wrap gap-2">
+                                <label className="inline-flex cursor-pointer items-center">
+                                  <input
+                                    type="file"
+                                    accept="application/json,.json"
+                                    className="hidden"
+                                    onChange={(event) => {
+                                      const file = event.target.files?.[0];
+                                      if (!file) return;
+                                      const reader = new FileReader();
+                                      reader.onload = () => {
+                                        const text =
+                                          typeof reader.result === 'string' ? reader.result : '';
+                                        setImportJson(text);
+                                        setImportPreview(null);
+                                        setImportResult(null);
+                                      };
+                                      reader.readAsText(file);
+                                      event.target.value = '';
+                                    }}
+                                  />
+                                  <span className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-border bg-background px-4 text-sm font-medium hover:bg-accent/40">
+                                    <Upload className="h-4 w-4" />
+                                    Upload JSON
+                                  </span>
+                                </label>
+                                <Button
+                                  variant="outline"
+                                  onClick={() => void previewImportBundle()}
+                                  loading={bundlePending}
+                                  disabled={!importJson.trim()}
+                                >
+                                  <Eye className="w-4 h-4" />
+                                  Preview Import
+                                </Button>
+                                <Button
+                                  onClick={() => void applyImportBundle()}
+                                  loading={bundlePending}
+                                  disabled={!importPreview || !importPreview.valid}
+                                >
+                                  <Upload className="w-4 h-4" />
+                                  Apply Import
+                                </Button>
+                              </div>
+
+                              <textarea
+                                value={importJson}
+                                onChange={(event) => {
+                                  setImportJson(event.target.value);
+                                  setImportPreview(null);
+                                  setImportResult(null);
+                                }}
+                                className="min-h-[220px] w-full rounded-xl border border-input bg-background px-3 py-3 font-mono text-xs outline-none focus:ring-2 focus:ring-ring/40"
+                                placeholder="Paste AI Runner export JSON here."
+                              />
+
+                              {importPreview ? (
+                                <div className="space-y-4">
+                                  <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                                    {PORTABLE_RESOURCE_OPTIONS.filter((resource) =>
+                                      selectedImportResources.includes(resource.id)
+                                    ).map((resource) => {
+                                      const summary = importPreview.resources[resource.id];
+                                      return (
+                                        <div
+                                          key={resource.id}
+                                          className="rounded-xl border border-border/60 bg-background/70 px-4 py-3"
+                                        >
+                                          <p className="text-xs text-muted-foreground">
+                                            {resource.label}
+                                          </p>
+                                          <p className="mt-1 text-sm font-semibold">
+                                            {summary.incoming} incoming
+                                          </p>
+                                          <p className="mt-1 text-xs text-muted-foreground">
+                                            {summary.conflicts} conflict
+                                            {summary.conflicts === 1 ? '' : 's'}
+                                          </p>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+
+                                  {importPreview.missingReferences.length > 0 ? (
+                                    <div className="rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3">
+                                      <p className="text-sm font-semibold text-destructive">
+                                        Missing references
+                                      </p>
+                                      <div className="mt-2 space-y-1 text-xs text-muted-foreground">
+                                        {importPreview.missingReferences.map((message) => (
+                                          <p key={message}>{message}</p>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  ) : null}
+
+                                  {importPreview.conflicts.length > 0 ? (
+                                    <div className="space-y-2">
+                                      <p className="text-sm font-semibold">Conflict decisions</p>
+                                      {importPreview.conflicts.map((conflict) => {
+                                        const overwrite = shouldOverwriteImportConflict(conflict);
+                                        return (
+                                          <div
+                                            key={`${conflict.resource}-${conflict.key}`}
+                                            className="flex flex-col gap-3 rounded-xl border border-border/60 bg-background/70 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
+                                          >
+                                            <div>
+                                              <p className="text-sm font-medium">
+                                                {conflict.label}
+                                              </p>
+                                              <p className="mt-1 text-xs text-muted-foreground">
+                                                {getResourceLabel(conflict.resource)} ·{' '}
+                                                {conflict.incomingSummary}
+                                              </p>
+                                            </div>
+                                            <div className="flex rounded-lg border border-border bg-card p-1">
+                                              <button
+                                                type="button"
+                                                onClick={() =>
+                                                  setImportConflictDecision(conflict, false)
+                                                }
+                                                className={cn(
+                                                  'h-8 rounded-md px-3 text-xs font-medium',
+                                                  !overwrite
+                                                    ? 'bg-warning/15 text-warning'
+                                                    : 'text-muted-foreground'
+                                                )}
+                                              >
+                                                Skip
+                                              </button>
+                                              <button
+                                                type="button"
+                                                onClick={() =>
+                                                  setImportConflictDecision(conflict, true)
+                                                }
+                                                className={cn(
+                                                  'h-8 rounded-md px-3 text-xs font-medium',
+                                                  overwrite
+                                                    ? 'bg-primary text-primary-foreground'
+                                                    : 'text-muted-foreground'
+                                                )}
+                                              >
+                                                Overwrite
+                                              </button>
+                                            </div>
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  ) : (
+                                    <div className="rounded-xl border border-success/30 bg-success/5 px-4 py-3 text-sm text-muted-foreground">
+                                      No conflicts found for the selected resources.
+                                    </div>
+                                  )}
+
+                                  {importResult ? (
+                                    <div className="rounded-xl border border-primary/20 bg-primary/5 px-4 py-3">
+                                      <p className="text-sm font-semibold">Import result</p>
+                                      <div className="mt-2 grid gap-2 text-xs sm:grid-cols-2 xl:grid-cols-3">
+                                        {PORTABLE_RESOURCE_OPTIONS.map((resource) => {
+                                          const result = importResult.imported[resource.id];
+                                          return (
+                                            <p key={resource.id}>
+                                              {resource.label}: {result.created} created,{' '}
+                                              {result.updated} updated, {result.skipped} skipped
+                                            </p>
+                                          );
+                                        })}
+                                      </div>
+                                    </div>
+                                  ) : null}
+                                </div>
+                              ) : null}
+                            </CardContent>
+                          </Card>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>

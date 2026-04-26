@@ -14,6 +14,11 @@ import type {
   AIRunnerAutoflowDTO,
   AIRunnerDirectoriesResponse,
   AIRunnerExecuteRequest,
+  AIRunnerImportDecision,
+  AIRunnerImportPreviewDTO,
+  AIRunnerImportResultDTO,
+  AIRunnerPortableBundle,
+  AIRunnerPortableResource,
   AIRunnerProfileDTO,
   AIRunnerPromptDTO,
   AIRunnerPromptTemplateDTO,
@@ -73,6 +78,15 @@ type AIRunnerAutoflowCreateInput = {
   startImmediately?: boolean;
 };
 
+const PORTABLE_RESOURCES: AIRunnerPortableResource[] = [
+  'settings',
+  'profiles',
+  'workspaces',
+  'prompts',
+  'promptTemplates',
+  'schedules',
+];
+
 function toOptionalObjectId(value?: string): mongoose.Types.ObjectId | undefined {
   return value ? new mongoose.Types.ObjectId(value) : undefined;
 }
@@ -85,6 +99,38 @@ function normalizeAutoflowItems(input: AIRunnerAutoflowInputItem[]) {
     workspaceId: toOptionalObjectId(item.workspaceId),
     status: 'pending' as const,
   }));
+}
+
+function emptyPortableResourceCounts(): Record<
+  AIRunnerPortableResource,
+  { incoming: number; conflicts: number }
+> {
+  return Object.fromEntries(
+    PORTABLE_RESOURCES.map((resource) => [resource, { incoming: 0, conflicts: 0 }])
+  ) as Record<AIRunnerPortableResource, { incoming: number; conflicts: number }>;
+}
+
+function emptyImportMutationCounts(): Record<
+  AIRunnerPortableResource,
+  { created: number; updated: number; skipped: number }
+> {
+  return Object.fromEntries(
+    PORTABLE_RESOURCES.map((resource) => [resource, { created: 0, updated: 0, skipped: 0 }])
+  ) as Record<AIRunnerPortableResource, { created: number; updated: number; skipped: number }>;
+}
+
+function decisionKey(resource: AIRunnerPortableResource, key: string): string {
+  return `${resource}:${key}`;
+}
+
+function shouldOverwriteConflict(
+  decisions: AIRunnerImportDecision[],
+  resource: AIRunnerPortableResource,
+  key: string
+): boolean {
+  return decisions.some(
+    (decision) => decision.resource === resource && decision.key === key && decision.overwrite
+  );
 }
 
 export interface AIRunnerServiceOptions {
@@ -402,6 +448,434 @@ export class AIRunnerService {
     const settings = await updateAIRunnerSettings(input);
     ensureAIRunnerSupervisor();
     return settings;
+  }
+
+  async exportBundle(resources: AIRunnerPortableResource[]): Promise<AIRunnerPortableBundle> {
+    await connectDB();
+    const selected = new Set(resources);
+    const bundle: AIRunnerPortableBundle = {
+      kind: 'servermon.ai-runner.bundle',
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      resources: {},
+    };
+
+    if (selected.has('settings')) {
+      const settings = await getAIRunnerSettings();
+      bundle.resources.settings = {
+        schedulesGloballyEnabled: settings.schedulesGloballyEnabled,
+        autoflowMode: settings.autoflowMode,
+      };
+    }
+
+    if (selected.has('profiles')) {
+      const profiles = await this.listProfiles();
+      bundle.resources.profiles = profiles.map(
+        ({
+          name,
+          slug,
+          agentType,
+          invocationTemplate,
+          defaultTimeout,
+          maxTimeout,
+          shell,
+          requiresTTY,
+          env,
+          enabled,
+          icon,
+        }) => ({
+          name,
+          slug,
+          agentType,
+          invocationTemplate,
+          defaultTimeout,
+          maxTimeout,
+          shell,
+          requiresTTY,
+          env,
+          enabled,
+          icon,
+        })
+      );
+    }
+
+    if (selected.has('workspaces')) {
+      const workspaces = await this.listWorkspaces();
+      bundle.resources.workspaces = workspaces.map(({ name, path, blocking, enabled, notes }) => ({
+        name,
+        path,
+        blocking,
+        enabled,
+        notes,
+      }));
+    }
+
+    if (selected.has('prompts')) {
+      const prompts = await this.listPrompts();
+      bundle.resources.prompts = prompts.map(({ name, content, type, tags }) => ({
+        name,
+        content,
+        type,
+        tags,
+      }));
+    }
+
+    if (selected.has('promptTemplates')) {
+      const templates = await this.listPromptTemplates();
+      bundle.resources.promptTemplates = templates.map(({ name, content, description, tags }) => ({
+        name,
+        content,
+        description,
+        tags,
+      }));
+    }
+
+    if (selected.has('schedules')) {
+      const [schedules, prompts, profiles, workspaces] = await Promise.all([
+        this.listSchedules(),
+        this.listPrompts(),
+        this.listProfiles(),
+        this.listWorkspaces(),
+      ]);
+      const promptById = new Map(prompts.map((prompt) => [prompt._id, prompt]));
+      const profileById = new Map(profiles.map((profile) => [profile._id, profile]));
+      const workspaceById = new Map(workspaces.map((workspace) => [workspace._id, workspace]));
+      bundle.resources.schedules = schedules.map((schedule) => ({
+        name: schedule.name,
+        promptName: promptById.get(schedule.promptId)?.name ?? schedule.promptId,
+        agentProfileSlug: profileById.get(schedule.agentProfileId)?.slug ?? schedule.agentProfileId,
+        workspacePath: schedule.workspaceId
+          ? workspaceById.get(schedule.workspaceId)?.path
+          : undefined,
+        workingDirectory: schedule.workingDirectory,
+        timeout: schedule.timeout,
+        retries: schedule.retries,
+        cronExpression: schedule.cronExpression,
+        enabled: schedule.enabled,
+      }));
+    }
+
+    return bundle;
+  }
+
+  async previewImportBundle(
+    bundle: AIRunnerPortableBundle,
+    selectedResources: AIRunnerPortableResource[]
+  ): Promise<AIRunnerImportPreviewDTO> {
+    await connectDB();
+    const selected = new Set(selectedResources);
+    const resources = emptyPortableResourceCounts();
+    const conflicts: AIRunnerImportPreviewDTO['conflicts'] = [];
+    const missingReferences: string[] = [];
+
+    const [profiles, workspaces, prompts, templates, schedules] = await Promise.all([
+      this.listProfiles(),
+      this.listWorkspaces(),
+      this.listPrompts(),
+      this.listPromptTemplates(),
+      this.listSchedules(),
+    ]);
+
+    const profileBySlug = new Map(profiles.map((profile) => [profile.slug, profile]));
+    const workspaceByPath = new Map(workspaces.map((workspace) => [workspace.path, workspace]));
+    const promptByName = new Map(prompts.map((prompt) => [prompt.name, prompt]));
+    const templateByName = new Map(templates.map((template) => [template.name, template]));
+    const scheduleByName = new Map(schedules.map((schedule) => [schedule.name, schedule]));
+
+    const addConflict = (
+      resource: AIRunnerPortableResource,
+      key: string,
+      label: string,
+      existingId: string | undefined,
+      incomingSummary: string
+    ) => {
+      resources[resource].conflicts += 1;
+      conflicts.push({ resource, key, label, existingId, incomingSummary });
+    };
+
+    if (selected.has('settings') && bundle.resources.settings) {
+      resources.settings.incoming = 1;
+      resources.settings.conflicts = 1;
+      conflicts.push({
+        resource: 'settings',
+        key: 'settings',
+        label: 'AI Runner settings',
+        incomingSummary: `Schedules ${bundle.resources.settings.schedulesGloballyEnabled ? 'enabled' : 'paused'}, AutoFlow ${bundle.resources.settings.autoflowMode}`,
+      });
+    }
+
+    if (selected.has('profiles')) {
+      for (const profile of bundle.resources.profiles ?? []) {
+        resources.profiles.incoming += 1;
+        const existing = profileBySlug.get(profile.slug);
+        if (existing) {
+          addConflict('profiles', profile.slug, profile.name, existing._id, profile.agentType);
+        }
+      }
+    }
+
+    if (selected.has('workspaces')) {
+      for (const workspace of bundle.resources.workspaces ?? []) {
+        resources.workspaces.incoming += 1;
+        const existing = workspaceByPath.get(workspace.path);
+        if (existing) {
+          addConflict(
+            'workspaces',
+            workspace.path,
+            workspace.name,
+            existing._id,
+            workspace.blocking ? 'blocking' : 'parallel allowed'
+          );
+        }
+      }
+    }
+
+    if (selected.has('prompts')) {
+      for (const prompt of bundle.resources.prompts ?? []) {
+        resources.prompts.incoming += 1;
+        const existing = promptByName.get(prompt.name);
+        if (existing) {
+          addConflict('prompts', prompt.name, prompt.name, existing._id, prompt.type);
+        }
+      }
+    }
+
+    if (selected.has('promptTemplates')) {
+      for (const template of bundle.resources.promptTemplates ?? []) {
+        resources.promptTemplates.incoming += 1;
+        const existing = templateByName.get(template.name);
+        if (existing) {
+          addConflict(
+            'promptTemplates',
+            template.name,
+            template.name,
+            existing._id,
+            `${template.content.length} chars`
+          );
+        }
+      }
+    }
+
+    if (selected.has('schedules')) {
+      const importedProfileSlugs = new Set(
+        selected.has('profiles')
+          ? (bundle.resources.profiles ?? []).map((profile) => profile.slug)
+          : []
+      );
+      const importedPromptNames = new Set(
+        selected.has('prompts') ? (bundle.resources.prompts ?? []).map((prompt) => prompt.name) : []
+      );
+      const importedWorkspacePaths = new Set(
+        selected.has('workspaces')
+          ? (bundle.resources.workspaces ?? []).map((workspace) => workspace.path)
+          : []
+      );
+
+      for (const schedule of bundle.resources.schedules ?? []) {
+        resources.schedules.incoming += 1;
+        const existing = scheduleByName.get(schedule.name);
+        if (existing) {
+          addConflict(
+            'schedules',
+            schedule.name,
+            schedule.name,
+            existing._id,
+            schedule.cronExpression
+          );
+        }
+        if (
+          !promptByName.has(schedule.promptName) &&
+          !importedPromptNames.has(schedule.promptName)
+        ) {
+          missingReferences.push(
+            `Schedule "${schedule.name}" references missing prompt "${schedule.promptName}"`
+          );
+        }
+        if (
+          !profileBySlug.has(schedule.agentProfileSlug) &&
+          !importedProfileSlugs.has(schedule.agentProfileSlug)
+        ) {
+          missingReferences.push(
+            `Schedule "${schedule.name}" references missing profile "${schedule.agentProfileSlug}"`
+          );
+        }
+        if (
+          schedule.workspacePath &&
+          !workspaceByPath.has(schedule.workspacePath) &&
+          !importedWorkspacePaths.has(schedule.workspacePath)
+        ) {
+          missingReferences.push(
+            `Schedule "${schedule.name}" references missing workspace "${schedule.workspacePath}"`
+          );
+        }
+      }
+    }
+
+    return {
+      valid: missingReferences.length === 0,
+      resources,
+      conflicts,
+      missingReferences,
+    };
+  }
+
+  async importBundle(input: {
+    bundle: AIRunnerPortableBundle;
+    selectedResources: AIRunnerPortableResource[];
+    decisions: AIRunnerImportDecision[];
+  }): Promise<AIRunnerImportResultDTO> {
+    await connectDB();
+    const preview = await this.previewImportBundle(input.bundle, input.selectedResources);
+    if (!preview.valid) {
+      return { ...preview, imported: emptyImportMutationCounts() };
+    }
+
+    const selected = new Set(input.selectedResources);
+    const imported = emptyImportMutationCounts();
+    const skippedConflicts = new Set(
+      preview.conflicts
+        .filter(
+          (conflict) => !shouldOverwriteConflict(input.decisions, conflict.resource, conflict.key)
+        )
+        .map((conflict) => decisionKey(conflict.resource, conflict.key))
+    );
+
+    if (selected.has('settings') && input.bundle.resources.settings) {
+      if (skippedConflicts.has(decisionKey('settings', 'settings'))) {
+        imported.settings.skipped += 1;
+      } else {
+        await updateAIRunnerSettings(input.bundle.resources.settings);
+        imported.settings.updated += 1;
+      }
+    }
+
+    if (selected.has('profiles')) {
+      for (const profile of input.bundle.resources.profiles ?? []) {
+        const existing = await AIRunnerProfile.findOne({ slug: profile.slug });
+        if (existing) {
+          if (skippedConflicts.has(decisionKey('profiles', profile.slug))) {
+            imported.profiles.skipped += 1;
+            continue;
+          }
+          Object.assign(existing, profile);
+          await existing.save();
+          imported.profiles.updated += 1;
+        } else {
+          await AIRunnerProfile.create(profile);
+          imported.profiles.created += 1;
+        }
+      }
+    }
+
+    if (selected.has('workspaces')) {
+      for (const workspace of input.bundle.resources.workspaces ?? []) {
+        const existing = await AIRunnerWorkspace.findOne({ path: workspace.path });
+        if (existing) {
+          if (skippedConflicts.has(decisionKey('workspaces', workspace.path))) {
+            imported.workspaces.skipped += 1;
+            continue;
+          }
+          Object.assign(existing, workspace);
+          await existing.save();
+          imported.workspaces.updated += 1;
+        } else {
+          await AIRunnerWorkspace.create(workspace);
+          imported.workspaces.created += 1;
+        }
+      }
+    }
+
+    if (selected.has('prompts')) {
+      for (const prompt of input.bundle.resources.prompts ?? []) {
+        const existing = await AIRunnerPrompt.findOne({ name: prompt.name });
+        if (existing) {
+          if (skippedConflicts.has(decisionKey('prompts', prompt.name))) {
+            imported.prompts.skipped += 1;
+            continue;
+          }
+          Object.assign(existing, prompt);
+          await existing.save();
+          imported.prompts.updated += 1;
+        } else {
+          await AIRunnerPrompt.create(prompt);
+          imported.prompts.created += 1;
+        }
+      }
+    }
+
+    if (selected.has('promptTemplates')) {
+      for (const template of input.bundle.resources.promptTemplates ?? []) {
+        const existing = await AIRunnerPromptTemplate.findOne({ name: template.name });
+        if (existing) {
+          if (skippedConflicts.has(decisionKey('promptTemplates', template.name))) {
+            imported.promptTemplates.skipped += 1;
+            continue;
+          }
+          Object.assign(existing, template);
+          await existing.save();
+          imported.promptTemplates.updated += 1;
+        } else {
+          await AIRunnerPromptTemplate.create(template);
+          imported.promptTemplates.created += 1;
+        }
+      }
+    }
+
+    if (selected.has('schedules')) {
+      const [prompts, profiles, workspaces] = await Promise.all([
+        this.listPrompts(),
+        this.listProfiles(),
+        this.listWorkspaces(),
+      ]);
+      const promptByName = new Map(prompts.map((prompt) => [prompt.name, prompt]));
+      const profileBySlug = new Map(profiles.map((profile) => [profile.slug, profile]));
+      const workspaceByPath = new Map(workspaces.map((workspace) => [workspace.path, workspace]));
+
+      for (const schedule of input.bundle.resources.schedules ?? []) {
+        const prompt = promptByName.get(schedule.promptName);
+        const profile = profileBySlug.get(schedule.agentProfileSlug);
+        const workspace = schedule.workspacePath
+          ? workspaceByPath.get(schedule.workspacePath)
+          : undefined;
+        if (!prompt || !profile || (schedule.workspacePath && !workspace)) {
+          imported.schedules.skipped += 1;
+          continue;
+        }
+
+        const scheduleInput = {
+          name: schedule.name,
+          promptId: prompt._id,
+          agentProfileId: profile._id,
+          workspaceId: workspace?._id,
+          workingDirectory: workspace?.path ?? schedule.workingDirectory,
+          timeout: schedule.timeout,
+          retries: schedule.retries,
+          cronExpression: schedule.cronExpression,
+          enabled: schedule.enabled,
+          nextRunTime:
+            schedule.enabled && getNextRunTimeFromExpression(schedule.cronExpression)
+              ? new Date(getNextRunTimeFromExpression(schedule.cronExpression)!)
+              : undefined,
+        };
+        const existing = await AIRunnerSchedule.findOne({ name: schedule.name });
+        if (existing) {
+          if (skippedConflicts.has(decisionKey('schedules', schedule.name))) {
+            imported.schedules.skipped += 1;
+            continue;
+          }
+          Object.assign(existing, scheduleInput);
+          await existing.save();
+          imported.schedules.updated += 1;
+        } else {
+          await AIRunnerSchedule.create(scheduleInput);
+          imported.schedules.created += 1;
+        }
+      }
+    }
+
+    ensureAIRunnerSupervisor();
+    const afterPreview = await this.previewImportBundle(input.bundle, input.selectedResources);
+    return { ...afterPreview, imported };
   }
 
   async listAutoflows(): Promise<AIRunnerAutoflowDTO[]> {

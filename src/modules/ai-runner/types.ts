@@ -228,3 +228,98 @@ export interface AIRunnerAutoflowDTO {
   createdAt: string;
   updatedAt: string;
 }
+
+export type AIRunnerPortableResource =
+  | 'settings'
+  | 'profiles'
+  | 'workspaces'
+  | 'prompts'
+  | 'promptTemplates'
+  | 'schedules';
+
+export interface AIRunnerPortableProfile {
+  name: string;
+  slug: string;
+  agentType: AIRunnerAgentType;
+  invocationTemplate: string;
+  defaultTimeout: number;
+  maxTimeout: number;
+  shell: string;
+  requiresTTY: boolean;
+  env: Record<string, string>;
+  enabled: boolean;
+  icon?: string;
+}
+
+export interface AIRunnerPortableWorkspace {
+  name: string;
+  path: string;
+  blocking: boolean;
+  enabled: boolean;
+  notes?: string;
+}
+
+export interface AIRunnerPortablePrompt {
+  name: string;
+  content: string;
+  type: AIRunnerPromptType;
+  tags: string[];
+}
+
+export interface AIRunnerPortablePromptTemplate {
+  name: string;
+  content: string;
+  description?: string;
+  tags: string[];
+}
+
+export interface AIRunnerPortableSchedule {
+  name: string;
+  promptName: string;
+  agentProfileSlug: string;
+  workspacePath?: string;
+  workingDirectory: string;
+  timeout: number;
+  retries: number;
+  cronExpression: string;
+  enabled: boolean;
+}
+
+export interface AIRunnerPortableBundle {
+  kind: 'servermon.ai-runner.bundle';
+  version: 1;
+  exportedAt: string;
+  resources: {
+    settings?: Pick<AIRunnerSettingsDTO, 'schedulesGloballyEnabled' | 'autoflowMode'>;
+    profiles?: AIRunnerPortableProfile[];
+    workspaces?: AIRunnerPortableWorkspace[];
+    prompts?: AIRunnerPortablePrompt[];
+    promptTemplates?: AIRunnerPortablePromptTemplate[];
+    schedules?: AIRunnerPortableSchedule[];
+  };
+}
+
+export interface AIRunnerImportConflictDTO {
+  resource: AIRunnerPortableResource;
+  key: string;
+  label: string;
+  existingId?: string;
+  incomingSummary: string;
+}
+
+export interface AIRunnerImportPreviewDTO {
+  valid: boolean;
+  resources: Record<AIRunnerPortableResource, { incoming: number; conflicts: number }>;
+  conflicts: AIRunnerImportConflictDTO[];
+  missingReferences: string[];
+}
+
+export interface AIRunnerImportDecision {
+  resource: AIRunnerPortableResource;
+  key: string;
+  overwrite: boolean;
+}
+
+export interface AIRunnerImportResultDTO extends AIRunnerImportPreviewDTO {
+  imported: Record<AIRunnerPortableResource, { created: number; updated: number; skipped: number }>;
+}

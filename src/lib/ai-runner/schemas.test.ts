@@ -1,6 +1,8 @@
 /** @vitest-environment node */
 import { describe, expect, it } from 'vitest';
 import {
+  exportBundleQuerySchema,
+  importBundleSchema,
   profileCreateSchema,
   profileUpdateSchema,
   profileValidateSchema,
@@ -183,6 +185,47 @@ describe('ai-runner schemas', () => {
       const result = runExecuteSchema.safeParse({
         promptId: 'p1',
         scheduleId: 's1',
+      });
+      expect(result.success).toBe(true);
+    });
+  });
+
+  describe('bundle schemas', () => {
+    it('parses export resource query strings', () => {
+      const result = exportBundleQuerySchema.safeParse({
+        resources: 'profiles,workspaces,prompts',
+      });
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.resources).toEqual(['profiles', 'workspaces', 'prompts']);
+      }
+    });
+
+    it('validates import bundles with selected resources and decisions', () => {
+      const result = importBundleSchema.safeParse({
+        bundle: {
+          kind: 'servermon.ai-runner.bundle',
+          version: 1,
+          exportedAt: '2026-04-26T00:00:00.000Z',
+          resources: {
+            profiles: [
+              {
+                name: 'Codex',
+                slug: 'codex',
+                agentType: 'codex',
+                invocationTemplate: 'codex "$PROMPT"',
+                defaultTimeout: 30,
+                maxTimeout: 120,
+                shell: '/bin/bash',
+                requiresTTY: false,
+                env: {},
+                enabled: true,
+              },
+            ],
+          },
+        },
+        selectedResources: ['profiles'],
+        decisions: [{ resource: 'profiles', key: 'codex', overwrite: true }],
       });
       expect(result.success).toBe(true);
     });

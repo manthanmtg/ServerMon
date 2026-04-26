@@ -11,6 +11,14 @@ const agentTypeSchema = z.enum([
 
 const promptTypeSchema = z.enum(['inline', 'file-reference']);
 const autoflowModeSchema = z.enum(['sequential', 'parallel']);
+const portableResourceSchema = z.enum([
+  'settings',
+  'profiles',
+  'workspaces',
+  'prompts',
+  'promptTemplates',
+  'schedules',
+]);
 
 export const workspaceCreateSchema = z.object({
   name: z.string().trim().min(1).max(160),
@@ -180,3 +188,73 @@ export const runExecuteSchema = z
       });
     }
   });
+
+export const exportBundleQuerySchema = z.object({
+  resources: z
+    .string()
+    .optional()
+    .transform((value) => {
+      if (!value) {
+        return portableResourceSchema.options;
+      }
+      return value
+        .split(',')
+        .map((item) => item.trim())
+        .filter(Boolean);
+    })
+    .pipe(z.array(portableResourceSchema).min(1)),
+});
+
+const portableProfileSchema = profileCreateSchema.omit({ slug: true }).extend({
+  slug: z.string().trim().min(1).max(120),
+});
+
+const portableWorkspaceSchema = workspaceCreateSchema;
+const portablePromptSchema = promptCreateSchema;
+const portablePromptTemplateSchema = promptTemplateCreateSchema;
+const portableScheduleSchema = z.object({
+  name: z.string().trim().min(1).max(160),
+  promptName: z.string().trim().min(1).max(160),
+  agentProfileSlug: z.string().trim().min(1).max(120),
+  workspacePath: z.string().trim().min(1).max(2000).optional(),
+  workingDirectory: z.string().trim().min(1).max(2000),
+  timeout: z
+    .number()
+    .int()
+    .min(1)
+    .max(24 * 60),
+  retries: z.number().int().min(0).max(9).default(1),
+  cronExpression: z.string().trim().min(1).max(120),
+  enabled: z.boolean().default(true),
+});
+
+export const importBundleSchema = z.object({
+  bundle: z.object({
+    kind: z.literal('servermon.ai-runner.bundle'),
+    version: z.literal(1),
+    exportedAt: z.string().trim().min(1),
+    resources: z.object({
+      settings: z
+        .object({
+          schedulesGloballyEnabled: z.boolean(),
+          autoflowMode: autoflowModeSchema,
+        })
+        .optional(),
+      profiles: z.array(portableProfileSchema).optional(),
+      workspaces: z.array(portableWorkspaceSchema).optional(),
+      prompts: z.array(portablePromptSchema).optional(),
+      promptTemplates: z.array(portablePromptTemplateSchema).optional(),
+      schedules: z.array(portableScheduleSchema).optional(),
+    }),
+  }),
+  selectedResources: z.array(portableResourceSchema).min(1),
+  decisions: z
+    .array(
+      z.object({
+        resource: portableResourceSchema,
+        key: z.string().trim().min(1),
+        overwrite: z.boolean(),
+      })
+    )
+    .default([]),
+});
