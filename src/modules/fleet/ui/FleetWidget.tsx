@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo, memo } from 'react';
 import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ServerCog } from 'lucide-react';
@@ -38,22 +38,24 @@ export default function FleetWidget() {
     };
   }, []);
 
-  const now = new Date();
-  const counts = nodes.reduce(
-    (acc, n) => {
-      const s = deriveNodeStatus({
-        lastSeen: n.lastSeen ? new Date(n.lastSeen) : undefined,
-        tunnelStatus: n.tunnelStatus as never,
-        maintenanceEnabled: n.maintenance?.enabled,
-        unpaired: !n.pairingVerifiedAt,
-        now,
-      });
-      acc[s] = (acc[s] ?? 0) + 1;
-      acc.total++;
-      return acc;
-    },
-    { total: 0 } as Record<string, number>
-  );
+  const counts = useMemo(() => {
+    const now = new Date();
+    return nodes.reduce(
+      (acc, n) => {
+        const s = deriveNodeStatus({
+          lastSeen: n.lastSeen ? new Date(n.lastSeen) : undefined,
+          tunnelStatus: n.tunnelStatus as never,
+          maintenanceEnabled: n.maintenance?.enabled,
+          unpaired: !n.pairingVerifiedAt,
+          now,
+        });
+        acc[s] = (acc[s] ?? 0) + 1;
+        acc.total++;
+        return acc;
+      },
+      { total: 0 } as Record<string, number>
+    );
+  }, [nodes]);
 
   return (
     <Card>
@@ -79,7 +81,7 @@ export default function FleetWidget() {
   );
 }
 
-function StatCell({
+const StatCell = memo(function StatCell({
   label,
   value,
   variant,
@@ -102,4 +104,4 @@ function StatCell({
       <div className={`mt-1 text-2xl font-semibold ${color}`}>{value}</div>
     </div>
   );
-}
+});

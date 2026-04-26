@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { memo, useState } from 'react';
 import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -40,7 +40,7 @@ const STATUS_STYLES: Record<string, string> = {
   error: 'bg-destructive/10 text-destructive border-destructive/30',
 };
 
-export function NodeCard({
+export const NodeCard = memo(function NodeCard({
   node,
   now = new Date(),
   onDelete,
@@ -173,4 +173,4 @@ export function NodeCard({
       />
     </>
   );
-}
+});

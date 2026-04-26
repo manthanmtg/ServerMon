@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, memo } from 'react';
 import { Input } from '@/components/ui/input';
 import { Search } from 'lucide-react';
 import { NODE_STATUSES } from '@/lib/fleet/enums';
@@ -10,7 +10,7 @@ export interface NodeSearchValue {
   status: string;
 }
 
-export function NodeSearch({
+export const NodeSearch = memo(function NodeSearch({
   onChange,
   initial = { search: '', tag: '', status: '' },
 }: {
@@ -58,4 +58,4 @@ export function NodeSearch({
       </select>
     </div>
   );
-}
+});
