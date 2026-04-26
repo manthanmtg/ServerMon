@@ -389,6 +389,15 @@ describe('SettingsPage', () => {
 
   it('renders ServerMon service controls in settings', async () => {
     (global.fetch as ReturnType<typeof vi.fn>).mockImplementation((url: string) => {
+      if (url === '/api/system/update/auto') {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            settings: { enabled: true, time: '03:00', timezone: 'Asia/Kolkata' },
+            schedule: { nextRunAt: '2026-04-26T21:30:00.000Z' },
+          }),
+        });
+      }
       if (url === '/api/modules/updates/agent') {
         return Promise.resolve({
           ok: true,
@@ -414,8 +423,73 @@ describe('SettingsPage', () => {
     await act(async () => render(<SettingsPage />));
 
     expect(screen.getByText('ServerMon Services')).toBeDefined();
+    await waitFor(() => expect(screen.getByText('Scheduled updater')).toBeDefined());
+    expect(screen.getByText('Enabled at 03:00')).toBeDefined();
+    expect(screen.getByText('Asia/Kolkata')).toBeDefined();
     await waitFor(() => expect(screen.getByText('Agent Installed')).toBeDefined());
     expect(screen.getByText('/opt/servermon-agent/source')).toBeDefined();
+  });
+
+  it('opens and saves the local auto-update schedule modal', async () => {
+    (global.fetch as ReturnType<typeof vi.fn>).mockImplementation(
+      (url: string, opts?: RequestInit) => {
+        if (url === '/api/system/update/auto' && opts?.method === 'PATCH') {
+          return Promise.resolve({
+            ok: true,
+            json: async () => ({
+              settings: { enabled: false, time: '04:30', timezone: 'UTC' },
+              schedule: { nextRunAt: null },
+            }),
+          });
+        }
+        if (url === '/api/system/update/auto') {
+          return Promise.resolve({
+            ok: true,
+            json: async () => ({
+              settings: { enabled: true, time: '03:00', timezone: 'Asia/Kolkata' },
+              schedule: { nextRunAt: '2026-04-26T21:30:00.000Z' },
+            }),
+          });
+        }
+        if (url === '/api/modules/updates/agent') {
+          return Promise.resolve({
+            ok: true,
+            json: async () => ({ agent: null }),
+          });
+        }
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({ modules: [] }),
+        });
+      }
+    );
+
+    await act(async () => render(<SettingsPage />));
+
+    await waitFor(() => expect(screen.getByText('Configure Schedule')).toBeDefined());
+    fireEvent.click(screen.getByText('Configure Schedule'));
+
+    await waitFor(() => expect(screen.getByText('Local Auto-Update Schedule')).toBeDefined());
+    fireEvent.click(screen.getByLabelText('Enable local auto-update'));
+    fireEvent.change(screen.getByLabelText('Daily time'), { target: { value: '04:30' } });
+    fireEvent.change(screen.getByLabelText('Timezone'), { target: { value: 'UTC' } });
+
+    await act(async () => {
+      fireEvent.click(screen.getByText('Save Schedule'));
+    });
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      '/api/system/update/auto',
+      expect.objectContaining({
+        method: 'PATCH',
+        body: JSON.stringify({ enabled: false, time: '04:30', timezone: 'UTC' }),
+      })
+    );
+    await waitFor(() => {
+      expect(mockToast).toHaveBeenCalledWith(
+        expect.objectContaining({ title: 'Auto-update schedule saved', variant: 'success' })
+      );
+    });
   });
 
   it('opens update history from the ServerMon Services card', async () => {

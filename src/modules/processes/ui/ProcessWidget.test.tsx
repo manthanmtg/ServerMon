@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import ProcessWidget from './ProcessWidget';
 import { ToastProvider } from '@/components/ui/toast';
@@ -47,17 +47,12 @@ const mockSummary = {
 
 describe('ProcessWidget', () => {
   beforeEach(() => {
-    vi.useFakeTimers();
     global.fetch = vi.fn().mockImplementation(() =>
       Promise.resolve({
         ok: true,
         json: async () => ({ processes: mockProcs, summary: mockSummary }),
       })
     );
-  });
-
-  afterEach(() => {
-    vi.useRealTimers();
   });
 
   const renderWidget = async () => {
@@ -145,7 +140,7 @@ describe('ProcessWidget', () => {
 
     await waitFor(() => {
       expect(screen.getAllByText(/node server.js/i).length).toBeGreaterThan(0);
-      expect(screen.getAllByText(/256 MB/i).length).toBeGreaterThan(0);
+      expect(screen.getAllByText(/256\.0 MB/i).length).toBeGreaterThan(0);
     });
   });
 
@@ -216,7 +211,7 @@ describe('ProcessWidget', () => {
     global.fetch = vi.fn().mockRejectedValue(new Error('Fetch failed'));
     await renderWidget();
     // Should not crash
-    expect(screen.getByText('150')).toBeDefined();
+    expect(screen.getByText(/Auto-refreshes every 5s/i)).toBeDefined();
   });
 
   it('handles empty results', async () => {

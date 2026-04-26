@@ -44,6 +44,17 @@ describe('SystemUpdateService', () => {
       message: string;
       runId?: string;
     }>;
+    triggerLocalAutoUpdateRun: (plan: {
+      servermonNeedsUpdate: boolean;
+      agentNeedsUpdate: boolean;
+      agentRepoDir?: string;
+    }) => Promise<{
+      success: boolean;
+      pid?: number;
+      message: string;
+      runId?: string;
+    }>;
+    recordSkippedUpdateRun: (message: string) => Promise<UpdateRunStatus>;
     getServermonAgentStatus: () => Promise<unknown>;
     listUpdateRuns: () => Promise<unknown[]>;
     getUpdateRunDetails: (id: string) => Promise<unknown>;
@@ -269,6 +280,81 @@ describe('SystemUpdateService', () => {
       expect(commandText).toContain('/opt/servermon-agent/source');
       expect(commandText).toContain('pnpm build');
       expect(commandText).toContain('systemctl restart servermon-agent.service');
+    });
+  });
+
+  describe('triggerLocalAutoUpdateRun', () => {
+    it('builds one detached run that updates ServerMon before the colocated agent', async () => {
+      (
+        execFile as unknown as { mockImplementation: (fn: (...a: unknown[]) => void) => void }
+      ).mockImplementation((...args: unknown[]) => {
+        const callback = args[args.length - 1] as (
+          err: Error | null,
+          result: { stdout: string; stderr: string }
+        ) => void;
+        callback(null, { stdout: 'v255', stderr: '' });
+      });
+      const child = mockChild(1357);
+      vi.mocked(spawn).mockReturnValue(child as unknown as ReturnType<typeof spawn>);
+
+      const result = await systemUpdateService.triggerLocalAutoUpdateRun({
+        servermonNeedsUpdate: true,
+        agentNeedsUpdate: true,
+        agentRepoDir: '/opt/servermon-agent/source',
+      });
+
+      expect(result.success).toBe(true);
+      const lastCall = vi.mocked(spawn).mock.calls.at(-1)!;
+      expect(lastCall[0]).toBe('systemd-run');
+      const commandText = String((lastCall[1] as string[]).at(-1));
+      expect(commandText.indexOf('ServerMon update phase')).toBeLessThan(
+        commandText.indexOf('Agent update phase')
+      );
+      expect(commandText).toContain('if ! "/app/scripts/update-servermon.sh"; then');
+      expect(commandText).toContain('exit 1');
+      expect(commandText).toContain('cd "/opt/servermon-agent/source"');
+      expect(commandText).toContain('systemctl restart servermon-agent.service');
+    });
+
+    it('omits the agent phase when only ServerMon needs an update', async () => {
+      (
+        execFile as unknown as { mockImplementation: (fn: (...a: unknown[]) => void) => void }
+      ).mockImplementation((...args: unknown[]) => {
+        const callback = args[args.length - 1] as (
+          err: Error | null,
+          result: { stdout: string; stderr: string }
+        ) => void;
+        callback(null, { stdout: 'v255', stderr: '' });
+      });
+      const child = mockChild(2469);
+      vi.mocked(spawn).mockReturnValue(child as unknown as ReturnType<typeof spawn>);
+
+      await systemUpdateService.triggerLocalAutoUpdateRun({
+        servermonNeedsUpdate: true,
+        agentNeedsUpdate: false,
+      });
+
+      const commandText = String((vi.mocked(spawn).mock.calls.at(-1)![1] as string[]).at(-1));
+      expect(commandText).toContain('ServerMon update phase');
+      expect(commandText).not.toContain('cd "/opt/servermon-agent/source"');
+      expect(commandText).not.toContain('systemctl restart servermon-agent.service');
+    });
+  });
+
+  describe('recordSkippedUpdateRun', () => {
+    it('writes a skipped update run with log content', async () => {
+      const run = await systemUpdateService.recordSkippedUpdateRun('No upstream changes');
+
+      expect(run.status).toBe('skipped');
+      expect(run.exitCode).toBe(0);
+      expect(writeFile).toHaveBeenCalledWith(
+        expect.stringContaining('.log'),
+        expect.stringContaining('No upstream changes')
+      );
+      expect(writeFile).toHaveBeenCalledWith(
+        expect.stringContaining('.json'),
+        expect.stringContaining('"status": "skipped"')
+      );
     });
   });
 

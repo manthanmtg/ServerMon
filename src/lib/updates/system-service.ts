@@ -499,6 +499,119 @@ class SystemUpdateService {
     return this.spawnTrackedRun(spawnCmd, spawnArgs);
   }
 
+  public async recordSkippedUpdateRun(message: string): Promise<UpdateRunStatus> {
+    const logDir = await this.ensureLogDir();
+    const runIdBase = String(Date.now());
+    const runId = `${this.LOG_PREFIX}${runIdBase}`;
+    const timestamp = new Date().toISOString();
+    const logFile = join(logDir, `${runId}.log`);
+    const metadataFile = join(logDir, `${runId}.json`);
+    const run: UpdateRunStatus = {
+      runId: runIdBase,
+      timestamp,
+      status: 'skipped',
+      pid: 0,
+      exitCode: 0,
+      startedAt: timestamp,
+      finishedAt: timestamp,
+      logContent: message,
+    };
+
+    await writeFile(logFile, `${timestamp} ${message}\n`);
+    await writeFile(
+      metadataFile,
+      JSON.stringify(
+        {
+          runId: run.runId,
+          timestamp: run.timestamp,
+          status: run.status,
+          pid: run.pid,
+          exitCode: run.exitCode,
+          startedAt: run.startedAt,
+          finishedAt: run.finishedAt,
+        },
+        null,
+        2
+      )
+    );
+    await this.pruneOldRuns(logDir);
+    return run;
+  }
+
+  public async triggerLocalAutoUpdateRun(plan: {
+    servermonNeedsUpdate: boolean;
+    agentNeedsUpdate: boolean;
+    agentRepoDir?: string;
+  }): Promise<{
+    success: boolean;
+    pid?: number;
+    message: string;
+    runId?: string;
+  }> {
+    if (!plan.servermonNeedsUpdate && !plan.agentNeedsUpdate) {
+      const run = await this.recordSkippedUpdateRun('No upstream changes detected');
+      return {
+        success: true,
+        message: 'No upstream changes detected',
+        runId: run.runId,
+      };
+    }
+
+    const script = this.buildLocalAutoUpdateScript(plan);
+    const useSystemd = await this.checkSystemdRun();
+    const spawnCmd = useSystemd ? 'systemd-run' : 'sudo';
+    const spawnArgs = useSystemd
+      ? ['--scope', '--quiet', '--', 'sudo', 'bash', '-lc', script]
+      : ['bash', '-lc', script];
+
+    return this.spawnTrackedRun(spawnCmd, spawnArgs);
+  }
+
+  private buildLocalAutoUpdateScript(plan: {
+    servermonNeedsUpdate: boolean;
+    agentNeedsUpdate: boolean;
+    agentRepoDir?: string;
+  }): string {
+    const scriptBase = process.env.SERVERMON_REPO_DIR || '/opt/servermon/repo';
+    const updateScript = `${scriptBase}/scripts/update-servermon.sh`;
+    const lines = [
+      'set -euo pipefail',
+      'echo "=== ServerMon Local Auto Update ==="',
+      `echo "Started at $(date -Is)"`,
+    ];
+
+    if (plan.servermonNeedsUpdate) {
+      lines.push(
+        'echo "ServerMon update phase"',
+        `if ! ${JSON.stringify(updateScript)}; then`,
+        '  echo "ServerMon update failed; stopping before agent update"',
+        '  exit 1',
+        'fi',
+        'echo "ServerMon update succeeded"'
+      );
+    } else {
+      lines.push('echo "ServerMon update phase skipped: no upstream changes"');
+    }
+
+    if (plan.agentNeedsUpdate && plan.agentRepoDir) {
+      lines.push(
+        'echo "Agent update phase"',
+        `cd ${JSON.stringify(plan.agentRepoDir)}`,
+        'git pull --rebase',
+        'pnpm install --frozen-lockfile',
+        'pnpm build',
+        `systemctl restart ${AGENT_SERVICE_NAME}`,
+        `systemctl is-active --quiet ${AGENT_SERVICE_NAME}`,
+        'echo "Agent update succeeded"'
+      );
+    } else {
+      lines.push('echo "Agent update phase skipped"');
+    }
+
+    lines.push('echo "=== Local Auto Update Complete ==="');
+    return lines.join('\n');
+  }
+
   public async triggerSystemPackageUpdate(): Promise<{
     success: boolean;
     pid?: number;
