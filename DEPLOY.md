@@ -10,7 +10,7 @@ This guide covers every way to deploy ServerMon — from a quick one-liner to a 
 | ------------ | -------------------------------------------------------------- |
 | OS           | Ubuntu 22.04+ or Debian 11+, or macOS 13+ for launchd installs |
 | Architecture | x86_64 or ARM64                                                |
-| RAM          | 512 MB                                                         |
+| RAM          | 4 GB for production or AI Runner workloads                     |
 | Disk         | 1 GB free                                                      |
 | Access       | Root or sudo                                                   |
 | Ports        | 8912 (app), 80/443 (if using Nginx)                            |
@@ -572,8 +572,8 @@ The systemd service enforces memory limits to prevent runaway usage:
 
 | Setting           | Value     | Effect                          |
 | ----------------- | --------- | ------------------------------- |
-| `MemoryHigh`      | 384 MB    | Kernel starts reclaiming memory |
-| `MemoryMax`       | 512 MB    | Hard kill if exceeded           |
+| `MemoryHigh`      | 3 GB      | Kernel starts reclaiming memory |
+| `MemoryMax`       | 4 GB      | Hard kill if exceeded           |
 | `StartLimitBurst` | 5 in 300s | Prevents restart loops          |
 | `RestartSec`      | 5s        | Delay between restarts          |
 
@@ -593,7 +593,7 @@ ServerMon can run as a **Hub** (master controller) that manages remote **Agents*
 
 | Requirement    | Detail                                                                                                                                                                             |
 | -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Cloud VM       | Public IP, 2+ vCPU, 2+ GB RAM, 20+ GB disk                                                                                                                                         |
+| Cloud VM       | Public IP, 2+ vCPU, 4+ GB RAM, 20+ GB disk                                                                                                                                         |
 | Firewall ports | `80` (HTTP / ACME challenge), `443` (HTTPS), `7000` (FRP control), `8080` (FRP vhost HTTP), `8443` (FRP vhost HTTPS)                                                               |
 | DNS            | Wildcard `*.example.com A <vm-ip>` **or** individual A records per custom domain (both work; wildcards let the onboarding wizard auto-provision subdomains)                        |
 | Nginx          | System nginx with the hub user holding write access to the managed directory (`/etc/nginx/servermon/` by default) and permission to run `nginx -t` + `nginx -s reload` via sudoers |
