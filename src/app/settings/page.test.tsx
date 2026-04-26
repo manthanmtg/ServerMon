@@ -430,6 +430,39 @@ describe('SettingsPage', () => {
     expect(screen.getByText('/opt/servermon-agent/source')).toBeDefined();
   });
 
+  it('anchors the disabled auto-update switch thumb on the left', async () => {
+    (global.fetch as ReturnType<typeof vi.fn>).mockImplementation((url: string) => {
+      if (url === '/api/system/update/auto') {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            settings: { enabled: false, time: '03:00', timezone: 'UTC' },
+            schedule: { nextRunAt: null },
+          }),
+        });
+      }
+      if (url === '/api/modules/updates/agent') {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({ agent: null }),
+        });
+      }
+
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({ modules: [] }),
+      });
+    });
+
+    await act(async () => render(<SettingsPage />));
+
+    const switchButton = await screen.findByRole('switch', {
+      name: 'Toggle local auto-update',
+    });
+    expect(switchButton).toHaveAttribute('aria-checked', 'false');
+    expect(switchButton.firstElementChild).toHaveClass('left-0', 'translate-x-1');
+  });
+
   it('opens and saves the local auto-update schedule modal', async () => {
     (global.fetch as ReturnType<typeof vi.fn>).mockImplementation(
       (url: string, opts?: RequestInit) => {

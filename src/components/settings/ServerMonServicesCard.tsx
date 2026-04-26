@@ -224,7 +224,10 @@ export default function ServerMonServicesCard({ onOpenHistory }: ServerMonServic
                 </div>
                 <button
                   type="button"
+                  role="switch"
+                  aria-checked={autoSettings?.enabled ?? false}
                   aria-label="Toggle local auto-update"
+                  disabled={autoLoading}
                   onClick={() => {
                     const next = !(autoSettings?.enabled ?? false);
                     setScheduleForm((form) => ({ ...form, enabled: next }));
@@ -234,16 +237,16 @@ export default function ServerMonServicesCard({ onOpenHistory }: ServerMonServic
                     setScheduleOpen(true);
                   }}
                   className={cn(
-                    'relative h-8 w-14 shrink-0 rounded-full border transition-colors',
+                    'relative h-8 w-14 shrink-0 rounded-full border transition-colors disabled:cursor-not-allowed disabled:opacity-60',
                     autoSettings?.enabled
-                      ? 'border-primary/30 bg-primary'
-                      : 'border-border bg-muted'
+                      ? 'border-primary/35 bg-primary shadow-sm shadow-primary/20'
+                      : 'border-border bg-muted/70'
                   )}
                 >
                   <span
                     className={cn(
-                      'absolute top-1 h-6 w-6 rounded-full bg-background shadow-sm transition-transform',
-                      autoSettings?.enabled ? 'translate-x-6' : 'translate-x-1'
+                      'absolute left-0 top-1 h-6 w-6 rounded-full bg-background shadow-sm ring-1 ring-border/50 transition-transform',
+                      autoSettings?.enabled ? 'translate-x-7' : 'translate-x-1'
                     )}
                   />
                 </button>
