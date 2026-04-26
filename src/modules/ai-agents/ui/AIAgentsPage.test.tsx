@@ -148,6 +148,24 @@ describe('AIAgentsPage', () => {
     });
   });
 
+  it('shows workspace names without branch labels in session views', async () => {
+    await act(async () => {
+      render(<AIAgentsPage />);
+    });
+
+    await waitFor(() => screen.getByText('Claude Code'));
+
+    expect(screen.getAllByText('my-repo').length).toBeGreaterThan(0);
+    expect(screen.queryByText('main')).toBeNull();
+
+    fireEvent.click(screen.getByText('Claude Code'));
+
+    await waitFor(() => {
+      expect(screen.getAllByText('my-repo').length).toBeGreaterThan(0);
+      expect(screen.queryByText(/my-repo\s*\/\s*main/)).toBeNull();
+    });
+  });
+
   it('renders sessions and tools tabs', async () => {
     await act(async () => {
       render(<AIAgentsPage />);

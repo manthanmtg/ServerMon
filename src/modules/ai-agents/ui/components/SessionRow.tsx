@@ -1,7 +1,7 @@
 'use client';
 
 import { memo } from 'react';
-import { FolderGit2, GitBranch, User } from 'lucide-react';
+import { FolderGit2, User } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import type { AgentSession } from '../../types';
@@ -42,12 +42,6 @@ function SessionRowInner({ session, onClick }: Props) {
             <span className="flex items-center gap-1 truncate">
               <FolderGit2 className="w-3 h-3 shrink-0" />
               {session.environment.repository}
-            </span>
-          )}
-          {session.environment.gitBranch && (
-            <span className="flex items-center gap-1 truncate">
-              <GitBranch className="w-3 h-3 shrink-0" />
-              {session.environment.gitBranch}
             </span>
           )}
           <span className="flex items-center gap-1">
