@@ -1786,34 +1786,36 @@ export default function AIRunnerPage() {
                 Launch prompts, schedule recurring runs, and keep an audit trail of every execution.
               </CardDescription>
             </div>
-            <div className="flex flex-col gap-2 xl:flex-row xl:items-center">
-              <div
-                className="grid flex-1 grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6"
-                role="tablist"
-              >
-                {TAB_META.map((tab) => (
-                  <Button
-                    key={tab.id}
-                    id={`tab-${tab.id}`}
-                    variant={activeTab === tab.id ? 'default' : 'outline'}
-                    size="default"
-                    onClick={() => handleTabChange(tab.id)}
-                    className="h-11 w-full justify-center whitespace-nowrap px-4"
-                    role="tab"
-                    aria-selected={activeTab === tab.id}
-                    aria-controls={`runner-tab-${tab.id}`}
-                  >
-                    {tab.icon}
-                    <span className="truncate">{tab.label}</span>
-                  </Button>
-                ))}
+            <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
+              <div className="min-w-0 flex-1 overflow-x-auto pb-1">
+                <div
+                  className="flex min-w-max gap-1 rounded-xl border border-border/70 bg-muted/30 p-1"
+                  role="tablist"
+                >
+                  {TAB_META.map((tab) => (
+                    <Button
+                      key={tab.id}
+                      id={`tab-${tab.id}`}
+                      variant={activeTab === tab.id ? 'default' : 'ghost'}
+                      size="default"
+                      onClick={() => handleTabChange(tab.id)}
+                      className="h-10 min-w-[7.75rem] justify-center whitespace-nowrap px-3"
+                      role="tab"
+                      aria-selected={activeTab === tab.id}
+                      aria-controls={`runner-tab-${tab.id}`}
+                    >
+                      {tab.icon}
+                      <span className="truncate">{tab.label}</span>
+                    </Button>
+                  ))}
+                </div>
               </div>
               <Button
                 variant="outline"
                 size="default"
                 onClick={() => void loadAll()}
                 loading={refreshing}
-                className="h-11 w-full justify-center px-5 sm:w-auto xl:min-w-32"
+                className="h-11 w-full shrink-0 justify-center px-5 sm:w-auto lg:min-w-32"
               >
                 <RefreshCcw className="w-4 h-4" />
                 <span>Refresh</span>
