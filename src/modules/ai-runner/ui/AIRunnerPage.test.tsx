@@ -935,6 +935,25 @@ describe('AIRunnerPage', () => {
     expect(screen.getByText('1 retry allowed after a failed scheduled run.')).toBeInTheDocument();
   });
 
+  it('does not duplicate editable schedule values in a read-only summary strip', async () => {
+    await act(async () => {
+      render(<AIRunnerPage />);
+    });
+
+    await waitFor(() => expect(screen.getByText('AI Agent Runner')).toBeInTheDocument());
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('tab', { name: /Schedules/i }));
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getAllByRole('button', { name: /^Create Schedule$/i })[0]!);
+    });
+
+    expect(screen.queryByText('Choose a saved prompt')).not.toBeInTheDocument();
+    expect(screen.queryByText('Choose an agent profile')).not.toBeInTheDocument();
+  });
+
   it('keeps schedule runtime fields on a responsive grid', async () => {
     await act(async () => {
       render(<AIRunnerPage />);

@@ -1027,12 +1027,6 @@ export default function AIRunnerPage() {
     if (right.nextRunTime) return 1;
     return new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime();
   });
-  const scheduleFormPromptName = scheduleForm.promptId
-    ? promptMap[scheduleForm.promptId]?.name || 'Unknown prompt'
-    : 'Choose a saved prompt';
-  const scheduleFormProfileName = scheduleForm.agentProfileId
-    ? profileMap[scheduleForm.agentProfileId]?.name || 'Unknown profile'
-    : 'Choose an agent profile';
   const scheduleVisualizationProfile = scheduleVisualizationProfileId
     ? (profileMap[scheduleVisualizationProfileId] ?? null)
     : null;
@@ -3159,27 +3153,6 @@ export default function AIRunnerPage() {
 
                     <div className="overflow-y-auto px-6 py-6">
                       <div className="space-y-6">
-                        <div className="grid gap-3 sm:grid-cols-3">
-                          <div className="min-w-0 rounded-lg border border-border/60 bg-background/85 px-4 py-3">
-                            <p className="text-xs text-muted-foreground">Prompt</p>
-                            <p className="mt-1 truncate text-sm font-semibold">
-                              {scheduleFormPromptName}
-                            </p>
-                          </div>
-                          <div className="min-w-0 rounded-lg border border-border/60 bg-background/85 px-4 py-3">
-                            <p className="text-xs text-muted-foreground">Profile</p>
-                            <p className="mt-1 truncate text-sm font-semibold">
-                              {scheduleFormProfileName}
-                            </p>
-                          </div>
-                          <div className="min-w-0 rounded-lg border border-border/60 bg-background/85 px-4 py-3">
-                            <p className="text-xs text-muted-foreground">Cadence</p>
-                            <p className="mt-1 truncate text-sm font-semibold">
-                              {humanizeCron(scheduleForm.cronExpression)}
-                            </p>
-                          </div>
-                        </div>
-
                         <div className="grid gap-6 2xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
                           <div className="min-w-0 space-y-6">
                             <div className="rounded-lg border border-border/60 bg-background/80 p-5 space-y-4">
