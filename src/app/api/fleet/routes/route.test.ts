@@ -32,13 +32,19 @@ const {
   mockConfigCreate: vi.fn(),
   mockFleetLogCreate: vi.fn(),
   mockResolveDomain: vi.fn(),
-  mockApplyRevision: vi.fn(),
+  mockApplyRevision: vi.fn(() => Promise.resolve({ kind: 'mock', reloaded: false })),
   mockGetFrpOrchestrator: vi.fn(() => ({})),
   mockGetNginxOrchestrator: vi.fn(() => ({})),
   mockNodeFindById: vi.fn(),
   mockResourcePolicyFind: vi.fn(),
-  mockEnsureLetsEncryptCertificate: vi.fn(),
-  mockProbePublicRoute: vi.fn(),
+  mockEnsureLetsEncryptCertificate: vi.fn(() => Promise.resolve({ ok: true, tlsStatus: 'ok' })),
+  mockProbePublicRoute: vi.fn(() => Promise.resolve({
+    status: 'active',
+    dnsStatus: 'ok',
+    tlsStatus: 'ok',
+    healthStatus: 'healthy',
+    lastCheckedAt: new Date(),
+  })),
   mockShouldUseLetsEncrypt: vi.fn(),
 }));
 

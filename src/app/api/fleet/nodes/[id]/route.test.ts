@@ -25,7 +25,7 @@ const {
   mockConfigFindOne: vi.fn(),
   mockConfigCreate: vi.fn(),
   mockFleetLogCreate: vi.fn(),
-  mockApplyRevision: vi.fn(),
+  mockApplyRevision: vi.fn(() => Promise.resolve({ kind: 'mock', reloaded: false })),
   mockGetFrpOrchestrator: vi.fn(() => ({})),
   mockGetNginxOrchestrator: vi.fn(() => ({})),
   mockResourcePolicyFind: vi.fn(),

@@ -32,13 +32,19 @@ const {
   mockConfigCreate: vi.fn(),
   mockConfigDeleteMany: vi.fn(),
   mockFleetLogCreate: vi.fn(),
-  mockApplyRevision: vi.fn(),
+  mockApplyRevision: vi.fn(() => Promise.resolve({ kind: 'mock', reloaded: false })),
   mockGetFrpOrchestrator: vi.fn(() => ({})),
   mockGetNginxOrchestrator: vi.fn(() => ({})),
   mockEmit: vi.fn(),
   mockResolveDomain: vi.fn(),
-  mockEnsureLetsEncryptCertificate: vi.fn(),
-  mockProbePublicRoute: vi.fn(),
+  mockEnsureLetsEncryptCertificate: vi.fn(() => Promise.resolve({ ok: true, tlsStatus: 'ok' })),
+  mockProbePublicRoute: vi.fn(() => Promise.resolve({
+    status: 'active',
+    dnsStatus: 'ok',
+    tlsStatus: 'ok',
+    healthStatus: 'healthy',
+    lastCheckedAt: new Date(),
+  })),
   mockShouldUseLetsEncrypt: vi.fn(),
 }));
 
@@ -158,6 +164,7 @@ describe('GET /api/fleet/routes/[id]', () => {
 describe('PATCH /api/fleet/routes/[id]', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    delete process.env.FLEET_AUTO_APPLY_REVISIONS;
     mockGetSession.mockResolvedValue({
       user: { username: 'admin', role: 'admin' },
     });

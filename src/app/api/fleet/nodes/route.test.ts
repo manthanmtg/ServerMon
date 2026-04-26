@@ -31,7 +31,7 @@ const {
   mockFleetLogCreate: vi.fn(),
   mockHashPairingToken: vi.fn(),
   mockGeneratePairingToken: vi.fn(),
-  mockApplyRevision: vi.fn(),
+  mockApplyRevision: vi.fn(() => Promise.resolve({ kind: 'mock', reloaded: false })),
   mockGetFrpOrchestrator: vi.fn(() => ({})),
   mockGetNginxOrchestrator: vi.fn(() => ({})),
   mockResourcePolicyFind: vi.fn(),
