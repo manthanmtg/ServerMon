@@ -184,11 +184,14 @@ export function RunDetailDrawer({
       <button
         type="button"
         aria-label="Close run detail"
-        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+        className="absolute inset-0 bg-background/80 backdrop-blur-sm animate-in fade-in duration-300"
         onClick={onClose}
       />
       <div className="absolute inset-y-0 right-0 flex w-full justify-end overflow-hidden">
-        <div className="relative flex h-full w-full max-w-4xl flex-col border-l border-border/60 bg-card shadow-2xl">
+        <aside
+          aria-label="Run detail panel"
+          className="relative flex h-full w-full max-w-4xl flex-col border-l border-border/60 bg-card shadow-2xl animate-in fade-in slide-in-from-right-4 duration-300"
+        >
           <div className="flex items-start justify-between gap-4 border-b border-border/60 px-6 py-5">
             <div className="space-y-2">
               <div className="flex flex-wrap items-center gap-2">
@@ -473,7 +476,7 @@ export function RunDetailDrawer({
               </div>
             )}
           </div>
-        </div>
+        </aside>
       </div>
     </div>
   );
