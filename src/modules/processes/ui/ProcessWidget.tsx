@@ -159,6 +159,263 @@ const SortHeader = React.memo(
 
 SortHeader.displayName = 'SortHeader';
 
+const ProcessCard = React.memo(
+  ({
+    p,
+    isExpanded,
+    isKilling,
+    onToggleExpand,
+    onKill,
+  }: {
+    p: ProcessInfo;
+    isExpanded: boolean;
+    isKilling: boolean;
+    onToggleExpand: (pid: number) => void;
+    onKill: (pid: number, signal: string) => void;
+  }) => (
+    <div className="p-3">
+      <div className="flex items-start justify-between mb-2">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 mb-0.5">
+            <span className="text-sm font-medium text-foreground truncate">{p.name}</span>
+            <Badge variant={stateVariant(p.state)} className="text-[10px]">
+              {p.state}
+            </Badge>
+          </div>
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <span className="font-mono">PID {p.pid}</span>
+            <span>·</span>
+            <span>{p.user}</span>
+          </div>
+        </div>
+        <button
+          type="button"
+          className="flex items-center justify-center h-7 w-7 rounded-md hover:bg-accent transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+          onClick={() => onToggleExpand(p.pid)}
+          aria-label={`${isExpanded ? 'Collapse' : 'Expand'} details for process ${p.name} (${
+            p.pid
+          })`}
+          aria-expanded={isExpanded}
+        >
+          {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+        </button>
+      </div>
+      <div className="flex items-center gap-4 text-sm">
+        <div className="flex items-center gap-1.5">
+          <Cpu className="w-3 h-3 text-muted-foreground" />
+          <span className={cn('font-medium tabular-nums', cpuColor(p.cpu))}>{p.cpu.toFixed(1)}%</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <MemoryStick className="w-3 h-3 text-muted-foreground" />
+          <span className="font-medium text-foreground tabular-nums">{p.mem.toFixed(1)}%</span>
+        </div>
+        {p.started && (
+          <div className="flex items-center gap-1.5">
+            <Clock className="w-3 h-3 text-muted-foreground" />
+            <span className="text-xs text-muted-foreground">{formatTime(p.started)}</span>
+          </div>
+        )}
+      </div>
+      {isExpanded && (
+        <div className="mt-3 pt-3 border-t border-border space-y-2 text-xs animate-fade-in">
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Command</span>
+            <span className="text-foreground font-mono truncate max-w-[60%] text-right">
+              {p.command}
+            </span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">RSS Memory</span>
+            <span className="text-foreground">{formatBytes(p.memRss)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Parent PID</span>
+            <span className="text-foreground font-mono">{p.parentPid}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Priority</span>
+            <span className="text-foreground">{p.priority}</span>
+          </div>
+          <div className="flex gap-2 mt-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="flex-1 text-xs"
+              onClick={() => onKill(p.pid, 'SIGTERM')}
+              loading={isKilling}
+            >
+              SIGTERM
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              className="flex-1 text-xs"
+              onClick={() => onKill(p.pid, 'SIGKILL')}
+              loading={isKilling}
+            >
+              <Skull className="w-3 h-3" /> SIGKILL
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+);
+
+ProcessCard.displayName = 'ProcessCard';
+
+const ProcessRow = React.memo(
+  ({
+    p,
+    isExpanded,
+    isKilling,
+    onToggleExpand,
+    onKill,
+  }: {
+    p: ProcessInfo;
+    isExpanded: boolean;
+    isKilling: boolean;
+    onToggleExpand: (pid: number) => void;
+    onKill: (pid: number, signal: string) => void;
+  }) => (
+    <React.Fragment>
+      <tr className="border-b border-border last:border-0 hover:bg-accent/30 transition-colors group">
+        <td className="px-2">
+          <button
+            type="button"
+            className="p-1 rounded hover:bg-accent transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+            onClick={() => onToggleExpand(p.pid)}
+            aria-label={`${isExpanded ? 'Collapse' : 'Expand'} details for process ${p.name} (${
+              p.pid
+            })`}
+            aria-expanded={isExpanded}
+          >
+            {isExpanded ? (
+              <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
+            ) : (
+              <ChevronRight className="w-3.5 h-3.5 text-muted-foreground" />
+            )}
+          </button>
+        </td>
+        <td className="px-3 py-2.5">
+          <span className="text-xs font-mono text-muted-foreground">{p.pid}</span>
+        </td>
+        <td className="px-3 py-2.5">
+          <span
+            className="text-sm font-medium text-foreground truncate block max-w-[200px]"
+            title={p.name}
+          >
+            {p.name}
+          </span>
+        </td>
+        <td className="px-3 py-2.5">
+          <span className="text-xs text-muted-foreground flex items-center gap-1.5">
+            <User className="w-3 h-3" />
+            {p.user}
+          </span>
+        </td>
+        <td className="px-3 py-2.5">
+          <Badge variant={stateVariant(p.state)} className="text-[10px]">
+            {p.state}
+          </Badge>
+        </td>
+        <td className="px-3 py-2.5 text-right">
+          <div className="flex items-center justify-end gap-2">
+            <CpuBar value={p.cpu} />
+            <span
+              className={cn(
+                'text-xs font-medium tabular-nums w-12 text-right',
+                cpuColor(p.cpu)
+              )}
+            >
+              {p.cpu.toFixed(1)}%
+            </span>
+          </div>
+        </td>
+        <td className="px-3 py-2.5 text-right">
+          <span className="text-xs font-medium text-foreground tabular-nums">
+            {p.mem.toFixed(1)}%
+          </span>
+        </td>
+        <td className="px-3 py-2.5 text-right">
+          <span className="text-xs text-muted-foreground">{formatTime(p.started)}</span>
+        </td>
+        <td className="px-3 py-2.5 text-right">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 px-2 text-xs opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive"
+            onClick={() => onKill(p.pid, 'SIGTERM')}
+            loading={isKilling}
+          >
+            Kill
+          </Button>
+        </td>
+      </tr>
+      {isExpanded && (
+        <tr className="bg-secondary/30">
+          <td colSpan={9} className="px-4 py-3">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 text-xs animate-fade-in">
+              <div>
+                <span className="text-muted-foreground">Command</span>
+                <p className="font-mono text-foreground truncate mt-0.5" title={p.command}>
+                  {p.command}
+                </p>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Path</span>
+                <p className="font-mono text-foreground truncate mt-0.5" title={p.path}>
+                  {p.path || '—'}
+                </p>
+              </div>
+              <div>
+                <span className="text-muted-foreground">RSS Memory</span>
+                <p className="text-foreground mt-0.5">{formatBytes(p.memRss)}</p>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Parent PID</span>
+                <p className="font-mono text-foreground mt-0.5">{p.parentPid}</p>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Priority</span>
+                <p className="text-foreground mt-0.5">{p.priority}</p>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Started</span>
+                <p className="text-foreground mt-0.5">
+                  {p.started ? new Date(p.started).toLocaleString() : '—'}
+                </p>
+              </div>
+              <div className="lg:col-span-2 flex items-end gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-xs"
+                  onClick={() => onKill(p.pid, 'SIGTERM')}
+                  loading={isKilling}
+                >
+                  SIGTERM
+                </Button>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  className="text-xs gap-1"
+                  onClick={() => onKill(p.pid, 'SIGKILL')}
+                  loading={isKilling}
+                >
+                  <Skull className="w-3 h-3" /> Force Kill
+                </Button>
+              </div>
+            </div>
+          </td>
+        </tr>
+      )}
+    </React.Fragment>
+  )
+);
+
+ProcessRow.displayName = 'ProcessRow';
+
 export default function ProcessWidget() {
   const [processes, setProcesses] = useState<ProcessInfo[]>([]);
   const [summary, setSummary] = useState<Summary | null>(null);
@@ -206,27 +463,34 @@ export default function ProcessWidget() {
     return () => clearInterval(interval);
   }, [fetchProcs]);
 
-  const killProcess = async (pid: number, signal: string) => {
-    setKillingPid(pid);
-    try {
-      const res = await fetch('/api/modules/processes', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pid, signal }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
-      toast({ title: `Sent ${signal} to PID ${pid}`, variant: 'success' });
-      setTimeout(() => fetchProcs(), 1000);
-    } catch (err) {
-      toast({
-        title: err instanceof Error ? err.message : 'Failed to kill process',
-        variant: 'destructive',
-      });
-    } finally {
-      setKillingPid(null);
-    }
-  };
+  const killProcess = useCallback(
+    async (pid: number, signal: string) => {
+      setKillingPid(pid);
+      try {
+        const res = await fetch('/api/modules/processes', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ pid, signal }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        toast({ title: `Sent ${signal} to PID ${pid}`, variant: 'success' });
+        setTimeout(() => fetchProcs(), 1000);
+      } catch (err) {
+        toast({
+          title: err instanceof Error ? err.message : 'Failed to kill process',
+          variant: 'destructive',
+        });
+      } finally {
+        setKillingPid(null);
+      }
+    },
+    [fetchProcs, toast]
+  );
+
+  const toggleExpanded = useCallback((pid: number) => {
+    setExpandedPid((curr) => (curr === pid ? null : pid));
+  }, []);
 
   const toggleSort = useCallback((field: SortField) => {
     setSortField(field);
@@ -302,101 +566,14 @@ export default function ProcessWidget() {
         {/* Mobile card layout */}
         <div className="sm:hidden divide-y divide-border">
           {processes.map((p) => (
-            <div key={p.pid} className="p-3">
-              <div className="flex items-start justify-between mb-2">
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2 mb-0.5">
-                    <span className="text-sm font-medium text-foreground truncate">{p.name}</span>
-                    <Badge variant={stateVariant(p.state)} className="text-[10px]">
-                      {p.state}
-                    </Badge>
-                  </div>
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <span className="font-mono">PID {p.pid}</span>
-                    <span>·</span>
-                    <span>{p.user}</span>
-                  </div>
-                </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 shrink-0"
-                  onClick={() => setExpandedPid(expandedPid === p.pid ? null : p.pid)}
-                  aria-label={`${
-                    expandedPid === p.pid ? 'Collapse' : 'Expand'
-                  } details for process ${p.name} (${p.pid})`}
-                  aria-expanded={expandedPid === p.pid}
-                >
-                  {expandedPid === p.pid ? (
-                    <ChevronDown className="w-4 h-4" />
-                  ) : (
-                    <ChevronRight className="w-4 h-4" />
-                  )}
-                </Button>
-              </div>
-              <div className="flex items-center gap-4 text-sm">
-                <div className="flex items-center gap-1.5">
-                  <Cpu className="w-3 h-3 text-muted-foreground" />
-                  <span className={cn('font-medium tabular-nums', cpuColor(p.cpu))}>
-                    {p.cpu.toFixed(1)}%
-                  </span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <MemoryStick className="w-3 h-3 text-muted-foreground" />
-                  <span className="font-medium text-foreground tabular-nums">
-                    {p.mem.toFixed(1)}%
-                  </span>
-                </div>
-                {p.started && (
-                  <div className="flex items-center gap-1.5">
-                    <Clock className="w-3 h-3 text-muted-foreground" />
-                    <span className="text-xs text-muted-foreground">{formatTime(p.started)}</span>
-                  </div>
-                )}
-              </div>
-              {expandedPid === p.pid && (
-                <div className="mt-3 pt-3 border-t border-border space-y-2 text-xs animate-fade-in">
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Command</span>
-                    <span className="text-foreground font-mono truncate max-w-[60%] text-right">
-                      {p.command}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">RSS Memory</span>
-                    <span className="text-foreground">{formatBytes(p.memRss)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Parent PID</span>
-                    <span className="text-foreground font-mono">{p.parentPid}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Priority</span>
-                    <span className="text-foreground">{p.priority}</span>
-                  </div>
-                  <div className="flex gap-2 mt-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="flex-1 text-xs"
-                      onClick={() => killProcess(p.pid, 'SIGTERM')}
-                      loading={killingPid === p.pid}
-                    >
-                      SIGTERM
-                    </Button>
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      className="flex-1 text-xs"
-                      onClick={() => killProcess(p.pid, 'SIGKILL')}
-                      loading={killingPid === p.pid}
-                    >
-                      <Skull className="w-3 h-3" /> SIGKILL
-                    </Button>
-                  </div>
-                </div>
-              )}
-            </div>
+            <ProcessCard
+              key={p.pid}
+              p={p}
+              isExpanded={expandedPid === p.pid}
+              isKilling={killingPid === p.pid}
+              onToggleExpand={toggleExpanded}
+              onKill={killProcess}
+            />
           ))}
         </div>
 
@@ -442,142 +619,14 @@ export default function ProcessWidget() {
             </thead>
             <tbody>
               {processes.map((p) => (
-                <React.Fragment key={p.pid}>
-                  <tr className="border-b border-border last:border-0 hover:bg-accent/30 transition-colors group">
-                    <td className="px-2">
-                      <button
-                        type="button"
-                        className="p-1 rounded hover:bg-accent transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
-                        onClick={() => setExpandedPid(expandedPid === p.pid ? null : p.pid)}
-                        aria-label={`${
-                          expandedPid === p.pid ? 'Collapse' : 'Expand'
-                        } details for process ${p.name} (${p.pid})`}
-                        aria-expanded={expandedPid === p.pid}
-                      >
-                        {expandedPid === p.pid ? (
-                          <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
-                        ) : (
-                          <ChevronRight className="w-3.5 h-3.5 text-muted-foreground" />
-                        )}
-                      </button>
-                    </td>
-                    <td className="px-3 py-2.5">
-                      <span className="text-xs font-mono text-muted-foreground">{p.pid}</span>
-                    </td>
-                    <td className="px-3 py-2.5">
-                      <span
-                        className="text-sm font-medium text-foreground truncate block max-w-[200px]"
-                        title={p.name}
-                      >
-                        {p.name}
-                      </span>
-                    </td>
-                    <td className="px-3 py-2.5">
-                      <span className="text-xs text-muted-foreground flex items-center gap-1.5">
-                        <User className="w-3 h-3" />
-                        {p.user}
-                      </span>
-                    </td>
-                    <td className="px-3 py-2.5">
-                      <Badge variant={stateVariant(p.state)} className="text-[10px]">
-                        {p.state}
-                      </Badge>
-                    </td>
-                    <td className="px-3 py-2.5 text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <CpuBar value={p.cpu} />
-                        <span
-                          className={cn(
-                            'text-xs font-medium tabular-nums w-12 text-right',
-                            cpuColor(p.cpu)
-                          )}
-                        >
-                          {p.cpu.toFixed(1)}%
-                        </span>
-                      </div>
-                    </td>
-                    <td className="px-3 py-2.5 text-right">
-                      <span className="text-xs font-medium text-foreground tabular-nums">
-                        {p.mem.toFixed(1)}%
-                      </span>
-                    </td>
-                    <td className="px-3 py-2.5 text-right">
-                      <span className="text-xs text-muted-foreground">{formatTime(p.started)}</span>
-                    </td>
-                    <td className="px-3 py-2.5 text-right">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 px-2 text-xs opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive"
-                        onClick={() => killProcess(p.pid, 'SIGTERM')}
-                        loading={killingPid === p.pid}
-                      >
-                        Kill
-                      </Button>
-                    </td>
-                  </tr>
-                  {expandedPid === p.pid && (
-                    <tr className="bg-secondary/30">
-                      <td colSpan={9} className="px-4 py-3">
-                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 text-xs animate-fade-in">
-                          <div>
-                            <span className="text-muted-foreground">Command</span>
-                            <p
-                              className="font-mono text-foreground truncate mt-0.5"
-                              title={p.command}
-                            >
-                              {p.command}
-                            </p>
-                          </div>
-                          <div>
-                            <span className="text-muted-foreground">Path</span>
-                            <p className="font-mono text-foreground truncate mt-0.5" title={p.path}>
-                              {p.path || '—'}
-                            </p>
-                          </div>
-                          <div>
-                            <span className="text-muted-foreground">RSS Memory</span>
-                            <p className="text-foreground mt-0.5">{formatBytes(p.memRss)}</p>
-                          </div>
-                          <div>
-                            <span className="text-muted-foreground">Parent PID</span>
-                            <p className="font-mono text-foreground mt-0.5">{p.parentPid}</p>
-                          </div>
-                          <div>
-                            <span className="text-muted-foreground">Priority</span>
-                            <p className="text-foreground mt-0.5">{p.priority}</p>
-                          </div>
-                          <div>
-                            <span className="text-muted-foreground">Started</span>
-                            <p className="text-foreground mt-0.5">
-                              {p.started ? new Date(p.started).toLocaleString() : '—'}
-                            </p>
-                          </div>
-                          <div className="lg:col-span-2 flex items-end gap-2">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="text-xs"
-                              onClick={() => killProcess(p.pid, 'SIGTERM')}
-                              loading={killingPid === p.pid}
-                            >
-                              SIGTERM
-                            </Button>
-                            <Button
-                              variant="destructive"
-                              size="sm"
-                              className="text-xs gap-1"
-                              onClick={() => killProcess(p.pid, 'SIGKILL')}
-                              loading={killingPid === p.pid}
-                            >
-                              <Skull className="w-3 h-3" /> Force Kill
-                            </Button>
-                          </div>
-                        </div>
-                      </td>
-                    </tr>
-                  )}
-                </React.Fragment>
+                <ProcessRow
+                  key={p.pid}
+                  p={p}
+                  isExpanded={expandedPid === p.pid}
+                  isKilling={killingPid === p.pid}
+                  onToggleExpand={toggleExpanded}
+                  onKill={killProcess}
+                />
               ))}
             </tbody>
           </table>
