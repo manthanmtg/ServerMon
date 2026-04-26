@@ -16,7 +16,6 @@ import {
   Play,
   RefreshCcw,
   Save,
-  Settings2,
   Search,
   Square,
   TerminalSquare,
@@ -3941,24 +3940,6 @@ export default function AIRunnerPage() {
                 </div>
 
                 <div className="flex flex-col gap-3 xl:sticky xl:top-4">
-                  <Button
-                    size="lg"
-                    variant="outline"
-                    onClick={() => openCreateWorkspaceModal()}
-                    className="w-full justify-start"
-                  >
-                    <FolderOpen className="w-4 h-4" />
-                    Add Workspace
-                  </Button>
-                  <Button
-                    size="lg"
-                    variant="outline"
-                    onClick={openCreatePromptTemplateModal}
-                    className="w-full justify-start"
-                  >
-                    <Settings2 className="w-4 h-4" />
-                    Add Template
-                  </Button>
                   <Button
                     size="lg"
                     variant="outline"
