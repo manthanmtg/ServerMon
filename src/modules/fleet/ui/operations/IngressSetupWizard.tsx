@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge, type BadgeVariant } from '@/components/ui/badge';
 import { Spinner } from '@/components/ui/spinner';
-import { Check, ChevronRight, ChevronLeft } from 'lucide-react';
+import { Check, ChevronRight, ChevronLeft, ExternalLink, Settings } from 'lucide-react';
 
 type Step = 1 | 2 | 3 | 4;
 
@@ -30,6 +30,37 @@ interface PreflightResult {
   status: 'pass' | 'fail' | 'warn' | 'skip' | 'unknown';
   detail?: string;
   fix?: string;
+}
+
+interface FrpServerState {
+  enabled?: boolean;
+  runtimeState?: string;
+  bindPort?: number;
+  vhostHttpPort?: number;
+  vhostHttpsPort?: number;
+  subdomainHost?: string;
+  configVersion?: number;
+  generatedConfigHash?: string;
+  lastRestartAt?: string;
+  activeConnections?: number;
+  connectedNodeIds?: string[];
+}
+
+interface NginxState {
+  managed?: boolean;
+  managedDir?: string;
+  binaryPath?: string;
+  runtimeState?: string;
+  lastReloadAt?: string;
+  lastReloadSuccess?: boolean;
+  lastTestAt?: string;
+  lastTestSuccess?: boolean;
+  managedServerNames?: string[];
+  detectedConflicts?: Array<{
+    serverName: string;
+    filePath: string;
+    reason: string;
+  }>;
 }
 
 const INITIAL: IngressForm = {
@@ -70,14 +101,27 @@ export function IngressSetupWizard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [completed, setCompleted] = useState(false);
+  const [serverState, setServerState] = useState<FrpServerState | null>(null);
+  const [nginxState, setNginxState] = useState<NginxState | null>(null);
+  const [showWizard, setShowWizard] = useState(false);
 
   // Load current state and env defaults on mount
   useEffect(() => {
     async function load() {
       try {
-        const res = await fetch('/api/fleet/server');
-        if (!res.ok) return;
-        const data = await res.json();
+        const [serverRes, nginxRes] = await Promise.all([
+          fetch('/api/fleet/server'),
+          fetch('/api/fleet/nginx').catch(() => null),
+        ]);
+        if (!serverRes.ok) return;
+        const data = await serverRes.json();
+        const nextServerState = data.state ?? null;
+        setServerState(nextServerState);
+
+        if (nginxRes?.ok) {
+          const nginxData = await nginxRes.json();
+          setNginxState(nginxData.state ?? null);
+        }
 
         setForm((prev) => ({
           ...prev,
@@ -113,6 +157,7 @@ export function IngressSetupWizard() {
 
   const defaultHubUrl =
     form.hubPublicUrl || (form.subdomainHost ? `https://hub.${form.subdomainHost}` : '');
+  const isConfigured = serverState && serverState.enabled && serverState.subdomainHost;
 
   const updateForm = <K extends keyof IngressForm>(key: K, value: IngressForm[K]) => {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -166,6 +211,8 @@ export function IngressSetupWizard() {
         const body = await serverRes.json().catch(() => ({}));
         throw new Error(body.error ?? `HTTP ${serverRes.status}`);
       }
+      const serverBody = await serverRes.json().catch(() => ({}));
+      setServerState(serverBody.state ?? null);
 
       const nginxRes = await fetch('/api/fleet/nginx', {
         method: 'PATCH',
@@ -180,6 +227,8 @@ export function IngressSetupWizard() {
         const body = await nginxRes.json().catch(() => ({}));
         throw new Error(body.error ?? `HTTP ${nginxRes.status}`);
       }
+      const nginxBody = await nginxRes.json().catch(() => ({}));
+      setNginxState(nginxBody.state ?? null);
 
       setCompleted(true);
       router.push('/fleet');
@@ -192,6 +241,18 @@ export function IngressSetupWizard() {
 
   const next = () => setStep((s) => Math.min(4, s + 1) as Step);
   const back = () => setStep((s) => Math.max(1, s - 1) as Step);
+
+  if (serverState && isConfigured && !showWizard) {
+    return (
+      <ConfiguredHubPanel
+        form={form}
+        serverState={serverState}
+        nginxState={nginxState}
+        onOpenFleet={() => router.push('/fleet')}
+        onReconfigure={() => setShowWizard(true)}
+      />
+    );
+  }
 
   return (
     <Card>
@@ -275,6 +336,149 @@ function StepIndicator({ step }: { step: Step }) {
       ))}
     </div>
   );
+}
+
+function ConfiguredHubPanel({
+  form,
+  serverState,
+  nginxState,
+  onOpenFleet,
+  onReconfigure,
+}: {
+  form: IngressForm;
+  serverState: FrpServerState;
+  nginxState: NginxState | null;
+  onOpenFleet: () => void;
+  onReconfigure: () => void;
+}) {
+  const publicUrl =
+    form.hubPublicUrl ||
+    (serverState.subdomainHost ? `https://${serverState.subdomainHost}` : 'Not configured');
+  const connectedNodeCount = serverState.connectedNodeIds?.length ?? 0;
+  const conflicts = nginxState?.detectedConflicts ?? [];
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardHeader className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+          <div>
+            <CardTitle>Hub ingress is configured</CardTitle>
+            <p className="mt-1 text-sm text-muted-foreground">
+              This hub is already accepting fleet traffic. Use this page to review the live ingress
+              details or reopen setup when you need to change ports, DNS, or managed nginx settings.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Badge variant={serverState.enabled ? 'success' : 'outline'}>
+              {serverState.enabled ? 'FRP enabled' : 'FRP disabled'}
+            </Badge>
+            <Badge variant="outline">{serverState.runtimeState ?? 'unknown'}</Badge>
+            <Badge variant={nginxState?.managed ? 'success' : 'outline'}>
+              {nginxState?.managed ? 'nginx managed' : 'nginx unmanaged'}
+            </Badge>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-5">
+          <div className="grid gap-3 md:grid-cols-3">
+            <Metric label="Public URL" value={publicUrl} />
+            <Metric label="Subdomain host" value={serverState.subdomainHost ?? '—'} />
+            <Metric label="Connected nodes" value={String(connectedNodeCount)} />
+          </div>
+
+          <div className="grid gap-4 lg:grid-cols-2">
+            <div className="rounded-lg border border-border bg-muted/20 p-4">
+              <h3 className="text-sm font-medium">FRP server</h3>
+              <div className="mt-3 space-y-2 text-sm">
+                <DetailRow label="Bind port">{serverState.bindPort ?? form.bindPort}</DetailRow>
+                <DetailRow label="vhost HTTP port">
+                  {serverState.vhostHttpPort ?? form.vhostHttpPort}
+                </DetailRow>
+                <DetailRow label="vhost HTTPS port">
+                  {serverState.vhostHttpsPort ?? form.vhostHttpsPort}
+                </DetailRow>
+                <DetailRow label="Active connections">
+                  {serverState.activeConnections ?? 0}
+                </DetailRow>
+                <DetailRow label="Config version">{serverState.configVersion ?? '—'}</DetailRow>
+                <DetailRow label="Last restart">{formatDate(serverState.lastRestartAt)}</DetailRow>
+              </div>
+            </div>
+
+            <div className="rounded-lg border border-border bg-muted/20 p-4">
+              <h3 className="text-sm font-medium">Nginx ingress</h3>
+              <div className="mt-3 space-y-2 text-sm">
+                <DetailRow label="Managed directory">
+                  {nginxState?.managedDir ?? form.managedDir}
+                </DetailRow>
+                <DetailRow label="Binary path">
+                  {nginxState?.binaryPath ?? form.binaryPath}
+                </DetailRow>
+                <DetailRow label="Runtime">{nginxState?.runtimeState ?? 'unknown'}</DetailRow>
+                <DetailRow label="Last test">{formatDate(nginxState?.lastTestAt)}</DetailRow>
+                <DetailRow label="Last reload">{formatDate(nginxState?.lastReloadAt)}</DetailRow>
+                <DetailRow label="Managed server names">
+                  {nginxState?.managedServerNames?.length ?? 0}
+                </DetailRow>
+              </div>
+            </div>
+          </div>
+
+          {conflicts.length > 0 && (
+            <div className="rounded-lg border border-warning/30 bg-warning/5 p-4">
+              <div className="flex items-center justify-between gap-3">
+                <h3 className="text-sm font-medium">Nginx conflicts</h3>
+                <Badge variant="warning">{conflicts.length}</Badge>
+              </div>
+              <ul className="mt-3 space-y-2 text-xs">
+                {conflicts.map((conflict, index) => (
+                  <li
+                    key={`${conflict.serverName}-${index}`}
+                    className="rounded border border-warning/20 bg-background/60 p-2"
+                  >
+                    <div className="font-mono">{conflict.serverName}</div>
+                    <div className="text-muted-foreground">{conflict.filePath}</div>
+                    <div>{conflict.reason}</div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          <div className="flex flex-wrap gap-2">
+            <Button onClick={onOpenFleet}>
+              Open Fleet <ExternalLink className="h-4 w-4" />
+            </Button>
+            <Button variant="outline" onClick={onReconfigure}>
+              <Settings className="h-4 w-4" /> Reconfigure ingress
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function Metric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg border border-border bg-background p-3">
+      <div className="text-xs text-muted-foreground">{label}</div>
+      <div className="mt-1 break-words text-sm font-medium">{value}</div>
+    </div>
+  );
+}
+
+function DetailRow({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex items-start justify-between gap-3">
+      <span className="text-muted-foreground">{label}</span>
+      <span className="text-right">{children}</span>
+    </div>
+  );
+}
+
+function formatDate(value?: string) {
+  if (!value) return '—';
+  return new Date(value).toLocaleString();
 }
 
 function ResultsTable({

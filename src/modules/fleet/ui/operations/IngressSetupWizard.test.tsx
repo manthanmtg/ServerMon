@@ -44,6 +44,96 @@ describe('IngressSetupWizard', () => {
     expect(screen.getByPlaceholderText('example.com')).toBeDefined();
   });
 
+  it('shows configured hub details instead of the setup wizard when FRP is already enabled', async () => {
+    const fetchMock = vi.fn().mockImplementation((url: string) => {
+      if (url === '/api/fleet/server') {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            state: {
+              enabled: true,
+              runtimeState: 'running',
+              bindPort: 7000,
+              vhostHttpPort: 8080,
+              vhostHttpsPort: 8443,
+              subdomainHost: 'ultron.manthanby.cv',
+              configVersion: 4,
+              activeConnections: 2,
+              connectedNodeIds: ['node-1', 'node-2'],
+            },
+            envDefaults: {
+              hubPublicUrl: 'https://ultron.manthanby.cv',
+              managedDir: '/etc/nginx/servermon',
+              binaryPath: 'nginx',
+            },
+          }),
+        });
+      }
+      if (url === '/api/fleet/nginx') {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            state: {
+              managed: true,
+              managedDir: '/etc/nginx/servermon',
+              binaryPath: 'nginx',
+              runtimeState: 'running',
+              managedServerNames: ['orion-servermon.ultron.manthanby.cv'],
+              detectedConflicts: [],
+            },
+          }),
+        });
+      }
+      return Promise.resolve({ ok: true, json: async () => ({}) });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await renderLoaded();
+
+    expect(screen.getByText('Hub ingress is configured')).toBeDefined();
+    expect(screen.getByText('https://ultron.manthanby.cv')).toBeDefined();
+    expect(screen.getByText('FRP enabled')).toBeDefined();
+    expect(screen.getByText('nginx managed')).toBeDefined();
+    expect(screen.queryByText('Verify reachability')).toBeNull();
+  });
+
+  it('allows reopening the setup wizard from the configured hub view', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation((url: string) => {
+        if (url === '/api/fleet/server') {
+          return Promise.resolve({
+            ok: true,
+            json: async () => ({
+              state: {
+                enabled: true,
+                runtimeState: 'running',
+                bindPort: 7000,
+                vhostHttpPort: 8080,
+                subdomainHost: 'ultron.manthanby.cv',
+                connectedNodeIds: [],
+              },
+              envDefaults: { hubPublicUrl: 'https://ultron.manthanby.cv' },
+            }),
+          });
+        }
+        if (url === '/api/fleet/nginx') {
+          return Promise.resolve({ ok: true, json: async () => ({ state: { managed: true } }) });
+        }
+        return Promise.resolve({ ok: true, json: async () => ({}) });
+      })
+    );
+
+    await renderLoaded();
+
+    await act(async () => {
+      fireEvent.click(screen.getByText('Reconfigure ingress'));
+    });
+
+    expect(screen.getByText('Cloud ingress setup')).toBeDefined();
+    expect(screen.getByText('Verify reachability')).toBeDefined();
+  });
+
   it('advances step 1 -> 2 when Next is clicked', async () => {
     vi.stubGlobal(
       'fetch',
@@ -190,10 +280,10 @@ describe('IngressSetupWizard', () => {
     expect(serverBody.bindPort).toBe(7000);
 
     // Body check for /api/fleet/nginx
-    const nginxCall = fetchMock.mock.calls.find((c: unknown[]) => c[0] === '/api/fleet/nginx') as [
-      string,
-      { body: string },
-    ];
+    const nginxCall = fetchMock.mock.calls.find(
+      (c: unknown[]) =>
+        c[0] === '/api/fleet/nginx' && typeof c[1] === 'object' && c[1] !== null && 'body' in c[1]
+    ) as [string, { body: string }];
     const nginxBody = JSON.parse(nginxCall[1].body);
     expect(nginxBody.managed).toBe(true);
     expect(nginxBody.managedDir).toBe('/etc/nginx/servermon');
