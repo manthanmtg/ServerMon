@@ -7,14 +7,7 @@ import type {
   AIRunnerWorkspaceDTO,
 } from '../types';
 
-export type ViewTab =
-  | 'run'
-  | 'prompts'
-  | 'schedules'
-  | 'autoflows'
-  | 'history'
-  | 'settings'
-  | 'logs';
+export type ViewTab = 'prompts' | 'schedules' | 'autoflows' | 'history' | 'settings' | 'logs';
 
 export type HistoryDetailSection = 'summary' | 'output' | 'command' | 'metadata' | 'resources';
 
@@ -26,17 +19,6 @@ export type PromptTemplateFormState = Omit<
   '_id' | 'createdAt' | 'updatedAt'
 >;
 export type WorkspaceFormState = Omit<AIRunnerWorkspaceDTO, '_id' | 'createdAt' | 'updatedAt'>;
-
-export type RunFormState = {
-  name: string;
-  content: string;
-  type: 'inline' | 'file-reference' | 'saved-prompt';
-  promptId?: string;
-  agentProfileId: string;
-  workspaceId?: string;
-  workingDirectory: string;
-  timeout: number;
-};
 
 export type ScheduleFormState = Omit<
   AIRunnerScheduleDTO,
