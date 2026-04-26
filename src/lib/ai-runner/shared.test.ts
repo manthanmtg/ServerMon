@@ -212,6 +212,12 @@ describe('ai-runner shared utilities', () => {
       const result = resolveInvocationTemplate(template, 'hello', '/app');
       expect(result).toBe("run --dir '/app' --prompt 'hello'");
     });
+
+    it('keeps quoted prompt placeholders parseable when the prompt contains apostrophes', () => {
+      const template = 'codex exec "$PROMPT"';
+      const result = resolveInvocationTemplate(template, "don't ask", '/app');
+      expect(result).toBe("codex exec 'don'\"'\"'t ask'");
+    });
   });
 
   describe('appendOutput', () => {
