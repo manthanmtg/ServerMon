@@ -103,6 +103,9 @@ const mockRunnerSettings: AIRunnerSettingsDTO = {
   artifactBaseDir: '/tmp/servermon-ai-runner',
   mongoRetentionDays: 30,
   artifactRetentionDays: 90,
+  defaultArtifactBaseDir: '/tmp/servermon-ai-runner-default',
+  defaultMongoRetentionDays: 30,
+  defaultArtifactRetentionDays: 90,
 };
 const mockDiagnostics: {
   runtime: {
@@ -130,6 +133,10 @@ describe('AIRunnerPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockRunnerSettings.schedulesGloballyEnabled = true;
+    mockRunnerSettings.autoflowMode = 'sequential';
+    mockRunnerSettings.artifactBaseDir = '/tmp/servermon-ai-runner';
+    mockRunnerSettings.mongoRetentionDays = 30;
+    mockRunnerSettings.artifactRetentionDays = 90;
     global.fetch = vi.fn().mockImplementation((url: string, init?: RequestInit) => {
       if (url.includes('/api/modules/ai-runner/prompt-templates')) {
         return Promise.resolve({ ok: true, json: async () => mockPromptTemplates });
@@ -166,8 +173,8 @@ describe('AIRunnerPage', () => {
       }
       if (url.includes('/api/modules/ai-runner/settings')) {
         if (init?.method === 'PATCH') {
-          const payload = JSON.parse(String(init.body ?? '{}')) as AIRunnerSettingsDTO;
-          mockRunnerSettings.schedulesGloballyEnabled = payload.schedulesGloballyEnabled;
+          const payload = JSON.parse(String(init.body ?? '{}')) as Partial<AIRunnerSettingsDTO>;
+          Object.assign(mockRunnerSettings, payload);
         }
         return Promise.resolve({ ok: true, json: async () => mockRunnerSettings });
       }
@@ -466,6 +473,69 @@ describe('AIRunnerPage', () => {
     expect(screen.getByText('Portable Configuration')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Export AI Runner/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Import AI Runner/i })).toBeInTheDocument();
+  });
+
+  it('edits storage and retention settings from the settings tab', async () => {
+    await act(async () => {
+      render(<AIRunnerPage />);
+    });
+
+    await waitFor(() => expect(screen.getByText('AI Agent Runner')).toBeInTheDocument());
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('tab', { name: /Settings/i }));
+    });
+
+    expect(screen.getByText('Storage & Retention')).toBeInTheDocument();
+    expect(screen.getByLabelText('Artifact base directory')).toHaveValue(
+      '/tmp/servermon-ai-runner'
+    );
+    expect(screen.getByLabelText('Mongo retention days')).toHaveValue(30);
+    expect(screen.getByLabelText('Artifact retention days')).toHaveValue(90);
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('Artifact base directory'), {
+        target: { value: '/mnt/ai-runner-artifacts' },
+      });
+      fireEvent.change(screen.getByLabelText('Mongo retention days'), {
+        target: { value: '14' },
+      });
+      fireEvent.change(screen.getByLabelText('Artifact retention days'), {
+        target: { value: '120' },
+      });
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /Save Storage/i }));
+    });
+
+    await waitFor(() => {
+      const patchCalls = (global.fetch as unknown as ReturnType<typeof vi.fn>).mock.calls.filter(
+        ([url, init]) =>
+          String(url).includes('/api/modules/ai-runner/settings') && init?.method === 'PATCH'
+      );
+      expect(patchCalls).toContainEqual([
+        '/api/modules/ai-runner/settings',
+        expect.objectContaining({
+          method: 'PATCH',
+          body: JSON.stringify({
+            artifactBaseDir: '/mnt/ai-runner-artifacts',
+            mongoRetentionDays: 14,
+            artifactRetentionDays: 120,
+          }),
+        }),
+      ]);
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /^Reset$/i }));
+    });
+
+    expect(screen.getByLabelText('Artifact base directory')).toHaveValue(
+      '/tmp/servermon-ai-runner-default'
+    );
+    expect(screen.getByLabelText('Mongo retention days')).toHaveValue(30);
+    expect(screen.getByLabelText('Artifact retention days')).toHaveValue(90);
   });
 
   it('shows a live countdown and last run label on schedule rows', async () => {

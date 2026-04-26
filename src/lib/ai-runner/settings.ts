@@ -15,10 +15,11 @@ function mapSettings(doc: {
   artifactRetentionDays?: number;
   updatedAt?: Date | string;
 }): AIRunnerSettingsDTO {
+  const defaultArtifactBaseDir = getDefaultAIRunnerArtifactBaseDir();
   return {
     schedulesGloballyEnabled: doc.schedulesGloballyEnabled ?? true,
     autoflowMode: doc.autoflowMode === 'parallel' ? 'parallel' : 'sequential',
-    artifactBaseDir: doc.artifactBaseDir?.trim() || getDefaultAIRunnerArtifactBaseDir(),
+    artifactBaseDir: doc.artifactBaseDir?.trim() || defaultArtifactBaseDir,
     mongoRetentionDays:
       typeof doc.mongoRetentionDays === 'number'
         ? Math.max(1, Math.floor(doc.mongoRetentionDays))
@@ -27,6 +28,9 @@ function mapSettings(doc: {
       typeof doc.artifactRetentionDays === 'number'
         ? Math.max(1, Math.floor(doc.artifactRetentionDays))
         : DEFAULT_ARTIFACT_RETENTION_DAYS,
+    defaultArtifactBaseDir,
+    defaultMongoRetentionDays: DEFAULT_MONGO_RETENTION_DAYS,
+    defaultArtifactRetentionDays: DEFAULT_ARTIFACT_RETENTION_DAYS,
     updatedAt: doc.updatedAt ? new Date(doc.updatedAt).toISOString() : undefined,
   };
 }

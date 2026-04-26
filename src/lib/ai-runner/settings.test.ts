@@ -54,6 +54,9 @@ describe('ai-runner settings', () => {
         artifactBaseDir: '/tmp/ai-runner',
         mongoRetentionDays: 14,
         artifactRetentionDays: 45,
+        defaultArtifactBaseDir: expect.stringContaining('.servermon/ai-runner'),
+        defaultMongoRetentionDays: 30,
+        defaultArtifactRetentionDays: 90,
         updatedAt: '2026-04-26T07:00:00.000Z',
       });
     });
@@ -78,6 +81,9 @@ describe('ai-runner settings', () => {
         artifactBaseDir: '/tmp/default-ai-runner',
         mongoRetentionDays: 30,
         artifactRetentionDays: 90,
+        defaultArtifactBaseDir: expect.stringContaining('.servermon/ai-runner'),
+        defaultMongoRetentionDays: 30,
+        defaultArtifactRetentionDays: 90,
         updatedAt: '2026-04-26T07:15:00.000Z',
       });
     });
@@ -95,6 +101,9 @@ describe('ai-runner settings', () => {
         artifactBaseDir: expect.stringContaining('.servermon/ai-runner'),
         mongoRetentionDays: 30,
         artifactRetentionDays: 90,
+        defaultArtifactBaseDir: expect.stringContaining('.servermon/ai-runner'),
+        defaultMongoRetentionDays: 30,
+        defaultArtifactRetentionDays: 90,
         updatedAt: undefined,
       });
     });
@@ -154,6 +163,9 @@ describe('ai-runner settings', () => {
         artifactBaseDir: '/tmp/ai-runner',
         mongoRetentionDays: 10,
         artifactRetentionDays: 60,
+        defaultArtifactBaseDir: expect.stringContaining('.servermon/ai-runner'),
+        defaultMongoRetentionDays: 30,
+        defaultArtifactRetentionDays: 90,
         updatedAt: '2026-04-26T07:30:00.000Z',
       });
     });
@@ -189,6 +201,9 @@ describe('ai-runner settings', () => {
         artifactBaseDir: '/tmp/default-ai-runner',
         mongoRetentionDays: 30,
         artifactRetentionDays: 90,
+        defaultArtifactBaseDir: expect.stringContaining('.servermon/ai-runner'),
+        defaultMongoRetentionDays: 30,
+        defaultArtifactRetentionDays: 90,
         updatedAt: undefined,
       });
     });

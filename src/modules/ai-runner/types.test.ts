@@ -69,6 +69,9 @@ describe('ai-runner type shapes', () => {
       artifactBaseDir: '/var/lib/servermon/ai-runner',
       mongoRetentionDays: 30,
       artifactRetentionDays: 90,
+      defaultArtifactBaseDir: '/var/lib/servermon/ai-runner',
+      defaultMongoRetentionDays: 30,
+      defaultArtifactRetentionDays: 90,
       updatedAt: '2026-04-20T10:00:00.000Z',
     };
     expect(settings.schedulesGloballyEnabled).toBe(false);

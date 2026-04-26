@@ -10,6 +10,7 @@ import {
   Download,
   Eye,
   FileJson,
+  HardDrive,
   ListFilter,
   Plus,
   Play,
@@ -130,6 +131,10 @@ const DEFAULT_PORTABLE_RESOURCES = PORTABLE_RESOURCE_OPTIONS.map((item) => item.
 const MAX_PROMPT_ATTACHMENTS = 8;
 const MAX_PROMPT_ATTACHMENT_BYTES = 5 * 1024 * 1024;
 const MAX_PROMPT_ATTACHMENTS_TOTAL_BYTES = 10 * 1024 * 1024;
+const DEFAULT_MONGO_RETENTION_DAYS = 30;
+const DEFAULT_ARTIFACT_RETENTION_DAYS = 90;
+const MIN_RETENTION_DAYS = 1;
+const MAX_RETENTION_DAYS = 3650;
 
 interface AIRunnerRuntimeDiagnostics {
   runtime?: {
@@ -147,6 +152,45 @@ type LinkedDeleteTarget =
   | { kind: 'prompt'; id: string; name: string; scheduleCount: number }
   | { kind: 'profile'; id: string; name: string; scheduleCount: number }
   | { kind: 'workspace'; id: string; name: string; scheduleCount: number };
+
+interface StorageSettingsFormState {
+  artifactBaseDir: string;
+  mongoRetentionDays: string;
+  artifactRetentionDays: string;
+}
+
+function storageSettingsFormFromSettings(
+  settings: AIRunnerSettingsDTO | null
+): StorageSettingsFormState {
+  return {
+    artifactBaseDir: settings?.artifactBaseDir ?? '',
+    mongoRetentionDays: String(settings?.mongoRetentionDays ?? DEFAULT_MONGO_RETENTION_DAYS),
+    artifactRetentionDays: String(
+      settings?.artifactRetentionDays ?? DEFAULT_ARTIFACT_RETENTION_DAYS
+    ),
+  };
+}
+
+function defaultStorageSettingsFormFromSettings(
+  settings: AIRunnerSettingsDTO | null
+): StorageSettingsFormState {
+  return {
+    artifactBaseDir: settings?.defaultArtifactBaseDir ?? settings?.artifactBaseDir ?? '',
+    mongoRetentionDays: String(
+      settings?.defaultMongoRetentionDays ?? DEFAULT_MONGO_RETENTION_DAYS
+    ),
+    artifactRetentionDays: String(
+      settings?.defaultArtifactRetentionDays ?? DEFAULT_ARTIFACT_RETENTION_DAYS
+    ),
+  };
+}
+
+function parseRetentionDays(value: string): number | null {
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed)) return null;
+  if (parsed < MIN_RETENTION_DAYS || parsed > MAX_RETENTION_DAYS) return null;
+  return parsed;
+}
 
 function getActiveScheduleRunLabel(run?: AIRunnerRunDTO | null): string | null {
   if (!run) return null;
@@ -294,6 +338,10 @@ export default function AIRunnerPage() {
   const [logsError, setLogsError] = useState<string | null>(null);
   const [directories, setDirectories] = useState<string[]>([]);
   const [runnerSettings, setRunnerSettings] = useState<AIRunnerSettingsDTO | null>(null);
+  const [storageSettingsForm, setStorageSettingsForm] = useState<StorageSettingsFormState>(() =>
+    storageSettingsFormFromSettings(null)
+  );
+  const [storageSettingsSaving, setStorageSettingsSaving] = useState(false);
   const [runtimeDiagnostics, setRuntimeDiagnostics] = useState<AIRunnerRuntimeDiagnostics | null>(
     null
   );
@@ -570,6 +618,7 @@ export default function AIRunnerPage() {
         const payload: AIRunnerSettingsDTO = await settingsRes.json();
         if (controller.signal.aborted) return;
         setRunnerSettings(payload);
+        setStorageSettingsForm(storageSettingsFormFromSettings(payload));
         setAutoflowMode(payload.autoflowMode);
       }
 
@@ -1934,6 +1983,68 @@ export default function AIRunnerPage() {
         description: error instanceof Error ? error.message : 'Unable to update AutoFlow mode',
         variant: 'destructive',
       });
+    }
+  };
+
+  const resetStorageSettingsToDefaults = () => {
+    setStorageSettingsForm(defaultStorageSettingsFormFromSettings(runnerSettings));
+  };
+
+  const saveStorageSettings = async () => {
+    const artifactBaseDir = storageSettingsForm.artifactBaseDir.trim();
+    const mongoRetentionDays = parseRetentionDays(storageSettingsForm.mongoRetentionDays);
+    const artifactRetentionDays = parseRetentionDays(storageSettingsForm.artifactRetentionDays);
+
+    if (!artifactBaseDir) {
+      toast({
+        title: 'Artifact directory required',
+        description: 'Choose a folder where AI Runner can keep per-run logs and metadata.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (mongoRetentionDays === null || artifactRetentionDays === null) {
+      toast({
+        title: 'Retention days are invalid',
+        description: `Use whole numbers from ${MIN_RETENTION_DAYS} to ${MAX_RETENTION_DAYS}.`,
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    try {
+      setStorageSettingsSaving(true);
+      const response = await fetch('/api/modules/ai-runner/settings', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          artifactBaseDir,
+          mongoRetentionDays,
+          artifactRetentionDays,
+        }),
+      });
+      const payload: AIRunnerSettingsDTO | { error?: string } = await response.json();
+      if (!response.ok) {
+        throw new Error('error' in payload ? payload.error : 'Unable to update storage settings');
+      }
+      const settings = payload as AIRunnerSettingsDTO;
+
+      setRunnerSettings(settings);
+      setStorageSettingsForm(storageSettingsFormFromSettings(settings));
+      toast({
+        title: 'Storage settings saved',
+        description: 'AI Runner will use these values for new runs and retention cleanup.',
+        variant: 'success',
+      });
+    } catch (error) {
+      toast({
+        title: 'Storage settings failed',
+        description: error instanceof Error ? error.message : 'Unable to update storage settings',
+        variant: 'destructive',
+      });
+    } finally {
+      setStorageSettingsSaving(false);
     }
   };
 
@@ -4069,6 +4180,110 @@ export default function AIRunnerPage() {
                         {mode === 'sequential' ? 'Sequential' : 'Parallel'}
                       </button>
                     ))}
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="border-border/60">
+                <CardHeader className="border-b border-border/60">
+                  <CardTitle className="flex items-center gap-2 text-lg tracking-tight">
+                    <HardDrive className="h-4 w-4 text-primary" />
+                    Storage & Retention
+                  </CardTitle>
+                  <CardDescription className="mt-1">
+                    Configure where AI Runner keeps run folders and how long Mongo snapshots and
+                    filesystem artifacts are retained.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4 p-5">
+                  <label className="block space-y-2">
+                    <LabelWithHint
+                      label="Artifact base directory"
+                      hint="New runs create one folder under this path with logs, metadata, and exit markers."
+                    />
+                    <Input
+                      aria-label="Artifact base directory"
+                      value={storageSettingsForm.artifactBaseDir}
+                      onChange={(event) =>
+                        setStorageSettingsForm((current) => ({
+                          ...current,
+                          artifactBaseDir: event.target.value,
+                        }))
+                      }
+                      placeholder={runnerSettings?.defaultArtifactBaseDir ?? ''}
+                    />
+                  </label>
+
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <label className="block space-y-2">
+                      <LabelWithHint
+                        label="Mongo retention days"
+                        hint="Completed AI Runner jobs and run snapshots older than this are cleaned from Mongo."
+                      />
+                      <Input
+                        aria-label="Mongo retention days"
+                        type="number"
+                        min={MIN_RETENTION_DAYS}
+                        max={MAX_RETENTION_DAYS}
+                        inputMode="numeric"
+                        value={storageSettingsForm.mongoRetentionDays}
+                        onChange={(event) =>
+                          setStorageSettingsForm((current) => ({
+                            ...current,
+                            mongoRetentionDays: event.target.value,
+                          }))
+                        }
+                      />
+                    </label>
+
+                    <label className="block space-y-2">
+                      <LabelWithHint
+                        label="Artifact retention days"
+                        hint="Completed run folders older than this are removed from the artifact directory."
+                      />
+                      <Input
+                        aria-label="Artifact retention days"
+                        type="number"
+                        min={MIN_RETENTION_DAYS}
+                        max={MAX_RETENTION_DAYS}
+                        inputMode="numeric"
+                        value={storageSettingsForm.artifactRetentionDays}
+                        onChange={(event) =>
+                          setStorageSettingsForm((current) => ({
+                            ...current,
+                            artifactRetentionDays: event.target.value,
+                          }))
+                        }
+                      />
+                    </label>
+                  </div>
+
+                  <div className="flex flex-col gap-2 border-t border-border/60 pt-4 sm:flex-row sm:items-center sm:justify-between">
+                    <p className="text-xs leading-5 text-muted-foreground">
+                      Reset fills the platform defaults; Save applies them.
+                    </p>
+                    <div className="flex flex-col gap-2 sm:flex-row">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={resetStorageSettingsToDefaults}
+                        disabled={!runnerSettings || storageSettingsSaving}
+                        className="justify-start"
+                      >
+                        <RefreshCcw className="w-4 h-4" />
+                        Reset
+                      </Button>
+                      <Button
+                        type="button"
+                        onClick={() => void saveStorageSettings()}
+                        loading={storageSettingsSaving}
+                        disabled={!runnerSettings}
+                        className="justify-start"
+                      >
+                        <Save className="w-4 h-4" />
+                        Save Storage
+                      </Button>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
