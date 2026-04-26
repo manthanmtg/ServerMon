@@ -107,23 +107,23 @@ export default function ServerMonServicesCard({ onOpenHistory }: ServerMonServic
     <>
       <Card>
         <CardHeader>
-          <div className="flex items-start justify-between gap-3">
-            <div className="flex items-start gap-3">
-              <div className="p-2 rounded-lg bg-primary/10">
+          <div className="space-y-4">
+            <div className="flex min-w-0 items-start gap-3">
+              <div className="shrink-0 rounded-lg bg-primary/10 p-2">
                 <ServerCog className="w-4 h-4 text-primary" />
               </div>
-              <div>
-                <CardTitle className="text-base">ServerMon Services</CardTitle>
-                <CardDescription>
+              <div className="min-w-0 space-y-1">
+                <CardTitle className="text-base leading-tight">ServerMon Services</CardTitle>
+                <CardDescription className="leading-relaxed">
                   Update this ServerMon app separately from a colocated Fleet agent.
                 </CardDescription>
               </div>
             </div>
-            <div className="flex shrink-0 flex-wrap justify-end gap-2">
+            <div className="grid grid-cols-1 gap-2">
               <Button
                 variant="ghost"
                 size="sm"
-                className="gap-2 h-9 px-3 rounded-lg"
+                className="h-9 w-full gap-2 rounded-lg px-3"
                 onClick={onOpenHistory}
               >
                 <History className="w-3.5 h-3.5" />
@@ -132,7 +132,7 @@ export default function ServerMonServicesCard({ onOpenHistory }: ServerMonServic
               <Button
                 variant="outline"
                 size="sm"
-                className="gap-2 h-9 px-3 rounded-lg"
+                className="h-9 w-full gap-2 rounded-lg px-3"
                 onClick={() => setConfirmType('servermon')}
                 disabled={isUpdating}
               >
@@ -175,14 +175,14 @@ export default function ServerMonServicesCard({ onOpenHistory }: ServerMonServic
           </div>
 
           <div className="space-y-2 text-sm">
-            <div>
+            <div className="min-w-0">
               <span className="text-muted-foreground">Service: </span>
-              <span className="font-mono">
+              <span className="font-mono break-all">
                 {agentStatus?.serviceName ?? 'servermon-agent.service'}
               </span>
             </div>
             {agentStatus?.repoDir && (
-              <div>
+              <div className="min-w-0">
                 <span className="text-muted-foreground">Repo: </span>
                 <span className="font-mono break-all">{agentStatus.repoDir}</span>
               </div>
@@ -192,11 +192,11 @@ export default function ServerMonServicesCard({ onOpenHistory }: ServerMonServic
             )}
           </div>
 
-          <div className="flex flex-wrap gap-2">
+          <div className="grid grid-cols-1 gap-2">
             <Button
               variant="ghost"
               size="sm"
-              className="gap-2 h-9 px-3 rounded-lg"
+              className="h-9 w-full gap-2 rounded-lg px-3"
               onClick={loadAgentStatus}
               disabled={agentLoading || isUpdating}
             >
@@ -205,7 +205,7 @@ export default function ServerMonServicesCard({ onOpenHistory }: ServerMonServic
             </Button>
             <Button
               size="sm"
-              className="gap-2 h-9 px-3 rounded-lg"
+              className="h-9 w-full gap-2 rounded-lg px-3"
               onClick={() => setConfirmType('agent')}
               disabled={isUpdating || agentLoading || !agentStatus?.updateSupported}
             >
