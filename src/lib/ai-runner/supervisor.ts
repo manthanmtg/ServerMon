@@ -1,7 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import connectDB from '@/lib/db';
 import { createLogger } from '@/lib/logger';
-import AIRunnerJob from '@/models/AIRunnerJob';
+import AIRunnerAutoflow from '@/models/AIRunnerAutoflow';
+import AIRunnerJob, { type IAIRunnerJob } from '@/models/AIRunnerJob';
 import AIRunnerRun from '@/models/AIRunnerRun';
 import AIRunnerSchedule from '@/models/AIRunnerSchedule';
 import AIRunnerSupervisorLease from '@/models/AIRunnerSupervisorLease';
@@ -116,7 +117,139 @@ export class AIRunnerSupervisor {
   private async tick(): Promise<void> {
     await this.reconcileStaleJobs();
     await this.enqueueDueSchedules();
+    await this.advanceAutoflows();
     await this.dispatchRunnableJobs();
+  }
+
+  private async advanceAutoflows(): Promise<void> {
+    const autoflows = await AIRunnerAutoflow.find({ status: 'running' }).sort({ updatedAt: 1 });
+
+    for (const autoflow of autoflows) {
+      let changed = false;
+
+      for (const item of autoflow.items) {
+        if (!item.runId || !['queued', 'running'].includes(item.status)) continue;
+        const run = await AIRunnerRun.findById(item.runId);
+        if (!run) continue;
+        if (run.status === 'queued' || run.status === 'retrying') {
+          if (item.status !== 'queued') {
+            item.status = 'queued';
+            changed = true;
+          }
+          continue;
+        }
+        if (run.status === 'running') {
+          item.status = 'running';
+          item.startedAt = run.startedAt ?? item.startedAt;
+          changed = true;
+          continue;
+        }
+        if (run.status === 'completed') {
+          item.status = 'completed';
+          item.finishedAt = run.finishedAt ?? new Date();
+          changed = true;
+          continue;
+        }
+        item.status = run.status === 'killed' ? 'canceled' : 'failed';
+        item.lastError = run.lastError ?? `Run finished with ${run.status}`;
+        item.finishedAt = run.finishedAt ?? new Date();
+        changed = true;
+      }
+
+      const hasFailed = autoflow.items.some((item) => item.status === 'failed');
+      if (hasFailed && !autoflow.continueOnFailure) {
+        for (const item of autoflow.items) {
+          if (item.status === 'pending') {
+            item.status = 'skipped';
+            item.finishedAt = new Date();
+          }
+        }
+        autoflow.status = 'failed';
+        autoflow.finishedAt = new Date();
+        await autoflow.save();
+        continue;
+      }
+
+      const activeItems = autoflow.items.filter((item) =>
+        ['queued', 'running'].includes(item.status)
+      );
+      const pendingItems = autoflow.items.filter((item) => item.status === 'pending');
+
+      if (pendingItems.length === 0 && activeItems.length === 0) {
+        autoflow.status = hasFailed ? 'failed' : 'completed';
+        autoflow.finishedAt = new Date();
+        await autoflow.save();
+        continue;
+      }
+
+      if (activeItems.length > 0 && autoflow.mode === 'sequential') {
+        if (changed) await autoflow.save();
+        continue;
+      }
+
+      const itemsToQueue = autoflow.mode === 'parallel' ? pendingItems : pendingItems.slice(0, 1);
+      for (const item of itemsToQueue) {
+        try {
+          const run = await enqueueRunRequest(
+            {
+              promptId: item.promptId ? stringifyId(item.promptId) : undefined,
+              content: item.promptId ? undefined : item.promptContent,
+              type: item.promptType,
+              agentProfileId: stringifyId(item.agentProfileId),
+              workspaceId: item.workspaceId ? stringifyId(item.workspaceId) : undefined,
+              workingDirectory: item.workingDirectory,
+              timeout: item.timeout,
+              autoflowId: stringifyId(autoflow._id),
+              autoflowItemId: stringifyId(item._id),
+              triggeredBy: 'autoflow',
+            },
+            {
+              triggeredBy: 'autoflow',
+            }
+          );
+          item.status = 'queued';
+          item.runId = run._id as unknown as typeof item.runId;
+          item.lastError = undefined;
+          changed = true;
+          await writeAIRunnerLogEntry({
+            level: 'info',
+            component: 'ai-runner:supervisor',
+            event: 'autoflow.item_queued',
+            message: 'Queued AI Runner autoflow item',
+            data: {
+              autoflowId: stringifyId(autoflow._id),
+              itemId: stringifyId(item._id),
+              runId: run._id,
+              mode: autoflow.mode,
+            },
+          });
+        } catch (error) {
+          item.status = 'failed';
+          item.lastError = error instanceof Error ? error.message : String(error);
+          item.finishedAt = new Date();
+          changed = true;
+          if (!autoflow.continueOnFailure) break;
+        }
+      }
+
+      const nextPendingIndex = autoflow.items.findIndex((item) => item.status === 'pending');
+      autoflow.currentIndex = nextPendingIndex === -1 ? autoflow.items.length : nextPendingIndex;
+      if (changed) await autoflow.save();
+    }
+  }
+
+  private async isWorkspaceBlocked(
+    job: Pick<IAIRunnerJob, 'workspaceId' | 'workspaceBlocking' | '_id'>
+  ): Promise<boolean> {
+    if (!job.workspaceBlocking || !job.workspaceId) return false;
+    const activeJob = await AIRunnerJob.findOne({
+      _id: { $ne: job._id },
+      workspaceId: job.workspaceId,
+      workspaceBlocking: true,
+      status: { $in: ['dispatched', 'running'] },
+      cancelRequestedAt: { $exists: false },
+    }).select('_id');
+    return Boolean(activeJob);
   }
 
   private async reconcileStaleJobs(): Promise<void> {
@@ -413,8 +546,30 @@ export class AIRunnerSupervisor {
 
     while (activeCount < this.maxConcurrentRuns) {
       const now = new Date();
+      const candidates = await AIRunnerJob.find({
+        status: { $in: ['queued', 'retrying'] },
+        $or: [{ nextAttemptAt: { $exists: false } }, { nextAttemptAt: { $lte: now } }],
+        cancelRequestedAt: { $exists: false },
+      })
+        .sort({ scheduledFor: 1, nextAttemptAt: 1, createdAt: 1 })
+        .limit(25);
+
+      let selectedJob: IAIRunnerJob | null = null;
+      for (const candidate of candidates) {
+        if (await this.isWorkspaceBlocked(candidate)) {
+          continue;
+        }
+        selectedJob = candidate;
+        break;
+      }
+
+      if (!selectedJob) {
+        break;
+      }
+
       const job = await AIRunnerJob.findOneAndUpdate(
         {
+          _id: selectedJob._id,
           status: { $in: ['queued', 'retrying'] },
           $or: [{ nextAttemptAt: { $exists: false } }, { nextAttemptAt: { $lte: now } }],
           cancelRequestedAt: { $exists: false },

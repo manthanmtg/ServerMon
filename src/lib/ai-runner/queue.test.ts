@@ -6,6 +6,7 @@ import AIRunnerProfile, { type IAIRunnerProfile } from '@/models/AIRunnerProfile
 import AIRunnerPrompt, { type IAIRunnerPrompt } from '@/models/AIRunnerPrompt';
 import AIRunnerRun, { type IAIRunnerRun } from '@/models/AIRunnerRun';
 import AIRunnerSchedule, { type IAIRunnerSchedule } from '@/models/AIRunnerSchedule';
+import AIRunnerWorkspace from '@/models/AIRunnerWorkspace';
 import * as shared from './shared';
 import connectDB from '@/lib/db';
 import type { AIRunnerResolvedExecution } from './shared';
@@ -17,6 +18,7 @@ vi.mock('@/lib/db', () => ({
 vi.mock('@/models/AIRunnerJob', () => ({
   default: {
     create: vi.fn(),
+    findOne: vi.fn(),
   },
 }));
 
@@ -46,6 +48,13 @@ vi.mock('@/models/AIRunnerSchedule', () => ({
   },
 }));
 
+vi.mock('@/models/AIRunnerWorkspace', () => ({
+  default: {
+    findById: vi.fn(),
+    findOne: vi.fn(),
+  },
+}));
+
 vi.mock('./shared', async () => {
   const actual = await vi.importActual<typeof import('./shared')>('./shared');
   return {
@@ -60,6 +69,11 @@ vi.mock('./shared', async () => {
 describe('ai-runner queue', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(AIRunnerWorkspace.findOne).mockResolvedValue(null);
+    vi.mocked(AIRunnerWorkspace.findById).mockResolvedValue(null);
+    vi.mocked(AIRunnerJob.findOne).mockReturnValue({
+      select: vi.fn().mockResolvedValue(null),
+    } as unknown as ReturnType<typeof AIRunnerJob.findOne>);
   });
 
   describe('resolveExecutionRequest', () => {
@@ -212,6 +226,7 @@ describe('ai-runner queue', () => {
       promptContent: 'content',
       command: 'cmd',
       workingDirectory: '/dir',
+      workspaceBlocking: false,
       timeoutMinutes: 10,
       maxAttempts: 2,
       triggeredBy: 'manual' as const,

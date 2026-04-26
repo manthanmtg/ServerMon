@@ -15,7 +15,7 @@ export type AIRunnerRunStatus =
   | 'failed'
   | 'timeout'
   | 'killed';
-export type AIRunnerTrigger = 'manual' | 'schedule';
+export type AIRunnerTrigger = 'manual' | 'schedule' | 'autoflow';
 export type AIRunnerJobStatus =
   | 'queued'
   | 'dispatched'
@@ -24,6 +24,26 @@ export type AIRunnerJobStatus =
   | 'completed'
   | 'failed'
   | 'canceled';
+export type AIRunnerAutoflowStatus = 'draft' | 'running' | 'completed' | 'failed' | 'canceled';
+export type AIRunnerAutoflowItemStatus =
+  | 'pending'
+  | 'queued'
+  | 'running'
+  | 'completed'
+  | 'failed'
+  | 'skipped'
+  | 'canceled';
+
+export interface AIRunnerWorkspaceDTO {
+  _id: string;
+  name: string;
+  path: string;
+  blocking: boolean;
+  enabled: boolean;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
 
 export interface AIRunnerProfileDTO {
   _id: string;
@@ -52,11 +72,22 @@ export interface AIRunnerPromptDTO {
   updatedAt: string;
 }
 
+export interface AIRunnerPromptTemplateDTO {
+  _id: string;
+  name: string;
+  content: string;
+  description?: string;
+  tags: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface AIRunnerScheduleDTO {
   _id: string;
   name: string;
   promptId: string;
   agentProfileId: string;
+  workspaceId?: string;
   workingDirectory: string;
   timeout: number;
   retries: number;
@@ -73,6 +104,7 @@ export interface AIRunnerScheduleDTO {
 
 export interface AIRunnerSettingsDTO {
   schedulesGloballyEnabled: boolean;
+  autoflowMode: 'sequential' | 'parallel';
   updatedAt?: string;
 }
 
@@ -105,7 +137,10 @@ export interface AIRunnerRunDTO {
   jobId?: string;
   promptId?: string;
   scheduleId?: string;
+  autoflowId?: string;
+  autoflowItemId?: string;
   agentProfileId: string;
+  workspaceId?: string;
   promptContent: string;
   workingDirectory: string;
   command: string;
@@ -144,9 +179,12 @@ export interface AIRunnerExecuteRequest {
   content?: string;
   type?: AIRunnerPromptType;
   agentProfileId?: string;
+  workspaceId?: string;
   workingDirectory?: string;
   timeout?: number;
   scheduleId?: string;
+  autoflowId?: string;
+  autoflowItemId?: string;
   triggeredBy?: AIRunnerTrigger;
 }
 
@@ -157,4 +195,36 @@ export interface AIRunnerRunsResponse {
 
 export interface AIRunnerDirectoriesResponse {
   directories: string[];
+}
+
+export interface AIRunnerAutoflowItemDTO {
+  _id?: string;
+  name: string;
+  promptId?: string;
+  promptContent?: string;
+  promptType: AIRunnerPromptType;
+  agentProfileId: string;
+  workspaceId?: string;
+  workingDirectory: string;
+  timeout: number;
+  status: AIRunnerAutoflowItemStatus;
+  runId?: string;
+  lastError?: string;
+  startedAt?: string;
+  finishedAt?: string;
+}
+
+export interface AIRunnerAutoflowDTO {
+  _id: string;
+  name: string;
+  description?: string;
+  mode: 'sequential' | 'parallel';
+  status: AIRunnerAutoflowStatus;
+  continueOnFailure: boolean;
+  currentIndex: number;
+  items: AIRunnerAutoflowItemDTO[];
+  startedAt?: string;
+  finishedAt?: string;
+  createdAt: string;
+  updatedAt: string;
 }

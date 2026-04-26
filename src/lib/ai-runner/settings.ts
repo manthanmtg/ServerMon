@@ -6,10 +6,12 @@ const AI_RUNNER_SETTINGS_ID = 'airunner-settings';
 
 function mapSettings(doc: {
   schedulesGloballyEnabled?: boolean;
+  autoflowMode?: 'sequential' | 'parallel';
   updatedAt?: Date | string;
 }): AIRunnerSettingsDTO {
   return {
     schedulesGloballyEnabled: doc.schedulesGloballyEnabled ?? true,
+    autoflowMode: doc.autoflowMode === 'parallel' ? 'parallel' : 'sequential',
     updatedAt: doc.updatedAt ? new Date(doc.updatedAt).toISOString() : undefined,
   };
 }
@@ -26,15 +28,22 @@ export async function getAIRunnerSettings(): Promise<AIRunnerSettingsDTO> {
 }
 
 export async function updateAIRunnerSettings(input: {
-  schedulesGloballyEnabled: boolean;
+  schedulesGloballyEnabled?: boolean;
+  autoflowMode?: 'sequential' | 'parallel';
 }): Promise<AIRunnerSettingsDTO> {
   await connectDB();
+  const $set: Record<string, unknown> = {};
+  if (typeof input.schedulesGloballyEnabled === 'boolean') {
+    $set.schedulesGloballyEnabled = input.schedulesGloballyEnabled;
+  }
+  if (input.autoflowMode) {
+    $set.autoflowMode = input.autoflowMode;
+  }
+
   const doc = await AIRunnerSettings.findOneAndUpdate(
     { _id: AI_RUNNER_SETTINGS_ID },
     {
-      $set: {
-        schedulesGloballyEnabled: input.schedulesGloballyEnabled,
-      },
+      $set,
     },
     {
       new: true,

@@ -66,6 +66,9 @@ describe('AIRunnerSupervisor', () => {
       schedulesGloballyEnabled: true,
     });
     (writeAIRunnerLogEntry as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
+    (AIRunnerJob.findOne as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
+      select: vi.fn().mockResolvedValue(null),
+    });
     supervisor = new AIRunnerSupervisor();
   });
 
@@ -338,7 +341,19 @@ describe('AIRunnerSupervisor', () => {
 
   describe('dispatchRunnableJobs', () => {
     it('dispatches jobs until concurrency limit', async () => {
+      const candidates = [
+        { _id: 'j1', runId: 'r1', attemptCount: 1, maxAttempts: 2 },
+        { _id: 'j2', runId: 'r2', attemptCount: 1, maxAttempts: 2 },
+      ];
       (AIRunnerJob.countDocuments as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(0);
+      (AIRunnerJob.find as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
+        sort: vi.fn().mockReturnThis(),
+        limit: vi
+          .fn()
+          .mockResolvedValueOnce(candidates)
+          .mockResolvedValueOnce([candidates[1]])
+          .mockResolvedValueOnce([]),
+      });
       (AIRunnerJob.findOneAndUpdate as unknown as ReturnType<typeof vi.fn>)
         .mockResolvedValueOnce({ _id: 'j1', runId: 'r1', attemptCount: 1, maxAttempts: 2 })
         .mockResolvedValueOnce({ _id: 'j2', runId: 'r2', attemptCount: 1, maxAttempts: 2 })
@@ -363,6 +378,20 @@ describe('AIRunnerSupervisor', () => {
 
     it('handles worker spawn failure', async () => {
       (AIRunnerJob.countDocuments as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(0);
+      (AIRunnerJob.find as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
+        sort: vi.fn().mockReturnThis(),
+        limit: vi
+          .fn()
+          .mockResolvedValueOnce([
+            {
+              _id: 'j1',
+              runId: 'r1',
+              attemptCount: 1,
+              maxAttempts: 2,
+            },
+          ])
+          .mockResolvedValueOnce([]),
+      });
       (AIRunnerJob.findOneAndUpdate as unknown as ReturnType<typeof vi.fn>)
         .mockResolvedValueOnce({
           _id: 'j1',

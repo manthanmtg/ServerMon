@@ -1,19 +1,25 @@
 import { access, readFile } from 'node:fs/promises';
 import type {
   AIRunnerJobStatus,
+  AIRunnerAutoflowDTO,
   AIRunnerProfileDTO,
   AIRunnerPromptDTO,
+  AIRunnerPromptTemplateDTO,
   AIRunnerRunDTO,
   AIRunnerRunStatus,
   AIRunnerScheduleDTO,
   AIRunnerTemplateValidationResult,
   AIRunnerTrigger,
+  AIRunnerWorkspaceDTO,
 } from '@/modules/ai-runner/types';
+import type { IAIRunnerAutoflow } from '@/models/AIRunnerAutoflow';
 import type { IAIRunnerJob } from '@/models/AIRunnerJob';
 import type { IAIRunnerProfile } from '@/models/AIRunnerProfile';
 import type { IAIRunnerPrompt } from '@/models/AIRunnerPrompt';
+import type { IAIRunnerPromptTemplate } from '@/models/AIRunnerPromptTemplate';
 import type { IAIRunnerRun } from '@/models/AIRunnerRun';
 import type { IAIRunnerSchedule } from '@/models/AIRunnerSchedule';
+import type { IAIRunnerWorkspace } from '@/models/AIRunnerWorkspace';
 import { computeNextRuns } from '@/lib/crons/service';
 
 export const DEFAULT_MAX_CONCURRENT_RUNS = 3;
@@ -36,8 +42,12 @@ export function getMaxConcurrentRuns(): number {
 export interface AIRunnerResolvedExecution {
   promptId?: string;
   scheduleId?: string;
+  autoflowId?: string;
+  autoflowItemId?: string;
   scheduleCronExpression?: string;
   profile: AIRunnerProfileDTO;
+  workspaceId?: string;
+  workspaceBlocking: boolean;
   promptContent: string;
   command: string;
   workingDirectory: string;
@@ -105,6 +115,35 @@ export function mapPrompt(
   };
 }
 
+export function mapPromptTemplate(
+  doc: IAIRunnerPromptTemplate | (Record<string, unknown> & { _id: unknown })
+): AIRunnerPromptTemplateDTO {
+  return {
+    _id: stringifyId(doc._id),
+    name: String(doc.name),
+    content: String(doc.content),
+    description: doc.description ? String(doc.description) : undefined,
+    tags: Array.isArray(doc.tags) ? doc.tags.map(String) : [],
+    createdAt: new Date(doc.createdAt as Date | string).toISOString(),
+    updatedAt: new Date(doc.updatedAt as Date | string).toISOString(),
+  };
+}
+
+export function mapWorkspace(
+  doc: IAIRunnerWorkspace | (Record<string, unknown> & { _id: unknown })
+): AIRunnerWorkspaceDTO {
+  return {
+    _id: stringifyId(doc._id),
+    name: String(doc.name),
+    path: String(doc.path),
+    blocking: Boolean(doc.blocking),
+    enabled: Boolean(doc.enabled),
+    notes: doc.notes ? String(doc.notes) : undefined,
+    createdAt: new Date(doc.createdAt as Date | string).toISOString(),
+    updatedAt: new Date(doc.updatedAt as Date | string).toISOString(),
+  };
+}
+
 export function mapSchedule(
   doc: IAIRunnerSchedule | (Record<string, unknown> & { _id: unknown })
 ): AIRunnerScheduleDTO {
@@ -113,6 +152,7 @@ export function mapSchedule(
     name: String(doc.name),
     promptId: stringifyId(doc.promptId),
     agentProfileId: doc.agentProfileId ? stringifyId(doc.agentProfileId) : '',
+    workspaceId: doc.workspaceId ? stringifyId(doc.workspaceId) : undefined,
     workingDirectory: doc.workingDirectory ? String(doc.workingDirectory) : '',
     timeout: typeof doc.timeout === 'number' ? Number(doc.timeout) : 30,
     retries: typeof doc.retries === 'number' ? Number(doc.retries) : 1,
@@ -144,7 +184,10 @@ export function mapRun(
     jobId: doc.jobId ? stringifyId(doc.jobId) : undefined,
     promptId: doc.promptId ? stringifyId(doc.promptId) : undefined,
     scheduleId: doc.scheduleId ? stringifyId(doc.scheduleId) : undefined,
+    autoflowId: doc.autoflowId ? stringifyId(doc.autoflowId) : undefined,
+    autoflowItemId: doc.autoflowItemId ? stringifyId(doc.autoflowItemId) : undefined,
     agentProfileId: stringifyId(doc.agentProfileId),
+    workspaceId: doc.workspaceId ? stringifyId(doc.workspaceId) : undefined,
     promptContent: String(doc.promptContent),
     workingDirectory: String(doc.workingDirectory),
     command: String(doc.command),
@@ -178,6 +221,41 @@ export function mapRun(
           peakMemoryPercent: Number(resourceUsage.peakMemoryPercent ?? 0),
         }
       : undefined,
+  };
+}
+
+export function mapAutoflow(
+  doc: IAIRunnerAutoflow | (Record<string, unknown> & { _id: unknown })
+): AIRunnerAutoflowDTO {
+  const items = Array.isArray(doc.items) ? doc.items : [];
+  return {
+    _id: stringifyId(doc._id),
+    name: String(doc.name),
+    description: doc.description ? String(doc.description) : undefined,
+    mode: doc.mode === 'parallel' ? 'parallel' : 'sequential',
+    status: doc.status as AIRunnerAutoflowDTO['status'],
+    continueOnFailure: Boolean(doc.continueOnFailure),
+    currentIndex: typeof doc.currentIndex === 'number' ? Number(doc.currentIndex) : 0,
+    items: items.map((item) => ({
+      _id: stringifyId((item as { _id?: unknown })._id),
+      name: String(item.name),
+      promptId: item.promptId ? stringifyId(item.promptId) : undefined,
+      promptContent: item.promptContent ? String(item.promptContent) : undefined,
+      promptType: item.promptType as AIRunnerAutoflowDTO['items'][number]['promptType'],
+      agentProfileId: stringifyId(item.agentProfileId),
+      workspaceId: item.workspaceId ? stringifyId(item.workspaceId) : undefined,
+      workingDirectory: String(item.workingDirectory),
+      timeout: Number(item.timeout),
+      status: item.status as AIRunnerAutoflowDTO['items'][number]['status'],
+      runId: item.runId ? stringifyId(item.runId) : undefined,
+      lastError: item.lastError ? String(item.lastError) : undefined,
+      startedAt: toIso(item.startedAt as Date | string | undefined),
+      finishedAt: toIso(item.finishedAt as Date | string | undefined),
+    })),
+    startedAt: toIso(doc.startedAt as Date | string | undefined),
+    finishedAt: toIso(doc.finishedAt as Date | string | undefined),
+    createdAt: new Date(doc.createdAt as Date | string).toISOString(),
+    updatedAt: new Date(doc.updatedAt as Date | string).toISOString(),
   };
 }
 

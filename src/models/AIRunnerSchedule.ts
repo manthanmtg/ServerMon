@@ -5,6 +5,7 @@ export interface IAIRunnerSchedule extends Document {
   name: string;
   promptId: mongoose.Types.ObjectId;
   agentProfileId?: mongoose.Types.ObjectId;
+  workspaceId?: mongoose.Types.ObjectId;
   workingDirectory?: string;
   timeout?: number;
   retries: number;
@@ -24,6 +25,7 @@ const AIRunnerScheduleSchema = new Schema<IAIRunnerSchedule>(
     name: { type: String, required: true, trim: true, maxlength: 160 },
     promptId: { type: Schema.Types.ObjectId, ref: 'AIRunnerPrompt', required: true },
     agentProfileId: { type: Schema.Types.ObjectId, ref: 'AIRunnerProfile' },
+    workspaceId: { type: Schema.Types.ObjectId, ref: 'AIRunnerWorkspace' },
     workingDirectory: { type: String, trim: true, maxlength: 2000 },
     timeout: { type: Number, min: 1, max: 24 * 60 },
     retries: { type: Number, default: 1, min: 0, max: 9 },
@@ -44,6 +46,7 @@ const AIRunnerScheduleSchema = new Schema<IAIRunnerSchedule>(
 AIRunnerScheduleSchema.index({ enabled: 1, nextRunTime: 1 });
 AIRunnerScheduleSchema.index({ promptId: 1, updatedAt: -1 });
 AIRunnerScheduleSchema.index({ agentProfileId: 1, updatedAt: -1 });
+AIRunnerScheduleSchema.index({ workspaceId: 1, updatedAt: -1 });
 
 const AIRunnerSchedule: Model<IAIRunnerSchedule> =
   mongoose.models.AIRunnerSchedule ||

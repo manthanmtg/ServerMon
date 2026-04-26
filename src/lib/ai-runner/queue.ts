@@ -4,6 +4,7 @@ import AIRunnerProfile from '@/models/AIRunnerProfile';
 import AIRunnerPrompt, { type IAIRunnerPrompt } from '@/models/AIRunnerPrompt';
 import AIRunnerRun from '@/models/AIRunnerRun';
 import AIRunnerSchedule, { type IAIRunnerSchedule } from '@/models/AIRunnerSchedule';
+import AIRunnerWorkspace from '@/models/AIRunnerWorkspace';
 import type {
   AIRunnerExecuteRequest,
   AIRunnerRunDTO,
@@ -26,6 +27,58 @@ interface LegacyPromptRuntime {
   agentProfileId?: unknown;
   workingDirectory?: unknown;
   timeout?: unknown;
+}
+
+async function resolveWorkspace(input: {
+  workspaceId?: string;
+  workingDirectory?: string;
+}): Promise<{ workspaceId?: string; workingDirectory?: string; blocking: boolean }> {
+  if (input.workspaceId) {
+    const workspace = await AIRunnerWorkspace.findById(input.workspaceId);
+    if (!workspace || !workspace.enabled) {
+      throw new Error('Workspace is not available');
+    }
+    return {
+      workspaceId: stringifyId(workspace._id),
+      workingDirectory: workspace.path,
+      blocking: Boolean(workspace.blocking),
+    };
+  }
+
+  if (!input.workingDirectory) {
+    return { blocking: false };
+  }
+
+  const workspace = await AIRunnerWorkspace.findOne({
+    path: input.workingDirectory,
+    enabled: true,
+  });
+  if (!workspace) {
+    return { workingDirectory: input.workingDirectory, blocking: false };
+  }
+
+  return {
+    workspaceId: stringifyId(workspace._id),
+    workingDirectory: workspace.path,
+    blocking: Boolean(workspace.blocking),
+  };
+}
+
+async function assertWorkspaceCanQueue(resolved: AIRunnerResolvedExecution): Promise<void> {
+  if (!resolved.workspaceBlocking || !resolved.workspaceId) return;
+
+  const activeJob = await AIRunnerJob.findOne({
+    workspaceId: resolved.workspaceId,
+    workspaceBlocking: true,
+    status: { $in: ['queued', 'dispatched', 'running', 'retrying'] },
+    cancelRequestedAt: { $exists: false },
+  }).select('_id runId triggeredBy');
+
+  if (!activeJob) return;
+
+  throw new Error(
+    'Workspace is blocked by an active or queued AI Runner job. Wait for it to finish or disable blocking for this workspace.'
+  );
 }
 
 export async function resolveExecutionRequest(
@@ -77,7 +130,14 @@ export async function resolveExecutionRequest(
   if (!workingDirectory) {
     throw new Error('Working directory is required');
   }
-  await ensureDirectoryExists(workingDirectory);
+  const workspace = await resolveWorkspace({
+    workspaceId:
+      request.workspaceId ??
+      (scheduleDoc?.workspaceId ? stringifyId(scheduleDoc.workspaceId) : undefined),
+    workingDirectory,
+  });
+  const resolvedWorkingDirectory = workspace.workingDirectory ?? workingDirectory;
+  await ensureDirectoryExists(resolvedWorkingDirectory);
 
   const promptType = request.type ?? promptDoc?.type;
   const promptSource = request.content ?? promptDoc?.content;
@@ -95,17 +155,21 @@ export async function resolveExecutionRequest(
   const command = resolveInvocationTemplate(
     profile.invocationTemplate,
     promptContent,
-    workingDirectory
+    resolvedWorkingDirectory
   );
 
   return {
     promptId: promptDoc ? stringifyId(promptDoc._id) : undefined,
     scheduleId: scheduleDoc ? stringifyId(scheduleDoc._id) : undefined,
+    autoflowId: request.autoflowId,
+    autoflowItemId: request.autoflowItemId,
     scheduleCronExpression: scheduleDoc?.cronExpression,
     profile,
+    workspaceId: workspace.workspaceId,
+    workspaceBlocking: workspace.blocking,
     promptContent,
     command,
-    workingDirectory,
+    workingDirectory: resolvedWorkingDirectory,
     timeoutMinutes,
     maxAttempts:
       scheduleDoc && typeof scheduleDoc.retries === 'number'
@@ -126,11 +190,17 @@ export async function enqueueResolvedRun(
   await connectDB();
 
   const queuedAt = options?.requestedAt ?? new Date();
+  if (resolved.triggeredBy === 'manual') {
+    await assertWorkspaceCanQueue(resolved);
+  }
   const jobScheduledFor = options?.scheduledFor ?? (resolved.scheduleId ? queuedAt : undefined);
   const runDoc = await AIRunnerRun.create({
     promptId: resolved.promptId,
     scheduleId: resolved.scheduleId,
+    autoflowId: resolved.autoflowId,
+    autoflowItemId: resolved.autoflowItemId,
     agentProfileId: resolved.profile._id,
+    workspaceId: resolved.workspaceId,
     promptContent: resolved.promptContent,
     workingDirectory: resolved.workingDirectory,
     command: resolved.command,
@@ -152,7 +222,11 @@ export async function enqueueResolvedRun(
       runId: runDoc._id,
       promptId: resolved.promptId,
       scheduleId: resolved.scheduleId,
+      autoflowId: resolved.autoflowId,
+      autoflowItemId: resolved.autoflowItemId,
       agentProfileId: resolved.profile._id,
+      workspaceId: resolved.workspaceId,
+      workspaceBlocking: resolved.workspaceBlocking,
       triggeredBy: resolved.triggeredBy,
       promptContent: resolved.promptContent,
       workingDirectory: resolved.workingDirectory,
@@ -183,8 +257,12 @@ export async function enqueueResolvedRun(
       runId: stringifyId(runDoc._id),
       jobId: stringifyId(jobDoc._id),
       scheduleId: resolved.scheduleId,
+      autoflowId: resolved.autoflowId,
+      autoflowItemId: resolved.autoflowItemId,
       promptId: resolved.promptId,
       profileId: resolved.profile._id,
+      workspaceId: resolved.workspaceId,
+      workspaceBlocking: resolved.workspaceBlocking,
       triggeredBy: resolved.triggeredBy,
       queuedAt: queuedAt.toISOString(),
       scheduledFor: jobScheduledFor?.toISOString(),

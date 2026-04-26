@@ -1,33 +1,44 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
+import mongoose from 'mongoose';
 import connectDB from '@/lib/db';
+import AIRunnerAutoflow from '@/models/AIRunnerAutoflow';
 import AIRunnerJob from '@/models/AIRunnerJob';
 import AIRunnerProfile from '@/models/AIRunnerProfile';
 import AIRunnerPrompt from '@/models/AIRunnerPrompt';
+import AIRunnerPromptTemplate from '@/models/AIRunnerPromptTemplate';
 import AIRunnerRun from '@/models/AIRunnerRun';
 import AIRunnerSchedule from '@/models/AIRunnerSchedule';
+import AIRunnerWorkspace from '@/models/AIRunnerWorkspace';
 import type {
+  AIRunnerAutoflowDTO,
   AIRunnerDirectoriesResponse,
   AIRunnerExecuteRequest,
   AIRunnerProfileDTO,
   AIRunnerPromptDTO,
+  AIRunnerPromptTemplateDTO,
   AIRunnerRunDTO,
   AIRunnerRunStatus,
   AIRunnerScheduleDTO,
   AIRunnerSettingsDTO,
   AIRunnerTemplateValidationResult,
   AIRunnerTrigger,
+  AIRunnerWorkspaceDTO,
 } from '@/modules/ai-runner/types';
 import { ensureAIRunnerSupervisor } from './processes';
 import { terminateAIRunnerExecution } from './execution';
 import { enqueueRunRequest } from './queue';
 import { getAIRunnerSettings, updateAIRunnerSettings } from './settings';
 import {
+  ensureDirectoryExists,
   getNextRunTimeFromExpression,
+  mapAutoflow,
   mapProfile,
   mapPrompt,
+  mapPromptTemplate,
   mapRun,
   mapSchedule,
+  mapWorkspace,
   resolveInvocationTemplate,
   shellEscape,
   stripAnsi,
@@ -41,6 +52,40 @@ const RUN_LIST_PROJECTION = {
   stderr: 0,
   rawOutput: 0,
 } as const;
+
+type AIRunnerAutoflowInputItem = {
+  name: string;
+  promptId?: string;
+  promptContent?: string;
+  promptType: 'inline' | 'file-reference';
+  agentProfileId: string;
+  workspaceId?: string;
+  workingDirectory: string;
+  timeout: number;
+};
+
+type AIRunnerAutoflowCreateInput = {
+  name: string;
+  description?: string;
+  mode?: 'sequential' | 'parallel';
+  continueOnFailure: boolean;
+  items: AIRunnerAutoflowInputItem[];
+  startImmediately?: boolean;
+};
+
+function toOptionalObjectId(value?: string): mongoose.Types.ObjectId | undefined {
+  return value ? new mongoose.Types.ObjectId(value) : undefined;
+}
+
+function normalizeAutoflowItems(input: AIRunnerAutoflowInputItem[]) {
+  return input.map((item) => ({
+    ...item,
+    promptId: toOptionalObjectId(item.promptId),
+    agentProfileId: new mongoose.Types.ObjectId(item.agentProfileId),
+    workspaceId: toOptionalObjectId(item.workspaceId),
+    status: 'pending' as const,
+  }));
+}
 
 export interface AIRunnerServiceOptions {
   autoStartSupervisor?: boolean;
@@ -177,6 +222,78 @@ export class AIRunnerService {
     return Boolean(result);
   }
 
+  async listPromptTemplates(): Promise<AIRunnerPromptTemplateDTO[]> {
+    await connectDB();
+    const docs = await AIRunnerPromptTemplate.find().sort({ updatedAt: -1 });
+    return docs.map(mapPromptTemplate);
+  }
+
+  async createPromptTemplate(
+    input: Omit<AIRunnerPromptTemplateDTO, '_id' | 'createdAt' | 'updatedAt'>
+  ): Promise<AIRunnerPromptTemplateDTO> {
+    await connectDB();
+    const doc = await AIRunnerPromptTemplate.create(input);
+    return mapPromptTemplate(doc);
+  }
+
+  async updatePromptTemplate(
+    id: string,
+    input: Partial<Omit<AIRunnerPromptTemplateDTO, '_id' | 'createdAt' | 'updatedAt'>>
+  ): Promise<AIRunnerPromptTemplateDTO | null> {
+    await connectDB();
+    const doc = await AIRunnerPromptTemplate.findByIdAndUpdate(id, input, { new: true });
+    return doc ? mapPromptTemplate(doc) : null;
+  }
+
+  async deletePromptTemplate(id: string): Promise<boolean> {
+    await connectDB();
+    const result = await AIRunnerPromptTemplate.findByIdAndDelete(id);
+    return Boolean(result);
+  }
+
+  async listWorkspaces(): Promise<AIRunnerWorkspaceDTO[]> {
+    await connectDB();
+    const docs = await AIRunnerWorkspace.find().sort({ enabled: -1, updatedAt: -1 });
+    return docs.map(mapWorkspace);
+  }
+
+  async createWorkspace(
+    input: Omit<AIRunnerWorkspaceDTO, '_id' | 'createdAt' | 'updatedAt'>
+  ): Promise<AIRunnerWorkspaceDTO> {
+    await ensureDirectoryExists(input.path);
+    await connectDB();
+    const doc = await AIRunnerWorkspace.create(input);
+    return mapWorkspace(doc);
+  }
+
+  async updateWorkspace(
+    id: string,
+    input: Partial<Omit<AIRunnerWorkspaceDTO, '_id' | 'createdAt' | 'updatedAt'>>
+  ): Promise<AIRunnerWorkspaceDTO | null> {
+    if (input.path) {
+      await ensureDirectoryExists(input.path);
+    }
+    await connectDB();
+    const doc = await AIRunnerWorkspace.findByIdAndUpdate(id, input, { new: true });
+    return doc ? mapWorkspace(doc) : null;
+  }
+
+  async deleteWorkspace(id: string): Promise<boolean> {
+    await connectDB();
+    const [scheduleCount, activeRunCount] = await Promise.all([
+      AIRunnerSchedule.countDocuments({ workspaceId: id }),
+      AIRunnerRun.countDocuments({
+        workspaceId: id,
+        status: { $in: ['queued', 'running', 'retrying'] },
+      }),
+    ]);
+    if (scheduleCount > 0 || activeRunCount > 0) {
+      throw new Error('Cannot delete a workspace that is still referenced by schedules or runs');
+    }
+    const result = await AIRunnerWorkspace.findByIdAndDelete(id);
+    return Boolean(result);
+  }
+
   async listSchedules(options?: {
     enabled?: boolean;
     limit?: number;
@@ -201,14 +318,22 @@ export class AIRunnerService {
     input: Omit<AIRunnerScheduleDTO, '_id' | 'createdAt' | 'updatedAt'>
   ): Promise<AIRunnerScheduleDTO> {
     await connectDB();
+    const scheduleInput = { ...input };
+    if (scheduleInput.workspaceId) {
+      const workspace = await AIRunnerWorkspace.findById(scheduleInput.workspaceId);
+      if (!workspace || !workspace.enabled) {
+        throw new Error('Workspace is not available');
+      }
+      scheduleInput.workingDirectory = workspace.path;
+    }
     const nextRunTime = input.enabled
-      ? getNextRunTimeFromExpression(input.cronExpression)
+      ? getNextRunTimeFromExpression(scheduleInput.cronExpression)
       : undefined;
-    if (input.enabled && !nextRunTime) {
+    if (scheduleInput.enabled && !nextRunTime) {
       throw new Error('Invalid cron expression');
     }
     const doc = await AIRunnerSchedule.create({
-      ...input,
+      ...scheduleInput,
       nextRunTime: nextRunTime ? new Date(nextRunTime) : undefined,
     });
     ensureAIRunnerSupervisor();
@@ -225,12 +350,20 @@ export class AIRunnerService {
 
     const cronExpression = input.cronExpression ?? schedule.cronExpression;
     const enabled = input.enabled ?? schedule.enabled;
+    const updateInput = { ...input };
+    if (updateInput.workspaceId) {
+      const workspace = await AIRunnerWorkspace.findById(updateInput.workspaceId);
+      if (!workspace || !workspace.enabled) {
+        throw new Error('Workspace is not available');
+      }
+      updateInput.workingDirectory = workspace.path;
+    }
     const nextRunTime = enabled ? getNextRunTimeFromExpression(cronExpression) : undefined;
     if (enabled && !nextRunTime) {
       throw new Error('Invalid cron expression');
     }
 
-    Object.assign(schedule, input, {
+    Object.assign(schedule, updateInput, {
       nextRunTime: nextRunTime ? new Date(nextRunTime) : undefined,
     });
     await schedule.save();
@@ -262,10 +395,88 @@ export class AIRunnerService {
     return getAIRunnerSettings();
   }
 
-  async updateSettings(input: { schedulesGloballyEnabled: boolean }): Promise<AIRunnerSettingsDTO> {
+  async updateSettings(input: {
+    schedulesGloballyEnabled?: boolean;
+    autoflowMode?: 'sequential' | 'parallel';
+  }): Promise<AIRunnerSettingsDTO> {
     const settings = await updateAIRunnerSettings(input);
     ensureAIRunnerSupervisor();
     return settings;
+  }
+
+  async listAutoflows(): Promise<AIRunnerAutoflowDTO[]> {
+    await connectDB();
+    const docs = await AIRunnerAutoflow.find().sort({ updatedAt: -1 }).limit(100);
+    return docs.map(mapAutoflow);
+  }
+
+  async createAutoflow(input: AIRunnerAutoflowCreateInput): Promise<AIRunnerAutoflowDTO> {
+    await connectDB();
+    const settings = await getAIRunnerSettings();
+    const doc = await AIRunnerAutoflow.create({
+      ...input,
+      mode: input.mode ?? settings.autoflowMode,
+      status: input.startImmediately === false ? 'draft' : 'running',
+      startedAt: input.startImmediately === false ? undefined : new Date(),
+      currentIndex: 0,
+      items: normalizeAutoflowItems(input.items),
+    });
+    ensureAIRunnerSupervisor();
+    return mapAutoflow(doc);
+  }
+
+  async updateAutoflow(
+    id: string,
+    input: Partial<Omit<AIRunnerAutoflowCreateInput, 'startImmediately'>>
+  ): Promise<AIRunnerAutoflowDTO | null> {
+    await connectDB();
+    const existing = await AIRunnerAutoflow.findById(id);
+    if (!existing) return null;
+    if (existing.status === 'running') {
+      throw new Error('Cannot edit an autoflow while it is running');
+    }
+    Object.assign(existing, input);
+    if (input.items) {
+      existing.items = normalizeAutoflowItems(input.items);
+    }
+    await existing.save();
+    return mapAutoflow(existing);
+  }
+
+  async startAutoflow(id: string): Promise<AIRunnerAutoflowDTO | null> {
+    await connectDB();
+    const doc = await AIRunnerAutoflow.findById(id);
+    if (!doc) return null;
+    doc.status = 'running';
+    doc.startedAt = new Date();
+    doc.finishedAt = undefined;
+    doc.currentIndex = 0;
+    doc.items = doc.items.map((item) => ({
+      ...item,
+      status: 'pending',
+      runId: undefined,
+      lastError: undefined,
+      startedAt: undefined,
+      finishedAt: undefined,
+    }));
+    await doc.save();
+    ensureAIRunnerSupervisor();
+    return mapAutoflow(doc);
+  }
+
+  async cancelAutoflow(id: string): Promise<AIRunnerAutoflowDTO | null> {
+    await connectDB();
+    const doc = await AIRunnerAutoflow.findById(id);
+    if (!doc) return null;
+    doc.status = 'canceled';
+    doc.finishedAt = new Date();
+    doc.items = doc.items.map((item) =>
+      item.status === 'pending' || item.status === 'queued'
+        ? { ...item, status: 'canceled', finishedAt: new Date() }
+        : item
+    );
+    await doc.save();
+    return mapAutoflow(doc);
   }
 
   async listRuns(options?: {
@@ -326,13 +537,15 @@ export class AIRunnerService {
 
   async listKnownDirectories(): Promise<AIRunnerDirectoriesResponse> {
     await connectDB();
-    const [scheduleDirs, runDirs] = await Promise.all([
+    const [workspaceDirs, scheduleDirs, runDirs] = await Promise.all([
+      AIRunnerWorkspace.distinct('path', { enabled: true }),
       AIRunnerSchedule.distinct('workingDirectory'),
       AIRunnerRun.distinct('workingDirectory'),
     ]);
     const directories = Array.from(
       new Set([
         process.cwd(),
+        ...workspaceDirs.filter(Boolean).map(String),
         ...scheduleDirs.filter(Boolean).map(String),
         ...runDirs.filter(Boolean).map(String),
       ])

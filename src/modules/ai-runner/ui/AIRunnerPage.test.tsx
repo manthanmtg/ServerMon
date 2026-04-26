@@ -15,12 +15,15 @@ vi.mock('@/components/ui/toast', () => ({
 import AIRunnerPage from './AIRunnerPage';
 import type {
   AIRunnerDirectoriesResponse,
+  AIRunnerAutoflowDTO,
   AIRunnerProfileDTO,
   AIRunnerPromptDTO,
+  AIRunnerPromptTemplateDTO,
   AIRunnerRunDTO,
   AIRunnerRunsResponse,
   AIRunnerScheduleDTO,
   AIRunnerSettingsDTO,
+  AIRunnerWorkspaceDTO,
 } from '../types';
 
 const mockProfiles: AIRunnerProfileDTO[] = [
@@ -62,11 +65,17 @@ const mockPrompts: AIRunnerPromptDTO[] = [
   },
 ];
 
+const mockPromptTemplates: AIRunnerPromptTemplateDTO[] = [];
+const mockWorkspaces: AIRunnerWorkspaceDTO[] = [];
+const mockAutoflows: AIRunnerAutoflowDTO[] = [];
 const mockSchedules: AIRunnerScheduleDTO[] = [];
 const mockRuns: AIRunnerRunsResponse = { runs: [], total: 0 };
 const mockActiveRuns: AIRunnerRunDTO[] = [];
 const mockDirectories: AIRunnerDirectoriesResponse = { directories: ['/root/repos/ServerMon'] };
-const mockRunnerSettings: AIRunnerSettingsDTO = { schedulesGloballyEnabled: true };
+const mockRunnerSettings: AIRunnerSettingsDTO = {
+  schedulesGloballyEnabled: true,
+  autoflowMode: 'sequential',
+};
 const mockDiagnostics: {
   runtime: {
     kind: 'interactive' | 'systemd' | 'launchd' | 'background';
@@ -94,6 +103,15 @@ describe('AIRunnerPage', () => {
     vi.clearAllMocks();
     mockRunnerSettings.schedulesGloballyEnabled = true;
     global.fetch = vi.fn().mockImplementation((url: string, init?: RequestInit) => {
+      if (url.includes('/api/modules/ai-runner/prompt-templates')) {
+        return Promise.resolve({ ok: true, json: async () => mockPromptTemplates });
+      }
+      if (url.includes('/api/modules/ai-runner/workspaces')) {
+        return Promise.resolve({ ok: true, json: async () => mockWorkspaces });
+      }
+      if (url.includes('/api/modules/ai-runner/autoflows')) {
+        return Promise.resolve({ ok: true, json: async () => mockAutoflows });
+      }
       if (url.includes('/api/modules/ai-runner/profiles')) {
         return Promise.resolve({ ok: true, json: async () => mockProfiles });
       }
@@ -545,7 +563,7 @@ describe('AIRunnerPage', () => {
       await waitFor(() => expect(screen.getByText('AI Agent Runner')).toBeInTheDocument());
 
       await act(async () => {
-        fireEvent.click(screen.getByRole('tab', { name: /Profiles/i }));
+        fireEvent.click(screen.getByRole('tab', { name: /Settings/i }));
       });
 
       await act(async () => {

@@ -64,6 +64,7 @@ describe('ai-runner type shapes', () => {
   it('captures global scheduling settings', () => {
     const settings: AIRunnerSettingsDTO = {
       schedulesGloballyEnabled: false,
+      autoflowMode: 'sequential',
       updatedAt: '2026-04-20T10:00:00.000Z',
     };
     expect(settings.schedulesGloballyEnabled).toBe(false);

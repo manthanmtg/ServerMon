@@ -10,9 +10,11 @@ import {
   Eye,
   FolderOpen,
   ListFilter,
+  Plus,
   Play,
   RefreshCcw,
   Save,
+  Settings2,
   Search,
   Square,
   TerminalSquare,
@@ -30,12 +32,15 @@ import { cn } from '@/lib/utils';
 import type {
   AIRunnerLogEntry,
   AIRunnerLogsResponse,
+  AIRunnerAutoflowDTO,
   AIRunnerProfileDTO,
   AIRunnerPromptDTO,
+  AIRunnerPromptTemplateDTO,
   AIRunnerRunDTO,
   AIRunnerRunsResponse,
   AIRunnerScheduleDTO,
   AIRunnerSettingsDTO,
+  AIRunnerWorkspaceDTO,
 } from '../types';
 import { TAB_META, DEFAULT_PROFILE_FORM, ICON_PRESETS } from './constants';
 import { RunDetailDrawer } from './components/RunDetailDrawer';
@@ -44,11 +49,14 @@ import { ScheduleVisualizationModal } from './components/ScheduleVisualizationMo
 import { CompactStat, LabelWithHint, ProfileIconPreview } from './components/AIRunnerShared';
 import type {
   HistoryDetailSection,
+  AutoflowItemDraft,
   ProfileFormState,
   PromptFormState,
+  PromptTemplateFormState,
   RunFormState,
   ScheduleFormState,
   ViewTab,
+  WorkspaceFormState,
 } from './types';
 import { useRealtimeNow } from './useRealtimeNow';
 import {
@@ -72,6 +80,7 @@ const SCHEDULE_SURFACE_REFRESH_MS = 15_000;
 const HISTORY_REFRESH_MS = 5_000;
 const ACTIVE_SCHEDULE_RUN_REFRESH_MS = 5_000;
 const LOG_ENTRY_LIMIT = 500;
+const PROMPT_TEMPLATE_PLACEHOLDER = '<YOUR_PROMPT>';
 
 interface AIRunnerRuntimeDiagnostics {
   runtime?: {
@@ -135,6 +144,33 @@ function mergeLogEntries(
     .slice(-LOG_ENTRY_LIMIT);
 }
 
+function applyPromptTemplate(template: string, current: string): string {
+  if (!current.trim()) return template;
+  if (template.includes(PROMPT_TEMPLATE_PLACEHOLDER)) {
+    return template.replaceAll(PROMPT_TEMPLATE_PLACEHOLDER, current);
+  }
+  return `${template.trim()}\n\n${current.trim()}`;
+}
+
+function emptyWorkspaceForm(path = ''): WorkspaceFormState {
+  return {
+    name: '',
+    path,
+    blocking: true,
+    enabled: true,
+    notes: '',
+  };
+}
+
+function emptyPromptTemplateForm(): PromptTemplateFormState {
+  return {
+    name: '',
+    content: `Checkout main, reset code,\n\n${PROMPT_TEMPLATE_PLACEHOLDER}\n\nCreate PR using gh cli`,
+    description: '',
+    tags: [],
+  };
+}
+
 export default function AIRunnerPage() {
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState<ViewTab>('run');
@@ -145,6 +181,9 @@ export default function AIRunnerPage() {
   const [schedulesLoaded, setSchedulesLoaded] = useState(false);
   const [profiles, setProfiles] = useState<AIRunnerProfileDTO[]>([]);
   const [prompts, setPrompts] = useState<AIRunnerPromptDTO[]>([]);
+  const [promptTemplates, setPromptTemplates] = useState<AIRunnerPromptTemplateDTO[]>([]);
+  const [workspaces, setWorkspaces] = useState<AIRunnerWorkspaceDTO[]>([]);
+  const [autoflows, setAutoflows] = useState<AIRunnerAutoflowDTO[]>([]);
   const [schedules, setSchedules] = useState<AIRunnerScheduleDTO[]>([]);
   const [runs, setRuns] = useState<AIRunnerRunDTO[]>([]);
   const [activeScheduleRuns, setActiveScheduleRuns] = useState<AIRunnerRunDTO[]>([]);
@@ -177,9 +216,13 @@ export default function AIRunnerPage() {
   const [globalScheduleTogglePending, setGlobalScheduleTogglePending] = useState(false);
   const [editingProfileId, setEditingProfileId] = useState<string | null>(null);
   const [editingPromptId, setEditingPromptId] = useState<string | null>(null);
+  const [editingPromptTemplateId, setEditingPromptTemplateId] = useState<string | null>(null);
+  const [editingWorkspaceId, setEditingWorkspaceId] = useState<string | null>(null);
   const [editingScheduleId, setEditingScheduleId] = useState<string | null>(null);
   const [profileModalOpen, setProfileModalOpen] = useState(false);
   const [promptModalOpen, setPromptModalOpen] = useState(false);
+  const [promptTemplateModalOpen, setPromptTemplateModalOpen] = useState(false);
+  const [workspaceModalOpen, setWorkspaceModalOpen] = useState(false);
   const [scheduleModalOpen, setScheduleModalOpen] = useState(false);
   const [scheduleVisualizationOpen, setScheduleVisualizationOpen] = useState(false);
   const [scheduleVisualizationProfileId, setScheduleVisualizationProfileId] = useState<
@@ -187,12 +230,29 @@ export default function AIRunnerPage() {
   >(null);
   const [profileForm, setProfileForm] = useState<ProfileFormState>(DEFAULT_PROFILE_FORM);
   const [promptForm, setPromptForm] = useState<PromptFormState>(emptyPromptForm());
+  const [promptTemplateForm, setPromptTemplateForm] =
+    useState<PromptTemplateFormState>(emptyPromptTemplateForm());
+  const [workspaceForm, setWorkspaceForm] = useState<WorkspaceFormState>(emptyWorkspaceForm());
   const [scheduleForm, setScheduleForm] = useState<ScheduleFormState>(emptyScheduleForm());
+  const [autoflowName, setAutoflowName] = useState('');
+  const [autoflowMode, setAutoflowMode] = useState<'sequential' | 'parallel'>('sequential');
+  const [autoflowContinueOnFailure, setAutoflowContinueOnFailure] = useState(false);
+  const [autoflowItems, setAutoflowItems] = useState<AutoflowItemDraft[]>([]);
+  const [autoflowDraft, setAutoflowDraft] = useState<AutoflowItemDraft>({
+    name: '',
+    promptContent: '',
+    promptType: 'inline',
+    agentProfileId: '',
+    workspaceId: undefined,
+    workingDirectory: '',
+    timeout: 30,
+  });
   const [runForm, setRunForm] = useState<RunFormState>({
     name: '',
     content: '',
     type: 'inline',
     agentProfileId: '',
+    workspaceId: undefined,
     workingDirectory: '',
     timeout: 30,
   });
@@ -248,23 +308,43 @@ export default function AIRunnerPage() {
     const controller = new AbortController();
     metadataAbortRef.current = controller;
     try {
-      const [profilesRes, promptsRes, directoriesRes, diagnosticsRes, settingsRes] =
-        await Promise.all([
-          fetch('/api/modules/ai-runner/profiles', {
-            cache: 'no-store',
-            signal: controller.signal,
-          }),
-          fetch('/api/modules/ai-runner/prompts', { cache: 'no-store', signal: controller.signal }),
-          fetch('/api/modules/ai-runner/directories', {
-            cache: 'no-store',
-            signal: controller.signal,
-          }),
-          fetch('/api/system/diagnostics', { cache: 'no-store', signal: controller.signal }),
-          fetch('/api/modules/ai-runner/settings', {
-            cache: 'no-store',
-            signal: controller.signal,
-          }),
-        ]);
+      const [
+        profilesRes,
+        promptsRes,
+        templatesRes,
+        workspacesRes,
+        autoflowsRes,
+        directoriesRes,
+        diagnosticsRes,
+        settingsRes,
+      ] = await Promise.all([
+        fetch('/api/modules/ai-runner/profiles', {
+          cache: 'no-store',
+          signal: controller.signal,
+        }),
+        fetch('/api/modules/ai-runner/prompts', { cache: 'no-store', signal: controller.signal }),
+        fetch('/api/modules/ai-runner/prompt-templates', {
+          cache: 'no-store',
+          signal: controller.signal,
+        }),
+        fetch('/api/modules/ai-runner/workspaces', {
+          cache: 'no-store',
+          signal: controller.signal,
+        }),
+        fetch('/api/modules/ai-runner/autoflows', {
+          cache: 'no-store',
+          signal: controller.signal,
+        }),
+        fetch('/api/modules/ai-runner/directories', {
+          cache: 'no-store',
+          signal: controller.signal,
+        }),
+        fetch('/api/system/diagnostics', { cache: 'no-store', signal: controller.signal }),
+        fetch('/api/modules/ai-runner/settings', {
+          cache: 'no-store',
+          signal: controller.signal,
+        }),
+      ]);
 
       if (controller.signal.aborted) return;
 
@@ -293,11 +373,51 @@ export default function AIRunnerPage() {
                   timeout: profilePayload[0].defaultTimeout,
                 }
           );
+          setAutoflowDraft((current) =>
+            current.agentProfileId
+              ? current
+              : {
+                  ...current,
+                  agentProfileId: profilePayload[0]._id,
+                  timeout: profilePayload[0].defaultTimeout,
+                }
+          );
         }
       }
 
       if (promptsRes.ok) {
         setPrompts(await promptsRes.json());
+      }
+
+      if (templatesRes.ok) {
+        setPromptTemplates(await templatesRes.json());
+      }
+
+      if (workspacesRes.ok) {
+        const workspacePayload: AIRunnerWorkspaceDTO[] = await workspacesRes.json();
+        setWorkspaces(workspacePayload);
+        const firstWorkspace = workspacePayload.find((workspace) => workspace.enabled);
+        if (firstWorkspace) {
+          setRunForm((current) => ({
+            ...current,
+            workspaceId: current.workspaceId || firstWorkspace._id,
+            workingDirectory: current.workingDirectory || firstWorkspace.path,
+          }));
+          setScheduleForm((current) => ({
+            ...current,
+            workspaceId: current.workspaceId || firstWorkspace._id,
+            workingDirectory: current.workingDirectory || firstWorkspace.path,
+          }));
+          setAutoflowDraft((current) => ({
+            ...current,
+            workspaceId: current.workspaceId || firstWorkspace._id,
+            workingDirectory: current.workingDirectory || firstWorkspace.path,
+          }));
+        }
+      }
+
+      if (autoflowsRes.ok) {
+        setAutoflows(await autoflowsRes.json());
       }
 
       if (directoriesRes.ok) {
@@ -324,6 +444,7 @@ export default function AIRunnerPage() {
         const payload: AIRunnerSettingsDTO = await settingsRes.json();
         if (controller.signal.aborted) return;
         setRunnerSettings(payload);
+        setAutoflowMode(payload.autoflowMode);
       }
 
       setMetadataLoaded(true);
@@ -587,11 +708,17 @@ export default function AIRunnerPage() {
     () => Object.fromEntries(prompts.map((prompt) => [prompt._id, prompt])),
     [prompts]
   );
+  const workspaceMap = useMemo(
+    () => Object.fromEntries(workspaces.map((workspace) => [workspace._id, workspace])),
+    [workspaces]
+  );
   const scheduleMap = useMemo(
     () => Object.fromEntries(schedules.map((schedule) => [schedule._id, schedule])),
     [schedules]
   );
   const filteredPrompts = useMemo(() => prompts, [prompts]);
+  const activeWorkspaceCount = workspaces.filter((workspace) => workspace.enabled).length;
+  const blockingWorkspaceCount = workspaces.filter((workspace) => workspace.blocking).length;
 
   const filteredHistoryRuns = useMemo(() => {
     const query = runSearch.trim().toLowerCase();
@@ -636,7 +763,6 @@ export default function AIRunnerPage() {
   const schedulesGloballyEnabled = runnerSettings?.schedulesGloballyEnabled ?? true;
   const schedulerReliabilityWarning = getSchedulerReliabilityWarning(runtimeDiagnostics);
   const enabledProfileCount = profiles.filter((profile) => profile.enabled).length;
-  const customProfileCount = profiles.filter((profile) => profile.agentType === 'custom').length;
   const pausedScheduleCount = schedules.length - enabledScheduleCount;
   const scheduledProfileCount = new Set(schedules.map((schedule) => schedule.agentProfileId)).size;
   const recentlyActiveScheduleCount = schedules.filter((schedule) => {
@@ -772,12 +898,38 @@ export default function AIRunnerPage() {
     setActiveTab('prompts');
   };
 
+  const selectPromptTemplateForEdit = (template: AIRunnerPromptTemplateDTO) => {
+    setEditingPromptTemplateId(template._id);
+    setPromptTemplateForm({
+      name: template.name,
+      content: template.content,
+      description: template.description ?? '',
+      tags: template.tags,
+    });
+    setPromptTemplateModalOpen(true);
+    setActiveTab('settings');
+  };
+
+  const selectWorkspaceForEdit = (workspace: AIRunnerWorkspaceDTO) => {
+    setEditingWorkspaceId(workspace._id);
+    setWorkspaceForm({
+      name: workspace.name,
+      path: workspace.path,
+      blocking: workspace.blocking,
+      enabled: workspace.enabled,
+      notes: workspace.notes ?? '',
+    });
+    setWorkspaceModalOpen(true);
+    setActiveTab('settings');
+  };
+
   const selectScheduleForEdit = (schedule: AIRunnerScheduleDTO) => {
     setEditingScheduleId(schedule._id);
     setScheduleForm({
       name: schedule.name,
       promptId: schedule.promptId,
       agentProfileId: schedule.agentProfileId,
+      workspaceId: schedule.workspaceId,
       workingDirectory: schedule.workingDirectory,
       timeout: schedule.timeout,
       retries: schedule.retries,
@@ -799,8 +951,11 @@ export default function AIRunnerPage() {
   };
 
   const resetScheduleForm = () => {
+    const workspace = workspaces.find((item) => item.enabled);
     setEditingScheduleId(null);
-    setScheduleForm(emptyScheduleForm(profiles[0]?._id, directories[0]));
+    setScheduleForm(
+      emptyScheduleForm(profiles[0]?._id, workspace?.path ?? directories[0], workspace?._id)
+    );
   };
 
   const closeScheduleModal = () => {
@@ -818,6 +973,18 @@ export default function AIRunnerPage() {
     resetPromptForm();
   };
 
+  const closePromptTemplateModal = () => {
+    setPromptTemplateModalOpen(false);
+    setEditingPromptTemplateId(null);
+    setPromptTemplateForm(emptyPromptTemplateForm());
+  };
+
+  const closeWorkspaceModal = () => {
+    setWorkspaceModalOpen(false);
+    setEditingWorkspaceId(null);
+    setWorkspaceForm(emptyWorkspaceForm());
+  };
+
   const openCreateProfileModal = () => {
     resetProfileForm();
     setProfileModalOpen(true);
@@ -828,6 +995,20 @@ export default function AIRunnerPage() {
     resetPromptForm();
     setPromptModalOpen(true);
     setActiveTab('prompts');
+  };
+
+  const openCreatePromptTemplateModal = () => {
+    setEditingPromptTemplateId(null);
+    setPromptTemplateForm(emptyPromptTemplateForm());
+    setPromptTemplateModalOpen(true);
+    setActiveTab('settings');
+  };
+
+  const openCreateWorkspaceModal = (path?: string) => {
+    setEditingWorkspaceId(null);
+    setWorkspaceForm(emptyWorkspaceForm(path));
+    setWorkspaceModalOpen(true);
+    setActiveTab('settings');
   };
 
   const openCreateScheduleModal = () => {
@@ -952,6 +1133,7 @@ export default function AIRunnerPage() {
           ? {
               promptId: runForm.promptId,
               agentProfileId: runForm.agentProfileId,
+              workspaceId: runForm.workspaceId,
               workingDirectory: runForm.workingDirectory,
               timeout: runForm.timeout,
             }
@@ -960,6 +1142,7 @@ export default function AIRunnerPage() {
               content: runForm.content,
               type: runForm.type,
               agentProfileId: runForm.agentProfileId,
+              workspaceId: runForm.workspaceId,
               workingDirectory: runForm.workingDirectory,
               timeout: runForm.timeout,
             };
@@ -1174,6 +1357,96 @@ export default function AIRunnerPage() {
     await loadAll();
   };
 
+  const submitPromptTemplate = async () => {
+    try {
+      const response = await fetch(
+        editingPromptTemplateId
+          ? `/api/modules/ai-runner/prompt-templates/${editingPromptTemplateId}`
+          : '/api/modules/ai-runner/prompt-templates',
+        {
+          method: editingPromptTemplateId ? 'PUT' : 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(promptTemplateForm),
+        }
+      );
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || 'Unable to save prompt template');
+      toast({
+        title: editingPromptTemplateId ? 'Template updated' : 'Template created',
+        description: 'The prompt template can now be loaded from editors.',
+        variant: 'success',
+      });
+      closePromptTemplateModal();
+      await loadAll();
+    } catch (error) {
+      toast({
+        title: 'Template save failed',
+        description: error instanceof Error ? error.message : 'Unable to save prompt template',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const deletePromptTemplate = async (id: string) => {
+    const response = await fetch(`/api/modules/ai-runner/prompt-templates/${id}`, {
+      method: 'DELETE',
+    });
+    const payload = await response.json();
+    if (!response.ok) {
+      toast({
+        title: 'Delete failed',
+        description: payload.error || 'Unable to delete prompt template',
+        variant: 'destructive',
+      });
+      return;
+    }
+    await loadAll();
+  };
+
+  const submitWorkspace = async () => {
+    try {
+      const response = await fetch(
+        editingWorkspaceId
+          ? `/api/modules/ai-runner/workspaces/${editingWorkspaceId}`
+          : '/api/modules/ai-runner/workspaces',
+        {
+          method: editingWorkspaceId ? 'PUT' : 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(workspaceForm),
+        }
+      );
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || 'Unable to save workspace');
+      toast({
+        title: editingWorkspaceId ? 'Workspace updated' : 'Workspace created',
+        description: 'Workspace is ready for runs, schedules, and autoflows.',
+        variant: 'success',
+      });
+      closeWorkspaceModal();
+      await loadAll();
+    } catch (error) {
+      toast({
+        title: 'Workspace save failed',
+        description: error instanceof Error ? error.message : 'Unable to save workspace',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const deleteWorkspace = async (id: string) => {
+    const response = await fetch(`/api/modules/ai-runner/workspaces/${id}`, { method: 'DELETE' });
+    const payload = await response.json();
+    if (!response.ok) {
+      toast({
+        title: 'Delete failed',
+        description: payload.error || 'Unable to delete workspace',
+        variant: 'destructive',
+      });
+      return;
+    }
+    await loadAll();
+  };
+
   const submitSchedule = async () => {
     try {
       const response = await fetch(
@@ -1257,6 +1530,7 @@ export default function AIRunnerPage() {
         name: newName,
         promptId: schedule.promptId,
         agentProfileId: schedule.agentProfileId,
+        workspaceId: schedule.workspaceId,
         workingDirectory: schedule.workingDirectory,
         timeout: schedule.timeout,
         retries: schedule.retries,
@@ -1360,6 +1634,117 @@ export default function AIRunnerPage() {
     } finally {
       setGlobalScheduleTogglePending(false);
     }
+  };
+
+  const updateDefaultAutoflowMode = async (mode: 'sequential' | 'parallel') => {
+    try {
+      const response = await fetch('/api/modules/ai-runner/settings', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ autoflowMode: mode }),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || 'Unable to update AutoFlow mode');
+      setRunnerSettings(payload);
+      setAutoflowMode(mode);
+      toast({
+        title: 'AutoFlow default updated',
+        description: `New AutoFlows default to ${mode}.`,
+        variant: 'success',
+      });
+    } catch (error) {
+      toast({
+        title: 'Setting update failed',
+        description: error instanceof Error ? error.message : 'Unable to update AutoFlow mode',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const addAutoflowItem = () => {
+    const name =
+      autoflowDraft.name.trim() ||
+      autoflowDraft.promptContent?.split('\n')[0]?.trim().slice(0, 64) ||
+      `Step ${autoflowItems.length + 1}`;
+    if (!autoflowDraft.promptContent?.trim()) {
+      toast({
+        title: 'Prompt required',
+        description: 'Add prompt content before adding this AutoFlow step.',
+        variant: 'warning',
+      });
+      return;
+    }
+    setAutoflowItems((current) => [...current, { ...autoflowDraft, name }]);
+    setAutoflowDraft((current) => ({
+      ...current,
+      name: '',
+      promptContent: '',
+    }));
+  };
+
+  const submitAutoflow = async () => {
+    try {
+      const response = await fetch('/api/modules/ai-runner/autoflows', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: autoflowName.trim() || 'Untitled AutoFlow',
+          mode: autoflowMode,
+          continueOnFailure: autoflowContinueOnFailure,
+          items: autoflowItems,
+          startImmediately: true,
+        }),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || 'Unable to start AutoFlow');
+      setAutoflowName('');
+      setAutoflowItems([]);
+      setAutoflows((current) => [payload, ...current]);
+      toast({
+        title: 'AutoFlow started',
+        description: 'Steps will queue according to the selected run mode and workspace locks.',
+        variant: 'success',
+      });
+      await loadAll();
+    } catch (error) {
+      toast({
+        title: 'AutoFlow failed',
+        description: error instanceof Error ? error.message : 'Unable to start AutoFlow',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const startAutoflow = async (id: string) => {
+    const response = await fetch(`/api/modules/ai-runner/autoflows/${id}/start`, {
+      method: 'POST',
+    });
+    const payload = await response.json();
+    if (!response.ok) {
+      toast({
+        title: 'Start failed',
+        description: payload.error || 'Unable to start AutoFlow',
+        variant: 'destructive',
+      });
+      return;
+    }
+    await loadAll();
+  };
+
+  const cancelAutoflow = async (id: string) => {
+    const response = await fetch(`/api/modules/ai-runner/autoflows/${id}/cancel`, {
+      method: 'POST',
+    });
+    const payload = await response.json();
+    if (!response.ok) {
+      toast({
+        title: 'Cancel failed',
+        description: payload.error || 'Unable to cancel AutoFlow',
+        variant: 'destructive',
+      });
+      return;
+    }
+    await loadAll();
   };
 
   const killSelectedRun = async () => {
@@ -1559,7 +1944,33 @@ export default function AIRunnerPage() {
                     </>
                   ) : runForm.type === 'inline' ? (
                     <label className="block space-y-1.5">
-                      <span className="block text-sm font-medium">Prompt</span>
+                      <span className="flex items-center justify-between gap-2 text-sm font-medium">
+                        Prompt
+                        {promptTemplates.length > 0 ? (
+                          <select
+                            aria-label="Load prompt template"
+                            onChange={(event) => {
+                              const template = promptTemplates.find(
+                                (item) => item._id === event.target.value
+                              );
+                              if (!template) return;
+                              setRunForm((current) => ({
+                                ...current,
+                                content: applyPromptTemplate(template.content, current.content),
+                              }));
+                              event.target.value = '';
+                            }}
+                            className="h-9 max-w-[260px] rounded-lg border border-input bg-background px-3 text-xs outline-none focus:ring-2 focus:ring-ring/40"
+                          >
+                            <option value="">Load template...</option>
+                            {promptTemplates.map((template) => (
+                              <option key={template._id} value={template._id}>
+                                {template.name}
+                              </option>
+                            ))}
+                          </select>
+                        ) : null}
+                      </span>
                       <textarea
                         value={runForm.content}
                         onChange={(event) =>
@@ -1625,27 +2036,68 @@ export default function AIRunnerPage() {
 
                     <div className="grid gap-4 md:grid-cols-[1fr_220px]">
                       <div className="space-y-1.5">
-                        <label htmlFor="run-directory" className="block text-sm font-medium">
-                          Working Directory
-                        </label>
-                        <input
-                          id="run-directory"
-                          list="runner-directories"
-                          value={runForm.workingDirectory}
-                          onChange={(event) =>
-                            setRunForm((current) => ({
-                              ...current,
-                              workingDirectory: event.target.value,
-                            }))
-                          }
-                          className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring/40"
-                          placeholder="/srv/repos/project"
-                        />
-                        <datalist id="runner-directories">
-                          {directories.map((directory) => (
-                            <option key={directory} value={directory} />
-                          ))}
-                        </datalist>
+                        <div className="grid gap-3 lg:grid-cols-[220px_1fr_auto]">
+                          <label className="space-y-1.5">
+                            <span className="block text-sm font-medium">Workspace</span>
+                            <select
+                              value={runForm.workspaceId ?? ''}
+                              onChange={(event) => {
+                                const workspace = workspaceMap[event.target.value];
+                                setRunForm((current) => ({
+                                  ...current,
+                                  workspaceId: event.target.value || undefined,
+                                  workingDirectory: workspace?.path ?? current.workingDirectory,
+                                }));
+                              }}
+                              className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring/40"
+                            >
+                              <option value="">Custom path</option>
+                              {workspaces
+                                .filter((workspace) => workspace.enabled)
+                                .map((workspace) => (
+                                  <option key={workspace._id} value={workspace._id}>
+                                    {workspace.name}
+                                    {workspace.blocking ? ' (blocking)' : ''}
+                                  </option>
+                                ))}
+                            </select>
+                          </label>
+                          <div className="space-y-1.5">
+                            <label htmlFor="run-directory" className="block text-sm font-medium">
+                              Workspace Path
+                            </label>
+                            <input
+                              id="run-directory"
+                              list="runner-directories"
+                              value={runForm.workingDirectory}
+                              onChange={(event) =>
+                                setRunForm((current) => ({
+                                  ...current,
+                                  workspaceId:
+                                    workspaces.find(
+                                      (workspace) => workspace.path === event.target.value
+                                    )?._id ?? undefined,
+                                  workingDirectory: event.target.value,
+                                }))
+                              }
+                              className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring/40"
+                              placeholder="/srv/repos/project"
+                            />
+                            <datalist id="runner-directories">
+                              {directories.map((directory) => (
+                                <option key={directory} value={directory} />
+                              ))}
+                            </datalist>
+                          </div>
+                          <Button
+                            variant="outline"
+                            className="self-end"
+                            onClick={() => openCreateWorkspaceModal(runForm.workingDirectory)}
+                          >
+                            <Plus className="w-4 h-4" />
+                            Save
+                          </Button>
+                        </div>
                       </div>
                       <Input
                         label="Timeout (minutes)"
@@ -2005,9 +2457,40 @@ export default function AIRunnerPage() {
 
                         <div className="rounded-[24px] border border-border/60 bg-background/80 p-5 space-y-4">
                           <div>
-                            <p className="text-sm font-semibold">
-                              {promptForm.type === 'inline' ? 'Prompt Content' : 'Prompt File Path'}
-                            </p>
+                            <div className="flex items-center justify-between gap-3">
+                              <p className="text-sm font-semibold">
+                                {promptForm.type === 'inline'
+                                  ? 'Prompt Content'
+                                  : 'Prompt File Path'}
+                              </p>
+                              {promptForm.type === 'inline' && promptTemplates.length > 0 ? (
+                                <select
+                                  aria-label="Load prompt template into saved prompt"
+                                  onChange={(event) => {
+                                    const template = promptTemplates.find(
+                                      (item) => item._id === event.target.value
+                                    );
+                                    if (!template) return;
+                                    setPromptForm((current) => ({
+                                      ...current,
+                                      content: applyPromptTemplate(
+                                        template.content,
+                                        current.content
+                                      ),
+                                    }));
+                                    event.target.value = '';
+                                  }}
+                                  className="h-9 max-w-[260px] rounded-lg border border-input bg-background px-3 text-xs outline-none focus:ring-2 focus:ring-ring/40"
+                                >
+                                  <option value="">Load template...</option>
+                                  {promptTemplates.map((template) => (
+                                    <option key={template._id} value={template._id}>
+                                      {template.name}
+                                    </option>
+                                  ))}
+                                </select>
+                              ) : null}
+                            </div>
                             <p className="mt-1 text-xs text-muted-foreground">
                               {promptForm.type === 'inline'
                                 ? 'Draft the actual reusable instruction here.'
@@ -2279,6 +2762,11 @@ export default function AIRunnerPage() {
                           </div>
                           <div className="min-w-0">
                             <span className="text-xs text-muted-foreground">Workspace</span>
+                            <p className="mt-1 text-sm font-medium">
+                              {schedule.workspaceId
+                                ? workspaceMap[schedule.workspaceId]?.name || 'Unknown workspace'
+                                : 'Custom path'}
+                            </p>
                             <p className="mt-1 font-mono text-xs leading-5 whitespace-normal break-all">
                               {schedule.workingDirectory || 'No directory'}
                             </p>
@@ -2444,14 +2932,50 @@ export default function AIRunnerPage() {
                                   active, and how many retries it gets after a failure.
                                 </p>
                               </div>
-                              <div className="grid gap-4 md:grid-cols-[1fr_140px_140px]">
-                                <div className="space-y-1.5">
-                                  <label
-                                    htmlFor="schedule-directory"
-                                    className="block text-sm font-medium"
+                              <div className="grid gap-4 md:grid-cols-[180px_1fr_140px_140px]">
+                                <label className="space-y-1.5">
+                                  <span className="block text-sm font-medium">Workspace</span>
+                                  <select
+                                    value={scheduleForm.workspaceId ?? ''}
+                                    onChange={(event) => {
+                                      const workspace = workspaceMap[event.target.value];
+                                      setScheduleForm((current) => ({
+                                        ...current,
+                                        workspaceId: event.target.value || undefined,
+                                        workingDirectory:
+                                          workspace?.path ?? current.workingDirectory,
+                                      }));
+                                    }}
+                                    className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring/40"
                                   >
-                                    Working Directory
-                                  </label>
+                                    <option value="">Custom</option>
+                                    {workspaces
+                                      .filter((workspace) => workspace.enabled)
+                                      .map((workspace) => (
+                                        <option key={workspace._id} value={workspace._id}>
+                                          {workspace.name}
+                                        </option>
+                                      ))}
+                                  </select>
+                                </label>
+                                <div className="space-y-1.5">
+                                  <div className="flex items-center justify-between gap-2">
+                                    <label
+                                      htmlFor="schedule-directory"
+                                      className="block text-sm font-medium"
+                                    >
+                                      Workspace Path
+                                    </label>
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        openCreateWorkspaceModal(scheduleForm.workingDirectory)
+                                      }
+                                      className="text-xs font-medium text-primary hover:underline"
+                                    >
+                                      Save workspace
+                                    </button>
+                                  </div>
                                   <input
                                     id="schedule-directory"
                                     list="runner-directories"
@@ -2459,17 +2983,16 @@ export default function AIRunnerPage() {
                                     onChange={(event) =>
                                       setScheduleForm((current) => ({
                                         ...current,
+                                        workspaceId:
+                                          workspaces.find(
+                                            (workspace) => workspace.path === event.target.value
+                                          )?._id ?? undefined,
                                         workingDirectory: event.target.value,
                                       }))
                                     }
                                     className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring/40"
                                     placeholder="/srv/repos/project"
                                   />
-                                  <datalist id="runner-directories">
-                                    {directories.map((directory) => (
-                                      <option key={directory} value={directory} />
-                                    ))}
-                                  </datalist>
                                 </div>
                                 <Input
                                   label="Timeout"
@@ -2571,6 +3094,326 @@ export default function AIRunnerPage() {
                   </div>
                 </div>
               )}
+            </div>
+          )}
+
+          {activeTab === 'autoflows' && (
+            <div
+              id="runner-tab-autoflows"
+              role="tabpanel"
+              aria-labelledby="tab-autoflows"
+              className="grid gap-5 xl:grid-cols-[0.95fr_1.05fr]"
+            >
+              <Card className="border-border/60">
+                <CardHeader>
+                  <CardTitle className="text-sm">AutoFlow Builder</CardTitle>
+                  <CardDescription>
+                    Queue a chain of prompts. Sequential mode waits for each step; parallel mode
+                    still respects blocking workspaces.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid gap-4 md:grid-cols-[1fr_180px]">
+                    <Input
+                      label="AutoFlow Name"
+                      value={autoflowName}
+                      onChange={(event) => setAutoflowName(event.target.value)}
+                      placeholder="ServerMon cleanup wave"
+                    />
+                    <label className="space-y-1.5">
+                      <span className="block text-sm font-medium">Run Mode</span>
+                      <select
+                        value={autoflowMode}
+                        onChange={(event) =>
+                          setAutoflowMode(event.target.value as typeof autoflowMode)
+                        }
+                        className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring/40"
+                      >
+                        <option value="sequential">Sequential</option>
+                        <option value="parallel">Parallel</option>
+                      </select>
+                    </label>
+                  </div>
+
+                  <div className="rounded-xl border border-border/60 bg-card/60 p-4 space-y-4">
+                    <div className="grid gap-4 md:grid-cols-[1fr_200px_180px]">
+                      <Input
+                        label="Step Name"
+                        value={autoflowDraft.name}
+                        onChange={(event) =>
+                          setAutoflowDraft((current) => ({
+                            ...current,
+                            name: event.target.value,
+                          }))
+                        }
+                        placeholder="Patch tests"
+                      />
+                      <label className="space-y-1.5">
+                        <span className="block text-sm font-medium">Profile</span>
+                        <select
+                          value={autoflowDraft.agentProfileId}
+                          onChange={(event) => {
+                            const profile = profileMap[event.target.value];
+                            setAutoflowDraft((current) => ({
+                              ...current,
+                              agentProfileId: event.target.value,
+                              timeout: profile?.defaultTimeout ?? current.timeout,
+                            }));
+                          }}
+                          className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring/40"
+                        >
+                          <option value="">Select profile</option>
+                          {profiles
+                            .filter((profile) => profile.enabled)
+                            .map((profile) => (
+                              <option key={profile._id} value={profile._id}>
+                                {profile.name}
+                              </option>
+                            ))}
+                        </select>
+                      </label>
+                      <Input
+                        label="Timeout"
+                        type="number"
+                        value={autoflowDraft.timeout}
+                        onChange={(event) =>
+                          setAutoflowDraft((current) => ({
+                            ...current,
+                            timeout: Number(event.target.value) || 1,
+                          }))
+                        }
+                        min={1}
+                      />
+                    </div>
+
+                    <div className="grid gap-4 md:grid-cols-[220px_1fr]">
+                      <label className="space-y-1.5">
+                        <span className="block text-sm font-medium">Workspace</span>
+                        <select
+                          value={autoflowDraft.workspaceId ?? ''}
+                          onChange={(event) => {
+                            const workspace = workspaceMap[event.target.value];
+                            setAutoflowDraft((current) => ({
+                              ...current,
+                              workspaceId: event.target.value || undefined,
+                              workingDirectory: workspace?.path ?? current.workingDirectory,
+                            }));
+                          }}
+                          className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring/40"
+                        >
+                          <option value="">Custom path</option>
+                          {workspaces
+                            .filter((workspace) => workspace.enabled)
+                            .map((workspace) => (
+                              <option key={workspace._id} value={workspace._id}>
+                                {workspace.name}
+                              </option>
+                            ))}
+                        </select>
+                      </label>
+                      <div className="space-y-1.5">
+                        <span className="block text-sm font-medium">Workspace Path</span>
+                        <input
+                          list="runner-directories"
+                          value={autoflowDraft.workingDirectory}
+                          onChange={(event) =>
+                            setAutoflowDraft((current) => ({
+                              ...current,
+                              workspaceId:
+                                workspaces.find(
+                                  (workspace) => workspace.path === event.target.value
+                                )?._id ?? undefined,
+                              workingDirectory: event.target.value,
+                            }))
+                          }
+                          className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring/40"
+                        />
+                      </div>
+                    </div>
+
+                    <label className="block space-y-1.5">
+                      <span className="flex items-center justify-between gap-2 text-sm font-medium">
+                        Prompt
+                        {promptTemplates.length > 0 ? (
+                          <select
+                            aria-label="Load prompt template into AutoFlow step"
+                            onChange={(event) => {
+                              const template = promptTemplates.find(
+                                (item) => item._id === event.target.value
+                              );
+                              if (!template) return;
+                              setAutoflowDraft((current) => ({
+                                ...current,
+                                promptContent: applyPromptTemplate(
+                                  template.content,
+                                  current.promptContent ?? ''
+                                ),
+                              }));
+                              event.target.value = '';
+                            }}
+                            className="h-9 max-w-[260px] rounded-lg border border-input bg-background px-3 text-xs outline-none focus:ring-2 focus:ring-ring/40"
+                          >
+                            <option value="">Load template...</option>
+                            {promptTemplates.map((template) => (
+                              <option key={template._id} value={template._id}>
+                                {template.name}
+                              </option>
+                            ))}
+                          </select>
+                        ) : null}
+                      </span>
+                      <textarea
+                        value={autoflowDraft.promptContent ?? ''}
+                        onChange={(event) =>
+                          setAutoflowDraft((current) => ({
+                            ...current,
+                            promptContent: event.target.value,
+                          }))
+                        }
+                        className="min-h-44 w-full rounded-xl border border-input bg-background px-3 py-3 text-sm outline-none focus:ring-2 focus:ring-ring/40"
+                      />
+                    </label>
+
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <label className="flex items-center gap-2 text-sm">
+                        <input
+                          type="checkbox"
+                          checked={autoflowContinueOnFailure}
+                          onChange={(event) => setAutoflowContinueOnFailure(event.target.checked)}
+                        />
+                        Continue after failed step
+                      </label>
+                      <Button variant="outline" onClick={addAutoflowItem}>
+                        <Plus className="w-4 h-4" />
+                        Add Step
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    {autoflowItems.map((item, index) => (
+                      <div
+                        key={`${item.name}-${index}`}
+                        className="flex items-start justify-between gap-3 rounded-xl border border-border/60 bg-background/70 px-4 py-3"
+                      >
+                        <div>
+                          <p className="text-sm font-semibold">
+                            {index + 1}. {item.name}
+                          </p>
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            {profileMap[item.agentProfileId]?.name || 'Unknown profile'} ·{' '}
+                            {item.workspaceId
+                              ? workspaceMap[item.workspaceId]?.name || item.workingDirectory
+                              : item.workingDirectory}
+                          </p>
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() =>
+                            setAutoflowItems((current) =>
+                              current.filter((_, itemIndex) => itemIndex !== index)
+                            )
+                          }
+                        >
+                          Remove
+                        </Button>
+                      </div>
+                    ))}
+                    {autoflowItems.length === 0 ? (
+                      <div className="rounded-xl border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
+                        Add one or more steps to start an AutoFlow.
+                      </div>
+                    ) : null}
+                  </div>
+
+                  <Button
+                    size="lg"
+                    disabled={autoflowItems.length === 0}
+                    onClick={() => void submitAutoflow()}
+                  >
+                    <Play className="w-4 h-4" />
+                    Start AutoFlow
+                  </Button>
+                </CardContent>
+              </Card>
+
+              <Card className="overflow-hidden border-border/60">
+                <CardHeader className="border-b border-border/60">
+                  <CardTitle className="text-sm">AutoFlow Runs</CardTitle>
+                  <CardDescription>
+                    Status across multi-step prompt queues and their generated runs.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="p-0">
+                  {autoflows.map((autoflow) => (
+                    <div
+                      key={autoflow._id}
+                      className="border-b border-border/60 px-5 py-4 last:border-b-0"
+                    >
+                      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                        <div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <h3 className="text-sm font-semibold">{autoflow.name}</h3>
+                            <Badge
+                              variant={
+                                autoflow.status === 'completed'
+                                  ? 'success'
+                                  : autoflow.status === 'failed'
+                                    ? 'destructive'
+                                    : autoflow.status === 'running'
+                                      ? 'default'
+                                      : 'outline'
+                              }
+                            >
+                              {autoflow.status}
+                            </Badge>
+                            <Badge variant="outline">{autoflow.mode}</Badge>
+                          </div>
+                          <p className="mt-2 text-xs text-muted-foreground">
+                            {autoflow.items.filter((item) => item.status === 'completed').length}/
+                            {autoflow.items.length} complete
+                          </p>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {autoflow.status !== 'running' ? (
+                            <Button size="sm" onClick={() => void startAutoflow(autoflow._id)}>
+                              <Play className="w-4 h-4" />
+                              Restart
+                            </Button>
+                          ) : (
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              onClick={() => void cancelAutoflow(autoflow._id)}
+                            >
+                              <Square className="w-4 h-4" />
+                              Cancel
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                      <div className="mt-3 grid gap-2">
+                        {autoflow.items.map((item, index) => (
+                          <div
+                            key={item._id ?? `${autoflow._id}-${index}`}
+                            className="grid gap-2 rounded-lg border border-border/50 bg-background/70 px-3 py-2 text-xs sm:grid-cols-[32px_1fr_100px]"
+                          >
+                            <span className="text-muted-foreground">#{index + 1}</span>
+                            <span className="min-w-0 truncate">{item.name}</span>
+                            <Badge variant="outline">{item.status}</Badge>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                  {autoflows.length === 0 ? (
+                    <div className="px-6 py-16 text-center text-sm text-muted-foreground">
+                      No AutoFlows yet.
+                    </div>
+                  ) : null}
+                </CardContent>
+              </Card>
             </div>
           )}
 
@@ -2797,16 +3640,22 @@ export default function AIRunnerPage() {
                     detail="Reusable AI CLI configurations."
                   />
                   <CompactStat
-                    label="Enabled"
+                    label="Workspaces"
+                    value={activeWorkspaceCount}
+                    tone="success"
+                    detail={`${blockingWorkspaceCount} blocking workspace${blockingWorkspaceCount === 1 ? '' : 's'}.`}
+                  />
+                  <CompactStat
+                    label="Templates"
+                    value={promptTemplates.length}
+                    tone="warning"
+                    detail="Reusable wrappers for prompt editors."
+                  />
+                  <CompactStat
+                    label="Enabled Profiles"
                     value={enabledProfileCount}
                     tone="success"
                     detail="Available for runs and schedules."
-                  />
-                  <CompactStat
-                    label="Custom"
-                    value={customProfileCount}
-                    tone="warning"
-                    detail="Non-preset agent families."
                   />
                   <CompactStat
                     label="Scheduled Profiles"
@@ -2816,6 +3665,24 @@ export default function AIRunnerPage() {
                 </div>
 
                 <div className="flex flex-col gap-3 xl:sticky xl:top-4">
+                  <Button
+                    size="lg"
+                    variant="outline"
+                    onClick={() => openCreateWorkspaceModal()}
+                    className="w-full justify-start"
+                  >
+                    <FolderOpen className="w-4 h-4" />
+                    Add Workspace
+                  </Button>
+                  <Button
+                    size="lg"
+                    variant="outline"
+                    onClick={openCreatePromptTemplateModal}
+                    className="w-full justify-start"
+                  >
+                    <Settings2 className="w-4 h-4" />
+                    Add Template
+                  </Button>
                   <Button
                     size="lg"
                     variant="outline"
@@ -2834,6 +3701,154 @@ export default function AIRunnerPage() {
                     Create Profile
                   </Button>
                 </div>
+              </div>
+
+              <Card className="border-border/60">
+                <CardContent className="flex flex-col gap-4 p-5 md:flex-row md:items-center md:justify-between">
+                  <div>
+                    <p className="text-sm font-semibold">AutoFlow default mode</p>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      New AutoFlows use this mode unless changed in the builder.
+                    </p>
+                  </div>
+                  <div className="flex rounded-lg border border-border bg-background p-1">
+                    {(['sequential', 'parallel'] as const).map((mode) => (
+                      <button
+                        key={mode}
+                        type="button"
+                        onClick={() => void updateDefaultAutoflowMode(mode)}
+                        className={cn(
+                          'h-9 rounded-md px-4 text-sm font-medium transition-colors',
+                          (runnerSettings?.autoflowMode ?? 'sequential') === mode
+                            ? 'bg-primary text-primary-foreground'
+                            : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'
+                        )}
+                      >
+                        {mode === 'sequential' ? 'Sequential' : 'Parallel'}
+                      </button>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+
+              <div className="grid gap-5 xl:grid-cols-2">
+                <Card className="overflow-hidden border-border/60">
+                  <CardHeader className="border-b border-border/60">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <CardTitle className="text-lg tracking-tight">Workspaces</CardTitle>
+                        <CardDescription className="mt-1">
+                          Named repo folders shared by runs, schedules, and autoflows.
+                        </CardDescription>
+                      </div>
+                      <Button size="sm" onClick={() => openCreateWorkspaceModal()}>
+                        <Plus className="w-4 h-4" />
+                        Add
+                      </Button>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="p-0">
+                    {workspaces.map((workspace) => (
+                      <div
+                        key={workspace._id}
+                        className="border-b border-border/60 px-5 py-4 last:border-b-0"
+                      >
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <h3 className="text-sm font-semibold">{workspace.name}</h3>
+                              <Badge variant={workspace.enabled ? 'success' : 'warning'}>
+                                {workspace.enabled ? 'Enabled' : 'Disabled'}
+                              </Badge>
+                              <Badge variant={workspace.blocking ? 'warning' : 'outline'}>
+                                {workspace.blocking ? 'Blocking' : 'Parallel allowed'}
+                              </Badge>
+                            </div>
+                            <p className="mt-2 break-all font-mono text-xs text-muted-foreground">
+                              {workspace.path}
+                            </p>
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => selectWorkspaceForEdit(workspace)}
+                            >
+                              Edit
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              onClick={() => void deleteWorkspace(workspace._id)}
+                            >
+                              Delete
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                    {workspaces.length === 0 ? (
+                      <div className="px-6 py-12 text-center text-sm text-muted-foreground">
+                        No workspaces yet. Add repo folders once and reuse them everywhere.
+                      </div>
+                    ) : null}
+                  </CardContent>
+                </Card>
+
+                <Card className="overflow-hidden border-border/60">
+                  <CardHeader className="border-b border-border/60">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <CardTitle className="text-lg tracking-tight">Prompt Templates</CardTitle>
+                        <CardDescription className="mt-1">
+                          Wrappers loaded into prompt editors with {PROMPT_TEMPLATE_PLACEHOLDER}.
+                        </CardDescription>
+                      </div>
+                      <Button size="sm" onClick={openCreatePromptTemplateModal}>
+                        <Plus className="w-4 h-4" />
+                        Add
+                      </Button>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="p-0">
+                    {promptTemplates.map((template) => (
+                      <div
+                        key={template._id}
+                        className="border-b border-border/60 px-5 py-4 last:border-b-0"
+                      >
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                          <div className="min-w-0">
+                            <h3 className="text-sm font-semibold">{template.name}</h3>
+                            <p className="mt-2 line-clamp-3 whitespace-pre-wrap text-xs text-muted-foreground">
+                              {template.content}
+                            </p>
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => selectPromptTemplateForEdit(template)}
+                            >
+                              Edit
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              onClick={() => void deletePromptTemplate(template._id)}
+                            >
+                              Delete
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                    {promptTemplates.length === 0 ? (
+                      <div className="px-6 py-12 text-center text-sm text-muted-foreground">
+                        No templates yet. Create wrappers for checkout, PR, and cleanup flows.
+                      </div>
+                    ) : null}
+                  </CardContent>
+                </Card>
               </div>
 
               <Card className="overflow-hidden border-border/60">
@@ -3309,6 +4324,181 @@ export default function AIRunnerPage() {
                           {editingProfileId ? 'Update profile' : 'Create profile'}
                         </Button>
                       </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {workspaceModalOpen && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 md:p-6">
+                  <div
+                    className="absolute inset-0 bg-background/80 backdrop-blur-sm"
+                    onClick={closeWorkspaceModal}
+                  />
+                  <div className="relative w-full max-w-2xl rounded-[28px] border border-border bg-card p-6 shadow-2xl">
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <h3 className="text-xl font-semibold tracking-tight">
+                          {editingWorkspaceId ? 'Edit workspace' : 'Add workspace'}
+                        </h3>
+                        <p className="mt-2 text-sm text-muted-foreground">
+                          Workspaces bind a friendly name to a folder path and define whether only
+                          one agent should run there at a time.
+                        </p>
+                      </div>
+                      <button
+                        onClick={closeWorkspaceModal}
+                        className="flex h-10 w-10 items-center justify-center rounded-full text-muted-foreground hover:bg-muted/50"
+                        aria-label="Close workspace modal"
+                      >
+                        <X className="h-5 w-5" />
+                      </button>
+                    </div>
+                    <div className="mt-6 space-y-4">
+                      <Input
+                        label="Workspace Name"
+                        value={workspaceForm.name}
+                        onChange={(event) =>
+                          setWorkspaceForm((current) => ({
+                            ...current,
+                            name: event.target.value,
+                          }))
+                        }
+                        placeholder="ServerMon Repo"
+                      />
+                      <div className="space-y-1.5">
+                        <span className="block text-sm font-medium">Workspace Path</span>
+                        <input
+                          list="runner-directories"
+                          value={workspaceForm.path}
+                          onChange={(event) =>
+                            setWorkspaceForm((current) => ({
+                              ...current,
+                              path: event.target.value,
+                            }))
+                          }
+                          className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring/40"
+                          placeholder="/root/repos/ServerMon"
+                        />
+                      </div>
+                      <label className="flex items-start gap-3 rounded-xl border border-border/60 bg-secondary/10 p-4 text-sm">
+                        <input
+                          type="checkbox"
+                          checked={workspaceForm.blocking}
+                          onChange={(event) =>
+                            setWorkspaceForm((current) => ({
+                              ...current,
+                              blocking: event.target.checked,
+                            }))
+                          }
+                          className="mt-1"
+                        />
+                        <span>
+                          <span className="block font-medium">Blocking workspace</span>
+                          <span className="mt-1 block text-xs leading-5 text-muted-foreground">
+                            When enabled, only one active AI Runner job can dispatch in this
+                            workspace at a time.
+                          </span>
+                        </span>
+                      </label>
+                      <label className="flex items-center gap-2 text-sm">
+                        <input
+                          type="checkbox"
+                          checked={workspaceForm.enabled}
+                          onChange={(event) =>
+                            setWorkspaceForm((current) => ({
+                              ...current,
+                              enabled: event.target.checked,
+                            }))
+                          }
+                        />
+                        Enabled
+                      </label>
+                    </div>
+                    <div className="mt-6 flex justify-end gap-2">
+                      <Button variant="outline" onClick={closeWorkspaceModal}>
+                        Cancel
+                      </Button>
+                      <Button onClick={() => void submitWorkspace()}>
+                        <Save className="w-4 h-4" />
+                        Save Workspace
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {promptTemplateModalOpen && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 md:p-6">
+                  <div
+                    className="absolute inset-0 bg-background/80 backdrop-blur-sm"
+                    onClick={closePromptTemplateModal}
+                  />
+                  <div className="relative flex max-h-[92dvh] w-full max-w-4xl flex-col overflow-hidden rounded-[28px] border border-border bg-card shadow-2xl">
+                    <div className="flex items-start justify-between gap-4 border-b border-border/60 px-6 py-5">
+                      <div>
+                        <h3 className="text-xl font-semibold tracking-tight">
+                          {editingPromptTemplateId ? 'Edit template' : 'Create template'}
+                        </h3>
+                        <p className="mt-2 text-sm text-muted-foreground">
+                          Use {PROMPT_TEMPLATE_PLACEHOLDER} where the current editor content should
+                          be inserted.
+                        </p>
+                      </div>
+                      <button
+                        onClick={closePromptTemplateModal}
+                        className="flex h-10 w-10 items-center justify-center rounded-full text-muted-foreground hover:bg-muted/50"
+                        aria-label="Close template modal"
+                      >
+                        <X className="h-5 w-5" />
+                      </button>
+                    </div>
+                    <div className="overflow-y-auto px-6 py-5 space-y-4">
+                      <Input
+                        label="Template Name"
+                        value={promptTemplateForm.name}
+                        onChange={(event) =>
+                          setPromptTemplateForm((current) => ({
+                            ...current,
+                            name: event.target.value,
+                          }))
+                        }
+                      />
+                      <Input
+                        label="Tags (comma separated)"
+                        value={promptTemplateForm.tags.join(', ')}
+                        onChange={(event) =>
+                          setPromptTemplateForm((current) => ({
+                            ...current,
+                            tags: event.target.value
+                              .split(',')
+                              .map((item) => item.trim())
+                              .filter(Boolean),
+                          }))
+                        }
+                      />
+                      <label className="space-y-1.5">
+                        <span className="block text-sm font-medium">Template Content</span>
+                        <textarea
+                          value={promptTemplateForm.content}
+                          onChange={(event) =>
+                            setPromptTemplateForm((current) => ({
+                              ...current,
+                              content: event.target.value,
+                            }))
+                          }
+                          className="min-h-[360px] w-full rounded-xl border border-input bg-background px-3 py-3 text-sm outline-none focus:ring-2 focus:ring-ring/40"
+                        />
+                      </label>
+                    </div>
+                    <div className="flex justify-end gap-2 border-t border-border/60 px-6 py-4">
+                      <Button variant="outline" onClick={closePromptTemplateModal}>
+                        Cancel
+                      </Button>
+                      <Button onClick={() => void submitPromptTemplate()}>
+                        <Save className="w-4 h-4" />
+                        Save Template
+                      </Button>
                     </div>
                   </div>
                 </div>

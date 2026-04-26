@@ -16,12 +16,14 @@ export function emptyPromptForm(): PromptFormState {
 
 export function emptyScheduleForm(
   profileId?: string,
-  workingDirectory?: string
+  workingDirectory?: string,
+  workspaceId?: string
 ): ScheduleFormState {
   return {
     name: '',
     promptId: '',
     agentProfileId: profileId ?? '',
+    workspaceId,
     workingDirectory: workingDirectory ?? process.env.NEXT_PUBLIC_DEFAULT_WORKDIR ?? '',
     timeout: 30,
     retries: 1,

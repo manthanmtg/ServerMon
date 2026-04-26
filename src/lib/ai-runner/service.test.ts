@@ -12,6 +12,7 @@ import AIRunnerProfile from '@/models/AIRunnerProfile';
 import AIRunnerPrompt from '@/models/AIRunnerPrompt';
 import AIRunnerSchedule from '@/models/AIRunnerSchedule';
 import AIRunnerRun from '@/models/AIRunnerRun';
+import AIRunnerWorkspace from '@/models/AIRunnerWorkspace';
 import { ensureAIRunnerSupervisor } from './processes';
 import { enqueueRunRequest } from './queue';
 import { getAIRunnerSettings, updateAIRunnerSettings } from './settings';
@@ -25,6 +26,7 @@ vi.mock('@/models/AIRunnerProfile');
 vi.mock('@/models/AIRunnerPrompt');
 vi.mock('@/models/AIRunnerSchedule');
 vi.mock('@/models/AIRunnerRun');
+vi.mock('@/models/AIRunnerWorkspace');
 vi.mock('@/models/AIRunnerJob');
 
 vi.mock('./processes', () => ({
@@ -296,6 +298,9 @@ describe('AIRunnerService', () => {
         '/dir1',
       ]);
       (AIRunnerRun.distinct as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(['/dir2']);
+      (AIRunnerWorkspace.distinct as unknown as ReturnType<typeof vi.fn>).mockResolvedValue([
+        '/dir0',
+      ]);
 
       const result = await service.listKnownDirectories();
       expect(result.directories).toContain('/dir1');

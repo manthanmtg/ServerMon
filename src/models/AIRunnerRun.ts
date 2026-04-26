@@ -9,7 +9,10 @@ export interface IAIRunnerRun extends Document {
   jobId?: mongoose.Types.ObjectId;
   promptId?: mongoose.Types.ObjectId;
   scheduleId?: mongoose.Types.ObjectId;
+  autoflowId?: mongoose.Types.ObjectId;
+  autoflowItemId?: mongoose.Types.ObjectId;
   agentProfileId: mongoose.Types.ObjectId;
+  workspaceId?: mongoose.Types.ObjectId;
   promptContent: string;
   workingDirectory: string;
   command: string;
@@ -46,7 +49,10 @@ const AIRunnerRunSchema = new Schema<IAIRunnerRun>(
     jobId: { type: Schema.Types.ObjectId, ref: 'AIRunnerJob' },
     promptId: { type: Schema.Types.ObjectId, ref: 'AIRunnerPrompt' },
     scheduleId: { type: Schema.Types.ObjectId, ref: 'AIRunnerSchedule' },
+    autoflowId: { type: Schema.Types.ObjectId, ref: 'AIRunnerAutoflow' },
+    autoflowItemId: { type: Schema.Types.ObjectId },
     agentProfileId: { type: Schema.Types.ObjectId, ref: 'AIRunnerProfile', required: true },
+    workspaceId: { type: Schema.Types.ObjectId, ref: 'AIRunnerWorkspace' },
     promptContent: { type: String, required: true, maxlength: 100_000 },
     workingDirectory: { type: String, required: true, trim: true, maxlength: 2000 },
     command: { type: String, required: true, maxlength: 20_000 },
@@ -67,7 +73,7 @@ const AIRunnerRunSchema = new Schema<IAIRunnerRun>(
     startedAt: { type: Date, index: true },
     finishedAt: { type: Date },
     durationSeconds: { type: Number },
-    triggeredBy: { type: String, required: true, enum: ['manual', 'schedule'] },
+    triggeredBy: { type: String, required: true, enum: ['manual', 'schedule', 'autoflow'] },
     jobStatus: {
       type: String,
       enum: ['queued', 'dispatched', 'running', 'retrying', 'completed', 'failed', 'canceled'],
@@ -91,6 +97,8 @@ AIRunnerRunSchema.index({ status: 1, startedAt: -1 });
 AIRunnerRunSchema.index({ jobStatus: 1, startedAt: -1 });
 AIRunnerRunSchema.index({ promptId: 1, startedAt: -1 });
 AIRunnerRunSchema.index({ scheduleId: 1, startedAt: -1 });
+AIRunnerRunSchema.index({ workspaceId: 1, startedAt: -1 });
+AIRunnerRunSchema.index({ autoflowId: 1, startedAt: -1 });
 AIRunnerRunSchema.index({ queuedAt: 1 }, { expireAfterSeconds: 30 * 24 * 60 * 60 });
 
 const AIRunnerRun: Model<IAIRunnerRun> =
