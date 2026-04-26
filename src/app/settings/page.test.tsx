@@ -425,7 +425,7 @@ describe('SettingsPage', () => {
     expect(screen.getByText('ServerMon Services')).toBeDefined();
     await waitFor(() => expect(screen.getByText('Scheduled updater')).toBeDefined());
     expect(screen.getByText('Enabled at 03:00')).toBeDefined();
-    expect(screen.getByText('Asia/Kolkata')).toBeDefined();
+    expect(screen.getByText('IST')).toBeDefined();
     await waitFor(() => expect(screen.getByText('Agent Installed')).toBeDefined());
     expect(screen.getByText('/opt/servermon-agent/source')).toBeDefined();
   });
@@ -463,14 +463,14 @@ describe('SettingsPage', () => {
     expect(switchButton.firstElementChild).toHaveClass('left-0', 'translate-x-1');
   });
 
-  it('opens and saves the local auto-update schedule modal', async () => {
+  it('opens and saves the local auto-update schedule modal with a timezone dropdown', async () => {
     (global.fetch as ReturnType<typeof vi.fn>).mockImplementation(
       (url: string, opts?: RequestInit) => {
         if (url === '/api/system/update/auto' && opts?.method === 'PATCH') {
           return Promise.resolve({
             ok: true,
             json: async () => ({
-              settings: { enabled: false, time: '04:30', timezone: 'UTC' },
+              settings: { enabled: false, time: '04:30', timezone: 'Asia/Kolkata' },
               schedule: { nextRunAt: null },
             }),
           });
@@ -505,7 +505,11 @@ describe('SettingsPage', () => {
     await waitFor(() => expect(screen.getByText('Local Auto-Update Schedule')).toBeDefined());
     fireEvent.click(screen.getByLabelText('Enable local auto-update'));
     fireEvent.change(screen.getByLabelText('Daily time'), { target: { value: '04:30' } });
-    fireEvent.change(screen.getByLabelText('Timezone'), { target: { value: 'UTC' } });
+    const timezoneSelect = screen.getByRole('combobox', { name: 'Timezone' });
+    expect(timezoneSelect).toBeDefined();
+    expect(screen.getByRole('option', { name: /IST/ })).toBeDefined();
+    expect(screen.getByRole('option', { name: /PST/ })).toBeDefined();
+    fireEvent.change(timezoneSelect, { target: { value: 'Asia/Kolkata' } });
 
     await act(async () => {
       fireEvent.click(screen.getByText('Save Schedule'));
@@ -515,7 +519,7 @@ describe('SettingsPage', () => {
       '/api/system/update/auto',
       expect.objectContaining({
         method: 'PATCH',
-        body: JSON.stringify({ enabled: false, time: '04:30', timezone: 'UTC' }),
+        body: JSON.stringify({ enabled: false, time: '04:30', timezone: 'Asia/Kolkata' }),
       })
     );
     await waitFor(() => {

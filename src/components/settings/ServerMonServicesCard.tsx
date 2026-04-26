@@ -25,6 +25,21 @@ import type {
 
 type ServiceUpdateType = 'servermon' | 'agent';
 
+const TIMEZONE_OPTIONS = [
+  { value: 'UTC', label: 'UTC', description: 'Coordinated Universal Time' },
+  { value: 'Asia/Kolkata', label: 'IST', description: 'India Standard Time' },
+  { value: 'America/Los_Angeles', label: 'PST/PDT', description: 'Pacific Time' },
+  { value: 'America/Denver', label: 'MST/MDT', description: 'Mountain Time' },
+  { value: 'America/Chicago', label: 'CST/CDT', description: 'Central Time' },
+  { value: 'America/New_York', label: 'EST/EDT', description: 'Eastern Time' },
+  { value: 'Europe/London', label: 'GMT/BST', description: 'London' },
+  { value: 'Europe/Berlin', label: 'CET/CEST', description: 'Central Europe' },
+  { value: 'Asia/Dubai', label: 'GST', description: 'Gulf Standard Time' },
+  { value: 'Asia/Singapore', label: 'SGT', description: 'Singapore Time' },
+  { value: 'Asia/Tokyo', label: 'JST', description: 'Japan Standard Time' },
+  { value: 'Australia/Sydney', label: 'AEST/AEDT', description: 'Sydney' },
+];
+
 const UPDATE_COPY: Record<
   ServiceUpdateType,
   { title: string; message: string; toastTitle: string; toastDescription: string }
@@ -65,6 +80,7 @@ export default function ServerMonServicesCard({ onOpenHistory }: ServerMonServic
     time: '03:00',
     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
   });
+  const timezoneOptions = getTimezoneOptions(scheduleForm.timezone, autoSettings?.timezone);
 
   const loadAgentStatus = useCallback(async () => {
     setAgentLoading(true);
@@ -168,7 +184,9 @@ export default function ServerMonServicesCard({ onOpenHistory }: ServerMonServic
       toast({
         title: 'Auto-update schedule saved',
         description: scheduleForm.enabled
-          ? `ServerMon will check daily at ${scheduleForm.time} ${scheduleForm.timezone}.`
+          ? `ServerMon will check daily at ${scheduleForm.time} ${getTimezoneLabel(
+              scheduleForm.timezone
+            )}.`
           : 'Local auto-update is disabled.',
         variant: 'success',
       });
@@ -254,7 +272,10 @@ export default function ServerMonServicesCard({ onOpenHistory }: ServerMonServic
 
               <div className="grid grid-cols-2 gap-2 p-3">
                 <ScheduleStat label="Time" value={autoSettings?.time ?? '03:00'} mono />
-                <ScheduleStat label="Timezone" value={autoSettings?.timezone ?? 'UTC'} />
+                <ScheduleStat
+                  label="Timezone"
+                  value={getTimezoneLabel(autoSettings?.timezone ?? 'UTC')}
+                />
                 <ScheduleStat label="Next run" value={formatNextRun(autoSchedule?.nextRunAt)} />
                 <ScheduleStat label="Retry" value="2h, once" />
               </div>
@@ -460,15 +481,20 @@ export default function ServerMonServicesCard({ onOpenHistory }: ServerMonServic
                 <span className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
                   Timezone
                 </span>
-                <input
+                <select
                   aria-label="Timezone"
-                  type="text"
                   value={scheduleForm.timezone}
                   onChange={(event) =>
                     setScheduleForm((form) => ({ ...form, timezone: event.target.value }))
                   }
                   className="h-11 w-full rounded-xl border border-input bg-background px-3 text-sm font-semibold text-foreground outline-none transition-all focus:ring-2 focus:ring-primary/20"
-                />
+                >
+                  {timezoneOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label} - {option.description}
+                    </option>
+                  ))}
+                </select>
               </label>
 
               <div className="space-y-2 rounded-xl border border-border bg-muted/20 p-3 text-xs text-muted-foreground">
@@ -525,6 +551,29 @@ function ScheduleStat({
       </p>
     </div>
   );
+}
+
+function getTimezoneLabel(timezone: string): string {
+  return getTimezoneOption(timezone)?.label ?? timezone;
+}
+
+function getTimezoneOption(timezone: string) {
+  return TIMEZONE_OPTIONS.find((option) => option.value === timezone);
+}
+
+function getTimezoneOptions(...timezones: Array<string | null | undefined>) {
+  const options = [...TIMEZONE_OPTIONS];
+  for (const timezone of timezones) {
+    if (
+      !timezone ||
+      getTimezoneOption(timezone) ||
+      options.some((option) => option.value === timezone)
+    ) {
+      continue;
+    }
+    options.push({ value: timezone, label: timezone, description: 'Custom timezone' });
+  }
+  return options;
 }
 
 function formatNextRun(value?: string | null): string {
