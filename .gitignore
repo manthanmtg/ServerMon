@@ -45,4 +45,5 @@ next-env.d.ts
 
 # Agent and MCP Related
 .playwright-mcp
+.superpowers/
 .worktrees/
