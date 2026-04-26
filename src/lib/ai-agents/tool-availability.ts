@@ -38,6 +38,16 @@ const AGENT_TOOL_PROBES: AgentToolProbe[] = AGENT_TOOL_DEFINITIONS.filter(
 
 const latestVersionCache = new Map<string, { version?: string; checkedAt: number }>();
 const LATEST_VERSION_CACHE_MS = 10 * 60 * 1000;
+const STATUS_CACHE_MS = 60_000;
+
+let statusCache: { value: AgentToolStatus[]; checkedAt: number } | null = null;
+let statusInFlight: Promise<AgentToolStatus[]> | null = null;
+
+export function clearAgentToolStatusCache(): void {
+  latestVersionCache.clear();
+  statusCache = null;
+  statusInFlight = null;
+}
 
 async function findCommand(command: string): Promise<string | undefined> {
   try {
@@ -79,6 +89,25 @@ function normalizeVersion(version?: string): string | undefined {
 }
 
 export async function getAgentToolStatuses(): Promise<AgentToolStatus[]> {
+  const now = Date.now();
+  if (statusCache && now - statusCache.checkedAt < STATUS_CACHE_MS) {
+    return statusCache.value;
+  }
+  if (statusInFlight) {
+    return statusInFlight;
+  }
+
+  statusInFlight = probeAgentToolStatuses();
+  try {
+    const value = await statusInFlight;
+    statusCache = { value, checkedAt: Date.now() };
+    return value;
+  } finally {
+    statusInFlight = null;
+  }
+}
+
+async function probeAgentToolStatuses(): Promise<AgentToolStatus[]> {
   const checkedAt = new Date().toISOString();
   const statuses = await Promise.all(
     AGENT_TOOL_PROBES.map(async (probe): Promise<AgentToolStatus> => {

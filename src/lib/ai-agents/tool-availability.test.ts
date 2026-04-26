@@ -6,7 +6,7 @@ vi.mock('node:child_process', () => ({
   execFile: vi.fn(),
 }));
 
-import { getAgentToolStatuses } from './tool-availability';
+import { clearAgentToolStatusCache, getAgentToolStatuses } from './tool-availability';
 
 type ExecCallback = (error: Error | null, stdout: string, stderr: string) => void;
 
@@ -26,6 +26,7 @@ function mockExecFile(
 describe('getAgentToolStatuses', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    clearAgentToolStatusCache();
   });
 
   it('marks installed commands with path and version', async () => {
@@ -54,5 +55,22 @@ describe('getAgentToolStatuses', () => {
       installed: false,
       error: 'claude: command not found',
     });
+  });
+
+  it('caches probe results so frequent page polling does not rerun tool commands', async () => {
+    mockExecFile((file, args) => {
+      if (file === 'sh' && args[1] === 'command -v codex') {
+        return [null, '/usr/local/bin/codex\n', ''];
+      }
+      if (file === 'codex' && args[0] === '--version') {
+        return [null, 'codex-cli 0.125.0\n', ''];
+      }
+      return [new Error('missing'), '', ''];
+    });
+
+    await getAgentToolStatuses();
+    await getAgentToolStatuses();
+
+    expect(execFile).toHaveBeenCalledTimes(7);
   });
 });

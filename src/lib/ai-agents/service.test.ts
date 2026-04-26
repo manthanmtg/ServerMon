@@ -42,6 +42,14 @@ vi.mock('./adapters/opencode', () => ({
     self.detect = mockOpenCodeDetect;
   },
 }));
+vi.mock('./adapters/gemini-cli', () => ({
+  // Paired explanation: using unknown and casting to avoid explicit any in mock constructor
+  GeminiCLIAdapter: function (this: unknown) {
+    const self = this as { displayName: string; detect: typeof mockClaudeDetect };
+    self.displayName = 'Gemini CLI';
+    self.detect = vi.fn().mockResolvedValue([]);
+  },
+}));
 vi.mock('./process-utils', () => ({
   killProcess: mockKillProcess,
 }));
@@ -196,6 +204,32 @@ describe('AIAgentsService', () => {
       expect(snapshot.summary.waiting).toBe(1);
       expect(snapshot.summary.error).toBe(1);
       expect(snapshot.summary.completed).toBe(1);
+    });
+
+    it('returns compact sessions in snapshots without losing full detail lookup', async () => {
+      const service = makeService();
+      const conversation = Array.from({ length: 12 }, (_, index) => ({
+        role: 'assistant' as const,
+        content: `message-${index}-${'x'.repeat(800)}`,
+        timestamp: `2026-04-26T10:${String(index).padStart(2, '0')}:00Z`,
+      }));
+      const logs = Array.from({ length: 40 }, (_, index) => `log-${index}-${'y'.repeat(800)}`);
+      const session = makeSession({
+        id: 'large-session',
+        conversation,
+        logs,
+      });
+      mockClaudeDetect.mockResolvedValue([session]);
+
+      const snapshot = await service.getSnapshot();
+      const snapshotSession = snapshot.sessions[0];
+      const fullSession = await service.getSession('large-session');
+
+      expect(snapshotSession.conversation.length).toBeLessThan(conversation.length);
+      expect(snapshotSession.logs.length).toBeLessThan(logs.length);
+      expect(snapshotSession.conversation.at(-1)?.content.length).toBeLessThan(800);
+      expect(fullSession?.conversation).toHaveLength(conversation.length);
+      expect(fullSession?.logs).toHaveLength(logs.length);
     });
   });
 

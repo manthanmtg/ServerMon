@@ -10,15 +10,61 @@ import type {
   AgentSession,
   AgentsSnapshot,
   AgentsSummary,
+  ConversationEntry,
+  ActionTimelineEntry,
 } from '@/modules/ai-agents/types';
 
 const log = createLogger('ai-agents');
+const SNAPSHOT_CONVERSATION_LIMIT = 8;
+const SNAPSHOT_TIMELINE_LIMIT = 20;
+const SNAPSHOT_LOG_LIMIT = 25;
+const SNAPSHOT_FILE_LIMIT = 25;
+const SNAPSHOT_COMMAND_LIMIT = 25;
+const SNAPSHOT_TEXT_LIMIT = 500;
 
 function sessionActivityTime(session: AgentSession): number {
   const lastActivity = new Date(session.lifecycle.lastActivity).getTime();
   if (Number.isFinite(lastActivity)) return lastActivity;
   const startTime = new Date(session.lifecycle.startTime).getTime();
   return Number.isFinite(startTime) ? startTime : 0;
+}
+
+function truncateText(value: string, limit = SNAPSHOT_TEXT_LIMIT): string {
+  if (value.length <= limit) return value;
+  return `${value.slice(0, limit - 3)}...`;
+}
+
+function takeTail<T>(items: T[] | undefined, limit: number): T[] {
+  if (!Array.isArray(items)) return [];
+  return items.length > limit ? items.slice(-limit) : [...items];
+}
+
+function compactConversation(entries: ConversationEntry[]): ConversationEntry[] {
+  return takeTail(entries, SNAPSHOT_CONVERSATION_LIMIT).map((entry) => ({
+    ...entry,
+    content: truncateText(entry.content),
+  }));
+}
+
+function compactTimeline(entries: ActionTimelineEntry[]): ActionTimelineEntry[] {
+  return takeTail(entries, SNAPSHOT_TIMELINE_LIMIT).map((entry) => ({
+    ...entry,
+    action: truncateText(entry.action),
+    detail: entry.detail ? truncateText(entry.detail) : undefined,
+  }));
+}
+
+function compactSessionForSnapshot(session: AgentSession): AgentSession {
+  return {
+    ...session,
+    filesModified: takeTail(session.filesModified, SNAPSHOT_FILE_LIMIT),
+    commandsExecuted: takeTail(session.commandsExecuted, SNAPSHOT_COMMAND_LIMIT).map((command) =>
+      truncateText(command)
+    ),
+    conversation: compactConversation(session.conversation),
+    timeline: compactTimeline(session.timeline),
+    logs: takeTail(session.logs, SNAPSHOT_LOG_LIMIT).map((entry) => truncateText(entry)),
+  };
 }
 
 export class AIAgentsService {
@@ -64,8 +110,8 @@ export class AIAgentsService {
     const summary = this.computeSummary(allSessions);
     return {
       summary,
-      sessions,
-      pastSessions,
+      sessions: sessions.map(compactSessionForSnapshot),
+      pastSessions: pastSessions.map(compactSessionForSnapshot),
       tools,
       timestamp: new Date().toISOString(),
     };
