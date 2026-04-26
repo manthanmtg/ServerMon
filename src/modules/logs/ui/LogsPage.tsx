@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Info, AlertTriangle, XCircle, Clock, Search } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Spinner } from '@/components/ui/spinner';
@@ -16,6 +16,13 @@ interface LogEntry {
 }
 
 type FilterType = 'all' | 'info' | 'warn' | 'error';
+
+const FILTER_OPTIONS: { label: string; value: FilterType }[] = [
+  { label: 'All', value: 'all' },
+  { label: 'Info', value: 'info' },
+  { label: 'Warn', value: 'warn' },
+  { label: 'Error', value: 'error' },
+];
 
 const severityConfig = {
   info: { icon: Info, variant: 'default' as const, label: 'Info', color: 'text-primary' },
@@ -82,23 +89,22 @@ export default function LogsPage() {
     return () => clearInterval(interval);
   }, []);
 
-  const filtered = logs.filter((log) => {
-    if (filter !== 'all' && log.severity !== filter) return false;
-    if (
-      search &&
-      !log.event.toLowerCase().includes(search.toLowerCase()) &&
-      !log.moduleId.toLowerCase().includes(search.toLowerCase())
-    )
-      return false;
-    return true;
-  });
+  const normalizedSearch = useMemo(() => search.toLowerCase(), [search]);
 
-  const filters: { label: string; value: FilterType }[] = [
-    { label: 'All', value: 'all' },
-    { label: 'Info', value: 'info' },
-    { label: 'Warn', value: 'warn' },
-    { label: 'Error', value: 'error' },
-  ];
+  const filtered = useMemo(
+    () =>
+      logs.filter((log) => {
+        if (filter !== 'all' && log.severity !== filter) return false;
+        if (
+          normalizedSearch &&
+          !log.event.toLowerCase().includes(normalizedSearch) &&
+          !log.moduleId.toLowerCase().includes(normalizedSearch)
+        )
+          return false;
+        return true;
+      }),
+    [filter, logs, normalizedSearch]
+  );
 
   return (
     <div className="space-y-4">
@@ -115,7 +121,7 @@ export default function LogsPage() {
           />
         </div>
         <div className="flex items-center gap-1 bg-secondary p-1 rounded-lg overflow-x-auto">
-          {filters.map((f) => (
+          {FILTER_OPTIONS.map((f) => (
             <button
               key={f.value}
               onClick={() => setFilter(f.value)}

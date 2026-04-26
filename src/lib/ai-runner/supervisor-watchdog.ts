@@ -42,9 +42,7 @@ export async function checkAIRunnerSupervisorWatchdog(): Promise<void> {
   });
 }
 
-export function startAIRunnerSupervisorWatchdog(
-  intervalMs = DEFAULT_WATCHDOG_INTERVAL_MS
-): void {
+export function startAIRunnerSupervisorWatchdog(intervalMs = DEFAULT_WATCHDOG_INTERVAL_MS): void {
   if (watchdogStarted || supervisorWatchdogDisabled()) {
     return;
   }
