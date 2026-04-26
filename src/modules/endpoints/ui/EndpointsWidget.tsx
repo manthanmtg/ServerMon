@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Waypoints, LoaderCircle, Zap, AlertTriangle, TrendingUp } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -14,6 +14,17 @@ const METHOD_COLORS: Record<string, string> = {
   PATCH: 'text-info',
   DELETE: 'text-destructive',
 };
+
+export function deriveEndpointWidgetSummary(endpoints: CustomEndpointDTO[]) {
+  return {
+    total: endpoints.length,
+    active: endpoints.filter((endpoint) => endpoint.enabled).length,
+    errored: endpoints.filter((endpoint) => endpoint.lastStatus && endpoint.lastStatus >= 400)
+      .length,
+    totalHits: endpoints.reduce((acc, endpoint) => acc + endpoint.executionCount, 0),
+    topEndpoints: [...endpoints].sort((a, b) => b.executionCount - a.executionCount).slice(0, 3),
+  };
+}
 
 export default function EndpointsWidget() {
   const [endpoints, setEndpoints] = useState<CustomEndpointDTO[]>([]);
@@ -39,6 +50,11 @@ export default function EndpointsWidget() {
     return () => window.clearInterval(interval);
   }, [load]);
 
+  const { total, active, errored, totalHits, topEndpoints } = useMemo(
+    () => deriveEndpointWidgetSummary(endpoints),
+    [endpoints]
+  );
+
   if (initialLoad && endpoints.length === 0) {
     return (
       <Card className="border-border/60">
@@ -48,14 +64,6 @@ export default function EndpointsWidget() {
       </Card>
     );
   }
-
-  const total = endpoints.length;
-  const active = endpoints.filter((e) => e.enabled).length;
-  const errored = endpoints.filter((e) => e.lastStatus && e.lastStatus >= 400).length;
-  const totalHits = endpoints.reduce((acc, e) => acc + e.executionCount, 0);
-  const topEndpoints = [...endpoints]
-    .sort((a, b) => b.executionCount - a.executionCount)
-    .slice(0, 3);
 
   return (
     <Card className="border-border/60">

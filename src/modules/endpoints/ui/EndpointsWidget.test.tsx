@@ -1,8 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, waitFor, act } from '@testing-library/react';
-import EndpointsWidget from './EndpointsWidget';
+import EndpointsWidget, { deriveEndpointWidgetSummary } from './EndpointsWidget';
+import type { CustomEndpointDTO } from '../types';
 
-const mockEndpoints = [
+const mockEndpoints: CustomEndpointDTO[] = [
   {
     _id: 'ep-1',
     name: 'Get Users',
@@ -11,11 +12,14 @@ const mockEndpoints = [
     endpointType: 'script',
     enabled: true,
     auth: 'public',
+    tokens: [],
     tags: [],
     timeout: 30000,
     executionCount: 150,
     lastStatus: 200,
     lastExecutedAt: new Date(Date.now() - 5 * 60 * 1000).toISOString(),
+    createdAt: '2026-04-26T10:00:00.000Z',
+    updatedAt: '2026-04-26T10:00:00.000Z',
   },
   {
     _id: 'ep-2',
@@ -25,11 +29,14 @@ const mockEndpoints = [
     endpointType: 'script',
     enabled: true,
     auth: 'token',
+    tokens: [],
     tags: [],
     timeout: 30000,
     executionCount: 75,
     lastStatus: 201,
     lastExecutedAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+    createdAt: '2026-04-26T10:00:00.000Z',
+    updatedAt: '2026-04-26T10:00:00.000Z',
   },
   {
     _id: 'ep-3',
@@ -39,11 +46,13 @@ const mockEndpoints = [
     endpointType: 'script',
     enabled: false,
     auth: 'token',
+    tokens: [],
     tags: [],
     timeout: 30000,
     executionCount: 10,
     lastStatus: 500,
-    lastExecutedAt: null,
+    createdAt: '2026-04-26T10:00:00.000Z',
+    updatedAt: '2026-04-26T10:00:00.000Z',
   },
 ];
 
@@ -164,5 +173,38 @@ describe('EndpointsWidget', () => {
       vi.advanceTimersByTime(30001);
     });
     expect(global.fetch).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('deriveEndpointWidgetSummary', () => {
+  it('summarizes endpoints without mutating their display order', () => {
+    const endpoints = [
+      { ...mockEndpoints[0], executionCount: 5 },
+      { ...mockEndpoints[1], executionCount: 25 },
+      { ...mockEndpoints[2], executionCount: 15 },
+      {
+        ...mockEndpoints[0],
+        _id: 'ep-4',
+        name: 'Ping',
+        slug: 'ping',
+        executionCount: 35,
+        lastStatus: 404,
+      },
+    ];
+
+    const summary = deriveEndpointWidgetSummary(endpoints);
+
+    expect(summary).toEqual({
+      total: 4,
+      active: 3,
+      errored: 2,
+      totalHits: 80,
+      topEndpoints: [
+        expect.objectContaining({ _id: 'ep-4', executionCount: 35 }),
+        expect.objectContaining({ _id: 'ep-2', executionCount: 25 }),
+        expect.objectContaining({ _id: 'ep-3', executionCount: 15 }),
+      ],
+    });
+    expect(endpoints.map((endpoint) => endpoint._id)).toEqual(['ep-1', 'ep-2', 'ep-3', 'ep-4']);
   });
 });
