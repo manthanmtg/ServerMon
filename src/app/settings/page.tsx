@@ -327,7 +327,7 @@ export default function SettingsPage() {
 
             <PasskeySettings />
 
-            <ServerMonServicesCard />
+            <ServerMonServicesCard onOpenHistory={() => setShowHistory(true)} />
 
             <Card>
               <CardHeader>

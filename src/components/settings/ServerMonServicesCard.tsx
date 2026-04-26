@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useState } from 'react';
-import { Download, RefreshCcw, ServerCog } from 'lucide-react';
+import { Download, History, RefreshCcw, ServerCog } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -32,7 +32,11 @@ const UPDATE_COPY: Record<
   },
 };
 
-export default function ServerMonServicesCard() {
+interface ServerMonServicesCardProps {
+  onOpenHistory: () => void;
+}
+
+export default function ServerMonServicesCard({ onOpenHistory }: ServerMonServicesCardProps) {
   const { toast } = useToast();
   const [agentStatus, setAgentStatus] = useState<ServermonAgentStatus | null>(null);
   const [agentLoading, setAgentLoading] = useState(true);
@@ -115,18 +119,29 @@ export default function ServerMonServicesCard() {
                 </CardDescription>
               </div>
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              className="gap-2 h-9 px-3 rounded-lg shrink-0"
-              onClick={() => setConfirmType('servermon')}
-              disabled={isUpdating}
-            >
-              <RefreshCcw
-                className={cn('w-3.5 h-3.5', updating === 'servermon' && 'animate-spin')}
-              />
-              Update ServerMon
-            </Button>
+            <div className="flex shrink-0 flex-wrap justify-end gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="gap-2 h-9 px-3 rounded-lg"
+                onClick={onOpenHistory}
+              >
+                <History className="w-3.5 h-3.5" />
+                History & Logs
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-2 h-9 px-3 rounded-lg"
+                onClick={() => setConfirmType('servermon')}
+                disabled={isUpdating}
+              >
+                <RefreshCcw
+                  className={cn('w-3.5 h-3.5', updating === 'servermon' && 'animate-spin')}
+                />
+                Update ServerMon
+              </Button>
+            </div>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">

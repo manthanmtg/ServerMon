@@ -417,4 +417,14 @@ describe('SettingsPage', () => {
     await waitFor(() => expect(screen.getByText('Agent Installed')).toBeDefined());
     expect(screen.getByText('/opt/servermon-agent/source')).toBeDefined();
   });
+
+  it('opens update history from the ServerMon Services card', async () => {
+    await act(async () => render(<SettingsPage />));
+
+    await act(async () => {
+      fireEvent.click(screen.getByText('History & Logs'));
+    });
+
+    expect(screen.getByTestId('update-history-modal')).toBeDefined();
+  });
 });
