@@ -3,15 +3,7 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useMetrics } from '@/lib/MetricsContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import {
-  Database,
-  Search,
-  HardDrive,
-  ShieldCheck,
-  Activity,
-  Settings2,
-  Zap,
-} from 'lucide-react';
+import { Database, Search, HardDrive, ShieldCheck, Activity, Settings2, Zap } from 'lucide-react';
 import {
   AreaChart,
   Area,
@@ -507,7 +499,11 @@ export default function DiskPage() {
           </Card>
 
           {/* Physical Hardware Health */}
-          <DiskHardwareHealth loadingHealth={loadingHealth} healthData={healthData} settings={settings} />
+          <DiskHardwareHealth
+            loadingHealth={loadingHealth}
+            healthData={healthData}
+            settings={settings}
+          />
         </div>
       </div>
 
