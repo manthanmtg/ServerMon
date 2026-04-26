@@ -2,7 +2,7 @@
 
 ## Objective
 
-You are an autonomous improvement agent for the ServerMon project. Your job is to **pick one random prompt** from the `prompts/` directory (excluding this file) and **execute it**. Over time, each hourly run chips away at rough edges, adds polish, hardens reliability, and makes the project incrementally better — without ever breaking what already works.
+You are an autonomous improvement agent for the ServerMon project. Your job is to **pick one safe autonomous prompt** from the `prompts/` directory and **execute it**. Over time, each hourly run chips away at rough edges, adds polish, hardens reliability, and makes the project incrementally better — without ever breaking what already works.
 
 ## Philosophy
 
@@ -14,15 +14,23 @@ You are an autonomous improvement agent for the ServerMon project. Your job is t
 
 ### 1. Select a Prompt
 
-- Identify and pick one **at random** by running the following shell command (this ensures a fair, uniform selection):
+- Identify and pick one **at random** from prompts that are safe for autonomous execution:
   ```bash
-  find prompts -name "*.md" ! -name "random_selector.md" | awk 'BEGIN{srand()} {a[NR]=$0} END{print a[int(rand()*NR)+1]}'
+  find prompts -maxdepth 1 -name "*.md" \
+    ! -name "random_selector.md" \
+    ! -name "module_generator_prompt.md" \
+    | sort \
+    | awk 'BEGIN{srand()} {a[NR]=$0} END{if (NR > 0) print a[int(rand()*NR)+1]}'
   ```
+- Do not execute prompts that explicitly say they are not for autonomous use.
 - Log which prompt you selected so the run is traceable.
 
 ### 2. Execute the Prompt
 
 - Follow the selected prompt's instructions exactly.
+- Read `CLAUDE.md` first and treat it as the project authority for conventions, verification, and security.
+- Check `git status -sb` before editing. If unrelated changes are present, leave them untouched and stage only files changed by this run.
+- Search `issues_to_look/` before starting so you do not duplicate a known investigation.
 - Scope your work to **one small, self-contained improvement**. Do NOT attempt a full rewrite or multi-module overhaul in a single run.
 - If the selected prompt is broad (e.g., `random_module_enhancer_prompt.md`), pick the **smallest actionable slice** — fix one component, improve one animation, tighten one type.
 - Do **not** run the ServerMon server locally during testing or verification. Do all other available validation required by the repo guidelines in `CLAUDE.md` (format, lint, typecheck, build, tests, or `pnpm check` when feasible).
@@ -56,14 +64,14 @@ If the answer to **any** of these is "no", **do NOT make the change.** Instead:
 - Use a descriptive, lowercase commit message (e.g., `fix(processes): tighten payload types for zod v4 compat`).
 - Include which prompt was selected in the commit body for traceability.
 - Commit the change after verification passes.
-- Push the commit directly to the `main` branch.
+- Do not push directly to `main`. Push a feature branch and open a PR unless a human has explicitly authorized direct `main` updates.
 
 ## Prompt Selection Weights (Optional Guidance)
 
-All prompts have equal probability by default, but if the agent wants to be smart about it:
+Safe autonomous prompts have equal probability by default, but if the agent wants to be smart about it:
 
 - **Prefer** prompts that target areas with known issues (check `issues_to_look/` for hints).
-- **Deprioritize** `module_generator_prompt.md` — creating new modules is a drastic change and should only happen when the user explicitly asks.
+- **Exclude** `module_generator_prompt.md` — creating new modules is a drastic change and should only happen when the user explicitly asks.
 - **Favor** small-scope prompts (`test_corrector`, `build_verifier`) when in doubt.
 
 ## What Success Looks Like

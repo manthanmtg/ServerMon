@@ -12,7 +12,8 @@ Robust applications expect the network to fail. Silent drops, infinite loading s
 
 ### 1. Pick a Target
 
-- Select a random file in `src/models/`, `src/services/` or `src/modules/*/api/` that makes external requests.
+- Select one API route, service helper, or client-side fetch path that performs network, database, filesystem, or process-bound work.
+- Prefer code with user-visible loading states, retries, or operational side effects over passive model definitions.
 
 ### 2. Audit (Pick 1–3 Issues)
 
@@ -22,11 +23,13 @@ Check for these common fragility gaps:
 - **Uncaught Errors**: Missing `catch` blocks or missing UI error state propagation.
 - **Missing Retry Logic**: Idempotent network calls failing on temporary 5xx errors instead of retrying.
 - **Payload Validation**: Assuming JSON payloads will always match expected formats perfectly.
+- **Ambiguous User Feedback**: Failures that leave the UI stuck loading or return vague server errors.
 
 ### 3. Fix (Small Scope)
 
 - Fix **1–3 resilience issues** per run.
 - Add try/catch blocks, explicit timeout configuration, or basic retry wrappers.
+- Do not retry non-idempotent mutations unless the operation already has a safe idempotency key or equivalent guard.
 
 ### 4. No-Op Conditions
 
@@ -35,7 +38,7 @@ Check for these common fragility gaps:
 
 ### 5. Verify
 
-- Run `pnpm check` to ensure no TypeScript regressions.
+- Run focused tests when the changed path already has coverage, then run `pnpm check` to ensure no regressions.
 
 ### 6. Commit
 
