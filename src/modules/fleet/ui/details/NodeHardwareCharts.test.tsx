@@ -4,7 +4,7 @@ import { NodeHardwareCharts, toSamples } from './NodeHardwareCharts';
 
 vi.mock('recharts', () => ({
   LineChart: ({ children }: { children?: React.ReactNode }) => (
-    <div data-testid="line-chart">{children}</div>
+    <svg data-testid="line-chart">{children}</svg>
   ),
   Line: () => null,
   XAxis: () => null,

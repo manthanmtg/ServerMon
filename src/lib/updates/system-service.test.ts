@@ -30,6 +30,15 @@ vi.mock('node:fs/promises', () => ({
   mkdir: vi.fn(),
 }));
 
+vi.mock('@/lib/logger', () => ({
+  createLogger: () => ({
+    debug: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+  }),
+}));
+
 describe('SystemUpdateService', () => {
   let systemUpdateService: {
     triggerUpdate: () => Promise<{
