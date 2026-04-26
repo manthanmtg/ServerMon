@@ -38,13 +38,15 @@ const {
   mockNodeFindById: vi.fn(),
   mockResourcePolicyFind: vi.fn(),
   mockEnsureLetsEncryptCertificate: vi.fn(() => Promise.resolve({ ok: true, tlsStatus: 'ok' })),
-  mockProbePublicRoute: vi.fn(() => Promise.resolve({
-    status: 'active',
-    dnsStatus: 'ok',
-    tlsStatus: 'ok',
-    healthStatus: 'healthy',
-    lastCheckedAt: new Date(),
-  })),
+  mockProbePublicRoute: vi.fn(() =>
+    Promise.resolve({
+      status: 'active',
+      dnsStatus: 'ok',
+      tlsStatus: 'ok',
+      healthStatus: 'healthy',
+      lastCheckedAt: new Date(),
+    })
+  ),
   mockShouldUseLetsEncrypt: vi.fn(),
 }));
 

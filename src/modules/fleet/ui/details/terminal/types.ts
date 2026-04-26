@@ -95,7 +95,10 @@ export function isStoredTab(value: unknown): value is FleetTerminalTab {
   );
 }
 
-export function loadStoredTabs(nodeId: string): { tabs: FleetTerminalTab[]; activeTabId: string | null } {
+export function loadStoredTabs(nodeId: string): {
+  tabs: FleetTerminalTab[];
+  activeTabId: string | null;
+} {
   const storage = browserStorage();
   if (!storage) {
     const tab = makeTab(nodeId, 1);

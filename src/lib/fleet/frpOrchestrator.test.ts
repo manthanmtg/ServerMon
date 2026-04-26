@@ -23,11 +23,9 @@ function makeFakeHandle(): FrpHandle & {
   let resolveExit:
     | ((value: { code: number | null; signal: NodeJS.Signals | null }) => void)
     | undefined;
-  const onExit = new Promise<{ code: number | null; signal: NodeJS.Signals | null }>(
-    (resolve) => {
-      resolveExit = resolve;
-    }
-  );
+  const onExit = new Promise<{ code: number | null; signal: NodeJS.Signals | null }>((resolve) => {
+    resolveExit = resolve;
+  });
   const killFn = vi.fn(async () => {});
   const handle = {
     pid: 1234,

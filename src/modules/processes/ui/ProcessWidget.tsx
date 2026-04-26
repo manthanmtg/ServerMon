@@ -203,7 +203,9 @@ const ProcessCard = React.memo(
       <div className="flex items-center gap-4 text-sm">
         <div className="flex items-center gap-1.5">
           <Cpu className="w-3 h-3 text-muted-foreground" />
-          <span className={cn('font-medium tabular-nums', cpuColor(p.cpu))}>{p.cpu.toFixed(1)}%</span>
+          <span className={cn('font-medium tabular-nums', cpuColor(p.cpu))}>
+            {p.cpu.toFixed(1)}%
+          </span>
         </div>
         <div className="flex items-center gap-1.5">
           <MemoryStick className="w-3 h-3 text-muted-foreground" />
@@ -323,10 +325,7 @@ const ProcessRow = React.memo(
           <div className="flex items-center justify-end gap-2">
             <CpuBar value={p.cpu} />
             <span
-              className={cn(
-                'text-xs font-medium tabular-nums w-12 text-right',
-                cpuColor(p.cpu)
-              )}
+              className={cn('text-xs font-medium tabular-nums w-12 text-right', cpuColor(p.cpu))}
             >
               {p.cpu.toFixed(1)}%
             </span>
