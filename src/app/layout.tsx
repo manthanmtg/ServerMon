@@ -7,6 +7,8 @@ import SessionManager from '@/components/auth/SessionManager';
 
 export const dynamic = 'force-dynamic';
 
+const BRAND_ICON_PATH = '/api/settings/branding/icon';
+
 export const metadata: Metadata = {
   title: 'ServerMon',
   description: 'Secure, modular server monitoring platform.',
@@ -19,8 +21,8 @@ export const metadata: Metadata = {
     telephone: false,
   },
   icons: {
-    icon: '/icon.png',
-    apple: '/icon.png',
+    icon: BRAND_ICON_PATH,
+    apple: BRAND_ICON_PATH,
   },
 };
 

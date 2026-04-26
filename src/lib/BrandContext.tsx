@@ -17,6 +17,8 @@ const defaultSettings: BrandSettings = {
   logoBase64: '',
 };
 
+const BRAND_ICON_PATH = '/api/settings/branding/icon';
+
 const BrandContext = createContext<BrandContextType | undefined>(undefined);
 
 export function BrandProvider({ children }: { children: React.ReactNode }) {
@@ -53,21 +55,24 @@ export function BrandProvider({ children }: { children: React.ReactNode }) {
       }
     }
 
-    // Update Favicon
-    if (settings.logoBase64) {
-      const updateIcon = (selector: string) => {
-        let link = document.querySelector(selector) as HTMLLinkElement;
-        if (!link) {
-          link = document.createElement('link');
-          link.rel = selector.includes('apple') ? 'apple-touch-icon' : 'icon';
-          document.head.appendChild(link);
-        }
-        link.href = settings.logoBase64;
-      };
+    // Update favicon after in-app branding changes. The server route keeps first load in sync.
+    const faviconHref = settings.logoBase64 || BRAND_ICON_PATH;
+    const updateIcon = (selector: string, rel: string) => {
+      const links = Array.from(document.querySelectorAll<HTMLLinkElement>(selector));
+      if (links.length === 0) {
+        const link = document.createElement('link');
+        link.rel = rel;
+        document.head.appendChild(link);
+        links.push(link);
+      }
 
-      updateIcon('link[rel*="icon"]');
-      updateIcon('link[rel="apple-touch-icon"]');
-    }
+      for (const link of links) {
+        link.href = faviconHref;
+      }
+    };
+
+    updateIcon('link[rel*="icon"]', 'icon');
+    updateIcon('link[rel="apple-touch-icon"]', 'apple-touch-icon');
   }, [settings.logoBase64, settings.pageTitle]);
 
   const updateSettings = async (newSettings: BrandSettings) => {

@@ -96,4 +96,18 @@ describe('proxy', () => {
     expect(mockUpdateSession).not.toHaveBeenCalled();
     expect(response).toEqual({ type: 'next' });
   });
+
+  it('redirects legacy favicon requests to the branding icon', async () => {
+    const middleware = (await import('./proxy')).default;
+    const request = makeRequest('/favicon.ico');
+
+    const response = await middleware(request as never);
+
+    expect(mockRedirect).toHaveBeenCalledWith(
+      new URL('http://localhost/api/settings/branding/icon')
+    );
+    expect(mockJson).not.toHaveBeenCalled();
+    expect(mockUpdateSession).not.toHaveBeenCalled();
+    expect(response).toEqual({ type: 'redirect' });
+  });
 });

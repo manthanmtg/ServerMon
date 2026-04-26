@@ -1,5 +1,7 @@
 import { MetadataRoute } from 'next';
 
+const BRAND_ICON_PATH = '/api/settings/branding/icon';
+
 export default function manifest(): MetadataRoute.Manifest {
   return {
     name: 'ServerMon',
@@ -11,13 +13,13 @@ export default function manifest(): MetadataRoute.Manifest {
     theme_color: '#000000',
     icons: [
       {
-        src: '/icon.png',
+        src: BRAND_ICON_PATH,
         sizes: '512x512',
         type: 'image/png',
         purpose: 'maskable',
       },
       {
-        src: '/icon.png',
+        src: BRAND_ICON_PATH,
         sizes: '512x512',
         type: 'image/png',
         purpose: 'any',

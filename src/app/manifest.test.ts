@@ -34,6 +34,12 @@ describe('manifest', () => {
     expect((result.icons ?? []).length).toBeGreaterThan(0);
   });
 
+  it('uses the dynamic branding icon', () => {
+    const result = manifest();
+    const icons = result.icons ?? [];
+    expect(icons.every((icon) => icon.src === '/api/settings/branding/icon')).toBe(true);
+  });
+
   it('has correct scope', () => {
     const result = manifest();
     expect(result.scope).toBe('/');
