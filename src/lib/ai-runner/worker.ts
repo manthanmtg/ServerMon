@@ -7,19 +7,25 @@ import AIRunnerSchedule from '@/models/AIRunnerSchedule';
 import type { AIRunnerRunStatus } from '@/modules/ai-runner/types';
 import {
   resolveAIRunnerExecutionPid,
-  spawnAIRunnerCommand,
+  spawnDurableAIRunnerCommand,
   terminateAIRunnerExecution,
 } from './execution';
+import {
+  readAIRunnerExit,
+  resolveAIRunnerArtifactPaths,
+  tailAIRunnerArtifactOutput,
+  writeAIRunnerMetadata,
+} from './artifact-store';
 import {
   DEFAULT_HEARTBEAT_STALE_MS,
   DEFAULT_OUTPUT_LIMIT,
   DEFAULT_RETRY_DELAY_MS,
-  applyOutputChunk,
   createEmptyBuffers,
   shouldRetryJob,
   stringifyId,
 } from './shared';
 import { writeAIRunnerLogEntry } from './logs';
+import { getAIRunnerSettings } from './settings';
 
 const log = createLogger('ai-runner:worker');
 
@@ -31,6 +37,8 @@ interface WorkerState {
   childExitSeen: boolean;
   dirty: boolean;
   executionUnit?: string;
+  paths?: ReturnType<typeof resolveAIRunnerArtifactPaths>;
+  processGroupId?: number;
   killedBy: KillReason;
   peakCpuPercent: number;
   peakMemoryBytes: number;
@@ -128,6 +136,8 @@ export class AIRunnerWorker {
       childExitSeen: false,
       dirty: false,
       executionUnit: undefined,
+      paths: undefined,
+      processGroupId: undefined,
       killedBy: null,
       peakCpuPercent: 0,
       peakMemoryBytes: 0,
@@ -155,6 +165,16 @@ export class AIRunnerWorker {
         stdout: state.buffers.stdout,
         stderr: state.buffers.stderr,
         rawOutput: state.buffers.rawOutput,
+        artifactDir: state.paths?.artifactDir,
+        stdoutPath: state.paths?.stdoutPath,
+        stderrPath: state.paths?.stderrPath,
+        combinedPath: state.paths?.combinedPath,
+        exitPath: state.paths?.exitPath,
+        executionRef: {
+          pid: state.childPid || undefined,
+          processGroupId: state.processGroupId,
+          unitName: state.executionUnit,
+        },
         resourceUsage: {
           peakCpuPercent: state.peakCpuPercent,
           peakMemoryBytes: state.peakMemoryBytes,
@@ -166,6 +186,16 @@ export class AIRunnerWorker {
         lastOutputAt: state.dirty || force ? heartbeatAt : job.lastOutputAt,
         childPid: state.childPid || job.childPid,
         executionUnit: state.executionUnit ?? job.executionUnit,
+        artifactDir: state.paths?.artifactDir,
+        stdoutPath: state.paths?.stdoutPath,
+        stderrPath: state.paths?.stderrPath,
+        combinedPath: state.paths?.combinedPath,
+        exitPath: state.paths?.exitPath,
+        executionRef: {
+          pid: state.childPid || undefined,
+          processGroupId: state.processGroupId,
+          unitName: state.executionUnit,
+        },
       };
 
       await Promise.all([
@@ -187,6 +217,16 @@ export class AIRunnerWorker {
             $set: {
               childPid: state.childPid || undefined,
               executionUnit: state.executionUnit,
+              artifactDir: state.paths?.artifactDir,
+              stdoutPath: state.paths?.stdoutPath,
+              stderrPath: state.paths?.stderrPath,
+              combinedPath: state.paths?.combinedPath,
+              exitPath: state.paths?.exitPath,
+              executionRef: {
+                pid: state.childPid || undefined,
+                processGroupId: state.processGroupId,
+                unitName: state.executionUnit,
+              },
             },
           }
         ),
@@ -199,6 +239,16 @@ export class AIRunnerWorker {
           {
             $set: {
               pid: state.childPid || undefined,
+              artifactDir: state.paths?.artifactDir,
+              stdoutPath: state.paths?.stdoutPath,
+              stderrPath: state.paths?.stderrPath,
+              combinedPath: state.paths?.combinedPath,
+              exitPath: state.paths?.exitPath,
+              executionRef: {
+                pid: state.childPid || undefined,
+                processGroupId: state.processGroupId,
+                unitName: state.executionUnit,
+              },
             },
           }
         ),
@@ -253,6 +303,24 @@ export class AIRunnerWorker {
               state.killedBy = 'user';
               terminateChild();
               return;
+            }
+
+            if (state.paths) {
+              const output = await tailAIRunnerArtifactOutput(state.paths, DEFAULT_OUTPUT_LIMIT);
+              state.buffers = {
+                stdout: output.stdout,
+                stderr: output.stderr,
+                rawOutput: output.rawOutput,
+                truncatedStdout: output.truncatedStdout,
+                truncatedStderr: output.truncatedStderr,
+                truncatedRaw: output.truncatedRaw,
+              };
+              markDirty();
+              const exit = await readAIRunnerExit(state.paths);
+              if (exit) {
+                void finalize(exit.exitCode, exit.exitCode === 0 ? 'completed' : 'failed');
+                return;
+              }
             }
 
             if (!state.childPid && state.executionUnit) {
@@ -408,6 +476,11 @@ export class AIRunnerWorker {
             exitCode: typeof exitCode === 'number' ? exitCode : undefined,
             childPid: state.childPid || undefined,
             executionUnit: undefined,
+            artifactDir: state.paths?.artifactDir,
+            stdoutPath: state.paths?.stdoutPath,
+            stderrPath: state.paths?.stderrPath,
+            combinedPath: state.paths?.combinedPath,
+            exitPath: state.paths?.exitPath,
             lastError:
               terminalRunStatus === 'completed'
                 ? undefined
@@ -428,6 +501,11 @@ export class AIRunnerWorker {
             heartbeatAt: finishedAt,
             lastOutputAt: finishedAt,
             pid: state.childPid || undefined,
+            artifactDir: state.paths?.artifactDir,
+            stdoutPath: state.paths?.stdoutPath,
+            stderrPath: state.paths?.stderrPath,
+            combinedPath: state.paths?.combinedPath,
+            exitPath: state.paths?.exitPath,
             attemptCount: latestJob?.attemptCount ?? job.attemptCount,
             maxAttempts: latestJob?.maxAttempts ?? job.maxAttempts,
             lastError:
@@ -475,11 +553,6 @@ export class AIRunnerWorker {
       completeRun?.();
     };
 
-    const applyChunk = (kind: 'stdout' | 'stderr', text: string) => {
-      state.buffers = applyOutputChunk(state.buffers, kind, text, DEFAULT_OUTPUT_LIMIT);
-      markDirty();
-    };
-
     const runEnv = {
       ...process.env,
       ...(job.env instanceof Map ? Object.fromEntries(job.env.entries()) : job.env),
@@ -488,13 +561,33 @@ export class AIRunnerWorker {
     };
 
     try {
-      const childExecution = await spawnAIRunnerCommand({
+      const settings = await getAIRunnerSettings();
+      const paths = resolveAIRunnerArtifactPaths(settings.artifactBaseDir, stringifyId(run._id));
+      state.paths = paths;
+      await writeAIRunnerMetadata(paths, {
+        jobId: stringifyId(job._id),
+        runId: stringifyId(run._id),
+        command: job.command,
+        shell: job.shell,
+        workingDirectory: job.workingDirectory,
+        promptId: job.promptId ? stringifyId(job.promptId) : undefined,
+        scheduleId: job.scheduleId ? stringifyId(job.scheduleId) : undefined,
+        autoflowId: job.autoflowId ? stringifyId(job.autoflowId) : undefined,
+        autoflowItemId: job.autoflowItemId ? stringifyId(job.autoflowItemId) : undefined,
+        agentProfileId: stringifyId(job.agentProfileId),
+        workspaceId: job.workspaceId ? stringifyId(job.workspaceId) : undefined,
+        timeoutMinutes: job.timeoutMinutes,
+        createdAt: new Date().toISOString(),
+      });
+
+      const childExecution = await spawnDurableAIRunnerCommand({
         jobId: this.jobId,
+        runId: stringifyId(run._id),
         shell: job.shell,
         command: job.command,
         cwd: job.workingDirectory,
         env: runEnv,
-        requiresTTY: job.requiresTTY,
+        paths,
       });
       const child = childExecution.child;
 
@@ -503,9 +596,10 @@ export class AIRunnerWorker {
           ? 0
           : (childExecution.pid ?? child.pid ?? 0);
       state.executionUnit = childExecution.unitName;
+      state.processGroupId = childExecution.processGroupId;
       terminateChild = () =>
         terminateAIRunnerExecution({
-          pid: state.childPid || undefined,
+          pid: state.processGroupId || state.childPid || undefined,
           unitName: state.executionUnit,
         });
 
@@ -519,17 +613,10 @@ export class AIRunnerWorker {
           runId: state.runId,
           pid: state.childPid || undefined,
           executionUnit: state.executionUnit,
+          artifactDir: paths.artifactDir,
           requiresTTY: job.requiresTTY,
           shell: job.shell,
         },
-      });
-
-      child.stdout?.on('data', (chunk: Buffer | string) => {
-        applyChunk('stdout', chunk.toString());
-      });
-
-      child.stderr?.on('data', (chunk: Buffer | string) => {
-        applyChunk('stderr', chunk.toString());
       });
 
       child.on('error', (error) => {
@@ -549,18 +636,24 @@ export class AIRunnerWorker {
       });
 
       child.on('close', (exitCode) => {
-        void writeAIRunnerLogEntry({
-          level: exitCode === 0 ? 'info' : 'warn',
-          component: 'ai-runner:worker',
-          event: 'worker.child_closed',
-          message: 'AI Runner child process closed',
-          data: {
-            jobId: this.jobId,
-            runId: state.runId,
-            exitCode,
-          },
-        });
-        void finalize(exitCode, exitCode === 0 ? 'completed' : 'failed');
+        void (async () => {
+          const exit = state.paths ? await readAIRunnerExit(state.paths) : null;
+          await writeAIRunnerLogEntry({
+            level: (exit?.exitCode ?? exitCode) === 0 ? 'info' : 'warn',
+            component: 'ai-runner:worker',
+            event: 'worker.child_closed',
+            message: 'AI Runner durable wrapper closed',
+            data: {
+              jobId: this.jobId,
+              runId: state.runId,
+              exitCode: exit?.exitCode ?? exitCode,
+            },
+          });
+          void finalize(
+            exit?.exitCode ?? exitCode,
+            (exit?.exitCode ?? exitCode) === 0 ? 'completed' : 'failed'
+          );
+        })();
       });
 
       await persistExecutionRef();

@@ -226,6 +226,29 @@ export function mapRun(
           peakMemoryPercent: Number(resourceUsage.peakMemoryPercent ?? 0),
         }
       : undefined,
+    artifactDir: doc.artifactDir ? String(doc.artifactDir) : undefined,
+    stdoutPath: doc.stdoutPath ? String(doc.stdoutPath) : undefined,
+    stderrPath: doc.stderrPath ? String(doc.stderrPath) : undefined,
+    combinedPath: doc.combinedPath ? String(doc.combinedPath) : undefined,
+    exitPath: doc.exitPath ? String(doc.exitPath) : undefined,
+    executionRef:
+      typeof doc.executionRef === 'object' && doc.executionRef !== null
+        ? {
+            pid:
+              typeof (doc.executionRef as { pid?: unknown }).pid === 'number'
+                ? Number((doc.executionRef as { pid?: unknown }).pid)
+                : undefined,
+            processGroupId:
+              typeof (doc.executionRef as { processGroupId?: unknown }).processGroupId === 'number'
+                ? Number((doc.executionRef as { processGroupId?: unknown }).processGroupId)
+                : undefined,
+            unitName: (doc.executionRef as { unitName?: unknown }).unitName
+              ? String((doc.executionRef as { unitName?: unknown }).unitName)
+              : undefined,
+          }
+        : undefined,
+    recoveryState: doc.recoveryState ? String(doc.recoveryState) : undefined,
+    lastRecoveryError: doc.lastRecoveryError ? String(doc.lastRecoveryError) : undefined,
   };
 }
 

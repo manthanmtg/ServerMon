@@ -26,6 +26,7 @@
 ## Task 1: Artifact Store
 
 **Files:**
+
 - Create: `src/lib/ai-runner/artifact-store.ts`
 - Create: `src/lib/ai-runner/artifact-store.test.ts`
 - Modify: `src/modules/ai-runner/types.ts`
@@ -51,6 +52,7 @@ Expected: PASS.
 ## Task 2: Settings And Models
 
 **Files:**
+
 - Modify: `src/models/AIRunnerSettings.ts`
 - Modify: `src/lib/ai-runner/settings.ts`
 - Modify: `src/lib/ai-runner/schemas.ts`
@@ -81,6 +83,7 @@ Expected: PASS.
 ## Task 3: Durable Execution Wrapper
 
 **Files:**
+
 - Create: `src/lib/ai-runner/execution-wrapper.ts`
 - Modify: `src/lib/ai-runner/execution.ts`
 - Modify: `src/lib/ai-runner/execution.test.ts`
@@ -106,6 +109,7 @@ Expected: PASS.
 ## Task 4: Worker File-First Output
 
 **Files:**
+
 - Modify: `src/lib/ai-runner/worker.ts`
 - Modify: `src/lib/ai-runner/worker-entry.ts`
 - Modify: `src/lib/ai-runner/worker.test.ts` if added, otherwise add coverage through existing execution/supervisor tests.
@@ -131,6 +135,7 @@ Expected: PASS.
 ## Task 5: Supervisor Recovery And Retention
 
 **Files:**
+
 - Modify: `src/lib/ai-runner/supervisor.ts`
 - Modify: `src/lib/ai-runner/supervisor.test.ts`
 
@@ -155,6 +160,7 @@ Expected: PASS.
 ## Task 6: Output APIs And UI
 
 **Files:**
+
 - Modify: `src/lib/ai-runner/service.ts`
 - Modify: `src/app/api/modules/ai-runner/runs/[runId]/route.ts`
 - Modify: `src/modules/ai-runner/ui/components/RunDetailDrawer.tsx`
@@ -182,6 +188,7 @@ Expected: PASS.
 ## Task 7: Verification
 
 **Files:**
+
 - Modify as required by failures only.
 
 - [ ] **Step 1: Run focused AI Runner tests**

@@ -6,7 +6,7 @@ import AIRunnerJob from '@/models/AIRunnerJob';
 import AIRunnerRun from '@/models/AIRunnerRun';
 import AIRunnerSchedule from '@/models/AIRunnerSchedule';
 import AIRunnerSupervisorLease from '@/models/AIRunnerSupervisorLease';
-import { terminateAIRunnerExecution } from './execution';
+import { isAIRunnerExecutionAlive, terminateAIRunnerExecution } from './execution';
 import { spawnAIRunnerWorker } from './processes';
 import { enqueueRunRequest } from './queue';
 import { getAIRunnerSettings } from './settings';
@@ -23,6 +23,7 @@ vi.mock('@/models/AIRunnerSchedule');
 vi.mock('@/models/AIRunnerSupervisorLease');
 
 vi.mock('./execution', () => ({
+  isAIRunnerExecutionAlive: vi.fn().mockReturnValue(false),
   terminateAIRunnerExecution: vi.fn(),
 }));
 
@@ -64,7 +65,11 @@ describe('AIRunnerSupervisor', () => {
     );
     (getAIRunnerSettings as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
       schedulesGloballyEnabled: true,
+      artifactBaseDir: '/tmp/servermon-ai-runner',
+      mongoRetentionDays: 30,
+      artifactRetentionDays: 90,
     });
+    (isAIRunnerExecutionAlive as unknown as ReturnType<typeof vi.fn>).mockReturnValue(false);
     (writeAIRunnerLogEntry as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
     (AIRunnerJob.findOne as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
       select: vi.fn().mockResolvedValue(null),

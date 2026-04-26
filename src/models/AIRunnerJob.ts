@@ -34,6 +34,18 @@ export interface IAIRunnerJob extends Document {
   workerPid?: number;
   childPid?: number;
   executionUnit?: string;
+  artifactDir?: string;
+  stdoutPath?: string;
+  stderrPath?: string;
+  combinedPath?: string;
+  exitPath?: string;
+  executionRef?: {
+    pid?: number;
+    processGroupId?: number;
+    unitName?: string;
+  };
+  recoveryState?: string;
+  lastRecoveryError?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -77,6 +89,18 @@ const AIRunnerJobSchema = new Schema<IAIRunnerJob>(
     workerPid: { type: Number },
     childPid: { type: Number },
     executionUnit: { type: String, maxlength: 256 },
+    artifactDir: { type: String, maxlength: 2000 },
+    stdoutPath: { type: String, maxlength: 2000 },
+    stderrPath: { type: String, maxlength: 2000 },
+    combinedPath: { type: String, maxlength: 2000 },
+    exitPath: { type: String, maxlength: 2000 },
+    executionRef: {
+      pid: { type: Number },
+      processGroupId: { type: Number },
+      unitName: { type: String, maxlength: 256 },
+    },
+    recoveryState: { type: String, maxlength: 120 },
+    lastRecoveryError: { type: String, maxlength: 10_000 },
   },
   { timestamps: true }
 );

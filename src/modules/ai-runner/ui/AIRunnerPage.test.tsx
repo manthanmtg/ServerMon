@@ -100,6 +100,9 @@ const mockCreatedAutoflow: AIRunnerAutoflowDTO = {
 const mockRunnerSettings: AIRunnerSettingsDTO = {
   schedulesGloballyEnabled: true,
   autoflowMode: 'sequential',
+  artifactBaseDir: '/tmp/servermon-ai-runner',
+  mongoRetentionDays: 30,
+  artifactRetentionDays: 90,
 };
 const mockDiagnostics: {
   runtime: {

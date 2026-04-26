@@ -120,7 +120,62 @@ export interface AIRunnerScheduleDTO {
 export interface AIRunnerSettingsDTO {
   schedulesGloballyEnabled: boolean;
   autoflowMode: 'sequential' | 'parallel';
+  artifactBaseDir: string;
+  mongoRetentionDays: number;
+  artifactRetentionDays: number;
   updatedAt?: string;
+}
+
+export interface AIRunnerArtifactPathsDTO {
+  artifactDir: string;
+  metadataPath: string;
+  stdoutPath: string;
+  stderrPath: string;
+  combinedPath: string;
+  exitPath: string;
+  wrapperLogPath: string;
+}
+
+export interface AIRunnerArtifactOutputDTO {
+  stdout: string;
+  stderr: string;
+  rawOutput: string;
+  truncatedStdout: boolean;
+  truncatedStderr: boolean;
+  truncatedRaw: boolean;
+}
+
+export interface AIRunnerExecutionRefDTO {
+  pid?: number;
+  processGroupId?: number;
+  unitName?: string;
+}
+
+export interface AIRunnerExecutionExitDTO {
+  jobId: string;
+  runId: string;
+  exitCode: number | null;
+  signal: string | null;
+  startedAt: string;
+  finishedAt: string;
+  durationSeconds: number;
+}
+
+export interface AIRunnerExecutionMetadataDTO {
+  jobId: string;
+  runId: string;
+  command: string;
+  shell: string;
+  workingDirectory: string;
+  promptId?: string;
+  scheduleId?: string;
+  autoflowId?: string;
+  autoflowItemId?: string;
+  agentProfileId: string;
+  workspaceId?: string;
+  timeoutMinutes: number;
+  createdAt: string;
+  executionRef?: AIRunnerExecutionRefDTO;
 }
 
 export interface AIRunnerLogEntry {
@@ -179,6 +234,14 @@ export interface AIRunnerRunDTO {
   lastOutputAt?: string;
   lastError?: string;
   resourceUsage?: AIRunnerResourceUsage;
+  artifactDir?: string;
+  stdoutPath?: string;
+  stderrPath?: string;
+  combinedPath?: string;
+  exitPath?: string;
+  executionRef?: AIRunnerExecutionRefDTO;
+  recoveryState?: string;
+  lastRecoveryError?: string;
 }
 
 export interface AIRunnerTemplateValidationResult {

@@ -40,6 +40,18 @@ export interface IAIRunnerRun extends Document {
     peakMemoryBytes: number;
     peakMemoryPercent: number;
   };
+  artifactDir?: string;
+  stdoutPath?: string;
+  stderrPath?: string;
+  combinedPath?: string;
+  exitPath?: string;
+  executionRef?: {
+    pid?: number;
+    processGroupId?: number;
+    unitName?: string;
+  };
+  recoveryState?: string;
+  lastRecoveryError?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -89,6 +101,18 @@ const AIRunnerRunSchema = new Schema<IAIRunnerRun>(
       peakMemoryBytes: { type: Number },
       peakMemoryPercent: { type: Number },
     },
+    artifactDir: { type: String, maxlength: 2000 },
+    stdoutPath: { type: String, maxlength: 2000 },
+    stderrPath: { type: String, maxlength: 2000 },
+    combinedPath: { type: String, maxlength: 2000 },
+    exitPath: { type: String, maxlength: 2000 },
+    executionRef: {
+      pid: { type: Number },
+      processGroupId: { type: Number },
+      unitName: { type: String, maxlength: 256 },
+    },
+    recoveryState: { type: String, maxlength: 120 },
+    lastRecoveryError: { type: String, maxlength: 10_000 },
   },
   { timestamps: true }
 );

@@ -32,6 +32,7 @@ import type {
 } from '@/modules/ai-runner/types';
 import { ensureAIRunnerSupervisor } from './processes';
 import { terminateAIRunnerExecution } from './execution';
+import { tailAIRunnerArtifactOutput } from './artifact-store';
 import { enqueueRunRequest } from './queue';
 import { getAIRunnerSettings, updateAIRunnerSettings } from './settings';
 import {
@@ -535,6 +536,9 @@ export class AIRunnerService {
   async updateSettings(input: {
     schedulesGloballyEnabled?: boolean;
     autoflowMode?: 'sequential' | 'parallel';
+    artifactBaseDir?: string;
+    mongoRetentionDays?: number;
+    artifactRetentionDays?: number;
   }): Promise<AIRunnerSettingsDTO> {
     const settings = await updateAIRunnerSettings(input);
     ensureAIRunnerSupervisor();
@@ -1107,7 +1111,22 @@ export class AIRunnerService {
   async getRun(id: string): Promise<AIRunnerRunDTO | null> {
     await connectDB();
     const run = await AIRunnerRun.findById(id);
-    return run ? mapRun(run) : null;
+    if (!run) return null;
+    const dto = mapRun(run);
+    if (dto.artifactDir && dto.stdoutPath && dto.stderrPath && dto.combinedPath) {
+      const output = await tailAIRunnerArtifactOutput({
+        stdoutPath: dto.stdoutPath,
+        stderrPath: dto.stderrPath,
+        combinedPath: dto.combinedPath,
+      });
+      return {
+        ...dto,
+        stdout: output.stdout,
+        stderr: output.stderr,
+        rawOutput: output.rawOutput,
+      };
+    }
+    return dto;
   }
 
   async getActiveRuns(): Promise<AIRunnerRunDTO[]> {
@@ -1196,10 +1215,13 @@ export class AIRunnerService {
       ]);
     }
 
-    const pid = typeof job.childPid === 'number' ? job.childPid : run.pid;
+    const pid =
+      job.executionRef?.processGroupId ??
+      job.executionRef?.pid ??
+      (typeof job.childPid === 'number' ? job.childPid : run.pid);
     terminateAIRunnerExecution({
       pid: typeof pid === 'number' && pid > 0 ? pid : undefined,
-      unitName: job.executionUnit,
+      unitName: job.executionUnit ?? job.executionRef?.unitName,
     });
 
     return true;

@@ -145,6 +145,9 @@ export const scheduleUpdateSchema = scheduleCreateSchema.partial();
 export const settingsUpdateSchema = z.object({
   schedulesGloballyEnabled: z.boolean().optional(),
   autoflowMode: autoflowModeSchema.optional(),
+  artifactBaseDir: z.string().trim().min(1).max(2000).optional(),
+  mongoRetentionDays: z.number().int().min(1).max(3650).optional(),
+  artifactRetentionDays: z.number().int().min(1).max(3650).optional(),
 });
 
 const autoflowItemCreateSchema = z

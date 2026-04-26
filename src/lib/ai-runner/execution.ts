@@ -1,10 +1,18 @@
 import { randomUUID } from 'node:crypto';
-import { execFile, spawn, spawnSync, type ChildProcessByStdio } from 'node:child_process';
+import {
+  execFile,
+  spawn,
+  spawnSync,
+  type ChildProcess,
+  type ChildProcessByStdio,
+} from 'node:child_process';
 import type { Readable } from 'node:stream';
 import { mkdir, rm, writeFile } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
 import os from 'node:os';
 import path from 'node:path';
 import { createLogger } from '@/lib/logger';
+import type { AIRunnerArtifactPathsDTO, AIRunnerExecutionRefDTO } from '@/modules/ai-runner/types';
 import { shellEscape } from './shared';
 
 const log = createLogger('ai-runner:execution');
@@ -24,8 +32,22 @@ export interface AIRunnerSpawnedCommand extends AIRunnerExecutionRef {
   child: ChildProcessByStdio<null, Readable, Readable>;
 }
 
+export interface AIRunnerDurableCommand extends AIRunnerExecutionRef {
+  child: ChildProcess;
+  launchPath: string;
+  processGroupId?: number;
+}
+
 function sanitizeUnitSegment(value: string): string {
   return value.replace(/[^a-zA-Z0-9:-]/g, '-').slice(0, 48) || 'job';
+}
+
+function getTsxCliPath(): string {
+  return path.resolve(process.cwd(), 'node_modules', 'tsx', 'dist', 'cli.mjs');
+}
+
+function getWrapperPath(): string {
+  return fileURLToPath(new URL('./execution-wrapper.ts', import.meta.url));
 }
 
 function execFileAsync(
@@ -152,6 +174,105 @@ export function terminateAIRunnerExecution(ref: AIRunnerExecutionRef): boolean {
       return false;
     }
   }
+}
+
+export function isAIRunnerExecutionAlive(ref: AIRunnerExecutionRefDTO): boolean {
+  if (ref.unitName) {
+    try {
+      const result = spawnSync('systemctl', ['is-active', '--quiet', ref.unitName], {
+        stdio: 'ignore',
+      });
+      if (result.status === 0) return true;
+    } catch {
+      return false;
+    }
+  }
+
+  const pid = ref.processGroupId ?? ref.pid;
+  if (!pid) return false;
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export async function spawnDurableAIRunnerCommand(input: {
+  jobId: string;
+  runId: string;
+  shell: string;
+  command: string;
+  cwd: string;
+  env: NodeJS.ProcessEnv;
+  paths: AIRunnerArtifactPathsDTO;
+}): Promise<AIRunnerDurableCommand> {
+  await mkdir(input.paths.artifactDir, { recursive: true, mode: 0o700 });
+  const launchPath = path.join(input.paths.artifactDir, `launch-${randomUUID()}.json`);
+  await writeFile(
+    launchPath,
+    `${JSON.stringify(
+      {
+        jobId: input.jobId,
+        runId: input.runId,
+        shell: input.shell,
+        command: input.command,
+        cwd: input.cwd,
+        env: Object.fromEntries(
+          Object.entries(input.env).filter((entry): entry is [string, string] => {
+            return typeof entry[1] === 'string';
+          })
+        ),
+        paths: input.paths,
+      },
+      null,
+      2
+    )}\n`,
+    { mode: 0o600 }
+  );
+
+  const wrapperArgs = [getTsxCliPath(), getWrapperPath(), launchPath];
+  const useSystemdIsolation = await canUseSystemdIsolation();
+
+  if (useSystemdIsolation) {
+    const unitName = `${UNIT_PREFIX}-${sanitizeUnitSegment(input.jobId)}-${Date.now()}`;
+    const child = spawn(
+      'systemd-run',
+      [
+        '--quiet',
+        '--collect',
+        '--service-type=exec',
+        '--unit',
+        unitName,
+        '--property=KillMode=control-group',
+        '--slice',
+        'servermon-ai-runner.slice',
+        '--working-directory',
+        input.cwd,
+        '--pipe',
+        process.execPath,
+        ...wrapperArgs,
+      ],
+      {
+        stdio: ['ignore', 'ignore', 'ignore'],
+      }
+    );
+    return { child, launchPath, unitName };
+  }
+
+  const child = spawn(process.execPath, wrapperArgs, {
+    cwd: input.cwd,
+    detached: true,
+    env: input.env,
+    stdio: ['ignore', 'ignore', 'ignore'],
+  });
+  child.unref();
+  return {
+    child,
+    launchPath,
+    pid: child.pid ?? undefined,
+    processGroupId: child.pid ?? undefined,
+  };
 }
 
 export async function spawnAIRunnerCommand(input: {
