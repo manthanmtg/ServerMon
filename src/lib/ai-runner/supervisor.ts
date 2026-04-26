@@ -7,7 +7,12 @@ import AIRunnerRun from '@/models/AIRunnerRun';
 import AIRunnerSchedule from '@/models/AIRunnerSchedule';
 import AIRunnerSupervisorLease from '@/models/AIRunnerSupervisorLease';
 import type { AIRunnerRunStatus } from '@/modules/ai-runner/types';
-import { terminateAIRunnerExecution } from './execution';
+import { isAIRunnerExecutionAlive, terminateAIRunnerExecution } from './execution';
+import {
+  cleanupAIRunnerArtifacts,
+  readAIRunnerExit,
+  resolveAIRunnerArtifactPaths,
+} from './artifact-store';
 import { writeAIRunnerLogEntry } from './logs';
 import { spawnAIRunnerWorker } from './processes';
 import { enqueueRunRequest } from './queue';
@@ -37,6 +42,7 @@ export class AIRunnerSupervisor {
 
   private readonly tickMs = DEFAULT_SUPERVISOR_TICK_MS;
   private readonly maxConcurrentRuns = getMaxConcurrentRuns();
+  private lastRetentionCleanupAt = Number.NEGATIVE_INFINITY;
 
   async run(): Promise<void> {
     await connectDB();
@@ -119,6 +125,7 @@ export class AIRunnerSupervisor {
     await this.enqueueDueSchedules();
     await this.advanceAutoflows();
     await this.dispatchRunnableJobs();
+    await this.cleanupRetainedHistory();
   }
 
   private async advanceAutoflows(): Promise<void> {
@@ -260,14 +267,143 @@ export class AIRunnerSupervisor {
     }).sort({ updatedAt: 1 });
 
     for (const job of staleJobs) {
-      terminateAIRunnerExecution({
-        pid: job.childPid ?? job.workerPid,
-        unitName: job.executionUnit,
-      });
       const run = await AIRunnerRun.findById(job.runId);
       const timedOut =
         job.startedAt != null && Date.now() > job.startedAt.getTime() + job.timeoutMinutes * 60_000;
       const cancelled = job.cancelRequestedAt != null;
+      const paths =
+        job.artifactDir && job.stdoutPath && job.stderrPath && job.combinedPath && job.exitPath
+          ? {
+              artifactDir: job.artifactDir,
+              metadataPath: `${job.artifactDir}/metadata.json`,
+              stdoutPath: job.stdoutPath,
+              stderrPath: job.stderrPath,
+              combinedPath: job.combinedPath,
+              exitPath: job.exitPath,
+              wrapperLogPath: `${job.artifactDir}/wrapper.log`,
+            }
+          : run?.artifactDir
+            ? resolveAIRunnerArtifactPaths(
+                run.artifactDir.replace(/\/runs\/[^/]+$/, ''),
+                stringifyId(run._id)
+              )
+            : null;
+      const exit = paths ? await readAIRunnerExit(paths) : null;
+      if (exit) {
+        const exitCode = typeof exit.exitCode === 'number' ? exit.exitCode : 1;
+        const terminalStatus: AIRunnerRunStatus = exitCode === 0 ? 'completed' : 'failed';
+        const retryable = exitCode !== 0 && !cancelled && shouldRetryJob(job);
+        if (retryable) {
+          const nextAttemptAt = new Date(Date.now() + DEFAULT_RETRY_DELAY_MS);
+          await Promise.all([
+            AIRunnerJob.findByIdAndUpdate(job._id, {
+              $set: {
+                status: 'retrying',
+                nextAttemptAt,
+                heartbeatAt: undefined,
+                childPid: undefined,
+                workerPid: undefined,
+                executionUnit: undefined,
+                recoveryState: 'exit_retry',
+                lastRecoveryError: undefined,
+                lastError: 'Recovered failed exit marker and queued retry',
+              },
+            }),
+            AIRunnerRun.findByIdAndUpdate(job.runId, {
+              $set: {
+                status: 'retrying',
+                jobStatus: 'retrying',
+                exitCode,
+                heartbeatAt: undefined,
+                pid: undefined,
+                recoveryState: 'exit_retry',
+                lastRecoveryError: undefined,
+                lastError: 'Recovered failed exit marker and queued retry',
+              },
+              $unset: {
+                finishedAt: '',
+                durationSeconds: '',
+              },
+            }),
+          ]);
+          continue;
+        }
+
+        const finishedAt = new Date(exit.finishedAt);
+        await Promise.all([
+          AIRunnerJob.findByIdAndUpdate(job._id, {
+            $set: {
+              status: terminalStatus === 'completed' ? 'completed' : 'failed',
+              finishedAt,
+              heartbeatAt: finishedAt,
+              exitCode,
+              executionUnit: undefined,
+              recoveryState: 'exit_recovered',
+              lastRecoveryError: undefined,
+              lastError: terminalStatus === 'completed' ? undefined : 'Recovered non-zero exit',
+            },
+          }),
+          AIRunnerRun.findByIdAndUpdate(job.runId, {
+            $set: {
+              status: terminalStatus,
+              jobStatus: terminalStatus === 'completed' ? 'completed' : 'failed',
+              finishedAt,
+              durationSeconds: exit.durationSeconds,
+              heartbeatAt: finishedAt,
+              exitCode,
+              recoveryState: 'exit_recovered',
+              lastRecoveryError: undefined,
+              lastError: terminalStatus === 'completed' ? undefined : 'Recovered non-zero exit',
+            },
+          }),
+        ]);
+        continue;
+      }
+
+      const executionAlive = isAIRunnerExecutionAlive({
+        pid: job.childPid ?? job.workerPid,
+        processGroupId: job.executionRef?.processGroupId,
+        unitName: job.executionUnit ?? job.executionRef?.unitName,
+      });
+
+      if (executionAlive && !timedOut && !cancelled) {
+        const heartbeatAt = new Date();
+        await Promise.all([
+          AIRunnerJob.findByIdAndUpdate(job._id, {
+            $set: {
+              status: 'running',
+              heartbeatAt,
+              recoveryState: 'observed_alive',
+              lastRecoveryError: undefined,
+            },
+          }),
+          AIRunnerRun.findByIdAndUpdate(job.runId, {
+            $set: {
+              status: 'running',
+              jobStatus: 'running',
+              heartbeatAt,
+              recoveryState: 'observed_alive',
+              lastRecoveryError: undefined,
+            },
+          }),
+        ]);
+        await writeAIRunnerLogEntry({
+          level: 'info',
+          component: 'ai-runner:supervisor',
+          event: 'job.stale_recovered_alive',
+          message: 'Recovered stale AI Runner job because execution is still alive',
+          data: {
+            jobId: stringifyId(job._id),
+            runId: stringifyId(job.runId),
+          },
+        });
+        continue;
+      }
+
+      terminateAIRunnerExecution({
+        pid: job.executionRef?.processGroupId ?? job.childPid ?? job.workerPid,
+        unitName: job.executionUnit ?? job.executionRef?.unitName,
+      });
       const retryable = !cancelled && !timedOut && shouldRetryJob(job);
 
       await writeAIRunnerLogEntry({
@@ -536,6 +672,53 @@ export class AIRunnerSupervisor {
 
       schedule.nextRunTime = cursor;
       await schedule.save();
+    }
+  }
+
+  private async cleanupRetainedHistory(): Promise<void> {
+    const nowMs = Date.now();
+    if (nowMs - this.lastRetentionCleanupAt < 60 * 60 * 1000) {
+      return;
+    }
+    this.lastRetentionCleanupAt = nowMs;
+    const settings = await getAIRunnerSettings();
+    const now = new Date();
+    const activeRuns = await AIRunnerRun.find({
+      status: { $in: ['queued', 'running', 'retrying'] },
+    })
+      .select('_id')
+      .lean();
+    const activeRunIds = new Set(activeRuns.map((run) => stringifyId(run._id)));
+    const mongoCutoff = new Date(now.getTime() - settings.mongoRetentionDays * 24 * 60 * 60 * 1000);
+
+    await Promise.all([
+      AIRunnerJob.deleteMany({
+        status: { $in: ['completed', 'failed', 'canceled'] },
+        updatedAt: { $lt: mongoCutoff },
+      }),
+      AIRunnerRun.deleteMany({
+        status: { $in: ['completed', 'failed', 'timeout', 'killed'] },
+        updatedAt: { $lt: mongoCutoff },
+      }),
+    ]);
+
+    const deletedArtifacts = await cleanupAIRunnerArtifacts({
+      baseDir: settings.artifactBaseDir,
+      retentionDays: settings.artifactRetentionDays,
+      activeRunIds,
+      now,
+    });
+
+    if (deletedArtifacts.length > 0) {
+      await writeAIRunnerLogEntry({
+        level: 'info',
+        component: 'ai-runner:supervisor',
+        event: 'artifacts.retention_cleanup',
+        message: 'Cleaned up old AI Runner artifact folders',
+        data: {
+          count: deletedArtifacts.length,
+        },
+      });
     }
   }
 

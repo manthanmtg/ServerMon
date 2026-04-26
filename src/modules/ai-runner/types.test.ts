@@ -66,6 +66,9 @@ describe('ai-runner type shapes', () => {
     const settings: AIRunnerSettingsDTO = {
       schedulesGloballyEnabled: false,
       autoflowMode: 'sequential',
+      artifactBaseDir: '/var/lib/servermon/ai-runner',
+      mongoRetentionDays: 30,
+      artifactRetentionDays: 90,
       updatedAt: '2026-04-20T10:00:00.000Z',
     };
     expect(settings.schedulesGloballyEnabled).toBe(false);

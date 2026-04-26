@@ -403,6 +403,18 @@ export function RunDetailDrawer({
                       <dd>{run.pid ?? '—'}</dd>
                     </div>
                     <div>
+                      <dt className="text-xs text-muted-foreground">Artifact directory</dt>
+                      <dd className="break-all font-mono text-xs">{run.artifactDir || '—'}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs text-muted-foreground">Recovery state</dt>
+                      <dd>{run.recoveryState || '—'}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs text-muted-foreground">Recovery error</dt>
+                      <dd className="break-words">{run.lastRecoveryError || '—'}</dd>
+                    </div>
+                    <div>
                       <dt className="text-xs text-muted-foreground">Attempts</dt>
                       <dd>
                         {run.attemptCount ?? 0}

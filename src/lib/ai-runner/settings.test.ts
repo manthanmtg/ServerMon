@@ -37,6 +37,9 @@ describe('ai-runner settings', () => {
       settingsModel().findById.mockResolvedValue({
         schedulesGloballyEnabled: false,
         autoflowMode: 'parallel',
+        artifactBaseDir: '/tmp/ai-runner',
+        mongoRetentionDays: 14,
+        artifactRetentionDays: 45,
         updatedAt,
       });
 
@@ -48,6 +51,9 @@ describe('ai-runner settings', () => {
       expect(result).toEqual({
         schedulesGloballyEnabled: false,
         autoflowMode: 'parallel',
+        artifactBaseDir: '/tmp/ai-runner',
+        mongoRetentionDays: 14,
+        artifactRetentionDays: 45,
         updatedAt: '2026-04-26T07:00:00.000Z',
       });
     });
@@ -57,6 +63,9 @@ describe('ai-runner settings', () => {
       settingsModel().create.mockResolvedValue({
         schedulesGloballyEnabled: true,
         autoflowMode: 'sequential',
+        artifactBaseDir: '/tmp/default-ai-runner',
+        mongoRetentionDays: 30,
+        artifactRetentionDays: 90,
         updatedAt: '2026-04-26T07:15:00.000Z',
       });
 
@@ -66,6 +75,9 @@ describe('ai-runner settings', () => {
       expect(result).toEqual({
         schedulesGloballyEnabled: true,
         autoflowMode: 'sequential',
+        artifactBaseDir: '/tmp/default-ai-runner',
+        mongoRetentionDays: 30,
+        artifactRetentionDays: 90,
         updatedAt: '2026-04-26T07:15:00.000Z',
       });
     });
@@ -80,6 +92,9 @@ describe('ai-runner settings', () => {
       expect(result).toEqual({
         schedulesGloballyEnabled: true,
         autoflowMode: 'sequential',
+        artifactBaseDir: expect.stringContaining('.servermon/ai-runner'),
+        mongoRetentionDays: 30,
+        artifactRetentionDays: 90,
         updatedAt: undefined,
       });
     });
@@ -101,12 +116,18 @@ describe('ai-runner settings', () => {
       settingsModel().findOneAndUpdate.mockResolvedValue({
         schedulesGloballyEnabled: false,
         autoflowMode: 'parallel',
+        artifactBaseDir: '/tmp/ai-runner',
+        mongoRetentionDays: 10,
+        artifactRetentionDays: 60,
         updatedAt: new Date('2026-04-26T07:30:00.000Z'),
       });
 
       const result = await updateAIRunnerSettings({
         schedulesGloballyEnabled: false,
         autoflowMode: 'parallel',
+        artifactBaseDir: '/tmp/ai-runner',
+        mongoRetentionDays: 10,
+        artifactRetentionDays: 60,
       });
 
       expect(connectDB).toHaveBeenCalledOnce();
@@ -116,6 +137,9 @@ describe('ai-runner settings', () => {
           $set: {
             schedulesGloballyEnabled: false,
             autoflowMode: 'parallel',
+            artifactBaseDir: '/tmp/ai-runner',
+            mongoRetentionDays: 10,
+            artifactRetentionDays: 60,
           },
         },
         {
@@ -127,6 +151,9 @@ describe('ai-runner settings', () => {
       expect(result).toEqual({
         schedulesGloballyEnabled: false,
         autoflowMode: 'parallel',
+        artifactBaseDir: '/tmp/ai-runner',
+        mongoRetentionDays: 10,
+        artifactRetentionDays: 60,
         updatedAt: '2026-04-26T07:30:00.000Z',
       });
     });
@@ -135,6 +162,9 @@ describe('ai-runner settings', () => {
       settingsModel().findOneAndUpdate.mockResolvedValue({
         schedulesGloballyEnabled: true,
         autoflowMode: 'sequential',
+        artifactBaseDir: '/tmp/default-ai-runner',
+        mongoRetentionDays: 30,
+        artifactRetentionDays: 90,
       });
 
       const result = await updateAIRunnerSettings({
@@ -156,6 +186,9 @@ describe('ai-runner settings', () => {
       expect(result).toEqual({
         schedulesGloballyEnabled: true,
         autoflowMode: 'sequential',
+        artifactBaseDir: '/tmp/default-ai-runner',
+        mongoRetentionDays: 30,
+        artifactRetentionDays: 90,
         updatedAt: undefined,
       });
     });
