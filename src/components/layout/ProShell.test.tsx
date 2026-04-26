@@ -59,6 +59,15 @@ vi.mock('@/components/layout/QuickAccessBar', () => ({
   default: () => <div data-testid="quick-access-bar" />,
 }));
 
+vi.mock('@/components/layout/CommandSearch', () => ({
+  default: ({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) =>
+    isOpen ? (
+      <div data-testid="command-search">
+        <button onClick={onClose}>Close command search</button>
+      </div>
+    ) : null,
+}));
+
 vi.mock('@/components/ui/ConfirmationModal', () => ({
   default: ({
     isOpen,
@@ -163,6 +172,31 @@ describe('ProShell', () => {
   it('renders ThemeSelector in the header', () => {
     renderProShell();
     expect(screen.getByTestId('theme-selector')).toBeDefined();
+  });
+
+  it('opens command search with the header search button', () => {
+    renderProShell();
+    fireEvent.click(screen.getByLabelText('Open search'));
+    expect(screen.getByTestId('command-search')).toBeDefined();
+  });
+
+  it('opens command search with Cmd+K', () => {
+    renderProShell();
+    fireEvent.keyDown(window, { key: 'k', metaKey: true });
+    expect(screen.getByTestId('command-search')).toBeDefined();
+  });
+
+  it('opens command search with Ctrl+K', () => {
+    renderProShell();
+    fireEvent.keyDown(window, { key: 'k', ctrlKey: true });
+    expect(screen.getByTestId('command-search')).toBeDefined();
+  });
+
+  it('can close command search from the overlay', () => {
+    renderProShell();
+    fireEvent.keyDown(window, { key: 'k', metaKey: true });
+    fireEvent.click(screen.getByText('Close command search'));
+    expect(screen.queryByTestId('command-search')).toBeNull();
   });
 
   it('shows QuickAccessBar on the dashboard page', () => {

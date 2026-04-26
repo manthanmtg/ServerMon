@@ -12,6 +12,14 @@ vi.mock('@/components/ui/toast', () => ({
   useToast: () => ({ toast: mockToast }),
 }));
 
+const { mockSearchParams } = vi.hoisted(() => ({
+  mockSearchParams: vi.fn(() => new URLSearchParams()),
+}));
+
+vi.mock('next/navigation', () => ({
+  useSearchParams: () => mockSearchParams(),
+}));
+
 import AIRunnerPage from './AIRunnerPage';
 import type {
   AIRunnerDirectoriesResponse,
@@ -132,6 +140,7 @@ const mockDiagnostics: {
 describe('AIRunnerPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockSearchParams.mockReturnValue(new URLSearchParams());
     mockRunnerSettings.schedulesGloballyEnabled = true;
     mockRunnerSettings.autoflowMode = 'sequential';
     mockRunnerSettings.artifactBaseDir = '/tmp/servermon-ai-runner';
@@ -215,6 +224,18 @@ describe('AIRunnerPage', () => {
 
     expect(screen.getByText('AutoFlow Builder')).toBeInTheDocument();
     expect(screen.queryByRole('tab', { name: /^Run$/i })).not.toBeInTheDocument();
+  });
+
+  it('opens the tab requested by the search param', async () => {
+    mockSearchParams.mockReturnValue(new URLSearchParams('tab=history'));
+
+    await act(async () => {
+      render(<AIRunnerPage />);
+    });
+
+    await waitFor(() => expect(screen.getByText('AI Agent Runner')).toBeInTheDocument());
+
+    expect(screen.getByRole('tab', { name: /History/i })).toHaveAttribute('aria-selected', 'true');
   });
 
   it('keeps the prompts tab focused on a single library surface', async () => {

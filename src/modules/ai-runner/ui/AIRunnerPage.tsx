@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from 'react';
+import { useSearchParams } from 'next/navigation';
 import {
   AlertTriangle,
   Bot,
@@ -312,9 +313,19 @@ function getResourceLabel(resource: AIRunnerPortableResource): string {
   return PORTABLE_RESOURCE_OPTIONS.find((item) => item.id === resource)?.label ?? resource;
 }
 
+function isViewTab(value: string | null): value is ViewTab {
+  return TAB_META.some((tab) => tab.id === value);
+}
+
+function parseViewTab(value: string | null): ViewTab {
+  return isViewTab(value) ? value : 'autoflows';
+}
+
 export default function AIRunnerPage() {
   const { toast } = useToast();
-  const [activeTab, setActiveTab] = useState<ViewTab>('autoflows');
+  const searchParams = useSearchParams();
+  const requestedTab = searchParams.get('tab');
+  const [activeTab, setActiveTab] = useState<ViewTab>(() => parseViewTab(requestedTab));
   const liveNow = useRealtimeNow(activeTab === 'schedules');
   const [loading, setLoading] = useState(true);
   const [metadataLoaded, setMetadataLoaded] = useState(false);
@@ -842,6 +853,10 @@ export default function AIRunnerPage() {
   // down and recreate the interval on every tick.
   const selectedRunId = selectedRun?._id;
   const selectedRunStatus = selectedRun?.status;
+  useEffect(() => {
+    setActiveTab(parseViewTab(requestedTab));
+  }, [requestedTab]);
+
   useEffect(() => {
     if (!selectedRunId || !selectedRunStatus) return;
     if (!['queued', 'running', 'retrying'].includes(selectedRunStatus)) return;

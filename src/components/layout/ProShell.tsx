@@ -6,42 +6,13 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useTheme } from '@/lib/ThemeContext';
 import { useBrand } from '@/lib/BrandContext';
 import ThemeSelector from './ThemeSelector';
-import {
-  LayoutDashboard,
-  Terminal,
-  Monitor,
-  Activity,
-  FolderTree,
-  Settings,
-  LogOut,
-  Menu,
-  X,
-  HardDrive,
-  Container,
-  Cog,
-  Bot,
-  BookOpen,
-  Package,
-  Clock,
-  Cable,
-  Cpu,
-  ShieldCheck,
-  Server,
-  ServerCog,
-  Shield,
-  Power,
-  LoaderCircle,
-  Brain,
-  Users as UsersIcon,
-  Waypoints,
-  Zap,
-  Bell,
-  KeyRound,
-} from 'lucide-react';
+import { Activity, LogOut, Menu, X, Power, LoaderCircle, Search } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/components/ui/toast';
 import ConfirmationModal from '@/components/ui/ConfirmationModal';
 import QuickAccessBar from '@/components/layout/QuickAccessBar';
+import CommandSearch from '@/components/layout/CommandSearch';
+import { footerNavItems, navGroups } from '@/components/layout/navigation';
 
 interface ProShellProps {
   children: React.ReactNode;
@@ -49,49 +20,6 @@ interface ProShellProps {
   subtitle?: string;
   headerContent?: React.ReactNode;
 }
-
-const navGroups = [
-  {
-    label: 'Overview',
-    items: [{ label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard }],
-  },
-  {
-    label: 'Fleet',
-    items: [
-      { label: 'Fleet', href: '/fleet', icon: ServerCog },
-      { label: 'Hub Setup', href: '/fleet/setup', icon: Cog },
-      { label: 'Endpoint Runner', href: '/fleet/endpoint-runner', icon: Zap },
-      { label: 'Alerts', href: '/fleet/alerts', icon: Bell },
-    ],
-  },
-  {
-    label: 'Modules',
-    items: [
-      { label: 'Terminal', href: '/terminal', icon: Terminal },
-      { label: 'Processes', href: '/processes', icon: Monitor },
-      { label: 'Audit Logs', href: '/logs', icon: Activity },
-      { label: 'File Browser', href: '/file-browser', icon: FolderTree },
-      { label: 'Disk', href: '/disk', icon: HardDrive },
-      { label: 'Network', href: '/network', icon: Activity },
-      { label: 'Updates', href: '/updates', icon: Package },
-      { label: 'Docker', href: '/docker', icon: Container },
-      { label: 'Services', href: '/services', icon: Cog },
-      { label: 'AI Agents', href: '/ai-agents', icon: Bot },
-      { label: 'AI Runner', href: '/ai-runner', icon: Zap },
-      { label: 'Crons', href: '/crons', icon: Clock },
-      { label: 'Ports', href: '/ports', icon: Cable },
-      { label: 'Hardware', href: '/hardware', icon: Cpu },
-      { label: 'Certificates', href: '/certificates', icon: ShieldCheck },
-      { label: 'Nginx', href: '/nginx', icon: Server },
-      { label: 'Security', href: '/security', icon: Shield },
-      { label: 'Users & Permissions', href: '/users', icon: UsersIcon },
-      { label: 'Memory', href: '/memory', icon: Brain },
-      { label: 'Endpoints', href: '/endpoints', icon: Waypoints },
-      { label: 'Self Service', href: '/self-service', icon: Zap },
-      { label: 'EnvVars', href: '/env-vars', icon: KeyRound },
-    ],
-  },
-];
 
 function getBrowserStorage(): Storage | null {
   if (typeof window === 'undefined' || typeof window.localStorage === 'undefined') return null;
@@ -180,32 +108,25 @@ function SidebarNav({
       </nav>
 
       <div className="p-3 border-t border-sidebar-border space-y-0.5 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-        <Link
-          href="/guide"
-          onClick={onNavigate}
-          className={cn(
-            'flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] font-medium transition-colors min-h-[44px]',
-            pathname === '/guide'
-              ? 'bg-primary text-primary-foreground'
-              : 'text-sidebar-foreground hover:bg-accent hover:text-foreground active:bg-accent'
-          )}
-        >
-          <BookOpen className="w-4 h-4 shrink-0" />
-          User Guide
-        </Link>
-        <Link
-          href="/settings"
-          onClick={onNavigate}
-          className={cn(
-            'flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] font-medium transition-colors min-h-[44px]',
-            pathname === '/settings'
-              ? 'bg-primary text-primary-foreground'
-              : 'text-sidebar-foreground hover:bg-accent hover:text-foreground active:bg-accent'
-          )}
-        >
-          <Settings className="w-4 h-4 shrink-0" />
-          Settings
-        </Link>
+        {footerNavItems.map((item) => {
+          const isActive = pathname === item.href;
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              onClick={onNavigate}
+              className={cn(
+                'flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] font-medium transition-colors min-h-[44px]',
+                isActive
+                  ? 'bg-primary text-primary-foreground'
+                  : 'text-sidebar-foreground hover:bg-accent hover:text-foreground active:bg-accent'
+              )}
+            >
+              <item.icon className="w-4 h-4 shrink-0" />
+              {item.label}
+            </Link>
+          );
+        })}
         <button
           onClick={onLogout}
           className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] font-medium text-sidebar-foreground hover:bg-destructive/10 hover:text-destructive active:bg-destructive/10 transition-colors cursor-pointer min-h-[44px]"
@@ -227,6 +148,7 @@ export default function ProShell({ children, title, subtitle, headerContent }: P
   const { toast } = useToast();
   const [showRebootConfirm, setShowRebootConfirm] = useState(false);
   const [isRebooting, setIsRebooting] = useState(false);
+  const [commandSearchOpen, setCommandSearchOpen] = useState(false);
 
   // Update document title
   useEffect(() => {
@@ -254,6 +176,18 @@ export default function ProShell({ children, title, subtitle, headerContent }: P
       document.body.style.overflow = '';
     };
   }, [sidebarOpen]);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault();
+        setCommandSearchOpen(true);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   const handleLogout = async () => {
     try {
@@ -343,6 +277,15 @@ export default function ProShell({ children, title, subtitle, headerContent }: P
             )}
 
             <button
+              onClick={() => setCommandSearchOpen(true)}
+              className="flex h-9 w-9 items-center justify-center rounded-xl border border-border bg-background text-muted-foreground transition-colors hover:bg-accent hover:text-foreground active:bg-accent"
+              aria-label="Open search"
+              title="Open search"
+            >
+              <Search className="w-4 h-4" />
+            </button>
+
+            <button
               onClick={() => setShowRebootConfirm(true)}
               disabled={isRebooting}
               className={cn(
@@ -389,6 +332,9 @@ export default function ProShell({ children, title, subtitle, headerContent }: P
         variant="danger"
         isLoading={isRebooting}
       />
+      {commandSearchOpen && (
+        <CommandSearch isOpen={true} onClose={() => setCommandSearchOpen(false)} />
+      )}
     </div>
   );
 }
