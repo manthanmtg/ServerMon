@@ -274,13 +274,19 @@ function CronFormModal({ mode, initial, onClose, onSubmit }: CronFormModalProps)
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-background/80 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl border border-border bg-card shadow-xl mx-4">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="cron-form-modal-title"
+        className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl border border-border bg-card shadow-xl mx-4"
+      >
         <div className="flex items-center justify-between p-5 border-b border-border">
-          <h2 className="text-lg font-semibold">
+          <h2 id="cron-form-modal-title" className="text-lg font-semibold">
             {mode === 'create' ? 'Create Cron Job' : 'Edit Cron Job'}
           </h2>
           <button
             type="button"
+            aria-label={`Close ${mode === 'create' ? 'create job' : 'edit job'} dialog`}
             onClick={onClose}
             className="p-2 rounded-lg hover:bg-accent transition-colors"
           >
@@ -1095,6 +1101,8 @@ export default function CronsPage() {
                           <td className="py-3 px-4">
                             <button
                               type="button"
+                              aria-expanded={isExpanded}
+                              aria-label={`${isExpanded ? 'Hide' : 'Show'} next runs for ${job.command}`}
                               onClick={() => setExpandedJob(isExpanded ? null : job.id)}
                               className="p-1 rounded hover:bg-accent transition-colors"
                             >

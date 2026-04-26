@@ -118,6 +118,16 @@ describe('CronsPage', () => {
     expect(screen.getByText('Create Cron Job')).toBeDefined();
   });
 
+  it('labels the create job dialog and close control', async () => {
+    await renderPage();
+    await act(async () => {
+      fireEvent.click(screen.getByText('New Job'));
+    });
+
+    const dialog = screen.getByRole('dialog', { name: 'Create Cron Job' });
+    expect(within(dialog).getByRole('button', { name: 'Close create job dialog' })).toBeDefined();
+  });
+
   it('handles job toggle via PUT', async () => {
     await renderPage();
     await waitFor(() => screen.getByText('echo "hello"'));
@@ -202,7 +212,9 @@ describe('CronsPage', () => {
     await renderPage();
     await waitFor(() => screen.getByText('echo "hello"'));
     const row = screen.getByText('echo "hello"').closest('tr')!;
-    const expandBtn = within(row).getAllByRole('button')[0];
+    const expandBtn = within(row).getByRole('button', {
+      name: 'Show next runs for echo "hello"',
+    });
     await act(async () => {
       fireEvent.click(expandBtn);
     });
