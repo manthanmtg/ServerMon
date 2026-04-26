@@ -97,6 +97,7 @@ export function FileBrowserGitBar({ git, onRefresh }: Props) {
   const [showHistory, setShowHistory] = useState(false);
   const [commitMsg, setCommitMsg] = useState('');
   const [mounted, setMounted] = useState(false);
+  const busyRef = useRef<string | null>(null);
   const branchBtnRef = useRef<HTMLButtonElement>(null);
   const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0 });
 
@@ -113,6 +114,8 @@ export function FileBrowserGitBar({ git, onRefresh }: Props) {
 
   const doAction = useCallback(
     async (action: string, extra: Record<string, string> = {}, label?: string) => {
+      if (busyRef.current) return;
+      busyRef.current = action;
       setBusy(action);
       try {
         const result = await gitAction(git.root, action, extra);
@@ -125,6 +128,7 @@ export function FileBrowserGitBar({ git, onRefresh }: Props) {
           variant: 'destructive',
         });
       } finally {
+        busyRef.current = null;
         setBusy(null);
       }
     },
@@ -189,13 +193,13 @@ export function FileBrowserGitBar({ git, onRefresh }: Props) {
                       <button
                         key={b}
                         type="button"
-                        disabled={b === git.branch || busy === 'checkout'}
+                        disabled={b === git.branch || Boolean(busy)}
                         onClick={async () => {
                           setShowBranches(false);
                           await doAction('checkout', { branch: b }, `Switched to ${b}`);
                         }}
                         className={cn(
-                          'flex items-center gap-2 w-full rounded-lg px-2.5 py-2 text-left transition-colors',
+                          'flex items-center gap-2 w-full rounded-lg px-2.5 py-2 text-left transition-colors disabled:cursor-wait disabled:opacity-50',
                           b === git.branch
                             ? 'bg-primary/10 text-primary font-semibold'
                             : 'hover:bg-accent text-foreground'
@@ -215,6 +219,7 @@ export function FileBrowserGitBar({ git, onRefresh }: Props) {
                           <button
                             key={b}
                             type="button"
+                            disabled={Boolean(busy)}
                             onClick={async () => {
                               setShowBranches(false);
                               const localName = b.split('/').slice(1).join('/');
@@ -224,7 +229,7 @@ export function FileBrowserGitBar({ git, onRefresh }: Props) {
                                 `Switched to ${localName}`
                               );
                             }}
-                            className="flex items-center gap-2 w-full rounded-lg px-2.5 py-2 text-left hover:bg-accent text-muted-foreground transition-colors"
+                            className="flex items-center gap-2 w-full rounded-lg px-2.5 py-2 text-left hover:bg-accent text-muted-foreground transition-colors disabled:cursor-wait disabled:opacity-50"
                           >
                             <span className="ml-5 truncate text-[11px]">{b}</span>
                           </button>
@@ -288,7 +293,7 @@ export function FileBrowserGitBar({ git, onRefresh }: Props) {
               variant="ghost"
               size="sm"
               className="h-7 px-2 text-[10px] font-bold uppercase tracking-wider text-destructive hover:bg-destructive/10"
-              disabled={busy === 'discard-all'}
+              disabled={Boolean(busy)}
               onClick={() => doAction('discard-all', {}, 'Discarded all changes')}
               title="Discard all changes"
             >
@@ -317,7 +322,7 @@ export function FileBrowserGitBar({ git, onRefresh }: Props) {
           </button>
           <button
             type="button"
-            disabled={busy === 'fetch'}
+            disabled={Boolean(busy)}
             onClick={() => doAction('fetch', {}, 'Fetched')}
             className="flex items-center gap-1.5 rounded-xl border border-border/60 bg-background px-3 py-1.5 font-bold text-[10px] uppercase tracking-wider text-muted-foreground transition-all hover:bg-accent hover:text-foreground hover:shadow-sm active:scale-95 disabled:opacity-50"
           >
@@ -331,7 +336,7 @@ export function FileBrowserGitBar({ git, onRefresh }: Props) {
           {git.behind > 0 && (
             <button
               type="button"
-              disabled={busy === 'pull'}
+              disabled={Boolean(busy)}
               onClick={() => doAction('pull', {}, 'Pulled')}
               className="flex items-center gap-1.5 rounded-xl border border-border/60 bg-background px-3 py-1.5 font-bold text-[10px] uppercase tracking-wider text-muted-foreground transition-all hover:bg-accent hover:text-foreground hover:shadow-sm active:scale-95 disabled:opacity-50"
             >
@@ -384,7 +389,7 @@ export function FileBrowserGitBar({ git, onRefresh }: Props) {
             type="submit"
             size="sm"
             className="h-8 px-3 text-[10px]"
-            disabled={!commitMsg.trim() || busy === 'commit'}
+            disabled={!commitMsg.trim() || Boolean(busy)}
           >
             {busy === 'commit' ? (
               <LoaderCircle className="w-3 h-3 animate-spin" />
@@ -421,8 +426,8 @@ export function FileBrowserGitBar({ git, onRefresh }: Props) {
                 <button
                   type="button"
                   onClick={() => doAction('unstage-all', {}, 'Unstaged all')}
-                  disabled={busy === 'unstage-all'}
-                  className="text-[10px] font-semibold text-muted-foreground hover:text-foreground transition-colors"
+                  disabled={Boolean(busy)}
+                  className="text-[10px] font-semibold text-muted-foreground hover:text-foreground transition-colors disabled:cursor-wait disabled:opacity-50"
                 >
                   Unstage All
                 </button>
@@ -437,6 +442,7 @@ export function FileBrowserGitBar({ git, onRefresh }: Props) {
                         icon: <Minus className="w-3 h-3" />,
                         title: 'Unstage',
                         onClick: () => doAction('unstage', { path: f.path }, `Unstaged ${f.path}`),
+                        disabled: Boolean(busy),
                       },
                     ]}
                   />
@@ -459,8 +465,8 @@ export function FileBrowserGitBar({ git, onRefresh }: Props) {
                   <button
                     type="button"
                     onClick={() => doAction('stage-all', {}, 'Staged all')}
-                    disabled={busy === 'stage-all'}
-                    className="text-[10px] font-semibold text-muted-foreground hover:text-foreground transition-colors"
+                    disabled={Boolean(busy)}
+                    className="text-[10px] font-semibold text-muted-foreground hover:text-foreground transition-colors disabled:cursor-wait disabled:opacity-50"
                   >
                     Stage All
                   </button>
@@ -476,12 +482,14 @@ export function FileBrowserGitBar({ git, onRefresh }: Props) {
                         icon: <Plus className="w-3 h-3" />,
                         title: 'Stage',
                         onClick: () => doAction('stage', { path: f.path }, `Staged ${f.path}`),
+                        disabled: Boolean(busy),
                       },
                       {
                         icon: <Undo2 className="w-3 h-3" />,
                         title: 'Discard',
                         onClick: () => doAction('discard', { path: f.path }, `Discarded ${f.path}`),
                         destructive: true,
+                        disabled: Boolean(busy),
                       },
                     ]}
                   />
@@ -503,8 +511,8 @@ export function FileBrowserGitBar({ git, onRefresh }: Props) {
                 <button
                   type="button"
                   onClick={() => doAction('stage-all', {}, 'Staged all')}
-                  disabled={busy === 'stage-all'}
-                  className="text-[10px] font-semibold text-muted-foreground hover:text-foreground transition-colors"
+                  disabled={Boolean(busy)}
+                  className="text-[10px] font-semibold text-muted-foreground hover:text-foreground transition-colors disabled:cursor-wait disabled:opacity-50"
                 >
                   Stage All
                 </button>
@@ -519,6 +527,7 @@ export function FileBrowserGitBar({ git, onRefresh }: Props) {
                         icon: <Plus className="w-3 h-3" />,
                         title: 'Stage',
                         onClick: () => doAction('stage', { path: f.path }, `Staged ${f.path}`),
+                        disabled: Boolean(busy),
                       },
                     ]}
                   />
@@ -544,6 +553,7 @@ interface FileAction {
   title: string;
   onClick: () => void;
   destructive?: boolean;
+  disabled?: boolean;
 }
 
 function FileStatusRow({ file, actions }: { file: GitFileStatus; actions: FileAction[] }) {
@@ -565,8 +575,9 @@ function FileStatusRow({ file, actions }: { file: GitFileStatus; actions: FileAc
             type="button"
             title={a.title}
             onClick={a.onClick}
+            disabled={a.disabled}
             className={cn(
-              'p-1 rounded-md transition-colors',
+              'p-1 rounded-md transition-colors disabled:cursor-wait disabled:opacity-50',
               a.destructive
                 ? 'hover:bg-destructive/10 hover:text-destructive text-muted-foreground'
                 : 'hover:bg-primary/10 hover:text-primary text-muted-foreground'

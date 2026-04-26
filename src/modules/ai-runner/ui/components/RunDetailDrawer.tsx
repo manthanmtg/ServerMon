@@ -70,6 +70,8 @@ export function RunDetailDrawer({
   onClose,
   onRerun,
   onKill,
+  rerunPending = false,
+  killPending = false,
   onOpenPrompt,
   onOpenSchedule,
   getRunDisplayName,
@@ -83,6 +85,8 @@ export function RunDetailDrawer({
   onClose: () => void;
   onRerun: () => void;
   onKill: () => void;
+  rerunPending?: boolean;
+  killPending?: boolean;
   onOpenPrompt: () => void;
   onOpenSchedule: () => void;
   getRunDisplayName: (run: AIRunnerRunDTO) => string;
@@ -225,18 +229,18 @@ export function RunDetailDrawer({
             ))}
 
             <div className="ml-auto flex flex-wrap gap-2">
-              <Button variant="outline" size="sm" onClick={onRerun}>
+              <Button variant="outline" size="sm" onClick={onRerun} loading={rerunPending}>
                 <Play className="w-4 h-4" />
                 Rerun
               </Button>
               {(run.status === 'failed' || run.status === 'timeout') && (
-                <Button variant="outline" size="sm" onClick={onRerun}>
+                <Button variant="outline" size="sm" onClick={onRerun} loading={rerunPending}>
                   <RefreshCcw className="w-4 h-4" />
                   Retry
                 </Button>
               )}
               {run.status === 'running' && (
-                <Button variant="destructive" size="sm" onClick={onKill}>
+                <Button variant="destructive" size="sm" onClick={onKill} loading={killPending}>
                   <Square className="w-4 h-4" />
                   Kill
                 </Button>

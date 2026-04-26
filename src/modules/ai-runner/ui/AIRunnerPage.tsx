@@ -327,6 +327,7 @@ export default function AIRunnerPage() {
   const [scheduleVisualizationOpen, setScheduleVisualizationOpen] = useState(false);
   const [linkedDeleteTarget, setLinkedDeleteTarget] = useState<LinkedDeleteTarget | null>(null);
   const [linkedDeletePending, setLinkedDeletePending] = useState(false);
+  const [pendingActions, setPendingActions] = useState<Set<string>>(() => new Set());
   const [scheduleVisualizationProfileId, setScheduleVisualizationProfileId] = useState<
     string | null
   >(null);
@@ -376,8 +377,41 @@ export default function AIRunnerPage() {
   const runsAbortRef = useRef<AbortController | null>(null);
   const metadataAbortRef = useRef<AbortController | null>(null);
   const schedulesAbortRef = useRef<AbortController | null>(null);
+  const pendingActionsRef = useRef<Set<string>>(new Set());
   const logViewportRef = useRef<HTMLDivElement | null>(null);
   const logsEventSourceRef = useRef<EventSource | null>(null);
+
+  const setActionPending = useCallback((key: string, pending: boolean) => {
+    const nextPendingActions = new Set(pendingActionsRef.current);
+    if (pending) {
+      nextPendingActions.add(key);
+    } else {
+      nextPendingActions.delete(key);
+    }
+    pendingActionsRef.current = nextPendingActions;
+    setPendingActions(nextPendingActions);
+  }, []);
+
+  const runExclusiveAction = useCallback(
+    async (key: string, action: () => Promise<void>) => {
+      if (pendingActionsRef.current.has(key)) return;
+      setActionPending(key, true);
+      try {
+        await action();
+      } catch (error) {
+        toast({
+          title: 'Action failed',
+          description: error instanceof Error ? error.message : 'Unable to complete this action',
+          variant: 'destructive',
+        });
+      } finally {
+        setActionPending(key, false);
+      }
+    },
+    [setActionPending, toast]
+  );
+
+  const isActionPending = useCallback((key: string) => pendingActions.has(key), [pendingActions]);
 
   const loadRuns = useCallback(
     async (searchOverride?: string) => {
@@ -2174,8 +2208,8 @@ export default function AIRunnerPage() {
               <Button
                 variant="outline"
                 size="default"
-                onClick={() => void loadAll()}
-                loading={refreshing}
+                onClick={() => void runExclusiveAction('refresh:all', () => loadAll())}
+                loading={refreshing || isActionPending('refresh:all')}
                 className="h-11 w-full shrink-0 justify-center px-5 sm:w-auto lg:min-w-32"
               >
                 <RefreshCcw className="w-4 h-4" />
@@ -2297,8 +2331,11 @@ export default function AIRunnerPage() {
                               variant="destructive"
                               onClick={(event) => {
                                 event.stopPropagation();
-                                void deletePrompt(prompt._id);
+                                void runExclusiveAction(`prompt:delete:${prompt._id}`, () =>
+                                  deletePrompt(prompt._id)
+                                );
                               }}
+                              loading={isActionPending(`prompt:delete:${prompt._id}`)}
                             >
                               <Trash2 className="w-4 h-4" />
                               Delete
@@ -2556,7 +2593,10 @@ export default function AIRunnerPage() {
                         <Button variant="outline" onClick={resetPromptForm}>
                           Reset
                         </Button>
-                        <Button onClick={() => void submitPrompt()}>
+                        <Button
+                          onClick={() => void runExclusiveAction('prompt:save', submitPrompt)}
+                          loading={isActionPending('prompt:save')}
+                        >
                           <Save className="w-4 h-4" />
                           {editingPromptId ? 'Update prompt' : 'Create prompt'}
                         </Button>
@@ -2615,7 +2655,12 @@ export default function AIRunnerPage() {
                   <Button
                     size="lg"
                     variant="outline"
-                    onClick={() => void openScheduleVisualization()}
+                    onClick={() =>
+                      void runExclusiveAction('schedule:visualize:all', () =>
+                        openScheduleVisualization()
+                      )
+                    }
+                    loading={isActionPending('schedule:visualize:all')}
                     className="w-full justify-start"
                   >
                     <Eye className="w-4 h-4" />
@@ -2624,8 +2669,12 @@ export default function AIRunnerPage() {
                   <Button
                     size="lg"
                     variant="outline"
-                    loading={globalScheduleTogglePending}
-                    onClick={() => void toggleGlobalScheduleQueue()}
+                    loading={
+                      globalScheduleTogglePending || isActionPending('schedule:global-toggle')
+                    }
+                    onClick={() =>
+                      void runExclusiveAction('schedule:global-toggle', toggleGlobalScheduleQueue)
+                    }
                     className={cn(
                       'w-full justify-start border-2',
                       schedulesGloballyEnabled
@@ -2734,14 +2783,24 @@ export default function AIRunnerPage() {
                             <Button
                               size="sm"
                               variant="outline"
-                              onClick={() => void duplicateSchedule(schedule)}
+                              onClick={() =>
+                                void runExclusiveAction(`schedule:duplicate:${schedule._id}`, () =>
+                                  duplicateSchedule(schedule)
+                                )
+                              }
+                              loading={isActionPending(`schedule:duplicate:${schedule._id}`)}
                               title="Duplicate Schedule"
                             >
                               <Copy className="w-4 h-4" />
                             </Button>
                             <Button
                               size="sm"
-                              onClick={() => void runScheduleNow(schedule)}
+                              onClick={() =>
+                                void runExclusiveAction(`schedule:run:${schedule._id}`, () =>
+                                  runScheduleNow(schedule)
+                                )
+                              }
+                              loading={isActionPending(`schedule:run:${schedule._id}`)}
                               disabled={!canStartSchedule}
                               title={
                                 canStartSchedule
@@ -2755,7 +2814,12 @@ export default function AIRunnerPage() {
                             <Button
                               size="sm"
                               variant="outline"
-                              onClick={() => void toggleSchedule(schedule._id)}
+                              onClick={() =>
+                                void runExclusiveAction(`schedule:toggle:${schedule._id}`, () =>
+                                  toggleSchedule(schedule._id)
+                                )
+                              }
+                              loading={isActionPending(`schedule:toggle:${schedule._id}`)}
                               disabled={!canToggleSchedule}
                               title={
                                 canToggleSchedule
@@ -2778,7 +2842,12 @@ export default function AIRunnerPage() {
                             <Button
                               size="sm"
                               variant="destructive"
-                              onClick={() => void deleteSchedule(schedule._id)}
+                              onClick={() =>
+                                void runExclusiveAction(`schedule:delete:${schedule._id}`, () =>
+                                  deleteSchedule(schedule._id)
+                                )
+                              }
+                              loading={isActionPending(`schedule:delete:${schedule._id}`)}
                             >
                               <Trash2 className="w-4 h-4" />
                               Delete
@@ -3146,7 +3215,10 @@ export default function AIRunnerPage() {
                         <Button variant="outline" onClick={resetScheduleForm}>
                           Reset
                         </Button>
-                        <Button onClick={() => void submitSchedule()}>
+                        <Button
+                          onClick={() => void runExclusiveAction('schedule:save', submitSchedule)}
+                          loading={isActionPending('schedule:save')}
+                        >
                           <CalendarClock className="w-4 h-4" />
                           {editingScheduleId ? 'Update schedule' : 'Create schedule'}
                         </Button>
@@ -3457,7 +3529,8 @@ export default function AIRunnerPage() {
                   <Button
                     size="lg"
                     disabled={autoflowItems.length === 0 && !hasAutoflowDraftPrompt}
-                    onClick={() => void submitAutoflow()}
+                    onClick={() => void runExclusiveAction('autoflow:submit', submitAutoflow)}
+                    loading={isActionPending('autoflow:submit')}
                   >
                     <Play className="w-4 h-4" />
                     Start AutoFlow
@@ -3504,7 +3577,15 @@ export default function AIRunnerPage() {
                         </div>
                         <div className="flex flex-wrap gap-2">
                           {autoflow.status !== 'running' ? (
-                            <Button size="sm" onClick={() => void startAutoflow(autoflow._id)}>
+                            <Button
+                              size="sm"
+                              onClick={() =>
+                                void runExclusiveAction(`autoflow:start:${autoflow._id}`, () =>
+                                  startAutoflow(autoflow._id)
+                                )
+                              }
+                              loading={isActionPending(`autoflow:start:${autoflow._id}`)}
+                            >
                               <Play className="w-4 h-4" />
                               Restart
                             </Button>
@@ -3512,7 +3593,12 @@ export default function AIRunnerPage() {
                             <Button
                               size="sm"
                               variant="destructive"
-                              onClick={() => void cancelAutoflow(autoflow._id)}
+                              onClick={() =>
+                                void runExclusiveAction(`autoflow:cancel:${autoflow._id}`, () =>
+                                  cancelAutoflow(autoflow._id)
+                                )
+                              }
+                              loading={isActionPending(`autoflow:cancel:${autoflow._id}`)}
                             >
                               <Square className="w-4 h-4" />
                               Cancel
@@ -3646,7 +3732,10 @@ export default function AIRunnerPage() {
 
                       <Button
                         variant="outline"
-                        onClick={() => void loadAll(runSearch)}
+                        onClick={() =>
+                          void runExclusiveAction('history:refresh', () => loadAll(runSearch))
+                        }
+                        loading={isActionPending('history:refresh')}
                         className="h-10 shrink-0"
                       >
                         <RefreshCcw className="w-4 h-4" />
@@ -3795,7 +3884,12 @@ export default function AIRunnerPage() {
                   <Button
                     size="lg"
                     variant="outline"
-                    onClick={() => void openScheduleVisualization()}
+                    onClick={() =>
+                      void runExclusiveAction('schedule:visualize:settings-all', () =>
+                        openScheduleVisualization()
+                      )
+                    }
+                    loading={isActionPending('schedule:visualize:settings-all')}
                     className="w-full justify-start"
                   >
                     <Eye className="w-4 h-4" />
@@ -3854,12 +3948,23 @@ export default function AIRunnerPage() {
                       <button
                         key={mode}
                         type="button"
-                        onClick={() => void updateDefaultAutoflowMode(mode)}
+                        onClick={() =>
+                          void runExclusiveAction(`settings:autoflow-mode:${mode}`, () =>
+                            updateDefaultAutoflowMode(mode)
+                          )
+                        }
+                        disabled={
+                          isActionPending('settings:autoflow-mode:sequential') ||
+                          isActionPending('settings:autoflow-mode:parallel')
+                        }
                         className={cn(
                           'h-9 rounded-md px-4 text-sm font-medium transition-colors',
                           (runnerSettings?.autoflowMode ?? 'sequential') === mode
                             ? 'bg-primary text-primary-foreground'
-                            : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'
+                            : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground',
+                          (isActionPending('settings:autoflow-mode:sequential') ||
+                            isActionPending('settings:autoflow-mode:parallel')) &&
+                            'cursor-wait opacity-60'
                         )}
                       >
                         {mode === 'sequential' ? 'Sequential' : 'Parallel'}
@@ -3917,7 +4022,12 @@ export default function AIRunnerPage() {
                             <Button
                               size="sm"
                               variant="destructive"
-                              onClick={() => void deleteWorkspace(workspace._id)}
+                              onClick={() =>
+                                void runExclusiveAction(`workspace:delete:${workspace._id}`, () =>
+                                  deleteWorkspace(workspace._id)
+                                )
+                              }
+                              loading={isActionPending(`workspace:delete:${workspace._id}`)}
                             >
                               Delete
                             </Button>
@@ -3972,7 +4082,13 @@ export default function AIRunnerPage() {
                             <Button
                               size="sm"
                               variant="destructive"
-                              onClick={() => void deletePromptTemplate(template._id)}
+                              onClick={() =>
+                                void runExclusiveAction(
+                                  `prompt-template:delete:${template._id}`,
+                                  () => deletePromptTemplate(template._id)
+                                )
+                              }
+                              loading={isActionPending(`prompt-template:delete:${template._id}`)}
                             >
                               Delete
                             </Button>
@@ -4091,13 +4207,27 @@ export default function AIRunnerPage() {
                             <Button
                               size="sm"
                               variant="outline"
-                              onClick={() => void openScheduleVisualization(profile._id)}
+                              onClick={() =>
+                                void runExclusiveAction(
+                                  `schedule:visualize:profile:${profile._id}`,
+                                  () => openScheduleVisualization(profile._id)
+                                )
+                              }
+                              loading={isActionPending(`schedule:visualize:profile:${profile._id}`)}
                               disabled={scheduleSummary.totalSchedules === 0}
                             >
                               <Eye className="w-4 h-4" />
                               Visualize Schedules
                             </Button>
-                            <Button size="sm" onClick={() => void testProfile(profile._id)}>
+                            <Button
+                              size="sm"
+                              onClick={() =>
+                                void runExclusiveAction(`profile:test:${profile._id}`, () =>
+                                  testProfile(profile._id)
+                                )
+                              }
+                              loading={isActionPending(`profile:test:${profile._id}`)}
+                            >
                               <Play className="w-4 h-4" />
                               Test
                             </Button>
@@ -4111,7 +4241,12 @@ export default function AIRunnerPage() {
                             <Button
                               size="sm"
                               variant="destructive"
-                              onClick={() => void deleteProfile(profile._id)}
+                              onClick={() =>
+                                void runExclusiveAction(`profile:delete:${profile._id}`, () =>
+                                  deleteProfile(profile._id)
+                                )
+                              }
+                              loading={isActionPending(`profile:delete:${profile._id}`)}
                             >
                               <Trash2 className="w-4 h-4" />
                               Delete
@@ -4450,14 +4585,23 @@ export default function AIRunnerPage() {
                         Cancel
                       </Button>
                       <div className="flex flex-wrap gap-2">
-                        <Button variant="outline" onClick={() => void validateProfile()}>
+                        <Button
+                          variant="outline"
+                          onClick={() =>
+                            void runExclusiveAction('profile:validate', validateProfile)
+                          }
+                          loading={isActionPending('profile:validate')}
+                        >
                           <TerminalSquare className="w-4 h-4" />
                           Validate
                         </Button>
                         <Button variant="outline" onClick={resetProfileForm}>
                           Reset
                         </Button>
-                        <Button onClick={() => void submitProfile()}>
+                        <Button
+                          onClick={() => void runExclusiveAction('profile:save', submitProfile)}
+                          loading={isActionPending('profile:save')}
+                        >
                           <Save className="w-4 h-4" />
                           {editingProfileId ? 'Update profile' : 'Create profile'}
                         </Button>
@@ -4557,7 +4701,10 @@ export default function AIRunnerPage() {
                       <Button variant="outline" onClick={closeWorkspaceModal}>
                         Cancel
                       </Button>
-                      <Button onClick={() => void submitWorkspace()}>
+                      <Button
+                        onClick={() => void runExclusiveAction('workspace:save', submitWorkspace)}
+                        loading={isActionPending('workspace:save')}
+                      >
                         <Save className="w-4 h-4" />
                         Save Workspace
                       </Button>
@@ -4633,7 +4780,12 @@ export default function AIRunnerPage() {
                       <Button variant="outline" onClick={closePromptTemplateModal}>
                         Cancel
                       </Button>
-                      <Button onClick={() => void submitPromptTemplate()}>
+                      <Button
+                        onClick={() =>
+                          void runExclusiveAction('prompt-template:save', submitPromptTemplate)
+                        }
+                        loading={isActionPending('prompt-template:save')}
+                      >
                         <Save className="w-4 h-4" />
                         Save Template
                       </Button>
@@ -4745,8 +4897,10 @@ export default function AIRunnerPage() {
                             <CardContent className="space-y-4">
                               <div className="flex flex-wrap gap-2">
                                 <Button
-                                  onClick={() => void generateExportBundle()}
-                                  loading={bundlePending}
+                                  onClick={() =>
+                                    void runExclusiveAction('bundle:export', generateExportBundle)
+                                  }
+                                  loading={bundlePending || isActionPending('bundle:export')}
                                 >
                                   <FileJson className="w-4 h-4" />
                                   Generate JSON
@@ -4754,7 +4908,10 @@ export default function AIRunnerPage() {
                                 <Button
                                   variant="outline"
                                   disabled={!exportJson}
-                                  onClick={() => void copyExportJson()}
+                                  onClick={() =>
+                                    void runExclusiveAction('bundle:copy', copyExportJson)
+                                  }
+                                  loading={isActionPending('bundle:copy')}
                                 >
                                   <Copy className="w-4 h-4" />
                                   Copy JSON
@@ -4814,16 +4971,28 @@ export default function AIRunnerPage() {
                                 </label>
                                 <Button
                                   variant="outline"
-                                  onClick={() => void previewImportBundle()}
-                                  loading={bundlePending}
+                                  onClick={() =>
+                                    void runExclusiveAction(
+                                      'bundle:import-preview',
+                                      previewImportBundle
+                                    )
+                                  }
+                                  loading={
+                                    bundlePending || isActionPending('bundle:import-preview')
+                                  }
                                   disabled={!importJson.trim()}
                                 >
                                   <Eye className="w-4 h-4" />
                                   Preview Import
                                 </Button>
                                 <Button
-                                  onClick={() => void applyImportBundle()}
-                                  loading={bundlePending}
+                                  onClick={() =>
+                                    void runExclusiveAction(
+                                      'bundle:import-apply',
+                                      applyImportBundle
+                                    )
+                                  }
+                                  loading={bundlePending || isActionPending('bundle:import-apply')}
                                   disabled={!importPreview || !importPreview.valid}
                                 >
                                   <Upload className="w-4 h-4" />
@@ -5035,7 +5204,12 @@ export default function AIRunnerPage() {
                       <p className="text-xs font-medium text-muted-foreground">Current log file</p>
                       <p className="mt-1 break-all font-mono text-xs">{logFilePath || '—'}</p>
                     </div>
-                    <Button variant="outline" onClick={() => void loadLogs()} className="w-full">
+                    <Button
+                      variant="outline"
+                      onClick={() => void runExclusiveAction('logs:refresh', loadLogs)}
+                      loading={isActionPending('logs:refresh')}
+                      className="w-full"
+                    >
                       <RefreshCcw className="w-4 h-4" />
                       Refresh Tail
                     </Button>
@@ -5147,8 +5321,14 @@ export default function AIRunnerPage() {
           historyDetailSection={historyDetailSection}
           onSectionChange={setHistoryDetailSection}
           onClose={() => setHistoryDetailOpen(false)}
-          onRerun={() => void rerunHistoryItem(selectedRun)}
-          onKill={() => void killSelectedRun()}
+          onRerun={() =>
+            void runExclusiveAction(`run:rerun:${selectedRun._id}`, () =>
+              rerunHistoryItem(selectedRun)
+            )
+          }
+          onKill={() => void runExclusiveAction(`run:kill:${selectedRun._id}`, killSelectedRun)}
+          rerunPending={isActionPending(`run:rerun:${selectedRun._id}`)}
+          killPending={isActionPending(`run:kill:${selectedRun._id}`)}
           onOpenPrompt={() => openRunPrompt(selectedRun)}
           onOpenSchedule={() => openRunSchedule(selectedRun)}
           getRunDisplayName={getRunDisplayName}
