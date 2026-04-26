@@ -3230,7 +3230,7 @@ export default function AIRunnerPage() {
                               </div>
                               <div
                                 data-testid="schedule-runtime-fields"
-                                className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-[minmax(150px,0.8fr)_minmax(220px,1.4fr)_minmax(120px,0.55fr)_minmax(120px,0.55fr)]"
+                                className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-2"
                               >
                                 <label className="min-w-0 space-y-1.5">
                                   <span className="block text-sm font-medium">Workspace</span>
@@ -3257,7 +3257,7 @@ export default function AIRunnerPage() {
                                       ))}
                                   </select>
                                 </label>
-                                <div className="min-w-0 space-y-1.5 sm:col-span-2 xl:col-span-1">
+                                <div className="min-w-0 space-y-1.5 sm:col-span-2 lg:col-span-1">
                                   <div className="flex flex-wrap items-center justify-between gap-2">
                                     <label
                                       htmlFor="schedule-directory"

@@ -972,6 +972,8 @@ describe('AIRunnerPage', () => {
     const runtimeFields = screen.getByTestId('schedule-runtime-fields');
 
     expect(runtimeFields).toHaveClass('grid-cols-1');
+    expect(runtimeFields).toHaveClass('lg:grid-cols-2');
+    expect(runtimeFields.className).not.toContain('xl:grid-cols-[');
     expect(runtimeFields.className).not.toContain('md:grid-cols-[180px_1fr_140px_140px]');
   });
 
