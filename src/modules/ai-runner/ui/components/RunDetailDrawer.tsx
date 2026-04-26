@@ -208,27 +208,29 @@ export function RunDetailDrawer({
             </Button>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 border-b border-border/60 px-6 py-3">
-            {(
-              [
-                ['summary', 'Summary'],
-                ['output', 'Output'],
-                ['command', 'Command'],
-                ['metadata', 'Metadata'],
-                ['resources', 'Resources'],
-              ] as Array<[HistoryDetailSection, string]>
-            ).map(([section, label]) => (
-              <Button
-                key={section}
-                variant={historyDetailSection === section ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => onSectionChange(section)}
-              >
-                {label}
-              </Button>
-            ))}
+          <div className="space-y-3 border-b border-border/60 px-6 py-3">
+            <div aria-label="Run detail sections" className="flex flex-wrap items-center gap-2">
+              {(
+                [
+                  ['summary', 'Summary'],
+                  ['output', 'Output'],
+                  ['command', 'Command'],
+                  ['metadata', 'Metadata'],
+                  ['resources', 'Resources'],
+                ] as Array<[HistoryDetailSection, string]>
+              ).map(([section, label]) => (
+                <Button
+                  key={section}
+                  variant={historyDetailSection === section ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => onSectionChange(section)}
+                >
+                  {label}
+                </Button>
+              ))}
+            </div>
 
-            <div className="ml-auto flex flex-wrap gap-2">
+            <div aria-label="Run detail actions" className="flex flex-wrap justify-end gap-2">
               <Button variant="outline" size="sm" onClick={onRerun} loading={rerunPending}>
                 <Play className="w-4 h-4" />
                 Rerun

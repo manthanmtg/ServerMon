@@ -75,6 +75,33 @@ describe('RunDetailDrawer', () => {
     expect(toggle).toHaveTextContent('Autoscroll: OFF');
   });
 
+  it('keeps section tabs and run actions in separate toolbar rows', () => {
+    render(
+      <RunDetailDrawer
+        run={{ ...baseRun, promptId: 'prompt-1', scheduleId: 'schedule-1' }}
+        historyDetailSection="summary"
+        onSectionChange={vi.fn()}
+        onClose={vi.fn()}
+        onRerun={vi.fn()}
+        onKill={vi.fn()}
+        onOpenPrompt={vi.fn()}
+        onOpenSchedule={vi.fn()}
+        getRunDisplayName={() => 'Test run'}
+        profileName="Codex"
+        promptSourceName="Fix tests"
+        scheduleName="Weekday run"
+      />
+    );
+
+    const tabRow = screen.getByRole('button', { name: 'Summary' }).closest('[aria-label]');
+    const actionRow = screen.getByRole('button', { name: 'Open Schedule' }).closest('[aria-label]');
+
+    expect(tabRow).toHaveAttribute('aria-label', 'Run detail sections');
+    expect(actionRow).toHaveAttribute('aria-label', 'Run detail actions');
+    expect(actionRow).not.toBe(tabRow);
+    expect(actionRow).toHaveClass('justify-end');
+  });
+
   it('locks body scrolling while the drawer is open and restores it on close', () => {
     const originalOverflow = document.body.style.overflow;
     const { unmount } = render(
