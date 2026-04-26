@@ -18,15 +18,31 @@ interface FakeStateDoc {
 function makeFakeHandle(): FrpHandle & {
   killed: boolean;
   _kill: ReturnType<typeof vi.fn>;
+  _exit: (code: number | null, signal?: NodeJS.Signals | null) => void;
 } {
+  let resolveExit:
+    | ((value: { code: number | null; signal: NodeJS.Signals | null }) => void)
+    | undefined;
+  const onExit = new Promise<{ code: number | null; signal: NodeJS.Signals | null }>(
+    (resolve) => {
+      resolveExit = resolve;
+    }
+  );
   const killFn = vi.fn(async () => {});
   const handle = {
     pid: 1234,
     kill: killFn,
-    onExit: new Promise<{ code: number | null; signal: NodeJS.Signals | null }>(() => {}),
+    onExit,
     killed: false,
     _kill: killFn,
-  } as FrpHandle & { killed: boolean; _kill: ReturnType<typeof vi.fn> };
+    _exit: (code: number | null, signal: NodeJS.Signals | null = null) => {
+      resolveExit?.({ code, signal });
+    },
+  } as FrpHandle & {
+    killed: boolean;
+    _kill: ReturnType<typeof vi.fn>;
+    _exit: (code: number | null, signal?: NodeJS.Signals | null) => void;
+  };
   return handle;
 }
 
@@ -295,6 +311,39 @@ describe('FrpOrchestrator.reconcileOnce', () => {
     const second = await orch.reconcileOnce();
     expect(second.action).toBe('none');
     expect(firstHandle._kill).not.toHaveBeenCalled();
+  });
+
+  it('restarts the managed frps child after it exits unexpectedly', async () => {
+    const firstHandle = makeFakeHandle();
+    const secondHandle = makeFakeHandle();
+    secondHandle.pid = 5678;
+
+    const startFrpsMock = vi
+      .fn()
+      .mockReturnValueOnce(firstHandle)
+      .mockReturnValueOnce(secondHandle);
+
+    const stateDoc = {
+      key: 'global',
+      enabled: true,
+      bindPort: 7000,
+      vhostHttpPort: 8080,
+      subdomainHost: 'hub.example.com',
+    };
+
+    const { deps, logs } = makeDeps({ stateDoc });
+    deps.startFrpsImpl = startFrpsMock as unknown as FrpOrchestratorDeps['startFrpsImpl'];
+
+    const orch = new FrpOrchestrator(deps);
+    const first = await orch.reconcileOnce();
+    expect(first.action).toBe('started');
+
+    firstHandle._exit(1, null);
+    await firstHandle.onExit;
+
+    await vi.waitFor(() => expect(startFrpsMock).toHaveBeenCalledTimes(2));
+    expect(orch.currentState().pid).toBe(5678);
+    expect(logs.some((l) => l.eventType === 'frps.exited')).toBe(true);
   });
 
   it("translates errors to action='error' and sets runtimeState='failed'", async () => {

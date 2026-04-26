@@ -209,6 +209,7 @@ export class FrpOrchestrator {
 
   start(): void {
     if (this.intervalTimer) return;
+    this.stopping = false;
     // Run an initial reconcile immediately so frps boots up alongside the
     // hub instead of leaving a 15 s window where the agent's frpc has
     // nothing to connect to. Without this, an agent installed during hub
@@ -245,9 +246,7 @@ export class FrpOrchestrator {
         cacheDir: this.binaryCacheDir,
         version: this.binaryVersion,
       });
-      const handle = this.startFrpsImpl({ binary, configPath, onLog: this.onChildLog });
-      this.handle = handle;
-      this.pid = handle.pid;
+      this.setHandle(this.startFrpsImpl({ binary, configPath, onLog: this.onChildLog }));
       this.runtimeState = 'running';
       this.configHash = configHash;
       await this.emitLog('info', 'frps.applied.restart', 'frps config applied with restart', {
@@ -273,9 +272,7 @@ export class FrpOrchestrator {
     await this.mkdir(this.configDir, { recursive: true });
     const configPath = path.join(this.configDir, 'frps.toml');
     await this.writeFile(configPath, rendered);
-    const handle = this.startFrpsImpl({ binary, configPath, onLog: this.onChildLog });
-    this.handle = handle;
-    this.pid = handle.pid;
+    this.setHandle(this.startFrpsImpl({ binary, configPath, onLog: this.onChildLog }));
     this.runtimeState = 'running';
     this.configHash = configHash;
     this.lastError = undefined;
@@ -283,18 +280,50 @@ export class FrpOrchestrator {
 
   private async killHandle(): Promise<void> {
     if (this.handle) {
+      const handle = this.handle;
+      this.handle = null;
       try {
-        await this.handle.kill();
+        await handle.kill();
       } catch {
         // ignore kill errors
       }
-      this.handle = null;
     }
     this.pid = undefined;
     this.runtimeState = 'stopped';
 
     // Safety: ensure no other instances are lingering
     await this.killZombies();
+  }
+
+  private setHandle(handle: FrpHandle): void {
+    this.handle = handle;
+    this.pid = handle.pid;
+
+    void handle.onExit.then(async ({ code, signal }) => {
+      if (this.handle !== handle) return;
+
+      this.handle = null;
+      this.pid = undefined;
+
+      if (this.stopping) {
+        this.runtimeState = 'stopped';
+        return;
+      }
+
+      const detail = `frps exited unexpectedly: code=${code ?? 'null'} signal=${signal ?? 'null'}`;
+      this.runtimeState = 'failed';
+      this.lastError = detail;
+      await this.updateState('failed', {
+        pid: null,
+        lastError: {
+          code: 'process_exit',
+          message: detail,
+          occurredAt: this.now(),
+        },
+      });
+      await this.emitLog('error', 'frps.exited', detail, { code, signal });
+      void this.reconcileOnce();
+    });
   }
 
   private async killZombies(): Promise<void> {

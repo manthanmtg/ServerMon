@@ -270,63 +270,102 @@ describe('SettingsPage', () => {
     await waitFor(() => expect(screen.queryByTestId('update-history-modal')).toBeNull());
   });
 
-  it('shows confirmation modal when update button is clicked', async () => {
+  it('shows confirmation modal when ServerMon update button is clicked', async () => {
     await act(async () => render(<SettingsPage />));
 
-    const updateButton = screen.getByTitle('Trigger system update');
+    const updateButton = screen.getByText('Update ServerMon');
     await act(async () => {
       fireEvent.click(updateButton);
     });
 
     expect(screen.getByTestId('confirmation-modal')).toBeDefined();
-    expect(screen.getByText('System Update')).toBeDefined();
+    expect(screen.getByText('Update ServerMon App')).toBeDefined();
   });
 
-  it('cancels system update from confirmation modal', async () => {
+  it('cancels ServerMon update from confirmation modal', async () => {
     await act(async () => render(<SettingsPage />));
 
-    fireEvent.click(screen.getByTitle('Trigger system update'));
+    fireEvent.click(screen.getByText('Update ServerMon'));
     await waitFor(() => expect(screen.getByTestId('confirmation-modal')).toBeDefined());
 
     fireEvent.click(screen.getByText('Cancel'));
     await waitFor(() => expect(screen.queryByTestId('confirmation-modal')).toBeNull());
   });
 
-  it('triggers system update when confirmed', async () => {
-    (global.fetch as ReturnType<typeof vi.fn>)
-      .mockResolvedValueOnce({ ok: true, json: async () => ({ modules: [] }) }) // modules fetch
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ success: true, pid: 12345 }),
-      }); // update fetch
+  it('triggers ServerMon update when confirmed', async () => {
+    (global.fetch as ReturnType<typeof vi.fn>).mockImplementation(
+      (url: string, opts?: RequestInit) => {
+        if (url === '/api/modules/updates/run' && opts?.method === 'POST') {
+          return Promise.resolve({
+            ok: true,
+            json: async () => ({ success: true, pid: 12345, runId: 'servermon-run' }),
+          });
+        }
+
+        if (url === '/api/modules/updates/agent') {
+          return Promise.resolve({
+            ok: true,
+            json: async () => ({ agent: null }),
+          });
+        }
+
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({ modules: [] }),
+        });
+      }
+    );
 
     await act(async () => render(<SettingsPage />));
 
-    fireEvent.click(screen.getByTitle('Trigger system update'));
+    fireEvent.click(screen.getByText('Update ServerMon'));
     await waitFor(() => expect(screen.getByTestId('confirmation-modal')).toBeDefined());
 
     await act(async () => {
       fireEvent.click(screen.getByText('Confirm'));
     });
 
+    expect(global.fetch).toHaveBeenCalledWith(
+      '/api/modules/updates/run',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ type: 'servermon' }),
+      })
+    );
     await waitFor(() => {
       expect(mockToast).toHaveBeenCalledWith(
-        expect.objectContaining({ title: 'Update Triggered', variant: 'success' })
+        expect.objectContaining({ title: 'ServerMon update started', variant: 'success' })
       );
     });
   });
 
-  it('shows error toast when system update fails', async () => {
-    (global.fetch as ReturnType<typeof vi.fn>)
-      .mockResolvedValueOnce({ ok: true, json: async () => ({ modules: [] }) })
-      .mockResolvedValueOnce({
-        ok: false,
-        json: async () => ({ error: 'Permission denied' }),
-      });
+  it('shows error toast when ServerMon update fails', async () => {
+    (global.fetch as ReturnType<typeof vi.fn>).mockImplementation(
+      (url: string, opts?: RequestInit) => {
+        if (url === '/api/modules/updates/run' && opts?.method === 'POST') {
+          return Promise.resolve({
+            ok: false,
+            json: async () => ({ error: 'Permission denied' }),
+          });
+        }
+
+        if (url === '/api/modules/updates/agent') {
+          return Promise.resolve({
+            ok: true,
+            json: async () => ({ agent: null }),
+          });
+        }
+
+        return Promise.resolve({
+          ok: false,
+          json: async () => ({ modules: [] }),
+        });
+      }
+    );
 
     await act(async () => render(<SettingsPage />));
 
-    fireEvent.click(screen.getByTitle('Trigger system update'));
+    fireEvent.click(screen.getByText('Update ServerMon'));
     await waitFor(() => expect(screen.getByTestId('confirmation-modal')).toBeDefined());
 
     await act(async () => {
@@ -335,7 +374,7 @@ describe('SettingsPage', () => {
 
     await waitFor(() => {
       expect(mockToast).toHaveBeenCalledWith(
-        expect.objectContaining({ title: 'Update Failed', variant: 'destructive' })
+        expect.objectContaining({ title: 'Update failed', variant: 'destructive' })
       );
     });
   });
@@ -346,5 +385,36 @@ describe('SettingsPage', () => {
     expect(screen.getByText('1.0.0')).toBeDefined();
     expect(screen.getByText('Next.js')).toBeDefined();
     expect(screen.getByText('MongoDB')).toBeDefined();
+  });
+
+  it('renders ServerMon service controls in settings', async () => {
+    (global.fetch as ReturnType<typeof vi.fn>).mockImplementation((url: string) => {
+      if (url === '/api/modules/updates/agent') {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            agent: {
+              serviceName: 'servermon-agent.service',
+              installed: true,
+              active: true,
+              enabled: true,
+              repoDir: '/opt/servermon-agent/source',
+              updateSupported: true,
+            },
+          }),
+        });
+      }
+
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({ modules: [] }),
+      });
+    });
+
+    await act(async () => render(<SettingsPage />));
+
+    expect(screen.getByText('ServerMon Services')).toBeDefined();
+    await waitFor(() => expect(screen.getByText('Agent Installed')).toBeDefined());
+    expect(screen.getByText('/opt/servermon-agent/source')).toBeDefined();
   });
 });

@@ -7,7 +7,6 @@ import {
   Box,
   Shield,
   Check,
-  RefreshCcw,
   LoaderCircle,
   History,
   Layout,
@@ -24,7 +23,7 @@ import PasskeySettings from '@/modules/security/ui/PasskeySettings';
 import { useToast } from '@/components/ui/toast';
 import UpdateHistoryModal from '@/components/settings/UpdateHistoryModal';
 import QuickAccessSettings from '@/components/settings/QuickAccessSettings';
-import ConfirmationModal from '@/components/ui/ConfirmationModal';
+import ServerMonServicesCard from '@/components/settings/ServerMonServicesCard';
 
 interface ModuleInfo {
   id: string;
@@ -37,9 +36,7 @@ export default function SettingsPage() {
   const { settings: brandSettings, updateSettings: updateBrandSettings } = useBrand();
   const { toast } = useToast();
   const [modules, setModules] = useState<ModuleInfo[]>([]);
-  const [updating, setUpdating] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
-  const [showUpdateConfirm, setShowUpdateConfirm] = useState(false);
 
   // Branding state
   const [pageTitle, setPageTitle] = useState(brandSettings.pageTitle);
@@ -57,33 +54,6 @@ export default function SettingsPage() {
       .then((data) => setModules(data.modules || []))
       .catch((err) => console.error(err));
   }, []);
-
-  async function handleUpdate() {
-    setShowUpdateConfirm(false);
-    setUpdating(true);
-    try {
-      const res = await fetch('/api/modules/updates/run', { method: 'POST' });
-      const data = await res.json();
-
-      if (res.ok && data.success) {
-        toast({
-          title: 'Update Triggered',
-          description: `System update started (PID ${data.pid}). Server will be unavailable for a few seconds during restart.`,
-          variant: 'success',
-        });
-      } else {
-        throw new Error(data.error || 'Failed to trigger update');
-      }
-    } catch (error) {
-      toast({
-        title: 'Update Failed',
-        description: error instanceof Error ? error.message : 'Unknown error',
-        variant: 'destructive',
-      });
-    } finally {
-      setUpdating(false);
-    }
-  }
 
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -357,34 +327,20 @@ export default function SettingsPage() {
 
             <PasskeySettings />
 
+            <ServerMonServicesCard />
+
             <Card>
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-base">About</CardTitle>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setShowHistory(true)}
-                      className="flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-background text-foreground transition-all hover:bg-accent"
-                      title="View update history"
-                    >
-                      <History className="w-3.5 h-3.5" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setShowUpdateConfirm(true)}
-                      disabled={updating}
-                      className="flex h-8 items-center gap-2 rounded-lg border border-border bg-background px-3 text-xs font-medium text-foreground transition-all hover:bg-accent disabled:opacity-50"
-                      title="Trigger system update"
-                    >
-                      {updating ? (
-                        <LoaderCircle className="w-3.5 h-3.5 animate-spin" />
-                      ) : (
-                        <RefreshCcw className="w-3.5 h-3.5 text-primary" />
-                      )}
-                      {updating ? 'Updating...' : 'Update'}
-                    </button>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowHistory(true)}
+                    className="flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-background text-foreground transition-all hover:bg-accent"
+                    title="View update history"
+                  >
+                    <History className="w-3.5 h-3.5" />
+                  </button>
                 </div>
               </CardHeader>
               <CardContent>
@@ -409,17 +365,6 @@ export default function SettingsPage() {
       </div>
 
       {showHistory && <UpdateHistoryModal onClose={() => setShowHistory(false)} />}
-
-      <ConfirmationModal
-        isOpen={showUpdateConfirm}
-        onConfirm={handleUpdate}
-        onCancel={() => setShowUpdateConfirm(false)}
-        title="System Update"
-        message="Are you sure you want to trigger a system update? This will discard any local changes and the server will be temporarily unavailable."
-        confirmLabel="Trigger Update"
-        cancelLabel="Cancel"
-        variant="danger"
-      />
     </ProShell>
   );
 }
