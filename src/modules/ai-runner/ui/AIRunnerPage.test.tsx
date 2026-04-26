@@ -72,6 +72,29 @@ const mockSchedules: AIRunnerScheduleDTO[] = [];
 const mockRuns: AIRunnerRunsResponse = { runs: [], total: 0 };
 const mockActiveRuns: AIRunnerRunDTO[] = [];
 const mockDirectories: AIRunnerDirectoriesResponse = { directories: ['/root/repos/ServerMon'] };
+const mockCreatedAutoflow: AIRunnerAutoflowDTO = {
+  _id: 'autoflow-created',
+  name: 'One shot',
+  mode: 'sequential',
+  status: 'running',
+  continueOnFailure: false,
+  currentIndex: 0,
+  items: [
+    {
+      _id: 'autoflow-item-created',
+      name: 'Review patch',
+      promptContent: 'Review patch',
+      promptType: 'inline',
+      agentProfileId: 'profile-1',
+      workingDirectory: '/root/repos/ServerMon',
+      timeout: 30,
+      status: 'pending',
+    },
+  ],
+  startedAt: '2026-04-21T00:00:00.000Z',
+  createdAt: '2026-04-21T00:00:00.000Z',
+  updatedAt: '2026-04-21T00:00:00.000Z',
+};
 const mockRunnerSettings: AIRunnerSettingsDTO = {
   schedulesGloballyEnabled: true,
   autoflowMode: 'sequential',
@@ -108,6 +131,9 @@ describe('AIRunnerPage', () => {
       }
       if (url.includes('/api/modules/ai-runner/workspaces')) {
         return Promise.resolve({ ok: true, json: async () => mockWorkspaces });
+      }
+      if (url.includes('/api/modules/ai-runner/autoflows') && init?.method === 'POST') {
+        return Promise.resolve({ ok: true, json: async () => mockCreatedAutoflow });
       }
       if (url.includes('/api/modules/ai-runner/autoflows')) {
         return Promise.resolve({ ok: true, json: async () => mockAutoflows });
@@ -148,6 +174,17 @@ describe('AIRunnerPage', () => {
     vi.useRealTimers();
   });
 
+  it('opens on AutoFlow and removes the separate Run tab', async () => {
+    await act(async () => {
+      render(<AIRunnerPage />);
+    });
+
+    await waitFor(() => expect(screen.getByText('AI Agent Runner')).toBeInTheDocument());
+
+    expect(screen.getByText('AutoFlow Builder')).toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: /^Run$/i })).not.toBeInTheDocument();
+  });
+
   it('keeps the prompts tab focused on a single library surface', async () => {
     await act(async () => {
       render(<AIRunnerPage />);
@@ -163,6 +200,45 @@ describe('AIRunnerPage', () => {
     expect(screen.getByText('Library')).toBeInTheDocument();
     expect(screen.queryByText('Selected')).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Search')).not.toBeInTheDocument();
+  });
+
+  it('can start a one-step AutoFlow from the current draft', async () => {
+    const fetchMock = vi.mocked(global.fetch);
+
+    await act(async () => {
+      render(<AIRunnerPage />);
+    });
+
+    await waitFor(() => expect(screen.getByText('AutoFlow Builder')).toBeInTheDocument());
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('AutoFlow Name'), {
+        target: { value: 'One shot' },
+      });
+      fireEvent.change(screen.getByLabelText(/^Prompt$/i), {
+        target: { value: 'Review patch' },
+      });
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /Start AutoFlow/i }));
+    });
+
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/modules/ai-runner/autoflows',
+        expect.objectContaining({
+          method: 'POST',
+          body: expect.stringContaining('"items":[{"name":"Review patch"'),
+        })
+      )
+    );
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/modules/ai-runner/autoflows',
+      expect.objectContaining({
+        body: expect.stringContaining('"workingDirectory":"/root/repos/ServerMon"'),
+      })
+    );
   });
 
   it('warns when schedules are running from an interactive session', async () => {

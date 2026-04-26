@@ -222,7 +222,7 @@ function getResourceLabel(resource: AIRunnerPortableResource): string {
 
 export default function AIRunnerPage() {
   const { toast } = useToast();
-  const [activeTab, setActiveTab] = useState<ViewTab>('run');
+  const [activeTab, setActiveTab] = useState<ViewTab>('autoflows');
   const liveNow = useRealtimeNow(activeTab === 'schedules');
   const [loading, setLoading] = useState(true);
   const [metadataLoaded, setMetadataLoaded] = useState(false);
@@ -415,18 +415,9 @@ export default function AIRunnerPage() {
         const profilePayload: AIRunnerProfileDTO[] = await profilesRes.json();
         setProfiles(profilePayload);
         if (profilePayload[0]) {
-          // Initialise the run/schedule forms only when they haven't been
+          // Initialise launch forms only when they haven't been
           // touched yet — functional setters read the current value so this
           // stays idempotent across reloads.
-          setRunForm((current) =>
-            current.agentProfileId
-              ? current
-              : {
-                  ...current,
-                  agentProfileId: profilePayload[0]._id,
-                  timeout: profilePayload[0].defaultTimeout,
-                }
-          );
           setScheduleForm((current) =>
             current.agentProfileId
               ? current
@@ -461,11 +452,6 @@ export default function AIRunnerPage() {
         setWorkspaces(workspacePayload);
         const firstWorkspace = workspacePayload.find((workspace) => workspace.enabled);
         if (firstWorkspace) {
-          setRunForm((current) => ({
-            ...current,
-            workspaceId: current.workspaceId || firstWorkspace._id,
-            workingDirectory: current.workingDirectory || firstWorkspace.path,
-          }));
           setScheduleForm((current) => ({
             ...current,
             workspaceId: current.workspaceId || firstWorkspace._id,
@@ -487,11 +473,11 @@ export default function AIRunnerPage() {
         const payload = await directoriesRes.json();
         if (controller.signal.aborted) return;
         setDirectories(payload.directories ?? []);
-        setRunForm((current) => ({
+        setScheduleForm((current) => ({
           ...current,
           workingDirectory: current.workingDirectory || payload.directories?.[0] || '',
         }));
-        setScheduleForm((current) => ({
+        setAutoflowDraft((current) => ({
           ...current,
           workingDirectory: current.workingDirectory || payload.directories?.[0] || '',
         }));
@@ -923,6 +909,7 @@ export default function AIRunnerPage() {
     [profiles, schedules]
   );
 
+  const hasAutoflowDraftPrompt = Boolean(autoflowDraft.promptContent?.trim());
   const profileAgentType = profileMap[runForm.agentProfileId]?.agentType;
   const filteredLogEntries = useMemo(() => {
     if (logLevelFilter === 'all') return logEntries;
@@ -1172,8 +1159,9 @@ export default function AIRunnerPage() {
         throw new Error(payload.error || 'Unable to rerun item');
       }
       setSelectedRun(payload);
-      setHistoryDetailOpen(false);
-      setActiveTab('run');
+      setHistoryDetailSection('summary');
+      setHistoryDetailOpen(true);
+      setActiveTab('history');
       await loadAll();
       toast({
         title:
@@ -1239,6 +1227,9 @@ export default function AIRunnerPage() {
 
       setSelectedRun(payload);
       setRuns((current) => [payload as AIRunnerRunDTO, ...current]);
+      setHistoryDetailSection('summary');
+      setHistoryDetailOpen(true);
+      setActiveTab('history');
       toast({
         title: 'Run started',
         description: 'The AI agent run has started successfully.',
@@ -1367,7 +1358,9 @@ export default function AIRunnerPage() {
       variant: 'success',
     });
     setSelectedRun(payload);
-    setActiveTab('run');
+    setHistoryDetailSection('summary');
+    setHistoryDetailOpen(true);
+    setActiveTab('history');
     await loadAll();
   };
 
@@ -1646,14 +1639,18 @@ export default function AIRunnerPage() {
     }
   };
 
-  const openPromptInRun = (promptId: string) => {
+  const openPromptInAutoflow = (promptId: string) => {
+    const prompt = promptMap[promptId];
+    if (!prompt) return;
     setSelectedPromptId(promptId);
-    setRunForm((current) => ({
+    setAutoflowDraft((current) => ({
       ...current,
-      type: 'saved-prompt',
+      name: prompt.name,
       promptId,
+      promptContent: prompt.content,
+      promptType: prompt.type,
     }));
-    setActiveTab('run');
+    setActiveTab('autoflows');
   };
 
   const runScheduleNow = async (schedule: AIRunnerScheduleDTO) => {
@@ -1676,7 +1673,9 @@ export default function AIRunnerPage() {
       return;
     }
     setSelectedRun(payload);
-    setActiveTab('run');
+    setHistoryDetailSection('summary');
+    setHistoryDetailOpen(true);
+    setActiveTab('history');
     await loadAll();
   };
 
@@ -1916,7 +1915,7 @@ export default function AIRunnerPage() {
     }
   };
 
-  const addAutoflowItem = () => {
+  const buildAutoflowDraftItem = (): AutoflowItemDraft | null => {
     const name =
       autoflowDraft.name.trim() ||
       autoflowDraft.promptContent?.split('\n')[0]?.trim().slice(0, 64) ||
@@ -1927,11 +1926,34 @@ export default function AIRunnerPage() {
         description: 'Add prompt content before adding this AutoFlow step.',
         variant: 'warning',
       });
-      return;
+      return null;
     }
-    setAutoflowItems((current) => [...current, { ...autoflowDraft, name }]);
+    if (!autoflowDraft.agentProfileId) {
+      toast({
+        title: 'Profile required',
+        description: 'Choose an agent profile before adding this AutoFlow step.',
+        variant: 'warning',
+      });
+      return null;
+    }
+    if (!autoflowDraft.workingDirectory.trim()) {
+      toast({
+        title: 'Workspace required',
+        description: 'Choose a workspace or enter a workspace path before adding this step.',
+        variant: 'warning',
+      });
+      return null;
+    }
+    return { ...autoflowDraft, name };
+  };
+
+  const addAutoflowItem = () => {
+    const item = buildAutoflowDraftItem();
+    if (!item) return;
+    setAutoflowItems((current) => [...current, item]);
     setAutoflowDraft((current) => ({
       ...current,
+      promptId: undefined,
       name: '',
       promptContent: '',
     }));
@@ -1939,6 +1961,9 @@ export default function AIRunnerPage() {
 
   const submitAutoflow = async () => {
     try {
+      const draftItem = autoflowItems.length === 0 ? buildAutoflowDraftItem() : null;
+      const items = autoflowItems.length > 0 ? autoflowItems : draftItem ? [draftItem] : [];
+      if (items.length === 0) return;
       const response = await fetch('/api/modules/ai-runner/autoflows', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1946,7 +1971,7 @@ export default function AIRunnerPage() {
           name: autoflowName.trim() || 'Untitled AutoFlow',
           mode: autoflowMode,
           continueOnFailure: autoflowContinueOnFailure,
-          items: autoflowItems,
+          items,
           startImmediately: true,
         }),
       });
@@ -1954,6 +1979,12 @@ export default function AIRunnerPage() {
       if (!response.ok) throw new Error(payload.error || 'Unable to start AutoFlow');
       setAutoflowName('');
       setAutoflowItems([]);
+      setAutoflowDraft((current) => ({
+        ...current,
+        promptId: undefined,
+        name: '',
+        promptContent: '',
+      }));
       setAutoflows((current) => [payload, ...current]);
       toast({
         title: 'AutoFlow started',
@@ -2557,7 +2588,7 @@ export default function AIRunnerPage() {
                               size="sm"
                               onClick={(event) => {
                                 event.stopPropagation();
-                                openPromptInRun(prompt._id);
+                                openPromptInAutoflow(prompt._id);
                               }}
                             >
                               <Play className="w-4 h-4" />
@@ -2672,8 +2703,8 @@ export default function AIRunnerPage() {
                               }
                             />
                             <div className="rounded-xl border border-primary/20 bg-primary/5 px-4 py-3 text-xs text-muted-foreground">
-                              Execution settings now live in the Run tab and on schedules, so this
-                              prompt stays reusable across profiles and repos.
+                              Execution settings live in AutoFlow and schedules, so this prompt
+                              stays reusable across profiles and repos.
                             </div>
                           </div>
 
@@ -3501,6 +3532,7 @@ export default function AIRunnerPage() {
                               if (!template) return;
                               setAutoflowDraft((current) => ({
                                 ...current,
+                                promptId: undefined,
                                 promptContent: applyPromptTemplate(
                                   template.content,
                                   current.promptContent ?? ''
@@ -3524,6 +3556,7 @@ export default function AIRunnerPage() {
                         onChange={(event) =>
                           setAutoflowDraft((current) => ({
                             ...current,
+                            promptId: undefined,
                             promptContent: event.target.value,
                           }))
                         }
@@ -3579,14 +3612,15 @@ export default function AIRunnerPage() {
                     ))}
                     {autoflowItems.length === 0 ? (
                       <div className="rounded-xl border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
-                        Add one or more steps to start an AutoFlow.
+                        Start the current draft as a one-step AutoFlow, or add steps to build a
+                        larger queue.
                       </div>
                     ) : null}
                   </div>
 
                   <Button
                     size="lg"
-                    disabled={autoflowItems.length === 0}
+                    disabled={autoflowItems.length === 0 && !hasAutoflowDraftPrompt}
                     onClick={() => void submitAutoflow()}
                   >
                     <Play className="w-4 h-4" />

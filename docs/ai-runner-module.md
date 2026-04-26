@@ -1,6 +1,6 @@
 # AI Runner Module
 
-AI Runner turns saved prompts, one-off runs, schedules, and multi-step AutoFlows into one queue backed by durable run history.
+AI Runner turns saved prompts, one-step AutoFlows, schedules, and multi-step AutoFlows into one queue backed by durable run history.
 
 ## Workspaces
 
@@ -11,14 +11,13 @@ Each workspace has:
 - `Workspace Name` for selectors and history.
 - `Workspace Path` for the actual working directory.
 - `Blocking workspace` to allow only one active AI Runner job in that workspace at a time.
-- `Enabled` to hide retired workspaces from new run forms without deleting history.
+- `Enabled` to hide retired workspaces from new launch forms without deleting history.
 
-Workspaces live in the AI Runner `Settings` tab. Run, Schedule, and AutoFlow editors all use the same workspace list. Editors still allow a custom path, and the path input uses known directories for autocomplete. If a custom path should become reusable, use `Save workspace` from the editor.
+Workspaces live in the AI Runner `Settings` tab. Schedule and AutoFlow editors use the same workspace list. Editors still allow a custom path, and the path input uses known directories for autocomplete. If a custom path should become reusable, use `Save workspace` from the editor.
 
 When a workspace is blocking:
 
-- A manual run is rejected if a queued or active job already exists in that workspace.
-- Schedules and AutoFlows can queue work, but the supervisor only dispatches one job for that workspace at a time.
+- Manual schedule launches and AutoFlows can queue work, but the supervisor only dispatches one job for that workspace at a time.
 - Jobs in other workspaces continue dispatching normally.
 
 ## Prompt Templates
@@ -26,7 +25,7 @@ When a workspace is blocking:
 Prompt Templates are reusable wrappers for prompt editors. They are different from Saved Prompts:
 
 - Saved Prompts are complete prompt bodies that can be run or scheduled directly.
-- Prompt Templates are inserted into an editor while drafting a run, saved prompt, or AutoFlow step.
+- Prompt Templates are inserted into an editor while drafting a saved prompt or AutoFlow step.
 
 Use `<YOUR_PROMPT>` inside a template to mark where the current editor content should be inserted. If the marker is absent, AI Runner appends the current editor content after the template.
 
@@ -74,17 +73,6 @@ The import modal supports both pasted JSON and uploaded JSON files. Before apply
 
 Each conflict can be skipped or overwritten independently. Imports are blocked when a selected schedule references a prompt, profile, or workspace that is neither already present nor included in the same import selection.
 
-## Runs
-
-The `Run` tab is for immediate work. Choose:
-
-- Inline Prompt, File Reference, or Saved Prompt.
-- Agent Profile.
-- Workspace or custom path.
-- Timeout.
-
-If the selected workspace is blocking and already has active AI Runner work, the run is not queued.
-
 ## Schedules
 
 Schedules bind a saved prompt, agent profile, workspace, timeout, retry count, and cron cadence.
@@ -95,7 +83,7 @@ Manual `Run Now` on a schedule reuses the schedule's workspace and prompt. Block
 
 ## AutoFlow
 
-AutoFlow is a multi-step prompt queue for related work. It is similar to schedules because it creates durable runs, but it is user-started and step-based rather than cron-based.
+AutoFlow is the primary launch surface. It can start a single prompt immediately or queue a multi-step prompt sequence. It is similar to schedules because it creates durable runs, but it is user-started and step-based rather than cron-based.
 
 AutoFlow supports:
 
@@ -106,6 +94,8 @@ AutoFlow supports:
 The default AutoFlow mode is configured in `Settings`; each AutoFlow can override it in the builder.
 
 Each AutoFlow step has its own prompt, profile, workspace, custom path fallback, and timeout. Step runs appear in normal run history with `autoflow` as the trigger.
+
+To run one prompt, fill the current AutoFlow draft and click `Start AutoFlow`; adding a step first is optional. To run a sequence, add steps and then start the flow. The old standalone `Run` tab was removed so immediate work and multi-step work share the same workspace, prompt template, and queue behavior.
 
 ## Queue Behavior
 
@@ -121,4 +111,4 @@ The supervisor loop:
 3. Advances running AutoFlows.
 4. Dispatches runnable jobs while enforcing global concurrency and blocking workspaces.
 
-This keeps the module consistent: manual runs, schedules, and AutoFlows all flow through the same durable queue and history surface.
+This keeps the module consistent: schedule launches and AutoFlows all flow through the same durable queue and history surface.
