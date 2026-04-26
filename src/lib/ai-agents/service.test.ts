@@ -188,6 +188,38 @@ describe('AIAgentsService', () => {
       // Cache should prevent second call to adapter
       expect(mockClaudeDetect).toHaveBeenCalledTimes(1);
     });
+
+    it('caches empty results within TTL', async () => {
+      const service = makeService();
+
+      await service.detectSessions();
+      await service.detectSessions();
+
+      expect(mockClaudeDetect).toHaveBeenCalledTimes(1);
+      expect(mockCodexDetect).toHaveBeenCalledTimes(1);
+      expect(mockOpenCodeDetect).toHaveBeenCalledTimes(1);
+    });
+
+    it('times out a stuck adapter instead of hanging the scan', async () => {
+      vi.useFakeTimers();
+      try {
+        const service = makeService();
+        const stuckDetect = vi.fn(() => new Promise<never>(() => {}));
+        service.registerAdapter({
+          agentType: 'custom' as never,
+          displayName: 'Stuck',
+          detect: stuckDetect,
+        });
+
+        const scan = service.detectSessions();
+        await vi.advanceTimersByTimeAsync(2_000);
+
+        await expect(scan).resolves.toEqual([]);
+        expect(stuckDetect).toHaveBeenCalledTimes(1);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
   });
 
   describe('getSession()', () => {

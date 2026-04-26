@@ -1,6 +1,12 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { execPromise, detectGitInfo, discoverHomeDirs, getHostnameCached } from '../process-utils';
+import {
+  execPromise,
+  detectGitInfo,
+  discoverHomeDirs,
+  getHostnameCached,
+  readFileTailSync,
+} from '../process-utils';
 import { createLogger } from '@/lib/logger';
 import type {
   AgentAdapter,
@@ -48,14 +54,18 @@ export class GeminiCLIAdapter implements AgentAdapter {
 
         const projectFolders = fs
           .readdirSync(tmpDir)
-          .filter((f) => {
+          .map((f) => {
             try {
-              return fs.statSync(path.join(tmpDir, f)).isDirectory();
+              const stat = fs.statSync(path.join(tmpDir, f));
+              return { name: f, time: stat.mtime.getTime(), isDirectory: stat.isDirectory() };
             } catch {
-              return false;
+              return { name: f, time: 0, isDirectory: false };
             }
           })
-          .filter((f) => f !== 'bin');
+          .filter((f) => f.isDirectory && f.name !== 'bin')
+          .sort((a, b) => b.time - a.time)
+          .slice(0, 20)
+          .map((f) => f.name);
 
         for (const projectSlug of projectFolders) {
           const projectDir = path.join(tmpDir, projectSlug);
@@ -113,7 +123,7 @@ export class GeminiCLIAdapter implements AgentAdapter {
     username: string,
     projectLogs: GeminiLogEntry[]
   ): Promise<AgentSession | null> {
-    const content = fs.readFileSync(sessionFilePath, 'utf8');
+    const content = readFileTailSync(sessionFilePath, 256 * 1024);
     let sessionData: GeminiSession;
 
     if (sessionFilePath.endsWith('.jsonl')) {

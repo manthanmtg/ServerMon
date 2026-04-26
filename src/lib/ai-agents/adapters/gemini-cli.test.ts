@@ -13,6 +13,7 @@ const {
   mockDiscoverHomeDirs,
   mockDetectGitInfo,
   mockExecPromise,
+  mockReadFileTailSync,
 } = vi.hoisted(() => ({
   mockExistsSync: vi.fn(),
   mockReaddirSync: vi.fn(),
@@ -21,6 +22,7 @@ const {
   mockDiscoverHomeDirs: vi.fn(),
   mockDetectGitInfo: vi.fn(),
   mockExecPromise: vi.fn(),
+  mockReadFileTailSync: vi.fn(),
 }));
 
 vi.mock('fs', () => ({
@@ -35,6 +37,7 @@ vi.mock('../process-utils', () => ({
   detectGitInfo: mockDetectGitInfo,
   execPromise: mockExecPromise,
   getHostnameCached: () => 'localhost',
+  readFileTailSync: mockReadFileTailSync,
 }));
 
 import { GeminiCLIAdapter } from './gemini-cli';
@@ -62,6 +65,7 @@ describe('GeminiCLIAdapter', () => {
     vi.clearAllMocks();
     mockDetectGitInfo.mockResolvedValue({});
     mockExecPromise.mockResolvedValue({ stdout: 'localhost\n' });
+    mockReadFileTailSync.mockImplementation((p: string) => mockReadFileSync(p, 'utf8'));
   });
 
   describe('detect()', () => {
@@ -242,6 +246,44 @@ describe('GeminiCLIAdapter', () => {
       expect(sessions[0].id).toBe('gemini-cli-root-123');
       expect(sessions[0].lifecycle.lastActivity).toBe(TIMESTAMP_UPDATE);
       expect(sessions[0].conversation).toHaveLength(1);
+    });
+
+    it('tail-reads session files so large histories cannot block snapshots', async () => {
+      mockDiscoverHomeDirs.mockReturnValue([{ username: 'root', homeDir: '/root' }]);
+      mockExistsSync.mockReturnValue(true);
+      mockReaddirSync.mockImplementation((p: string) => {
+        if (p === '/root/.gemini/tmp') return ['servermon'];
+        if (p === '/root/.gemini/tmp/servermon/chats') return ['session-large.jsonl'];
+        return [];
+      });
+      mockStatSync.mockImplementation(() => ({
+        isDirectory: () => true,
+        mtime: { getTime: () => Date.now() },
+      }));
+
+      const jsonlContent = [
+        JSON.stringify({ sessionId: 'large', startTime: TIMESTAMP_START }),
+        JSON.stringify({ id: 'm1', type: 'user', content: 'bounded', timestamp: TIMESTAMP_START }),
+      ].join('\n');
+      mockReadFileSync.mockImplementation((p: string) => {
+        if (p.includes('projects.json')) return '{}';
+        if (p.includes('logs.json')) return '[]';
+        return 'unexpected full read';
+      });
+      mockReadFileTailSync.mockReturnValue(jsonlContent);
+
+      const adapter = new GeminiCLIAdapter();
+      const sessions = await adapter.detect();
+
+      expect(sessions).toHaveLength(1);
+      expect(mockReadFileTailSync).toHaveBeenCalledWith(
+        '/root/.gemini/tmp/servermon/chats/session-large.jsonl',
+        256 * 1024
+      );
+      expect(mockReadFileSync).not.toHaveBeenCalledWith(
+        '/root/.gemini/tmp/servermon/chats/session-large.jsonl',
+        'utf8'
+      );
     });
   });
 });

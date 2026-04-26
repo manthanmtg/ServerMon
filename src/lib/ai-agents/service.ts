@@ -18,7 +18,10 @@ export class AIAgentsService {
   private adapters: AgentAdapter[] = [];
   private sessionCache: AgentSession[] = [];
   private lastScanTime = 0;
+  private hasScanned = false;
+  private inFlightScan: Promise<AgentSession[]> | null = null;
   private readonly CACHE_TTL_MS = 15_000;
+  private readonly ADAPTER_TIMEOUT_MS = 2_000;
 
   constructor() {
     this.adapters = [
@@ -66,12 +69,27 @@ export class AIAgentsService {
 
   async detectSessions(): Promise<AgentSession[]> {
     const now = Date.now();
-    if (now - this.lastScanTime < this.CACHE_TTL_MS && this.sessionCache.length > 0) {
+    if (this.hasScanned && now - this.lastScanTime < this.CACHE_TTL_MS) {
       return this.sessionCache;
     }
 
+    if (this.inFlightScan) {
+      return this.inFlightScan;
+    }
+
+    this.inFlightScan = this.scanAdapters();
+    try {
+      return await this.inFlightScan;
+    } finally {
+      this.inFlightScan = null;
+    }
+  }
+
+  private async scanAdapters(): Promise<AgentSession[]> {
     const allSessions: AgentSession[] = [];
-    const results = await Promise.allSettled(this.adapters.map((adapter) => adapter.detect()));
+    const results = await Promise.allSettled(
+      this.adapters.map((adapter) => this.detectWithTimeout(adapter))
+    );
 
     for (let i = 0; i < results.length; i++) {
       const result = results[i];
@@ -83,8 +101,22 @@ export class AIAgentsService {
     }
 
     this.sessionCache = allSessions;
-    this.lastScanTime = now;
+    this.lastScanTime = Date.now();
+    this.hasScanned = true;
     return allSessions;
+  }
+
+  private detectWithTimeout(adapter: AgentAdapter): Promise<AgentSession[]> {
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+    const timeoutPromise = new Promise<AgentSession[]>((_, reject) => {
+      timeout = setTimeout(() => {
+        reject(new Error(`Adapter ${adapter.displayName} timed out`));
+      }, this.ADAPTER_TIMEOUT_MS);
+    });
+
+    return Promise.race([adapter.detect(), timeoutPromise]).finally(() => {
+      if (timeout) clearTimeout(timeout);
+    });
   }
 
   async getSession(sessionId: string): Promise<AgentSession | undefined> {
@@ -116,6 +148,7 @@ export class AIAgentsService {
 
   private invalidateCache(): void {
     this.lastScanTime = 0;
+    this.hasScanned = false;
     this.sessionCache = [];
   }
 
