@@ -14,6 +14,13 @@ import type {
 
 const log = createLogger('ai-agents');
 
+function sessionActivityTime(session: AgentSession): number {
+  const lastActivity = new Date(session.lifecycle.lastActivity).getTime();
+  if (Number.isFinite(lastActivity)) return lastActivity;
+  const startTime = new Date(session.lifecycle.startTime).getTime();
+  return Number.isFinite(startTime) ? startTime : 0;
+}
+
 export class AIAgentsService {
   private adapters: AgentAdapter[] = [];
   private sessionCache: AgentSession[] = [];
@@ -51,11 +58,8 @@ export class AIAgentsService {
       }
     }
 
-    // Sort past sessions by created time (newest first)
-    pastSessions.sort(
-      (a, b) =>
-        new Date(b.lifecycle.startTime).getTime() - new Date(a.lifecycle.startTime).getTime()
-    );
+    sessions.sort((a, b) => sessionActivityTime(b) - sessionActivityTime(a));
+    pastSessions.sort((a, b) => sessionActivityTime(b) - sessionActivityTime(a));
 
     const summary = this.computeSummary(allSessions);
     return {

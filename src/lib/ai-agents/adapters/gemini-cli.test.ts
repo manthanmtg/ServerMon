@@ -14,6 +14,7 @@ const {
   mockDetectGitInfo,
   mockExecPromise,
   mockReadFileTailSync,
+  mockReadFileHeadAndTailSync,
 } = vi.hoisted(() => ({
   mockExistsSync: vi.fn(),
   mockReaddirSync: vi.fn(),
@@ -23,6 +24,7 @@ const {
   mockDetectGitInfo: vi.fn(),
   mockExecPromise: vi.fn(),
   mockReadFileTailSync: vi.fn(),
+  mockReadFileHeadAndTailSync: vi.fn(),
 }));
 
 vi.mock('fs', () => ({
@@ -38,6 +40,7 @@ vi.mock('../process-utils', () => ({
   execPromise: mockExecPromise,
   getHostnameCached: () => 'localhost',
   readFileTailSync: mockReadFileTailSync,
+  readFileHeadAndTailSync: mockReadFileHeadAndTailSync,
 }));
 
 import { GeminiCLIAdapter } from './gemini-cli';
@@ -66,6 +69,7 @@ describe('GeminiCLIAdapter', () => {
     mockDetectGitInfo.mockResolvedValue({});
     mockExecPromise.mockResolvedValue({ stdout: 'localhost\n' });
     mockReadFileTailSync.mockImplementation((p: string) => mockReadFileSync(p, 'utf8'));
+    mockReadFileHeadAndTailSync.mockImplementation((p: string) => mockReadFileSync(p, 'utf8'));
   });
 
   describe('detect()', () => {
@@ -248,7 +252,7 @@ describe('GeminiCLIAdapter', () => {
       expect(sessions[0].conversation).toHaveLength(1);
     });
 
-    it('tail-reads session files so large histories cannot block snapshots', async () => {
+    it('bounded-reads session files so large histories cannot block snapshots', async () => {
       mockDiscoverHomeDirs.mockReturnValue([{ username: 'root', homeDir: '/root' }]);
       mockExistsSync.mockReturnValue(true);
       mockReaddirSync.mockImplementation((p: string) => {
@@ -270,13 +274,13 @@ describe('GeminiCLIAdapter', () => {
         if (p.includes('logs.json')) return '[]';
         return 'unexpected full read';
       });
-      mockReadFileTailSync.mockReturnValue(jsonlContent);
+      mockReadFileHeadAndTailSync.mockReturnValue(jsonlContent);
 
       const adapter = new GeminiCLIAdapter();
       const sessions = await adapter.detect();
 
       expect(sessions).toHaveLength(1);
-      expect(mockReadFileTailSync).toHaveBeenCalledWith(
+      expect(mockReadFileHeadAndTailSync).toHaveBeenCalledWith(
         '/root/.gemini/tmp/servermon/chats/session-large.jsonl',
         256 * 1024
       );
@@ -284,6 +288,52 @@ describe('GeminiCLIAdapter', () => {
         '/root/.gemini/tmp/servermon/chats/session-large.jsonl',
         'utf8'
       );
+    });
+
+    it('preserves session metadata when parsing large JSONL tails', async () => {
+      mockDiscoverHomeDirs.mockReturnValue([{ username: 'root', homeDir: '/root' }]);
+      mockExistsSync.mockReturnValue(true);
+      mockReaddirSync.mockImplementation((p: string) => {
+        if (p === '/root/.gemini/tmp') return ['servermon'];
+        if (p === '/root/.gemini/tmp/servermon/chats') return ['session-large.jsonl'];
+        return [];
+      });
+      mockStatSync.mockImplementation(() => ({
+        isDirectory: () => true,
+        mtime: { getTime: () => Date.now() },
+      }));
+      mockReadFileSync.mockImplementation((p: string) => {
+        if (p.includes('projects.json')) {
+          return JSON.stringify({ projects: { '/root/repos/ServerMon': 'servermon' } });
+        }
+        if (p.includes('logs.json')) return '[]';
+        return 'unexpected full read';
+      });
+      mockReadFileHeadAndTailSync.mockReturnValue(
+        [
+          JSON.stringify({
+            sessionId: 'large-session',
+            startTime: TIMESTAMP_START,
+            lastUpdated: TIMESTAMP_START,
+          }),
+          JSON.stringify({
+            id: 'm1',
+            type: 'user',
+            content: 'recent',
+            timestamp: TIMESTAMP_UPDATE,
+          }),
+          JSON.stringify({ $set: { lastUpdated: TIMESTAMP_UPDATE } }),
+        ].join('\n')
+      );
+
+      const adapter = new GeminiCLIAdapter();
+      const sessions = await adapter.detect();
+
+      expect(sessions).toHaveLength(1);
+      expect(sessions[0].id).toBe('gemini-cli-root-large-session');
+      expect(sessions[0].lifecycle.startTime).toBe(TIMESTAMP_START);
+      expect(sessions[0].lifecycle.lastActivity).toBe(TIMESTAMP_UPDATE);
+      expect(sessions[0].lifecycle.durationSeconds).toBe(300);
     });
   });
 });

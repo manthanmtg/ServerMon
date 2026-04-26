@@ -56,6 +56,51 @@ export function readFileTailSync(filePath: string, maxBytes = 256 * 1024): strin
   }
 }
 
+/**
+ * Read the first complete line plus the bounded tail of a line-oriented file.
+ * AI session logs often store metadata in the first JSONL record and recent
+ * activity at the end; preserving both keeps snapshots useful without loading
+ * the whole history.
+ */
+export function readFileHeadAndTailSync(filePath: string, maxTailBytes = 256 * 1024): string {
+  let fd: number | undefined;
+  try {
+    let size: number | undefined;
+    try {
+      size = fs.statSync(filePath)?.size;
+    } catch {
+      size = undefined;
+    }
+    if (typeof size !== 'number' || !Number.isFinite(size) || size <= maxTailBytes) {
+      return fs.readFileSync(filePath, 'utf8');
+    }
+
+    fd = fs.openSync(filePath, 'r');
+    const headBuffer = Buffer.alloc(Math.min(maxTailBytes, size));
+    fs.readSync(fd, headBuffer, 0, headBuffer.length, 0);
+    const headText = headBuffer.toString('utf8');
+    const firstNewline = headText.indexOf('\n');
+    const firstLine = firstNewline >= 0 ? headText.slice(0, firstNewline) : headText;
+
+    const tailBuffer = Buffer.alloc(maxTailBytes);
+    const tailPosition = size - maxTailBytes;
+    fs.readSync(fd, tailBuffer, 0, maxTailBytes, tailPosition);
+    const tailText = tailBuffer.toString('utf8');
+    const tailNewline = tailText.indexOf('\n');
+    const tail = tailNewline >= 0 ? tailText.slice(tailNewline + 1) : tailText;
+
+    return tail.startsWith(firstLine) ? tail : `${firstLine}\n${tail}`;
+  } finally {
+    if (fd !== undefined) {
+      try {
+        fs.closeSync(fd);
+      } catch {
+        /* ignore */
+      }
+    }
+  }
+}
+
 // Cached hostname — os.hostname() is cheap but we also avoid repeated
 // syscalls across many sessions per snapshot.
 let _cachedHostname: string | null = null;

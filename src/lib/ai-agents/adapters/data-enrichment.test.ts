@@ -36,6 +36,7 @@ vi.mock('../process-utils', () => ({
   execPromise: mockExecPromise,
   getHostnameCached: () => 'localhost',
   readFileTailSync: (p: string) => mockReadFileSync(p, 'utf8'),
+  readFileHeadAndTailSync: (p: string) => mockReadFileSync(p, 'utf8'),
 }));
 
 import { ClaudeCodeAdapter } from './claude-code';

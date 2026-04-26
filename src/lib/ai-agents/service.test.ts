@@ -136,6 +136,49 @@ describe('AIAgentsService', () => {
       expect(snapshot.pastSessions[1].id).toBe('old');
     });
 
+    it('sorts sessions by last activity descending', async () => {
+      const service = makeService();
+      mockClaudeDetect.mockResolvedValue([
+        makeSession({
+          id: 'older-active',
+          status: 'running',
+          lifecycle: {
+            startTime: '2026-04-26T10:00:00Z',
+            lastActivity: '2026-04-26T10:10:00Z',
+          },
+        }),
+        makeSession({
+          id: 'newer-active',
+          status: 'running',
+          lifecycle: {
+            startTime: '2026-04-26T09:00:00Z',
+            lastActivity: '2026-04-26T11:00:00Z',
+          },
+        }),
+        makeSession({
+          id: 'older-past',
+          status: 'idle',
+          lifecycle: {
+            startTime: '2026-04-26T12:00:00Z',
+            lastActivity: '2026-04-26T12:05:00Z',
+          },
+        }),
+        makeSession({
+          id: 'newer-past',
+          status: 'idle',
+          lifecycle: {
+            startTime: '2026-04-26T08:00:00Z',
+            lastActivity: '2026-04-26T13:00:00Z',
+          },
+        }),
+      ]);
+
+      const snapshot = await service.getSnapshot();
+
+      expect(snapshot.sessions.map((s) => s.id)).toEqual(['newer-active', 'older-active']);
+      expect(snapshot.pastSessions.map((s) => s.id)).toEqual(['newer-past', 'older-past']);
+    });
+
     it('includes summary with correct counts', async () => {
       const service = makeService();
       mockClaudeDetect.mockResolvedValue([

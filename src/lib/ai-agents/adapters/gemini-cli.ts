@@ -5,7 +5,7 @@ import {
   detectGitInfo,
   discoverHomeDirs,
   getHostnameCached,
-  readFileTailSync,
+  readFileHeadAndTailSync,
 } from '../process-utils';
 import { createLogger } from '@/lib/logger';
 import type {
@@ -123,7 +123,7 @@ export class GeminiCLIAdapter implements AgentAdapter {
     username: string,
     projectLogs: GeminiLogEntry[]
   ): Promise<AgentSession | null> {
-    const content = readFileTailSync(sessionFilePath, 256 * 1024);
+    const content = readFileHeadAndTailSync(sessionFilePath, 256 * 1024);
     let sessionData: GeminiSession;
 
     if (sessionFilePath.endsWith('.jsonl')) {

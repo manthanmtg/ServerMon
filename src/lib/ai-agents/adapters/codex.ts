@@ -5,7 +5,7 @@ import {
   detectGitInfo,
   discoverHomeDirs,
   getHostnameCached,
-  readFileTailSync,
+  readFileHeadAndTailSync,
 } from '../process-utils';
 import { createLogger } from '@/lib/logger';
 import type {
@@ -195,7 +195,7 @@ export class CodexAdapter implements AgentAdapter {
       }
 
       // Only tail-read to avoid loading multi-MB rollout logs on every snapshot.
-      const content = readFileTailSync(rolloutPath, 256 * 1024);
+      const content = readFileHeadAndTailSync(rolloutPath, 256 * 1024);
       const conversation: ConversationEntry[] = [];
       const timeline: ActionTimelineEntry[] = [];
       const logs: string[] = [];

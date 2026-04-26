@@ -12,6 +12,7 @@ const {
   mockDiscoverHomeDirs,
   mockDetectGitInfo,
   mockExecPromise,
+  mockReadFileHeadAndTailSync,
 } = vi.hoisted(() => ({
   mockExistsSync: vi.fn(),
   mockStatSync: vi.fn(),
@@ -19,6 +20,7 @@ const {
   mockDiscoverHomeDirs: vi.fn(),
   mockDetectGitInfo: vi.fn(),
   mockExecPromise: vi.fn(),
+  mockReadFileHeadAndTailSync: vi.fn(),
 }));
 
 vi.mock('fs', () => ({
@@ -33,6 +35,7 @@ vi.mock('../process-utils', () => ({
   execPromise: mockExecPromise,
   getHostnameCached: () => 'localhost',
   readFileTailSync: (p: string) => mockReadFileSync(p, 'utf8'),
+  readFileHeadAndTailSync: mockReadFileHeadAndTailSync,
 }));
 
 import { CodexAdapter } from './codex';
@@ -65,6 +68,7 @@ describe('CodexAdapter', () => {
     vi.clearAllMocks();
     mockDetectGitInfo.mockResolvedValue({});
     mockExecPromise.mockResolvedValue({ stdout: 'localhost\n' });
+    mockReadFileHeadAndTailSync.mockImplementation((p: string) => mockReadFileSync(p, 'utf8'));
   });
 
   describe('detect()', () => {
@@ -287,6 +291,32 @@ describe('CodexAdapter', () => {
     it('has correct displayName', () => {
       const adapter = new CodexAdapter();
       expect(adapter.displayName).toBe('Codex CLI');
+    });
+
+    it('preserves session metadata when parsing large rollout tails', async () => {
+      const rolloutPath = '/home/user1/.codex/sessions/rollout-large.jsonl';
+      mockDiscoverHomeDirs.mockReturnValue([{ username: 'user1', homeDir: '/home/user1' }]);
+      mockExistsSync.mockReturnValue(true);
+      mockExecPromise.mockImplementation(async (cmd: string) => {
+        if (cmd.includes('find')) return { stdout: rolloutPath };
+        return { stdout: '' };
+      });
+      mockStatSync.mockReturnValue({ mtime: { getTime: () => Date.now() } });
+      mockReadFileHeadAndTailSync.mockReturnValue(
+        [
+          makeSessionMetaLine('/root/repos/ServerMon', 'openai'),
+          makeResponseItemLine('assistant', 'Recent output', TIMESTAMP_2),
+        ].join('\n')
+      );
+      mockDetectGitInfo.mockResolvedValue({ repository: 'ServerMon', branch: 'main' });
+
+      const adapter = new CodexAdapter();
+      const sessions = await adapter.detect();
+
+      expect(sessions).toHaveLength(1);
+      expect(sessions[0].environment.workingDirectory).toBe('/root/repos/ServerMon');
+      expect(sessions[0].environment.repository).toBe('ServerMon');
+      expect(mockReadFileHeadAndTailSync).toHaveBeenCalledWith(rolloutPath, 256 * 1024);
     });
   });
 });
