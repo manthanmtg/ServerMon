@@ -1,47 +1,22 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import {
-  Eye,
-  EyeOff,
-  KeyRound,
-  LoaderCircle,
-  Plus,
-  RefreshCw,
-  ShieldAlert,
-  Terminal,
-  Trash2,
-} from 'lucide-react';
+import { KeyRound, LoaderCircle, Plus, RefreshCw, ShieldAlert } from 'lucide-react';
 import ProShell from '@/components/layout/ProShell';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
 import { useToast } from '@/components/ui/toast';
-import { cn } from '@/lib/utils';
 import type { EnvVarRecord, EnvVarsSnapshot } from '../types';
+import { EnvVarsAddModal, type ScopeChoice } from './EnvVarsAddModal';
+import { EnvVarsTable } from './EnvVarsTable';
 
 type ActiveView = 'persistent' | 'session' | 'system';
-type ScopeChoice = 'user' | 'system';
 
-const MASK = '••••••••';
 const VIEW_LABELS: Record<ActiveView, string> = {
   session: 'Env command',
   persistent: 'Saved',
   system: 'System',
 };
-
-function displayValue(record: EnvVarRecord, revealed: boolean): string {
-  if (record.sensitive && !revealed) return MASK;
-  return record.value || '(empty)';
-}
-
-function scopeText(scope: ScopeChoice) {
-  if (scope === 'user') {
-    return 'User scope is written to the OS user environment so a fresh terminal can see it with env.';
-  }
-  return 'System scope affects the whole machine and is shown as an admin command to run manually.';
-}
 
 export default function EnvVarsPage() {
   const { toast } = useToast();
@@ -140,84 +115,6 @@ export default function EnvVarsPage() {
     }
   };
 
-  const renderRows = (rows: EnvVarRecord[], canDelete: boolean) => (
-    <div className="overflow-x-auto">
-      <table className="w-full text-left border-collapse">
-        <thead>
-          <tr className="border-b border-border/50 bg-accent/10">
-            <th className="px-4 py-3 text-[11px] font-bold text-muted-foreground uppercase">
-              Name
-            </th>
-            <th className="px-4 py-3 text-[11px] font-bold text-muted-foreground uppercase">
-              Value
-            </th>
-            <th className="px-4 py-3 text-[11px] font-bold text-muted-foreground uppercase">
-              Scope
-            </th>
-            <th className="px-4 py-3 text-[11px] font-bold text-muted-foreground uppercase">
-              Status
-            </th>
-            <th className="px-4 py-3 text-[11px] font-bold text-muted-foreground uppercase text-right">
-              Actions
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((record) => {
-            const isRevealed = revealed.has(record.key);
-            return (
-              <tr key={`${record.scope}-${record.key}`} className="border-b border-border/40">
-                <td className="px-4 py-3 font-mono text-xs font-semibold">{record.key}</td>
-                <td className="px-4 py-3 font-mono text-xs max-w-[280px] truncate">
-                  {displayValue(record, isRevealed)}
-                </td>
-                <td className="px-4 py-3">
-                  <Badge variant={record.scope === 'session' ? 'secondary' : 'default'}>
-                    {record.scope}
-                  </Badge>
-                </td>
-                <td className="px-4 py-3">
-                  <Badge variant={record.inCurrentSession ? 'success' : 'warning'}>
-                    {record.inCurrentSession ? 'current' : 'new session'}
-                  </Badge>
-                </td>
-                <td className="px-4 py-3">
-                  <div className="flex items-center justify-end gap-2">
-                    {record.sensitive && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        aria-label={`${isRevealed ? 'Hide' : 'Reveal'} ${record.key}`}
-                        onClick={() => toggleReveal(record.key)}
-                      >
-                        {isRevealed ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                      </Button>
-                    )}
-                    {canDelete && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        aria-label={`Delete ${record.key}`}
-                        onClick={() => deleteVariable(record)}
-                      >
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
-                    )}
-                  </div>
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-      {rows.length === 0 && (
-        <div className="py-10 text-center text-sm text-muted-foreground">No variables found.</div>
-      )}
-    </div>
-  );
-
   return (
     <ProShell title="EnvVars" subtitle="Host Environment Variables">
       <div className="space-y-6">
@@ -285,8 +182,23 @@ export default function EnvVarsPage() {
               </div>
             ) : (
               <>
-                {activeView === 'persistent' && renderRows(persistentRows, true)}
-                {activeView === 'session' && renderRows(sessionRows, false)}
+                {activeView === 'persistent' && (
+                  <EnvVarsTable
+                    rows={persistentRows}
+                    canDelete={true}
+                    revealed={revealed}
+                    onToggleReveal={toggleReveal}
+                    onDelete={deleteVariable}
+                  />
+                )}
+                {activeView === 'session' && (
+                  <EnvVarsTable
+                    rows={sessionRows}
+                    canDelete={false}
+                    revealed={revealed}
+                    onToggleReveal={toggleReveal}
+                  />
+                )}
                 {activeView === 'system' && snapshot && (
                   <div className="grid gap-4 md:grid-cols-2">
                     {[
@@ -315,52 +227,17 @@ export default function EnvVarsPage() {
         </Card>
 
         {showAdd && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 p-4">
-            <div className="w-full max-w-lg rounded-lg border border-border bg-card p-5 shadow-xl space-y-4">
-              <div>
-                <h2 className="text-lg font-semibold">Add variable</h2>
-                <p className="text-sm text-muted-foreground">{scopeText(scope)}</p>
-              </div>
-              <Input
-                id="env-var-name"
-                label="Name"
-                value={key}
-                onChange={(event) => setKey(event.target.value)}
-              />
-              <Input
-                id="env-var-value"
-                label="Value"
-                value={value}
-                onChange={(event) => setValue(event.target.value)}
-              />
-              <div className="grid grid-cols-2 gap-2">
-                {(['user', 'system'] as const).map((choice) => (
-                  <button
-                    key={choice}
-                    type="button"
-                    onClick={() => setScope(choice)}
-                    className={cn(
-                      'min-h-[44px] rounded-lg border px-3 text-sm font-semibold capitalize',
-                      scope === choice
-                        ? 'bg-primary text-primary-foreground border-primary'
-                        : 'bg-background border-border'
-                    )}
-                  >
-                    {choice}
-                  </button>
-                ))}
-              </div>
-              <div className="flex items-center justify-end gap-2">
-                <Button type="button" variant="outline" onClick={resetForm}>
-                  Cancel
-                </Button>
-                <Button type="button" onClick={saveVariable} loading={saving}>
-                  <Terminal className="h-4 w-4" />
-                  Save variable
-                </Button>
-              </div>
-            </div>
-          </div>
+          <EnvVarsAddModal
+            keyName={key}
+            onKeyNameChange={setKey}
+            value={value}
+            onValueChange={setValue}
+            scope={scope}
+            onScopeChange={setScope}
+            saving={saving}
+            onSave={saveVariable}
+            onCancel={resetForm}
+          />
         )}
       </div>
     </ProShell>
