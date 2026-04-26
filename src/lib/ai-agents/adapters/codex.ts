@@ -27,6 +27,10 @@ function asRecord(value: unknown): Record<string, unknown> {
     : {};
 }
 
+function asNumber(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : 0;
+}
+
 export class CodexAdapter implements AgentAdapter {
   readonly agentType: AgentType = 'codex';
   readonly displayName = 'Codex CLI';
@@ -216,12 +220,24 @@ export class CodexAdapter implements AgentAdapter {
           if (evt.type === 'session_meta') {
             if (evt.payload.cwd) data.cwd = evt.payload.cwd;
             if (evt.payload.model_provider) data.model = evt.payload.model_provider.toUpperCase();
-          } else if (evt.type === 'event_msg' && evt.payload.type === 'agent_message') {
-            conversation.push({
-              role: 'assistant',
-              content: evt.payload.message,
-              timestamp,
-            });
+          } else if (evt.type === 'event_msg') {
+            if (evt.payload.type === 'agent_message') {
+              conversation.push({
+                role: 'assistant',
+                content: evt.payload.message,
+                timestamp,
+              });
+            } else if (evt.payload.type === 'token_count') {
+              const payload = asRecord(evt.payload);
+              const info = asRecord(payload.info);
+              const totalUsage = asRecord(info.total_token_usage);
+              const inputTokens = asNumber(totalUsage.input_tokens);
+              const outputTokens = asNumber(totalUsage.output_tokens);
+              const totalTokens = asNumber(totalUsage.total_tokens);
+              data.usage.inputTokens = inputTokens;
+              data.usage.outputTokens = outputTokens;
+              data.usage.totalTokens = totalTokens || inputTokens + outputTokens;
+            }
           } else if (evt.type === 'response_item') {
             const payload = evt.payload;
             if (payload.type === 'function_call') {

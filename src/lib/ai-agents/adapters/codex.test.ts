@@ -318,5 +318,50 @@ describe('CodexAdapter', () => {
       expect(sessions[0].environment.repository).toBe('ServerMon');
       expect(mockReadFileHeadAndTailSync).toHaveBeenCalledWith(rolloutPath, 256 * 1024);
     });
+
+    it('extracts Codex CLI token_count event usage', async () => {
+      const rolloutPath = '/home/user1/.codex/sessions/rollout-token-count.jsonl';
+      mockDiscoverHomeDirs.mockReturnValue([{ username: 'user1', homeDir: '/home/user1' }]);
+      mockExistsSync.mockReturnValue(true);
+      mockExecPromise.mockImplementation(async (cmd: string) => {
+        if (cmd.includes('find')) return { stdout: rolloutPath };
+        return { stdout: '' };
+      });
+      mockStatSync.mockReturnValue({ mtime: { getTime: () => Date.now() } });
+      mockReadFileHeadAndTailSync.mockReturnValue(
+        [
+          makeSessionMetaLine('/root/repos/ServerMon', 'openai'),
+          JSON.stringify({
+            type: 'event_msg',
+            timestamp: TIMESTAMP_1,
+            payload: { type: 'agent_message', message: 'Working' },
+          }),
+          JSON.stringify({
+            type: 'event_msg',
+            timestamp: TIMESTAMP_2,
+            payload: {
+              type: 'token_count',
+              info: {
+                total_token_usage: {
+                  input_tokens: 120,
+                  output_tokens: 35,
+                  total_tokens: 155,
+                },
+              },
+            },
+          }),
+        ].join('\n')
+      );
+
+      const adapter = new CodexAdapter();
+      const sessions = await adapter.detect();
+
+      expect(sessions).toHaveLength(1);
+      expect(sessions[0].usage).toEqual({
+        inputTokens: 120,
+        outputTokens: 35,
+        totalTokens: 155,
+      });
+    });
   });
 });
