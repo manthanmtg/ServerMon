@@ -92,8 +92,12 @@ export default function NodeDetailPage() {
             </button>
           ))}
         </div>
-        {tab === 'overview' && <NodeStatusPanel nodeId={node._id} />}
-        {tab === 'terminal' && <NodeTerminal nodeId={node._id} />}
+        <div className={tab === 'overview' ? 'block' : 'hidden'}>
+          <NodeStatusPanel nodeId={node._id} />
+        </div>
+        <div className={tab === 'terminal' ? 'block' : 'hidden'}>
+          <NodeTerminal nodeId={node._id} />
+        </div>
         {tab === 'proxies' && <ProxyRuleTable nodeId={node._id} />}
         {tab === 'routes' && <PublicRouteTable nodeId={node._id} />}
         {tab === 'processes' && <RemoteProcessTable nodeId={node._id} />}

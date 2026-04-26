@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 
 // Hoisted mock refs
 const {
@@ -36,6 +36,9 @@ const {
     write: vi.fn(),
     writeln: vi.fn(),
     dispose: vi.fn(),
+    clear: vi.fn(),
+    focus: vi.fn(),
+    getSelection: vi.fn(() => ''),
     loadAddon: vi.fn(),
     open: vi.fn(),
     onData: vi.fn(() => ({ dispose: vi.fn() })),
@@ -79,6 +82,9 @@ import { NodeTerminal } from './NodeTerminal';
 describe('NodeTerminal', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    if (typeof window.localStorage?.clear === 'function') {
+      window.localStorage.clear();
+    }
     mockUseTtySession.mockReturnValue({
       connected: false,
       ready: false,
@@ -106,7 +112,7 @@ describe('NodeTerminal', () => {
   it('shows the placeholder text before session starts', () => {
     render(<NodeTerminal nodeId="node-xyz" />);
     expect(screen.getByText(/interactive shell on node/i)).toBeDefined();
-    expect(screen.getByText(/node-xyz/)).toBeDefined();
+    expect(screen.getAllByText(/node-xyz/).length).toBeGreaterThan(0);
   });
 
   it('does not call useTtySession with enabled=true before start', () => {
@@ -183,5 +189,24 @@ describe('NodeTerminal', () => {
     render(<NodeTerminal nodeId="node-42" />);
     const lastCall = mockUseTtySession.mock.calls[mockUseTtySession.mock.calls.length - 1];
     expect(lastCall?.[0]?.nodeId).toBe('node-42');
+  });
+
+  it('creates an additional fleet terminal tab', () => {
+    render(<NodeTerminal nodeId="node-xyz" />);
+    fireEvent.click(screen.getByTitle(/new tab/i));
+    expect(screen.getAllByText('Shell 2').length).toBeGreaterThan(0);
+
+    const lastCall = mockUseTtySession.mock.calls[mockUseTtySession.mock.calls.length - 1];
+    expect(lastCall?.[0]?.enabled).toBe(false);
+  });
+
+  it('sends quick commands to the active session', async () => {
+    render(<NodeTerminal nodeId="node-xyz" />);
+    fireEvent.click(screen.getByRole('button', { name: /start session/i }));
+    fireEvent.click(screen.getByRole('button', { name: /^uptime$/i }));
+
+    await waitFor(() => {
+      expect(mockSend).toHaveBeenCalledWith('uptime\n');
+    });
   });
 });

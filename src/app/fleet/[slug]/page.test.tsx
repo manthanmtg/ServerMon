@@ -63,6 +63,17 @@ vi.mock('@/modules/fleet/ui/details/RemoteProcessTable', () => ({
 
 describe('NodeDetailPage', () => {
   beforeEach(() => {
+    const localStorageMock = {
+      getItem: vi.fn(() => null),
+      setItem: vi.fn(),
+      removeItem: vi.fn(),
+      clear: vi.fn(),
+    };
+    Object.defineProperty(window, 'localStorage', {
+      value: localStorageMock,
+      configurable: true,
+    });
+    vi.stubGlobal('localStorage', localStorageMock);
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue({
