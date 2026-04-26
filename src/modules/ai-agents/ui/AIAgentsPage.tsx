@@ -2,6 +2,7 @@
 
 import { useCallback, useMemo, useState } from 'react';
 import { RefreshCcw } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/toast';
 import type { AgentSession } from '../types';
 import { PAGE_POLL_INTERVAL_MS } from './constants';
@@ -9,6 +10,7 @@ import { SummaryCards } from './components/SummaryCards';
 import { SessionFilters, type FilterAgent, type FilterStatus } from './components/SessionFilters';
 import { SessionList } from './components/SessionList';
 import { SessionDetail } from './components/SessionDetail';
+import { ToolsPanel } from './components/ToolsPanel';
 import { useAgentsSnapshot } from './useAgentsSnapshot';
 
 function matchesSearch(session: AgentSession, query: string): boolean {
@@ -22,6 +24,7 @@ function matchesSearch(session: AgentSession, query: string): boolean {
 
 export default function AIAgentsPage() {
   const { toast } = useToast();
+  const [activeTab, setActiveTab] = useState<'sessions' | 'tools'>('sessions');
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState<FilterStatus>('all');
   const [filterAgent, setFilterAgent] = useState<FilterAgent>('all');
@@ -132,23 +135,46 @@ export default function AIAgentsPage() {
 
   return (
     <div className="space-y-4">
-      <SummaryCards snapshot={snapshot} />
-      <SessionFilters
-        search={search}
-        onSearchChange={setSearch}
-        filterStatus={filterStatus}
-        onStatusChange={setFilterStatus}
-        filterAgent={filterAgent}
-        onAgentChange={setFilterAgent}
-        onRefresh={refresh}
-        refreshing={refreshing}
-      />
-      <SessionList
-        activeSessions={filteredSessions}
-        pastSessions={filteredPastSessions}
-        onSelect={handleSelect}
-        hasFilters={hasFilters}
-      />
+      <div className="flex flex-wrap items-center gap-2">
+        <Button
+          type="button"
+          variant={activeTab === 'sessions' ? 'default' : 'outline'}
+          onClick={() => setActiveTab('sessions')}
+        >
+          Sessions
+        </Button>
+        <Button
+          type="button"
+          variant={activeTab === 'tools' ? 'default' : 'outline'}
+          onClick={() => setActiveTab('tools')}
+        >
+          Tools
+        </Button>
+      </div>
+
+      {activeTab === 'sessions' ? (
+        <>
+          <SummaryCards snapshot={snapshot} />
+          <SessionFilters
+            search={search}
+            onSearchChange={setSearch}
+            filterStatus={filterStatus}
+            onStatusChange={setFilterStatus}
+            filterAgent={filterAgent}
+            onAgentChange={setFilterAgent}
+            onRefresh={refresh}
+            refreshing={refreshing}
+          />
+          <SessionList
+            activeSessions={filteredSessions}
+            pastSessions={filteredPastSessions}
+            onSelect={handleSelect}
+            hasFilters={hasFilters}
+          />
+        </>
+      ) : (
+        <ToolsPanel snapshot={snapshot} />
+      )}
     </div>
   );
 }

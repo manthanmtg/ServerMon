@@ -120,6 +120,67 @@ describe('AIAgentsPage', () => {
     });
   });
 
+  it('renders sessions and tools tabs', async () => {
+    await act(async () => {
+      render(<AIAgentsPage />);
+    });
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Sessions' })).toBeDefined();
+      expect(screen.getByRole('button', { name: 'Tools' })).toBeDefined();
+    });
+  });
+
+  it('shows a tools catalog with available agent tools', async () => {
+    await act(async () => {
+      render(<AIAgentsPage />);
+    });
+    await waitFor(() => screen.getByRole('button', { name: 'Tools' }));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Tools' }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Tool Catalog')).toBeDefined();
+      expect(screen.getByRole('button', { name: /Codex/i })).toBeDefined();
+      expect(screen.getByRole('button', { name: /Claude Code/i })).toBeDefined();
+      expect(screen.getByText('Configured tools')).toBeDefined();
+    });
+  });
+
+  it('opens tool-specific settings and recent sessions when a tool is selected', async () => {
+    await act(async () => {
+      render(<AIAgentsPage />);
+    });
+    await waitFor(() => screen.getByRole('button', { name: 'Tools' }));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Tools' }));
+    fireEvent.click(screen.getByRole('button', { name: /Codex/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Codex Settings')).toBeDefined();
+      expect(screen.getByText('Default model')).toBeDefined();
+      expect(screen.getByText('Default reasoning effort')).toBeDefined();
+      expect(screen.getByText('Recent Codex Sessions')).toBeDefined();
+      expect(screen.getByText('OpenAI Codex')).toBeDefined();
+    });
+  });
+
+  it('shows Gemini CLI settings that match the installed CLI controls', async () => {
+    await act(async () => {
+      render(<AIAgentsPage />);
+    });
+    await waitFor(() => screen.getByRole('button', { name: 'Tools' }));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Tools' }));
+    fireEvent.click(screen.getByRole('button', { name: /Gemini CLI/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Gemini CLI Settings')).toBeDefined();
+      expect(screen.getByText('default, auto_edit, yolo, or plan')).toBeDefined();
+      expect(screen.getByText('available via --worktree')).toBeDefined();
+      expect(screen.getByText('controlled with --extensions')).toBeDefined();
+    });
+  });
+
   it('renders search input', async () => {
     await act(async () => {
       render(<AIAgentsPage />);
