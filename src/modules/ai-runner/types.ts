@@ -123,6 +123,9 @@ export interface AIRunnerSettingsDTO {
   artifactBaseDir: string;
   mongoRetentionDays: number;
   artifactRetentionDays: number;
+  defaultArtifactBaseDir: string;
+  defaultMongoRetentionDays: number;
+  defaultArtifactRetentionDays: number;
   updatedAt?: string;
 }
 
