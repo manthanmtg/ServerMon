@@ -56,11 +56,11 @@ export default function EnvVarsWidget() {
         <div className="grid grid-cols-2 gap-3">
           <div className="rounded-lg border border-border/50 bg-accent/20 p-3">
             <p className="text-xl font-bold">{snapshot?.persistent.length ?? 0}</p>
-            <p className="text-[10px] uppercase text-muted-foreground">Persistent</p>
+            <p className="text-[10px] uppercase text-muted-foreground">Saved</p>
           </div>
           <div className="rounded-lg border border-border/50 bg-accent/20 p-3">
             <p className="text-xl font-bold">{snapshot?.session.length ?? 0}</p>
-            <p className="text-[10px] uppercase text-muted-foreground">Session</p>
+            <p className="text-[10px] uppercase text-muted-foreground">Env command</p>
           </div>
         </div>
         <div className="flex items-center gap-2 rounded-lg border border-border/50 bg-muted/20 p-2 text-xs">

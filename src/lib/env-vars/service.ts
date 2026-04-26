@@ -19,6 +19,15 @@ const execFileAsync = promisify(execFile);
 const SIMPLE_ENV_LINE = /^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)=(.*?)\s*$/;
 const SECRET_KEY_PATTERN = /(SECRET|TOKEN|PASSWORD|PASS|PRIVATE|CREDENTIAL|API_KEY|KEY)$/i;
 
+type EnvDictionary = Record<string, string | undefined>;
+type EnvCommandRunner = (target: EnvVarTarget, env: EnvDictionary) => Promise<string>;
+
+interface SnapshotOptions {
+  env?: EnvDictionary;
+  platform?: EnvVarPlatform;
+  execEnvCommand?: EnvCommandRunner;
+}
+
 export function isValidEnvKey(key: string): boolean {
   return /^[A-Za-z_][A-Za-z0-9_]*$/.test(key);
 }
@@ -89,7 +98,7 @@ async function readTextFileIfExists(file: string): Promise<string> {
 
 export async function parseShellEnvFile(
   file: string,
-  currentEnv: NodeJS.ProcessEnv = process.env
+  currentEnv: EnvDictionary = process.env
 ): Promise<ParsedEnvFile> {
   const content = await readTextFileIfExists(file);
   const variables: EnvVarRecord[] = [];
@@ -197,7 +206,7 @@ async function exists(file: string): Promise<boolean> {
 }
 
 export async function detectUserTarget(
-  env: NodeJS.ProcessEnv = process.env,
+  env: EnvDictionary = process.env,
   platform: EnvVarPlatform = process.platform
 ): Promise<EnvVarTarget> {
   const home = env.HOME || env.USERPROFILE || os.homedir();
@@ -298,8 +307,98 @@ export function buildSystemInstruction(input: {
   };
 }
 
-function currentSessionEnv(): EnvVarRecord[] {
-  return Object.entries(process.env)
+function envRecordsToDictionary(records: EnvVarRecord[]): EnvDictionary {
+  return Object.fromEntries(records.map((record) => [record.key, record.value]));
+}
+
+export function parseEnvCommandOutput(output: string): EnvVarRecord[] {
+  return output
+    .split(/\r?\n/)
+    .flatMap((line): EnvVarRecord[] => {
+      const separatorIndex = line.indexOf('=');
+      if (separatorIndex <= 0) return [];
+
+      const key = line.slice(0, separatorIndex);
+      if (!isValidEnvKey(key)) return [];
+
+      return [
+        {
+          key,
+          value: line.slice(separatorIndex + 1),
+          scope: 'session',
+          source: 'env command',
+          writable: false,
+          sensitive: isSecretEnvKey(key),
+          inCurrentSession: true,
+        },
+      ];
+    })
+    .sort((a, b) => a.key.localeCompare(b.key));
+}
+
+function toProcessEnv(env: EnvDictionary): NodeJS.ProcessEnv {
+  return env as unknown as NodeJS.ProcessEnv;
+}
+
+function sanitizedShellSeedEnv(target: EnvVarTarget, env: EnvDictionary): EnvDictionary {
+  const user =
+    env.USER || env.LOGNAME || (target.home === '/root' ? 'root' : path.basename(target.home));
+  return {
+    HOME: target.home,
+    LANG: env.LANG || 'en_US.UTF-8',
+    LOGNAME: env.LOGNAME || user,
+    PATH: env.PATH || '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
+    SHELL: target.shell || env.SHELL || '/bin/sh',
+    TERM: env.TERM || 'xterm-256color',
+    USER: user,
+  };
+}
+
+async function runShellEnvCommand(target: EnvVarTarget, env: EnvDictionary): Promise<string> {
+  if (target.platform === 'win32') {
+    const command =
+      'Get-ChildItem Env: | Sort-Object Name | ForEach-Object { "$($_.Name)=$($_.Value)" }';
+    const { stdout } = await execFileAsync('powershell.exe', ['-NoProfile', '-Command', command], {
+      timeout: 5000,
+      maxBuffer: 1024 * 1024,
+    });
+    return stdout;
+  }
+
+  const shell = target.shell || env.SHELL || '/bin/sh';
+  const shellBase = shellName(shell);
+  const shellArgs = ['bash', 'zsh', 'ksh', 'fish'].includes(shellBase)
+    ? ['-lc', 'env']
+    : ['-c', 'env'];
+  const { stdout } = await execFileAsync(shell, shellArgs, {
+    cwd: target.home,
+    env: toProcessEnv(sanitizedShellSeedEnv(target, env)),
+    timeout: 5000,
+    maxBuffer: 1024 * 1024,
+  });
+  return stdout;
+}
+
+async function readEnvCommandRecords(
+  target: EnvVarTarget,
+  env: EnvDictionary,
+  execEnvCommand: EnvCommandRunner = runShellEnvCommand
+): Promise<EnvVarRecord[]> {
+  try {
+    return parseEnvCommandOutput(await execEnvCommand(target, env));
+  } catch {
+    const { stdout } = await execFileAsync('env', [], {
+      cwd: target.home,
+      env: toProcessEnv(sanitizedShellSeedEnv(target, env)),
+      timeout: 5000,
+      maxBuffer: 1024 * 1024,
+    });
+    return parseEnvCommandOutput(stdout);
+  }
+}
+
+function currentSessionEnv(env: EnvDictionary = process.env): EnvVarRecord[] {
+  return Object.entries(env)
     .filter((entry): entry is [string, string] => typeof entry[1] === 'string')
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([key, value]) => ({
@@ -313,7 +412,7 @@ function currentSessionEnv(): EnvVarRecord[] {
     }));
 }
 
-async function readWindowsUserEnv(): Promise<EnvVarRecord[]> {
+async function readWindowsUserEnv(currentEnv: EnvDictionary): Promise<EnvVarRecord[]> {
   const command =
     '[Environment]::GetEnvironmentVariables("User").GetEnumerator() | Sort-Object Name | ConvertTo-Json -Compress';
   try {
@@ -334,7 +433,7 @@ async function readWindowsUserEnv(): Promise<EnvVarRecord[]> {
           source: 'Windows User Environment',
           writable: true,
           sensitive: isSecretEnvKey(key),
-          inCurrentSession: process.env[key] === value,
+          inCurrentSession: currentEnv[key] === value,
         },
       ];
     });
@@ -343,18 +442,24 @@ async function readWindowsUserEnv(): Promise<EnvVarRecord[]> {
   }
 }
 
-export async function getSnapshot(): Promise<EnvVarsSnapshot> {
-  const target = await detectUserTarget();
-  const session = currentSessionEnv();
+export async function getSnapshot(options: SnapshotOptions = {}): Promise<EnvVarsSnapshot> {
+  const env = options.env ?? process.env;
+  const platform = options.platform ?? process.platform;
+  const target = await detectUserTarget(env, platform);
+  let session = await readEnvCommandRecords(target, env, options.execEnvCommand);
+  if (session.length === 0) {
+    session = currentSessionEnv(env);
+  }
+  const sessionEnv = envRecordsToDictionary(session);
   const parsed =
-    process.platform === 'win32'
-      ? { variables: await readWindowsUserEnv(), skipped: [] }
+    platform === 'win32'
+      ? { variables: await readWindowsUserEnv(sessionEnv), skipped: [] }
       : target.userFile
-        ? await parseShellEnvFile(target.userFile)
+        ? await parseShellEnvFile(target.userFile, sessionEnv)
         : { variables: [], skipped: [] };
 
   return {
-    platform: process.platform,
+    platform,
     shell: target.shell,
     target,
     persistent: parsed.variables.sort((a, b) => a.key.localeCompare(b.key)),
@@ -362,13 +467,13 @@ export async function getSnapshot(): Promise<EnvVarsSnapshot> {
     skipped: parsed.skipped,
     systemInstructions: {
       addTemplate: buildSystemInstruction({
-        platform: process.platform,
+        platform,
         action: 'add',
         key: 'EXAMPLE_KEY',
         value: 'example-value',
       }),
       deleteTemplate: buildSystemInstruction({
-        platform: process.platform,
+        platform,
         action: 'delete',
         key: 'EXAMPLE_KEY',
       }),

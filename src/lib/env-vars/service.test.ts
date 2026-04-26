@@ -6,8 +6,10 @@ import { afterEach, describe, expect, it } from 'vitest';
 import {
   buildSystemInstruction,
   deleteFromShellEnvFile,
+  getSnapshot,
   isSecretEnvKey,
   isValidEnvKey,
+  parseEnvCommandOutput,
   parseShellEnvFile,
   quoteShellValue,
   upsertShellEnvFile,
@@ -87,6 +89,68 @@ describe('env vars service helpers', () => {
         reason: 'Complex shell expression cannot be edited safely.',
       },
     ]);
+  });
+
+  it('parses env command output into current session records', () => {
+    expect(
+      parseEnvCommandOutput('SHELL=/bin/bash\nHOME=/root\nEMPTY=\nBAD LINE\nTOKEN=secret\n')
+    ).toEqual([
+      {
+        key: 'EMPTY',
+        value: '',
+        scope: 'session',
+        source: 'env command',
+        writable: false,
+        sensitive: false,
+        inCurrentSession: true,
+      },
+      {
+        key: 'HOME',
+        value: '/root',
+        scope: 'session',
+        source: 'env command',
+        writable: false,
+        sensitive: false,
+        inCurrentSession: true,
+      },
+      {
+        key: 'SHELL',
+        value: '/bin/bash',
+        scope: 'session',
+        source: 'env command',
+        writable: false,
+        sensitive: false,
+        inCurrentSession: true,
+      },
+      {
+        key: 'TOKEN',
+        value: 'secret',
+        scope: 'session',
+        source: 'env command',
+        writable: false,
+        sensitive: true,
+        inCurrentSession: true,
+      },
+    ]);
+  });
+
+  it('uses env command output for the snapshot session list', async () => {
+    const file = await tempFile("export PUBLIC_URL='https://example.com'\n");
+    const env = {
+      HOME: path.dirname(file),
+      SHELL: '/bin/zsh',
+      SERVERMON_ONLY: 'service-process',
+    };
+
+    const snapshot = await getSnapshot({
+      env,
+      platform: 'linux',
+      execEnvCommand: async () => 'HOME=/root\nPATH=/usr/bin\nPUBLIC_URL=https://example.com\n',
+    });
+
+    expect(snapshot.session.map((record) => record.key)).toEqual(['HOME', 'PATH', 'PUBLIC_URL']);
+    expect(snapshot.session.some((record) => record.key === 'SERVERMON_ONLY')).toBe(false);
+    expect(snapshot.persistent[0]?.inCurrentSession).toBe(true);
   });
 
   it('adds and replaces simple shell env lines without changing unrelated content', async () => {

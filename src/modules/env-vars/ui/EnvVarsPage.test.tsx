@@ -53,7 +53,7 @@ const snapshot = {
       key: 'PATH',
       value: '/usr/bin',
       scope: 'session',
-      source: 'Current ServerMon process',
+      source: 'env command',
       writable: false,
       sensitive: false,
       inCurrentSession: true,
@@ -88,19 +88,25 @@ describe('EnvVarsPage', () => {
     } as Response);
   });
 
-  it('loads persistent and current session variables', async () => {
+  it('loads env command variables first and keeps saved variables available', async () => {
     render(<EnvVarsPage />);
 
     expect(await screen.findByText('EnvVars')).toBeTruthy();
-    expect(screen.getByText('OPENAI_API_KEY')).toBeTruthy();
-    expect(screen.getByText('PUBLIC_URL')).toBeTruthy();
     expect(screen.getByText('PATH')).toBeTruthy();
     expect(screen.getByText('/Users/test/.zshenv')).toBeTruthy();
+    expect(screen.queryByText('OPENAI_API_KEY')).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Saved' }));
+
+    expect(screen.getByText('OPENAI_API_KEY')).toBeTruthy();
+    expect(screen.getByText('PUBLIC_URL')).toBeTruthy();
   });
 
   it('masks secret values and reveals them with the eye button', async () => {
     render(<EnvVarsPage />);
 
+    await screen.findByText('PATH');
+    fireEvent.click(screen.getByRole('button', { name: 'Saved' }));
     await screen.findByText('OPENAI_API_KEY');
     expect(screen.queryByText('sk-test')).toBeNull();
 
@@ -120,7 +126,7 @@ describe('EnvVarsPage', () => {
       .mockResolvedValueOnce({ ok: true, json: async () => snapshot } as Response);
 
     render(<EnvVarsPage />);
-    await screen.findByText('OPENAI_API_KEY');
+    await screen.findByText('PATH');
 
     fireEvent.click(screen.getByRole('button', { name: 'Add variable' }));
     const nameInput = await screen.findByLabelText('Name');
@@ -153,6 +159,8 @@ describe('EnvVarsPage', () => {
       .mockResolvedValueOnce({ ok: true, json: async () => snapshot } as Response);
 
     render(<EnvVarsPage />);
+    await screen.findByText('PATH');
+    fireEvent.click(screen.getByRole('button', { name: 'Saved' }));
     await screen.findByText('PUBLIC_URL');
 
     await act(async () => {

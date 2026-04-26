@@ -25,6 +25,11 @@ type ActiveView = 'persistent' | 'session' | 'system';
 type ScopeChoice = 'user' | 'system';
 
 const MASK = '••••••••';
+const VIEW_LABELS: Record<ActiveView, string> = {
+  session: 'Env command',
+  persistent: 'Saved',
+  system: 'System',
+};
 
 function displayValue(record: EnvVarRecord, revealed: boolean): string {
   if (record.sensitive && !revealed) return MASK;
@@ -42,7 +47,7 @@ export default function EnvVarsPage() {
   const { toast } = useToast();
   const [snapshot, setSnapshot] = useState<EnvVarsSnapshot | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeView, setActiveView] = useState<ActiveView>('persistent');
+  const [activeView, setActiveView] = useState<ActiveView>('session');
   const [revealed, setRevealed] = useState<Set<string>>(() => new Set());
   const [showAdd, setShowAdd] = useState(false);
   const [key, setKey] = useState('');
@@ -219,14 +224,14 @@ export default function EnvVarsPage() {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <Card className="border-border/60">
             <CardContent className="pt-4 pb-4">
-              <p className="text-2xl font-bold">{persistentRows.length}</p>
-              <p className="text-xs text-muted-foreground">Persistent</p>
+              <p className="text-2xl font-bold">{sessionRows.length}</p>
+              <p className="text-xs text-muted-foreground">Env command</p>
             </CardContent>
           </Card>
           <Card className="border-border/60">
             <CardContent className="pt-4 pb-4">
-              <p className="text-2xl font-bold">{sessionRows.length}</p>
-              <p className="text-xs text-muted-foreground">Current Session</p>
+              <p className="text-2xl font-bold">{persistentRows.length}</p>
+              <p className="text-xs text-muted-foreground">Saved</p>
             </CardContent>
           </Card>
           <Card className="border-border/60">
@@ -253,15 +258,14 @@ export default function EnvVarsPage() {
                 Environment
               </CardTitle>
               <div className="flex flex-wrap items-center gap-2">
-                {(['persistent', 'session', 'system'] as const).map((view) => (
+                {(['session', 'persistent', 'system'] as const).map((view) => (
                   <Button
                     key={view}
                     type="button"
                     variant={activeView === view ? 'default' : 'outline'}
                     onClick={() => setActiveView(view)}
-                    className="capitalize"
                   >
-                    {view}
+                    {VIEW_LABELS[view]}
                   </Button>
                 ))}
                 <Button type="button" variant="outline" onClick={load} aria-label="Refresh">
@@ -281,17 +285,7 @@ export default function EnvVarsPage() {
               </div>
             ) : (
               <>
-                {activeView === 'persistent' && (
-                  <div className="space-y-5">
-                    {renderRows(persistentRows, true)}
-                    <div className="space-y-2">
-                      <h4 className="text-sm font-semibold text-muted-foreground">
-                        Current Session Env
-                      </h4>
-                      {renderRows(sessionRows, false)}
-                    </div>
-                  </div>
-                )}
+                {activeView === 'persistent' && renderRows(persistentRows, true)}
                 {activeView === 'session' && renderRows(sessionRows, false)}
                 {activeView === 'system' && snapshot && (
                   <div className="grid gap-4 md:grid-cols-2">

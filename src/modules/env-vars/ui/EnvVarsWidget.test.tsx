@@ -23,6 +23,8 @@ describe('EnvVarsWidget', () => {
     await waitFor(() => expect(screen.getByText('EnvVars')).toBeTruthy());
     expect(screen.getByText('1')).toBeTruthy();
     expect(screen.getByText('2')).toBeTruthy();
+    expect(screen.getByText('Saved')).toBeTruthy();
+    expect(screen.getByText('Env command')).toBeTruthy();
     expect(screen.getByText('/home/app/.profile')).toBeTruthy();
   });
 });
