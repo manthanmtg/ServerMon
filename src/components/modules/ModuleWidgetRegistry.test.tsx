@@ -60,6 +60,7 @@ describe('renderWidget()', () => {
       'MemoryWidget',
       'UsersWidget',
       'EndpointsWidget',
+      'EnvVarsWidget',
     ];
 
     for (const name of knownWidgets) {

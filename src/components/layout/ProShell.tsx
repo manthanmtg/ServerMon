@@ -36,6 +36,7 @@ import {
   Waypoints,
   Zap,
   Bell,
+  KeyRound,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/components/ui/toast';
@@ -87,9 +88,21 @@ const navGroups = [
       { label: 'Memory', href: '/memory', icon: Brain },
       { label: 'Endpoints', href: '/endpoints', icon: Waypoints },
       { label: 'Self Service', href: '/self-service', icon: Zap },
+      { label: 'EnvVars', href: '/env-vars', icon: KeyRound },
     ],
   },
 ];
+
+function getBrowserStorage(): Storage | null {
+  if (typeof window === 'undefined' || typeof window.localStorage === 'undefined') return null;
+  if (
+    typeof window.localStorage.getItem !== 'function' ||
+    typeof window.localStorage.setItem !== 'function'
+  ) {
+    return null;
+  }
+  return window.localStorage;
+}
 
 function SidebarNav({
   pathname,
@@ -105,19 +118,16 @@ function SidebarNav({
 
   // Restore scroll position
   useEffect(() => {
-    if (typeof window !== 'undefined' && typeof localStorage !== 'undefined') {
-      const savedScroll = localStorage.getItem('sidebar-scroll');
-      if (savedScroll && navRef.current) {
-        navRef.current.scrollTop = parseInt(savedScroll, 10);
-      }
+    const storage = getBrowserStorage();
+    const savedScroll = storage?.getItem('sidebar-scroll');
+    if (savedScroll && navRef.current) {
+      navRef.current.scrollTop = parseInt(savedScroll, 10);
     }
   }, []);
 
   // Save scroll position
   const handleScroll = (e: React.UIEvent<HTMLElement>) => {
-    if (typeof window !== 'undefined' && typeof localStorage !== 'undefined') {
-      localStorage.setItem('sidebar-scroll', e.currentTarget.scrollTop.toString());
-    }
+    getBrowserStorage()?.setItem('sidebar-scroll', e.currentTarget.scrollTop.toString());
   };
 
   return (

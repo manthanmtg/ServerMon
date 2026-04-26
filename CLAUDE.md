@@ -181,6 +181,7 @@ Concise map of major directories, commands, and key files. Update this section w
 - `src/lib/` — utilities, domain logic, fleet libraries
 - `src/models/` — Mongoose schemas
 - `src/modules/` — feature modules (terminal, processes, logs, metrics, fleet, etc.)
+- `src/lib/env-vars/` — stateless host environment variable helpers for OS target detection, shell env parsing, user-scope add/delete, and system-scope instructions
 - `src/server.ts` — custom Next.js server entry (Socket.IO bridge)
 - `src/proxy.ts`, `src/proxy.test.ts` — reverse proxy helper + tests
 - `src/test/` — shared test setup
@@ -193,6 +194,7 @@ Concise map of major directories, commands, and key files. Update this section w
 - `src/app/api/fleet/` — fleet HTTP routes: nodes, server, routes, nginx, templates, access-policies, resource-policies, logs, revisions (incl. `[id]/apply` + `[id]/rollback`), updates, backups, emergency, install, import, endpoint-exec, alerts/channels (+ `[id]`), alerts/subscriptions (+ `[id]`), alerts/test
 - `src/app/fleet/` — fleet UI pages: dashboard, node detail `[slug]`, onboarding, routes, logs, server, nginx, updates, backups, diagnostics, templates, policies, emergency, import, endpoint-runner, alerts
 - `src/modules/fleet/` — module definition + shared types + UI components (`ui/dashboard/`, `ui/onboarding/`, `ui/details/`, `ui/operations/`); `ui/details/exposeService/` houses the 6-step Expose Remote Service wizard (`ExposeServiceWizard`, `StepIdentity`, `StepTarget`, `StepAccess`, `StepPreview`, `StepDns`, `StepCreate`, `schema.ts`, `index.ts` barrel); `ui/operations/rotate/` holds `RotateTokenFlow` (+ `RotateTokenResultPanel`) and `RotateAllTokensFlow` (+ `RotateAllTokensResultPanel`) used by `EmergencyControls`; `ui/operations/AlertChannelManager.tsx` manages alert channels/subscriptions for the `/fleet/alerts` page
+- `src/modules/env-vars/` — EnvVars module definition, shared types, page, and widget for managing host environment variables without Mongo persistence
 - `docs/superpowers/plans/2026-04-24-fleet-management.md` — Phase 1 plan
 - `docs/superpowers/plans/2026-04-24-fleet-phase{2,3,4,5}-*.md` — follow-on phase stubs
 - `module_ideas/fleet_management.md` — full product spec (phases 1-5)

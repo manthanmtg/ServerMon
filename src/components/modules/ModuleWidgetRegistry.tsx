@@ -99,6 +99,10 @@ const FleetWidget = dynamic(() => import('@/modules/fleet/ui/FleetWidget'), {
   loading: WidgetLoader,
 });
 
+const EnvVarsWidget = dynamic(() => import('@/modules/env-vars/ui/EnvVarsWidget'), {
+  loading: WidgetLoader,
+});
+
 const widgetMap: Record<
   string,
   { component: React.ComponentType<Record<string, unknown>>; name: string }
@@ -125,6 +129,7 @@ const widgetMap: Record<
   EndpointsWidget: { component: EndpointsWidget, name: 'Custom Endpoints' },
   SelfServiceWidget: { component: SelfServiceWidget, name: 'Self Service' },
   FleetWidget: { component: FleetWidget, name: 'Fleet Overview' },
+  EnvVarsWidget: { component: EnvVarsWidget, name: 'EnvVars' },
 };
 
 export function renderWidget(componentName: string, props: Record<string, unknown> = {}) {

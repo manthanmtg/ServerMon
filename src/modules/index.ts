@@ -24,6 +24,7 @@ import { usersModule } from './users/module';
 import { endpointsModule } from './endpoints/module';
 import { selfServiceModule } from './self-service/module';
 import { fleetModule } from './fleet/module';
+import { envVarsModule } from './env-vars/module';
 
 // For now, we will manually register modules here.
 // In the future, this could be a dynamic scan of the modules directory.
@@ -53,4 +54,5 @@ export const coreModules: Module[] = [
   endpointsModule,
   selfServiceModule,
   fleetModule,
+  envVarsModule,
 ];
