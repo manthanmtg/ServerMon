@@ -6,13 +6,13 @@ This file is the single source of truth for all project rules, coding convention
 
 Every change (PR or commit to `main`) **must** satisfy these requirements:
 
-| Check  | Command          | Expectation          |
-| ------ | ---------------- | -------------------- |
-| Format | `pnpm format`    | 0 changes needed     |
-| Lint   | `pnpm lint`      | 0 errors, 0 warnings |
-| Types  | `pnpm typecheck` | 0 errors             |
-| Build  | `pnpm build`     | Exit code 0          |
-| Tests  | `pnpm test`      | Exit code 0          |
+| Check  | Command             | Expectation          |
+| ------ | ------------------- | -------------------- |
+| Format | `pnpm format:check` | 0 changes needed     |
+| Lint   | `pnpm lint`         | 0 errors, 0 warnings |
+| Types  | `pnpm typecheck`    | 0 errors             |
+| Build  | `pnpm build`        | Exit code 0          |
+| Tests  | `pnpm test`         | Exit code 0          |
 
 Shortcut: `pnpm check` runs all of the above in sequence. **A failure in any step blocks the merge.**
 
@@ -118,6 +118,7 @@ Tests use **Vitest** for unit/integration and **Playwright** for E2E.
 ## Architecture Decisions
 
 - **Single SSE connection**: `MetricsProvider` creates one `EventSource`. Never create instances in widgets.
+- **Global command search**: Accessible via shortcut for quick navigation across modules and actions.
 - **CSS variable theming**: All colors flow through variables defined in `src/app/globals.css`.
 - **Error boundaries**: `ModuleWidgetRegistry` wraps each widget automatically.
 - **Structured logging**: Use `createLogger()` from `src/lib/logger.ts`. Never use `console.log`.
@@ -153,13 +154,14 @@ Concise map of major directories, commands, and key files. Update this section w
 ## Core Commands
 
 - `pnpm dev` — run dev server via `src/server.ts`
-- `pnpm build` — Next.js production build
+- `pnpm build` — Next.js production build (`NODE_OPTIONS` enabled)
 - `pnpm start` — run production server
 - `pnpm lint` — ESLint over `src/`
-- `pnpm typecheck` — `tsc --noEmit`
+- `pnpm typecheck` — `tsc --noEmit` (`NODE_OPTIONS` enabled)
 - `pnpm test` — Vitest unit/integration
 - `pnpm test:e2e` — Playwright end-to-end
 - `pnpm format` — Prettier write
+- `pnpm format:check` — Prettier check
 - `pnpm check` — lint + typecheck + build + test
 
 ## Top-level Layout
@@ -178,9 +180,11 @@ Concise map of major directories, commands, and key files. Update this section w
 
 - `src/app/` — Next.js App Router pages + `api/` route handlers
 - `src/components/` — shared UI (including `layout/`, `ui/`, `modules/`)
-- `src/lib/` — utilities, domain logic, fleet libraries
+- `src/lib/` — utilities, domain logic, fleet libraries, AI orchestration
+- `src/lib/ai-agents/` — agent adapters (Claude Code, Codex, Gemini CLI) and session monitoring
+- `src/lib/ai-runner/` — automated task supervisor, watchdog, and worker orchestration
 - `src/models/` — Mongoose schemas
-- `src/modules/` — feature modules (terminal, processes, logs, metrics, fleet, etc.)
+- `src/modules/` — feature modules (terminal, processes, logs, metrics, fleet, AI, etc.)
 - `src/lib/env-vars/` — stateless host environment variable helpers for OS target detection, shell env parsing, user-scope add/delete, and system-scope instructions
 - `src/server.ts` — custom Next.js server entry (Socket.IO bridge)
 - `src/proxy.ts`, `src/proxy.test.ts` — reverse proxy helper + tests
@@ -193,9 +197,13 @@ Concise map of major directories, commands, and key files. Update this section w
 - `src/lib/fleet/` — pure libraries: enums, status, pairing, toml, toml-parse, nginx, binary, frpProcess, nginxProcess, heartbeat, audit, revisions, templates, install-script, preflight, preflightExecutors, diagnostics, firewall, dns, acme, resourceGuards, access, import, backup, frpOrchestrator, nginxOrchestrator, applyEngine, orchestrators, tty-bridge, hubTtyBridge, fleetTtyNamespace, alerts, alertSubscriber
 - `src/app/api/fleet/` — fleet HTTP routes: nodes, server, routes, nginx, templates, access-policies, resource-policies, logs, revisions (incl. `[id]/apply` + `[id]/rollback`), updates, backups, emergency, install, import, endpoint-exec, alerts/channels (+ `[id]`), alerts/subscriptions (+ `[id]`), alerts/test
 - `src/app/fleet/` — fleet UI pages: dashboard, node detail `[slug]`, onboarding, routes, logs, server, nginx, updates, backups, diagnostics, templates, policies, emergency, import, endpoint-runner, alerts
-- `src/modules/fleet/` — module definition + shared types + UI components (`ui/dashboard/`, `ui/onboarding/`, `ui/details/`, `ui/operations/`); `ui/details/exposeService/` houses the 6-step Expose Remote Service wizard (`ExposeServiceWizard`, `StepIdentity`, `StepTarget`, `StepAccess`, `StepPreview`, `StepDns`, `StepCreate`, `schema.ts`, `index.ts` barrel); `ui/operations/rotate/` holds `RotateTokenFlow` (+ `RotateTokenResultPanel`) and `RotateAllTokensFlow` (+ `RotateAllTokensResultPanel`) used by `EmergencyControls`; `ui/operations/AlertChannelManager.tsx` manages alert channels/subscriptions for the `/fleet/alerts` page
-- `src/modules/env-vars/` — EnvVars module definition, shared types, page, and widget for managing host environment variables without Mongo persistence
-- `docs/superpowers/plans/2026-04-24-fleet-management.md` — Phase 1 plan
-- `docs/superpowers/plans/2026-04-24-fleet-phase{2,3,4,5}-*.md` — follow-on phase stubs
+- `src/modules/fleet/` — module definition + shared types + UI components (`ui/dashboard/`, `ui/onboarding/`, `ui/details/`, `ui/operations/`); `ui/details/exposeService/` houses the 6-step Expose Remote Service wizard (`ExposeServiceWizard`, `StepIdentity`, `StepTarget`, `StepAccess`, `StepPreview`, `StepDns`, `StepCreate`, `schema.ts`, `index.ts` barrel); `ui/details/terminal/` houses node-specific terminal; `ui/operations/rotate/` holds `RotateTokenFlow` and `RotateAllTokensFlow` for `EmergencyControls`; `ui/operations/AlertChannelManager.tsx` manages alerts
 - `module_ideas/fleet_management.md` — full product spec (phases 1-5)
-- Env keys added: `FLEET_HUB_PUBLIC_URL`, `FRP_BIND_PORT`, `FRP_VHOST_HTTP_PORT`, `FRP_VHOST_HTTPS_PORT`, `FRP_AUTH_TOKEN`, `FRP_SUBDOMAIN_HOST`, `FLEET_HUB_AUTH_TOKEN`, `FLEET_AGENT_*`, `FLEET_NGINX_*`, `FLEET_ACME_*`, `FLEET_BINARY_CACHE_DIR`, `FLEET_FRP_VERSION`, `FLEET_FRPS_CONFIG_DIR`, `FLEET_BACKUP_DIR`, `FLEET_AUTO_APPLY_REVISIONS` (set to `'true'` to trigger `applyRevision` after each create/patch; rollback always applies)
+
+### AI & Automation
+
+- `src/modules/ai-agents/` — AI agent monitoring; `ui/AIAgentsPage.tsx` displays active sessions, tool catalog, and conversation history across multiple adapters (Claude Code, Codex, Gemini CLI, etc.)
+- `src/modules/ai-runner/` — automated task orchestration; `ui/AIRunnerPage.tsx` manages scheduled runs, worker concurrency, and visualizes task timelines; uses supervisor/worker pattern for background execution
+- `src/modules/env-vars/` — EnvVars module definition and UI for managing host-level environment variables (stateless, bypassing MongoDB)
+- `docs/ai-runner-module.md` — technical architecture for automation runner
+- Env keys added: `FLEET_HUB_PUBLIC_URL`, `FRP_BIND_PORT`, `FRP_VHOST_HTTP_PORT`, `FRP_VHOST_HTTPS_PORT`, `FRP_AUTH_TOKEN`, `FRP_SUBDOMAIN_HOST`, `FLEET_HUB_AUTH_TOKEN`, `FLEET_AGENT_*`, `FLEET_NGINX_*`, `FLEET_ACME_*`, `FLEET_BINARY_CACHE_DIR`, `FLEET_FRP_VERSION`, `FLEET_FRPS_CONFIG_DIR`, `FLEET_BACKUP_DIR`, `FLEET_AUTO_APPLY_REVISIONS` (set to `'true'`), `AI_RUNNER_*` (concurrency, logs, workers)
