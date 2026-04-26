@@ -309,6 +309,7 @@ export default function AIRunnerPage() {
   const [historyScheduleFilter, setHistoryScheduleFilter] = useState<string>('all');
   const [historyDetailOpen, setHistoryDetailOpen] = useState(false);
   const [historyDetailSection, setHistoryDetailSection] = useState<HistoryDetailSection>('summary');
+  const [focusedHistoryRunId, setFocusedHistoryRunId] = useState<string | null>(null);
   const [selectedPromptId, setSelectedPromptId] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [globalScheduleTogglePending, setGlobalScheduleTogglePending] = useState(false);
@@ -380,6 +381,7 @@ export default function AIRunnerPage() {
   const pendingActionsRef = useRef<Set<string>>(new Set());
   const logViewportRef = useRef<HTMLDivElement | null>(null);
   const logsEventSourceRef = useRef<EventSource | null>(null);
+  const historyRowRefs = useRef<Record<string, HTMLTableRowElement | null>>({});
 
   const setActionPending = useCallback((key: string, pending: boolean) => {
     const nextPendingActions = new Set(pendingActionsRef.current);
@@ -840,6 +842,19 @@ export default function AIRunnerPage() {
     () => Object.fromEntries(schedules.map((schedule) => [schedule._id, schedule])),
     [schedules]
   );
+  const autoflowMap = useMemo(
+    () => Object.fromEntries(autoflows.map((autoflow) => [autoflow._id, autoflow])),
+    [autoflows]
+  );
+  const getAutoflowItemForRun = useCallback(
+    (run: Pick<AIRunnerRunDTO, '_id' | 'autoflowId' | 'autoflowItemId'>) => {
+      if (!run.autoflowId) return undefined;
+      return autoflowMap[run.autoflowId]?.items.find(
+        (item) => item.runId === run._id || item._id === run.autoflowItemId
+      );
+    },
+    [autoflowMap]
+  );
   const getLinkedScheduleCount = (kind: LinkedDeleteTarget['kind'], id: string): number => {
     if (kind === 'prompt') {
       return schedules.filter((schedule) => schedule.promptId === id).length;
@@ -875,6 +890,8 @@ export default function AIRunnerPage() {
           : run.scheduleId === historyScheduleFilter);
       const promptName = run.promptId ? (promptMap[run.promptId]?.name ?? '') : '';
       const scheduleName = run.scheduleId ? (scheduleMap[run.scheduleId]?.name ?? '') : '';
+      const autoflowName = run.autoflowId ? (autoflowMap[run.autoflowId]?.name ?? '') : '';
+      const autoflowItemName = getAutoflowItemForRun(run)?.name ?? '';
       const profileName = profileMap[run.agentProfileId]?.name ?? '';
       const matchesSearch =
         query.length === 0 ||
@@ -883,6 +900,8 @@ export default function AIRunnerPage() {
         run.workingDirectory.toLowerCase().includes(query) ||
         promptName.toLowerCase().includes(query) ||
         scheduleName.toLowerCase().includes(query) ||
+        autoflowName.toLowerCase().includes(query) ||
+        autoflowItemName.toLowerCase().includes(query) ||
         profileName.toLowerCase().includes(query);
 
       return matchesStatus && matchesTrigger && matchesProfile && matchesSchedule && matchesSearch;
@@ -897,6 +916,8 @@ export default function AIRunnerPage() {
     runSearch,
     runs,
     scheduleMap,
+    autoflowMap,
+    getAutoflowItemForRun,
   ]);
 
   const enabledScheduleCount = schedules.filter((schedule) => schedule.enabled).length;
@@ -1192,6 +1213,17 @@ export default function AIRunnerPage() {
 
   const getRunDisplayName = useCallback(
     (run: AIRunnerRunDTO) => {
+      if (run.autoflowId) {
+        const autoflow = autoflowMap[run.autoflowId];
+        const item = getAutoflowItemForRun(run);
+        if (autoflow && item) {
+          return `${autoflow.name} / ${item.name}`;
+        }
+        if (autoflow) {
+          return autoflow.name;
+        }
+        return 'AutoFlow run';
+      }
       if (run.scheduleId) {
         return scheduleMap[run.scheduleId]?.name || 'Scheduled run';
       }
@@ -1200,8 +1232,65 @@ export default function AIRunnerPage() {
       }
       return run.promptContent.split('\n')[0]?.trim().slice(0, 72) || 'Manual run';
     },
-    [promptMap, scheduleMap]
+    [autoflowMap, getAutoflowItemForRun, promptMap, scheduleMap]
   );
+
+  const getRunContextLabel = useCallback(
+    (run: AIRunnerRunDTO) => {
+      if (run.autoflowId) {
+        const item = getAutoflowItemForRun(run);
+        return item ? `AutoFlow step: ${item.name}` : 'AutoFlow';
+      }
+      if (run.scheduleId) {
+        return scheduleMap[run.scheduleId]?.name || 'Schedule';
+      }
+      return 'Ad hoc';
+    },
+    [getAutoflowItemForRun, scheduleMap]
+  );
+
+  const revealHistoryRun = useCallback(
+    async (runId: string) => {
+      setRunSearch('');
+      setHistoryStatusFilter('all');
+      setHistoryTriggerFilter('all');
+      setHistoryProfileFilter('all');
+      setHistoryScheduleFilter('all');
+      setFocusedHistoryRunId(runId);
+      setActiveTab('history');
+
+      let detail: AIRunnerRunDTO | null = null;
+      try {
+        const response = await fetch(`/api/modules/ai-runner/runs/${runId}`, {
+          cache: 'no-store',
+        });
+        if (response.ok) {
+          detail = await response.json();
+        }
+      } catch {
+        /* history list refresh below is enough for recent runs */
+      }
+
+      await loadRuns('');
+      if (detail) {
+        setRuns((current) => {
+          if (current.some((run) => run._id === detail?._id)) {
+            return current.map((run) => (run._id === detail?._id ? detail : run));
+          }
+          return [detail, ...current];
+        });
+      }
+    },
+    [loadRuns]
+  );
+
+  useEffect(() => {
+    if (activeTab !== 'history' || !focusedHistoryRunId) return;
+    const row = historyRowRefs.current[focusedHistoryRunId];
+    if (!row) return;
+    row.scrollIntoView?.({ block: 'center', behavior: 'smooth' });
+    row.focus({ preventScroll: true });
+  }, [activeTab, filteredHistoryRuns, focusedHistoryRunId]);
 
   const openRunDetail = (run: AIRunnerRunDTO, section: HistoryDetailSection = 'summary') => {
     setSelectedRun(run);
@@ -3608,14 +3697,25 @@ export default function AIRunnerPage() {
                       </div>
                       <div className="mt-3 grid gap-2">
                         {autoflow.items.map((item, index) => (
-                          <div
+                          <button
+                            type="button"
                             key={item._id ?? `${autoflow._id}-${index}`}
-                            className="grid gap-2 rounded-lg border border-border/50 bg-background/70 px-3 py-2 text-xs sm:grid-cols-[32px_1fr_100px]"
+                            disabled={!item.runId}
+                            onClick={() => {
+                              if (item.runId) void revealHistoryRun(item.runId);
+                            }}
+                            className={cn(
+                              'grid min-h-10 w-full gap-2 rounded-lg border border-border/50 bg-background/70 px-3 py-2 text-left text-xs transition-colors sm:grid-cols-[32px_1fr_100px]',
+                              item.runId
+                                ? 'cursor-pointer hover:border-primary/40 hover:bg-accent/30 focus:outline-none focus:ring-2 focus:ring-ring/40'
+                                : 'cursor-default'
+                            )}
+                            title={item.runId ? 'Open this step in history' : 'No history run yet'}
                           >
                             <span className="text-muted-foreground">#{index + 1}</span>
                             <span className="min-w-0 truncate">{item.name}</span>
                             <Badge variant="outline">{item.status}</Badge>
-                          </div>
+                          </button>
                         ))}
                       </div>
                     </div>
@@ -3640,7 +3740,7 @@ export default function AIRunnerPage() {
               <Card className="border-border/60">
                 <CardContent className="p-0">
                   <div className="border-b border-border/60 px-5 py-4">
-                    <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="flex flex-wrap items-end justify-between gap-3">
                       <div className="grid flex-1 gap-3 xl:grid-cols-[minmax(260px,1.4fr)_repeat(4,minmax(0,1fr))]">
                         <label className="space-y-1">
                           <span className="text-xs font-medium text-muted-foreground">Search</span>
@@ -3691,6 +3791,7 @@ export default function AIRunnerPage() {
                             <option value="all">All triggers</option>
                             <option value="manual">Manual</option>
                             <option value="schedule">Schedule</option>
+                            <option value="autoflow">AutoFlow</option>
                           </select>
                         </label>
 
@@ -3736,7 +3837,7 @@ export default function AIRunnerPage() {
                           void runExclusiveAction('history:refresh', () => loadAll(runSearch))
                         }
                         loading={isActionPending('history:refresh')}
-                        className="h-10 shrink-0"
+                        className="h-10 shrink-0 self-end"
                       >
                         <RefreshCcw className="w-4 h-4" />
                         Refresh
@@ -3764,10 +3865,15 @@ export default function AIRunnerPage() {
                         {filteredHistoryRuns.map((run) => (
                           <tr
                             key={run._id}
+                            ref={(node) => {
+                              historyRowRefs.current[run._id] = node;
+                            }}
+                            tabIndex={-1}
                             onClick={() => openRunDetail(run)}
                             className={cn(
-                              'cursor-pointer border-b border-border/40 transition-colors hover:bg-accent/30',
-                              selectedRun?._id === run._id && 'bg-primary/5'
+                              'cursor-pointer border-b border-border/40 transition-colors hover:bg-accent/30 focus:outline-none focus:ring-2 focus:ring-ring/40',
+                              selectedRun?._id === run._id && 'bg-primary/5',
+                              focusedHistoryRunId === run._id && 'bg-primary/10'
                             )}
                           >
                             <td className="px-4 py-3 align-top">
@@ -3777,9 +3883,7 @@ export default function AIRunnerPage() {
                               <div className="max-w-[220px]">
                                 <p className="truncate font-medium">{getRunDisplayName(run)}</p>
                                 <p className="truncate text-xs text-muted-foreground">
-                                  {run.scheduleId
-                                    ? scheduleMap[run.scheduleId]?.name || 'Schedule'
-                                    : 'Ad hoc'}
+                                  {getRunContextLabel(run)}
                                 </p>
                               </div>
                             </td>

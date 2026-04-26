@@ -174,6 +174,11 @@ describe('AIRunnerPage', () => {
       if (url.includes('/api/modules/ai-runner/runs/active')) {
         return Promise.resolve({ ok: true, json: async () => mockActiveRuns });
       }
+      if (url.includes('/api/modules/ai-runner/runs/')) {
+        const runId = url.split('/api/modules/ai-runner/runs/')[1]?.split(/[/?#]/)[0];
+        const run = mockRuns.runs.find((item) => item._id === runId);
+        return Promise.resolve({ ok: Boolean(run), json: async () => run ?? {} });
+      }
       if (url.includes('/api/modules/ai-runner/runs')) {
         return Promise.resolve({ ok: true, json: async () => mockRuns });
       }
@@ -633,6 +638,70 @@ describe('AIRunnerPage', () => {
       expect(runsRequestCountAfterPoll).toBeGreaterThan(runsRequestCountAfterOpen);
     } finally {
       vi.useRealTimers();
+    }
+  });
+
+  it('names AutoFlow runs in history and opens a clicked step there', async () => {
+    mockAutoflows.splice(0, mockAutoflows.length, {
+      _id: 'autoflow-1',
+      name: 'Deploy flow',
+      mode: 'sequential',
+      status: 'completed',
+      continueOnFailure: false,
+      currentIndex: 1,
+      items: [
+        {
+          _id: 'autoflow-item-1',
+          name: 'Build step',
+          promptContent: 'Checkout main, reset code, pull latest changes',
+          promptType: 'inline',
+          agentProfileId: 'profile-1',
+          workingDirectory: '/root/repos/ServerMon',
+          timeout: 30,
+          status: 'completed',
+          runId: 'run-autoflow-1',
+        },
+      ],
+      startedAt: '2026-04-21T00:00:00.000Z',
+      finishedAt: '2026-04-21T00:01:00.000Z',
+      createdAt: '2026-04-21T00:00:00.000Z',
+      updatedAt: '2026-04-21T00:01:00.000Z',
+    });
+    mockRuns.runs.splice(0, mockRuns.runs.length, {
+      _id: 'run-autoflow-1',
+      autoflowId: 'autoflow-1',
+      autoflowItemId: 'autoflow-item-1',
+      agentProfileId: 'profile-1',
+      promptContent: 'Checkout main, reset code, pull latest changes',
+      workingDirectory: '/root/repos/ServerMon',
+      command: 'codex "$PROMPT"',
+      status: 'completed',
+      stdout: '',
+      stderr: '',
+      rawOutput: '',
+      queuedAt: '2026-04-21T00:00:00.000Z',
+      startedAt: '2026-04-21T00:00:05.000Z',
+      finishedAt: '2026-04-21T00:01:00.000Z',
+      triggeredBy: 'autoflow',
+    });
+
+    try {
+      await act(async () => {
+        render(<AIRunnerPage />);
+      });
+
+      await waitFor(() => expect(screen.getByText('AI Agent Runner')).toBeInTheDocument());
+
+      await act(async () => {
+        fireEvent.click(screen.getByTitle('Open this step in history'));
+      });
+
+      await waitFor(() => expect(screen.getByText('Deploy flow / Build step')).toBeInTheDocument());
+      expect(screen.getByText('AutoFlow step: Build step')).toBeInTheDocument();
+      expect(screen.queryByText('Ad hoc')).not.toBeInTheDocument();
+    } finally {
+      mockAutoflows.splice(0, mockAutoflows.length);
+      mockRuns.runs.splice(0, mockRuns.runs.length);
     }
   });
 

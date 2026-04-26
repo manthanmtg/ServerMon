@@ -8,6 +8,8 @@ import {
   stripAnsi,
 } from './service';
 import connectDB from '@/lib/db';
+import AIRunnerAutoflow from '@/models/AIRunnerAutoflow';
+import AIRunnerJob from '@/models/AIRunnerJob';
 import AIRunnerProfile from '@/models/AIRunnerProfile';
 import AIRunnerPrompt from '@/models/AIRunnerPrompt';
 import AIRunnerSchedule from '@/models/AIRunnerSchedule';
@@ -27,6 +29,7 @@ vi.mock('@/models/AIRunnerPrompt');
 vi.mock('@/models/AIRunnerSchedule');
 vi.mock('@/models/AIRunnerRun');
 vi.mock('@/models/AIRunnerWorkspace');
+vi.mock('@/models/AIRunnerAutoflow');
 vi.mock('@/models/AIRunnerJob');
 
 vi.mock('./processes', () => ({
@@ -412,6 +415,75 @@ describe('AIRunnerService', () => {
       expect(enqueueRunRequest).toHaveBeenCalledWith(request);
       expect(ensureAIRunnerSupervisor).toHaveBeenCalled();
       expect(result).toEqual({ _id: 'run-1' });
+    });
+  });
+
+  describe('AutoFlows', () => {
+    it('cancels active linked runs before canceling the AutoFlow', async () => {
+      const activeRun = {
+        _id: 'run-1',
+        jobId: undefined,
+        status: 'queued',
+        save: vi.fn(),
+      };
+      const queuedJob = {
+        _id: 'job-1',
+        status: 'queued',
+      };
+      const autoflow = {
+        _id: 'autoflow-1',
+        name: 'Flow',
+        mode: 'sequential',
+        status: 'running',
+        continueOnFailure: false,
+        currentIndex: 0,
+        items: [
+          {
+            _id: 'item-1',
+            name: 'Step',
+            promptType: 'inline',
+            agentProfileId: 'profile-1',
+            workingDirectory: '/tmp',
+            timeout: 30,
+            status: 'queued',
+            runId: 'run-1',
+          },
+        ],
+        save: vi.fn().mockResolvedValue(true),
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      (AIRunnerAutoflow.findById as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(
+        autoflow
+      );
+      (AIRunnerRun.find as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
+        select: vi.fn().mockReturnThis(),
+        lean: vi.fn().mockResolvedValue([{ _id: 'run-1' }]),
+      });
+      (AIRunnerRun.findById as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(activeRun);
+      (AIRunnerJob.findOne as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(queuedJob);
+
+      const result = await service.cancelAutoflow('autoflow-1');
+
+      expect(AIRunnerRun.find).toHaveBeenCalledWith({
+        autoflowId: 'autoflow-1',
+        status: { $in: ['queued', 'running', 'retrying'] },
+      });
+      expect(AIRunnerJob.findByIdAndUpdate).toHaveBeenCalledWith(
+        'job-1',
+        expect.objectContaining({
+          $set: expect.objectContaining({ status: 'canceled' }),
+        })
+      );
+      expect(AIRunnerRun.findByIdAndUpdate).toHaveBeenCalledWith(
+        'run-1',
+        expect.objectContaining({
+          $set: expect.objectContaining({ status: 'killed', jobStatus: 'canceled' }),
+        })
+      );
+      expect(autoflow.items[0].status).toBe('canceled');
+      expect(result?.status).toBe('canceled');
     });
   });
 

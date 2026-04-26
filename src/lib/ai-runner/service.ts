@@ -1019,6 +1019,7 @@ export class AIRunnerService {
     await connectDB();
     const doc = await AIRunnerAutoflow.findById(id);
     if (!doc) return null;
+    await this.cancelActiveAutoflowRuns(id);
     doc.status = 'running';
     doc.startedAt = new Date();
     doc.finishedAt = undefined;
@@ -1040,15 +1041,28 @@ export class AIRunnerService {
     await connectDB();
     const doc = await AIRunnerAutoflow.findById(id);
     if (!doc) return null;
+    await this.cancelActiveAutoflowRuns(id);
+    const finishedAt = new Date();
     doc.status = 'canceled';
-    doc.finishedAt = new Date();
+    doc.finishedAt = finishedAt;
     doc.items = doc.items.map((item) =>
-      item.status === 'pending' || item.status === 'queued'
-        ? { ...item, status: 'canceled', finishedAt: new Date() }
+      item.status === 'pending' || item.status === 'queued' || item.status === 'running'
+        ? { ...item, status: 'canceled', finishedAt }
         : item
     );
     await doc.save();
     return mapAutoflow(doc);
+  }
+
+  private async cancelActiveAutoflowRuns(id: string): Promise<void> {
+    const activeRuns = await AIRunnerRun.find({
+      autoflowId: id,
+      status: { $in: ['queued', 'running', 'retrying'] },
+    })
+      .select('_id')
+      .lean();
+
+    await Promise.all(activeRuns.map((run) => this.killRun(stringifyId(run._id))));
   }
 
   async listRuns(options?: {
