@@ -140,6 +140,21 @@ describe('AIRunnerPage', () => {
       if (url.includes('/api/modules/ai-runner/autoflows')) {
         return Promise.resolve({ ok: true, json: async () => mockAutoflows });
       }
+      if (url.includes('/api/modules/ai-runner/prompt-attachments/temp')) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            attachments: [
+              {
+                name: 'dropped-image.png',
+                contentType: 'image/png',
+                size: 4,
+                path: '/tmp/servermon-ai-runner-attachments/dropped-image.png',
+              },
+            ],
+          }),
+        });
+      }
       if (url.includes('/api/modules/ai-runner/profiles')) {
         return Promise.resolve({ ok: true, json: async () => mockProfiles });
       }
@@ -313,6 +328,80 @@ describe('AIRunnerPage', () => {
     expect(screen.getAllByRole('button', { name: /^Edit$/i }).length).toBeGreaterThan(0);
     expect(screen.getAllByRole('button', { name: /^Delete$/i }).length).toBeGreaterThan(0);
     expect(screen.queryByText('Search & Filter')).not.toBeInTheDocument();
+  });
+
+  it('adds saved prompt attachments from dropped files', async () => {
+    const fetchMock = vi.mocked(global.fetch);
+    const file = new File(['note'], 'dropped-note.txt', { type: 'text/plain' });
+
+    await act(async () => {
+      render(<AIRunnerPage />);
+    });
+
+    await waitFor(() => expect(screen.getByText('AI Agent Runner')).toBeInTheDocument());
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('tab', { name: /Saved Prompts/i }));
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /^Create Prompt$/i }));
+    });
+
+    await act(async () => {
+      fireEvent.drop(screen.getByRole('region', { name: /Saved prompt attachments/i }), {
+        dataTransfer: { files: [file] },
+      });
+    });
+
+    expect(await screen.findByText('dropped-note.txt')).toBeInTheDocument();
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Prompt drop' } });
+      fireEvent.change(screen.getByPlaceholderText(/Ask the agent to review code/i), {
+        target: { value: 'Use dropped attachment.' },
+      });
+      const createButtons = screen.getAllByRole('button', { name: /^Create prompt$/i });
+      fireEvent.click(createButtons[createButtons.length - 1]!);
+    });
+
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/modules/ai-runner/prompts',
+        expect.objectContaining({
+          method: 'POST',
+          body: expect.stringContaining('"name":"dropped-note.txt"'),
+        })
+      )
+    );
+  });
+
+  it('uploads ad-hoc AutoFlow attachments from dropped files', async () => {
+    const fetchMock = vi.mocked(global.fetch);
+    const file = new File(['data'], 'dropped-image.png', { type: 'image/png' });
+
+    await act(async () => {
+      render(<AIRunnerPage />);
+    });
+
+    await waitFor(() => expect(screen.getByText('AI Agent Runner')).toBeInTheDocument());
+
+    await act(async () => {
+      fireEvent.drop(screen.getByRole('region', { name: /Ad-hoc prompt attachments/i }), {
+        dataTransfer: { files: [file] },
+      });
+    });
+
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/modules/ai-runner/prompt-attachments/temp',
+        expect.objectContaining({
+          method: 'POST',
+          body: expect.any(FormData),
+        })
+      )
+    );
+    expect(await screen.findByText('dropped-image.png')).toBeInTheDocument();
   });
 
   it('shows and toggles the global schedule queue button', async () => {
