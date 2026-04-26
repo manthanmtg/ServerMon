@@ -61,6 +61,19 @@ export interface EnsureBinaryOpts {
 let cachedLatestVersion: { version: string; expiresAt: number } | null = null;
 const CACHE_TTL_MS = 1000 * 60 * 60; // 1 hour
 
+interface GitHubLatestReleasePayload {
+  tag_name: string;
+}
+
+function isGitHubLatestReleasePayload(value: unknown): value is GitHubLatestReleasePayload {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'tag_name' in value &&
+    typeof value.tag_name === 'string'
+  );
+}
+
 export async function resolveVersion(version: string, fetchImpl = fetch): Promise<string> {
   if (version !== 'latest') {
     return version;
@@ -76,7 +89,10 @@ export async function resolveVersion(version: string, fetchImpl = fetch): Promis
       headers: { Accept: 'application/vnd.github.v3+json', 'User-Agent': 'ServerMon-Hub' },
     });
     if (!res.ok) throw new Error(`GitHub API error: ${res.status}`);
-    const data = await res.json();
+    const data: unknown = await res.json();
+    if (!isGitHubLatestReleasePayload(data)) {
+      throw new Error('Invalid GitHub latest release payload');
+    }
     const latest = data.tag_name.replace(/^v/, '');
     cachedLatestVersion = { version: latest, expiresAt: now + CACHE_TTL_MS };
     return latest;
