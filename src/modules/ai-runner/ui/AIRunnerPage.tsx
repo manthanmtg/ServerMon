@@ -43,6 +43,8 @@ import type {
   AIRunnerPortableResource,
   AIRunnerProfileDTO,
   AIRunnerPromptDTO,
+  AIRunnerPromptAttachmentDTO,
+  AIRunnerPromptAttachmentRefDTO,
   AIRunnerPromptTemplateDTO,
   AIRunnerRunDTO,
   AIRunnerRunsResponse,
@@ -125,6 +127,9 @@ const PORTABLE_RESOURCE_OPTIONS: Array<{
   },
 ];
 const DEFAULT_PORTABLE_RESOURCES = PORTABLE_RESOURCE_OPTIONS.map((item) => item.id);
+const MAX_PROMPT_ATTACHMENTS = 8;
+const MAX_PROMPT_ATTACHMENT_BYTES = 5 * 1024 * 1024;
+const MAX_PROMPT_ATTACHMENTS_TOTAL_BYTES = 10 * 1024 * 1024;
 
 interface AIRunnerRuntimeDiagnostics {
   runtime?: {
@@ -199,6 +204,36 @@ function applyPromptTemplate(template: string, current: string): string {
     return template.replaceAll(PROMPT_TEMPLATE_PLACEHOLDER, current);
   }
   return `${template.trim()}\n\n${current.trim()}`;
+}
+
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = typeof reader.result === 'string' ? reader.result : '';
+      resolve(result.split(',')[1] ?? '');
+    };
+    reader.onerror = () => reject(reader.error ?? new Error('Unable to read file'));
+    reader.readAsDataURL(file);
+  });
+}
+
+function validateAttachmentFiles(
+  files: File[],
+  currentSize: number,
+  currentCount: number
+): string | null {
+  if (currentCount + files.length > MAX_PROMPT_ATTACHMENTS) {
+    return `Attach up to ${MAX_PROMPT_ATTACHMENTS} files.`;
+  }
+  if (files.some((file) => file.size > MAX_PROMPT_ATTACHMENT_BYTES)) {
+    return 'Each attachment must be 5 MB or smaller.';
+  }
+  const total = files.reduce((sum, file) => sum + file.size, currentSize);
+  if (total > MAX_PROMPT_ATTACHMENTS_TOTAL_BYTES) {
+    return 'Prompt attachments must be 10 MB or smaller in total.';
+  }
+  return null;
 }
 
 function emptyWorkspaceForm(path = ''): WorkspaceFormState {
@@ -310,6 +345,7 @@ export default function AIRunnerPage() {
     name: '',
     promptContent: '',
     promptType: 'inline',
+    attachments: [],
     agentProfileId: '',
     workspaceId: undefined,
     workingDirectory: '',
@@ -952,6 +988,7 @@ export default function AIRunnerPage() {
       content: prompt.content,
       type: prompt.type,
       tags: prompt.tags,
+      attachments: prompt.attachments,
     });
     setPromptModalOpen(true);
     setActiveTab('prompts');
@@ -1378,6 +1415,92 @@ export default function AIRunnerPage() {
     requestLinkedDelete({ kind: 'prompt', id, name: prompt?.name ?? 'this prompt' });
   };
 
+  const addSavedPromptAttachments = async (fileList: FileList | null) => {
+    const files = Array.from(fileList ?? []);
+    if (files.length === 0) return;
+    const validationError = validateAttachmentFiles(
+      files,
+      promptForm.attachments.reduce((sum, attachment) => sum + attachment.size, 0),
+      promptForm.attachments.length
+    );
+    if (validationError) {
+      toast({ title: 'Attachment rejected', description: validationError, variant: 'warning' });
+      return;
+    }
+
+    try {
+      const attachments: AIRunnerPromptAttachmentDTO[] = await Promise.all(
+        files.map(async (file) => ({
+          name: file.name,
+          contentType: file.type || 'application/octet-stream',
+          size: file.size,
+          data: await fileToBase64(file),
+        }))
+      );
+      setPromptForm((current) => ({
+        ...current,
+        attachments: [...current.attachments, ...attachments],
+      }));
+    } catch (error) {
+      toast({
+        title: 'Attachment read failed',
+        description: error instanceof Error ? error.message : 'Unable to read attachment',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const removeSavedPromptAttachment = (index: number) => {
+    setPromptForm((current) => ({
+      ...current,
+      attachments: current.attachments.filter((_, itemIndex) => itemIndex !== index),
+    }));
+  };
+
+  const uploadAutoflowAttachments = async (fileList: FileList | null) => {
+    const files = Array.from(fileList ?? []);
+    if (files.length === 0) return;
+    const currentAttachments = autoflowDraft.attachments ?? [];
+    const validationError = validateAttachmentFiles(
+      files,
+      currentAttachments.reduce((sum, attachment) => sum + attachment.size, 0),
+      currentAttachments.length
+    );
+    if (validationError) {
+      toast({ title: 'Attachment rejected', description: validationError, variant: 'warning' });
+      return;
+    }
+
+    const formData = new FormData();
+    files.forEach((file) => formData.append('files', file));
+    try {
+      const response = await fetch('/api/modules/ai-runner/prompt-attachments/temp', {
+        method: 'POST',
+        body: formData,
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || 'Unable to upload attachments');
+      const attachments = (payload.attachments ?? []) as AIRunnerPromptAttachmentRefDTO[];
+      setAutoflowDraft((current) => ({
+        ...current,
+        attachments: [...(current.attachments ?? []), ...attachments],
+      }));
+    } catch (error) {
+      toast({
+        title: 'Attachment upload failed',
+        description: error instanceof Error ? error.message : 'Unable to upload attachments',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const removeAutoflowAttachment = (index: number) => {
+    setAutoflowDraft((current) => ({
+      ...current,
+      attachments: (current.attachments ?? []).filter((_, itemIndex) => itemIndex !== index),
+    }));
+  };
+
   const submitPromptTemplate = async () => {
     try {
       const response = await fetch(
@@ -1587,6 +1710,7 @@ export default function AIRunnerPage() {
       promptId,
       promptContent: prompt.content,
       promptType: prompt.type,
+      attachments: [],
     }));
     setActiveTab('autoflows');
   };
@@ -1894,6 +2018,7 @@ export default function AIRunnerPage() {
       promptId: undefined,
       name: '',
       promptContent: '',
+      attachments: [],
     }));
   };
 
@@ -1922,6 +2047,7 @@ export default function AIRunnerPage() {
         promptId: undefined,
         name: '',
         promptContent: '',
+        attachments: [],
       }));
       setAutoflows((current) => [payload, ...current]);
       toast({
@@ -2103,6 +2229,9 @@ export default function AIRunnerPage() {
                                 {prompt.name}
                               </h3>
                               <Badge variant="secondary">{prompt.type}</Badge>
+                              {prompt.attachments.length > 0 ? (
+                                <Badge variant="outline">{prompt.attachments.length} files</Badge>
+                              ) : null}
                             </div>
                             <p className="line-clamp-2 text-xs text-muted-foreground whitespace-pre-wrap">
                               {prompt.content}
@@ -2348,6 +2477,53 @@ export default function AIRunnerPage() {
                                 : '/root/repos/project/prompts/release-review.md'
                             }
                           />
+                          <div className="space-y-3 rounded-xl border border-border/60 bg-card/60 p-4">
+                            <div className="flex flex-wrap items-center justify-between gap-3">
+                              <div>
+                                <p className="text-sm font-semibold">Files & images</p>
+                                <p className="mt-1 text-xs text-muted-foreground">
+                                  Stored with this saved prompt and exported with prompt bundles.
+                                </p>
+                              </div>
+                              <label className="inline-flex h-9 cursor-pointer items-center gap-2 rounded-lg border border-input bg-background px-3 text-xs font-medium transition-colors hover:bg-accent/50">
+                                <Upload className="h-4 w-4" />
+                                Upload
+                                <input
+                                  type="file"
+                                  multiple
+                                  className="sr-only"
+                                  onChange={(event) => {
+                                    void addSavedPromptAttachments(event.target.files);
+                                    event.target.value = '';
+                                  }}
+                                />
+                              </label>
+                            </div>
+                            {promptForm.attachments.length > 0 ? (
+                              <div className="space-y-2">
+                                {promptForm.attachments.map((attachment, index) => (
+                                  <div
+                                    key={`${attachment.name}-${index}`}
+                                    className="flex items-center justify-between gap-3 rounded-lg border border-border/60 bg-background px-3 py-2 text-xs"
+                                  >
+                                    <span className="min-w-0 truncate">
+                                      {attachment.name}
+                                      <span className="ml-2 text-muted-foreground">
+                                        {formatMemory(attachment.size)}
+                                      </span>
+                                    </span>
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      onClick={() => removeSavedPromptAttachment(index)}
+                                    >
+                                      <X className="h-4 w-4" />
+                                    </Button>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : null}
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -3140,6 +3316,54 @@ export default function AIRunnerPage() {
                       />
                     </label>
 
+                    <div className="space-y-3 rounded-xl border border-border/60 bg-background/70 p-4">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-semibold">Step files & images</p>
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            Uploaded to temp storage and passed to this ad-hoc step by path.
+                          </p>
+                        </div>
+                        <label className="inline-flex h-9 cursor-pointer items-center gap-2 rounded-lg border border-input bg-background px-3 text-xs font-medium transition-colors hover:bg-accent/50">
+                          <Upload className="h-4 w-4" />
+                          Upload
+                          <input
+                            type="file"
+                            multiple
+                            className="sr-only"
+                            onChange={(event) => {
+                              void uploadAutoflowAttachments(event.target.files);
+                              event.target.value = '';
+                            }}
+                          />
+                        </label>
+                      </div>
+                      {(autoflowDraft.attachments ?? []).length > 0 ? (
+                        <div className="space-y-2">
+                          {(autoflowDraft.attachments ?? []).map((attachment, index) => (
+                            <div
+                              key={`${attachment.path}-${index}`}
+                              className="flex items-center justify-between gap-3 rounded-lg border border-border/60 bg-card px-3 py-2 text-xs"
+                            >
+                              <span className="min-w-0 truncate">
+                                {attachment.name}
+                                <span className="ml-2 text-muted-foreground">
+                                  {formatMemory(attachment.size)}
+                                </span>
+                              </span>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => removeAutoflowAttachment(index)}
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <label className="flex items-center gap-2 text-sm">
                         <input
@@ -3172,6 +3396,11 @@ export default function AIRunnerPage() {
                               ? workspaceMap[item.workspaceId]?.name || item.workingDirectory
                               : item.workingDirectory}
                           </p>
+                          {(item.attachments ?? []).length > 0 ? (
+                            <Badge variant="outline" className="mt-2 text-[10px]">
+                              {(item.attachments ?? []).length} files
+                            </Badge>
+                          ) : null}
                         </div>
                         <Button
                           size="sm"

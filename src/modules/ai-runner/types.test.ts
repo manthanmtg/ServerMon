@@ -36,6 +36,7 @@ describe('ai-runner type shapes', () => {
       content: 'Update stale docs',
       type: 'inline',
       tags: ['docs'],
+      attachments: [],
       createdAt: '2026-04-20T10:00:00.000Z',
       updatedAt: '2026-04-20T10:00:00.000Z',
     };

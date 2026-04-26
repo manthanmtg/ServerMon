@@ -7,6 +7,12 @@ export interface IAIRunnerAutoflowItem {
   promptId?: mongoose.Types.ObjectId;
   promptContent?: string;
   promptType: 'inline' | 'file-reference';
+  attachments?: {
+    name: string;
+    path: string;
+    contentType: string;
+    size: number;
+  }[];
   agentProfileId: mongoose.Types.ObjectId;
   workspaceId?: mongoose.Types.ObjectId;
   workingDirectory: string;
@@ -42,6 +48,18 @@ const AIRunnerAutoflowItemSchema = new Schema<IAIRunnerAutoflowItem>(
       required: true,
       enum: ['inline', 'file-reference'],
       default: 'inline',
+    },
+    attachments: {
+      type: [
+        {
+          name: { type: String, required: true, trim: true, maxlength: 255 },
+          path: { type: String, required: true, trim: true, maxlength: 2000 },
+          contentType: { type: String, required: true, trim: true, maxlength: 255 },
+          size: { type: Number, required: true, min: 0, max: 5 * 1024 * 1024 },
+          _id: false,
+        },
+      ],
+      default: [],
     },
     agentProfileId: { type: Schema.Types.ObjectId, ref: 'AIRunnerProfile', required: true },
     workspaceId: { type: Schema.Types.ObjectId, ref: 'AIRunnerWorkspace' },

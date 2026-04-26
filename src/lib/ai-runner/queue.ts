@@ -22,6 +22,12 @@ import {
   type AIRunnerResolvedExecution,
 } from './shared';
 import { writeAIRunnerLogEntry } from './logs';
+import {
+  appendAttachmentReferencesToPrompt,
+  materializePromptAttachments,
+  normalizeAttachmentRefs,
+  type StoredPromptAttachment,
+} from './attachments';
 
 interface LegacyPromptRuntime {
   agentProfileId?: unknown;
@@ -145,7 +151,20 @@ export async function resolveExecutionRequest(
     throw new Error('Prompt content is required');
   }
 
-  const promptContent = await resolvePromptContent(promptType, promptSource);
+  const basePromptContent = await resolvePromptContent(promptType, promptSource);
+  const savedAttachmentPaths = promptDoc
+    ? await materializePromptAttachments(
+        ((promptDoc.attachments ?? []) as StoredPromptAttachment[]).filter(Boolean),
+        { prefix: `prompt-${stringifyId(promptDoc._id)}` }
+      )
+    : [];
+  const adHocAttachmentPaths = normalizeAttachmentRefs(request.attachments).map(
+    (attachment) => attachment.path
+  );
+  const promptContent = appendAttachmentReferencesToPrompt(basePromptContent, [
+    ...savedAttachmentPaths,
+    ...adHocAttachmentPaths,
+  ]);
   const legacyTimeout =
     typeof legacyPromptRuntime?.timeout === 'number' ? legacyPromptRuntime.timeout : undefined;
   const timeoutMinutes = Math.min(

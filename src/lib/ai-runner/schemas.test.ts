@@ -117,6 +117,29 @@ describe('ai-runner schemas', () => {
       });
       expect(result.success).toBe(false);
     });
+
+    it('validates saved prompt attachments with base64 data', () => {
+      const result = promptCreateSchema.safeParse({
+        name: 'Prompt with evidence',
+        content: 'Review the attached screenshot',
+        type: 'inline',
+        tags: [],
+        attachments: [
+          {
+            name: 'screenshot.png',
+            contentType: 'image/png',
+            size: 4,
+            data: Buffer.from('test').toString('base64'),
+          },
+        ],
+      });
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.attachments).toHaveLength(1);
+        expect(result.data.attachments?.[0].name).toBe('screenshot.png');
+      }
+    });
   });
 
   describe('scheduleCreateSchema', () => {
@@ -154,6 +177,28 @@ describe('ai-runner schemas', () => {
         type: 'inline',
       });
       expect(result.success).toBe(true);
+    });
+
+    it('validates ad-hoc run attachment paths', () => {
+      const result = runExecuteSchema.safeParse({
+        agentProfileId: 'a1',
+        workingDirectory: '/app',
+        content: 'Some prompt',
+        type: 'inline',
+        attachments: [
+          {
+            name: 'notes.txt',
+            path: '/tmp/servermon-ai-runner-attachments/notes.txt',
+            contentType: 'text/plain',
+            size: 12,
+          },
+        ],
+      });
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.attachments?.[0].path).toContain('/tmp/');
+      }
     });
 
     it('requires content and type if promptId is missing', () => {
@@ -227,6 +272,38 @@ describe('ai-runner schemas', () => {
         selectedResources: ['profiles'],
         decisions: [{ resource: 'profiles', key: 'codex', overwrite: true }],
       });
+      expect(result.success).toBe(true);
+    });
+
+    it('validates exported prompt attachments', () => {
+      const result = importBundleSchema.safeParse({
+        bundle: {
+          kind: 'servermon.ai-runner.bundle',
+          version: 1,
+          exportedAt: '2026-04-26T00:00:00.000Z',
+          resources: {
+            prompts: [
+              {
+                name: 'Screenshot review',
+                content: 'Review attached screenshot',
+                type: 'inline',
+                tags: ['review'],
+                attachments: [
+                  {
+                    name: 'screen.png',
+                    contentType: 'image/png',
+                    size: 4,
+                    data: Buffer.from('test').toString('base64'),
+                  },
+                ],
+              },
+            ],
+          },
+        },
+        selectedResources: ['prompts'],
+        decisions: [],
+      });
+
       expect(result.success).toBe(true);
     });
   });
