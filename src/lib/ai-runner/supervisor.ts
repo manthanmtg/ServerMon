@@ -723,11 +723,13 @@ export class AIRunnerSupervisor {
   }
 
   private async dispatchRunnableJobs(): Promise<void> {
+    const settings = await getAIRunnerSettings();
+    const maxConcurrentRuns = settings.maxConcurrentRuns ?? this.maxConcurrentRuns;
     let activeCount = await AIRunnerJob.countDocuments({
       status: { $in: ['dispatched', 'running'] },
     });
 
-    while (activeCount < this.maxConcurrentRuns) {
+    while (activeCount < maxConcurrentRuns) {
       const now = new Date();
       const candidates = await AIRunnerJob.find({
         status: { $in: ['queued', 'retrying'] },

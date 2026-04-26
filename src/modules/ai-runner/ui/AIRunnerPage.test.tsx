@@ -109,9 +109,11 @@ const mockRunnerSettings: AIRunnerSettingsDTO = {
   schedulesGloballyEnabled: true,
   autoflowMode: 'sequential',
   artifactBaseDir: '/tmp/servermon-ai-runner',
+  maxConcurrentRuns: 3,
   mongoRetentionDays: 30,
   artifactRetentionDays: 90,
   defaultArtifactBaseDir: '/tmp/servermon-ai-runner-default',
+  defaultMaxConcurrentRuns: 3,
   defaultMongoRetentionDays: 30,
   defaultArtifactRetentionDays: 90,
 };
@@ -144,6 +146,7 @@ describe('AIRunnerPage', () => {
     mockRunnerSettings.schedulesGloballyEnabled = true;
     mockRunnerSettings.autoflowMode = 'sequential';
     mockRunnerSettings.artifactBaseDir = '/tmp/servermon-ai-runner';
+    mockRunnerSettings.maxConcurrentRuns = 3;
     mockRunnerSettings.mongoRetentionDays = 30;
     mockRunnerSettings.artifactRetentionDays = 90;
     global.fetch = vi.fn().mockImplementation((url: string, init?: RequestInit) => {
@@ -529,16 +532,20 @@ describe('AIRunnerPage', () => {
       fireEvent.click(screen.getByRole('tab', { name: /Settings/i }));
     });
 
-    expect(screen.getByText('Storage & Retention')).toBeInTheDocument();
+    expect(screen.getByText('Runtime, Storage & Retention')).toBeInTheDocument();
     expect(screen.getByLabelText('Artifact base directory')).toHaveValue(
       '/tmp/servermon-ai-runner'
     );
+    expect(screen.getByLabelText('Max concurrent runs')).toHaveValue(3);
     expect(screen.getByLabelText('Mongo retention days')).toHaveValue(30);
     expect(screen.getByLabelText('Artifact retention days')).toHaveValue(90);
 
     await act(async () => {
       fireEvent.change(screen.getByLabelText('Artifact base directory'), {
         target: { value: '/mnt/ai-runner-artifacts' },
+      });
+      fireEvent.change(screen.getByLabelText('Max concurrent runs'), {
+        target: { value: '5' },
       });
       fireEvent.change(screen.getByLabelText('Mongo retention days'), {
         target: { value: '14' },
@@ -549,7 +556,7 @@ describe('AIRunnerPage', () => {
     });
 
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: /Save Storage/i }));
+      fireEvent.click(screen.getByRole('button', { name: /Save Runtime/i }));
     });
 
     await waitFor(() => {
@@ -563,6 +570,7 @@ describe('AIRunnerPage', () => {
           method: 'PATCH',
           body: JSON.stringify({
             artifactBaseDir: '/mnt/ai-runner-artifacts',
+            maxConcurrentRuns: 5,
             mongoRetentionDays: 14,
             artifactRetentionDays: 120,
           }),
@@ -577,6 +585,7 @@ describe('AIRunnerPage', () => {
     expect(screen.getByLabelText('Artifact base directory')).toHaveValue(
       '/tmp/servermon-ai-runner-default'
     );
+    expect(screen.getByLabelText('Max concurrent runs')).toHaveValue(3);
     expect(screen.getByLabelText('Mongo retention days')).toHaveValue(30);
     expect(screen.getByLabelText('Artifact retention days')).toHaveValue(90);
   });

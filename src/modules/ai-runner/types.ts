@@ -121,9 +121,11 @@ export interface AIRunnerSettingsDTO {
   schedulesGloballyEnabled: boolean;
   autoflowMode: 'sequential' | 'parallel';
   artifactBaseDir: string;
+  maxConcurrentRuns: number;
   mongoRetentionDays: number;
   artifactRetentionDays: number;
   defaultArtifactBaseDir: string;
+  defaultMaxConcurrentRuns: number;
   defaultMongoRetentionDays: number;
   defaultArtifactRetentionDays: number;
   updatedAt?: string;
@@ -374,7 +376,8 @@ export interface AIRunnerPortableBundle {
   version: 1;
   exportedAt: string;
   resources: {
-    settings?: Pick<AIRunnerSettingsDTO, 'schedulesGloballyEnabled' | 'autoflowMode'>;
+    settings?: Pick<AIRunnerSettingsDTO, 'schedulesGloballyEnabled' | 'autoflowMode'> &
+      Partial<Pick<AIRunnerSettingsDTO, 'maxConcurrentRuns'>>;
     profiles?: AIRunnerPortableProfile[];
     workspaces?: AIRunnerPortableWorkspace[];
     prompts?: AIRunnerPortablePrompt[];

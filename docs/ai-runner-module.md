@@ -111,4 +111,8 @@ The supervisor loop:
 3. Advances running AutoFlows.
 4. Dispatches runnable jobs while enforcing global concurrency and blocking workspaces.
 
+Global concurrency is configured from the AI Runner `Settings` tab as `Max concurrent runs`.
+The value defaults to `3`, accepts `1` through `8`, and is still constrained by `Blocking workspace`
+when a workspace should allow only one active job at a time.
+
 This keeps the module consistent: schedule launches and AutoFlows all flow through the same durable queue and history surface.

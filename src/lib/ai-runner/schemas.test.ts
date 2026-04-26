@@ -9,6 +9,7 @@ import {
   promptCreateSchema,
   scheduleCreateSchema,
   runExecuteSchema,
+  settingsUpdateSchema,
 } from './schemas';
 
 describe('ai-runner schemas', () => {
@@ -232,6 +233,21 @@ describe('ai-runner schemas', () => {
         scheduleId: 's1',
       });
       expect(result.success).toBe(true);
+    });
+  });
+
+  describe('settingsUpdateSchema', () => {
+    it('accepts max concurrent runs within the supported range', () => {
+      const result = settingsUpdateSchema.safeParse({ maxConcurrentRuns: 8 });
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.maxConcurrentRuns).toBe(8);
+      }
+    });
+
+    it('rejects max concurrent runs outside the supported range', () => {
+      expect(settingsUpdateSchema.safeParse({ maxConcurrentRuns: 0 }).success).toBe(false);
+      expect(settingsUpdateSchema.safeParse({ maxConcurrentRuns: 9 }).success).toBe(false);
     });
   });
 

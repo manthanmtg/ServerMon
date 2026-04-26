@@ -134,8 +134,11 @@ const MAX_PROMPT_ATTACHMENT_BYTES = 5 * 1024 * 1024;
 const MAX_PROMPT_ATTACHMENTS_TOTAL_BYTES = 10 * 1024 * 1024;
 const DEFAULT_MONGO_RETENTION_DAYS = 30;
 const DEFAULT_ARTIFACT_RETENTION_DAYS = 90;
+const DEFAULT_MAX_CONCURRENT_RUNS = 3;
 const MIN_RETENTION_DAYS = 1;
 const MAX_RETENTION_DAYS = 3650;
+const MIN_CONCURRENT_RUNS = 1;
+const MAX_CONCURRENT_RUNS = 8;
 
 interface AIRunnerRuntimeDiagnostics {
   runtime?: {
@@ -156,6 +159,7 @@ type LinkedDeleteTarget =
 
 interface StorageSettingsFormState {
   artifactBaseDir: string;
+  maxConcurrentRuns: string;
   mongoRetentionDays: string;
   artifactRetentionDays: string;
 }
@@ -165,6 +169,7 @@ function storageSettingsFormFromSettings(
 ): StorageSettingsFormState {
   return {
     artifactBaseDir: settings?.artifactBaseDir ?? '',
+    maxConcurrentRuns: String(settings?.maxConcurrentRuns ?? DEFAULT_MAX_CONCURRENT_RUNS),
     mongoRetentionDays: String(settings?.mongoRetentionDays ?? DEFAULT_MONGO_RETENTION_DAYS),
     artifactRetentionDays: String(
       settings?.artifactRetentionDays ?? DEFAULT_ARTIFACT_RETENTION_DAYS
@@ -177,6 +182,7 @@ function defaultStorageSettingsFormFromSettings(
 ): StorageSettingsFormState {
   return {
     artifactBaseDir: settings?.defaultArtifactBaseDir ?? settings?.artifactBaseDir ?? '',
+    maxConcurrentRuns: String(settings?.defaultMaxConcurrentRuns ?? DEFAULT_MAX_CONCURRENT_RUNS),
     mongoRetentionDays: String(settings?.defaultMongoRetentionDays ?? DEFAULT_MONGO_RETENTION_DAYS),
     artifactRetentionDays: String(
       settings?.defaultArtifactRetentionDays ?? DEFAULT_ARTIFACT_RETENTION_DAYS
@@ -188,6 +194,13 @@ function parseRetentionDays(value: string): number | null {
   const parsed = Number(value);
   if (!Number.isInteger(parsed)) return null;
   if (parsed < MIN_RETENTION_DAYS || parsed > MAX_RETENTION_DAYS) return null;
+  return parsed;
+}
+
+function parseMaxConcurrentRuns(value: string): number | null {
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed)) return null;
+  if (parsed < MIN_CONCURRENT_RUNS || parsed > MAX_CONCURRENT_RUNS) return null;
   return parsed;
 }
 
@@ -1999,6 +2012,7 @@ export default function AIRunnerPage() {
 
   const saveStorageSettings = async () => {
     const artifactBaseDir = storageSettingsForm.artifactBaseDir.trim();
+    const maxConcurrentRuns = parseMaxConcurrentRuns(storageSettingsForm.maxConcurrentRuns);
     const mongoRetentionDays = parseRetentionDays(storageSettingsForm.mongoRetentionDays);
     const artifactRetentionDays = parseRetentionDays(storageSettingsForm.artifactRetentionDays);
 
@@ -2006,6 +2020,15 @@ export default function AIRunnerPage() {
       toast({
         title: 'Artifact directory required',
         description: 'Choose a folder where AI Runner can keep per-run logs and metadata.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (maxConcurrentRuns === null) {
+      toast({
+        title: 'Max concurrent runs is invalid',
+        description: `Use a whole number from ${MIN_CONCURRENT_RUNS} to ${MAX_CONCURRENT_RUNS}.`,
         variant: 'destructive',
       });
       return;
@@ -2027,6 +2050,7 @@ export default function AIRunnerPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           artifactBaseDir,
+          maxConcurrentRuns,
           mongoRetentionDays,
           artifactRetentionDays,
         }),
@@ -4150,11 +4174,10 @@ export default function AIRunnerPage() {
                 <CardHeader className="border-b border-border/60">
                   <CardTitle className="flex items-center gap-2 text-lg tracking-tight">
                     <HardDrive className="h-4 w-4 text-primary" />
-                    Storage & Retention
+                    Runtime, Storage & Retention
                   </CardTitle>
                   <CardDescription className="mt-1">
-                    Configure where AI Runner keeps run folders and how long Mongo snapshots and
-                    filesystem artifacts are retained.
+                    Configure dispatch concurrency, run folders, and cleanup windows.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4 p-5">
@@ -4176,7 +4199,28 @@ export default function AIRunnerPage() {
                     />
                   </label>
 
-                  <div className="grid gap-4 md:grid-cols-2">
+                  <div className="grid gap-4 md:grid-cols-3">
+                    <label className="block space-y-2">
+                      <LabelWithHint
+                        label="Max concurrent runs"
+                        hint="Global limit for AI Runner jobs dispatched at the same time. Blocking workspaces can still limit a workspace to one job."
+                      />
+                      <Input
+                        aria-label="Max concurrent runs"
+                        type="number"
+                        min={MIN_CONCURRENT_RUNS}
+                        max={MAX_CONCURRENT_RUNS}
+                        inputMode="numeric"
+                        value={storageSettingsForm.maxConcurrentRuns}
+                        onChange={(event) =>
+                          setStorageSettingsForm((current) => ({
+                            ...current,
+                            maxConcurrentRuns: event.target.value,
+                          }))
+                        }
+                      />
+                    </label>
+
                     <label className="block space-y-2">
                       <LabelWithHint
                         label="Mongo retention days"
@@ -4243,7 +4287,7 @@ export default function AIRunnerPage() {
                         className="justify-start"
                       >
                         <Save className="w-4 h-4" />
-                        Save Storage
+                        Save Runtime
                       </Button>
                     </div>
                   </div>

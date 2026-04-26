@@ -537,6 +537,7 @@ export class AIRunnerService {
     schedulesGloballyEnabled?: boolean;
     autoflowMode?: 'sequential' | 'parallel';
     artifactBaseDir?: string;
+    maxConcurrentRuns?: number;
     mongoRetentionDays?: number;
     artifactRetentionDays?: number;
   }): Promise<AIRunnerSettingsDTO> {
@@ -560,6 +561,7 @@ export class AIRunnerService {
       bundle.resources.settings = {
         schedulesGloballyEnabled: settings.schedulesGloballyEnabled,
         autoflowMode: settings.autoflowMode,
+        maxConcurrentRuns: settings.maxConcurrentRuns,
       };
     }
 
@@ -696,7 +698,7 @@ export class AIRunnerService {
         resource: 'settings',
         key: 'settings',
         label: 'AI Runner settings',
-        incomingSummary: `Schedules ${bundle.resources.settings.schedulesGloballyEnabled ? 'enabled' : 'paused'}, AutoFlow ${bundle.resources.settings.autoflowMode}`,
+        incomingSummary: `Schedules ${bundle.resources.settings.schedulesGloballyEnabled ? 'enabled' : 'paused'}, AutoFlow ${bundle.resources.settings.autoflowMode}, ${bundle.resources.settings.maxConcurrentRuns ?? 3} concurrent runs`,
       });
     }
 

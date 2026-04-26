@@ -66,6 +66,7 @@ describe('AIRunnerSupervisor', () => {
     (getAIRunnerSettings as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
       schedulesGloballyEnabled: true,
       artifactBaseDir: '/tmp/servermon-ai-runner',
+      maxConcurrentRuns: 2,
       mongoRetentionDays: 30,
       artifactRetentionDays: 90,
     });
@@ -379,6 +380,38 @@ describe('AIRunnerSupervisor', () => {
       await (supervisor as any).dispatchRunnableJobs();
 
       expect(AIRunnerJob.findOneAndUpdate).not.toHaveBeenCalled();
+    });
+
+    it('uses the persisted max concurrent runs setting as the dispatch limit', async () => {
+      (getAIRunnerSettings as unknown as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+        schedulesGloballyEnabled: true,
+        artifactBaseDir: '/tmp/servermon-ai-runner',
+        maxConcurrentRuns: 1,
+        mongoRetentionDays: 30,
+        artifactRetentionDays: 90,
+      });
+      const candidates = [
+        { _id: 'j1', runId: 'r1', attemptCount: 1, maxAttempts: 2 },
+        { _id: 'j2', runId: 'r2', attemptCount: 1, maxAttempts: 2 },
+      ];
+      (AIRunnerJob.countDocuments as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(0);
+      (AIRunnerJob.find as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
+        sort: vi.fn().mockReturnThis(),
+        limit: vi.fn().mockResolvedValue(candidates),
+      });
+      (AIRunnerJob.findOneAndUpdate as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
+        _id: 'j1',
+        runId: 'r1',
+        attemptCount: 1,
+        maxAttempts: 2,
+      });
+      (spawnAIRunnerWorker as unknown as ReturnType<typeof vi.fn>).mockReturnValue(123);
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (supervisor as any).dispatchRunnableJobs();
+
+      expect(spawnAIRunnerWorker).toHaveBeenCalledTimes(1);
+      expect(AIRunnerJob.findOneAndUpdate).toHaveBeenCalledTimes(1);
     });
 
     it('handles worker spawn failure', async () => {

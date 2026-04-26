@@ -4,6 +4,7 @@ import {
   MAX_PROMPT_ATTACHMENTS,
   MAX_PROMPT_ATTACHMENTS_TOTAL_BYTES,
 } from './attachments';
+import { MAX_CONCURRENT_RUNS_CAP } from './shared';
 
 const agentTypeSchema = z.enum([
   'claude-code',
@@ -146,6 +147,7 @@ export const settingsUpdateSchema = z.object({
   schedulesGloballyEnabled: z.boolean().optional(),
   autoflowMode: autoflowModeSchema.optional(),
   artifactBaseDir: z.string().trim().min(1).max(2000).optional(),
+  maxConcurrentRuns: z.number().int().min(1).max(MAX_CONCURRENT_RUNS_CAP).optional(),
   mongoRetentionDays: z.number().int().min(1).max(3650).optional(),
   artifactRetentionDays: z.number().int().min(1).max(3650).optional(),
 });
@@ -292,6 +294,7 @@ export const importBundleSchema = z.object({
         .object({
           schedulesGloballyEnabled: z.boolean(),
           autoflowMode: autoflowModeSchema,
+          maxConcurrentRuns: z.number().int().min(1).max(MAX_CONCURRENT_RUNS_CAP).optional(),
         })
         .optional(),
       profiles: z.array(portableProfileSchema).optional(),
