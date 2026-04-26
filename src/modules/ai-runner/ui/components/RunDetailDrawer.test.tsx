@@ -102,6 +102,38 @@ describe('RunDetailDrawer', () => {
     expect(actionRow).toHaveClass('justify-end');
   });
 
+  it('presents the drawer panel with the shared enter animation treatment', () => {
+    render(
+      <RunDetailDrawer
+        run={baseRun}
+        historyDetailSection="summary"
+        onSectionChange={vi.fn()}
+        onClose={vi.fn()}
+        onRerun={vi.fn()}
+        onKill={vi.fn()}
+        onOpenPrompt={vi.fn()}
+        onOpenSchedule={vi.fn()}
+        getRunDisplayName={() => 'Test run'}
+        profileName="Codex"
+        promptSourceName="Inline prompt"
+        scheduleName="Not scheduled"
+      />
+    );
+
+    expect(screen.getByLabelText('Close run detail')).toHaveClass(
+      'bg-background/80',
+      'animate-in',
+      'fade-in',
+      'duration-300'
+    );
+    expect(screen.getByLabelText('Run detail panel')).toHaveClass(
+      'animate-in',
+      'fade-in',
+      'slide-in-from-right-4',
+      'duration-300'
+    );
+  });
+
   it('locks body scrolling while the drawer is open and restores it on close', () => {
     const originalOverflow = document.body.style.overflow;
     const { unmount } = render(

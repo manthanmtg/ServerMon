@@ -1,5 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { startNetworkSpeedtestScheduler, stopNetworkSpeedtestScheduler } from './speedtest-scheduler';
+import {
+  startNetworkSpeedtestScheduler,
+  stopNetworkSpeedtestScheduler,
+} from './speedtest-scheduler';
 import { runDueScheduledNetworkSpeedtest } from './speedtest';
 import { createLogger } from '@/lib/logger';
 
@@ -38,16 +41,16 @@ describe('Network Speedtest Scheduler', () => {
 
   it('should tick immediately on start', async () => {
     startNetworkSpeedtestScheduler();
-    
+
     // Fast-forward the immediate setTimeout(..., 0)
     await vi.advanceTimersByTimeAsync(0);
-    
+
     expect(runDueScheduledNetworkSpeedtest).toHaveBeenCalledTimes(1);
   });
 
   it('should tick according to default interval', async () => {
     startNetworkSpeedtestScheduler();
-    
+
     // immediate tick
     await vi.advanceTimersByTimeAsync(0);
     expect(runDueScheduledNetworkSpeedtest).toHaveBeenCalledTimes(1);
@@ -63,7 +66,7 @@ describe('Network Speedtest Scheduler', () => {
   it('should use provided custom interval', async () => {
     const customInterval = 10_000;
     startNetworkSpeedtestScheduler({ intervalMs: customInterval });
-    
+
     await vi.advanceTimersByTimeAsync(0); // immediate tick
     expect(runDueScheduledNetworkSpeedtest).toHaveBeenCalledTimes(1);
 
@@ -75,7 +78,7 @@ describe('Network Speedtest Scheduler', () => {
     startNetworkSpeedtestScheduler();
     startNetworkSpeedtestScheduler();
     startNetworkSpeedtestScheduler();
-    
+
     await vi.advanceTimersByTimeAsync(0);
     // Since schedulerInterval is set on the first call, subsequent calls return immediately.
     // So setTimeout(..., 0) is called exactly once.
@@ -88,7 +91,11 @@ describe('Network Speedtest Scheduler', () => {
   it('should log info when speedtest runs successfully', async () => {
     vi.mocked(runDueScheduledNetworkSpeedtest).mockResolvedValue({
       ran: true,
-      result: { status: 'completed', downloadMbps: 100, uploadMbps: 50 } as unknown as import('@/modules/network/types').NetworkSpeedtestResult,
+      result: {
+        status: 'completed',
+        downloadMbps: 100,
+        uploadMbps: 50,
+      } as unknown as import('@/modules/network/types').NetworkSpeedtestResult,
     });
 
     startNetworkSpeedtestScheduler();
