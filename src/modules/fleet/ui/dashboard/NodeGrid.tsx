@@ -50,6 +50,10 @@ export function NodeGrid({ search = '', tag = '', status = '', pollMs = 30000 }:
     };
   }, [search, tag, status, pollMs]);
 
+  const handleDelete = useCallback(() => {
+    refreshRef.current();
+  }, []);
+
   const onStreamEvent = useCallback(
     (ev: { kind: string; at: string; data: Record<string, unknown> }) => {
       if (ev.kind === 'node.heartbeat' || ev.kind === 'node.status_change') {
@@ -86,10 +90,13 @@ export function NodeGrid({ search = '', tag = '', status = '', pollMs = 30000 }:
       </div>
     );
   }
+
+  const now = new Date();
+
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
       {nodes.map((n) => (
-        <NodeCard key={n._id} node={n} onDelete={() => refreshRef.current()} />
+        <NodeCard key={n._id} node={n} onDelete={handleDelete} now={now} />
       ))}
     </div>
   );

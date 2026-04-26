@@ -1,5 +1,5 @@
 'use client';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, memo } from 'react';
 import { deriveNodeStatus } from '@/lib/fleet/status';
 import { useFleetStream } from '../lib/useFleetStream';
 import { type ServiceState } from '@/lib/fleet/enums';
@@ -12,7 +12,11 @@ interface RawNode {
   pairingVerifiedAt?: string | null;
 }
 
-export function FleetStatsBanner({ pollMs = 30000 }: { pollMs?: number }) {
+export const FleetStatsBanner = memo(function FleetStatsBanner({
+  pollMs = 30000,
+}: {
+  pollMs?: number;
+}) {
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [hubState, setHubState] = useState<ServiceState | 'unknown'>('unknown');
   const refreshRef = useRef<() => void>(() => {});
@@ -93,9 +97,9 @@ export function FleetStatsBanner({ pollMs = 30000 }: { pollMs?: number }) {
       <Stat label="Error" value={counts.error ?? 0} tone="danger" />
     </div>
   );
-}
+});
 
-function Stat({
+const Stat = memo(function Stat({
   label,
   value,
   tone,
@@ -122,4 +126,4 @@ function Stat({
       <div className={`text-xl font-semibold ${color}`}>{value}</div>
     </div>
   );
-}
+});
