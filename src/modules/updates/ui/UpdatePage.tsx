@@ -300,6 +300,8 @@ export default function UpdatePage() {
             variant="ghost"
             size="sm"
             className="gap-2 h-10 px-3 rounded-xl text-muted-foreground hover:text-foreground"
+            aria-expanded={showHistory}
+            aria-controls="update-run-history"
             onClick={() => {
               setShowHistory(!showHistory);
               if (!showHistory) loadRunHistory();
@@ -443,6 +445,10 @@ export default function UpdatePage() {
                     autoScroll && 'text-primary'
                   )}
                   onClick={() => setAutoScroll(!autoScroll)}
+                  aria-label={
+                    autoScroll ? 'Disable update log auto-scroll' : 'Enable update log auto-scroll'
+                  }
+                  aria-pressed={autoScroll}
                   title={autoScroll ? 'Disable auto-scroll' : 'Enable auto-scroll'}
                 >
                   <ChevronDown className="w-4 h-4" />
@@ -463,7 +469,11 @@ export default function UpdatePage() {
 
       {/* Run History Panel */}
       {showHistory && (
-        <Card className="animate-in slide-in-from-top-2 duration-300 border-border/50">
+        <Card
+          id="update-run-history"
+          data-testid="update-run-history"
+          className="animate-in slide-in-from-top-2 duration-300 border-border/50"
+        >
           <CardHeader className="px-6 py-4 border-b border-border/50">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
