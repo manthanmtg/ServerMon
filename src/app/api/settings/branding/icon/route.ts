@@ -45,9 +45,9 @@ function toArrayBuffer(buffer: Buffer): ArrayBuffer {
 export async function GET(request: Request) {
   try {
     await connectDB();
-    const settings = (await BrandSettings.findById('brand-settings').lean()) as
-      | BrandingIconSettings
-      | null;
+    const settings = (await BrandSettings.findById(
+      'brand-settings'
+    ).lean()) as BrandingIconSettings | null;
     const logo = settings?.logoBase64 ? decodeLogo(settings.logoBase64) : null;
 
     if (!logo) {

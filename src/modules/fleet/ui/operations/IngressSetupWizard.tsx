@@ -78,14 +78,15 @@ export function IngressSetupWizard() {
         const res = await fetch('/api/fleet/server');
         if (!res.ok) return;
         const data = await res.json();
-        
-        setForm(prev => ({
+
+        setForm((prev) => ({
           ...prev,
           hubPublicUrl: data.envDefaults?.hubPublicUrl || prev.hubPublicUrl,
           acmeEmail: data.envDefaults?.acmeEmail || prev.acmeEmail,
           managedDir: data.envDefaults?.managedDir || prev.managedDir,
           binaryPath: data.envDefaults?.binaryPath || prev.binaryPath,
-          subdomainHost: data.state?.subdomainHost || data.envDefaults?.subdomainHost || prev.subdomainHost,
+          subdomainHost:
+            data.state?.subdomainHost || data.envDefaults?.subdomainHost || prev.subdomainHost,
           bindPort: data.state?.bindPort || prev.bindPort,
           vhostHttpPort: data.state?.vhostHttpPort || prev.vhostHttpPort,
           vhostHttpsPort: data.state?.vhostHttpsPort || prev.vhostHttpsPort,

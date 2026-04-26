@@ -1,12 +1,16 @@
 /** @vitest-environment node */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-const { mockGetSnapshot } = vi.hoisted(() => ({
+const { mockAuthSession, mockGetSnapshot } = vi.hoisted(() => ({
+  mockAuthSession: vi.fn(),
   mockGetSnapshot: vi.fn(),
 }));
 
 vi.mock('@/lib/ai-agents/service', () => ({
   getAIAgentsService: () => ({ getSnapshot: mockGetSnapshot }),
+}));
+vi.mock('@/lib/session', () => ({
+  getSession: mockAuthSession,
 }));
 vi.mock('@/lib/logger', () => ({
   createLogger: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }),
@@ -17,6 +21,16 @@ import { GET } from './route';
 describe('GET /api/modules/ai-agents', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockAuthSession.mockResolvedValue({ user: { username: 'alice', role: 'admin' } });
+  });
+
+  it('returns 401 without an authenticated session', async () => {
+    mockAuthSession.mockResolvedValue(null);
+    const res = await GET();
+    expect(res.status).toBe(401);
+    const json = await res.json();
+    expect(json.error).toBe('Unauthorized');
+    expect(mockGetSnapshot).not.toHaveBeenCalled();
   });
 
   it('returns snapshot on success', async () => {

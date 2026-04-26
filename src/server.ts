@@ -1,9 +1,11 @@
 import 'dotenv/config';
 import { createServer } from 'http';
+import { EventEmitter } from 'node:events';
 import { parse } from 'url';
 import next from 'next';
 import { Server } from 'socket.io';
 import * as pty from 'node-pty';
+import WebSocket from 'ws';
 import os from 'os';
 import { createLogger } from './lib/logger';
 import { decrypt } from './lib/session-core';
@@ -11,6 +13,8 @@ import { resetAIRunnerLogSession, writeAIRunnerLogEntry } from './lib/ai-runner/
 import { ensureAIRunnerSupervisor } from './lib/ai-runner/processes';
 import { getRuntimeDiagnostics } from './lib/runtime-diagnostics';
 import { handleRequestWithDiagnostics } from './lib/server-request-diagnostics';
+import type { HubWsAdapter } from './lib/fleet/hubTtyBridge';
+import type { AgentStatus } from './lib/fleet/agentClient';
 
 const log = createLogger('server');
 const diagnostics = getRuntimeDiagnostics();
@@ -18,6 +22,17 @@ const dev = process.env.NODE_ENV !== 'production';
 const app = next({ dev });
 const handle = app.getRequestHandler();
 const port = parseInt(process.env.PORT || '8912', 10);
+
+interface AgentRuntimeDiagnostics {
+  bootId: string;
+  bootAt: Date;
+}
+
+interface TerminalBridgeProxyRule {
+  name: string;
+  status?: string;
+  remotePort?: number;
+}
 
 function parsePort(value: string | undefined, fallback: number): number {
   const parsed = Number.parseInt(value ?? '', 10);
@@ -105,12 +120,12 @@ if (process.env.FLEET_AGENT_MODE === 'true') {
           },
           body: JSON.stringify({
             nodeId,
-            bootId: (agent as any).bootId,
-            bootAt: (agent as any).bootAt?.toISOString(),
+            bootId: (agent as unknown as AgentRuntimeDiagnostics).bootId,
+            bootAt: (agent as unknown as AgentRuntimeDiagnostics).bootAt?.toISOString(),
             agentVersion: '0.0.0',
             hardware: {},
             metrics: {},
-            tunnel: { status: (agent.status() as any).tunnelStatus },
+            tunnel: { status: (agent.status() as AgentStatus).tunnelStatus },
             logs: [
               {
                 level: entry.level,
@@ -494,7 +509,7 @@ if (process.env.FLEET_AGENT_MODE === 'true') {
 
             // Check if the agent has a terminal-bridge proxy active
             const terminalBridge = (node.proxyRules || []).find(
-              (p: any) =>
+              (p: TerminalBridgeProxyRule) =>
                 (p.name === 'terminal-bridge' || `${node.slug}-terminal-bridge` === p.name) &&
                 p.status === 'active'
             );
@@ -519,23 +534,25 @@ if (process.env.FLEET_AGENT_MODE === 'true') {
             };
           },
           wsFactory: (url, _protocols, headers) => {
-            const WS = require('ws');
-            const ws = new WS(url, { headers });
-            const emitter = new (require('node:events').EventEmitter)();
+            const ws = new WebSocket(url, { headers });
+            const emitter = new EventEmitter();
 
             ws.on('open', () => emitter.emit('open'));
-            ws.on('message', (data: any) => emitter.emit('message', data));
-            ws.on('error', (err: any) => emitter.emit('error', err));
-            ws.on('close', (code: any, reason: any) => emitter.emit('close', code, reason));
+            ws.on('message', (data: WebSocket.RawData) => emitter.emit('message', data));
+            ws.on('error', (err: Error) => emitter.emit('error', err));
+            ws.on('close', (code: number, reason: Buffer) =>
+              emitter.emit('close', code, reason.toString('utf8'))
+            );
 
             return Object.assign(emitter, {
-              send: (data: any) => ws.send(data),
-              close: (code: any, reason: any) => ws.close(code, reason),
+              send: (data: string | Buffer) => ws.send(data),
+              close: (code?: number, reason?: string) => ws.close(code, reason),
               get readyState() {
-                return ws.readyState;
+                return ws.readyState as HubWsAdapter['readyState'];
               },
-              off: (event: string, listener: any) => emitter.removeListener(event, listener),
-            }) as any;
+              off: (event: string, listener: (...args: unknown[]) => void) =>
+                emitter.removeListener(event, listener),
+            }) as unknown as HubWsAdapter;
           },
         });
         registerFleetTtyNamespace({
@@ -578,15 +595,18 @@ if (process.env.FLEET_AGENT_MODE === 'true') {
       // Stop Hub Orchestrators
       if (process.env.FLEET_HUB_ORCHESTRATORS_ENABLED === 'true') {
         const { getFrpOrchestrator } = await import('./lib/fleet/orchestrators');
-        const frp = getFrpOrchestrator() as any;
+        const frp = getFrpOrchestrator() as { stop?: () => Promise<void> | void };
         if (frp && typeof frp.stop === 'function') {
           await frp.stop().catch(() => {});
         }
       }
 
       // Stop Agent
-      if (typeof (global as any).fleetAgent?.stop === 'function') {
-        await (global as any).fleetAgent.stop().catch(() => {});
+      const fleetGlobal = globalThis as typeof globalThis & {
+        fleetAgent?: { stop?: () => Promise<void> | void };
+      };
+      if (typeof fleetGlobal.fleetAgent?.stop === 'function') {
+        await fleetGlobal.fleetAgent.stop().catch(() => {});
       }
 
       process.exit(0);

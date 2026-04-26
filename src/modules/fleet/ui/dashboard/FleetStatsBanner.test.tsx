@@ -34,13 +34,10 @@ describe('FleetStatsBanner', () => {
     await act(async () => {
       render(<FleetStatsBanner />);
     });
-    expect(screen.getByText('Total')).toBeDefined();
+    expect(screen.getByText('Total Nodes')).toBeDefined();
     expect(screen.getByText('Online')).toBeDefined();
     expect(screen.getByText('Connecting')).toBeDefined();
-    expect(screen.getByText('Degraded')).toBeDefined();
     expect(screen.getByText('Offline')).toBeDefined();
-    expect(screen.getByText('Maintenance')).toBeDefined();
-    expect(screen.getByText('Unpaired')).toBeDefined();
     expect(screen.getByText('Error')).toBeDefined();
   });
 
@@ -89,11 +86,11 @@ describe('FleetStatsBanner', () => {
       expect(screen.getByText('4')).toBeDefined();
     });
 
-    // Should contain 2 (online), 1 (offline), 1 (unpaired)
+    // Should contain 2 (online) and 1 (offline); unpaired nodes are counted in total.
     const twos = screen.getAllByText('2');
     expect(twos.length).toBeGreaterThan(0);
     const ones = screen.getAllByText('1');
-    expect(ones.length).toBeGreaterThanOrEqual(2);
+    expect(ones.length).toBeGreaterThanOrEqual(1);
   });
 
   it('silently ignores fetch failures', async () => {
@@ -106,7 +103,7 @@ describe('FleetStatsBanner', () => {
       render(<FleetStatsBanner />);
     });
     // Still shows labels + 0s
-    expect(screen.getByText('Total')).toBeDefined();
+    expect(screen.getByText('Total Nodes')).toBeDefined();
   });
 
   it('subscribes to the fleet event stream with an onEvent handler', async () => {

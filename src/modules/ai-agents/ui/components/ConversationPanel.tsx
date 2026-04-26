@@ -29,8 +29,8 @@ function ConversationPanelInner({ conversation, autoScroll }: Props) {
             entry.role === 'user'
               ? 'bg-primary/5 border border-primary/10'
               : entry.role === 'system'
-              ? 'bg-muted/30 border border-muted-foreground/10 italic'
-              : 'bg-secondary/50'
+                ? 'bg-muted/30 border border-muted-foreground/10 italic'
+                : 'bg-secondary/50'
           )}
         >
           <p className="text-[10px] font-medium text-muted-foreground uppercase mb-1">

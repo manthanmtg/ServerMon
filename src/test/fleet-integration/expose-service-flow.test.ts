@@ -70,7 +70,11 @@ describe('expose service flow: parse -> frpc render + nginx render -> hash consi
 
     // Parse-back roundtrip: proxies should both be present.
     const parsed = parseRendered(rendered1);
-    expect(parsed.proxies.map((p) => p.name).sort()).toEqual(['atlas-postgres', 'atlas-web']);
+    expect(parsed.proxies.map((p) => p.name).sort()).toEqual([
+      'atlas-postgres',
+      'atlas-terminal-bridge',
+      'atlas-web',
+    ]);
 
     // Changing one port should produce a different hash.
     const mutated = {
@@ -120,8 +124,7 @@ describe('expose service flow: parse -> frpc render + nginx render -> hash consi
       { frpsVhostPort: 8080 }
     );
 
-    expect(rendered).toContain('listen 443 ssl;');
-    expect(rendered).toContain('http2 on;');
+    expect(rendered).toContain('listen 443 ssl http2;');
     expect(rendered).toContain('proxy_pass http://127.0.0.1:8080;');
     expect(rendered).toContain('server_name atlas.example.com;');
     expect(rendered).toContain('proxy_set_header Upgrade $http_upgrade;');

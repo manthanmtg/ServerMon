@@ -40,13 +40,13 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ slu
       now,
     });
 
-    return NextResponse.json({ 
-      _id: node._id, 
-      name: node.name, 
+    return NextResponse.json({
+      _id: node._id,
+      name: node.name,
       slug: node.slug,
-      status: computedStatus 
+      status: computedStatus,
     });
-  } catch (error) {
+  } catch {
     return NextResponse.json({ error: 'Failed to fetch node' }, { status: 500 });
   }
 }

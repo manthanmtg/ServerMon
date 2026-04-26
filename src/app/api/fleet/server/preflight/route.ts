@@ -15,6 +15,10 @@ interface SessionUser {
   user: { id?: string; username: string; role: string };
 }
 
+interface FrpOrchestratorStateReader {
+  currentState?: () => { runtimeState?: PreflightEnv['frpRuntimeState'] };
+}
+
 export async function POST() {
   try {
     const session = (await getSession()) as SessionUser | null;
@@ -29,7 +33,7 @@ export async function POST() {
 
     const { getFrpOrchestrator } = await import('@/lib/fleet/orchestrators');
     const orch = getFrpOrchestrator();
-    const current = (orch as any).currentState?.() || {};
+    const current = (orch as FrpOrchestratorStateReader).currentState?.() || {};
 
     const env: PreflightEnv = {
       frpBindPort: frp?.bindPort ?? 7000,

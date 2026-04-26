@@ -54,7 +54,7 @@ describe('useTtySession', () => {
     );
     expect(factory).toHaveBeenCalledTimes(1);
     expect(factoryArgs[0].url).toBe(FLEET_TTY_SOCKET_NAMESPACE);
-    expect(factoryArgs[0].opts).toEqual({ transports: ['websocket'] });
+    expect(factoryArgs[0].opts).toEqual({ transports: ['websocket'], path: '/api/socket' });
   });
 
   it('does not connect when enabled=false', () => {

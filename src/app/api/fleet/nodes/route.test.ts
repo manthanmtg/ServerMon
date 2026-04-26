@@ -18,6 +18,7 @@ const {
   mockGetFrpOrchestrator,
   mockGetNginxOrchestrator,
   mockResourcePolicyFind,
+  mockGetOrCreateHubAuthToken,
 } = vi.hoisted(() => ({
   mockGetSession: vi.fn(),
   mockFind: vi.fn(),
@@ -34,6 +35,7 @@ const {
   mockGetFrpOrchestrator: vi.fn(() => ({})),
   mockGetNginxOrchestrator: vi.fn(() => ({})),
   mockResourcePolicyFind: vi.fn(),
+  mockGetOrCreateHubAuthToken: vi.fn(),
 }));
 
 vi.mock('@/lib/db', () => ({ default: vi.fn().mockResolvedValue(undefined) }));
@@ -87,6 +89,9 @@ vi.mock('@/lib/fleet/orchestrators', () => ({
 }));
 vi.mock('@/lib/fleet/applyEngine', () => ({
   applyRevision: mockApplyRevision,
+}));
+vi.mock('@/lib/fleet/hubAuth', () => ({
+  getOrCreateHubAuthToken: mockGetOrCreateHubAuthToken,
 }));
 
 import { GET, POST } from './route';
@@ -202,6 +207,7 @@ describe('POST /api/fleet/nodes', () => {
     });
     mockGeneratePairingToken.mockReturnValue('tok_abcdef01234567');
     mockHashPairingToken.mockResolvedValue('hash-xyz');
+    mockGetOrCreateHubAuthToken.mockResolvedValue('hub-auth-token');
     mockFrpFindOne.mockReturnValue({
       lean: vi.fn().mockResolvedValue({
         key: 'global',

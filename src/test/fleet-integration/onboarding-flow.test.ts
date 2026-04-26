@@ -76,7 +76,7 @@ describe('onboarding flow: node create -> token -> frpc.toml -> parse-back -> ap
     expect(parsed.top['serverPort']).toBe(7000);
     expect(parsed.top['auth.token']).toBe(authToken);
     expect(parsed.top['transport.tls.enable']).toBe(true);
-    expect(parsed.proxies).toHaveLength(2);
+    expect(parsed.proxies).toHaveLength(3);
     const ssh = parsed.proxies.find((p) => p.name === 'orion-ssh');
     expect(ssh).toBeDefined();
     expect(ssh?.type).toBe('tcp');
@@ -86,6 +86,9 @@ describe('onboarding flow: node create -> token -> frpc.toml -> parse-back -> ap
     expect(web).toBeDefined();
     expect(web?.type).toBe('http');
     expect(web?.subdomain).toBe('orion-web');
+    const terminalBridge = parsed.proxies.find((p) => p.name === 'orion-terminal-bridge');
+    expect(terminalBridge).toBeDefined();
+    expect(terminalBridge?.type).toBe('tcp');
 
     // 5. applyRevision against mocked static models. The frpc revision should
     //    push the structured config onto the Node document.

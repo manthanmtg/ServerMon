@@ -27,6 +27,19 @@ interface RawEvent {
   metadata?: Record<string, unknown>;
 }
 
+interface ChartPayloadEntry {
+  color?: string;
+  name?: string;
+  value?: number;
+  payload: MetricsSample;
+}
+
+interface CustomTooltipProps {
+  active?: boolean;
+  payload?: ChartPayloadEntry[];
+  label?: string;
+}
+
 function formatBytes(bytes: number, decimals = 2) {
   if (!+bytes) return '0 Bytes';
   const k = 1024;
@@ -53,14 +66,15 @@ export function toSamples(events: RawEvent[]): MetricsSample[] {
   return samples.reverse();
 }
 
-const CustomTooltip = ({ active, payload, label }: any) => {
+const CustomTooltip = ({ active, payload, label }: CustomTooltipProps) => {
   if (active && payload && payload.length) {
     return (
       <div className="bg-popover border border-border p-3 rounded-lg shadow-lg">
         <p className="text-sm font-medium mb-1">{label}</p>
-        {payload.map((entry: any, index: number) => (
+        {payload.map((entry, index) => (
           <p key={index} className="text-sm" style={{ color: entry.color }}>
-            {entry.name}: {entry.name === 'RAM' ? entry.payload.ramUsedFormatted : `${entry.value}%`}
+            {entry.name}:{' '}
+            {entry.name === 'RAM' ? entry.payload.ramUsedFormatted : `${entry.value}%`}
           </p>
         ))}
       </div>
@@ -130,9 +144,9 @@ export function NodeHardwareCharts({ nodeId }: { nodeId: string }) {
                     dataKey="timestamp"
                     tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }}
                   />
-                  <YAxis 
-                    tickFormatter={(val: any) => `${val}%`}
-                    tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }} 
+                  <YAxis
+                    tickFormatter={(val: number) => `${val}%`}
+                    tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }}
                   />
                   <Tooltip content={<CustomTooltip />} />
                   <Legend />
@@ -167,9 +181,9 @@ export function NodeHardwareCharts({ nodeId }: { nodeId: string }) {
                     dataKey="timestamp"
                     tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }}
                   />
-                  <YAxis 
-                    tickFormatter={(val: any) => formatBytes(val, 0)}
-                    tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }} 
+                  <YAxis
+                    tickFormatter={(val: number) => formatBytes(val, 0)}
+                    tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }}
                   />
                   <Tooltip content={<CustomTooltip />} />
                   <Legend />

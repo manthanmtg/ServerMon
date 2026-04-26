@@ -127,9 +127,11 @@ export async function executeScript(
     });
 
     if (input.body && child.stdin) {
-      child.stdin.on('error', (err) => {
-        log.warn(`stdin error: ${err.message}`);
-      });
+      if (typeof child.stdin.on === 'function') {
+        child.stdin.on('error', (err) => {
+          log.warn(`stdin error: ${err.message}`);
+        });
+      }
       child.stdin.write(input.body);
     }
     child.stdin?.end();

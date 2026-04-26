@@ -69,7 +69,24 @@ interface NodeConfigResponse {
   slug: string;
   frpcConfig: Parameters<typeof renderFrpcToml>[0]['node']['frpcConfig'];
   proxyRules: Parameters<typeof renderFrpcToml>[0]['node']['proxyRules'];
-  capabilities?: Record<string, boolean>;
+  capabilities?: Parameters<typeof renderFrpcToml>[0]['node']['capabilities'];
+}
+
+interface AgentCommand {
+  id: string;
+  command: string;
+  args?: unknown;
+}
+
+interface EndpointRunArgs {
+  endpointId?: string;
+  endpointSlug?: string;
+  scriptLang: ScriptExecutionConfig['scriptLang'];
+  scriptContent: string;
+  timeout?: number;
+  envVars?: Record<string, string>;
+  payload?: unknown;
+  method?: string;
 }
 
 function unwrapNodeConfig(
@@ -101,7 +118,7 @@ export class AgentClient {
   private pairResponse: PairResponse | null = null;
   private nodeConfig: NodeConfigResponse | null = null;
   private activeProxies = new Map<string, { status: string; lastError?: string }>();
-  private capabilities: Record<string, boolean> = {
+  private capabilities: Parameters<typeof renderFrpcToml>[0]['node']['capabilities'] = {
     terminal: true,
     endpointRuns: true,
     processes: true,
@@ -199,7 +216,7 @@ export class AgentClient {
         slug: this.nodeConfig.slug ?? nodeId,
         frpcConfig: this.nodeConfig.frpcConfig,
         proxyRules: this.nodeConfig.proxyRules,
-        capabilities: (this.nodeConfig.capabilities ?? this.capabilities) as any,
+        capabilities: this.nodeConfig.capabilities ?? this.capabilities,
       },
     });
 
@@ -392,7 +409,7 @@ export class AgentClient {
     }
   }
 
-  private async handleCommand(cmd: { id: string; command: string; args?: any }): Promise<void> {
+  private async handleCommand(cmd: AgentCommand): Promise<void> {
     this.log('info', 'agent.command.received', `Received remote command: ${cmd.command}`, {
       commandId: cmd.id,
     });
@@ -443,10 +460,7 @@ export class AgentClient {
       },
       ensureBinaryImpl = ensureBinary,
       startFrpcImpl = startFrpc,
-      binaryCacheDir = DEFAULT_BINARY_CACHE_DIR,
       configDir = DEFAULT_CONFIG_DIR,
-      binaryVersion = DEFAULT_BINARY_VERSION,
-      spawnImpl = realSpawn,
     } = this.opts;
 
     try {
@@ -480,7 +494,7 @@ export class AgentClient {
           slug: this.nodeConfig.slug ?? nodeId,
           frpcConfig: this.nodeConfig.frpcConfig,
           proxyRules: this.nodeConfig.proxyRules,
-          capabilities: (this.nodeConfig.capabilities ?? this.capabilities) as any,
+          capabilities: this.nodeConfig.capabilities ?? this.capabilities,
         },
       });
 
@@ -548,7 +562,8 @@ export class AgentClient {
     }
   }
 
-  private async handleEndpointRun(commandId: string, args: any): Promise<void> {
+  private async handleEndpointRun(commandId: string, args: unknown): Promise<void> {
+    const endpointArgs = (args && typeof args === 'object' ? args : {}) as Partial<EndpointRunArgs>;
     const {
       endpointId,
       endpointSlug,
@@ -558,7 +573,16 @@ export class AgentClient {
       envVars,
       payload,
       method,
-    } = args;
+    } = endpointArgs;
+
+    if (!scriptLang || !scriptContent || !endpointSlug) {
+      this.log('error', 'endpoint.failed', 'Endpoint command missing required arguments', {
+        commandId,
+        endpointId,
+        endpointSlug,
+      });
+      return;
+    }
 
     this.log('info', 'agent.endpoint.starting', `Executing fleet endpoint: ${endpointSlug}`, {
       commandId,

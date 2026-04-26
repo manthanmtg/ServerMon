@@ -6,6 +6,7 @@ const {
   mockGetSession,
   mockEndpointFindById,
   mockNodeFind,
+  mockNodeUpdateOne,
   mockFleetLogCreate,
   mockFleetLogFind,
   mockFleetLogCountDocuments,
@@ -15,6 +16,7 @@ const {
   mockGetSession: vi.fn(),
   mockEndpointFindById: vi.fn(),
   mockNodeFind: vi.fn(),
+  mockNodeUpdateOne: vi.fn(),
   mockFleetLogCreate: vi.fn(),
   mockFleetLogFind: vi.fn(),
   mockFleetLogCountDocuments: vi.fn(),
@@ -39,7 +41,7 @@ vi.mock('@/models/CustomEndpoint', () => ({
   default: { findById: mockEndpointFindById },
 }));
 vi.mock('@/models/Node', () => ({
-  default: { find: mockNodeFind },
+  default: { find: mockNodeFind, updateOne: mockNodeUpdateOne },
 }));
 vi.mock('@/models/FleetLogEvent', () => ({
   default: {
@@ -75,6 +77,7 @@ describe('POST /api/fleet/endpoint-exec', () => {
       user: { username: 'admin', role: 'admin' },
     });
     mockFleetLogCreate.mockResolvedValue({});
+    mockNodeUpdateOne.mockResolvedValue({ modifiedCount: 1 });
     mockFleetLogCountDocuments.mockResolvedValue(0);
     mockResourcePolicyFind.mockReturnValue({
       lean: vi.fn().mockResolvedValue([]),

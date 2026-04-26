@@ -90,9 +90,7 @@ describe('OnboardingWizard', () => {
 
     // Step 4 (TOML review)
     await waitFor(() => {
-      expect(
-        screen.getByText(/Review the generated FRP configuration/i)
-      ).toBeDefined();
+      expect(screen.getByText(/Review the generated FRP configuration/i)).toBeDefined();
     });
 
     // Click Next -> POST to /api/fleet/nodes
@@ -142,9 +140,7 @@ describe('OnboardingWizard', () => {
 
     // Step 4 -> click Next which triggers the POST
     await waitFor(() => {
-      expect(
-        screen.getByText(/Review the generated FRP configuration/i)
-      ).toBeDefined();
+      expect(screen.getByText(/Review the generated FRP configuration/i)).toBeDefined();
     });
     await act(async () => {
       fireEvent.click(screen.getByText(/^\s*Next\s*$/));
@@ -183,9 +179,7 @@ describe('OnboardingWizard', () => {
     });
     // Step 4 create
     await waitFor(() => {
-      expect(
-        screen.getByText(/Review the generated FRP configuration/i)
-      ).toBeDefined();
+      expect(screen.getByText(/Review the generated FRP configuration/i)).toBeDefined();
     });
     await act(async () => {
       fireEvent.click(screen.getByText(/^\s*Next\s*$/));

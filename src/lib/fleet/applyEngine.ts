@@ -102,15 +102,15 @@ export async function applyRevision(
       renderedAt: now(),
       version: revision.version,
     };
-    await deps.Node.findByIdAndUpdate(revision.targetId, { 
+    await deps.Node.findByIdAndUpdate(revision.targetId, {
       $set: set,
       $push: {
         pendingCommands: {
           id: now().getTime().toString(16),
           command: 'reconcile',
           issuedAt: now(),
-        }
-      }
+        },
+      },
     });
     revision.appliedAt = now();
     await revision.save();

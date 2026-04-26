@@ -23,6 +23,7 @@ describe('fleet enums', () => {
     ]);
     expect(TUNNEL_STATUSES).toEqual([
       'connected',
+      'connecting',
       'reconnecting',
       'disconnected',
       'auth_failed',

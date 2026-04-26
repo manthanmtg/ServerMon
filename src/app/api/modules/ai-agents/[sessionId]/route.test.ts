@@ -2,7 +2,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { NextRequest } from 'next/server';
 
-const { mockGetSession, mockTerminateSession } = vi.hoisted(() => ({
+const { mockAuthSession, mockGetSession, mockTerminateSession } = vi.hoisted(() => ({
+  mockAuthSession: vi.fn(),
   mockGetSession: vi.fn(),
   mockTerminateSession: vi.fn(),
 }));
@@ -12,6 +13,9 @@ vi.mock('@/lib/ai-agents/service', () => ({
     getSession: mockGetSession,
     terminateSession: mockTerminateSession,
   }),
+}));
+vi.mock('@/lib/session', () => ({
+  getSession: mockAuthSession,
 }));
 vi.mock('@/lib/logger', () => ({
   createLogger: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }),
@@ -34,6 +38,16 @@ const mockSession = {
 describe('GET /api/modules/ai-agents/[sessionId]', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockAuthSession.mockResolvedValue({ user: { username: 'alice', role: 'admin' } });
+  });
+
+  it('returns 401 without an authenticated session', async () => {
+    mockAuthSession.mockResolvedValue(null);
+    const res = await GET(new NextRequest('http://localhost'), makeContext('session-abc'));
+    expect(res.status).toBe(401);
+    const json = await res.json();
+    expect(json.error).toBe('Unauthorized');
+    expect(mockGetSession).not.toHaveBeenCalled();
   });
 
   it('returns session when found', async () => {
@@ -65,6 +79,16 @@ describe('GET /api/modules/ai-agents/[sessionId]', () => {
 describe('DELETE /api/modules/ai-agents/[sessionId]', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockAuthSession.mockResolvedValue({ user: { username: 'alice', role: 'admin' } });
+  });
+
+  it('returns 401 without an authenticated session', async () => {
+    mockAuthSession.mockResolvedValue(null);
+    const res = await DELETE(new NextRequest('http://localhost'), makeContext('session-abc'));
+    expect(res.status).toBe(401);
+    const json = await res.json();
+    expect(json.error).toBe('Unauthorized');
+    expect(mockTerminateSession).not.toHaveBeenCalled();
   });
 
   it('terminates session successfully', async () => {

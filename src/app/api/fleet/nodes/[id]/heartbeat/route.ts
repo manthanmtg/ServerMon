@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { ZodError } from 'zod';
+import type { UpdateQuery } from 'mongoose';
 import { createLogger } from '@/lib/logger';
 import connectDB from '@/lib/db';
-import Node from '@/models/Node';
+import Node, { type INode } from '@/models/Node';
 import FleetLogEvent from '@/models/FleetLogEvent';
 import { HeartbeatZodSchema } from '@/lib/fleet/heartbeat';
 import { fleetEventBus } from '@/lib/fleet/eventBus';
+import { verifyPairingToken } from '@/lib/fleet/pairing';
 
 export const dynamic = 'force-dynamic';
 
@@ -34,6 +35,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       return NextResponse.json({ error: 'Node not found' }, { status: 404 });
     }
 
+    const verified = node.pairingTokenHash
+      ? await verifyPairingToken(token, node.pairingTokenHash)
+      : false;
+    if (!verified) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const raw = await req.json();
     let hb;
     try {
@@ -49,9 +57,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const previousBootId = node.bootId;
     const previousTunnelStatus = node.tunnelStatus;
 
-    // Use a targeted update instead of node.save() to avoid race conditions 
+    // Use a targeted update instead of node.save() to avoid race conditions
     // with pendingCommands being pushed by other routes (like endpoint-exec).
-    const updateData: any = {
+    const updateData: UpdateQuery<INode> = {
       $set: {
         lastSeen: now,
         bootId: hb.bootId,
@@ -73,15 +81,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           tcpForward: hb.capabilities.tcpForward ?? node.capabilities?.tcpForward ?? true,
           fileOps: hb.capabilities.fileOps ?? node.capabilities?.fileOps ?? false,
           updates: hb.capabilities.updates ?? node.capabilities?.updates ?? true,
-        }
-      }
+        },
+      },
     };
 
     if (hb.frpcVersion !== undefined) updateData.$set.frpcVersion = hb.frpcVersion;
     if (hb.tunnel.connectedSince) updateData.$set.connectedSince = hb.tunnel.connectedSince;
     if (previousBootId !== hb.bootId) updateData.$set.lastBootAt = hb.bootAt;
-    
-    if (hb.tunnel.status === 'connected' && (node.status === 'connecting' || node.status === 'unpaired')) {
+
+    if (
+      hb.tunnel.status === 'connected' &&
+      (node.status === 'connecting' || node.status === 'unpaired')
+    ) {
       updateData.$set.status = 'online';
     }
 
@@ -111,7 +122,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     }
 
     // Execute the update and RELOAD the node to get latest pendingCommands
-    const updatedNode = await Node.findByIdAndUpdate(id, updateData, { returnDocument: 'after' }).lean();
+    const updatedNode = await Node.findByIdAndUpdate(id, updateData, {
+      returnDocument: 'after',
+    }).lean();
     if (!updatedNode) {
       return NextResponse.json({ error: 'Node lost' }, { status: 404 });
     }
@@ -195,7 +208,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       });
     }
 
-    const commands = (updatedNode as any).pendingCommands || [];
+    const commands = updatedNode.pendingCommands || [];
     if (commands.length > 0) {
       await Node.updateOne({ _id: id }, { $set: { pendingCommands: [] } });
     }
