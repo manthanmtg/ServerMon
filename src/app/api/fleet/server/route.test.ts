@@ -20,7 +20,7 @@ const {
   mockConfigFindOne: vi.fn(),
   mockConfigCreate: vi.fn(),
   mockFleetLogCreate: vi.fn(),
-  mockApplyRevision: vi.fn(),
+  mockApplyRevision: vi.fn(() => Promise.resolve({ kind: 'mock', reloaded: false })),
   mockGetFrpOrchestrator: vi.fn(() => ({})),
   mockGetNginxOrchestrator: vi.fn(() => ({})),
   mockEmit: vi.fn(),
@@ -105,6 +105,8 @@ describe('GET /api/fleet/server', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockGetSession.mockResolvedValue({ user: { username: 'admin', role: 'admin' } });
+    delete process.env.FRP_BIND_PORT;
+    delete process.env.FRP_SUBDOMAIN_HOST;
   });
 
   it('returns 401 without a session', async () => {
