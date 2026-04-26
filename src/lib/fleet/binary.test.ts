@@ -1,6 +1,12 @@
 import { describe, it, expect, vi } from 'vitest';
 import { EventEmitter } from 'node:events';
-import { platformTriple, frpDownloadUrl, verifyChecksum, ensureBinary } from './binary';
+import {
+  platformTriple,
+  frpDownloadUrl,
+  verifyChecksum,
+  ensureBinary,
+  resolveVersion,
+} from './binary';
 
 describe('platformTriple', () => {
   it('maps darwin/x64 to darwin_amd64', () => {
@@ -59,6 +65,26 @@ describe('verifyChecksum', () => {
   it('accepts uppercase expected hex', async () => {
     const readFile = async () => Buffer.from('hello');
     expect(await verifyChecksum('/any', helloSha.toUpperCase(), readFile)).toBe(true);
+  });
+});
+
+describe('resolveVersion', () => {
+  it('falls back when the GitHub latest release payload is malformed', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ tag_name: 42 }),
+    });
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+
+    await expect(resolveVersion('latest', fetchImpl as unknown as typeof fetch)).resolves.toBe(
+      '0.61.2'
+    );
+    expect(warnSpy).toHaveBeenCalledWith(
+      'Failed to fetch latest FRP version, falling back to 0.61.2',
+      expect.objectContaining({ message: 'Invalid GitHub latest release payload' })
+    );
+
+    warnSpy.mockRestore();
   });
 });
 
