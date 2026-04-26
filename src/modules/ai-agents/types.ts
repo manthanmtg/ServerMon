@@ -76,10 +76,22 @@ export interface AgentsSummary {
   completed: number;
 }
 
+export interface AgentToolStatus {
+  type: AgentType;
+  displayName: string;
+  command: string;
+  installed: boolean;
+  path?: string;
+  version?: string;
+  checkedAt: string;
+  error?: string;
+}
+
 export interface AgentsSnapshot {
   summary: AgentsSummary;
   sessions: AgentSession[];
   pastSessions: AgentSession[];
+  tools: AgentToolStatus[];
   timestamp: string;
 }
 

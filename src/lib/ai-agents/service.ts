@@ -4,6 +4,7 @@ import { CodexAdapter } from './adapters/codex';
 import { OpenCodeAdapter } from './adapters/opencode';
 import { GeminiCLIAdapter } from './adapters/gemini-cli';
 import { killProcess } from './process-utils';
+import { getAgentToolStatuses } from './tool-availability';
 import type {
   AgentAdapter,
   AgentSession,
@@ -35,7 +36,7 @@ export class AIAgentsService {
   }
 
   async getSnapshot(): Promise<AgentsSnapshot> {
-    const allSessions = await this.detectSessions();
+    const [allSessions, tools] = await Promise.all([this.detectSessions(), getAgentToolStatuses()]);
     const sessions: AgentSession[] = [];
     const pastSessions: AgentSession[] = [];
 
@@ -58,6 +59,7 @@ export class AIAgentsService {
       summary,
       sessions,
       pastSessions,
+      tools,
       timestamp: new Date().toISOString(),
     };
   }

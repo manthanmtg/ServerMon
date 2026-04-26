@@ -14,6 +14,10 @@ const { mockClaudeDetect, mockCodexDetect, mockOpenCodeDetect, mockKillProcess }
   })
 );
 
+const { mockGetAgentToolStatuses } = vi.hoisted(() => ({
+  mockGetAgentToolStatuses: vi.fn(),
+}));
+
 vi.mock('./adapters/claude-code', () => ({
   // Paired explanation: using unknown and casting to avoid explicit any in mock constructor
   ClaudeCodeAdapter: function (this: unknown) {
@@ -41,6 +45,9 @@ vi.mock('./adapters/opencode', () => ({
 vi.mock('./process-utils', () => ({
   killProcess: mockKillProcess,
 }));
+vi.mock('./tool-availability', () => ({
+  getAgentToolStatuses: mockGetAgentToolStatuses,
+}));
 
 import { AIAgentsService } from './service';
 
@@ -64,6 +71,7 @@ describe('AIAgentsService', () => {
     mockClaudeDetect.mockResolvedValue([]);
     mockCodexDetect.mockResolvedValue([]);
     mockOpenCodeDetect.mockResolvedValue([]);
+    mockGetAgentToolStatuses.mockResolvedValue([]);
   });
 
   describe('getSnapshot()', () => {
@@ -73,7 +81,27 @@ describe('AIAgentsService', () => {
       expect(snapshot.sessions).toEqual([]);
       expect(snapshot.pastSessions).toEqual([]);
       expect(snapshot.summary.total).toBe(0);
+      expect(snapshot.tools).toEqual([]);
       expect(snapshot.timestamp).toBeDefined();
+    });
+
+    it('includes CLI tool availability in the snapshot', async () => {
+      const service = makeService();
+      mockGetAgentToolStatuses.mockResolvedValue([
+        {
+          type: 'codex',
+          displayName: 'Codex',
+          command: 'codex',
+          installed: true,
+          path: '/usr/local/bin/codex',
+          checkedAt: '2026-03-17T10:05:00.000Z',
+        },
+      ]);
+
+      const snapshot = await service.getSnapshot();
+      expect(snapshot.tools).toHaveLength(1);
+      expect(snapshot.tools[0].installed).toBe(true);
+      expect(mockGetAgentToolStatuses).toHaveBeenCalledTimes(1);
     });
 
     it('separates running sessions from past sessions', async () => {

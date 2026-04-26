@@ -13,6 +13,7 @@ import type {
   AgentSession,
   AgentsSummary,
   AgentsSnapshot,
+  AgentToolStatus,
 } from './types';
 
 describe('ai-agents type shapes', () => {
@@ -156,11 +157,25 @@ describe('ai-agents type shapes', () => {
     ).toBe(10);
   });
 
+  it('AgentToolStatus records CLI availability', () => {
+    const status: AgentToolStatus = {
+      type: 'claude-code',
+      displayName: 'Claude Code',
+      command: 'claude',
+      installed: false,
+      checkedAt: '2026-01-01T00:00:00Z',
+      error: 'claude: command not found',
+    };
+    expect(status.installed).toBe(false);
+    expect(status.command).toBe('claude');
+  });
+
   it('AgentsSnapshot wraps summary and sessions', () => {
     const snapshot: AgentsSnapshot = {
       summary: { total: 0, running: 0, idle: 0, waiting: 0, error: 0, completed: 0 },
       sessions: [],
       pastSessions: [],
+      tools: [],
       timestamp: '2026-01-01T00:00:00Z',
     };
     expect(snapshot.sessions).toHaveLength(0);

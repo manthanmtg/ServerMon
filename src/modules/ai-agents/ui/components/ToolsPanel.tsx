@@ -1,10 +1,10 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { Bot, CheckCircle2, Settings2, SlidersHorizontal, Terminal } from 'lucide-react';
+import { Bot, CheckCircle2, Settings2, SlidersHorizontal, Terminal, XCircle } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import type { AgentSession, AgentType, AgentsSnapshot } from '../../types';
+import type { AgentSession, AgentToolStatus, AgentType, AgentsSnapshot } from '../../types';
 import { agentIcons } from '../constants';
 
 interface ToolDefinition {
@@ -15,6 +15,7 @@ interface ToolDefinition {
   defaultEffort: string;
   defaultMode: string;
   launchCommand: string;
+  command?: string;
   capabilities: string[];
   settings: Array<{ label: string; value: string }>;
 }
@@ -28,6 +29,7 @@ const TOOL_DEFINITIONS: ToolDefinition[] = [
     defaultEffort: 'CLI/config default',
     defaultMode: 'workspace-write or profile default',
     launchCommand: 'codex --model <model> --sandbox <mode>',
+    command: 'codex',
     capabilities: ['code edits', 'shell commands', 'tool calls', 'session replay'],
     settings: [
       { label: 'Default model', value: 'CLI/config default; override with --model' },
@@ -49,6 +51,7 @@ const TOOL_DEFINITIONS: ToolDefinition[] = [
     defaultEffort: 'adaptive',
     defaultMode: 'project permissions',
     launchCommand: 'claude',
+    command: 'claude',
     capabilities: ['conversation history', 'tool timeline', 'file edits', 'terminal actions'],
     settings: [
       { label: 'Default model', value: 'claude-opus-4.5' },
@@ -65,6 +68,7 @@ const TOOL_DEFINITIONS: ToolDefinition[] = [
     defaultEffort: 'tool default',
     defaultMode: 'local project',
     launchCommand: 'opencode',
+    command: 'opencode',
     capabilities: ['message parsing', 'model detection', 'timeline extraction'],
     settings: [
       { label: 'Default model', value: 'provider default' },
@@ -80,6 +84,7 @@ const TOOL_DEFINITIONS: ToolDefinition[] = [
     defaultEffort: 'tool default',
     defaultMode: 'trusted workspace or sandbox mode',
     launchCommand: 'gemini --model <model> --approval-mode <mode>',
+    command: 'gemini',
     capabilities: ['tool calls', 'thought summaries', 'token usage'],
     settings: [
       { label: 'Default model', value: 'Gemini CLI default; override with --model' },
@@ -99,6 +104,7 @@ const TOOL_DEFINITIONS: ToolDefinition[] = [
     defaultEffort: 'tool default',
     defaultMode: 'git-aware edits',
     launchCommand: 'aider',
+    command: 'aider',
     capabilities: ['git-aware sessions', 'file changes', 'command history'],
     settings: [
       { label: 'Default model', value: 'configured in aider' },
@@ -133,6 +139,30 @@ function latestModel(sessions: AgentSession[], fallback: string): string {
   return sessions.find((session) => session.agent.model)?.agent.model ?? fallback;
 }
 
+function statusForTool(
+  snapshot: AgentsSnapshot | null,
+  tool: ToolDefinition
+): AgentToolStatus | undefined {
+  return snapshot?.tools.find((status) => status.type === tool.type);
+}
+
+function toolIsInstalled(status: AgentToolStatus | undefined, tool: ToolDefinition): boolean {
+  if (!tool.command) return true;
+  return status?.installed ?? false;
+}
+
+function toolStatusLabel(
+  status: AgentToolStatus | undefined,
+  tool: ToolDefinition,
+  sessionCount: number
+): string {
+  if (!tool.command) return 'adapter';
+  if (!status) return 'checking';
+  if (!status.installed) return 'not installed';
+  if (sessionCount > 0) return `${sessionCount} seen`;
+  return status.installed ? 'installed' : 'not installed';
+}
+
 export function ToolsPanel({ snapshot }: { snapshot: AgentsSnapshot | null }) {
   const [selectedType, setSelectedType] = useState<AgentType>('codex');
 
@@ -148,6 +178,10 @@ export function ToolsPanel({ snapshot }: { snapshot: AgentsSnapshot | null }) {
     TOOL_DEFINITIONS.find((tool) => tool.type === selectedType) ?? TOOL_DEFINITIONS[0];
   const selectedSessions = sessionsForTool(snapshot, selectedTool.type);
 
+  const installedToolCount = TOOL_DEFINITIONS.filter((tool) => {
+    const status = statusForTool(snapshot, tool);
+    return Boolean(tool.command && status?.installed);
+  }).length;
   const activeToolCount = TOOL_DEFINITIONS.filter((tool) =>
     observedToolTypes.has(tool.type)
   ).length;
@@ -156,7 +190,7 @@ export function ToolsPanel({ snapshot }: { snapshot: AgentsSnapshot | null }) {
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <ToolMetric label="Available tools" value={TOOL_DEFINITIONS.length} />
+        <ToolMetric label="Installed tools" value={installedToolCount} />
         <ToolMetric label="Configured tools" value={activeToolCount} />
         <ToolMetric label="Active sessions" value={activeSessionCount} />
       </div>
@@ -172,19 +206,33 @@ export function ToolsPanel({ snapshot }: { snapshot: AgentsSnapshot | null }) {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {TOOL_DEFINITIONS.map((tool) => {
               const sessions = sessionsForTool(snapshot, tool.type);
+              const status = statusForTool(snapshot, tool);
+              const isInstalled = toolIsInstalled(status, tool);
               const isSelected = selectedType === tool.type;
               return (
                 <button
                   key={tool.type}
                   type="button"
                   onClick={() => setSelectedType(tool.type)}
-                  className={`text-left rounded-xl border bg-card p-4 transition-colors hover:border-primary/60 ${
-                    isSelected ? 'border-primary shadow-sm' : 'border-border'
+                  className={`text-left rounded-xl border p-4 transition-colors ${
+                    isInstalled
+                      ? 'bg-card hover:border-primary/60'
+                      : 'bg-primary/5 text-muted-foreground hover:border-primary/50'
+                  } ${
+                    isSelected
+                      ? isInstalled
+                        ? 'border-primary shadow-sm'
+                        : 'border-primary/70 shadow-sm'
+                      : 'border-border'
                   }`}
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex items-center gap-3 min-w-0">
-                      <div className="h-10 w-10 shrink-0 rounded-lg bg-secondary text-sm font-bold flex items-center justify-center">
+                      <div
+                        className={`h-10 w-10 shrink-0 rounded-lg text-sm font-bold flex items-center justify-center ${
+                          isInstalled ? 'bg-secondary' : 'bg-primary/10 text-primary'
+                        }`}
+                      >
                         {agentIcons[tool.type]}
                       </div>
                       <div className="min-w-0">
@@ -194,11 +242,20 @@ export function ToolsPanel({ snapshot }: { snapshot: AgentsSnapshot | null }) {
                         </p>
                       </div>
                     </div>
-                    <Badge variant={sessions.length ? 'default' : 'secondary'}>
-                      {sessions.length ? `${sessions.length} seen` : 'ready'}
+                    <Badge
+                      variant={
+                        isInstalled ? (sessions.length ? 'default' : 'secondary') : 'outline'
+                      }
+                    >
+                      {toolStatusLabel(status, tool, sessions.length)}
                     </Badge>
                   </div>
                   <p className="mt-3 text-sm text-muted-foreground">{tool.description}</p>
+                  {!isInstalled && tool.command ? (
+                    <p className="mt-2 text-xs text-primary">
+                      Install or expose `{tool.command}` on PATH to enable this tool.
+                    </p>
+                  ) : null}
                   <div className="mt-3 flex flex-wrap gap-1.5">
                     {tool.capabilities.slice(0, 3).map((capability) => (
                       <Badge key={capability} variant="outline">
@@ -212,7 +269,11 @@ export function ToolsPanel({ snapshot }: { snapshot: AgentsSnapshot | null }) {
           </div>
         </section>
 
-        <ToolSettings tool={selectedTool} sessions={selectedSessions} />
+        <ToolSettings
+          tool={selectedTool}
+          sessions={selectedSessions}
+          status={statusForTool(snapshot, selectedTool)}
+        />
       </div>
     </div>
   );
@@ -234,7 +295,17 @@ function ToolMetric({ label, value }: { label: string; value: number }) {
   );
 }
 
-function ToolSettings({ tool, sessions }: { tool: ToolDefinition; sessions: AgentSession[] }) {
+function ToolSettings({
+  tool,
+  sessions,
+  status,
+}: {
+  tool: ToolDefinition;
+  sessions: AgentSession[];
+  status: AgentToolStatus | undefined;
+}) {
+  const isInstalled = toolIsInstalled(status, tool);
+
   return (
     <section className="space-y-3">
       <Card className="border-border/60">
@@ -245,11 +316,31 @@ function ToolSettings({ tool, sessions }: { tool: ToolDefinition; sessions: Agen
               <p className="mt-1 text-sm text-muted-foreground">{tool.description}</p>
             </div>
             <div className="h-10 w-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
-              <Settings2 className="h-5 w-5" />
+              {isInstalled ? <Settings2 className="h-5 w-5" /> : <XCircle className="h-5 w-5" />}
             </div>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
+          {tool.command ? (
+            <div
+              className={`rounded-lg border p-3 ${
+                isInstalled
+                  ? 'border-border bg-muted/20'
+                  : 'border-primary/30 bg-primary/5 text-muted-foreground'
+              }`}
+            >
+              <p className="text-xs">{isInstalled ? 'Installed command' : 'Missing command'}</p>
+              <p className="mt-1 text-sm font-medium">
+                {isInstalled
+                  ? `${status?.command ?? tool.command}${status?.path ? ` at ${status.path}` : ''}`
+                  : `${tool.command}: command not found`}
+              </p>
+              {status?.version ? (
+                <p className="mt-1 text-xs text-muted-foreground">{status.version}</p>
+              ) : null}
+            </div>
+          ) : null}
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {tool.settings.map((setting) => (
               <div key={setting.label} className="rounded-lg border border-border bg-muted/20 p-3">

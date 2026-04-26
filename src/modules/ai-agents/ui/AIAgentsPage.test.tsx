@@ -64,6 +64,34 @@ const mockSnapshot: AgentsSnapshot = {
       agent: { type: 'codex', displayName: 'OpenAI Codex', version: '1.0' },
     }),
   ],
+  tools: [
+    {
+      type: 'codex',
+      displayName: 'Codex',
+      command: 'codex',
+      installed: true,
+      path: '/usr/local/bin/codex',
+      version: 'codex-cli 0.125.0',
+      checkedAt: '2026-03-17T10:05:00.000Z',
+    },
+    {
+      type: 'claude-code',
+      displayName: 'Claude Code',
+      command: 'claude',
+      installed: false,
+      checkedAt: '2026-03-17T10:05:00.000Z',
+      error: 'claude: command not found',
+    },
+    {
+      type: 'gemini-cli',
+      displayName: 'Gemini CLI',
+      command: 'gemini',
+      installed: true,
+      path: '/usr/local/bin/gemini',
+      version: '0.39.1',
+      checkedAt: '2026-03-17T10:05:00.000Z',
+    },
+  ],
   timestamp: '2026-03-17T10:05:00.000Z',
 };
 
@@ -143,6 +171,7 @@ describe('AIAgentsPage', () => {
       expect(screen.getByRole('button', { name: /Codex/i })).toBeDefined();
       expect(screen.getByRole('button', { name: /Claude Code/i })).toBeDefined();
       expect(screen.getByText('Configured tools')).toBeDefined();
+      expect(screen.getByText('not installed')).toBeDefined();
     });
   });
 
@@ -178,6 +207,22 @@ describe('AIAgentsPage', () => {
       expect(screen.getByText('default, auto_edit, yolo, or plan')).toBeDefined();
       expect(screen.getByText('available via --worktree')).toBeDefined();
       expect(screen.getByText('controlled with --extensions')).toBeDefined();
+    });
+  });
+
+  it('marks missing CLI tools as not installed instead of ready', async () => {
+    await act(async () => {
+      render(<AIAgentsPage />);
+    });
+    await waitFor(() => screen.getByRole('button', { name: 'Tools' }));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Tools' }));
+    fireEvent.click(screen.getByRole('button', { name: /Claude Code/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Missing command')).toBeDefined();
+      expect(screen.getAllByText('claude: command not found').length).toBeGreaterThan(0);
+      expect(screen.queryByText('ready')).toBeNull();
     });
   });
 
@@ -362,6 +407,7 @@ describe('AIAgentsPage', () => {
       ...mockSnapshot,
       sessions: [],
       pastSessions: [],
+      tools: [],
       summary: { total: 0, running: 0, idle: 0, waiting: 0, error: 0, completed: 0 },
     };
     global.fetch = vi.fn().mockResolvedValue({
