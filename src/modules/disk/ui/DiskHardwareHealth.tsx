@@ -21,7 +21,11 @@ interface DiskHardwareHealthProps {
   settings: DiskSettings;
 }
 
-export function DiskHardwareHealth({ loadingHealth, healthData, settings }: DiskHardwareHealthProps) {
+export function DiskHardwareHealth({
+  loadingHealth,
+  healthData,
+  settings,
+}: DiskHardwareHealthProps) {
   return (
     <Card className="border-border/50 bg-card/50 shadow-sm overflow-hidden">
       <CardHeader className="flex flex-row items-center justify-between border-b border-border/30 bg-secondary/5 py-4">
@@ -57,9 +61,7 @@ export function DiskHardwareHealth({ loadingHealth, healthData, settings }: Disk
                       <HardDrive className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
                     </div>
                     <div>
-                      <p className="text-xs font-bold leading-tight">
-                        {disk.name || disk.model}
-                      </p>
+                      <p className="text-xs font-bold leading-tight">{disk.name || disk.model}</p>
                       <p className="text-[10px] text-muted-foreground uppercase mt-0.5 tracking-wider">
                         {disk.interface} • {disk.type || 'SATA'}
                       </p>

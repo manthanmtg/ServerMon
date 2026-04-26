@@ -167,7 +167,12 @@ export default function GitHistoryModal({ root, onClose }: Props) {
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-8 bg-black/40 backdrop-blur-sm animate-in fade-in duration-300">
-      <div className="relative w-full max-w-6xl h-full max-h-[850px] flex flex-col bg-background border border-border rounded-3xl shadow-2xl overflow-hidden">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="git-history-title"
+        className="relative w-full max-w-6xl h-full max-h-[850px] flex flex-col bg-background border border-border rounded-3xl shadow-2xl overflow-hidden"
+      >
         {/* Header */}
         <div className="flex flex-col border-b border-border bg-card/50 backdrop-blur-xl shrink-0">
           <div className="flex items-center justify-between px-6 py-4">
@@ -176,7 +181,10 @@ export default function GitHistoryModal({ root, onClose }: Props) {
                 <GitCommit className="w-6 h-6" />
               </div>
               <div>
-                <h2 className="text-lg font-bold text-foreground tracking-tight">
+                <h2
+                  id="git-history-title"
+                  className="text-lg font-bold text-foreground tracking-tight"
+                >
                   Git Repository History
                 </h2>
                 <div className="flex items-center gap-2">
@@ -198,6 +206,9 @@ export default function GitHistoryModal({ root, onClose }: Props) {
                   {LIMIT_OPTIONS.map((opt) => (
                     <button
                       key={opt}
+                      type="button"
+                      aria-label={`Show ${opt} commits`}
+                      aria-pressed={limit === opt}
                       onClick={() => setLimit(opt)}
                       className={cn(
                         'px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-lg transition-all duration-200',
@@ -223,6 +234,9 @@ export default function GitHistoryModal({ root, onClose }: Props) {
                   {TIME_RANGES.map((range) => (
                     <button
                       key={range.value}
+                      type="button"
+                      aria-label={`Show commits from ${range.label}`}
+                      aria-pressed={since === range.value}
                       onClick={() => setSince(range.value)}
                       className={cn(
                         'px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-lg transition-all duration-200',
@@ -244,6 +258,7 @@ export default function GitHistoryModal({ root, onClose }: Props) {
                 size="icon"
                 className="rounded-xl h-10 w-10 text-muted-foreground hover:text-foreground hover:bg-destructive/10 hover:text-destructive transition-all"
                 onClick={onClose}
+                aria-label="Close git history"
               >
                 <X className="w-5 h-5" />
               </Button>
@@ -255,7 +270,8 @@ export default function GitHistoryModal({ root, onClose }: Props) {
             <div className="relative flex-1 group">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
               <input
-                type="text"
+                type="search"
+                aria-label="Search git commits"
                 placeholder="Search by subject, author, or hash..."
                 className="w-full bg-muted/20 border border-border/50 rounded-xl py-2 pl-10 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
                 value={searchQuery}
@@ -298,6 +314,9 @@ export default function GitHistoryModal({ root, onClose }: Props) {
                 filteredCommits.map((c) => (
                   <button
                     key={c.hash}
+                    type="button"
+                    aria-label={`View commit ${c.hash.slice(0, 7)}: ${c.subject}`}
+                    aria-pressed={selectedHash === c.hash}
                     onClick={() => setSelectedHash(c.hash === selectedHash ? null : c.hash)}
                     className={cn(
                       'group w-full text-left p-4 rounded-2xl transition-all duration-300 border',
@@ -362,8 +381,10 @@ export default function GitHistoryModal({ root, onClose }: Props) {
                       </span>
                     </Button>
                     <div className="h-5 w-px bg-border/50 mx-1" />
-                    <div
-                      className="flex items-center gap-2 group cursor-pointer"
+                    <button
+                      type="button"
+                      aria-label={`Copy commit hash ${selectedHash}`}
+                      className="flex items-center gap-2 group cursor-pointer rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                       onClick={() => copyToClipboard(selectedHash)}
                     >
                       <Hash className="w-4 h-4 text-primary" />
@@ -375,7 +396,7 @@ export default function GitHistoryModal({ root, onClose }: Props) {
                       ) : (
                         <Copy className="w-3.5 h-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-all" />
                       )}
-                    </div>
+                    </button>
                   </div>
                 </div>
 
@@ -470,7 +491,7 @@ export default function GitHistoryModal({ root, onClose }: Props) {
         </div>
       </div>
 
-      <style jsx global>{`
+      <style>{`
         .custom-scrollbar::-webkit-scrollbar {
           width: 8px;
           height: 8px;
