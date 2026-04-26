@@ -521,6 +521,22 @@ describe('AIRunnerPage', () => {
     ).toBeInTheDocument();
   });
 
+  it('keeps settings summary cards on one wide row', async () => {
+    await act(async () => {
+      render(<AIRunnerPage />);
+    });
+
+    await waitFor(() => expect(screen.getByText('AI Agent Runner')).toBeInTheDocument());
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('tab', { name: /Settings/i }));
+    });
+
+    const summaryGrid = screen.getByText('Scheduled Profiles').closest('.grid');
+    expect(summaryGrid).not.toBeNull();
+    expect(summaryGrid).toHaveClass('xl:grid-cols-5');
+  });
+
   it('edits storage and retention settings from the settings tab', async () => {
     await act(async () => {
       render(<AIRunnerPage />);

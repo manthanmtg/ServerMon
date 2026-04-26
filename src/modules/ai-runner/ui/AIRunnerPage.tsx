@@ -4070,7 +4070,7 @@ export default function AIRunnerPage() {
               aria-labelledby="tab-settings"
               className="space-y-5"
             >
-              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
                 <CompactStat
                   label="Profiles"
                   value={profiles.length}
