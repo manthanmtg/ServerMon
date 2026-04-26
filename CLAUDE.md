@@ -185,7 +185,9 @@ Concise map of major directories, commands, and key files. Update this section w
 - `src/lib/ai-runner/` — automated task supervisor, watchdog, and worker orchestration
 - `src/models/` — Mongoose schemas
 - `src/modules/` — feature modules (terminal, processes, logs, metrics, fleet, AI, etc.)
+- `src/models/NetworkSpeedtestResult.ts`, `src/models/NetworkSpeedtestSettings.ts` — persisted Network module speedtest history and schedule configuration
 - `src/lib/env-vars/` — stateless host environment variable helpers for OS target detection, shell env parsing, user-scope add/delete, and system-scope instructions
+- `src/lib/network/speedtest.ts`, `src/lib/network/speedtest-scheduler.ts` — speedtest CLI normalization, history persistence, fixed-interval scheduling, and startup scheduler
 - `src/server.ts` — custom Next.js server entry (Socket.IO bridge)
 - `src/proxy.ts`, `src/proxy.test.ts` — reverse proxy helper + tests
 - `src/test/` — shared test setup

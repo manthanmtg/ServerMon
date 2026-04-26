@@ -9,6 +9,8 @@ import {
   CartesianGrid,
   Cell,
   Legend,
+  Line,
+  LineChart,
   Pie,
   PieChart,
   ResponsiveContainer,
@@ -21,11 +23,17 @@ import {
   AlertTriangle,
   ArrowDown,
   ArrowUp,
+  CalendarClock,
+  ExternalLink,
+  Gauge,
   Globe,
+  History,
+  Loader2,
   Network,
   RefreshCcw,
   Shield,
   TerminalSquare,
+  X,
   Zap,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -33,7 +41,12 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/components/ui/toast';
 import { cn, formatBytes, relativeTime } from '@/lib/utils';
-import type { NetworkSnapshot } from '../types';
+import type {
+  NetworkSnapshot,
+  NetworkSpeedtestOverview,
+  NetworkSpeedtestResult,
+  NetworkSpeedtestScheduleInterval,
+} from '../types';
 import TerminalUI from '@/modules/terminal/ui/TerminalUI';
 
 const chartColors = [
@@ -53,6 +66,33 @@ function tooltipBytes(value: unknown) {
   return formatBytes(typeof value === 'number' ? value : Number(value) || 0);
 }
 
+function formatMbps(value: number | undefined) {
+  return typeof value === 'number' ? `${value.toFixed(2)} Mbps` : '-';
+}
+
+function formatLatency(value: number | undefined) {
+  return typeof value === 'number' ? `${value.toFixed(2)} ms` : '-';
+}
+
+function formatSpeedtestDate(value: string | undefined) {
+  if (!value) return '-';
+  return new Date(value).toLocaleString([], {
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+const scheduleOptions: Array<{ value: NetworkSpeedtestScheduleInterval; label: string }> = [
+  { value: 'off', label: 'Off' },
+  { value: '30m', label: 'Every 30 min' },
+  { value: '1h', label: 'Every hour' },
+  { value: '3h', label: 'Every 3 hours' },
+  { value: '6h', label: 'Every 6 hours' },
+  { value: '24h', label: 'Every day' },
+];
+
 export default function NetworkPage() {
   const { toast } = useToast();
   const [snapshot, setSnapshot] = useState<NetworkSnapshot | null>(null);
@@ -61,6 +101,11 @@ export default function NetworkPage() {
   const [selectedIface, setSelectedIface] = useState<string>('all');
   const [sessionId] = useState(() => `network-${crypto.randomUUID()}`);
   const [terminalCommand, setTerminalCommand] = useState('ip addr\n');
+  const [speedtestOverview, setSpeedtestOverview] = useState<NetworkSpeedtestOverview | null>(null);
+  const [speedtestLoading, setSpeedtestLoading] = useState(false);
+  const [speedtestRunning, setSpeedtestRunning] = useState(false);
+  const [scheduleSaving, setScheduleSaving] = useState(false);
+  const [showSpeedtestHistory, setShowSpeedtestHistory] = useState(false);
 
   const loadSnapshot = useCallback(async () => {
     try {
@@ -75,6 +120,74 @@ export default function NetworkPage() {
       console.error(error);
     }
   }, [selectedIface]);
+
+  const loadSpeedtestOverview = useCallback(async () => {
+    const response = await fetch('/api/modules/network/speedtest', { cache: 'no-store' });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || 'Failed to fetch speedtest history');
+    setSpeedtestOverview(data);
+    setSpeedtestRunning(Boolean(data.running));
+  }, []);
+
+  const runSpeedtest = useCallback(async () => {
+    setSpeedtestRunning(true);
+    try {
+      const response = await fetch('/api/modules/network/speedtest', {
+        method: 'POST',
+        cache: 'no-store',
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Failed to run speedtest');
+      await loadSpeedtestOverview();
+      if (data.status === 'failed') {
+        toast({
+          title: 'Speedtest failed',
+          description: data.error || 'The speedtest command returned an error.',
+          variant: 'destructive',
+        });
+      } else {
+        toast({
+          title: 'Speedtest complete',
+          description: `${formatMbps(data.downloadMbps)} down, ${formatMbps(data.uploadMbps)} up`,
+          variant: 'success',
+        });
+      }
+    } catch (error) {
+      toast({
+        title: 'Speedtest failed',
+        description: error instanceof Error ? error.message : 'Unknown error',
+        variant: 'destructive',
+      });
+    } finally {
+      setSpeedtestRunning(false);
+      await loadSpeedtestOverview().catch(() => {});
+    }
+  }, [loadSpeedtestOverview, toast]);
+
+  const updateSpeedtestSchedule = useCallback(
+    async (scheduleInterval: NetworkSpeedtestScheduleInterval) => {
+      setScheduleSaving(true);
+      try {
+        const response = await fetch('/api/modules/network/speedtest', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ scheduleInterval }),
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Failed to update speedtest schedule');
+        await loadSpeedtestOverview();
+      } catch (error) {
+        toast({
+          title: 'Schedule update failed',
+          description: error instanceof Error ? error.message : 'Unknown error',
+          variant: 'destructive',
+        });
+      } finally {
+        setScheduleSaving(false);
+      }
+    },
+    [loadSpeedtestOverview, toast]
+  );
 
   useEffect(() => {
     let active = true;
@@ -102,6 +215,33 @@ export default function NetworkPage() {
       window.clearInterval(interval);
     };
   }, [loadSnapshot, refreshMs, toast]);
+
+  useEffect(() => {
+    let active = true;
+    setSpeedtestLoading(true);
+    loadSpeedtestOverview()
+      .catch((error: unknown) => {
+        if (active) {
+          toast({
+            title: 'Speedtest history failed',
+            description: error instanceof Error ? error.message : 'Unknown error',
+            variant: 'destructive',
+          });
+        }
+      })
+      .finally(() => {
+        if (active) setSpeedtestLoading(false);
+      });
+
+    const interval = window.setInterval(() => {
+      loadSpeedtestOverview().catch(() => {});
+    }, 60000);
+
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+    };
+  }, [loadSpeedtestOverview, toast]);
 
   const bandwidthData = useMemo(() => {
     if (!snapshot) return [];
@@ -144,6 +284,22 @@ export default function NetworkPage() {
         dropped: s.rx_dropped + s.tx_dropped,
       }));
   }, [snapshot, selectedIface]);
+
+  const speedtestHistory = useMemo(() => speedtestOverview?.history ?? [], [speedtestOverview]);
+  const latestSpeedtest = speedtestOverview?.latest ?? null;
+  const speedtestChartData = useMemo(
+    () =>
+      [...speedtestHistory]
+        .reverse()
+        .filter((result) => result.status === 'completed')
+        .map((result) => ({
+          time: formatSpeedtestDate(result.finishedAt),
+          download: result.downloadMbps ?? 0,
+          upload: result.uploadMbps ?? 0,
+          ping: result.pingMs ?? 0,
+        })),
+    [speedtestHistory]
+  );
 
   if (loading) {
     return (
@@ -207,6 +363,148 @@ export default function NetworkPage() {
           </div>
         </div>
       </section>
+
+      <Card className="overflow-hidden border-border/60">
+        <CardHeader>
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <Gauge className="h-5 w-5 text-primary" />
+                Internet Speedtest
+              </CardTitle>
+              <p className="text-sm text-muted-foreground">
+                Manual and scheduled WAN throughput checks using the host speedtest CLI.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setShowSpeedtestHistory(true)}
+                disabled={speedtestHistory.length === 0}
+              >
+                <History className="h-4 w-4" />
+                History
+              </Button>
+              <Button onClick={runSpeedtest} disabled={speedtestRunning}>
+                {speedtestRunning ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Gauge className="h-4 w-4" />
+                )}
+                {speedtestRunning ? 'Running' : 'Run test'}
+              </Button>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-5">
+          <div className="grid gap-3 md:grid-cols-4">
+            <div className="rounded-xl border border-border/50 bg-muted/20 p-4">
+              <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                <ArrowDown className="h-3.5 w-3.5 text-success" />
+                Download
+              </div>
+              <p className="mt-2 text-2xl font-bold tabular-nums">
+                {speedtestLoading ? '-' : formatMbps(latestSpeedtest?.downloadMbps)}
+              </p>
+            </div>
+            <div className="rounded-xl border border-border/50 bg-muted/20 p-4">
+              <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                <ArrowUp className="h-3.5 w-3.5 text-primary" />
+                Upload
+              </div>
+              <p className="mt-2 text-2xl font-bold tabular-nums">
+                {speedtestLoading ? '-' : formatMbps(latestSpeedtest?.uploadMbps)}
+              </p>
+            </div>
+            <div className="rounded-xl border border-border/50 bg-muted/20 p-4">
+              <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                <Zap className="h-3.5 w-3.5 text-warning" />
+                Ping
+              </div>
+              <p className="mt-2 text-2xl font-bold tabular-nums">
+                {speedtestLoading ? '-' : formatLatency(latestSpeedtest?.pingMs)}
+              </p>
+            </div>
+            <label className="rounded-xl border border-border/50 bg-muted/20 p-4">
+              <span className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                <CalendarClock className="h-3.5 w-3.5 text-accent" />
+                Schedule
+              </span>
+              <select
+                className="mt-2 w-full bg-transparent text-sm font-semibold text-foreground outline-none"
+                value={speedtestOverview?.settings.scheduleInterval ?? 'off'}
+                onChange={(event) =>
+                  updateSpeedtestSchedule(event.target.value as NetworkSpeedtestScheduleInterval)
+                }
+                disabled={scheduleSaving}
+              >
+                {scheduleOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+
+          <div className="grid gap-3 text-sm lg:grid-cols-[1fr_auto] lg:items-center">
+            <div className="flex flex-wrap items-center gap-2 text-muted-foreground">
+              <Badge
+                variant={
+                  latestSpeedtest?.status === 'failed'
+                    ? 'destructive'
+                    : speedtestRunning
+                      ? 'secondary'
+                      : 'outline'
+                }
+              >
+                {speedtestRunning
+                  ? 'RUNNING'
+                  : latestSpeedtest?.status
+                    ? latestSpeedtest.status.toUpperCase()
+                    : 'NO RUNS'}
+              </Badge>
+              <span>
+                Last run {formatSpeedtestDate(latestSpeedtest?.finishedAt)}
+                {latestSpeedtest?.trigger ? ` by ${latestSpeedtest.trigger}` : ''}
+              </span>
+              {speedtestOverview?.settings.nextRunAt && (
+                <span>
+                  Next scheduled {formatSpeedtestDate(speedtestOverview.settings.nextRunAt)}
+                </span>
+              )}
+            </div>
+            <div className="flex min-w-0 flex-wrap items-center gap-2 text-sm text-muted-foreground">
+              <span className="truncate">
+                {latestSpeedtest?.serverName || 'Server unavailable'}
+                {latestSpeedtest?.serverLocation ? ` - ${latestSpeedtest.serverLocation}` : ''}
+              </span>
+              {latestSpeedtest?.isp && (
+                <Badge variant="outline" className="max-w-[180px] truncate">
+                  {latestSpeedtest.isp}
+                </Badge>
+              )}
+              {latestSpeedtest?.resultUrl && (
+                <a
+                  className="inline-flex items-center gap-1 text-primary hover:underline"
+                  href={latestSpeedtest.resultUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Result
+                  <ExternalLink className="h-3.5 w-3.5" />
+                </a>
+              )}
+            </div>
+          </div>
+
+          {latestSpeedtest?.status === 'failed' && latestSpeedtest.error && (
+            <div className="rounded-xl border border-destructive/20 bg-destructive/5 p-3 text-sm text-destructive">
+              {latestSpeedtest.error}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {snapshot?.interfaces
@@ -594,6 +892,151 @@ export default function NetworkPage() {
           </CardContent>
         </Card>
       </section>
+
+      {showSpeedtestHistory && (
+        <SpeedtestHistoryModal
+          history={speedtestHistory}
+          chartData={speedtestChartData}
+          onClose={() => setShowSpeedtestHistory(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+function SpeedtestHistoryModal({
+  history,
+  chartData,
+  onClose,
+}: {
+  history: NetworkSpeedtestResult[];
+  chartData: Array<{ time: string; download: number; upload: number; ping: number }>;
+  onClose: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+      <button
+        type="button"
+        className="absolute inset-0 bg-background/80 backdrop-blur-sm"
+        aria-label="Close speedtest history"
+        onClick={onClose}
+      />
+      <div
+        className="relative flex max-h-[88vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-border/60 bg-card shadow-2xl"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="speedtest-history-title"
+      >
+        <div className="flex items-center justify-between border-b border-border/60 px-5 py-4">
+          <div>
+            <h3 id="speedtest-history-title" className="text-lg font-semibold">
+              Speedtest History
+            </h3>
+            <p className="text-sm text-muted-foreground">
+              Download, upload, and latency from manual and scheduled runs.
+            </p>
+          </div>
+          <Button variant="ghost" size="icon" onClick={onClose} aria-label="Close">
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+        <div className="space-y-5 overflow-y-auto p-5">
+          <div className="h-[320px] rounded-xl border border-border/50 bg-background/40 p-3">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={chartData}>
+                <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="time" tick={{ fill: 'var(--muted-foreground)', fontSize: 11 }} />
+                <YAxis
+                  yAxisId="speed"
+                  tick={{ fill: 'var(--muted-foreground)', fontSize: 11 }}
+                  tickFormatter={(value) => `${value} Mbps`}
+                />
+                <YAxis
+                  yAxisId="latency"
+                  orientation="right"
+                  tick={{ fill: 'var(--muted-foreground)', fontSize: 11 }}
+                  tickFormatter={(value) => `${value} ms`}
+                />
+                <Tooltip
+                  contentStyle={{ background: 'var(--card)', border: '1px solid var(--border)' }}
+                />
+                <Legend />
+                <Line
+                  yAxisId="speed"
+                  type="monotone"
+                  dataKey="download"
+                  name="Download Mbps"
+                  stroke="var(--success)"
+                  strokeWidth={2}
+                  dot={false}
+                />
+                <Line
+                  yAxisId="speed"
+                  type="monotone"
+                  dataKey="upload"
+                  name="Upload Mbps"
+                  stroke="var(--primary)"
+                  strokeWidth={2}
+                  dot={false}
+                />
+                <Line
+                  yAxisId="latency"
+                  type="monotone"
+                  dataKey="ping"
+                  name="Ping ms"
+                  stroke="var(--warning)"
+                  strokeWidth={2}
+                  dot={false}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+
+          <div className="overflow-x-auto rounded-xl border border-border/50">
+            <table className="min-w-full text-sm">
+              <thead className="bg-muted/30 text-left text-xs uppercase tracking-[0.16em] text-muted-foreground">
+                <tr>
+                  <th className="px-4 py-3">Time</th>
+                  <th className="px-4 py-3">Trigger</th>
+                  <th className="px-4 py-3">Down</th>
+                  <th className="px-4 py-3">Up</th>
+                  <th className="px-4 py-3">Ping</th>
+                  <th className="px-4 py-3">Server</th>
+                  <th className="px-4 py-3">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border/40">
+                {history.map((result) => (
+                  <tr key={result.id ?? `${result.startedAt}-${result.trigger}`}>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      {formatSpeedtestDate(result.finishedAt)}
+                    </td>
+                    <td className="px-4 py-3 capitalize">{result.trigger}</td>
+                    <td className="px-4 py-3 tabular-nums">{formatMbps(result.downloadMbps)}</td>
+                    <td className="px-4 py-3 tabular-nums">{formatMbps(result.uploadMbps)}</td>
+                    <td className="px-4 py-3 tabular-nums">{formatLatency(result.pingMs)}</td>
+                    <td className="max-w-[260px] truncate px-4 py-3">
+                      {result.serverName || result.error || '-'}
+                    </td>
+                    <td className="px-4 py-3">
+                      <Badge variant={result.status === 'completed' ? 'success' : 'destructive'}>
+                        {result.status.toUpperCase()}
+                      </Badge>
+                    </td>
+                  </tr>
+                ))}
+                {history.length === 0 && (
+                  <tr>
+                    <td className="px-4 py-8 text-center text-muted-foreground" colSpan={7}>
+                      No speedtest history yet.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

@@ -65,3 +65,43 @@ export interface NetworkSnapshot {
     }[];
   }[];
 }
+
+export type NetworkSpeedtestTrigger = 'manual' | 'scheduled';
+export type NetworkSpeedtestStatus = 'completed' | 'failed';
+export type NetworkSpeedtestCli = 'ookla' | 'python' | 'unknown';
+export type NetworkSpeedtestScheduleInterval = 'off' | '30m' | '1h' | '3h' | '6h' | '24h';
+
+export interface NetworkSpeedtestResult {
+  id?: string;
+  trigger: NetworkSpeedtestTrigger;
+  status: NetworkSpeedtestStatus;
+  cli: NetworkSpeedtestCli;
+  startedAt: string;
+  finishedAt: string;
+  downloadMbps?: number;
+  uploadMbps?: number;
+  pingMs?: number;
+  jitterMs?: number;
+  packetLoss?: number;
+  serverId?: string;
+  serverName?: string;
+  serverLocation?: string;
+  isp?: string;
+  resultUrl?: string;
+  bytesReceived?: number;
+  bytesSent?: number;
+  error?: string;
+}
+
+export interface NetworkSpeedtestSettings {
+  scheduleInterval: NetworkSpeedtestScheduleInterval;
+  nextRunAt: string | null;
+  lastScheduledRunAt?: string | null;
+}
+
+export interface NetworkSpeedtestOverview {
+  running: boolean;
+  settings: NetworkSpeedtestSettings;
+  latest: NetworkSpeedtestResult | null;
+  history: NetworkSpeedtestResult[];
+}

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor, act } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import NetworkPage from './NetworkPage';
 import { ToastProvider } from '@/components/ui/toast';
 
@@ -58,6 +58,43 @@ const mockNetworkSnapshot = {
   alerts: [],
 };
 
+const mockSpeedtestOverview = {
+  running: false,
+  settings: {
+    scheduleInterval: '1h',
+    nextRunAt: '2026-04-26T18:00:00.000Z',
+  },
+  latest: {
+    id: 'speedtest-1',
+    trigger: 'manual',
+    status: 'completed',
+    cli: 'ookla',
+    startedAt: '2026-04-26T17:00:00.000Z',
+    finishedAt: '2026-04-26T17:01:00.000Z',
+    downloadMbps: 94.01,
+    uploadMbps: 77.2,
+    pingMs: 19.31,
+    serverName: 'BHARAT SANCHAR NIGAM LTD',
+    serverLocation: 'Coimbatore, India',
+    isp: 'BSNL',
+    resultUrl: 'https://www.speedtest.net/result/c/example',
+  },
+  history: [
+    {
+      id: 'speedtest-1',
+      trigger: 'manual',
+      status: 'completed',
+      cli: 'ookla',
+      startedAt: '2026-04-26T17:00:00.000Z',
+      finishedAt: '2026-04-26T17:01:00.000Z',
+      downloadMbps: 94.01,
+      uploadMbps: 77.2,
+      pingMs: 19.31,
+      serverName: 'BHARAT SANCHAR NIGAM LTD',
+    },
+  ],
+};
+
 vi.mock('@/components/layout/ProShell', () => ({
   default: ({ children }: { children: React.ReactNode }) => (
     <div data-testid="pro-shell">{children}</div>
@@ -79,11 +116,13 @@ vi.mock('recharts', async () => {
 describe('NetworkPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    global.fetch = vi
-      .fn()
-      .mockImplementation(() =>
-        Promise.resolve({ ok: true, json: async () => mockNetworkSnapshot })
-      );
+    global.fetch = vi.fn().mockImplementation((input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes('/api/modules/network/speedtest')) {
+        return Promise.resolve({ ok: true, json: async () => mockSpeedtestOverview });
+      }
+      return Promise.resolve({ ok: true, json: async () => mockNetworkSnapshot });
+    });
   });
 
   const renderPage = async () => {
@@ -114,5 +153,18 @@ describe('NetworkPage', () => {
     await renderPage();
     await waitFor(() => expect(screen.getByText('Network Diagnostics Terminal')).toBeDefined());
     expect(screen.getByText('ip addr')).toBeDefined();
+  });
+
+  it('renders speedtest summary and opens history modal', async () => {
+    await renderPage();
+    await waitFor(() => expect(screen.getByText('Internet Speedtest')).toBeDefined());
+    expect(screen.getByText('94.01 Mbps')).toBeDefined();
+    expect(screen.getByText('77.20 Mbps')).toBeDefined();
+    expect(screen.getByText('BHARAT SANCHAR NIGAM LTD - Coimbatore, India')).toBeDefined();
+
+    fireEvent.click(screen.getByRole('button', { name: /History/i }));
+
+    await waitFor(() => expect(screen.getByRole('dialog')).toBeDefined());
+    expect(screen.getByText('Speedtest History')).toBeDefined();
   });
 });
