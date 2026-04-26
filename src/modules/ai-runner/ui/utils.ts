@@ -1,4 +1,5 @@
 import { formatBytes, relativeTime, slugify } from '@/lib/utils';
+import cronstrue from 'cronstrue';
 import type { AIRunnerRunDTO, AIRunnerScheduleDTO } from '../types';
 import { ICON_PRESETS } from './constants';
 import type { PromptFormState, ScheduleBuilderMode, ScheduleFormState } from './types';
@@ -256,7 +257,11 @@ export function humanizeCron(expression: string): string {
     return `Monthly on day ${parsed.dayOfMonth} at ${formatTimeLabel(parsed.hour, parsed.minute)}`;
   }
 
-  return `Custom cron: ${expression}`;
+  try {
+    return `Custom cron: ${expression} (${cronstrue.toString(expression)})`;
+  } catch {
+    return `Custom cron: ${expression}`;
+  }
 }
 
 export function getScheduleModeLabel(expression: string): string {

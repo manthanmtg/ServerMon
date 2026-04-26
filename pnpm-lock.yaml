@@ -98,6 +98,9 @@ importers:
       codemirror:
         specifier: ^6.0.2
         version: 6.0.2
+      cronstrue:
+        specifier: ^3.14.0
+        version: 3.14.0
       dotenv:
         specifier: ^16.4.7
         version: 16.6.1
@@ -1893,6 +1896,10 @@ packages:
 
   crelt@1.0.6:
     resolution: {integrity: sha512-VQ2MBenTq1fWZUH9DJNGti7kKv6EeAuYr3cLwxUWhIu1baTaXh4Ib5W2CqHVqib4/MqbYGJqiL3Zb8GJZr3l4g==}
+
+  cronstrue@3.14.0:
+    resolution: {integrity: sha512-XnW4vuK/jPJjmTyDWiej1Zq36Od7ITwxaV2O1pzHZuyMVvdy7NAvyvIBzybt+idqSpfqYuoDG7uf/ocGtJVWxA==}
+    hasBin: true
 
   cross-env@10.1.0:
     resolution: {integrity: sha512-GsYosgnACZTADcmEyJctkJIoqAhHjttw7RsFrVoJNXbsWWqaq6Ym+7kZjq6mS45O0jij6vtiReppKQEtqWy6Dw==}
@@ -5856,6 +5863,8 @@ snapshots:
       vary: 1.1.2
 
   crelt@1.0.6: {}
+
+  cronstrue@3.14.0: {}
 
   cross-env@10.1.0:
     dependencies:

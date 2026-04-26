@@ -9,6 +9,7 @@ import {
   getDefaultCronExpressionForMode,
   getRunStatusVariant,
   getScheduleStatusVariant,
+  humanizeCron,
   parseScheduleBuilder,
 } from './utils';
 
@@ -95,6 +96,14 @@ describe('ai-runner ui utils', () => {
       expect(parseScheduleBuilder('*/0 * * * *')).toEqual({ mode: 'advanced' });
       expect(parseScheduleBuilder('0 9 * * 5-1')).toEqual({ mode: 'advanced' });
       expect(parseScheduleBuilder('0 9 * * * extra')).toEqual({ mode: 'advanced' });
+    });
+  });
+
+  describe('humanizeCron', () => {
+    it('adds a cronstrue description for custom cron expressions', () => {
+      expect(humanizeCron('30 1-23/2 * * *')).toBe(
+        'Custom cron: 30 1-23/2 * * * (At 30 minutes past the hour, every 2 hours, between 01:00 AM and 11:59 PM)'
+      );
     });
   });
 
