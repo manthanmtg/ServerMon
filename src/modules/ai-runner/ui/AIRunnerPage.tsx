@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from 'react';
 import {
   AlertTriangle,
   Bot,
@@ -234,6 +234,17 @@ function validateAttachmentFiles(
     return 'Prompt attachments must be 10 MB or smaller in total.';
   }
   return null;
+}
+
+function acceptAttachmentDrag(event: DragEvent<HTMLElement>): void {
+  event.preventDefault();
+  event.stopPropagation();
+  event.dataTransfer.dropEffect = 'copy';
+}
+
+function getDroppedAttachmentFiles(event: DragEvent<HTMLElement>): FileList {
+  acceptAttachmentDrag(event);
+  return event.dataTransfer.files;
 }
 
 function emptyWorkspaceForm(path = ''): WorkspaceFormState {
@@ -2477,12 +2488,22 @@ export default function AIRunnerPage() {
                                 : '/root/repos/project/prompts/release-review.md'
                             }
                           />
-                          <div className="space-y-3 rounded-xl border border-border/60 bg-card/60 p-4">
+                          <div
+                            role="region"
+                            aria-label="Saved prompt attachments"
+                            onDragEnter={acceptAttachmentDrag}
+                            onDragOver={acceptAttachmentDrag}
+                            onDrop={(event) => {
+                              void addSavedPromptAttachments(getDroppedAttachmentFiles(event));
+                            }}
+                            className="space-y-3 rounded-xl border border-dashed border-border/70 bg-card/60 p-4 transition-colors hover:border-primary/50"
+                          >
                             <div className="flex flex-wrap items-center justify-between gap-3">
                               <div>
                                 <p className="text-sm font-semibold">Files & images</p>
                                 <p className="mt-1 text-xs text-muted-foreground">
                                   Stored with this saved prompt and exported with prompt bundles.
+                                  Drop files here or use upload.
                                 </p>
                               </div>
                               <label className="inline-flex h-9 cursor-pointer items-center gap-2 rounded-lg border border-input bg-background px-3 text-xs font-medium transition-colors hover:bg-accent/50">
@@ -3316,12 +3337,22 @@ export default function AIRunnerPage() {
                       />
                     </label>
 
-                    <div className="space-y-3 rounded-xl border border-border/60 bg-background/70 p-4">
+                    <div
+                      role="region"
+                      aria-label="Ad-hoc prompt attachments"
+                      onDragEnter={acceptAttachmentDrag}
+                      onDragOver={acceptAttachmentDrag}
+                      onDrop={(event) => {
+                        void uploadAutoflowAttachments(getDroppedAttachmentFiles(event));
+                      }}
+                      className="space-y-3 rounded-xl border border-dashed border-border/70 bg-background/70 p-4 transition-colors hover:border-primary/50"
+                    >
                       <div className="flex flex-wrap items-center justify-between gap-3">
                         <div>
                           <p className="text-sm font-semibold">Step files & images</p>
                           <p className="mt-1 text-xs text-muted-foreground">
-                            Uploaded to temp storage and passed to this ad-hoc step by path.
+                            Uploaded to temp storage and passed to this ad-hoc step by path. Drop
+                            files here or use upload.
                           </p>
                         </div>
                         <label className="inline-flex h-9 cursor-pointer items-center gap-2 rounded-lg border border-input bg-background px-3 text-xs font-medium transition-colors hover:bg-accent/50">
