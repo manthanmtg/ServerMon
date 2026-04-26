@@ -176,9 +176,7 @@ function defaultStorageSettingsFormFromSettings(
 ): StorageSettingsFormState {
   return {
     artifactBaseDir: settings?.defaultArtifactBaseDir ?? settings?.artifactBaseDir ?? '',
-    mongoRetentionDays: String(
-      settings?.defaultMongoRetentionDays ?? DEFAULT_MONGO_RETENTION_DAYS
-    ),
+    mongoRetentionDays: String(settings?.defaultMongoRetentionDays ?? DEFAULT_MONGO_RETENTION_DAYS),
     artifactRetentionDays: String(
       settings?.defaultArtifactRetentionDays ?? DEFAULT_ARTIFACT_RETENTION_DAYS
     ),
@@ -3182,8 +3180,8 @@ export default function AIRunnerPage() {
                           </div>
                         </div>
 
-                        <div className="grid gap-6 2xl:grid-cols-[minmax(420px,0.9fr)_minmax(560px,1.1fr)]">
-                          <div className="space-y-6">
+                        <div className="grid gap-6 2xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+                          <div className="min-w-0 space-y-6">
                             <div className="rounded-lg border border-border/60 bg-background/80 p-5 space-y-4">
                               <div>
                                 <p className="text-sm font-semibold">Identity</p>
@@ -3257,8 +3255,11 @@ export default function AIRunnerPage() {
                                   active, and how many retries it gets after a failure.
                                 </p>
                               </div>
-                              <div className="grid gap-4 md:grid-cols-[180px_1fr_140px_140px]">
-                                <label className="space-y-1.5">
+                              <div
+                                data-testid="schedule-runtime-fields"
+                                className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-[minmax(150px,0.8fr)_minmax(220px,1.4fr)_minmax(120px,0.55fr)_minmax(120px,0.55fr)]"
+                              >
+                                <label className="min-w-0 space-y-1.5">
                                   <span className="block text-sm font-medium">Workspace</span>
                                   <select
                                     value={scheduleForm.workspaceId ?? ''}
@@ -3283,8 +3284,8 @@ export default function AIRunnerPage() {
                                       ))}
                                   </select>
                                 </label>
-                                <div className="space-y-1.5">
-                                  <div className="flex items-center justify-between gap-2">
+                                <div className="min-w-0 space-y-1.5 sm:col-span-2 xl:col-span-1">
+                                  <div className="flex flex-wrap items-center justify-between gap-2">
                                     <label
                                       htmlFor="schedule-directory"
                                       className="block text-sm font-medium"
@@ -3387,7 +3388,7 @@ export default function AIRunnerPage() {
                             </div>
                           </div>
 
-                          <div>
+                          <div className="min-w-0">
                             <ScheduleBuilder
                               cronExpression={scheduleForm.cronExpression}
                               onChange={(value) =>

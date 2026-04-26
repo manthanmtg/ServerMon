@@ -935,6 +935,27 @@ describe('AIRunnerPage', () => {
     expect(screen.getByText('1 retry allowed after a failed scheduled run.')).toBeInTheDocument();
   });
 
+  it('keeps schedule runtime fields on a responsive grid', async () => {
+    await act(async () => {
+      render(<AIRunnerPage />);
+    });
+
+    await waitFor(() => expect(screen.getByText('AI Agent Runner')).toBeInTheDocument());
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('tab', { name: /Schedules/i }));
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getAllByRole('button', { name: /^Create Schedule$/i })[0]!);
+    });
+
+    const runtimeFields = screen.getByTestId('schedule-runtime-fields');
+
+    expect(runtimeFields).toHaveClass('grid-cols-1');
+    expect(runtimeFields.className).not.toContain('md:grid-cols-[180px_1fr_140px_140px]');
+  });
+
   it('allows duplicating a schedule with a "Copy" name suffix', async () => {
     mockSchedules.splice(0, mockSchedules.length, {
       _id: 'schedule-1',
