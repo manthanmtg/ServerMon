@@ -11,6 +11,7 @@ import { createLogger } from './lib/logger';
 import { decrypt } from './lib/session-core';
 import { resetAIRunnerLogSession, writeAIRunnerLogEntry } from './lib/ai-runner/logs';
 import { ensureAIRunnerSupervisor } from './lib/ai-runner/processes';
+import { startAIRunnerSupervisorWatchdog } from './lib/ai-runner/supervisor-watchdog';
 import { getRuntimeDiagnostics } from './lib/runtime-diagnostics';
 import { handleRequestWithDiagnostics } from './lib/server-request-diagnostics';
 import type { HubWsAdapter } from './lib/fleet/hubTtyBridge';
@@ -168,6 +169,7 @@ if (process.env.FLEET_AGENT_MODE === 'true') {
       },
     });
     ensureAIRunnerSupervisor();
+    startAIRunnerSupervisorWatchdog();
     const server = createServer((req, res) => {
       const parsedUrl = parse(req.url!, true);
       void handleRequestWithDiagnostics({
