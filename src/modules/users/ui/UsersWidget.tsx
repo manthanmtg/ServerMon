@@ -2,8 +2,27 @@
 
 import React, { useState, useEffect } from 'react';
 import { Users, Shield, Key, ArrowRight, ShieldCheck } from 'lucide-react';
+
+interface UserStats {
+  osCount: number;
+  webCount: number;
+  admins: number;
+}
+
+interface WebUserSummary {
+  role?: unknown;
+}
+
+function toPayloadArray(payload: unknown): unknown[] {
+  return Array.isArray(payload) ? payload : [];
+}
+
+function isAdminUser(user: unknown): user is WebUserSummary {
+  return typeof user === 'object' && user !== null && 'role' in user && user.role === 'admin';
+}
+
 export default function UsersWidget() {
-  const [stats, setStats] = useState({ osCount: 0, webCount: 0, admins: 0 });
+  const [stats, setStats] = useState<UserStats>({ osCount: 0, webCount: 0, admins: 0 });
 
   useEffect(() => {
     const fetchStats = async () => {
@@ -14,12 +33,12 @@ export default function UsersWidget() {
         ]);
 
         if (osRes.ok && webRes.ok) {
-          const osUsers = (await osRes.json()) as unknown[];
-          const webUsers = (await webRes.json()) as { role: string }[];
+          const osUsers = toPayloadArray(await osRes.json());
+          const webUsers = toPayloadArray(await webRes.json());
           setStats({
             osCount: osUsers.length,
             webCount: webUsers.length,
-            admins: webUsers.filter((u) => u.role === 'admin').length,
+            admins: webUsers.filter(isAdminUser).length,
           });
         }
       } catch (_err) {
