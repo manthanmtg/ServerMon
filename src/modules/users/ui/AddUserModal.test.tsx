@@ -26,6 +26,15 @@ describe('AddUserModal', () => {
     expect(screen.getByPlaceholderText('e.g. jdoe')).toBeDefined();
   });
 
+  it('exposes dialog semantics and accessible form controls', () => {
+    renderModal(true);
+
+    expect(screen.getByRole('dialog', { name: 'Add OS User' })).toBeDefined();
+    expect(screen.getByLabelText('Username')).toBeDefined();
+    expect(screen.getByLabelText('Login Shell')).toBeDefined();
+    expect(screen.getByRole('button', { name: 'Close add user dialog' })).toBeDefined();
+  });
+
   it('handles input changes', () => {
     renderModal();
     const usernameInput = screen.getByPlaceholderText('e.g. jdoe') as HTMLInputElement;

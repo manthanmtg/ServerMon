@@ -48,24 +48,38 @@ export default function AddUserModal({ isOpen, onClose, onSuccess }: AddUserModa
         onClick={onClose}
       />
 
-      <div className="relative w-full max-w-md overflow-hidden rounded-3xl border border-border/50 bg-card/90 backdrop-blur-xl shadow-2xl animate-in fade-in zoom-in-95 slide-in-from-bottom-4 duration-300">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="add-user-modal-title"
+        aria-describedby="add-user-modal-description"
+        className="relative w-full max-w-md overflow-hidden rounded-3xl border border-border/50 bg-card/90 backdrop-blur-xl shadow-2xl animate-in fade-in zoom-in-95 slide-in-from-bottom-4 duration-300"
+      >
         <div className="p-6">
           <div className="flex items-center gap-4 mb-6">
             <div className="w-12 h-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center">
               <UserPlus className="w-6 h-6" />
             </div>
             <div>
-              <h3 className="text-lg font-bold tracking-tight">Add OS User</h3>
-              <p className="text-sm text-muted-foreground">Create a new Linux system user</p>
+              <h3 id="add-user-modal-title" className="text-lg font-bold tracking-tight">
+                Add OS User
+              </h3>
+              <p id="add-user-modal-description" className="text-sm text-muted-foreground">
+                Create a new Linux system user
+              </p>
             </div>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-1.5">
-              <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider ml-1">
+              <label
+                htmlFor="add-user-username"
+                className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider ml-1"
+              >
                 Username
               </label>
               <input
+                id="add-user-username"
                 type="text"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
@@ -76,12 +90,16 @@ export default function AddUserModal({ isOpen, onClose, onSuccess }: AddUserModa
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider ml-1">
+              <label
+                htmlFor="add-user-shell"
+                className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider ml-1"
+              >
                 Login Shell
               </label>
               <div className="relative">
                 <TerminalIcon className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <select
+                  id="add-user-shell"
                   value={shell}
                   onChange={(e) => setShell(e.target.value)}
                   className="w-full h-11 pl-10 pr-4 rounded-xl border border-border/50 bg-background/50 text-sm outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all appearance-none cursor-pointer"
@@ -121,6 +139,8 @@ export default function AddUserModal({ isOpen, onClose, onSuccess }: AddUserModa
         </div>
 
         <button
+          type="button"
+          aria-label="Close add user dialog"
           onClick={onClose}
           className="absolute top-4 right-4 h-8 w-8 flex items-center justify-center rounded-full hover:bg-muted/50 text-muted-foreground hover:text-foreground transition-colors"
         >
