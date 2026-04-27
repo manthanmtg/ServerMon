@@ -1,11 +1,10 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import ProShell from '@/components/layout/ProShell';
 import { Key, ShieldCheck, Search, Trash2, UserPlus, ShieldAlert } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/components/ui/toast';
-import { useCallback } from 'react';
 import AddUserModal from './AddUserModal';
 
 interface OSUser {
@@ -120,10 +119,12 @@ export default function UsersPage() {
     }
   };
 
-  const filteredUsers =
-    activeTab === 'web'
-      ? webUsers.filter((u) => u.username.toLowerCase().includes(searchQuery.toLowerCase()))
-      : osUsers.filter((u) => u.username.toLowerCase().includes(searchQuery.toLowerCase()));
+  const normalizedSearchQuery = useMemo(() => searchQuery.toLowerCase(), [searchQuery]);
+  const filteredUsers = useMemo(() => {
+    const users = activeTab === 'web' ? webUsers : osUsers;
+
+    return users.filter((user) => user.username.toLowerCase().includes(normalizedSearchQuery));
+  }, [activeTab, normalizedSearchQuery, osUsers, webUsers]);
 
   return (
     <ProShell title="Users & Permissions" subtitle="System Access Control">
