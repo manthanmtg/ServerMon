@@ -34,6 +34,17 @@ Elevate the UI/UX of **one specific ServerMon component or module** per run to a
 - If the target component is already consistent, accessible, and polished, **stop** — log "visual polish is solid" and no-op.
 - If a visual improvement requires restructuring the component's layout or HTML drastically, log it to `issues_to_look/` instead.
 
+## Verify
+
+- Run focused tests when the changed component already has coverage.
+- Run `pnpm check` to confirm no lint, type, build, or test regressions.
+- Do not start the ServerMon server locally; rely on static review and non-server checks unless an existing running app is already available.
+
+## Commit
+
+- Commit with a message like: `style(ui): polish dashboard widget interactions`
+- Include the component or module name and the specific visual improvement in the commit body.
+
 ## Issue Management
 
 - If an issue from `issues_to_look/` is resolved or found to be resolved, move it to the `issues_to_look/resolved/` directory to keep things clean.
