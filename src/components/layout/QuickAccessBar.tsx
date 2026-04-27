@@ -8,8 +8,10 @@ import {
   Terminal,
   Monitor,
   Activity,
+  Bell,
   FolderTree,
   HardDrive,
+  KeyRound,
   Package,
   Container,
   Cog,
@@ -19,11 +21,13 @@ import {
   Cpu,
   ShieldCheck,
   Server,
+  ServerCog,
   Shield,
   Brain,
   Waypoints,
   Settings,
   Users,
+  Zap,
   type LucideIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -37,6 +41,10 @@ export interface QuickAccessItem {
 
 const ICON_MAP: Record<string, LucideIcon> = {
   dashboard: LayoutDashboard,
+  fleet: ServerCog,
+  'fleet-setup': Cog,
+  'fleet-endpoint-runner': Zap,
+  'fleet-alerts': Bell,
   terminal: Terminal,
   processes: Monitor,
   logs: Activity,
@@ -47,6 +55,7 @@ const ICON_MAP: Record<string, LucideIcon> = {
   docker: Container,
   services: Cog,
   'ai-agents': Bot,
+  'ai-runner': Zap,
   crons: Clock,
   ports: Cable,
   hardware: Cpu,
@@ -56,6 +65,8 @@ const ICON_MAP: Record<string, LucideIcon> = {
   users: Users,
   memory: Brain,
   endpoints: Waypoints,
+  'self-service': Zap,
+  'env-vars': KeyRound,
 };
 
 export default function QuickAccessBar() {

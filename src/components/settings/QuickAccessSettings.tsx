@@ -2,34 +2,11 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
-import {
-  LayoutDashboard,
-  Terminal,
-  Monitor,
-  Activity,
-  FolderTree,
-  HardDrive,
-  Package,
-  Container,
-  Cog,
-  Bot,
-  Clock,
-  Cable,
-  Cpu,
-  ShieldCheck,
-  Server,
-  Shield,
-  Brain,
-  Waypoints,
-  GripVertical,
-  Zap,
-  Settings,
-  Users,
-  type LucideIcon,
-} from 'lucide-react';
+import { GripVertical, Zap, Settings, type LucideIcon } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/components/ui/toast';
 import { type QuickAccessItem } from '@/components/layout/QuickAccessBar';
+import { navGroups } from '@/components/layout/navigation';
 
 interface ModuleDef {
   id: string;
@@ -39,52 +16,49 @@ interface ModuleDef {
   iconKey: string;
 }
 
-const ALL_MODULES: ModuleDef[] = [
-  {
-    id: 'dashboard',
-    label: 'Dashboard',
-    href: '/dashboard',
-    icon: LayoutDashboard,
-    iconKey: 'LayoutDashboard',
-  },
-  { id: 'terminal', label: 'Terminal', href: '/terminal', icon: Terminal, iconKey: 'Terminal' },
-  { id: 'processes', label: 'Processes', href: '/processes', icon: Monitor, iconKey: 'Monitor' },
-  { id: 'logs', label: 'Audit Logs', href: '/logs', icon: Activity, iconKey: 'Activity' },
-  {
-    id: 'file-browser',
-    label: 'File Browser',
-    href: '/file-browser',
-    icon: FolderTree,
-    iconKey: 'FolderTree',
-  },
-  { id: 'disk', label: 'Disk', href: '/disk', icon: HardDrive, iconKey: 'HardDrive' },
-  { id: 'network', label: 'Network', href: '/network', icon: Activity, iconKey: 'Activity' },
-  { id: 'updates', label: 'Updates', href: '/updates', icon: Package, iconKey: 'Package' },
-  { id: 'docker', label: 'Docker', href: '/docker', icon: Container, iconKey: 'Container' },
-  { id: 'services', label: 'Services', href: '/services', icon: Cog, iconKey: 'Cog' },
-  { id: 'ai-agents', label: 'AI Agents', href: '/ai-agents', icon: Bot, iconKey: 'Bot' },
-  { id: 'crons', label: 'Crons', href: '/crons', icon: Clock, iconKey: 'Clock' },
-  { id: 'ports', label: 'Ports', href: '/ports', icon: Cable, iconKey: 'Cable' },
-  { id: 'hardware', label: 'Hardware', href: '/hardware', icon: Cpu, iconKey: 'Cpu' },
-  {
-    id: 'certificates',
-    label: 'Certificates',
-    href: '/certificates',
-    icon: ShieldCheck,
-    iconKey: 'ShieldCheck',
-  },
-  { id: 'nginx', label: 'Nginx', href: '/nginx', icon: Server, iconKey: 'Server' },
-  { id: 'security', label: 'Security', href: '/security', icon: Shield, iconKey: 'Shield' },
-  { id: 'users', label: 'Users & Permissions', href: '/users', icon: Users, iconKey: 'Users' },
-  { id: 'memory', label: 'Memory', href: '/memory', icon: Brain, iconKey: 'Brain' },
-  {
-    id: 'endpoints',
-    label: 'Endpoints',
-    href: '/endpoints',
-    icon: Waypoints,
-    iconKey: 'Waypoints',
-  },
-];
+const ICON_KEY_BY_HREF: Record<string, string> = {
+  '/dashboard': 'LayoutDashboard',
+  '/fleet': 'ServerCog',
+  '/fleet/setup': 'Cog',
+  '/fleet/endpoint-runner': 'Zap',
+  '/fleet/alerts': 'Bell',
+  '/terminal': 'Terminal',
+  '/processes': 'Monitor',
+  '/logs': 'Activity',
+  '/file-browser': 'FolderTree',
+  '/disk': 'HardDrive',
+  '/network': 'Activity',
+  '/updates': 'Package',
+  '/docker': 'Container',
+  '/services': 'Cog',
+  '/ai-agents': 'Bot',
+  '/ai-runner': 'Zap',
+  '/crons': 'Clock',
+  '/ports': 'Cable',
+  '/hardware': 'Cpu',
+  '/certificates': 'ShieldCheck',
+  '/nginx': 'Server',
+  '/security': 'Shield',
+  '/users': 'Users',
+  '/memory': 'Brain',
+  '/endpoints': 'Waypoints',
+  '/self-service': 'Zap',
+  '/env-vars': 'KeyRound',
+};
+
+function quickAccessIdFromHref(href: string): string {
+  return href.replace(/^\/+/, '').replaceAll('/', '-') || 'dashboard';
+}
+
+const ALL_MODULES: ModuleDef[] = navGroups.flatMap((group) =>
+  group.items.map((item) => ({
+    id: quickAccessIdFromHref(item.href),
+    label: item.label,
+    href: item.href,
+    icon: item.icon,
+    iconKey: ICON_KEY_BY_HREF[item.href] ?? item.label,
+  }))
+);
 
 export { ALL_MODULES };
 

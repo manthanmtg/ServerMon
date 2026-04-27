@@ -1,5 +1,6 @@
 /** @vitest-environment node */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { navGroups } from '@/components/layout/navigation';
 
 const { mockConnectDB, mockFindById, mockFindOneAndUpdate, mockGetSession } = vi.hoisted(() => ({
   mockConnectDB: vi.fn().mockResolvedValue(undefined),
@@ -106,9 +107,26 @@ describe('PUT /api/settings/quick-access', () => {
     expect(json.items).toEqual([]);
   });
 
-  it('rejects items exceeding max count of 20', async () => {
+  it('accepts enough items to pin every primary navigation item', async () => {
     mockGetSession.mockResolvedValue({ user: { role: 'admin' } });
-    const items = Array.from({ length: 21 }, (_, i) => ({
+    mockFindOneAndUpdate.mockResolvedValue({});
+
+    const items = navGroups.flatMap((group) =>
+      group.items.map((item) => ({
+        id: item.href.replace(/^\//, '').replaceAll('/', '-') || 'dashboard',
+        href: item.href,
+        label: item.label,
+        icon: item.label,
+      }))
+    );
+
+    const res = await PUT(makePutRequest({ items }));
+    expect(res.status).toBe(200);
+  });
+
+  it('rejects items exceeding max count of 64', async () => {
+    mockGetSession.mockResolvedValue({ user: { role: 'admin' } });
+    const items = Array.from({ length: 65 }, (_, i) => ({
       id: `mod-${i}`,
       href: `/mod-${i}`,
       label: `Mod ${i}`,

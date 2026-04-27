@@ -17,7 +17,7 @@ const QuickAccessItemSchema = z.object({
 });
 
 const PutBodySchema = z.object({
-  items: z.array(QuickAccessItemSchema).max(20),
+  items: z.array(QuickAccessItemSchema).max(64),
 });
 
 export async function GET() {
