@@ -59,7 +59,3 @@ export class ComposeExecutor implements Executor {
     }
   }
 }
-
-export function createComposeExecutor(): Executor {
-  return new ComposeExecutor();
-}
