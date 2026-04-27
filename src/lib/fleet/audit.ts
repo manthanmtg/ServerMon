@@ -1,4 +1,3 @@
-import type { Model } from 'mongoose';
 import type { FleetLogService } from './enums';
 
 export interface RecordAuditInput {
@@ -13,11 +12,15 @@ export interface RecordAuditInput {
   retentionDays?: number;
 }
 
+export interface AuditLogModel {
+  create(doc: Record<string, unknown>): Promise<unknown>;
+}
+
 const DEFAULT_RETENTION_DAYS = 365;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 export async function recordAudit(
-  FleetLogEvent: Model<unknown>,
+  FleetLogEvent: AuditLogModel,
   input: RecordAuditInput
 ): Promise<void> {
   const retentionDays = input.retentionDays ?? DEFAULT_RETENTION_DAYS;

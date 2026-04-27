@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ZodError, z } from 'zod';
-import type { Model } from 'mongoose';
 import { createLogger } from '@/lib/logger';
 import connectDB from '@/lib/db';
 import NginxState from '@/models/NginxState';
@@ -76,7 +75,7 @@ export async function POST(req: NextRequest) {
     if (parsed.binaryPath !== undefined) state.binaryPath = parsed.binaryPath;
     await state.save();
 
-    await recordAudit(FleetLogEvent as unknown as Model<unknown>, {
+    await recordAudit(FleetLogEvent, {
       action: 'nginx.toggle_managed',
       actorUserId: session.user.username,
       service: 'nginx',
