@@ -193,7 +193,7 @@ export default function TerminalUI({
   return (
     <div
       ref={containerRef}
-      className="w-full h-full min-h-[300px] overflow-hidden p-1"
+      className="w-full h-full min-h-[300px] overflow-hidden rounded-lg border border-border bg-background p-2 shadow-inner outline-none transition-[border-color,box-shadow] focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 focus-within:ring-offset-background"
       style={{ backgroundColor: theme.colors.background }}
     />
   );

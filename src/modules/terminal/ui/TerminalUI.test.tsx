@@ -176,6 +176,20 @@ describe('TerminalUI', () => {
     expect(container.querySelector('div')).toBeDefined();
   });
 
+  it('renders the terminal in a polished surface frame', () => {
+    const { container } = render(<TerminalUI sessionId="sess-1" />);
+    const root = container.firstElementChild;
+    expect(root).toHaveClass(
+      'rounded-lg',
+      'border',
+      'border-border',
+      'shadow-inner',
+      'focus-within:ring-2',
+      'focus-within:ring-ring',
+      'focus-within:ring-offset-background'
+    );
+  });
+
   it('accepts sessionId prop', () => {
     expect(() => render(<TerminalUI sessionId="unique-session-id" />)).not.toThrow();
   });
