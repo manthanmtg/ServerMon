@@ -162,6 +162,27 @@ describe('network speedtest service', () => {
     expect(result.resultUrl).toBe('https://www.speedtest.net/result/c/example');
   });
 
+  it.each([
+    ['ookla' as const, { result: { url: 'javascript:alert(1)' } }],
+    ['python' as const, { share: 'file:///tmp/speedtest-result' }],
+  ])('omits non-web speedtest result links from %s output', (cli, output) => {
+    const result = normalizeSpeedtestOutput(
+      JSON.stringify({
+        download: cli === 'ookla' ? { bandwidth: 100, bytes: 1 } : 100,
+        upload: cli === 'ookla' ? { bandwidth: 100, bytes: 1 } : 100,
+        ping: cli === 'ookla' ? { latency: 10 } : 10,
+        server: { sponsor: 'Test Server', name: 'Paris', country: 'France', id: '1' },
+        ...output,
+      }),
+      cli,
+      'manual',
+      startedAt,
+      finishedAt
+    );
+
+    expect(result.resultUrl).toBeUndefined();
+  });
+
   it('persists a failed result when the speedtest command is unavailable', async () => {
     vi.mocked(execFile).mockImplementation(
       (
