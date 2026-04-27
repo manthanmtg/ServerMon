@@ -1,6 +1,6 @@
+/** @vitest-environment node */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import type { Model } from 'mongoose';
-import { resolveAgentEndpoint } from './resolveAgentEndpoint';
+import { resolveAgentEndpoint, type ResolveAgentEndpointDeps } from './resolveAgentEndpoint';
 
 interface FakeNode {
   _id: string;
@@ -14,9 +14,9 @@ interface FakeNode {
   capabilities?: { terminal?: boolean };
 }
 
-function makeNodeModel(doc: FakeNode | null): Model<unknown> {
+function makeNodeModel(doc: FakeNode | null): ResolveAgentEndpointDeps['Node'] {
   const findById = vi.fn().mockResolvedValue(doc);
-  return { findById } as unknown as Model<unknown>;
+  return { findById };
 }
 
 describe('resolveAgentEndpoint', () => {
