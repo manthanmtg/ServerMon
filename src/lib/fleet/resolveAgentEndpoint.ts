@@ -1,8 +1,7 @@
-import type { Model } from 'mongoose';
 import { getOrCreateHubAuthToken } from './hubAuth';
 
 export interface ResolveAgentEndpointDeps {
-  Node: Model<unknown>;
+  Node: ResolveAgentEndpointNodeLookup;
   /**
    * Optional override; defaults to {@link getOrCreateHubAuthToken}.
    * Tests inject this to avoid touching the FrpServerState collection.
@@ -16,7 +15,11 @@ export interface ResolvedAgentEndpoint {
   authToken: string;
 }
 
-interface NodeDoc {
+interface ResolveAgentEndpointNodeLookup {
+  findById(nodeId: string): PromiseLike<ResolveAgentEndpointNodeDoc | null>;
+}
+
+interface ResolveAgentEndpointNodeDoc {
   proxyRules?: Array<{
     name?: string;
     type?: string;
@@ -38,7 +41,7 @@ export async function resolveAgentEndpoint(
   nodeId: string,
   deps: ResolveAgentEndpointDeps
 ): Promise<ResolvedAgentEndpoint | null> {
-  const node = (await deps.Node.findById(nodeId)) as unknown as NodeDoc | null;
+  const node = await deps.Node.findById(nodeId);
   if (!node) return null;
   const rules = node.proxyRules ?? [];
   const terminal = rules.find(

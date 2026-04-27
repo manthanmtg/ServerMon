@@ -5,20 +5,26 @@ import GlobalError from './global-error';
 describe('GlobalError', () => {
   it('renders the error heading', () => {
     const mockReset = vi.fn();
-    render(<GlobalError error={new Error('Test error')} reset={mockReset} />, { container: document });
+    render(<GlobalError error={new Error('Test error')} reset={mockReset} />, {
+      container: document,
+    });
     expect(screen.getByText('Something went wrong')).toBeDefined();
   });
 
   it('renders a "Try again" button', () => {
     const mockReset = vi.fn();
-    render(<GlobalError error={new Error('Test error')} reset={mockReset} />, { container: document });
+    render(<GlobalError error={new Error('Test error')} reset={mockReset} />, {
+      container: document,
+    });
     const button = screen.getByText('Try again');
     expect(button).toBeDefined();
   });
 
   it('calls reset when "Try again" is clicked', () => {
     const mockReset = vi.fn();
-    render(<GlobalError error={new Error('Test error')} reset={mockReset} />, { container: document });
+    render(<GlobalError error={new Error('Test error')} reset={mockReset} />, {
+      container: document,
+    });
     const button = screen.getByText('Try again');
     fireEvent.click(button);
     expect(mockReset).toHaveBeenCalledTimes(1);
@@ -26,7 +32,10 @@ describe('GlobalError', () => {
 
   it('renders html and body elements', () => {
     const mockReset = vi.fn();
-    const { container } = render(<GlobalError error={new Error('Test error')} reset={mockReset} />, { container: document });
+    const { container } = render(
+      <GlobalError error={new Error('Test error')} reset={mockReset} />,
+      { container: document }
+    );
     // The component renders html > body structure
     expect(container).toBeDefined();
   });
