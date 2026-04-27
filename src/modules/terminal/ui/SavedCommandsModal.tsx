@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import {
   X,
   Plus,
@@ -152,25 +152,34 @@ export default function SavedCommandsModal({ onClose, onRunCommand }: SavedComma
     });
   };
 
-  const filtered = commands.filter((c) => {
-    if (!search) return true;
-    const q = search.toLowerCase();
-    return (
-      c.name.toLowerCase().includes(q) ||
-      c.command.toLowerCase().includes(q) ||
-      (c.description || '').toLowerCase().includes(q) ||
-      (c.category || '').toLowerCase().includes(q)
-    );
-  });
+  const normalizedSearch = useMemo(() => search.toLowerCase(), [search]);
 
-  const grouped = filtered.reduce<Record<string, SavedCommand[]>>((acc, cmd) => {
-    const cat = cmd.category || 'General';
-    if (!acc[cat]) acc[cat] = [];
-    acc[cat].push(cmd);
-    return acc;
-  }, {});
+  const filtered = useMemo(
+    () =>
+      commands.filter((c) => {
+        if (!normalizedSearch) return true;
+        return (
+          c.name.toLowerCase().includes(normalizedSearch) ||
+          c.command.toLowerCase().includes(normalizedSearch) ||
+          (c.description || '').toLowerCase().includes(normalizedSearch) ||
+          (c.category || '').toLowerCase().includes(normalizedSearch)
+        );
+      }),
+    [commands, normalizedSearch]
+  );
 
-  const categories = Object.keys(grouped).sort();
+  const grouped = useMemo(
+    () =>
+      filtered.reduce<Record<string, SavedCommand[]>>((acc, cmd) => {
+        const cat = cmd.category || 'General';
+        if (!acc[cat]) acc[cat] = [];
+        acc[cat].push(cmd);
+        return acc;
+      }, {}),
+    [filtered]
+  );
+
+  const categories = useMemo(() => Object.keys(grouped).sort(), [grouped]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
