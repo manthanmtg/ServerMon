@@ -33,6 +33,7 @@ export const DEFAULT_RETRY_DELAY_MS = 15_000;
 export const DEFAULT_MAX_ATTEMPTS = 2;
 export const MAX_SCHEDULE_CATCHUP_RUNS = 24;
 export const LEASE_ID = 'airunner-supervisor';
+export const PROFILE_LOCK_RECOVERY_STATE = 'skipped_agent_lock';
 
 export function getMaxConcurrentRuns(): number {
   const raw = Number(process.env.AI_RUNNER_MAX_CONCURRENT_RUNS ?? DEFAULT_MAX_CONCURRENT_RUNS);
@@ -80,10 +81,20 @@ export function toIso(value?: Date | string | null): string | undefined {
   return new Date(value).toISOString();
 }
 
+function isActiveProfileLock(
+  doc: IAIRunnerProfile | (Record<string, unknown> & { _id: unknown }),
+  now = new Date()
+): boolean {
+  if (!doc.locked) return false;
+  if (!doc.lockedUntil) return true;
+  return new Date(doc.lockedUntil as Date | string).getTime() > now.getTime();
+}
+
 export function mapProfile(
   doc: IAIRunnerProfile | (Record<string, unknown> & { _id: unknown })
 ): AIRunnerProfileDTO {
   const envValue = doc.env instanceof Map ? Object.fromEntries(doc.env.entries()) : doc.env;
+  const locked = isActiveProfileLock(doc);
   return {
     _id: stringifyId(doc._id),
     name: String(doc.name),
@@ -96,6 +107,9 @@ export function mapProfile(
     requiresTTY: Boolean(doc.requiresTTY),
     env: (envValue ?? {}) as Record<string, string>,
     enabled: Boolean(doc.enabled),
+    locked,
+    lockedAt: locked ? toIso(doc.lockedAt as Date | string | undefined) : undefined,
+    lockedUntil: locked ? toIso(doc.lockedUntil as Date | string | undefined) : undefined,
     icon: doc.icon ? String(doc.icon) : undefined,
     createdAt: new Date(doc.createdAt as Date | string).toISOString(),
     updatedAt: new Date(doc.updatedAt as Date | string).toISOString(),

@@ -273,6 +273,7 @@ describe('ai-runner queue', () => {
         requiresTTY: false,
         env: {},
         enabled: true,
+        locked: false,
         createdAt: now.toISOString(),
         updatedAt: now.toISOString(),
       },
@@ -340,6 +341,56 @@ describe('ai-runner queue', () => {
           lastRunStatus: 'queued',
         })
       );
+    });
+
+    it('records a skipped run without creating a job when the profile is locked', async () => {
+      const lockedResolved: AIRunnerResolvedExecution = {
+        ...resolved,
+        scheduleId: 'sched1',
+        scheduleCronExpression: '0 * * * *',
+        triggeredBy: 'schedule',
+        profile: {
+          ...resolved.profile,
+          locked: true,
+          lockedAt: now.toISOString(),
+          lockedUntil: new Date(now.getTime() + 60_000).toISOString(),
+        },
+      };
+      const mockRun = {
+        _id: 'run-skipped',
+        createdAt: now,
+        updatedAt: now,
+        queuedAt: now,
+        ...lockedResolved,
+        status: 'skipped',
+        stdout: '',
+        stderr: '',
+        rawOutput: '',
+        triggeredBy: 'schedule',
+        recoveryState: 'skipped_agent_lock',
+      } as unknown as IAIRunnerRun;
+
+      vi.mocked(AIRunnerRun.create).mockResolvedValue(mockRun as unknown as never);
+
+      const result = await queue.enqueueResolvedRun(lockedResolved, { requestedAt: now });
+
+      expect(AIRunnerRun.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: 'skipped',
+          recoveryState: 'skipped_agent_lock',
+          lastError: expect.stringContaining('Profile is locked'),
+        })
+      );
+      expect(AIRunnerJob.create).not.toHaveBeenCalled();
+      expect(AIRunnerSchedule.findByIdAndUpdate).toHaveBeenCalledWith(
+        'sched1',
+        expect.objectContaining({
+          lastRunId: 'run-skipped',
+          lastRunStatus: 'skipped',
+        })
+      );
+      expect(result.status).toBe('skipped');
+      expect(result.recoveryState).toBe('skipped_agent_lock');
     });
 
     it('uses the request time as scheduledFor for manual runs tied to a schedule', async () => {

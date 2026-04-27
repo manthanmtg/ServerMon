@@ -12,6 +12,9 @@ export interface IAIRunnerProfile extends Document {
   requiresTTY: boolean;
   env: Record<string, string>;
   enabled: boolean;
+  locked: boolean;
+  lockedAt?: Date;
+  lockedUntil?: Date;
   icon?: string;
   createdAt: Date;
   updatedAt: Date;
@@ -33,6 +36,9 @@ const AIRunnerProfileSchema = new Schema<IAIRunnerProfile>(
     requiresTTY: { type: Boolean, default: false },
     env: { type: Map, of: String, default: {} },
     enabled: { type: Boolean, default: true },
+    locked: { type: Boolean, default: false, index: true },
+    lockedAt: { type: Date },
+    lockedUntil: { type: Date, index: true },
     icon: { type: String, trim: true, maxlength: 60 },
   },
   { timestamps: true }

@@ -157,6 +157,13 @@ export class AIRunnerSupervisor {
           changed = true;
           continue;
         }
+        if (run.status === 'skipped') {
+          item.status = 'skipped';
+          item.lastError = run.lastError ?? 'Skipped because the profile is locked';
+          item.finishedAt = run.finishedAt ?? new Date();
+          changed = true;
+          continue;
+        }
         item.status = run.status === 'killed' ? 'canceled' : 'failed';
         item.lastError = run.lastError ?? `Run finished with ${run.status}`;
         item.finishedAt = run.finishedAt ?? new Date();
@@ -214,9 +221,10 @@ export class AIRunnerSupervisor {
               triggeredBy: 'autoflow',
             }
           );
-          item.status = 'queued';
+          item.status = run.status === 'skipped' ? 'skipped' : 'queued';
           item.runId = run._id as unknown as typeof item.runId;
-          item.lastError = undefined;
+          item.lastError = run.status === 'skipped' ? run.lastError : undefined;
+          item.finishedAt = run.status === 'skipped' ? new Date() : undefined;
           changed = true;
           await writeAIRunnerLogEntry({
             level: 'info',
@@ -590,7 +598,7 @@ export class AIRunnerSupervisor {
 
       while (cursor && cursor <= now && catchupCount < MAX_SCHEDULE_CATCHUP_RUNS) {
         try {
-          await enqueueRunRequest(
+          const run = await enqueueRunRequest(
             {
               promptId: stringifyId(schedule.promptId),
               scheduleId: stringifyId(schedule._id),
@@ -602,7 +610,7 @@ export class AIRunnerSupervisor {
             }
           );
           schedule.lastRunAt = now;
-          schedule.lastRunStatus = 'queued';
+          schedule.lastRunStatus = run.status;
           schedule.lastScheduledFor = cursor;
           await writeAIRunnerLogEntry({
             level: 'info',
@@ -615,6 +623,8 @@ export class AIRunnerSupervisor {
               scheduledFor: cursor.toISOString(),
               observedAt: now.toISOString(),
               catchupCount,
+              runId: run._id,
+              runStatus: run.status,
             },
           });
         } catch (error) {

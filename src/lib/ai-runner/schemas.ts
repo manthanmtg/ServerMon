@@ -95,6 +95,22 @@ export const profileCreateSchema = z.object({
 
 export const profileUpdateSchema = profileCreateSchema.partial();
 
+export const profileLockSchema = z
+  .object({
+    locked: z.boolean(),
+    lockedUntil: z.string().datetime().nullable().optional(),
+  })
+  .superRefine((value, ctx) => {
+    if (!value.locked || !value.lockedUntil) return;
+    if (new Date(value.lockedUntil).getTime() <= Date.now()) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['lockedUntil'],
+        message: 'Lock expiry must be in the future',
+      });
+    }
+  });
+
 export const profileValidateSchema = z.object({
   invocationTemplate: z.string().trim().min(1).max(10_000),
   shell: z.string().trim().min(1).max(260).default('/bin/bash'),

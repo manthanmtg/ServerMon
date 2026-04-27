@@ -11,6 +11,7 @@ export type AIRunnerRunStatus =
   | 'queued'
   | 'running'
   | 'retrying'
+  | 'skipped'
   | 'completed'
   | 'failed'
   | 'timeout'
@@ -57,6 +58,9 @@ export interface AIRunnerProfileDTO {
   requiresTTY: boolean;
   env: Record<string, string>;
   enabled: boolean;
+  locked: boolean;
+  lockedAt?: string;
+  lockedUntil?: string;
   icon?: string;
   createdAt: string;
   updatedAt: string;

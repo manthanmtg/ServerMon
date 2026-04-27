@@ -47,6 +47,7 @@ const mockProfiles: AIRunnerProfileDTO[] = [
     requiresTTY: false,
     env: {},
     enabled: true,
+    locked: false,
     createdAt: '2026-04-21T00:00:00.000Z',
     updatedAt: '2026-04-21T00:00:00.000Z',
   },
@@ -919,6 +920,7 @@ describe('AIRunnerPage', () => {
       requiresTTY: false,
       env: {},
       enabled: true,
+      locked: false,
       createdAt: '2026-04-21T00:00:00.000Z',
       updatedAt: '2026-04-21T00:00:00.000Z',
     });

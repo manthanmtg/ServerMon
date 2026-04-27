@@ -147,6 +147,11 @@ type ScheduleReferenceInput = {
   workspaceId?: string;
 };
 
+type AIRunnerProfileEditableInput = Omit<
+  AIRunnerProfileDTO,
+  '_id' | 'createdAt' | 'updatedAt' | 'locked' | 'lockedAt' | 'lockedUntil'
+>;
+
 const PAUSE_LINKED_SCHEDULES_UPDATE = {
   $set: { enabled: false },
   $unset: { nextRunTime: '' },
@@ -220,9 +225,7 @@ export class AIRunnerService {
     return doc ? mapProfile(doc) : null;
   }
 
-  async createProfile(
-    input: Omit<AIRunnerProfileDTO, '_id' | 'createdAt' | 'updatedAt'>
-  ): Promise<AIRunnerProfileDTO> {
+  async createProfile(input: AIRunnerProfileEditableInput): Promise<AIRunnerProfileDTO> {
     await connectDB();
     const validation = await this.validateProfileTemplate({
       invocationTemplate: input.invocationTemplate,
@@ -237,7 +240,7 @@ export class AIRunnerService {
 
   async updateProfile(
     id: string,
-    input: Partial<Omit<AIRunnerProfileDTO, '_id' | 'createdAt' | 'updatedAt'>>
+    input: Partial<AIRunnerProfileEditableInput>
   ): Promise<AIRunnerProfileDTO | null> {
     await connectDB();
     const existing = await AIRunnerProfile.findById(id);
@@ -252,6 +255,28 @@ export class AIRunnerService {
     }
 
     Object.assign(existing, input);
+    await existing.save();
+    return mapProfile(existing);
+  }
+
+  async lockProfile(
+    id: string,
+    input: { locked: boolean; lockedUntil?: string | null }
+  ): Promise<AIRunnerProfileDTO | null> {
+    await connectDB();
+    const existing = await AIRunnerProfile.findById(id);
+    if (!existing) return null;
+
+    if (input.locked) {
+      existing.locked = true;
+      existing.lockedAt = new Date();
+      existing.lockedUntil = input.lockedUntil ? new Date(input.lockedUntil) : undefined;
+    } else {
+      existing.locked = false;
+      existing.lockedAt = undefined;
+      existing.lockedUntil = undefined;
+    }
+
     await existing.save();
     return mapProfile(existing);
   }

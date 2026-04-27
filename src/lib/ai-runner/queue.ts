@@ -12,6 +12,7 @@ import type {
 } from '@/modules/ai-runner/types';
 import {
   DEFAULT_MAX_ATTEMPTS,
+  PROFILE_LOCK_RECOVERY_STATE,
   ensureDirectoryExists,
   getNextRunTimeFromExpression,
   mapProfile,
@@ -85,6 +86,34 @@ async function assertWorkspaceCanQueue(resolved: AIRunnerResolvedExecution): Pro
   throw new Error(
     'Workspace is blocked by an active or queued AI Runner job. Wait for it to finish or disable blocking for this workspace.'
   );
+}
+
+function getProfileLockMessage(resolved: AIRunnerResolvedExecution): string {
+  return resolved.profile.lockedUntil
+    ? `Profile is locked until ${new Date(resolved.profile.lockedUntil).toISOString()}`
+    : 'Profile is locked indefinitely';
+}
+
+async function updateLinkedScheduleAfterRun(
+  resolved: AIRunnerResolvedExecution,
+  runId: unknown,
+  status: 'queued' | 'skipped',
+  queuedAt: Date,
+  scheduledFor?: Date
+): Promise<void> {
+  if (!resolved.scheduleId) return;
+
+  const nextRunTime = getNextRunTimeFromExpression(
+    resolved.scheduleCronExpression ?? '',
+    new Date((scheduledFor ?? queuedAt).getTime() + 60_000)
+  );
+  await AIRunnerSchedule.findByIdAndUpdate(resolved.scheduleId, {
+    lastRunId: runId,
+    lastRunStatus: status,
+    lastRunAt: queuedAt,
+    lastScheduledFor: scheduledFor,
+    nextRunTime: nextRunTime ? new Date(nextRunTime) : undefined,
+  });
 }
 
 export async function resolveExecutionRequest(
@@ -209,10 +238,70 @@ export async function enqueueResolvedRun(
   await connectDB();
 
   const queuedAt = options?.requestedAt ?? new Date();
+  const jobScheduledFor = options?.scheduledFor ?? (resolved.scheduleId ? queuedAt : undefined);
+
+  if (resolved.profile.locked) {
+    const message = getProfileLockMessage(resolved);
+    const runDoc = await AIRunnerRun.create({
+      promptId: resolved.promptId,
+      scheduleId: resolved.scheduleId,
+      autoflowId: resolved.autoflowId,
+      autoflowItemId: resolved.autoflowItemId,
+      agentProfileId: resolved.profile._id,
+      workspaceId: resolved.workspaceId,
+      promptContent: resolved.promptContent,
+      workingDirectory: resolved.workingDirectory,
+      command: resolved.command,
+      status: 'skipped',
+      stdout: '',
+      stderr: '',
+      rawOutput: '',
+      queuedAt,
+      scheduledFor: jobScheduledFor,
+      finishedAt: queuedAt,
+      triggeredBy: resolved.triggeredBy,
+      jobStatus: undefined,
+      attemptCount: 0,
+      maxAttempts: options?.maxAttempts ?? resolved.maxAttempts ?? DEFAULT_MAX_ATTEMPTS,
+      lastError: message,
+      recoveryState: PROFILE_LOCK_RECOVERY_STATE,
+    });
+
+    void writeAIRunnerLogEntry({
+      level: 'info',
+      component: 'ai-runner:queue',
+      event: 'run.skipped_agent_lock',
+      message: 'Skipped AI Runner job because the profile is locked',
+      data: {
+        runId: stringifyId(runDoc._id),
+        scheduleId: resolved.scheduleId,
+        autoflowId: resolved.autoflowId,
+        autoflowItemId: resolved.autoflowItemId,
+        promptId: resolved.promptId,
+        profileId: resolved.profile._id,
+        lockedUntil: resolved.profile.lockedUntil,
+        workspaceId: resolved.workspaceId,
+        triggeredBy: resolved.triggeredBy,
+        queuedAt: queuedAt.toISOString(),
+        scheduledFor: jobScheduledFor?.toISOString(),
+        workingDirectory: resolved.workingDirectory,
+      },
+    });
+
+    await updateLinkedScheduleAfterRun(
+      resolved,
+      runDoc._id,
+      'skipped',
+      queuedAt,
+      options?.scheduledFor
+    );
+
+    return mapRun(runDoc);
+  }
+
   if (resolved.triggeredBy === 'manual') {
     await assertWorkspaceCanQueue(resolved);
   }
-  const jobScheduledFor = options?.scheduledFor ?? (resolved.scheduleId ? queuedAt : undefined);
   const runDoc = await AIRunnerRun.create({
     promptId: resolved.promptId,
     scheduleId: resolved.scheduleId,
@@ -289,19 +378,13 @@ export async function enqueueResolvedRun(
     },
   });
 
-  if (resolved.scheduleId) {
-    const nextRunTime = getNextRunTimeFromExpression(
-      resolved.scheduleCronExpression ?? '',
-      new Date((options?.scheduledFor ?? queuedAt).getTime() + 60_000)
-    );
-    await AIRunnerSchedule.findByIdAndUpdate(resolved.scheduleId, {
-      lastRunId: runDoc._id,
-      lastRunStatus: 'queued',
-      lastRunAt: queuedAt,
-      lastScheduledFor: options?.scheduledFor,
-      nextRunTime: nextRunTime ? new Date(nextRunTime) : undefined,
-    });
-  }
+  await updateLinkedScheduleAfterRun(
+    resolved,
+    runDoc._id,
+    'queued',
+    queuedAt,
+    options?.scheduledFor
+  );
 
   return mapRun(runDoc);
 }

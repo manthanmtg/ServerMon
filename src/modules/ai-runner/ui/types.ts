@@ -11,7 +11,10 @@ export type ViewTab = 'prompts' | 'schedules' | 'autoflows' | 'history' | 'setti
 
 export type HistoryDetailSection = 'summary' | 'output' | 'command' | 'metadata' | 'resources';
 
-export type ProfileFormState = Omit<AIRunnerProfileDTO, '_id' | 'createdAt' | 'updatedAt'>;
+export type ProfileFormState = Omit<
+  AIRunnerProfileDTO,
+  '_id' | 'createdAt' | 'updatedAt' | 'locked' | 'lockedAt' | 'lockedUntil'
+>;
 
 export type PromptFormState = Omit<AIRunnerPromptDTO, '_id' | 'createdAt' | 'updatedAt'>;
 export type PromptTemplateFormState = Omit<

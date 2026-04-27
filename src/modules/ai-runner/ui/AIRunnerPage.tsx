@@ -12,7 +12,10 @@ import {
   Eye,
   FileJson,
   HardDrive,
+  Hourglass,
+  Infinity as InfinityIcon,
   ListFilter,
+  LockKeyhole,
   Plus,
   Play,
   RefreshCcw,
@@ -21,6 +24,7 @@ import {
   Square,
   TerminalSquare,
   Trash2,
+  UnlockKeyhole,
   Upload,
   X,
   Zap,
@@ -139,6 +143,19 @@ const MIN_RETENTION_DAYS = 1;
 const MAX_RETENTION_DAYS = 3650;
 const MIN_CONCURRENT_RUNS = 1;
 const MAX_CONCURRENT_RUNS = 8;
+const PROFILE_LOCK_PRESETS = [
+  { label: '1 hour', hours: 1 },
+  { label: '4 hours', hours: 4 },
+  { label: '8 hours', hours: 8 },
+  { label: '24 hours', hours: 24 },
+] as const;
+
+interface ProfileLockModalState {
+  profile: AIRunnerProfileDTO;
+  mode: 'duration' | 'until' | 'forever';
+  hours: number;
+  untilLocal: string;
+}
 
 interface AIRunnerRuntimeDiagnostics {
   runtime?: {
@@ -202,6 +219,22 @@ function parseMaxConcurrentRuns(value: string): number | null {
   if (!Number.isInteger(parsed)) return null;
   if (parsed < MIN_CONCURRENT_RUNS || parsed > MAX_CONCURRENT_RUNS) return null;
   return parsed;
+}
+
+function getLocalDateTimeInputValue(date: Date): string {
+  const pad = (value: number) => String(value).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(
+    date.getHours()
+  )}:${pad(date.getMinutes())}`;
+}
+
+function getProfileLockExpiry(state: ProfileLockModalState, now = new Date()): string | null {
+  if (state.mode === 'forever') return null;
+  if (state.mode === 'until') {
+    const selected = new Date(state.untilLocal);
+    return Number.isNaN(selected.getTime()) ? null : selected.toISOString();
+  }
+  return new Date(now.getTime() + state.hours * 60 * 60 * 1000).toISOString();
 }
 
 function getActiveScheduleRunLabel(run?: AIRunnerRunDTO | null): string | null {
@@ -339,7 +372,7 @@ export default function AIRunnerPage() {
   const searchParams = useSearchParams();
   const requestedTab = searchParams.get('tab');
   const [activeTab, setActiveTab] = useState<ViewTab>(() => parseViewTab(requestedTab));
-  const liveNow = useRealtimeNow(activeTab === 'schedules');
+  const liveNow = useRealtimeNow(activeTab === 'schedules' || activeTab === 'settings');
   const [loading, setLoading] = useState(true);
   const [metadataLoaded, setMetadataLoaded] = useState(false);
   const [runsLoaded, setRunsLoaded] = useState(false);
@@ -396,6 +429,7 @@ export default function AIRunnerPage() {
   const [bundleMode, setBundleMode] = useState<'export' | 'import'>('export');
   const [scheduleModalOpen, setScheduleModalOpen] = useState(false);
   const [scheduleVisualizationOpen, setScheduleVisualizationOpen] = useState(false);
+  const [profileLockModal, setProfileLockModal] = useState<ProfileLockModalState | null>(null);
   const [linkedDeleteTarget, setLinkedDeleteTarget] = useState<LinkedDeleteTarget | null>(null);
   const [linkedDeletePending, setLinkedDeletePending] = useState(false);
   const [pendingActions, setPendingActions] = useState<Set<string>>(() => new Set());
@@ -1013,6 +1047,7 @@ export default function AIRunnerPage() {
       running: 3,
       retrying: 2,
       queued: 1,
+      skipped: 0,
       completed: 0,
       failed: 0,
       timeout: 0,
@@ -1278,6 +1313,83 @@ export default function AIRunnerPage() {
   const closeScheduleVisualization = () => {
     setScheduleVisualizationOpen(false);
     setScheduleVisualizationProfileId(null);
+  };
+
+  const openProfileLockModal = (profile: AIRunnerProfileDTO) => {
+    setProfileLockModal({
+      profile,
+      mode: 'duration',
+      hours: 4,
+      untilLocal: getLocalDateTimeInputValue(new Date(Date.now() + 4 * 60 * 60 * 1000)),
+    });
+    setActiveTab('settings');
+  };
+
+  const closeProfileLockModal = () => {
+    setProfileLockModal(null);
+  };
+
+  const submitProfileLock = async () => {
+    if (!profileLockModal) return;
+    const lockedUntil = getProfileLockExpiry(profileLockModal);
+    if (profileLockModal.mode === 'until' && !lockedUntil) {
+      toast({
+        title: 'Lock time is invalid',
+        description: 'Choose a future time for this profile lock.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const response = await fetch(
+      `/api/modules/ai-runner/profiles/${profileLockModal.profile._id}/lock`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ locked: true, lockedUntil }),
+      }
+    );
+    const payload = await response.json();
+    if (!response.ok) {
+      toast({
+        title: 'Profile lock failed',
+        description: payload.error || 'Unable to lock this profile',
+        variant: 'destructive',
+      });
+      return;
+    }
+    toast({
+      title: 'Profile locked',
+      description: lockedUntil
+        ? `${profileLockModal.profile.name} will skip runs until ${formatDateTime(lockedUntil)}.`
+        : `${profileLockModal.profile.name} will skip runs until unlocked.`,
+      variant: 'success',
+    });
+    setProfileLockModal(null);
+    await loadAll();
+  };
+
+  const unlockProfile = async (profile: AIRunnerProfileDTO) => {
+    const response = await fetch(`/api/modules/ai-runner/profiles/${profile._id}/lock`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ locked: false }),
+    });
+    const payload = await response.json();
+    if (!response.ok) {
+      toast({
+        title: 'Profile unlock failed',
+        description: payload.error || 'Unable to unlock this profile',
+        variant: 'destructive',
+      });
+      return;
+    }
+    toast({
+      title: 'Profile unlocked',
+      description: `${profile.name} can queue AI Runner jobs again.`,
+      variant: 'success',
+    });
+    await loadAll();
   };
 
   const getRunDisplayName = useCallback(
@@ -3889,6 +4001,7 @@ export default function AIRunnerPage() {
                             <option value="queued">Queued</option>
                             <option value="running">Running</option>
                             <option value="retrying">Retrying</option>
+                            <option value="skipped">Skipped</option>
                             <option value="completed">Completed</option>
                             <option value="failed">Failed</option>
                             <option value="timeout">Timed out</option>
@@ -4450,6 +4563,11 @@ export default function AIRunnerPage() {
                       highRiskWorkspaceCount: 0,
                       nextLaunch: undefined,
                     };
+                    const lockLabel = profile.locked
+                      ? profile.lockedUntil
+                        ? `Locked ${formatCountdown(profile.lockedUntil, liveNow)}`
+                        : 'Locked indefinitely'
+                      : null;
 
                     return (
                       <div
@@ -4471,6 +4589,16 @@ export default function AIRunnerPage() {
                                 <Badge variant={profile.enabled ? 'success' : 'warning'}>
                                   {profile.enabled ? 'Enabled' : 'Disabled'}
                                 </Badge>
+                                {profile.locked ? (
+                                  <Badge variant="warning">
+                                    {profile.lockedUntil ? (
+                                      <Hourglass className="h-3 w-3" />
+                                    ) : (
+                                      <InfinityIcon className="h-3 w-3" />
+                                    )}
+                                    {lockLabel}
+                                  </Badge>
+                                ) : null}
                                 <Badge variant="outline">{profile.agentType}</Badge>
                               </div>
                               <p className="truncate text-xs text-muted-foreground">
@@ -4509,11 +4637,15 @@ export default function AIRunnerPage() {
                                 ) : null}
                               </div>
                               <p className="text-xs text-muted-foreground">
-                                {scheduleSummary.nextLaunch
-                                  ? `Next scheduled launch ${formatScheduleDate(scheduleSummary.nextLaunch)}`
-                                  : scheduleSummary.totalSchedules > 0
-                                    ? 'No upcoming launch is queued for this profile right now.'
-                                    : 'No schedules are attached to this profile yet.'}
+                                {profile.locked
+                                  ? profile.lockedUntil
+                                    ? `Executions are skipping until ${formatDateTime(profile.lockedUntil)}.`
+                                    : 'Executions are skipping until this profile is unlocked.'
+                                  : scheduleSummary.nextLaunch
+                                    ? `Next scheduled launch ${formatScheduleDate(scheduleSummary.nextLaunch)}`
+                                    : scheduleSummary.totalSchedules > 0
+                                      ? 'No upcoming launch is queued for this profile right now.'
+                                      : 'No schedules are attached to this profile yet.'}
                               </p>
                             </div>
                           </div>
@@ -4524,6 +4656,30 @@ export default function AIRunnerPage() {
                             </pre>
                           </div>
                           <div className="flex flex-wrap gap-2 xl:justify-end">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              aria-label={
+                                profile.locked
+                                  ? `Unlock profile ${profile.name}`
+                                  : `Lock profile ${profile.name}`
+                              }
+                              onClick={() =>
+                                profile.locked
+                                  ? void runExclusiveAction(`profile:unlock:${profile._id}`, () =>
+                                      unlockProfile(profile)
+                                    )
+                                  : openProfileLockModal(profile)
+                              }
+                              loading={isActionPending(`profile:unlock:${profile._id}`)}
+                            >
+                              {profile.locked ? (
+                                <UnlockKeyhole className="w-4 h-4" />
+                              ) : (
+                                <LockKeyhole className="w-4 h-4" />
+                              )}
+                              {profile.locked ? 'Unlock' : 'Lock'}
+                            </Button>
                             <Button
                               size="sm"
                               variant="outline"
@@ -4594,6 +4750,169 @@ export default function AIRunnerPage() {
                   </div>
                 </CardContent>
               </Card>
+
+              {profileLockModal && (
+                <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 md:p-6">
+                  <div
+                    className="absolute inset-0 bg-background/80 backdrop-blur-sm animate-in fade-in duration-300"
+                    onClick={closeProfileLockModal}
+                  />
+                  <div
+                    role="dialog"
+                    aria-modal="true"
+                    aria-label={`Lock ${profileLockModal.profile.name}`}
+                    className="relative flex max-h-[92dvh] w-full max-w-2xl flex-col overflow-hidden rounded-[28px] border border-warning/30 bg-card shadow-2xl animate-in fade-in zoom-in-95 slide-in-from-bottom-4 duration-300"
+                  >
+                    <div className="border-b border-border/60 bg-warning/10 px-6 py-5">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="min-w-0">
+                          <p className="text-[11px] uppercase tracking-[0.24em] text-warning">
+                            Profile Lock
+                          </p>
+                          <h3 className="mt-2 truncate text-2xl font-semibold tracking-tight">
+                            Lock {profileLockModal.profile.name}
+                          </h3>
+                          <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                            New ad-hoc runs, schedules, and AutoFlow steps will be recorded as
+                            skipped while this lock is active.
+                          </p>
+                        </div>
+                        <button
+                          onClick={closeProfileLockModal}
+                          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
+                          aria-label="Close profile lock"
+                        >
+                          <X className="h-5 w-5" />
+                        </button>
+                      </div>
+                    </div>
+                    <div className="space-y-5 overflow-y-auto px-6 py-6">
+                      <div className="grid gap-3 sm:grid-cols-3">
+                        <Button
+                          type="button"
+                          variant={profileLockModal.mode === 'duration' ? 'default' : 'outline'}
+                          onClick={() =>
+                            setProfileLockModal((current) =>
+                              current ? { ...current, mode: 'duration' } : current
+                            )
+                          }
+                        >
+                          <Clock3 className="h-4 w-4" />
+                          For hours
+                        </Button>
+                        <Button
+                          type="button"
+                          variant={profileLockModal.mode === 'until' ? 'default' : 'outline'}
+                          onClick={() =>
+                            setProfileLockModal((current) =>
+                              current ? { ...current, mode: 'until' } : current
+                            )
+                          }
+                        >
+                          <CalendarClock className="h-4 w-4" />
+                          Until time
+                        </Button>
+                        <Button
+                          type="button"
+                          variant={profileLockModal.mode === 'forever' ? 'default' : 'outline'}
+                          onClick={() =>
+                            setProfileLockModal((current) =>
+                              current ? { ...current, mode: 'forever' } : current
+                            )
+                          }
+                        >
+                          <InfinityIcon className="h-4 w-4" />
+                          No timer
+                        </Button>
+                      </div>
+                      {profileLockModal.mode === 'duration' ? (
+                        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                          {PROFILE_LOCK_PRESETS.map((preset) => (
+                            <Button
+                              key={preset.hours}
+                              type="button"
+                              variant={
+                                profileLockModal.hours === preset.hours ? 'default' : 'outline'
+                              }
+                              onClick={() =>
+                                setProfileLockModal((current) =>
+                                  current
+                                    ? {
+                                        ...current,
+                                        mode: 'duration',
+                                        hours: preset.hours,
+                                        untilLocal: getLocalDateTimeInputValue(
+                                          new Date(Date.now() + preset.hours * 60 * 60 * 1000)
+                                        ),
+                                      }
+                                    : current
+                                )
+                              }
+                            >
+                              {preset.label}
+                            </Button>
+                          ))}
+                        </div>
+                      ) : null}
+                      {profileLockModal.mode === 'until' ? (
+                        <label className="block space-y-2 text-sm">
+                          <span className="font-medium">Unlock at</span>
+                          <Input
+                            type="datetime-local"
+                            value={profileLockModal.untilLocal}
+                            onChange={(event) =>
+                              setProfileLockModal((current) =>
+                                current
+                                  ? { ...current, mode: 'until', untilLocal: event.target.value }
+                                  : current
+                              )
+                            }
+                          />
+                        </label>
+                      ) : null}
+                      <div className="rounded-2xl border border-border/60 bg-background/70 px-4 py-4">
+                        <div className="flex items-center gap-3">
+                          {profileLockModal.mode === 'forever' ? (
+                            <InfinityIcon className="h-5 w-5 text-warning" />
+                          ) : (
+                            <Hourglass className="h-5 w-5 text-warning" />
+                          )}
+                          <div>
+                            <p className="text-sm font-medium">
+                              {profileLockModal.mode === 'forever'
+                                ? 'Locked without a timer'
+                                : `Unlocks ${formatCountdown(
+                                    getProfileLockExpiry(profileLockModal) ?? undefined,
+                                    liveNow
+                                  )}`}
+                            </p>
+                            <p className="mt-1 text-xs text-muted-foreground">
+                              History will show skipped runs with state skipped_agent_lock.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex flex-col-reverse gap-2 border-t border-border/60 bg-background/70 px-6 py-4 sm:flex-row sm:justify-end">
+                      <Button variant="outline" onClick={closeProfileLockModal}>
+                        Cancel
+                      </Button>
+                      <Button
+                        onClick={() =>
+                          void runExclusiveAction(
+                            `profile:lock:${profileLockModal.profile._id}`,
+                            submitProfileLock
+                          )
+                        }
+                        loading={isActionPending(`profile:lock:${profileLockModal.profile._id}`)}
+                      >
+                        <LockKeyhole className="h-4 w-4" />
+                        Lock profile
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {profileModalOpen && (
                 <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 md:p-6">

@@ -4,6 +4,7 @@ import {
   exportBundleQuerySchema,
   importBundleSchema,
   profileCreateSchema,
+  profileLockSchema,
   profileUpdateSchema,
   profileValidateSchema,
   promptCreateSchema,
@@ -79,6 +80,19 @@ describe('ai-runner schemas', () => {
         expect(result.data.name).toBe('Updated Name');
         expect(result.data.agentType).toBeUndefined();
       }
+    });
+  });
+
+  describe('profileLockSchema', () => {
+    it('accepts timed and indefinite locks', () => {
+      expect(
+        profileLockSchema.safeParse({
+          locked: true,
+          lockedUntil: new Date(Date.now() + 60_000).toISOString(),
+        }).success
+      ).toBe(true);
+      expect(profileLockSchema.safeParse({ locked: true, lockedUntil: null }).success).toBe(true);
+      expect(profileLockSchema.safeParse({ locked: false }).success).toBe(true);
     });
   });
 

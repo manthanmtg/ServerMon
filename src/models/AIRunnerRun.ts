@@ -72,7 +72,16 @@ const AIRunnerRunSchema = new Schema<IAIRunnerRun>(
     status: {
       type: String,
       required: true,
-      enum: ['queued', 'running', 'retrying', 'completed', 'failed', 'timeout', 'killed'],
+      enum: [
+        'queued',
+        'running',
+        'retrying',
+        'skipped',
+        'completed',
+        'failed',
+        'timeout',
+        'killed',
+      ],
       index: true,
     },
     exitCode: { type: Number },
