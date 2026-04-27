@@ -78,6 +78,18 @@ function stringValue(value: unknown): string | undefined {
   return typeof value === 'string' && value.length > 0 ? value : undefined;
 }
 
+function webUrlValue(value: unknown): string | undefined {
+  const raw = stringValue(value);
+  if (!raw) return undefined;
+
+  try {
+    const url = new URL(raw);
+    return url.protocol === 'http:' || url.protocol === 'https:' ? raw : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 function numberValue(value: unknown): number | undefined {
   return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
 }
@@ -119,7 +131,7 @@ function serializeResult(result: LeanSpeedtestResult): NetworkSpeedtestResultDto
     serverName: result.serverName,
     serverLocation: result.serverLocation,
     isp: result.isp,
-    resultUrl: result.resultUrl,
+    resultUrl: webUrlValue(result.resultUrl),
     bytesReceived: result.bytesReceived,
     bytesSent: result.bytesSent,
     error: result.error,
@@ -199,7 +211,7 @@ export function normalizeSpeedtestOutput(
       serverName: stringValue(server.sponsor) ?? stringValue(server.name),
       serverLocation: [city, country].filter(Boolean).join(', ') || undefined,
       isp: stringValue(parsed.isp),
-      resultUrl: stringValue(result.url),
+      resultUrl: webUrlValue(result.url),
       bytesReceived: numberValue(download.bytes),
       bytesSent: numberValue(upload.bytes),
     };
@@ -225,7 +237,7 @@ export function normalizeSpeedtestOutput(
     serverName: stringValue(server.sponsor) ?? stringValue(server.name),
     serverLocation: [city, country].filter(Boolean).join(', ') || undefined,
     isp: stringValue(client.isp),
-    resultUrl: stringValue(parsed.share),
+    resultUrl: webUrlValue(parsed.share),
     bytesReceived: numberValue(parsed.bytes_received),
     bytesSent: numberValue(parsed.bytes_sent),
   };
