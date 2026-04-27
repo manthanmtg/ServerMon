@@ -18,10 +18,13 @@ vi.mock('mongoose', async () => {
       (this.indexes as unknown[]).push(args);
     });
     return this;
-  }) as unknown as { Types: { ObjectId: unknown; Mixed: unknown } };
+  }) as unknown as {
+    Types: { ObjectId: string; Mixed: string };
+    index: (args: unknown) => void;
+    pre: (hook: string, fn: unknown) => void;
+  };
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  (mockSchema as any).Types = {
+  mockSchema.Types = {
     ObjectId: 'ObjectId',
     Mixed: 'Mixed',
   };

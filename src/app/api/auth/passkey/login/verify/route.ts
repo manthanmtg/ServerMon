@@ -4,6 +4,7 @@ import User from '@/models/User';
 import { verifyPasskeyLogin, getRPID, getOrigin } from '@/lib/passkey-utils';
 import { login } from '@/lib/session';
 import { createLogger } from '@/lib/logger';
+import type { AuthenticationResponseJSON } from '@simplewebauthn/server';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -11,7 +12,7 @@ const logger = createLogger('api:auth:passkey:login:verify');
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
+    const body = (await req.json()) as AuthenticationResponseJSON;
     const challenge = req.cookies.get('login-challenge')?.value;
 
     if (!challenge) {

@@ -4,6 +4,7 @@ import connectDB from '@/lib/db';
 import User from '@/models/User';
 import { verifyPasskeyRegistration, getRPID, getOrigin } from '@/lib/passkey-utils';
 import { createLogger } from '@/lib/logger';
+import type { RegistrationResponseJSON } from '@simplewebauthn/server';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -16,7 +17,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const body = await req.json();
+    const body = (await req.json()) as RegistrationResponseJSON;
     const challenge = req.cookies.get('reg-challenge')?.value;
 
     if (!challenge) {
