@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 import { createLogger } from '@/lib/logger';
 import connectDB from '@/lib/db';
 import CustomEndpoint from '@/models/CustomEndpoint';
@@ -8,6 +9,24 @@ import { executeEndpoint } from '@/lib/endpoints/executor';
 export const dynamic = 'force-dynamic';
 
 const log = createLogger('api:endpoints:test');
+
+const stringRecordSchema = z.record(z.string(), z.string());
+
+const testPayloadSchema = z.object({
+  body: z
+    .string()
+    .optional()
+    .catch('')
+    .transform((value) => value ?? ''),
+  headers: stringRecordSchema
+    .optional()
+    .catch({})
+    .transform((value) => value ?? {}),
+  queryParams: stringRecordSchema
+    .optional()
+    .catch({})
+    .transform((value) => value ?? {}),
+});
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -20,9 +39,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     }
 
     const body = await req.json().catch(() => ({}));
-    const testBody = body.body || '';
-    const testHeaders = body.headers || {};
-    const testQuery = body.queryParams || {};
+    const payload = testPayloadSchema.parse(body);
+    const testBody = payload.body;
+    const testHeaders = payload.headers;
+    const testQuery = payload.queryParams;
 
     const result = await executeEndpoint(endpoint, {
       method: endpoint.method,
