@@ -14,7 +14,7 @@ Every change (PR or commit to `main`) **must** satisfy these requirements:
 | Build  | `pnpm build`        | Exit code 0          |
 | Tests  | `pnpm test`         | Exit code 0          |
 
-Shortcut: `pnpm check` runs all of the above in sequence. **A failure in any step blocks the merge.**
+Shortcut: `pnpm check` runs lint, typecheck, build, and tests in sequence; run `pnpm format:check` separately. **A failure in any required step blocks the merge.**
 
 ---
 
