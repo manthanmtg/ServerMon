@@ -205,7 +205,8 @@ Concise map of major directories, commands, and key files. Update this section w
 ### AI & Automation
 
 - `src/modules/ai-agents/` — AI agent monitoring; `ui/AIAgentsPage.tsx` displays active sessions, tool catalog, and conversation history across multiple adapters (Claude Code, Codex, Gemini CLI, etc.)
-- `src/modules/ai-runner/` — automated task orchestration; `ui/AIRunnerPage.tsx` manages scheduled runs, worker concurrency, and visualizes task timelines; uses supervisor/worker pattern for background execution
+- `src/modules/ai-runner/` — automated task orchestration; `ui/AIRunnerPage.tsx` manages scheduled runs, prompt templates, worker concurrency, import/export, and visualizes task timelines; uses supervisor/worker pattern for background execution
+- `src/models/AIRunnerPromptTemplate.ts`, `src/app/api/modules/ai-runner/prompt-templates/`, `src/lib/ai-runner/service.ts` — persisted AI Runner prompt-template CRUD and bundle import/export support
 - `src/modules/env-vars/` — EnvVars module definition and UI for managing host-level environment variables (stateless, bypassing MongoDB)
 - `docs/ai-runner-module.md` — technical architecture for automation runner
 - Env keys added: `FLEET_HUB_PUBLIC_URL`, `FRP_BIND_PORT`, `FRP_VHOST_HTTP_PORT`, `FRP_VHOST_HTTPS_PORT`, `FRP_AUTH_TOKEN`, `FRP_SUBDOMAIN_HOST`, `FLEET_HUB_AUTH_TOKEN`, `FLEET_HUB_ORCHESTRATORS_ENABLED`, `FLEET_AGENT_*`, `FLEET_NGINX_*`, `FLEET_ACME_*`, `FLEET_BINARY_CACHE_DIR`, `FLEET_FRP_VERSION`, `FLEET_FRPS_CONFIG_DIR`, `FLEET_BACKUP_DIR`, `FLEET_AUTO_APPLY_REVISIONS` (set to `'true'`), `AI_RUNNER_*` (concurrency, logs, workers)
