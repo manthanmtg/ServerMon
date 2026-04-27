@@ -14,13 +14,18 @@ You are an autonomous improvement agent for the ServerMon project. Your job is t
 
 ### 1. Select a Prompt
 
-- Identify and pick one **at random** from prompts that are safe for autonomous execution:
+- Identify and pick one **at random** from prompts that are safe for autonomous execution. `prompts_optimizer.md` should run rarely, about 1 in 25 runs, because it maintains the prompt suite itself:
   ```bash
-  find prompts -maxdepth 1 -name "*.md" \
-    ! -name "random_selector.md" \
-    ! -name "module_generator_prompt.md" \
-    | sort \
-    | awk 'BEGIN{srand()} {a[NR]=$0} END{if (NR > 0) print a[int(rand()*NR)+1]}'
+  if [ "$((RANDOM % 25))" -eq 0 ]; then
+    printf '%s\n' prompts/prompts_optimizer.md
+  else
+    find prompts -maxdepth 1 -name "*.md" \
+      ! -name "random_selector.md" \
+      ! -name "module_generator_prompt.md" \
+      ! -name "prompts_optimizer.md" \
+      | sort \
+      | awk 'BEGIN{srand()} {a[NR]=$0} END{if (NR > 0) print a[int(rand()*NR)+1]}'
+  fi
   ```
 - Do not execute prompts that explicitly say they are not for autonomous use.
 - Log which prompt you selected so the run is traceable.
@@ -72,6 +77,7 @@ Safe autonomous prompts have equal probability by default, but if the agent want
 
 - **Prefer** prompts that target areas with known issues (check `issues_to_look/` for hints).
 - **Exclude** `module_generator_prompt.md` — creating new modules is a drastic change and should only happen when the user explicitly asks.
+- **Run** `prompts_optimizer.md` only through the rare selection branch, not the normal prompt pool.
 - **Favor** small-scope prompts (`test_corrector`, `build_verifier`) when in doubt.
 
 ## What Success Looks Like
