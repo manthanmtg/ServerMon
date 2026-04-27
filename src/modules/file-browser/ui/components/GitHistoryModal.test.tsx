@@ -26,6 +26,14 @@ const commits = [
     subject: 'Improve terminal rendering',
     body: 'Keep rendering stable.',
   },
+  {
+    hash: '1234567890abcdef',
+    author: 'Grace Hopper',
+    authorEmail: 'grace@example.com',
+    date: '2026-04-25T12:00:00.000Z',
+    subject: 'Document file browser shortcuts',
+    body: 'Clarify navigation commands.',
+  },
 ];
 
 describe('GitHistoryModal', () => {
@@ -71,5 +79,27 @@ describe('GitHistoryModal', () => {
         screen.getByRole('button', { name: 'Copy commit hash abcdef1234567890' })
       ).toBeDefined();
     });
+  });
+
+  it('filters commits with a normalized search query', async () => {
+    render(<GitHistoryModal root="/repo" onClose={vi.fn()} />);
+
+    await screen.findByRole('button', {
+      name: /view commit abcdef1: Improve terminal rendering/i,
+    });
+
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Search git commits' }), {
+      target: { value: '  terminal  ' },
+    });
+
+    expect(
+      screen.getByRole('button', { name: /view commit abcdef1: Improve terminal rendering/i })
+    ).toBeDefined();
+    expect(
+      screen.queryByRole('button', {
+        name: /view commit 1234567: Document file browser shortcuts/i,
+      })
+    ).toBeNull();
+    expect(screen.getByText('Showing 1 commits')).toBeDefined();
   });
 });

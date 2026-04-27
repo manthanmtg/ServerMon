@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   X,
   GitCommit,
@@ -126,17 +126,28 @@ export default function GitHistoryModal({ root, onClose }: Props) {
     toast({ title: 'Copied', description: 'Commit hash copied to clipboard', variant: 'success' });
   };
 
-  const filteredCommits = commits.filter(
-    (c) =>
-      c.subject.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      c.author.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      c.hash.toLowerCase().includes(searchQuery.toLowerCase())
+  const normalizedSearchQuery = useMemo(() => searchQuery.trim().toLowerCase(), [searchQuery]);
+
+  const filteredCommits = useMemo(() => {
+    if (!normalizedSearchQuery) return commits;
+
+    return commits.filter(
+      (c) =>
+        c.subject.toLowerCase().includes(normalizedSearchQuery) ||
+        c.author.toLowerCase().includes(normalizedSearchQuery) ||
+        c.hash.toLowerCase().includes(normalizedSearchQuery)
+    );
+  }, [commits, normalizedSearchQuery]);
+
+  const selectedCommit = useMemo(
+    () => commits.find((c) => c.hash === selectedHash),
+    [commits, selectedHash]
   );
 
-  const selectedCommit = commits.find((c) => c.hash === selectedHash);
+  const formattedDiff = useMemo(() => {
+    if (!diff) return null;
 
-  const formatDiff = (rawDiff: string) => {
-    return rawDiff.split('\n').map((line, i) => {
+    return diff.split('\n').map((line, i) => {
       let colorClass = 'text-foreground/70';
       if (line.startsWith('+') && !line.startsWith('+++'))
         colorClass = 'text-success bg-success/10';
@@ -163,7 +174,7 @@ export default function GitHistoryModal({ root, onClose }: Props) {
         </div>
       );
     });
-  };
+  }, [diff]);
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-8 bg-black/40 backdrop-blur-sm animate-in fade-in duration-300">
@@ -475,7 +486,7 @@ export default function GitHistoryModal({ root, onClose }: Props) {
                           </div>
                         </div>
                       </div>
-                      <div className="py-2">{formatDiff(diff)}</div>
+                      <div className="py-2">{formattedDiff}</div>
                     </div>
                   </div>
                 ) : (
