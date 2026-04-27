@@ -36,6 +36,8 @@ vi.mock('@/models/CustomEndpoint', () => ({
 }));
 vi.mock('@/models/EndpointExecutionLog', () => ({
   default: { create: mockCreate },
+  ENDPOINT_EXECUTION_LOG_BODY_MAX_CHARS: 1_000_000,
+  ENDPOINT_EXECUTION_LOG_ERROR_MAX_CHARS: 5_000,
 }));
 vi.mock('@/lib/endpoints/executor', () => ({
   executeEndpoint: mockExecuteEndpoint,
@@ -194,6 +196,27 @@ describe('POST /api/endpoints/[slug]', () => {
     expect(mockExecuteEndpoint).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({ body: '{"key":"value"}' })
+    );
+  });
+
+  it('persists request and response bodies beyond the preview-sized log limit', async () => {
+    const longBody = 'x'.repeat(12_000);
+    const longResponse = 'y'.repeat(12_000);
+    mockQuery.lean.mockResolvedValue({ ...mockEndpoint, method: 'POST' });
+    mockExecuteEndpoint.mockResolvedValue({ ...mockResult, body: longResponse });
+
+    const req = new NextRequest('http://localhost/api/endpoints/my-endpoint', {
+      method: 'POST',
+      body: longBody,
+    });
+
+    await POST(req, makeContext('my-endpoint'));
+
+    expect(mockCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        requestBody: longBody,
+        responseBody: longResponse,
+      })
     );
   });
 

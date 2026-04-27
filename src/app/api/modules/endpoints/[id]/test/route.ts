@@ -3,7 +3,10 @@ import { z } from 'zod';
 import { createLogger } from '@/lib/logger';
 import connectDB from '@/lib/db';
 import CustomEndpoint from '@/models/CustomEndpoint';
-import EndpointExecutionLog from '@/models/EndpointExecutionLog';
+import EndpointExecutionLog, {
+  ENDPOINT_EXECUTION_LOG_BODY_MAX_CHARS,
+  ENDPOINT_EXECUTION_LOG_ERROR_MAX_CHARS,
+} from '@/models/EndpointExecutionLog';
 import { executeEndpoint } from '@/lib/endpoints/executor';
 
 export const dynamic = 'force-dynamic';
@@ -58,11 +61,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       method: endpoint.method,
       statusCode: result.statusCode,
       duration: result.duration,
-      stdout: result.stdout?.slice(0, 10_240),
-      stderr: result.stderr?.slice(0, 10_240),
-      error: result.error?.slice(0, 5_000),
-      requestBody: testBody?.slice(0, 10_240),
-      responseBody: result.body?.slice(0, 10_240),
+      stdout: result.stdout?.slice(0, ENDPOINT_EXECUTION_LOG_BODY_MAX_CHARS),
+      stderr: result.stderr?.slice(0, ENDPOINT_EXECUTION_LOG_BODY_MAX_CHARS),
+      error: result.error?.slice(0, ENDPOINT_EXECUTION_LOG_ERROR_MAX_CHARS),
+      requestBody: testBody?.slice(0, ENDPOINT_EXECUTION_LOG_BODY_MAX_CHARS),
+      responseBody: result.body?.slice(0, ENDPOINT_EXECUTION_LOG_BODY_MAX_CHARS),
       requestMeta: {
         ip: '127.0.0.1',
         userAgent: 'ServerMon-TestConsole/1.0',

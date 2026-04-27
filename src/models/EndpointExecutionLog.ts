@@ -1,5 +1,8 @@
 import mongoose, { Schema, Document, Model } from 'mongoose';
 
+export const ENDPOINT_EXECUTION_LOG_BODY_MAX_CHARS = 1_000_000;
+export const ENDPOINT_EXECUTION_LOG_ERROR_MAX_CHARS = 5_000;
+
 export interface IEndpointExecutionLog extends Document {
   _id: mongoose.Types.ObjectId;
   endpointId: mongoose.Types.ObjectId;
@@ -26,11 +29,11 @@ const EndpointExecutionLogSchema: Schema = new Schema(
     method: { type: String, required: true },
     statusCode: { type: Number, required: true },
     duration: { type: Number, required: true },
-    stdout: { type: String, maxlength: 10_240 },
-    stderr: { type: String, maxlength: 10_240 },
-    error: { type: String, maxlength: 5_000 },
-    requestBody: { type: String, maxlength: 10_240 },
-    responseBody: { type: String, maxlength: 10_240 },
+    stdout: { type: String, maxlength: ENDPOINT_EXECUTION_LOG_BODY_MAX_CHARS },
+    stderr: { type: String, maxlength: ENDPOINT_EXECUTION_LOG_BODY_MAX_CHARS },
+    error: { type: String, maxlength: ENDPOINT_EXECUTION_LOG_ERROR_MAX_CHARS },
+    requestBody: { type: String, maxlength: ENDPOINT_EXECUTION_LOG_BODY_MAX_CHARS },
+    responseBody: { type: String, maxlength: ENDPOINT_EXECUTION_LOG_BODY_MAX_CHARS },
     requestMeta: {
       ip: { type: String },
       userAgent: { type: String },
