@@ -129,10 +129,14 @@ describe('DiskWidget', () => {
 
   it('handles disk settings fetch failure', async () => {
     global.fetch = vi.fn().mockRejectedValue(new Error('Settings failed'));
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
     render(<DiskWidget />);
 
     await waitFor(() => {
       expect(screen.getByText('50.0%')).toBeTruthy();
     });
+
+    consoleSpy.mockRestore();
   });
 });
