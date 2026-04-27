@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { createLogger } from '@/lib/logger';
+import { getSession } from '@/lib/session';
 import {
   createEntry,
   deleteEntry,
@@ -39,6 +40,11 @@ function toErrorResponse(error: unknown) {
 
 export async function GET(request: NextRequest) {
   try {
+    const session = await getSession();
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const { searchParams } = new URL(request.url);
     const targetPath = resolveBrowserPath(searchParams.get('path') || '/');
     const mode = searchParams.get('mode') || 'list';
@@ -59,6 +65,11 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const session = await getSession();
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const body = createSchema.parse(await request.json());
     const createdPath = await createEntry(
       body.parentPath,
@@ -75,6 +86,11 @@ export async function POST(request: NextRequest) {
 
 export async function PATCH(request: NextRequest) {
   try {
+    const session = await getSession();
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const body = renameSchema.parse(await request.json());
     const nextPath = await renameEntry(body.path, body.name);
     return NextResponse.json({ path: nextPath });
@@ -86,6 +102,11 @@ export async function PATCH(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
+    const session = await getSession();
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const body = deleteSchema.parse(await request.json());
     await deleteEntry(body.path);
     return NextResponse.json({ success: true });

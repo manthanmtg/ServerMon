@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createLogger } from '@/lib/logger';
+import { getSession } from '@/lib/session';
 import { FileBrowserError, writeUpload } from '@/modules/file-browser/lib/file-browser';
 
 export const dynamic = 'force-dynamic';
@@ -18,6 +19,11 @@ export async function POST(request: NextRequest) {
   let fileSummaries: Array<{ name: string; size: number; type: string }> = [];
 
   try {
+    const session = await getSession();
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const formData = await request.formData();
     targetPath = String(formData.get('path') || '');
     const files = formData.getAll('files').filter((value): value is File => value instanceof File);

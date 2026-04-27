@@ -9,6 +9,9 @@ const { mockWriteUpload } = vi.hoisted(() => ({
 vi.mock('@/lib/logger', () => ({
   createLogger: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }),
 }));
+vi.mock('@/lib/session', () => ({
+  getSession: vi.fn().mockResolvedValue({ user: { username: 'testuser' } }),
+}));
 vi.mock('@/modules/file-browser/lib/file-browser', () => ({
   writeUpload: mockWriteUpload,
   FileBrowserError: class FileBrowserError extends Error {
