@@ -245,7 +245,6 @@ export class AgentClient {
             if (this.status_.tunnelStatus !== 'connected') {
               this.status_.tunnelStatus = 'connected';
               this.log('info', 'agent.tunnel.connected', 'FRP tunnel established');
-              console.log('[INFO] [tunnel] Connection established successfully');
               void this.sendHeartbeat();
             }
 
@@ -367,8 +366,10 @@ export class AgentClient {
           status: s.status,
           lastError: s.lastError,
         }));
-        console.log(
-          `[DEBUG] Agent sending ${p.length} proxies in heartbeat: ${JSON.stringify(p.map((x) => x.name))}`
+        this.log(
+          'debug',
+          'agent.heartbeat.sending',
+          `Agent sending ${p.length} proxies in heartbeat: ${JSON.stringify(p.map((x) => x.name))}`
         );
         return p;
       })(),
