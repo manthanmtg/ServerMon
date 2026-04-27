@@ -184,6 +184,16 @@ describe('ScriptEditor', () => {
     expect(container.querySelector('.my-custom-class')).toBeDefined();
   });
 
+  it('uses theme-aware editor shell colors instead of fixed dark overlays', async () => {
+    const ScriptEditor = await importScriptEditor();
+    const { container } = render(<ScriptEditor value="" onChange={vi.fn()} language="bash" />);
+    const shell = container.firstElementChild;
+
+    expect(shell).toHaveClass('bg-card');
+    expect(shell?.className).not.toContain('bg-zinc-900');
+    expect(shell?.className).not.toContain('border-white');
+  });
+
   it('mock dispatch and destroy are accessible', () => {
     expect(typeof mockDispatch).toBe('function');
     expect(typeof mockDestroy).toBe('function');

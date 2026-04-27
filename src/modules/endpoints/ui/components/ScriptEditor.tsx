@@ -14,7 +14,6 @@ import {
 import { EditorState, Compartment } from '@codemirror/state';
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
 import { searchKeymap, highlightSelectionMatches } from '@codemirror/search';
-import { oneDark } from '@codemirror/theme-one-dark';
 import {
   indentOnInput,
   bracketMatching,
@@ -128,7 +127,6 @@ export default function ScriptEditor({
         history(),
         highlightSelectionMatches(),
         syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
-        oneDark,
         langCompartment.current.of(langExtension),
         keymap.of([...defaultKeymap, ...historyKeymap, ...searchKeymap, indentWithTab]),
         customKeymap,
@@ -138,25 +136,46 @@ export default function ScriptEditor({
           '&': {
             height,
             fontSize: '13px',
-            backgroundColor: 'transparent !important',
+            backgroundColor: 'var(--card)',
+            color: 'var(--foreground)',
           },
           '&.cm-focused': {
             outline: 'none',
+          },
+          '.cm-content': {
+            caretColor: 'var(--foreground)',
+          },
+          '.cm-line': {
+            color: 'var(--foreground)',
           },
           '.cm-scroller': {
             overflow: 'auto',
             fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace',
           },
           '.cm-gutters': {
-            backgroundColor: 'transparent !important',
-            color: 'rgba(255,255,255,0.2)',
-            borderRight: '1px solid rgba(255,255,255,0.06)',
+            backgroundColor: 'color-mix(in srgb, var(--muted) 70%, var(--card))',
+            color: 'var(--muted-foreground)',
+            borderRight: '1px solid var(--border)',
           },
           '.cm-activeLine': {
-            backgroundColor: 'rgba(255,255,255,0.03)',
+            backgroundColor: 'color-mix(in srgb, var(--primary) 8%, transparent)',
           },
           '.cm-activeLineGutter': {
-            backgroundColor: 'rgba(255,255,255,0.03)',
+            backgroundColor: 'color-mix(in srgb, var(--primary) 8%, transparent)',
+          },
+          '.cm-selectionBackground, &.cm-focused .cm-selectionBackground': {
+            backgroundColor: 'color-mix(in srgb, var(--primary) 24%, transparent)',
+          },
+          '.cm-cursor': {
+            borderLeftColor: 'var(--foreground)',
+          },
+          '.cm-foldGutter span': {
+            color: 'var(--muted-foreground)',
+          },
+          '.cm-panels': {
+            backgroundColor: 'var(--popover)',
+            color: 'var(--popover-foreground)',
+            borderColor: 'var(--border)',
           },
         }),
       ],
@@ -208,15 +227,15 @@ export default function ScriptEditor({
       transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
       whileHover={{ scale: 1.002 }}
       className={cn(
-        'rounded-2xl overflow-hidden border border-white/10 bg-zinc-900/40 backdrop-blur-xl shadow-2xl transition-all duration-500',
-        'hover:border-primary/30 hover:shadow-primary/5 hover:bg-zinc-900/50',
+        'rounded-2xl overflow-hidden border border-border/70 bg-card shadow-2xl transition-all duration-500',
+        'hover:border-primary/40 hover:shadow-primary/10',
         className
       )}
     >
       <div ref={containerRef} style={{ height }} className="[&_.cm-editor]:outline-none" />
-      <div className="flex items-center justify-between px-4 py-2 bg-black/40 backdrop-blur-md border-t border-white/5 text-[10px] font-bold text-white/40 uppercase tracking-widest">
+      <div className="flex items-center justify-between px-4 py-2 bg-muted/80 border-t border-border/60 text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
         <div className="flex items-center gap-4">
-          <span className="text-primary/70 tracking-tighter">{language}</span>
+          <span className="text-primary tracking-tighter">{language}</span>
           <span className="font-mono opacity-80">
             Ln {cursorPos.line}, Col {cursorPos.col}
           </span>
@@ -226,7 +245,7 @@ export default function ScriptEditor({
           <div className="flex items-center gap-3">
             {onRun && (
               <span
-                className="text-white/20 hover:text-white/60 transition-colors cursor-help flex items-center gap-1"
+                className="text-muted-foreground hover:text-foreground transition-colors cursor-help flex items-center gap-1"
                 title="Module+Enter"
               >
                 <div className="w-1 h-1 rounded-full bg-success/50 animate-pulse" />
@@ -235,7 +254,7 @@ export default function ScriptEditor({
             )}
             {onSave && (
               <span
-                className="text-white/20 hover:text-white/60 transition-colors cursor-help flex items-center gap-1"
+                className="text-muted-foreground hover:text-foreground transition-colors cursor-help flex items-center gap-1"
                 title="Module+S"
               >
                 <div className="w-1 h-1 rounded-full bg-primary/50 animate-pulse" />

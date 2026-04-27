@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import {
+  Copy,
   FileText,
   LoaderCircle,
   ChevronRight,
@@ -85,6 +86,8 @@ export function EndpointLogs({ logs, logsLoading, isCreating }: EndpointLogsProp
 
 function LogEntry({ entry }: { entry: EndpointExecutionLogDTO }) {
   const [expanded, setExpanded] = useState(false);
+  const requestBody = entry.requestBody ? entry.requestBody : '{ "empty": true }';
+  const responseBody = entry.responseBody ? entry.responseBody : '{ "no_body": true }';
 
   return (
     <div
@@ -151,23 +154,21 @@ function LogEntry({ entry }: { entry: EndpointExecutionLogDTO }) {
                 <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
                   Payload Ingress
                 </p>
+                <CopyLogButton label="Copy payload ingress" value={requestBody} />
               </div>
-              <pre className="font-mono text-foreground/80 bg-[#1e1e2e] text-[#cdd6f4] rounded-2xl px-4 py-3 whitespace-pre-wrap break-all max-h-48 overflow-y-auto border border-white/5 shadow-inner custom-scrollbar leading-relaxed">
-                {entry.requestBody ? entry.requestBody : '{ "empty": true }'}
-              </pre>
+              <pre className={logBlockClassName}>{requestBody}</pre>
             </div>
 
             {/* Response */}
             <div className="space-y-2">
               <div className="flex items-center gap-2 px-1">
-                <Braces className="w-3.5 h-3.5 text-blue-500/60" />
+                <Braces className="w-3.5 h-3.5 text-primary/60" />
                 <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
                   Payload Egress
                 </p>
+                <CopyLogButton label="Copy payload egress" value={responseBody} />
               </div>
-              <pre className="font-mono text-foreground/80 bg-[#1e1e2e] text-[#cdd6f4] rounded-2xl px-4 py-3 whitespace-pre-wrap break-all max-h-48 overflow-y-auto border border-white/5 shadow-inner custom-scrollbar leading-relaxed">
-                {entry.responseBody ? entry.responseBody : '{ "no_body": true }'}
-              </pre>
+              <pre className={logBlockClassName}>{responseBody}</pre>
             </div>
           </div>
 
@@ -180,10 +181,9 @@ function LogEntry({ entry }: { entry: EndpointExecutionLogDTO }) {
                     <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
                       Standard Output
                     </p>
+                    <CopyLogButton label="Copy standard output" value={entry.stdout} />
                   </div>
-                  <pre className="font-mono text-success/90 bg-[#1e1e2e] rounded-2xl px-5 py-4 whitespace-pre-wrap break-all max-h-60 overflow-y-auto border border-success/10 shadow-inner custom-scrollbar leading-relaxed">
-                    {entry.stdout}
-                  </pre>
+                  <pre className={cn(logBlockClassName, 'max-h-60 px-5 py-4')}>{entry.stdout}</pre>
                 </div>
               )}
               {entry.stderr && (
@@ -239,5 +239,26 @@ function LogEntry({ entry }: { entry: EndpointExecutionLogDTO }) {
         </div>
       )}
     </div>
+  );
+}
+
+const logBlockClassName =
+  'font-mono text-foreground bg-muted/70 rounded-2xl px-4 py-3 whitespace-pre-wrap break-all max-h-48 overflow-y-auto border border-border/70 shadow-inner custom-scrollbar leading-relaxed';
+
+function CopyLogButton({ label, value }: { label: string; value: string }) {
+  const handleCopy = () => {
+    void navigator.clipboard.writeText(value);
+  };
+
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      title={label}
+      onClick={handleCopy}
+      className="ml-auto inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-border/60 bg-card text-muted-foreground transition-colors hover:border-primary/40 hover:bg-primary/10 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+    >
+      <Copy className="w-3.5 h-3.5" />
+    </button>
   );
 }

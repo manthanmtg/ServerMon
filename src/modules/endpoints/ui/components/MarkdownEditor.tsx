@@ -14,7 +14,6 @@ import {
 import { EditorState } from '@codemirror/state';
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
 import { searchKeymap, highlightSelectionMatches } from '@codemirror/search';
-import { oneDark } from '@codemirror/theme-one-dark';
 import {
   indentOnInput,
   bracketMatching,
@@ -93,7 +92,6 @@ export default function MarkdownEditor({
         history(),
         highlightSelectionMatches(),
         syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
-        oneDark,
         markdown({ base: markdownLanguage, codeLanguages: languages }),
         keymap.of([...defaultKeymap, ...historyKeymap, ...searchKeymap, indentWithTab]),
         customKeymap,
@@ -103,16 +101,47 @@ export default function MarkdownEditor({
           '&': {
             height,
             fontSize: '14px',
+            backgroundColor: 'var(--card)',
+            color: 'var(--foreground)',
+          },
+          '&.cm-focused': {
+            outline: 'none',
+          },
+          '.cm-content': {
+            caretColor: 'var(--foreground)',
           },
           '.cm-scroller': {
             overflow: 'auto',
             fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace',
           },
           '.cm-gutters': {
-            borderRight: '1px solid rgba(255,255,255,0.06)',
+            backgroundColor: 'color-mix(in srgb, var(--muted) 70%, var(--card))',
+            color: 'var(--muted-foreground)',
+            borderRight: '1px solid var(--border)',
+          },
+          '.cm-activeLine': {
+            backgroundColor: 'color-mix(in srgb, var(--primary) 8%, transparent)',
+          },
+          '.cm-activeLineGutter': {
+            backgroundColor: 'color-mix(in srgb, var(--primary) 8%, transparent)',
           },
           '.cm-line': {
             lineHeight: '1.7',
+            color: 'var(--foreground)',
+          },
+          '.cm-selectionBackground, &.cm-focused .cm-selectionBackground': {
+            backgroundColor: 'color-mix(in srgb, var(--primary) 24%, transparent)',
+          },
+          '.cm-cursor': {
+            borderLeftColor: 'var(--foreground)',
+          },
+          '.cm-foldGutter span': {
+            color: 'var(--muted-foreground)',
+          },
+          '.cm-panels': {
+            backgroundColor: 'var(--popover)',
+            color: 'var(--popover-foreground)',
+            borderColor: 'var(--border)',
           },
         }),
       ],
@@ -153,14 +182,14 @@ export default function MarkdownEditor({
   return (
     <div
       className={cn(
-        'rounded-2xl overflow-hidden border border-border/40 bg-[#1e1e2e] shadow-xl',
+        'rounded-2xl overflow-hidden border border-border/70 bg-card shadow-xl',
         className
       )}
     >
       <div ref={containerRef} className="[&_.cm-editor]:outline-none" />
-      <div className="flex items-center justify-between px-4 py-2 bg-[#1a1a26] border-t border-white/5 text-[10px] font-bold text-white/40 uppercase tracking-widest">
+      <div className="flex items-center justify-between px-4 py-2 bg-muted/80 border-t border-border/60 text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
         <div className="flex items-center gap-4">
-          <span className="text-primary/60">markdown</span>
+          <span className="text-primary">markdown</span>
           <span className="font-mono">
             Ln {cursorPos.line}, Col {cursorPos.col}
           </span>
