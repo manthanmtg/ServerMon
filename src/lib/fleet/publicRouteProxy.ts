@@ -65,9 +65,14 @@ export function upsertPublicRouteProxyRule(
 
   const current = proxyRules[idx];
   const merged: PublicRouteProxyRule = {
-    ...current,
-    ...next,
-    remotePort: next.remotePort ?? current.remotePort,
+    name: next.name,
+    type: next.type,
+    ...(next.subdomain ? { subdomain: next.subdomain } : {}),
+    localIp: next.localIp,
+    localPort: next.localPort,
+    ...(next.type === 'tcp' ? { remotePort: current.remotePort ?? next.remotePort } : {}),
+    customDomains: next.customDomains,
+    enabled: next.enabled,
     status: current.status === 'active' ? 'active' : next.status,
     lastError: current.lastError,
   };
