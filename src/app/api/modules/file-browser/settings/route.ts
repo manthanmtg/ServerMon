@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import connectDB from '@/lib/db';
 import { createLogger } from '@/lib/logger';
+import { getSession } from '@/lib/session';
 import FileBrowserSettings from '@/models/FileBrowserSettings';
 import { defaultShortcuts, resolveBrowserPath } from '@/modules/file-browser/lib/file-browser';
 
@@ -48,6 +49,11 @@ async function ensureSettings() {
 
 export async function GET() {
   try {
+    const session = await getSession();
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const settings = await ensureSettings();
     return NextResponse.json({ settings });
   } catch (error) {
@@ -58,6 +64,11 @@ export async function GET() {
 
 export async function PUT(request: NextRequest) {
   try {
+    const session = await getSession();
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     await ensureSettings();
     const body = updateSchema.parse(await request.json());
 

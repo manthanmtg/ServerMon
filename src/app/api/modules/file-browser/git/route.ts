@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { createLogger } from '@/lib/logger';
+import { getSession } from '@/lib/session';
 import {
   gitStage,
   gitUnstage,
@@ -46,6 +47,11 @@ const actionSchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
+    const session = await getSession();
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const body = actionSchema.parse(await request.json());
     const { root, action } = body;
 

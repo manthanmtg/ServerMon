@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { createLogger } from '@/lib/logger';
 import connectDB from '@/lib/db';
+import { getSession } from '@/lib/session';
 import FileBrowserSettings from '@/models/FileBrowserSettings';
 import {
   createDownloadStream,
@@ -46,6 +47,11 @@ function toErrorResponse(error: unknown) {
 
 export async function GET(request: NextRequest) {
   try {
+    const session = await getSession();
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const { searchParams } = new URL(request.url);
     const targetPath = resolveBrowserPath(searchParams.get('path') || '');
     const action = searchParams.get('action') || 'preview';
@@ -76,6 +82,11 @@ export async function GET(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
+    const session = await getSession();
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const body = updateSchema.parse(await request.json());
     await saveFile(body.path, body.content);
     return NextResponse.json({ success: true });
