@@ -114,16 +114,22 @@ export default function LogsPage() {
           <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
           <input
             type="text"
+            aria-label="Search logs"
             placeholder="Search logs..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-full h-10 sm:h-9 pl-9 pr-3 rounded-lg border border-input bg-background text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/40 focus:border-ring transition-colors"
           />
         </div>
-        <div className="flex items-center gap-1 bg-secondary p-1 rounded-lg overflow-x-auto">
+        <div
+          className="flex items-center gap-1 bg-secondary p-1 rounded-lg overflow-x-auto"
+          aria-label="Log severity filter"
+        >
           {FILTER_OPTIONS.map((f) => (
             <button
               key={f.value}
+              type="button"
+              aria-pressed={filter === f.value}
               onClick={() => setFilter(f.value)}
               className={cn(
                 'px-3 py-1.5 rounded-md text-xs font-medium transition-colors cursor-pointer whitespace-nowrap min-h-[32px]',

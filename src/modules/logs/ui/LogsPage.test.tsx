@@ -59,7 +59,7 @@ describe('LogsPage', () => {
 
   it('filters logs by search query', async () => {
     await renderPage();
-    const searchInput = screen.getByPlaceholderText('Search logs...');
+    const searchInput = screen.getByRole('textbox', { name: 'Search logs' });
 
     await act(async () => {
       fireEvent.change(searchInput, { target: { value: 'admin' } });
@@ -85,11 +85,12 @@ describe('LogsPage', () => {
       expect(screen.queryByText('User admin created')).toBeNull();
       expect(screen.queryByText('Service failure')).toBeNull();
     });
+    expect(warnButton).toHaveAttribute('aria-pressed', 'true');
   });
 
   it('renders "No matching logs found" when filters yield no results', async () => {
     await renderPage();
-    const searchInput = screen.getByPlaceholderText('Search logs...');
+    const searchInput = screen.getByRole('textbox', { name: 'Search logs' });
 
     await act(async () => {
       fireEvent.change(searchInput, { target: { value: 'nonexistent' } });
