@@ -16,6 +16,8 @@ import { AssetManager } from './components/AssetManager';
 import { DockerTerminal } from './components/DockerTerminal';
 import { DockerSidebar } from './components/DockerSidebar';
 
+const DOCKER_SNAPSHOT_TIMEOUT_MS = 8000;
+
 export default function DockerPage() {
   const { toast } = useToast();
   const [snapshot, setSnapshot] = useState<DockerSnapshot | null>(null);
@@ -28,8 +30,16 @@ export default function DockerPage() {
   const [pendingActionId, setPendingActionId] = useState<string | null>(null);
 
   const loadSnapshot = useCallback(async () => {
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => {
+      controller.abort();
+    }, DOCKER_SNAPSHOT_TIMEOUT_MS);
+
     try {
-      const response = await fetch('/api/modules/docker', { cache: 'no-store' });
+      const response = await fetch('/api/modules/docker', {
+        cache: 'no-store',
+        signal: controller.signal,
+      });
       const data = await response.json();
       if (!response.ok) {
         throw new Error(data.error || 'Failed to fetch docker data');
@@ -37,11 +47,18 @@ export default function DockerPage() {
       setSnapshot(data);
       setSelectedContainerId((currentId) => currentId || data.containers[0]?.id || null);
     } catch (error: unknown) {
+      const isAbortError = error instanceof DOMException && error.name === 'AbortError';
       toast({
         title: 'Docker snapshot failed',
-        description: error instanceof Error ? error.message : 'Unknown error',
+        description: isAbortError
+          ? `Docker snapshot timed out after ${DOCKER_SNAPSHOT_TIMEOUT_MS / 1000}s`
+          : error instanceof Error
+            ? error.message
+            : 'Unknown error',
         variant: 'destructive',
       });
+    } finally {
+      window.clearTimeout(timeoutId);
     }
   }, [toast]);
 

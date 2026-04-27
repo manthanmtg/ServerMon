@@ -452,6 +452,46 @@ describe('DockerPage', () => {
     await waitFor(() => screen.queryByTestId('page-skeleton') === null);
   });
 
+  it('aborts the initial snapshot request when it hangs', async () => {
+    let requestSignal: AbortSignal | undefined;
+    const realSetTimeout = globalThis.setTimeout.bind(globalThis);
+    const timeoutSpy = vi.spyOn(window, 'setTimeout').mockImplementation((handler, timeout) => {
+      if (timeout === 8000 && typeof handler === 'function') {
+        return realSetTimeout(handler, 0);
+      }
+
+      return realSetTimeout(handler, timeout);
+    });
+
+    global.fetch = vi.fn().mockImplementation((_input: RequestInfo | URL, init?: RequestInit) => {
+      requestSignal = init?.signal ?? undefined;
+
+      return new Promise<Response>((_resolve, reject) => {
+        requestSignal?.addEventListener('abort', () => {
+          reject(new DOMException('Request aborted', 'AbortError'));
+        });
+      });
+    });
+
+    try {
+      await act(async () => {
+        render(
+          <ToastProvider>
+            <DockerPage />
+          </ToastProvider>
+        );
+      });
+
+      expect(requestSignal).toBeDefined();
+      expect(requestSignal?.aborted).toBe(false);
+
+      await waitFor(() => expect(requestSignal?.aborted).toBe(true));
+      await waitFor(() => expect(screen.queryByTestId('page-skeleton')).toBeNull());
+    } finally {
+      timeoutSpy.mockRestore();
+    }
+  });
+
   it('changes container for IO chart', async () => {
     await renderPage();
     await waitFor(() => screen.getByTestId('docker-io-chart'));
