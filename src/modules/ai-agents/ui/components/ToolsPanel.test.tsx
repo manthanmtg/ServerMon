@@ -1,7 +1,8 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { AgentsSnapshot } from '../../types';
-import { ToolsPanel } from './ToolsPanel';
+import { sortAgentToolCards } from '@/lib/ai-agents/tool-catalog';
+import type { AgentsSnapshot, AgentType } from '../../types';
+import { buildToolCatalogSummary, ToolsPanel } from './ToolsPanel';
 
 const snapshot: AgentsSnapshot = {
   summary: { total: 1, running: 0, idle: 0, waiting: 0, error: 0, completed: 1 },
@@ -115,5 +116,19 @@ describe('ToolsPanel', () => {
       expect(screen.getByText(/updating codex/)).toBeDefined();
       expect(screen.getByText(/done/)).toBeDefined();
     });
+  });
+
+  it('derives catalog metrics and selected tool from sorted cards', () => {
+    const cards = sortAgentToolCards({
+      statuses: snapshot.tools,
+      sessionCounts: new Map<AgentType, number>([['codex', 1]]),
+    });
+
+    const summary = buildToolCatalogSummary(cards, 'codex');
+
+    expect(summary.selectedTool?.type).toBe('codex');
+    expect(summary.installedToolCount).toBe(1);
+    expect(summary.configuredToolCount).toBe(1);
+    expect(summary.updateCount).toBe(1);
   });
 });
