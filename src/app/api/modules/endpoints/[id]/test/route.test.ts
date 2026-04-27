@@ -116,6 +116,29 @@ describe('POST /api/modules/endpoints/[id]/test', () => {
     expect(res.status).toBe(200);
   });
 
+  it('ignores malformed test payload fields', async () => {
+    mockFindById.mockResolvedValue(mockEndpoint);
+
+    const res = await POST(
+      makeRequest({
+        body: 123,
+        headers: 'x-not-a-header-map',
+        queryParams: ['not', 'a', 'query', 'map'],
+      }),
+      makeContext('ep-1')
+    );
+
+    expect(res.status).toBe(200);
+    expect(mockExecuteEndpoint).toHaveBeenCalledWith(
+      mockEndpoint,
+      expect.objectContaining({
+        body: '',
+        headers: {},
+        query: {},
+      })
+    );
+  });
+
   it('returns 500 on executor error', async () => {
     mockFindById.mockResolvedValue(mockEndpoint);
     mockExecuteEndpoint.mockRejectedValue(new Error('exec failed'));
