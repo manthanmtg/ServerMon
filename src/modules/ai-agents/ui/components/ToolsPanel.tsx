@@ -59,6 +59,30 @@ function commandText(command?: string[]): string {
   return command?.join(' ') ?? 'No command configured';
 }
 
+export function buildToolCatalogSummary(
+  cards: AgentToolCardModel[],
+  selectedType: AgentType | null
+): {
+  selectedTool: AgentToolCardModel | null;
+  installedToolCount: number;
+  configuredToolCount: number;
+  updateCount: number;
+} {
+  let selectedTool: AgentToolCardModel | null = null;
+  let installedToolCount = 0;
+  let configuredToolCount = 0;
+  let updateCount = 0;
+
+  for (const tool of cards) {
+    if (tool.type === selectedType) selectedTool = tool;
+    if (tool.command && tool.installed) installedToolCount += 1;
+    if (tool.observed) configuredToolCount += 1;
+    if (tool.cardStatus === 'update-available') updateCount += 1;
+  }
+
+  return { selectedTool, installedToolCount, configuredToolCount, updateCount };
+}
+
 async function fetchToolJobs(): Promise<AgentToolJob[]> {
   const res = await fetch(JOBS_ENDPOINT, { cache: 'no-store' });
   if (!res.ok) return [];
@@ -82,10 +106,10 @@ export function ToolsPanel({ snapshot }: { snapshot: AgentsSnapshot | null }) {
     [snapshot, sessionCounts]
   );
 
-  const selectedTool = cards.find((tool) => tool.type === selectedType) ?? null;
-  const installedToolCount = cards.filter((tool) => tool.command && tool.installed).length;
-  const configuredToolCount = cards.filter((tool) => tool.observed).length;
-  const updateCount = cards.filter((tool) => tool.cardStatus === 'update-available').length;
+  const { selectedTool, installedToolCount, configuredToolCount, updateCount } = useMemo(
+    () => buildToolCatalogSummary(cards, selectedType),
+    [cards, selectedType]
+  );
 
   return (
     <div className="space-y-4">
