@@ -538,6 +538,37 @@ describe('AIRunnerPage', () => {
     expect(summaryGrid).toHaveClass('xl:grid-cols-5');
   });
 
+  it('labels timed profile locks by their unlock countdown', async () => {
+    mockProfiles[0] = {
+      ...mockProfiles[0]!,
+      locked: true,
+      lockedAt: new Date(Date.now() - 60_000).toISOString(),
+      lockedUntil: new Date(Date.now() + 4 * 60 * 60 * 1000).toISOString(),
+    };
+
+    try {
+      await act(async () => {
+        render(<AIRunnerPage />);
+      });
+
+      await waitFor(() => expect(screen.getByText('AI Agent Runner')).toBeInTheDocument());
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('tab', { name: /Settings/i }));
+      });
+
+      expect(screen.getByText(/Unlocks in/i)).toBeInTheDocument();
+      expect(screen.queryByText(/Locked in/i)).not.toBeInTheDocument();
+    } finally {
+      mockProfiles[0] = {
+        ...mockProfiles[0]!,
+        locked: false,
+        lockedAt: undefined,
+        lockedUntil: undefined,
+      };
+    }
+  });
+
   it('edits storage and retention settings from the settings tab', async () => {
     await act(async () => {
       render(<AIRunnerPage />);

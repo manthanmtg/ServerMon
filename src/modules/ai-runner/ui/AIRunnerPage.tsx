@@ -4565,7 +4565,7 @@ export default function AIRunnerPage() {
                     };
                     const lockLabel = profile.locked
                       ? profile.lockedUntil
-                        ? `Locked ${formatCountdown(profile.lockedUntil, liveNow)}`
+                        ? `Unlocks ${formatCountdown(profile.lockedUntil, liveNow)}`
                         : 'Locked indefinitely'
                       : null;
 
