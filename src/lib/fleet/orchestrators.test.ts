@@ -5,13 +5,13 @@ import { NginxOrchestrator } from './nginxOrchestrator';
 
 // Mock models
 vi.mock('@/models/FrpServerState', () => ({
-  default: { findOne: vi.fn(), findOneAndUpdate: vi.fn() }
+  default: { findOne: vi.fn(), findOneAndUpdate: vi.fn() },
 }));
 vi.mock('@/models/NginxState', () => ({
-  default: { findOne: vi.fn(), findOneAndUpdate: vi.fn() }
+  default: { findOne: vi.fn(), findOneAndUpdate: vi.fn() },
 }));
 vi.mock('@/models/FleetLogEvent', () => ({
-  default: { create: vi.fn() }
+  default: { create: vi.fn() },
 }));
 
 // Mock orchestrators
@@ -63,11 +63,13 @@ describe('fleet orchestrators', () => {
 
       getFrpOrchestrator();
 
-      expect(FrpOrchestrator).toHaveBeenCalledWith(expect.objectContaining({
-        binaryCacheDir: '/custom/cache',
-        configDir: '/custom/config',
-        binaryVersion: '0.52.3',
-      }));
+      expect(FrpOrchestrator).toHaveBeenCalledWith(
+        expect.objectContaining({
+          binaryCacheDir: '/custom/cache',
+          configDir: '/custom/config',
+          binaryVersion: '0.52.3',
+        })
+      );
     });
 
     it('should use default values for FrpOrchestrator if env vars are missing', () => {
@@ -77,11 +79,13 @@ describe('fleet orchestrators', () => {
 
       getFrpOrchestrator();
 
-      expect(FrpOrchestrator).toHaveBeenCalledWith(expect.objectContaining({
-        binaryCacheDir: '/var/lib/servermon/frp-cache',
-        configDir: '/etc/servermon/frp',
-        binaryVersion: undefined,
-      }));
+      expect(FrpOrchestrator).toHaveBeenCalledWith(
+        expect.objectContaining({
+          binaryCacheDir: '/var/lib/servermon/frp-cache',
+          configDir: '/etc/servermon/frp',
+          binaryVersion: undefined,
+        })
+      );
     });
 
     it('should return a no-op orchestrator if construction fails', async () => {
@@ -93,7 +97,7 @@ describe('fleet orchestrators', () => {
 
       expect(orch.applyRevision).toBeDefined();
       expect(orch.reconcileOnce).toBeDefined();
-      
+
       // Verify it doesn't throw when called
       await expect(orch.applyRevision('rendered', 'hash')).resolves.toBeUndefined();
       await expect(orch.reconcileOnce()).resolves.toEqual({ action: 'none' });
@@ -116,9 +120,14 @@ describe('fleet orchestrators', () => {
 
       const orch = getNginxOrchestrator();
 
-      await expect(orch.writeSnippet('test', 'content')).rejects.toThrow('nginx orchestrator unavailable');
+      await expect(orch.writeSnippet('test', 'content')).rejects.toThrow(
+        'nginx orchestrator unavailable'
+      );
       await expect(orch.removeSnippet('test')).rejects.toThrow('nginx orchestrator unavailable');
-      await expect(orch.applyAndReload()).resolves.toEqual({ ok: false, stderr: 'nginx orchestrator unavailable' });
+      await expect(orch.applyAndReload()).resolves.toEqual({
+        ok: false,
+        stderr: 'nginx orchestrator unavailable',
+      });
     });
   });
 
@@ -138,12 +147,12 @@ describe('fleet orchestrators', () => {
     it('should reset singletons when called with null', () => {
       getFrpOrchestrator();
       getNginxOrchestrator();
-      
+
       expect(FrpOrchestrator).toHaveBeenCalledTimes(1);
       expect(NginxOrchestrator).toHaveBeenCalledTimes(1);
 
       __setOrchestrators__(null, null);
-      
+
       getFrpOrchestrator();
       getNginxOrchestrator();
 
