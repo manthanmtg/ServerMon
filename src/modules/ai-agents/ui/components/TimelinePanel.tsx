@@ -35,7 +35,9 @@ function TimelinePanelInner({ timeline, autoScroll }: Props) {
               <div className="absolute -left-[31px] top-1.5 w-4 h-4 rounded-full border-2 border-background bg-primary shadow-sm transition-transform duration-300 group-hover:scale-125 group-hover:shadow-[0_0_12px_hsl(var(--primary)/0.4)]" />
               <div className="space-y-1">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold transition-colors duration-200 group-hover:text-primary">{entry.action}</span>
+                  <span className="text-xs font-semibold transition-colors duration-200 group-hover:text-primary">
+                    {entry.action}
+                  </span>
                   <span className="text-[10px] text-muted-foreground bg-secondary px-1.5 py-0.5 rounded transition-colors duration-200 group-hover:bg-primary/10 group-hover:text-primary">
                     {relativeTime(entry.timestamp)}
                   </span>
