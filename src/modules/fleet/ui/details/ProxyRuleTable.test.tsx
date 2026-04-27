@@ -71,14 +71,20 @@ describe('ProxyRuleTable', () => {
     });
   });
 
-  it('remove rule removes from list', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue({
+  it('remove rule persists and removes from list', async () => {
+    const fetchMock = vi.fn(async (_url: string, init?: RequestInit) => {
+      if (init?.method === 'PATCH') {
+        return {
+          ok: true,
+          json: async () => ({ node: { ...nodeWithRules, proxyRules: [] } }),
+        };
+      }
+      return {
         ok: true,
         json: async () => ({ node: nodeWithRules }),
-      })
-    );
+      };
+    });
+    vi.stubGlobal('fetch', fetchMock);
 
     await act(async () => {
       render(<ProxyRuleTable nodeId="n1" />);
@@ -92,6 +98,17 @@ describe('ProxyRuleTable', () => {
       fireEvent.click(screen.getByLabelText('Remove rule 1'));
     });
 
+    await waitFor(() => {
+      expect(
+        fetchMock.mock.calls.some(
+          ([url, init]) =>
+            typeof url === 'string' &&
+            url.endsWith('/api/fleet/nodes/n1') &&
+            (init as { method?: string } | undefined)?.method === 'PATCH' &&
+            String((init as { body?: string } | undefined)?.body).includes('"proxyRules":[]')
+        )
+      ).toBe(true);
+    });
     await waitFor(() => {
       expect(screen.queryByDisplayValue('web')).toBeNull();
     });

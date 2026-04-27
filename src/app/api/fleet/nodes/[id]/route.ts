@@ -166,6 +166,15 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     const frpServer = await FrpServerState.findOne({ key: 'global' }).lean();
 
     if (Array.isArray(updates.proxyRules)) {
+      const previousProxyNames = new Set(
+        (Array.isArray(existing.proxyRules) ? existing.proxyRules : [])
+          .map((rule) => rule.name)
+          .filter((name): name is string => Boolean(name))
+      );
+      const nextProxyNames = new Set(
+        updates.proxyRules.map((rule) => rule.name).filter((name): name is string => Boolean(name))
+      );
+      const removedProxyNames = [...previousProxyNames].filter((name) => !nextProxyNames.has(name));
       const routeQuery = PublicRoute.find({
         nodeId: id,
         enabled: true,
@@ -176,7 +185,24 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       const publicRoutes = await routeQuery.lean();
       const proxyRules = updates.proxyRules as PublicRouteProxyRule[];
       for (const route of publicRoutes) {
+        if (removedProxyNames.includes(route.proxyRuleName)) continue;
         upsertPublicRouteProxyRule(proxyRules, route, frpServer?.subdomainHost);
+      }
+      if (removedProxyNames.length > 0) {
+        await PublicRoute.updateMany(
+          {
+            nodeId: id,
+            proxyRuleName: { $in: removedProxyNames },
+            enabled: true,
+          },
+          {
+            $set: {
+              enabled: false,
+              status: 'disabled',
+              updatedBy: actorUsername,
+            },
+          }
+        );
       }
     }
 

@@ -88,10 +88,11 @@ export function ProxyRuleTable({ nodeId }: { nodeId: string }) {
     setRules(next);
   };
 
-  const remove = (i: number) => {
+  const remove = async (i: number) => {
     if (!rules) return;
     const next = rules.filter((_, idx) => idx !== i);
     setRules(next);
+    await persist(next);
   };
 
   if (!rules)

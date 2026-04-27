@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
+import { ExternalLink } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
@@ -31,6 +32,16 @@ interface PublicRouteRow {
   templateId?: string;
   healthStatus?: string;
   dnsStatus?: string;
+}
+
+function buildPublicRouteUrl(route: PublicRouteRow): string {
+  const protocol = route.tlsEnabled ? 'https' : 'http';
+  return `${protocol}://${route.domain}`;
+}
+
+function formatTarget(route: PublicRouteRow): string {
+  if (!route.target) return 'target: unknown';
+  return `target: ${route.target.localIp}:${route.target.localPort}`;
 }
 
 function routeToForm(route: PublicRouteRow): ExposeForm {
@@ -146,13 +157,51 @@ export function PublicRouteTable({ nodeId }: { nodeId: string }) {
                 <tbody>
                   {routes.map((r) => (
                     <tr key={r._id} className="border-b border-border/50 last:border-none">
-                      <td className="py-2 pr-2">{r.name}</td>
-                      <td className="py-2 pr-2 font-mono text-xs">{r.domain}</td>
-                      <td className="py-2 pr-2">
-                        <Badge variant="outline">{r.status}</Badge>
+                      <td className="py-3 pr-2 align-top">
+                        <div className="font-medium">{r.name}</div>
+                        <div className="mt-1 space-y-0.5 text-xs text-muted-foreground">
+                          <div>slug: {r.slug}</div>
+                          <div>proxy: {r.proxyRuleName}</div>
+                        </div>
                       </td>
-                      <td className="py-2 pr-2 text-xs">{r.accessMode}</td>
-                      <td className="py-2 pr-2 text-xs">{r.tlsEnabled ? 'on' : 'off'}</td>
+                      <td className="py-3 pr-2 align-top">
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-xs">{r.domain}</span>
+                          <a
+                            href={buildPublicRouteUrl(r)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            aria-label={`Open route ${r.name} in a new tab`}
+                            title="Open route"
+                            className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                          >
+                            <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+                          </a>
+                        </div>
+                        <div className="mt-1 text-xs text-muted-foreground">{formatTarget(r)}</div>
+                      </td>
+                      <td className="py-2 pr-2">
+                        <div className="space-y-1">
+                          <Badge variant="outline">{r.status}</Badge>
+                          <div className="space-y-0.5 text-xs text-muted-foreground">
+                            <div>DNS: {r.dnsStatus ?? 'unknown'}</div>
+                            <div>Health: {r.healthStatus ?? 'unknown'}</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="py-3 pr-2 align-top text-xs">
+                        <div>{r.accessMode}</div>
+                        <div className="mt-1 space-y-0.5 text-muted-foreground">
+                          <div>websocket: {r.websocketEnabled ? 'on' : 'off'}</div>
+                          <div>compression: {r.compression ? 'on' : 'off'}</div>
+                        </div>
+                      </td>
+                      <td className="py-3 pr-2 align-top text-xs">
+                        <div>{r.tlsEnabled ? 'on' : 'off'}</div>
+                        <div className="mt-1 text-muted-foreground">
+                          TLS provider: {r.tlsProvider ?? 'unknown'}
+                        </div>
+                      </td>
                       <td className="py-2 pr-2">
                         <div className="flex justify-end gap-2">
                           <Button

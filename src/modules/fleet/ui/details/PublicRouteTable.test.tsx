@@ -12,6 +12,8 @@ const mockRoutes = [
     accessMode: 'servermon_auth',
     tlsEnabled: true,
     tlsProvider: 'letsencrypt',
+    healthStatus: 'healthy',
+    dnsStatus: 'ok',
     nodeId: 'n1',
     proxyRuleName: 'my-app',
     target: {
@@ -51,6 +53,15 @@ describe('PublicRouteTable', () => {
     });
     expect(screen.getByText('app.example.com')).toBeDefined();
     expect(screen.getByText('active')).toBeDefined();
+    expect(screen.getByText('slug: my-app')).toBeDefined();
+    expect(screen.getByText('proxy: my-app')).toBeDefined();
+    expect(screen.getByText('target: 127.0.0.1:8080')).toBeDefined();
+    expect(screen.getByText('DNS: ok')).toBeDefined();
+    expect(screen.getByText('Health: healthy')).toBeDefined();
+    expect(screen.getByText('TLS provider: letsencrypt')).toBeDefined();
+    const publicLink = screen.getByLabelText('Open route My App in a new tab');
+    expect(publicLink).toHaveAttribute('href', 'https://app.example.com');
+    expect(publicLink).toHaveAttribute('target', '_blank');
   });
 
   it('shows empty state when no routes', async () => {

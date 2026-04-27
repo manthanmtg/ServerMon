@@ -16,6 +16,7 @@ const {
   mockGetNginxOrchestrator,
   mockResourcePolicyFind,
   mockPublicRouteFind,
+  mockPublicRouteUpdateMany,
 } = vi.hoisted(() => ({
   mockGetSession: vi.fn(),
   mockFindById: vi.fn(),
@@ -30,6 +31,7 @@ const {
   mockGetNginxOrchestrator: vi.fn(() => ({})),
   mockResourcePolicyFind: vi.fn(),
   mockPublicRouteFind: vi.fn(),
+  mockPublicRouteUpdateMany: vi.fn(),
 }));
 
 vi.mock('@/lib/db', () => ({ default: vi.fn().mockResolvedValue(undefined) }));
@@ -60,7 +62,7 @@ vi.mock('@/models/FrpServerState', () => ({
   default: { findOne: mockFrpFindOne },
 }));
 vi.mock('@/models/PublicRoute', () => ({
-  default: { find: mockPublicRouteFind },
+  default: { find: mockPublicRouteFind, updateMany: mockPublicRouteUpdateMany },
 }));
 vi.mock('@/models/ResourcePolicy', () => ({
   default: { find: mockResourcePolicyFind },
@@ -157,6 +159,7 @@ describe('PATCH /api/fleet/nodes/[id]', () => {
     mockPublicRouteFind.mockReturnValue({
       lean: vi.fn().mockResolvedValue([]),
     });
+    mockPublicRouteUpdateMany.mockResolvedValue({ modifiedCount: 0 });
   });
 
   function makeReq(body: unknown): NextRequest {
@@ -339,6 +342,66 @@ describe('PATCH /api/fleet/nodes/[id]', () => {
 
     const res = await PATCH(makeReq({ proxyRules: [existingRule] }), makeContext('node-1'));
     expect(res.status).toBe(200);
+  });
+
+  it('does not reinsert explicitly removed proxy rules from public routes', async () => {
+    const removedRule = {
+      name: 'web',
+      type: 'http' as const,
+      localIp: '127.0.0.1',
+      localPort: 3000,
+      customDomains: [],
+      enabled: true,
+      status: 'active' as const,
+    };
+    mockFindById.mockResolvedValue({
+      ...baseNode,
+      proxyRules: [removedRule],
+    });
+    mockPublicRouteFind.mockReturnValue({
+      lean: vi.fn().mockResolvedValue([
+        {
+          _id: 'route-1',
+          nodeId: 'node-1',
+          name: 'Web',
+          slug: 'web',
+          domain: 'web.example.com',
+          proxyRuleName: 'web',
+          target: { localIp: '127.0.0.1', localPort: 3000, protocol: 'http' },
+          enabled: true,
+        },
+      ]),
+    });
+    const updatedDoc = {
+      ...baseNode,
+      proxyRules: [],
+      toObject: () => ({ ...baseNode, proxyRules: [] }),
+      save: vi.fn().mockResolvedValue(undefined),
+    };
+    mockFindByIdAndUpdate.mockResolvedValue(updatedDoc);
+
+    const res = await PATCH(makeReq({ proxyRules: [] }), makeContext('node-1'));
+
+    expect(res.status).toBe(200);
+    expect(mockFindByIdAndUpdate).toHaveBeenCalledWith(
+      'node-1',
+      expect.objectContaining({ proxyRules: [] }),
+      { new: true }
+    );
+    expect(mockPublicRouteUpdateMany).toHaveBeenCalledWith(
+      {
+        nodeId: 'node-1',
+        proxyRuleName: { $in: ['web'] },
+        enabled: true,
+      },
+      {
+        $set: expect.objectContaining({
+          enabled: false,
+          status: 'disabled',
+          updatedBy: 'admin',
+        }),
+      }
+    );
   });
 
   it('allows growing proxyRules when enforcement is soft', async () => {
