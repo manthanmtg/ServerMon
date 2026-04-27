@@ -111,7 +111,3 @@ export class PackageExecutor implements Executor {
     return { success: true, logs };
   }
 }
-
-export function createPackageExecutor(): Executor {
-  return new PackageExecutor();
-}

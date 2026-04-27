@@ -131,7 +131,3 @@ export async function detectSystemdService(service: string): Promise<boolean> {
     return false;
   }
 }
-
-export function createShellExecutor(): Executor {
-  return new ShellExecutor();
-}

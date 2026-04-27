@@ -61,7 +61,3 @@ export class ScriptExecutor implements Executor {
     }
   }
 }
-
-export function createScriptExecutor(): Executor {
-  return new ScriptExecutor();
-}
