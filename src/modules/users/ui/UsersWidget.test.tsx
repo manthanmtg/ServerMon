@@ -87,4 +87,34 @@ describe('UsersWidget', () => {
     const zeros = screen.getAllByText('0');
     expect(zeros.length).toBeGreaterThanOrEqual(3);
   });
+
+  it('treats malformed user payloads as empty lists', async () => {
+    global.fetch = vi.fn().mockImplementation((url: string) => {
+      if (url.includes('type=os')) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({ users: mockOSUsers }),
+        });
+      }
+      if (url.includes('type=web')) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => [{ username: 'admin', role: 'admin' }],
+        });
+      }
+      return Promise.resolve({ ok: true, json: async () => ({}) });
+    });
+
+    await act(async () => {
+      render(<UsersWidget />);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText('1', { selector: '.text-emerald-600' })).toBeDefined();
+    });
+
+    const osUsersLabel = screen.getByText('OS Users');
+    const osUsersCount = osUsersLabel.parentElement?.parentElement?.firstElementChild;
+    expect(osUsersCount?.textContent).toBe('0');
+  });
 });
