@@ -24,13 +24,25 @@ const STEP_LABELS: Record<StepKey, string> = {
 
 export interface ExposeServiceWizardProps {
   nodeId?: string;
+  mode?: 'create' | 'edit';
+  routeId?: string;
+  initialForm?: ExposeForm;
   onCreated?: (route: { _id: string; name: string; domain: string }) => void;
+  onSaved?: (route: { _id: string; name: string; domain: string }) => void;
   onCancel?: () => void;
 }
 
-export function ExposeServiceWizard({ nodeId, onCreated, onCancel }: ExposeServiceWizardProps) {
+export function ExposeServiceWizard({
+  nodeId,
+  mode = 'create',
+  routeId,
+  initialForm,
+  onCreated,
+  onSaved,
+  onCancel,
+}: ExposeServiceWizardProps) {
   const [form, setForm] = useState<ExposeForm>(() => ({
-    ...INITIAL_FORM,
+    ...(initialForm ?? INITIAL_FORM),
     nodeId: nodeId ?? '',
   }));
   const [step, setStep] = useState<StepKey>('identity');
@@ -50,7 +62,7 @@ export function ExposeServiceWizard({ nodeId, onCreated, onCancel }: ExposeServi
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Expose service</CardTitle>
+        <CardTitle>{mode === 'edit' ? 'Edit route' : 'Expose service'}</CardTitle>
         <div className="flex flex-wrap gap-1 pt-2" aria-label="wizard steps">
           {STEP_ORDER.map((s, i) => (
             <Badge key={s} variant={s === step ? 'default' : i < idx ? 'success' : 'outline'}>
@@ -74,7 +86,10 @@ export function ExposeServiceWizard({ nodeId, onCreated, onCancel }: ExposeServi
             form={form}
             setForm={setForm}
             back={back}
+            mode={mode}
+            routeId={routeId}
             onCreated={onCreated}
+            onSaved={onSaved}
             onCancel={onCancel}
           />
         )}

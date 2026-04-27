@@ -15,22 +15,37 @@ interface Props {
   form: ExposeForm;
   setForm: (f: ExposeForm) => void;
   back: () => void;
+  mode?: 'create' | 'edit';
+  routeId?: string;
   onCreated?: (route: CreatedRoute) => void;
+  onSaved?: (route: CreatedRoute) => void;
   onCancel?: () => void;
 }
 
-export function StepCreate({ form, back, onCreated, onCancel }: Props) {
+export function StepCreate({
+  form,
+  back,
+  mode = 'create',
+  routeId,
+  onCreated,
+  onSaved,
+  onCancel,
+}: Props) {
   const [submitting, setSubmitting] = useState(false);
   const [applying, setApplying] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [created, setCreated] = useState<CreatedRoute | null>(null);
   const [autoInsertedProxy, setAutoInsertedProxy] = useState(false);
   const [applied, setApplied] = useState(false);
+  const isEdit = mode === 'edit';
 
   const submit = async () => {
     setSubmitting(true);
     setError(null);
     try {
+      if (isEdit && !routeId) {
+        throw new Error('Route ID missing');
+      }
       const payload = {
         name: form.name,
         slug: form.slug,
@@ -48,8 +63,8 @@ export function StepCreate({ form, back, onCreated, onCancel }: Props) {
         headers: form.headers,
         templateId: form.templateSlug,
       };
-      const res = await fetch('/api/fleet/routes', {
-        method: 'POST',
+      const res = await fetch(isEdit ? `/api/fleet/routes/${routeId}` : '/api/fleet/routes', {
+        method: isEdit ? 'PATCH' : 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(payload),
       });
@@ -68,7 +83,9 @@ export function StepCreate({ form, back, onCreated, onCancel }: Props) {
       };
       setCreated(summary);
       setAutoInsertedProxy(Boolean(data.autoInsertedProxy));
-      if (onCreated) onCreated(summary);
+      if (isEdit) {
+        if (onSaved) onSaved(summary);
+      } else if (onCreated) onCreated(summary);
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -100,9 +117,9 @@ export function StepCreate({ form, back, onCreated, onCancel }: Props) {
   if (created) {
     return (
       <div className="space-y-3 text-sm">
-        <h4 className="text-sm font-semibold">Route created</h4>
+        <h4 className="text-sm font-semibold">{isEdit ? 'Route updated' : 'Route created'}</h4>
         <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="success">Created</Badge>
+          <Badge variant="success">{isEdit ? 'Updated' : 'Created'}</Badge>
           {applied && <Badge variant="success">Applied</Badge>}
         </div>
         {autoInsertedProxy && (
@@ -158,9 +175,11 @@ export function StepCreate({ form, back, onCreated, onCancel }: Props) {
   return (
     <div className="space-y-4">
       <div>
-        <h4 className="text-sm font-semibold">Create &amp; apply</h4>
+        <h4 className="text-sm font-semibold">{isEdit ? 'Save & apply' : 'Create & apply'}</h4>
         <p className="text-xs text-muted-foreground">
-          Creating the route will save the Nginx revision and optionally apply it.
+          {isEdit
+            ? 'Saving the route will create a new Nginx revision and optionally apply it.'
+            : 'Creating the route will save the Nginx revision and optionally apply it.'}
         </p>
       </div>
       {error && (
@@ -203,7 +222,7 @@ export function StepCreate({ form, back, onCreated, onCancel }: Props) {
           Back
         </Button>
         <Button type="button" onClick={submit} loading={submitting} disabled={submitting}>
-          Create
+          {isEdit ? 'Save changes' : 'Create'}
         </Button>
       </div>
     </div>
