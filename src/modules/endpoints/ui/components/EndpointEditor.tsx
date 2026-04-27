@@ -16,11 +16,17 @@ import ConfirmationModal from '@/components/ui/ConfirmationModal';
 const ScriptEditor = dynamic(() => import('./ScriptEditor'), {
   ssr: false,
   loading: () => (
-    <div className="w-full h-[400px] rounded-2xl border border-border/40 bg-[#1e1e2e] flex items-center justify-center shadow-xl">
+    <div className="w-full h-[400px] rounded-2xl border border-border/60 bg-card flex items-center justify-center shadow-2xl ring-1 ring-border/40">
       <LoaderCircle className="w-6 h-6 animate-spin text-primary/40" />
     </div>
   ),
 });
+
+const editorShellClass =
+  'rounded-2xl overflow-hidden border border-border/60 bg-card shadow-2xl ring-1 ring-border/40 transition-all duration-300 hover:border-border/80 focus-within:border-primary/50 focus-within:ring-primary/20';
+
+const editorTextareaClass =
+  'w-full px-5 py-4 bg-transparent text-foreground text-xs font-mono outline-none resize-y placeholder:text-muted-foreground/50 focus:bg-muted/20 transition-colors';
 
 interface EndpointEditorProps {
   form: EndpointCreateRequest;
@@ -60,7 +66,7 @@ export function EndpointEditor({ form, onUpdateForm, onRun, onSave }: EndpointEd
                       'px-3 sm:px-4 py-1.5 rounded-lg text-[9px] sm:text-[10px] font-bold capitalize transition-all duration-300 whitespace-nowrap',
                       form.scriptLang === lang
                         ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/20 scale-[1.02]'
-                        : 'text-muted-foreground hover:text-foreground hover:bg-white/5'
+                        : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
                     )}
                   >
                     {lang}
@@ -81,13 +87,13 @@ export function EndpointEditor({ form, onUpdateForm, onRun, onSave }: EndpointEd
                 <span>Load {form.scriptLang} Boilerplate</span>
               </button>
             </div>
-            <div className="px-4 py-1.5 rounded-xl bg-white/5 border border-white/10 text-[9px] font-mono text-muted-foreground/40 uppercase tracking-[0.2em] hidden sm:block">
+            <div className="px-4 py-1.5 rounded-xl bg-muted/30 border border-border/30 text-[9px] font-mono text-muted-foreground/40 uppercase tracking-[0.2em] hidden sm:block">
               {form.scriptLang}/interpreter
             </div>
           </div>
 
           <div className="group relative">
-            <div className="absolute -inset-1 bg-gradient-to-r from-primary/20 to-blue-500/20 rounded-[2rem] blur opacity-25 group-hover:opacity-40 transition duration-1000 group-hover:duration-200" />
+            <div className="absolute -inset-1 bg-gradient-to-r from-primary/20 to-accent/30 rounded-[2rem] blur opacity-25 group-hover:opacity-40 transition duration-1000 group-hover:duration-200" />
             <div className="relative">
               <ScriptEditor
                 value={form.scriptContent || ''}
@@ -263,7 +269,7 @@ export function EndpointEditor({ form, onUpdateForm, onRun, onSave }: EndpointEd
             >
               <div
                 className={cn(
-                  'w-6 h-6 rounded-full bg-white shadow-xl transition-all duration-300 transform',
+                  'w-6 h-6 rounded-full bg-primary-foreground shadow-xl transition-all duration-300 transform',
                   form.webhookConfig?.forwardHeaders ? 'translate-x-6' : 'translate-x-0'
                 )}
               />
@@ -277,7 +283,7 @@ export function EndpointEditor({ form, onUpdateForm, onRun, onSave }: EndpointEd
                 Payload Transformer (JavaScript)
               </label>
             </div>
-            <div className="rounded-2xl overflow-hidden border border-border/40 bg-[#1e1e2e] shadow-xl">
+            <div className={editorShellClass}>
               <textarea
                 value={form.webhookConfig?.transformBody || ''}
                 onChange={(e) =>
@@ -289,7 +295,7 @@ export function EndpointEditor({ form, onUpdateForm, onRun, onSave }: EndpointEd
                 }
                 placeholder="// return { name: input.fullName };"
                 rows={6}
-                className="w-full px-5 py-4 bg-transparent text-[#cdd6f4] text-xs font-mono outline-none resize-y min-h-[160px]"
+                className={cn(editorTextareaClass, 'min-h-[160px]')}
                 spellCheck={false}
               />
             </div>
@@ -328,7 +334,7 @@ export function EndpointEditor({ form, onUpdateForm, onRun, onSave }: EndpointEd
                 </button>
               )}
             </div>
-            <div className="rounded-2xl overflow-hidden border border-border/40 bg-[#1e1e2e] shadow-xl">
+            <div className={editorShellClass}>
               <textarea
                 value={form.logicConfig?.requestSchema || ''}
                 onChange={(e) =>
@@ -339,7 +345,7 @@ export function EndpointEditor({ form, onUpdateForm, onRun, onSave }: EndpointEd
                 }
                 placeholder='{ "type": "object", "required": ["user_id"] }'
                 rows={5}
-                className="w-full px-5 py-4 bg-transparent text-[#cdd6f4] text-xs font-mono outline-none resize-y min-h-[140px]"
+                className={cn(editorTextareaClass, 'min-h-[140px]')}
                 spellCheck={false}
               />
             </div>
@@ -352,7 +358,7 @@ export function EndpointEditor({ form, onUpdateForm, onRun, onSave }: EndpointEd
                 Edge Handler Logic (JS)
               </label>
             </div>
-            <div className="rounded-2xl overflow-hidden border border-border/40 bg-[#1e1e2e] shadow-xl ring-1 ring-primary/10">
+            <div className={cn(editorShellClass, 'ring-primary/10')}>
               <textarea
                 value={form.logicConfig?.handlerCode || ''}
                 onChange={(e) =>
@@ -363,7 +369,7 @@ export function EndpointEditor({ form, onUpdateForm, onRun, onSave }: EndpointEd
                 }
                 placeholder="return { statusCode: 200, body: { status: 'ok' } };"
                 rows={10}
-                className="w-full px-5 py-4 bg-transparent text-[#cdd6f4] text-xs font-mono outline-none resize-y min-h-[240px]"
+                className={cn(editorTextareaClass, 'min-h-[240px]')}
                 spellCheck={false}
               />
             </div>
@@ -376,7 +382,7 @@ export function EndpointEditor({ form, onUpdateForm, onRun, onSave }: EndpointEd
                 Response Mapping (JSON)
               </label>
             </div>
-            <div className="rounded-2xl overflow-hidden border border-border/40 bg-[#1e1e2e] shadow-xl">
+            <div className={editorShellClass}>
               <textarea
                 value={form.logicConfig?.responseMapping || ''}
                 onChange={(e) =>
@@ -387,7 +393,7 @@ export function EndpointEditor({ form, onUpdateForm, onRun, onSave }: EndpointEd
                 }
                 placeholder='{ "status": 200, "headers": { "X-Server-Mon": "active" } }'
                 rows={4}
-                className="w-full px-5 py-4 bg-transparent text-[#cdd6f4] text-xs font-mono outline-none resize-y min-h-[100px]"
+                className={cn(editorTextareaClass, 'min-h-[100px]')}
                 spellCheck={false}
               />
             </div>
