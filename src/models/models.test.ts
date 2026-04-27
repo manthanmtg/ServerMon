@@ -272,13 +272,6 @@ describe('Mongoose Models', () => {
     });
   });
 
-  describe('UpdateAlert model', () => {
-    it('exports a model', async () => {
-      const mod = await import('./UpdateAlert');
-      expect(mod.default).toBeDefined();
-    });
-  });
-
   describe('UpdateHistory model', () => {
     it('exports a model', async () => {
       const mod = await import('./UpdateHistory');
