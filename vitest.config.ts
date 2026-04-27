@@ -12,6 +12,9 @@ export default defineConfig({
     alias: {
       '@': path.resolve(__dirname, './src'),
     },
+    env: {
+      NODE_ENV: 'test',
+    },
     reporters: ['default', 'junit'],
     outputFile: {
       junit: 'junit.xml',
