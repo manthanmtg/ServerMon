@@ -45,9 +45,6 @@ export interface ScheduleConflictWindow {
   kind: 'self-overlap' | 'multi-schedule';
 }
 
-export type WorkspaceConflictWindow = ScheduleConflictWindow;
-export type ProfileConflictWindow = ScheduleConflictWindow;
-
 interface BaseGroupVisualization {
   schedules: VisualizedSchedule[];
   enabledCount: number;
