@@ -49,6 +49,7 @@ ServerMon ships with a rich set of modules out of the box:
 | **Services**     | Monitor and manage systemd services                                                                  |
 | **Cron Jobs**    | View and manage cron schedules and execution history                                                 |
 | **Updates**      | Track available system and package updates                                                           |
+| **Fleet**        | Centralized management of remote nodes, public routes, and reverse proxies                           |
 | **AI Agents**    | Monitor AI coding agent sessions running on the server                                               |
 | **AI Runner**    | Configure AI automation profiles, prompts, schedules, and run history                                |
 | **Self Service** | Browse and install managed apps, CLI tools, and services                                             |

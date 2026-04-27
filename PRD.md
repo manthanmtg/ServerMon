@@ -923,6 +923,7 @@ The following modules are currently implemented in the core system:
 - **AI Runner**: Active orchestration and scheduling of AI CLI tools
 - **Security & Audit Logs**: MFA, settings, and action history
 - **Certificates, Ports, Hardware, Nginx**: Infrastructure monitoring
+- **Fleet Management**: Centralized administration of remote nodes, public routes, and reverse proxies
 
 ---
 
@@ -1112,7 +1113,6 @@ Possible roadmap items:
 - multi server monitoring
 - alerting system
 - notification integrations
-- Fleet Management
 - Remote configuration sync
 
 Examples:
