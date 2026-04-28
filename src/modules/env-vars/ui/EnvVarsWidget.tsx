@@ -6,13 +6,20 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import type { EnvVarsSnapshot } from '../types';
 
+const ENV_VARS_WIDGET_TIMEOUT_MS = 8000;
+
 export default function EnvVarsWidget() {
   const [snapshot, setSnapshot] = useState<EnvVarsSnapshot | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let active = true;
-    fetch('/api/modules/env-vars', { cache: 'no-store' })
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => {
+      controller.abort();
+    }, ENV_VARS_WIDGET_TIMEOUT_MS);
+
+    fetch('/api/modules/env-vars', { cache: 'no-store', signal: controller.signal })
       .then((response) => (response.ok ? response.json() : null))
       .then((data: EnvVarsSnapshot | null) => {
         if (active) setSnapshot(data);
@@ -21,11 +28,14 @@ export default function EnvVarsWidget() {
         if (active) setSnapshot(null);
       })
       .finally(() => {
+        window.clearTimeout(timeoutId);
         if (active) setLoading(false);
       });
 
     return () => {
       active = false;
+      controller.abort();
+      window.clearTimeout(timeoutId);
     };
   }, []);
 
