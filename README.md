@@ -22,7 +22,7 @@ Real-time metrics · Web terminal · Docker management · File browser · AI age
 
 - **Multi-factor authentication** — Argon2 password hashing + TOTP (Google Authenticator compatible)
 - **Real-time dashboard** — Live CPU, memory, and network charts via Server-Sent Events
-- **24 built-in feature modules** — Terminal, processes, Docker, disk, network, file browser, services, cron jobs, AI agents, self-service installs, and more
+- **26 built-in feature modules** — Terminal, processes, Docker, disk, network, file browser, services, cron jobs, environment variables, AI agents, self-service installs, and more
 - **6 stunning themes** — Light, Obsidian, Monokai, Solarized, Nord, and Cyberpunk
 - **One-command deployment** — Interactive installer handles Node.js, MongoDB, Nginx, and SSL
 - **Modular architecture** — Error boundaries per widget, shared UI components, and a module registry for easy extension
@@ -54,6 +54,7 @@ ServerMon ships with a rich set of modules out of the box:
 | **AI Runner**    | Configure AI automation profiles, prompts, schedules, and run history                                |
 | **Self Service** | Browse and install managed apps, CLI tools, and services                                             |
 | **Endpoints**    | Define and execute custom API endpoints, scripts, and webhook proxies                                |
+| **EnvVars**      | Inspect and update host-level user environment variables with OS-aware system instructions           |
 | **Certificates** | Manage SSL/TLS certificates and renewals                                                             |
 | **Ports**        | Monitor open ports and listening services                                                            |
 | **Hardware**     | Detailed hardware specifications and health info                                                     |
