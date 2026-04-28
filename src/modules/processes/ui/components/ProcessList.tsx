@@ -1,0 +1,442 @@
+import React from 'react';
+import {
+  ArrowUpDown,
+  ChevronDown,
+  ChevronRight,
+  Clock,
+  Cpu,
+  MemoryStick,
+  Skull,
+  User,
+} from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
+import type { ProcessInfo, ProcessSortField } from '../types';
+
+function formatBytes(bytes: number): string {
+  if (bytes === 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return `${(bytes / Math.pow(k, i)).toFixed(1)} ${sizes[i]}`;
+}
+
+function formatTime(started: string): string {
+  if (!started) return '—';
+  const d = new Date(started);
+  if (isNaN(d.getTime())) return '—';
+  const now = Date.now();
+  const diffMs = now - d.getTime();
+  if (diffMs < 0) return '—';
+  const mins = Math.floor(diffMs / 60000);
+  if (mins < 60) return `${mins}m`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ${mins % 60}m`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ${hours % 24}h`;
+}
+
+function stateVariant(state: string): 'success' | 'secondary' | 'warning' | 'destructive' {
+  switch (state) {
+    case 'running':
+      return 'success';
+    case 'sleeping':
+      return 'secondary';
+    case 'stopped':
+      return 'warning';
+    case 'zombie':
+      return 'destructive';
+    default:
+      return 'secondary';
+  }
+}
+
+function cpuColor(cpu: number): string {
+  if (cpu > 50) return 'text-destructive';
+  if (cpu > 20) return 'text-warning';
+  return 'text-foreground';
+}
+
+function CpuBarBase({ value }: { value: number }) {
+  return (
+    <div className="w-16 h-1.5 bg-secondary rounded-full overflow-hidden">
+      <div
+        className={cn(
+          'h-full rounded-full transition-all',
+          value > 50 ? 'bg-destructive' : value > 20 ? 'bg-warning' : 'bg-primary'
+        )}
+        style={{ width: `${Math.min(value, 100)}%` }}
+      />
+    </div>
+  );
+}
+
+const CpuBar = React.memo(CpuBarBase);
+
+interface SortHeaderProps {
+  field: ProcessSortField;
+  children: React.ReactNode;
+  className?: string;
+  currentSort: ProcessSortField;
+  onSort: (field: ProcessSortField) => void;
+}
+
+const SortHeader = React.memo(
+  ({ field, children, className, currentSort, onSort }: SortHeaderProps) => (
+    <th
+      className={cn('px-3 py-2.5 text-xs font-medium text-muted-foreground', className)}
+      aria-sort={currentSort === field ? 'descending' : 'none'}
+    >
+      <button
+        type="button"
+        className="inline-flex items-center gap-1 cursor-pointer hover:text-foreground transition-colors select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 rounded-sm"
+        onClick={() => onSort(field)}
+        aria-label={`Sort by ${String(children)}`}
+      >
+        {children}
+        {currentSort === field && <ArrowUpDown className="w-3 h-3 text-primary" />}
+      </button>
+    </th>
+  )
+);
+
+SortHeader.displayName = 'SortHeader';
+
+interface ProcessItemProps {
+  process: ProcessInfo;
+  isExpanded: boolean;
+  isKilling: boolean;
+  onToggleExpand: (pid: number) => void;
+  onKill: (pid: number, signal: string) => void;
+}
+
+const ProcessCard = React.memo(
+  ({ process: p, isExpanded, isKilling, onToggleExpand, onKill }: ProcessItemProps) => (
+    <div className="p-3">
+      <div className="flex items-start justify-between mb-2">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 mb-0.5">
+            <span className="text-sm font-medium text-foreground truncate">{p.name}</span>
+            <Badge variant={stateVariant(p.state)} className="text-[10px]">
+              {p.state}
+            </Badge>
+          </div>
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <span className="font-mono">PID {p.pid}</span>
+            <span>·</span>
+            <span>{p.user}</span>
+          </div>
+        </div>
+        <button
+          type="button"
+          className="flex items-center justify-center h-7 w-7 rounded-md hover:bg-accent transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+          onClick={() => onToggleExpand(p.pid)}
+          aria-label={`${isExpanded ? 'Collapse' : 'Expand'} details for process ${p.name} (${
+            p.pid
+          })`}
+          aria-expanded={isExpanded}
+        >
+          {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+        </button>
+      </div>
+      <div className="flex items-center gap-4 text-sm">
+        <div className="flex items-center gap-1.5">
+          <Cpu className="w-3 h-3 text-muted-foreground" />
+          <span className={cn('font-medium tabular-nums', cpuColor(p.cpu))}>
+            {p.cpu.toFixed(1)}%
+          </span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <MemoryStick className="w-3 h-3 text-muted-foreground" />
+          <span className="font-medium text-foreground tabular-nums">{p.mem.toFixed(1)}%</span>
+        </div>
+        {p.started && (
+          <div className="flex items-center gap-1.5">
+            <Clock className="w-3 h-3 text-muted-foreground" />
+            <span className="text-xs text-muted-foreground">{formatTime(p.started)}</span>
+          </div>
+        )}
+      </div>
+      {isExpanded && (
+        <div className="mt-3 pt-3 border-t border-border space-y-2 text-xs animate-fade-in">
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Command</span>
+            <span className="text-foreground font-mono truncate max-w-[60%] text-right">
+              {p.command}
+            </span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">RSS Memory</span>
+            <span className="text-foreground">{formatBytes(p.memRss)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Parent PID</span>
+            <span className="text-foreground font-mono">{p.parentPid}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Priority</span>
+            <span className="text-foreground">{p.priority}</span>
+          </div>
+          <div className="flex gap-2 mt-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="flex-1 text-xs"
+              onClick={() => onKill(p.pid, 'SIGTERM')}
+              loading={isKilling}
+            >
+              SIGTERM
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              className="flex-1 text-xs"
+              onClick={() => onKill(p.pid, 'SIGKILL')}
+              loading={isKilling}
+            >
+              <Skull className="w-3 h-3" /> SIGKILL
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+);
+
+ProcessCard.displayName = 'ProcessCard';
+
+const ProcessRow = React.memo(
+  ({ process: p, isExpanded, isKilling, onToggleExpand, onKill }: ProcessItemProps) => (
+    <React.Fragment>
+      <tr className="border-b border-border last:border-0 hover:bg-accent/30 transition-colors group">
+        <td className="px-2">
+          <button
+            type="button"
+            className="p-1 rounded hover:bg-accent transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+            onClick={() => onToggleExpand(p.pid)}
+            aria-label={`${isExpanded ? 'Collapse' : 'Expand'} details for process ${p.name} (${
+              p.pid
+            })`}
+            aria-expanded={isExpanded}
+          >
+            {isExpanded ? (
+              <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
+            ) : (
+              <ChevronRight className="w-3.5 h-3.5 text-muted-foreground" />
+            )}
+          </button>
+        </td>
+        <td className="px-3 py-2.5">
+          <span className="text-xs font-mono text-muted-foreground">{p.pid}</span>
+        </td>
+        <td className="px-3 py-2.5">
+          <span
+            className="text-sm font-medium text-foreground truncate block max-w-[200px]"
+            title={p.name}
+          >
+            {p.name}
+          </span>
+        </td>
+        <td className="px-3 py-2.5">
+          <span className="text-xs text-muted-foreground flex items-center gap-1.5">
+            <User className="w-3 h-3" />
+            {p.user}
+          </span>
+        </td>
+        <td className="px-3 py-2.5">
+          <Badge variant={stateVariant(p.state)} className="text-[10px]">
+            {p.state}
+          </Badge>
+        </td>
+        <td className="px-3 py-2.5 text-right">
+          <div className="flex items-center justify-end gap-2">
+            <CpuBar value={p.cpu} />
+            <span
+              className={cn('text-xs font-medium tabular-nums w-12 text-right', cpuColor(p.cpu))}
+            >
+              {p.cpu.toFixed(1)}%
+            </span>
+          </div>
+        </td>
+        <td className="px-3 py-2.5 text-right">
+          <span className="text-xs font-medium text-foreground tabular-nums">
+            {p.mem.toFixed(1)}%
+          </span>
+        </td>
+        <td className="px-3 py-2.5 text-right">
+          <span className="text-xs text-muted-foreground">{formatTime(p.started)}</span>
+        </td>
+        <td className="px-3 py-2.5 text-right">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 px-2 text-xs opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive"
+            onClick={() => onKill(p.pid, 'SIGTERM')}
+            loading={isKilling}
+          >
+            Kill
+          </Button>
+        </td>
+      </tr>
+      {isExpanded && (
+        <tr className="bg-secondary/30">
+          <td colSpan={9} className="px-4 py-3">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 text-xs animate-fade-in">
+              <div>
+                <span className="text-muted-foreground">Command</span>
+                <p className="font-mono text-foreground truncate mt-0.5" title={p.command}>
+                  {p.command}
+                </p>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Path</span>
+                <p className="font-mono text-foreground truncate mt-0.5" title={p.path}>
+                  {p.path || '—'}
+                </p>
+              </div>
+              <div>
+                <span className="text-muted-foreground">RSS Memory</span>
+                <p className="text-foreground mt-0.5">{formatBytes(p.memRss)}</p>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Parent PID</span>
+                <p className="font-mono text-foreground mt-0.5">{p.parentPid}</p>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Priority</span>
+                <p className="text-foreground mt-0.5">{p.priority}</p>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Started</span>
+                <p className="text-foreground mt-0.5">
+                  {p.started ? new Date(p.started).toLocaleString() : '—'}
+                </p>
+              </div>
+              <div className="lg:col-span-2 flex items-end gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-xs"
+                  onClick={() => onKill(p.pid, 'SIGTERM')}
+                  loading={isKilling}
+                >
+                  SIGTERM
+                </Button>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  className="text-xs gap-1"
+                  onClick={() => onKill(p.pid, 'SIGKILL')}
+                  loading={isKilling}
+                >
+                  <Skull className="w-3 h-3" /> Force Kill
+                </Button>
+              </div>
+            </div>
+          </td>
+        </tr>
+      )}
+    </React.Fragment>
+  )
+);
+
+ProcessRow.displayName = 'ProcessRow';
+
+interface ProcessListProps {
+  processes: ProcessInfo[];
+  sortField: ProcessSortField;
+  expandedPid: number | null;
+  killingPid: number | null;
+  onToggleSort: (field: ProcessSortField) => void;
+  onToggleExpanded: (pid: number) => void;
+  onKillProcess: (pid: number, signal: string) => void;
+}
+
+export function ProcessList({
+  processes,
+  sortField,
+  expandedPid,
+  killingPid,
+  onToggleSort,
+  onToggleExpanded,
+  onKillProcess,
+}: ProcessListProps) {
+  return (
+    <div className="rounded-xl border border-border bg-card overflow-hidden">
+      <div className="sm:hidden divide-y divide-border">
+        {processes.map((process) => (
+          <ProcessCard
+            key={process.pid}
+            process={process}
+            isExpanded={expandedPid === process.pid}
+            isKilling={killingPid === process.pid}
+            onToggleExpand={onToggleExpanded}
+            onKill={onKillProcess}
+          />
+        ))}
+      </div>
+
+      <div className="hidden sm:block overflow-x-auto">
+        <table className="w-full text-left min-w-[800px]">
+          <thead>
+            <tr className="border-b border-border bg-secondary/50">
+              <th className="w-8 px-2" />
+              <SortHeader field="pid" currentSort={sortField} onSort={onToggleSort}>
+                PID
+              </SortHeader>
+              <SortHeader field="name" currentSort={sortField} onSort={onToggleSort}>
+                Process
+              </SortHeader>
+              <SortHeader field="user" currentSort={sortField} onSort={onToggleSort}>
+                User
+              </SortHeader>
+              <th className="px-3 py-2.5 text-xs font-medium text-muted-foreground">State</th>
+              <SortHeader
+                field="cpu"
+                className="text-right"
+                currentSort={sortField}
+                onSort={onToggleSort}
+              >
+                CPU
+              </SortHeader>
+              <SortHeader
+                field="mem"
+                className="text-right"
+                currentSort={sortField}
+                onSort={onToggleSort}
+              >
+                Memory
+              </SortHeader>
+              <th className="px-3 py-2.5 text-xs font-medium text-muted-foreground text-right">
+                Uptime
+              </th>
+              <th className="px-3 py-2.5 text-xs font-medium text-muted-foreground text-right w-20">
+                Actions
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {processes.map((process) => (
+              <ProcessRow
+                key={process.pid}
+                process={process}
+                isExpanded={expandedPid === process.pid}
+                isKilling={killingPid === process.pid}
+                onToggleExpand={onToggleExpanded}
+                onKill={onKillProcess}
+              />
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="px-4 py-2.5 border-t border-border bg-secondary/30 flex items-center justify-between">
+        <span className="text-xs text-muted-foreground">
+          {processes.length} processes · sorted by {sortField}
+        </span>
+        <span className="text-xs text-muted-foreground">Auto-refreshes every 5s</span>
+      </div>
+    </div>
+  );
+}
