@@ -75,6 +75,24 @@ describe('UpdateHistoryModal', () => {
     });
   });
 
+  it('does not start the elapsed timer when no update is running', async () => {
+    const setIntervalSpy = vi.spyOn(globalThis, 'setInterval');
+    mockFetchRuns([makeRun({ runId: 'run-completed-only', status: 'completed' })]);
+
+    try {
+      render(<UpdateHistoryModal onClose={vi.fn()} />);
+
+      await waitFor(() => {
+        expect(screen.getByText('System Update')).toBeDefined();
+      });
+
+      const oneSecondTimers = setIntervalSpy.mock.calls.filter(([, delay]) => delay === 1000);
+      expect(oneSecondTimers).toHaveLength(0);
+    } finally {
+      setIntervalSpy.mockRestore();
+    }
+  });
+
   it('calls onClose when backdrop is clicked', async () => {
     mockFetchRuns([]);
     const onClose = vi.fn();

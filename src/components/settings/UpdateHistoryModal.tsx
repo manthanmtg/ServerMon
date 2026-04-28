@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useMemo, useState, useRef } from 'react';
 import {
   X,
   Clock,
@@ -32,11 +32,15 @@ export default function UpdateHistoryModal({ onClose }: UpdateHistoryModalProps)
   const logContainerRef = useRef<HTMLPreElement | null>(null);
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const [now, setNow] = useState(Date.now());
+  const hasRunningRun = useMemo(() => runs.some((r) => r.status === 'running'), [runs]);
+  const shouldTrackElapsedTime = !selectedRun && hasRunningRun;
 
   useEffect(() => {
+    if (!shouldTrackElapsedTime) return;
+
     const interval = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(interval);
-  }, []);
+  }, [shouldTrackElapsedTime]);
 
   async function loadRuns(isSilent = false) {
     if (!isSilent) setLoading(true);
@@ -64,7 +68,6 @@ export default function UpdateHistoryModal({ onClose }: UpdateHistoryModalProps)
     }
   }
 
-  const hasRunningRun = runs.some((r) => r.status === 'running');
   useEffect(() => {
     loadRuns();
 
