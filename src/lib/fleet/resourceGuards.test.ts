@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import type { Model } from 'mongoose';
-import type { IResourcePolicy } from '@/models/ResourcePolicy';
+import type { IResourcePolicy, IResourcePolicyDTO } from '@/models/ResourcePolicy';
 import { checkLimit, getEffectivePolicy, type EffectivePolicy } from './resourceGuards';
 
 describe('checkLimit', () => {
@@ -67,7 +67,7 @@ describe('checkLimit', () => {
 });
 
 describe('getEffectivePolicy', () => {
-  function mockModel(docs: Array<any>): Model<IResourcePolicy> {
+  function mockModel(docs: Array<IResourcePolicyDTO>): Model<IResourcePolicy> {
     const find = vi.fn().mockReturnValue({
       lean: () => Promise.resolve(docs),
     });

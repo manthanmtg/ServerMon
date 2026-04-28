@@ -1,13 +1,13 @@
 /** @vitest-environment node */
 import { describe, it, expect, vi } from 'vitest';
 import type { Model } from 'mongoose';
-import type { IResourcePolicy } from '@/models/ResourcePolicy';
+import type { IResourcePolicy, IResourcePolicyDTO } from '@/models/ResourcePolicy';
 import type { IFleetLogEvent } from '@/models/FleetLogEvent';
 import { enforceResourceGuard } from '@/lib/fleet/resourceGuardMiddleware';
 import { NodeZodSchema } from '@/models/Node';
 
 // Minimal ResourcePolicy model that returns a fixed list of policies.
-function mockPolicyModel(docs: Array<any>): Model<IResourcePolicy> {
+function mockPolicyModel(docs: Array<IResourcePolicyDTO>): Model<IResourcePolicy> {
   return {
     find: vi.fn(() => ({
       lean: () => Promise.resolve(docs),

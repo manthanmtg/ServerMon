@@ -1,10 +1,10 @@
 import { describe, it, expect, vi } from 'vitest';
 import type { Model } from 'mongoose';
-import type { IResourcePolicy } from '@/models/ResourcePolicy';
+import type { IResourcePolicy, IResourcePolicyDTO } from '@/models/ResourcePolicy';
 import type { IFleetLogEvent } from '@/models/FleetLogEvent';
 import { enforceResourceGuard } from './resourceGuardMiddleware';
 
-function mockPolicyModel(docs: Array<any>): Model<IResourcePolicy> {
+function mockPolicyModel(docs: Array<IResourcePolicyDTO>): Model<IResourcePolicy> {
   const find = vi.fn().mockReturnValue({
     lean: () => Promise.resolve(docs),
   });
