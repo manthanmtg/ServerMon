@@ -34,7 +34,16 @@ const AIRunnerScheduleSchema = new Schema<IAIRunnerSchedule>(
     lastRunId: { type: Schema.Types.ObjectId, ref: 'AIRunnerRun' },
     lastRunStatus: {
       type: String,
-      enum: ['queued', 'running', 'retrying', 'completed', 'failed', 'timeout', 'killed'],
+      enum: [
+        'queued',
+        'running',
+        'retrying',
+        'skipped',
+        'completed',
+        'failed',
+        'timeout',
+        'killed',
+      ],
     },
     lastRunAt: { type: Date },
     lastScheduledFor: { type: Date },

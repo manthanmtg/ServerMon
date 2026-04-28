@@ -5964,6 +5964,9 @@ export default function AIRunnerPage() {
           schedules={sortedSchedules}
           promptNames={Object.fromEntries(prompts.map((prompt) => [prompt._id, prompt.name]))}
           profileNames={Object.fromEntries(profiles.map((profile) => [profile._id, profile.name]))}
+          workspaceNames={Object.fromEntries(
+            workspaces.map((workspace) => [workspace._id, workspace.name])
+          )}
           onClose={() => setMultiScheduleEditorOpen(false)}
           onSaved={loadAll}
         />

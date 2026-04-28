@@ -1149,11 +1149,21 @@ describe('AIRunnerPage', () => {
 
   it('bulk edits schedule cron, timeout, and retries from the schedules tab', async () => {
     const fetchMock = vi.mocked(global.fetch);
+    mockWorkspaces.splice(0, mockWorkspaces.length, {
+      _id: 'workspace-1',
+      name: 'ServerMon repo',
+      path: '/root/repos/ServerMon',
+      blocking: true,
+      enabled: true,
+      createdAt: '2026-04-21T00:00:00.000Z',
+      updatedAt: '2026-04-21T00:00:00.000Z',
+    });
     mockSchedules.splice(0, mockSchedules.length, {
       _id: 'schedule-1',
       name: 'Morning Schedule',
       promptId: 'prompt-1',
       agentProfileId: 'profile-1',
+      workspaceId: 'workspace-1',
       workingDirectory: '/root/repos/ServerMon',
       timeout: 30,
       retries: 1,
@@ -1179,7 +1189,11 @@ describe('AIRunnerPage', () => {
         fireEvent.click(screen.getByRole('button', { name: /Multi Schedule Editor/i }));
       });
 
-      expect(screen.getByRole('dialog', { name: /Multi Schedule Editor/i })).toBeInTheDocument();
+      const editor = screen.getByRole('dialog', { name: /Multi Schedule Editor/i });
+      expect(editor).toBeInTheDocument();
+      expect(within(editor).getByText('Workspace')).toBeInTheDocument();
+      expect(within(editor).getByText('ServerMon repo')).toBeInTheDocument();
+      expect(within(editor).getByText('/root/repos/ServerMon')).toBeInTheDocument();
 
       await act(async () => {
         fireEvent.change(screen.getByLabelText('Morning Schedule cron expression'), {
@@ -1217,6 +1231,7 @@ describe('AIRunnerPage', () => {
       );
     } finally {
       mockSchedules.splice(0, mockSchedules.length);
+      mockWorkspaces.splice(0, mockWorkspaces.length);
     }
   });
 

@@ -29,6 +29,7 @@ interface MultiScheduleEditorModalProps {
   schedules: AIRunnerScheduleDTO[];
   promptNames: Record<string, string>;
   profileNames: Record<string, string>;
+  workspaceNames: Record<string, string>;
   onClose: () => void;
   onSaved: () => Promise<void>;
 }
@@ -94,6 +95,7 @@ export function MultiScheduleEditorModal({
   schedules,
   promptNames,
   profileNames,
+  workspaceNames,
   onClose,
   onSaved,
 }: MultiScheduleEditorModalProps) {
@@ -354,6 +356,7 @@ export function MultiScheduleEditorModal({
                   <th className="px-4 py-3 font-medium">Schedule</th>
                   <th className="px-4 py-3 font-medium">Prompt</th>
                   <th className="px-4 py-3 font-medium">Profile</th>
+                  <th className="px-4 py-3 font-medium">Workspace</th>
                   <th className="px-4 py-3 font-medium">Next launch</th>
                   <th className="px-4 py-3 font-medium">Cron</th>
                   <th className="px-4 py-3 font-medium">Timeout</th>
@@ -380,6 +383,16 @@ export function MultiScheduleEditorModal({
                       </td>
                       <td className="min-w-40 px-4 py-3 align-top">
                         {profileNames[schedule.agentProfileId] ?? 'Unknown profile'}
+                      </td>
+                      <td className="min-w-56 px-4 py-3 align-top">
+                        <p className="font-medium">
+                          {schedule.workspaceId
+                            ? (workspaceNames[schedule.workspaceId] ?? 'Unknown workspace')
+                            : 'Custom path'}
+                        </p>
+                        <p className="mt-1 font-mono text-xs leading-5 text-muted-foreground break-all">
+                          {schedule.workingDirectory || 'No directory'}
+                        </p>
                       </td>
                       <td className="min-w-40 px-4 py-3 align-top">
                         {formatScheduleDate(schedule.nextRunTime)}

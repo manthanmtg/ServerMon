@@ -131,6 +131,25 @@ describe('Mongoose Models', () => {
     });
   });
 
+  describe('AIRunnerSchedule model', () => {
+    it('allows skipped as a persisted last run status', async () => {
+      const mongoose = await import('mongoose');
+      await import('./AIRunnerSchedule');
+      const schemaMock = mongoose.Schema as unknown as {
+        mock: { calls: Array<[Record<string, unknown>]> };
+      };
+
+      const scheduleSchemaCall = schemaMock.mock.calls.find(([definition]) =>
+        Object.prototype.hasOwnProperty.call(definition as Record<string, unknown>, 'lastRunStatus')
+      );
+      const definition = scheduleSchemaCall?.[0] as {
+        lastRunStatus?: { enum?: string[] };
+      };
+
+      expect(definition.lastRunStatus?.enum).toContain('skipped');
+    });
+  });
+
   describe('CustomEndpoint model', () => {
     it('exports a model and CustomEndpointZodSchema', async () => {
       const mod = await import('./CustomEndpoint');
