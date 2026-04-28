@@ -319,9 +319,13 @@ export function IngressSetupWizard() {
 function StepIndicator({ step }: { step: Step }) {
   const labels = ['Hub URL', 'Nginx', 'TLS', 'DNS'];
   return (
-    <div className="flex flex-wrap gap-2 mt-2" aria-label="wizard steps">
+    <ol className="flex flex-wrap gap-2 mt-2" aria-label="wizard steps">
       {labels.map((l, i) => (
-        <div key={l} className="flex items-center gap-1 text-xs">
+        <li
+          key={l}
+          className="flex items-center gap-1 text-xs"
+          aria-current={i + 1 === step ? 'step' : undefined}
+        >
           <span
             className={`h-5 w-5 rounded-full flex items-center justify-center text-[10px] ${
               i + 1 <= step
@@ -332,9 +336,9 @@ function StepIndicator({ step }: { step: Step }) {
             {i + 1 < step ? <Check className="h-3 w-3" /> : i + 1}
           </span>
           <span className={i + 1 === step ? 'text-foreground' : 'text-muted-foreground'}>{l}</span>
-        </div>
+        </li>
       ))}
-    </div>
+    </ol>
   );
 }
 
