@@ -26,6 +26,7 @@ export interface AgentClientOpts {
   configDir?: string;
   ptyListenPort?: number;
   heartbeatIntervalMs?: number;
+  hubRequestTimeoutMs?: number;
   binaryVersion?: string;
   fetchImpl?: typeof fetch;
   spawnImpl?: typeof realSpawn;
@@ -100,7 +101,40 @@ const DEFAULT_BINARY_CACHE_DIR = '.fleet-cache/frp';
 const DEFAULT_CONFIG_DIR = '.fleet-cache/agent';
 const DEFAULT_PTY_LISTEN_PORT = 8918;
 const DEFAULT_HEARTBEAT_INTERVAL_MS = 30_000;
+const DEFAULT_HUB_REQUEST_TIMEOUT_MS = 10_000;
 const DEFAULT_BINARY_VERSION = 'latest';
+
+function isAbortError(err: unknown): boolean {
+  return (
+    err instanceof DOMException ||
+    (err instanceof Error && (err.name === 'AbortError' || err.message === 'AbortError'))
+  );
+}
+
+async function fetchHubWithTimeout(
+  fetchImpl: typeof fetch,
+  input: Parameters<typeof fetch>[0],
+  init: RequestInit,
+  timeoutMs: number
+): Promise<Response> {
+  const timeout = Math.max(1, timeoutMs);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeout);
+
+  try {
+    return await fetchImpl(input, {
+      ...init,
+      signal: controller.signal,
+    });
+  } catch (err) {
+    if (isAbortError(err)) {
+      throw new Error(`hub-request-timeout: ${timeout}ms`);
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 export class AgentClient {
   private readonly opts: AgentClientOpts;
@@ -158,6 +192,7 @@ export class AgentClient {
       configDir = DEFAULT_CONFIG_DIR,
       ptyListenPort = DEFAULT_PTY_LISTEN_PORT,
       heartbeatIntervalMs = DEFAULT_HEARTBEAT_INTERVAL_MS,
+      hubRequestTimeoutMs = DEFAULT_HUB_REQUEST_TIMEOUT_MS,
       binaryVersion = DEFAULT_BINARY_VERSION,
       spawnImpl,
     } = this.opts;
@@ -167,13 +202,25 @@ export class AgentClient {
 
     // 1. Pair
     const pairUrl = `${hubUrl}/api/fleet/nodes/${nodeId}/pair`;
-    const pairRes = await fetchImpl(pairUrl, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${pairingToken}`,
-        'Content-Type': 'application/json',
-      },
-    });
+    let pairRes: Response;
+    try {
+      pairRes = await fetchHubWithTimeout(
+        fetchImpl,
+        pairUrl,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${pairingToken}`,
+            'Content-Type': 'application/json',
+          },
+        },
+        hubRequestTimeoutMs
+      );
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      this.status_.lastError = `pair-error: ${message}`;
+      throw err;
+    }
     if (!pairRes.ok) {
       this.status_.tunnelStatus = 'auth_failed';
       this.status_.lastError = `pair-failed: ${pairRes.status}`;
@@ -185,12 +232,25 @@ export class AgentClient {
 
     // 2. Fetch node config
     const nodeUrl = `${hubUrl}/api/fleet/nodes/${nodeId}`;
-    const nodeRes = await fetchImpl(nodeUrl, {
-      method: 'GET',
-      headers: {
-        Authorization: `Bearer ${pairingToken}`,
-      },
-    });
+    let nodeRes: Response;
+    try {
+      nodeRes = await fetchHubWithTimeout(
+        fetchImpl,
+        nodeUrl,
+        {
+          method: 'GET',
+          headers: {
+            Authorization: `Bearer ${pairingToken}`,
+          },
+        },
+        hubRequestTimeoutMs
+      );
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      this.status_.tunnelStatus = 'config_invalid';
+      this.status_.lastError = `node-fetch-error: ${message}`;
+      throw err;
+    }
     if (!nodeRes.ok) {
       this.status_.tunnelStatus = 'config_invalid';
       this.status_.lastError = `node-fetch-failed: ${nodeRes.status}`;
@@ -324,7 +384,13 @@ export class AgentClient {
   }
 
   private async sendHeartbeat(): Promise<void> {
-    const { hubUrl, pairingToken, nodeId, fetchImpl = fetch } = this.opts;
+    const {
+      hubUrl,
+      pairingToken,
+      nodeId,
+      fetchImpl = fetch,
+      hubRequestTimeoutMs = DEFAULT_HUB_REQUEST_TIMEOUT_MS,
+    } = this.opts;
     const url = `${hubUrl}/api/fleet/nodes/${nodeId}/heartbeat`;
     const nowDate = (this.opts.now ?? (() => new Date()))();
 
@@ -383,14 +449,19 @@ export class AgentClient {
     };
 
     try {
-      const res = await fetchImpl(url, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${pairingToken}`,
-          'Content-Type': 'application/json',
+      const res = await fetchHubWithTimeout(
+        fetchImpl,
+        url,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${pairingToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(body),
         },
-        body: JSON.stringify(body),
-      });
+        hubRequestTimeoutMs
+      );
       if (res.ok) {
         this.status_.lastHeartbeatAt = nowDate;
         const data = await res.json().catch(() => ({}));
@@ -462,6 +533,7 @@ export class AgentClient {
       ensureBinaryImpl = ensureBinary,
       startFrpcImpl = startFrpc,
       configDir = DEFAULT_CONFIG_DIR,
+      hubRequestTimeoutMs = DEFAULT_HUB_REQUEST_TIMEOUT_MS,
     } = this.opts;
 
     try {
@@ -470,12 +542,17 @@ export class AgentClient {
 
       // 1. Fetch node config
       const nodeUrl = `${hubUrl}/api/fleet/nodes/${nodeId}`;
-      const nodeRes = await fetchImpl(nodeUrl, {
-        method: 'GET',
-        headers: {
-          Authorization: `Bearer ${pairingToken}`,
+      const nodeRes = await fetchHubWithTimeout(
+        fetchImpl,
+        nodeUrl,
+        {
+          method: 'GET',
+          headers: {
+            Authorization: `Bearer ${pairingToken}`,
+          },
         },
-      });
+        hubRequestTimeoutMs
+      );
       if (!nodeRes.ok) {
         throw new Error(`node-fetch-failed: ${nodeRes.status}`);
       }
