@@ -142,6 +142,20 @@ describe('ProShell', () => {
     expect(screen.getByText('Remote Shell')).toBeDefined();
   });
 
+  it('lets long mobile titles shrink before header controls overflow', () => {
+    renderProShell({
+      title: 'Extremely Long Operational Dashboard Title That Should Truncate On Mobile',
+    });
+
+    const header = screen
+      .getByText('Extremely Long Operational Dashboard Title That Should Truncate On Mobile')
+      .closest('header');
+    const titleGroup = header?.firstElementChild;
+
+    expect(titleGroup?.className).toContain('min-w-0');
+    expect(titleGroup?.className).toContain('flex-1');
+  });
+
   it('does not render subtitle when omitted', () => {
     renderProShell({ title: 'Dashboard' });
     expect(screen.queryByTestId('subtitle')).toBeNull();
