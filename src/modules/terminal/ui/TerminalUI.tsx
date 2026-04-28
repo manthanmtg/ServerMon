@@ -1,11 +1,12 @@
 'use client';
 
 import React, { useEffect, useRef } from 'react';
-import { Terminal } from '@xterm/xterm';
+import { Terminal, type ITheme } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import '@xterm/xterm/css/xterm.css';
 import { useTheme } from '@/lib/ThemeContext';
 import { io, Socket } from 'socket.io-client';
+import type { ThemeColors } from '@/lib/themes';
 
 interface TerminalUIProps {
   sessionId: string;
@@ -16,7 +17,7 @@ interface TerminalUIProps {
   initialCommand?: string;
 }
 
-function buildTheme(colors: Record<string, string>) {
+function buildTheme(colors: ThemeColors): ITheme {
   return {
     background: colors.background,
     foreground: colors.foreground,
@@ -58,7 +59,7 @@ export default function TerminalUI({
       cursorBlink: true,
       fontFamily: 'Menlo, Monaco, "Courier New", monospace',
       fontSize,
-      theme: buildTheme(theme.colors as unknown as Record<string, string>),
+      theme: buildTheme(theme.colors),
       allowProposedApi: true,
       scrollback: 5000,
       rightClickSelectsWord: isMobile,
@@ -165,9 +166,7 @@ export default function TerminalUI({
 
   useEffect(() => {
     if (xtermRef.current) {
-      xtermRef.current.options.theme = buildTheme(
-        theme.colors as unknown as Record<string, string>
-      );
+      xtermRef.current.options.theme = buildTheme(theme.colors);
     }
   }, [theme.colors]);
 

@@ -1,6 +1,20 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, act } from '@testing-library/react';
 import React from 'react';
+import type { ITerminalOptions } from '@xterm/xterm';
+
+interface MockTerminalInstance {
+  write: ReturnType<typeof vi.fn>;
+  dispose: ReturnType<typeof vi.fn>;
+  getSelection: ReturnType<typeof vi.fn>;
+  loadAddon: ReturnType<typeof vi.fn>;
+  open: ReturnType<typeof vi.fn>;
+  onData: ReturnType<typeof vi.fn>;
+  onResize: ReturnType<typeof vi.fn>;
+  options: Partial<ITerminalOptions>;
+  cols: number;
+  rows: number;
+}
 
 // ── Polyfill ResizeObserver for jsdom ──────────────────────────────────────────
 if (typeof ResizeObserver === 'undefined') {
@@ -33,8 +47,7 @@ const {
   const mockSocketEmit = vi.fn();
   const mockSocketDisconnect = vi.fn();
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const mockTerminalOptions: Record<string, any> = {};
+  const mockTerminalOptions: Partial<ITerminalOptions> = {};
   const mockTerminalInstance = {
     write: mockTermWrite,
     dispose: mockTermDispose,
@@ -48,10 +61,9 @@ const {
     },
     cols: 80,
     rows: 24,
-  };
+  } satisfies MockTerminalInstance;
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const MockTerminal = vi.fn(function (this: any) {
+  const MockTerminal = vi.fn(function (this: MockTerminalInstance) {
     Object.assign(this, mockTerminalInstance);
   });
 
@@ -135,12 +147,11 @@ describe('TerminalUI', () => {
       delete capturedSocketHandlers[k];
     });
     // Clear mockTerminalOptions between tests
-    Object.keys(mockTerminalOptions).forEach((k) => {
-      delete mockTerminalOptions[k];
+    (Object.keys(mockTerminalOptions) as Array<keyof ITerminalOptions>).forEach((key) => {
+      delete mockTerminalOptions[key];
     });
     // Restore mock implementations after clearAllMocks
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (MockTerminal as any).mockImplementation(function (this: any) {
+    MockTerminal.mockImplementation(function (this: MockTerminalInstance) {
       Object.assign(this, mockTerminalInstance);
     });
     mockIo.mockImplementation(() => mockSocket);
