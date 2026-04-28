@@ -2,7 +2,7 @@
 
 ## Objective
 
-Ensure the ServerMon project builds cleanly from scratch with **zero errors and zero warnings**. Fix any issues that prevent a clean `pnpm build` or `pnpm check`.
+Ensure the ServerMon project completes its required verification commands successfully. Fix any errors, lint warnings, or build warnings that prevent a clean `pnpm build` or `pnpm check`.
 
 ## Philosophy
 
@@ -16,7 +16,7 @@ A broken build is the most fundamental regression — it means the app cannot de
 pnpm check
 ```
 
-This runs lint, typecheck, build, and tests in sequence. If it passes cleanly, you're done — no-op.
+This runs lint, typecheck, build, and tests in sequence. If it exits successfully and does not report lint or build warnings, you're done — no-op.
 
 ### 2. Triage Failures
 
@@ -28,6 +28,8 @@ If `pnpm check` fails, identify the stage:
 | Typecheck | `tsc --noEmit` | Type mismatches, missing properties               |
 | Build     | `next build`   | Import errors, missing modules, SSR issues        |
 | Test      | `pnpm test`    | Failing assertions (delegate to `test_corrector`) |
+
+Runtime warning noise emitted by passing tests is not a build-verifier failure by itself. If the suite passes but warning cleanup would span unrelated components, leave it for a dedicated warning-cleanup issue instead of expanding this run.
 
 ### 3. Fix (Minimal, Targeted)
 
