@@ -5,6 +5,7 @@ category: verification
 enabled: true
 autonomousSafe: true
 ---
+
 # Type Safety Enforcer Prompt
 
 ## Objective

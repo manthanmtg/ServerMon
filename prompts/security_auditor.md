@@ -5,6 +5,7 @@ category: security
 enabled: true
 autonomousSafe: true
 ---
+
 # Security Auditor Prompt
 
 ## Objective

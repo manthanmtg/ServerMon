@@ -248,6 +248,28 @@ describe('executeWebhook', () => {
     expect(result.error).toBe('ECONNREFUSED');
   });
 
+  it('clears the timeout when fetch fails before aborting', async () => {
+    vi.useFakeTimers();
+    const clearTimeoutSpy = vi.spyOn(globalThis, 'clearTimeout');
+    try {
+      const mockFetch = vi.fn().mockRejectedValue(new Error('ECONNRESET'));
+      vi.stubGlobal('fetch', mockFetch);
+
+      const endpoint = makeEndpoint({
+        timeout: 5000,
+        webhookConfig: { targetUrl: 'https://example.com/hook' },
+      });
+      const result = await executeWebhook(endpoint, makeInput());
+
+      expect(result.statusCode).toBe(502);
+      expect(clearTimeoutSpy).toHaveBeenCalledTimes(1);
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      clearTimeoutSpy.mockRestore();
+      vi.useRealTimers();
+    }
+  });
+
   it('returns 502 on non-Error throw', async () => {
     const mockFetch = vi.fn().mockRejectedValue('string error');
     vi.stubGlobal('fetch', mockFetch);

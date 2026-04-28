@@ -41,44 +41,46 @@ export async function executeWebhook(
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeout);
 
-    let body: string | undefined;
-    if (method !== 'GET') {
-      if (config.transformBody) {
-        try {
-          const inputData = input.body ? JSON.parse(input.body) : {};
-          const fn = new Function('input', 'query', 'headers', config.transformBody);
-          body = JSON.stringify(fn(inputData, input.query, input.headers));
-        } catch (err: unknown) {
-          const msg = err instanceof Error ? err.message : 'Transform error';
-          log.error(`Body transform error: ${msg}`);
+    try {
+      let body: string | undefined;
+      if (method !== 'GET') {
+        if (config.transformBody) {
+          try {
+            const inputData = input.body ? JSON.parse(input.body) : {};
+            const fn = new Function('input', 'query', 'headers', config.transformBody);
+            body = JSON.stringify(fn(inputData, input.query, input.headers));
+          } catch (err: unknown) {
+            const msg = err instanceof Error ? err.message : 'Transform error';
+            log.error(`Body transform error: ${msg}`);
+            body = input.body;
+          }
+        } else {
           body = input.body;
         }
-      } else {
-        body = input.body;
       }
+
+      const response = await fetch(config.targetUrl, {
+        method,
+        headers,
+        body,
+        signal: controller.signal,
+      });
+
+      const responseBody = await response.text();
+      const responseHeaders: Record<string, string> = {};
+      response.headers.forEach((value, key) => {
+        responseHeaders[key] = value;
+      });
+
+      return {
+        statusCode: response.status,
+        headers: responseHeaders,
+        body: responseBody.slice(0, 10_240),
+        duration: 0,
+      };
+    } finally {
+      clearTimeout(timer);
     }
-
-    const response = await fetch(config.targetUrl, {
-      method,
-      headers,
-      body,
-      signal: controller.signal,
-    });
-
-    clearTimeout(timer);
-
-    const responseBody = await response.text();
-    const responseHeaders: Record<string, string> = {};
-    response.headers.forEach((value, key) => {
-      responseHeaders[key] = value;
-    });
-
-    return {
-      statusCode: response.status,
-      headers: responseHeaders,
-      body: responseBody.slice(0, 10_240),
-      duration: 0,
-    };
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Webhook request failed';
     const isTimeout = err instanceof Error && err.name === 'AbortError';
