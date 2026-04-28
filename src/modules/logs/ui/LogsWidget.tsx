@@ -22,15 +22,18 @@ const severityConfig = {
 export default function LogsWidget() {
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
 
   useEffect(() => {
     const fetchLogs = async () => {
       try {
         const res = await fetch('/api/analytics/recent?limit=5');
+        if (!res.ok) throw new Error(`Failed to load recent logs: ${res.status}`);
         const data = await res.json();
         setLogs(data.events || []);
-      } catch (err) {
-        console.error(err);
+        setLoadFailed(false);
+      } catch {
+        setLoadFailed(true);
       } finally {
         setLoading(false);
       }
@@ -53,6 +56,26 @@ export default function LogsWidget() {
             </div>
           </div>
         ))}
+      </div>
+    );
+  }
+
+  if (loadFailed && logs.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-8 px-4 text-center">
+        <div className="w-10 h-10 rounded-lg bg-destructive/10 flex items-center justify-center mb-3">
+          <AlertTriangle className="w-5 h-5 text-destructive" />
+        </div>
+        <p className="text-sm font-medium text-foreground">Unable to load activity</p>
+        <p className="text-xs text-muted-foreground mt-0.5">
+          Recent audit events could not be fetched.
+        </p>
+        <Link
+          href="/logs"
+          className="mt-3 text-sm text-primary hover:text-primary/80 font-medium transition-colors"
+        >
+          Open logs page
+        </Link>
       </div>
     );
   }
