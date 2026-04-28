@@ -248,7 +248,7 @@ export default function ProShell({ children, title, subtitle, headerContent }: P
       <div className="flex-1 flex flex-col min-w-0">
         {/* Header */}
         <header className="h-14 flex items-center justify-between px-4 lg:px-6 border-b border-border bg-background sticky top-0 z-40">
-          <div className="flex items-center gap-3">
+          <div className="flex min-w-0 flex-1 items-center gap-3">
             <button
               className="lg:hidden p-2 -ml-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent active:bg-accent transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center"
               onClick={() => setSidebarOpen(!sidebarOpen)}
