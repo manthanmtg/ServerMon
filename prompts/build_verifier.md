@@ -5,6 +5,7 @@ category: verification
 enabled: true
 autonomousSafe: true
 ---
+
 # Build Verifier Prompt
 
 ## Objective

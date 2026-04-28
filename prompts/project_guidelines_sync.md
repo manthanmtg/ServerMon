@@ -5,6 +5,7 @@ category: documentation
 enabled: true
 autonomousSafe: true
 ---
+
 # Project Guidelines Sync Prompt
 
 ## Objective

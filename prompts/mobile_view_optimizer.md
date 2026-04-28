@@ -5,6 +5,7 @@ category: ui-quality
 enabled: true
 autonomousSafe: true
 ---
+
 # Mobile View Optimizer Prompt
 
 ## Objective

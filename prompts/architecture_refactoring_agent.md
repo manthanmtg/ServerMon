@@ -5,6 +5,7 @@ category: code-quality
 enabled: true
 autonomousSafe: true
 ---
+
 # Architecture Refactoring Agent Prompt
 
 ## Objective

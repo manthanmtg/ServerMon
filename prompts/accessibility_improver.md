@@ -5,6 +5,7 @@ category: ui-quality
 enabled: true
 autonomousSafe: true
 ---
+
 # Accessibility Improver Prompt
 
 ## Objective
