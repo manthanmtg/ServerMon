@@ -62,6 +62,7 @@ import { TAB_META, DEFAULT_PROFILE_FORM, ICON_PRESETS } from './constants';
 import { RunDetailDrawer } from './components/RunDetailDrawer';
 import { ScheduleBuilder } from './components/ScheduleBuilder';
 import { ScheduleVisualizationModal } from './components/ScheduleVisualizationModal';
+import { MultiScheduleEditorModal } from './components/MultiScheduleEditorModal';
 import { CompactStat, LabelWithHint, ProfileIconPreview } from './components/AIRunnerShared';
 import type {
   HistoryDetailSection,
@@ -428,6 +429,7 @@ export default function AIRunnerPage() {
   const [bundleModalOpen, setBundleModalOpen] = useState(false);
   const [bundleMode, setBundleMode] = useState<'export' | 'import'>('export');
   const [scheduleModalOpen, setScheduleModalOpen] = useState(false);
+  const [multiScheduleEditorOpen, setMultiScheduleEditorOpen] = useState(false);
   const [scheduleVisualizationOpen, setScheduleVisualizationOpen] = useState(false);
   const [profileLockModal, setProfileLockModal] = useState<ProfileLockModalState | null>(null);
   const [linkedDeleteTarget, setLinkedDeleteTarget] = useState<LinkedDeleteTarget | null>(null);
@@ -1313,6 +1315,14 @@ export default function AIRunnerPage() {
   const closeScheduleVisualization = () => {
     setScheduleVisualizationOpen(false);
     setScheduleVisualizationProfileId(null);
+  };
+
+  const openMultiScheduleEditor = async () => {
+    if (!schedulesLoaded) {
+      await loadSchedules();
+    }
+    setMultiScheduleEditorOpen(true);
+    setActiveTab('schedules');
   };
 
   const openProfileLockModal = (profile: AIRunnerProfileDTO) => {
@@ -3008,6 +3018,18 @@ export default function AIRunnerPage() {
                   >
                     <Eye className="w-4 h-4" />
                     Visualize Schedule
+                  </Button>
+                  <Button
+                    size="lg"
+                    variant="outline"
+                    onClick={() =>
+                      void runExclusiveAction('schedule:multi-editor', openMultiScheduleEditor)
+                    }
+                    loading={isActionPending('schedule:multi-editor')}
+                    className="w-full justify-start"
+                  >
+                    <FileJson className="w-4 h-4" />
+                    Multi Schedule Editor
                   </Button>
                   <Button
                     size="lg"
@@ -5936,6 +5958,16 @@ export default function AIRunnerPage() {
         profileMap={profileMap}
         scopeLabel={scheduleVisualizationProfile?.name}
       />
+
+      {multiScheduleEditorOpen ? (
+        <MultiScheduleEditorModal
+          schedules={sortedSchedules}
+          promptNames={Object.fromEntries(prompts.map((prompt) => [prompt._id, prompt.name]))}
+          profileNames={Object.fromEntries(profiles.map((profile) => [profile._id, profile.name]))}
+          onClose={() => setMultiScheduleEditorOpen(false)}
+          onSaved={loadAll}
+        />
+      ) : null}
 
       <ConfirmationModal
         isOpen={Boolean(linkedDeleteTarget)}

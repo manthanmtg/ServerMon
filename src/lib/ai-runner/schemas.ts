@@ -159,6 +159,33 @@ export const scheduleCreateSchema = z.object({
 
 export const scheduleUpdateSchema = scheduleCreateSchema.partial();
 
+const scheduleBulkUpdateItemSchema = z
+  .object({
+    id: z.string().trim().min(1),
+    cronExpression: z.string().trim().min(1).max(120).optional(),
+    timeout: z
+      .number()
+      .int()
+      .min(1)
+      .max(24 * 60)
+      .optional(),
+    retries: z.number().int().min(0).max(9).optional(),
+  })
+  .strict()
+  .refine(
+    (value) =>
+      value.cronExpression !== undefined ||
+      value.timeout !== undefined ||
+      value.retries !== undefined,
+    {
+      message: 'At least one editable schedule field is required',
+    }
+  );
+
+export const scheduleBulkUpdateSchema = z.object({
+  updates: z.array(scheduleBulkUpdateItemSchema).min(1).max(500),
+});
+
 export const settingsUpdateSchema = z.object({
   schedulesGloballyEnabled: z.boolean().optional(),
   autoflowMode: autoflowModeSchema.optional(),

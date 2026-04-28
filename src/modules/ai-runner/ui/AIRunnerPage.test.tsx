@@ -191,6 +191,12 @@ describe('AIRunnerPage', () => {
         }
         return Promise.resolve({ ok: true, json: async () => mockRunnerSettings });
       }
+      if (url.includes('/api/modules/ai-runner/schedules/bulk-update')) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({ schedules: mockSchedules, updatedCount: 1 }),
+        });
+      }
       if (url.includes('/api/modules/ai-runner/schedules')) {
         return Promise.resolve({ ok: true, json: async () => mockSchedules });
       }
@@ -1136,6 +1142,134 @@ describe('AIRunnerPage', () => {
           })
         )
       );
+    } finally {
+      mockSchedules.splice(0, mockSchedules.length);
+    }
+  });
+
+  it('bulk edits schedule cron, timeout, and retries from the schedules tab', async () => {
+    const fetchMock = vi.mocked(global.fetch);
+    mockSchedules.splice(0, mockSchedules.length, {
+      _id: 'schedule-1',
+      name: 'Morning Schedule',
+      promptId: 'prompt-1',
+      agentProfileId: 'profile-1',
+      workingDirectory: '/root/repos/ServerMon',
+      timeout: 30,
+      retries: 1,
+      cronExpression: '0 9 * * *',
+      enabled: true,
+      nextRunTime: '2026-04-28T09:00:00.000Z',
+      createdAt: '2026-04-21T00:00:00.000Z',
+      updatedAt: '2026-04-21T00:00:00.000Z',
+    });
+
+    try {
+      await act(async () => {
+        render(<AIRunnerPage />);
+      });
+
+      await waitFor(() => expect(screen.getByText('AI Agent Runner')).toBeInTheDocument());
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('tab', { name: /Schedules/i }));
+      });
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /Multi Schedule Editor/i }));
+      });
+
+      expect(screen.getByRole('dialog', { name: /Multi Schedule Editor/i })).toBeInTheDocument();
+
+      await act(async () => {
+        fireEvent.change(screen.getByLabelText('Morning Schedule cron expression'), {
+          target: { value: '15 9 * * *' },
+        });
+        fireEvent.change(screen.getByLabelText('Morning Schedule timeout'), {
+          target: { value: '45' },
+        });
+        fireEvent.change(screen.getByLabelText('Morning Schedule retries'), {
+          target: { value: '2' },
+        });
+      });
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /Save changes/i }));
+      });
+
+      await waitFor(() =>
+        expect(fetchMock).toHaveBeenCalledWith(
+          '/api/modules/ai-runner/schedules/bulk-update',
+          expect.objectContaining({
+            method: 'POST',
+            body: JSON.stringify({
+              updates: [
+                {
+                  id: 'schedule-1',
+                  cronExpression: '15 9 * * *',
+                  timeout: 45,
+                  retries: 2,
+                },
+              ],
+            }),
+          })
+        )
+      );
+    } finally {
+      mockSchedules.splice(0, mockSchedules.length);
+    }
+  });
+
+  it('imports CSV schedule edits by name into the multi schedule editor', async () => {
+    mockSchedules.splice(0, mockSchedules.length, {
+      _id: 'schedule-1',
+      name: 'Nightly cleanup',
+      promptId: 'prompt-1',
+      agentProfileId: 'profile-1',
+      workingDirectory: '/root/repos/ServerMon',
+      timeout: 30,
+      retries: 1,
+      cronExpression: '0 1 * * *',
+      enabled: true,
+      nextRunTime: '2026-04-29T01:00:00.000Z',
+      createdAt: '2026-04-21T00:00:00.000Z',
+      updatedAt: '2026-04-21T00:00:00.000Z',
+    });
+
+    try {
+      await act(async () => {
+        render(<AIRunnerPage />);
+      });
+
+      await waitFor(() => expect(screen.getByText('AI Agent Runner')).toBeInTheDocument());
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('tab', { name: /Schedules/i }));
+      });
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /Multi Schedule Editor/i }));
+      });
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /Import CSV/i }));
+      });
+
+      await act(async () => {
+        fireEvent.change(screen.getByLabelText('CSV schedule updates'), {
+          target: {
+            value: 'name,cronExpression,timeout,retries\nNightly cleanup,0 2 * * *,45,0',
+          },
+        });
+      });
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /Apply CSV/i }));
+      });
+
+      expect(screen.getByLabelText('Nightly cleanup cron expression')).toHaveValue('0 2 * * *');
+      expect(screen.getByLabelText('Nightly cleanup timeout')).toHaveValue(45);
+      expect(screen.getByLabelText('Nightly cleanup retries')).toHaveValue(0);
     } finally {
       mockSchedules.splice(0, mockSchedules.length);
     }

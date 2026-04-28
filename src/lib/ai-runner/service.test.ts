@@ -229,6 +229,24 @@ describe('AIRunnerService', () => {
   });
 
   describe('Schedules', () => {
+    function scheduleDoc(overrides: Record<string, unknown> = {}) {
+      return {
+        _id: 'schedule-1',
+        name: 'Schedule 1',
+        promptId: 'prompt-1',
+        agentProfileId: 'profile-1',
+        workingDirectory: '/repo',
+        timeout: 30,
+        retries: 1,
+        cronExpression: '0 9 * * *',
+        enabled: true,
+        createdAt: new Date('2026-04-21T00:00:00.000Z'),
+        updatedAt: new Date('2026-04-21T00:00:00.000Z'),
+        save: vi.fn().mockResolvedValue(true),
+        ...overrides,
+      };
+    }
+
     it('lists schedules with filters', async () => {
       const mockQuery = {
         sort: vi.fn().mockReturnThis(),
@@ -241,6 +259,67 @@ describe('AIRunnerService', () => {
       (AIRunnerSchedule.find as unknown as ReturnType<typeof vi.fn>).mockReturnValue(mockQuery);
       await service.listSchedules({ enabled: true, limit: 10 });
       expect(AIRunnerSchedule.find).toHaveBeenCalledWith({ enabled: true });
+    });
+
+    it('bulk updates changed schedule fields after validating every row', async () => {
+      const first = scheduleDoc({ _id: 'schedule-1', name: 'Morning' });
+      const second = scheduleDoc({
+        _id: 'schedule-2',
+        name: 'Afternoon',
+        cronExpression: '0 13 * * *',
+      });
+      (AIRunnerSchedule.find as unknown as ReturnType<typeof vi.fn>).mockResolvedValue([
+        first,
+        second,
+      ]);
+
+      const result = await service.bulkUpdateSchedules([
+        { id: 'schedule-1', cronExpression: '15 9 * * *', timeout: 45, retries: 2 },
+        { id: 'schedule-2', cronExpression: '30 13 * * *', timeout: 20, retries: 0 },
+      ]);
+
+      expect(AIRunnerSchedule.find).toHaveBeenCalledWith({
+        _id: { $in: ['schedule-1', 'schedule-2'] },
+      });
+      expect(first.cronExpression).toBe('15 9 * * *');
+      expect(first.timeout).toBe(45);
+      expect(first.retries).toBe(2);
+      expect(second.cronExpression).toBe('30 13 * * *');
+      expect(second.timeout).toBe(20);
+      expect(second.retries).toBe(0);
+      expect(first.save).toHaveBeenCalled();
+      expect(second.save).toHaveBeenCalled();
+      expect(result.updatedCount).toBe(2);
+      expect(result.schedules).toHaveLength(2);
+      expect(ensureAIRunnerSupervisor).toHaveBeenCalled();
+    });
+
+    it('rejects invalid bulk schedule updates before saving any row', async () => {
+      const first = scheduleDoc({ _id: 'schedule-1', name: 'Morning' });
+      const second = scheduleDoc({ _id: 'schedule-2', name: 'Afternoon' });
+      (AIRunnerSchedule.find as unknown as ReturnType<typeof vi.fn>).mockResolvedValue([
+        first,
+        second,
+      ]);
+
+      await expect(
+        service.bulkUpdateSchedules([
+          { id: 'schedule-1', cronExpression: 'bad cron', timeout: 45, retries: 2 },
+          { id: 'schedule-2', cronExpression: '30 13 * * *', timeout: 20, retries: 0 },
+        ])
+      ).rejects.toMatchObject({
+        rowErrors: [
+          {
+            id: 'schedule-1',
+            field: 'cronExpression',
+            message: 'Invalid cron expression',
+          },
+        ],
+      });
+
+      expect(first.save).not.toHaveBeenCalled();
+      expect(second.save).not.toHaveBeenCalled();
+      expect(ensureAIRunnerSupervisor).not.toHaveBeenCalled();
     });
 
     it('toggles a schedule', async () => {

@@ -81,6 +81,29 @@ type AIRunnerAutoflowCreateInput = {
   startImmediately?: boolean;
 };
 
+export interface AIRunnerBulkScheduleUpdateInput {
+  id: string;
+  cronExpression?: string;
+  timeout?: number;
+  retries?: number;
+}
+
+export interface AIRunnerBulkScheduleRowError {
+  id: string;
+  field: 'id' | 'cronExpression' | 'timeout' | 'retries';
+  message: string;
+}
+
+export class AIRunnerBulkScheduleUpdateError extends Error {
+  rowErrors: AIRunnerBulkScheduleRowError[];
+
+  constructor(rowErrors: AIRunnerBulkScheduleRowError[]) {
+    super('Bulk schedule update failed validation');
+    this.name = 'AIRunnerBulkScheduleUpdateError';
+    this.rowErrors = rowErrors;
+  }
+}
+
 const PORTABLE_RESOURCES: AIRunnerPortableResource[] = [
   'settings',
   'profiles',
@@ -524,6 +547,115 @@ export class AIRunnerService {
     await schedule.save();
     ensureAIRunnerSupervisor();
     return mapSchedule(schedule);
+  }
+
+  async bulkUpdateSchedules(updates: AIRunnerBulkScheduleUpdateInput[]): Promise<{
+    schedules: AIRunnerScheduleDTO[];
+    updatedCount: number;
+  }> {
+    await connectDB();
+
+    const rowErrors: AIRunnerBulkScheduleRowError[] = [];
+    const ids = updates.map((update) => update.id);
+    const duplicateIds = new Set<string>();
+    const seenIds = new Set<string>();
+    for (const id of ids) {
+      if (seenIds.has(id)) duplicateIds.add(id);
+      seenIds.add(id);
+    }
+    for (const id of duplicateIds) {
+      rowErrors.push({
+        id,
+        field: 'id',
+        message: 'Duplicate schedule update',
+      });
+    }
+
+    const schedules = await AIRunnerSchedule.find({ _id: { $in: ids } });
+    const scheduleMap = new Map(schedules.map((schedule) => [stringifyId(schedule._id), schedule]));
+    const candidates: Array<{
+      schedule: (typeof schedules)[number];
+      cronExpression: string;
+      timeout: number;
+      retries: number;
+      nextRunTime: string | undefined;
+    }> = [];
+
+    for (const update of updates) {
+      const schedule = scheduleMap.get(update.id);
+      if (!schedule) {
+        rowErrors.push({
+          id: update.id,
+          field: 'id',
+          message: 'Schedule not found',
+        });
+        continue;
+      }
+
+      if (
+        update.timeout !== undefined &&
+        (!Number.isInteger(update.timeout) || update.timeout < 1 || update.timeout > 24 * 60)
+      ) {
+        rowErrors.push({
+          id: update.id,
+          field: 'timeout',
+          message: 'Timeout must be between 1 and 1440 minutes',
+        });
+      }
+
+      if (
+        update.retries !== undefined &&
+        (!Number.isInteger(update.retries) || update.retries < 0 || update.retries > 9)
+      ) {
+        rowErrors.push({
+          id: update.id,
+          field: 'retries',
+          message: 'Retries must be between 0 and 9',
+        });
+      }
+
+      const cronExpression = update.cronExpression ?? String(schedule.cronExpression);
+      const nextRunTime = schedule.enabled
+        ? getNextRunTimeFromExpression(cronExpression)
+        : undefined;
+      if (schedule.enabled && !nextRunTime) {
+        rowErrors.push({
+          id: update.id,
+          field: 'cronExpression',
+          message: 'Invalid cron expression',
+        });
+      }
+
+      candidates.push({
+        schedule,
+        cronExpression,
+        timeout: update.timeout ?? (typeof schedule.timeout === 'number' ? schedule.timeout : 30),
+        retries: update.retries ?? (typeof schedule.retries === 'number' ? schedule.retries : 1),
+        nextRunTime,
+      });
+    }
+
+    if (rowErrors.length > 0) {
+      throw new AIRunnerBulkScheduleUpdateError(rowErrors);
+    }
+
+    const savedSchedules = [];
+    for (const candidate of candidates) {
+      Object.assign(candidate.schedule, {
+        cronExpression: candidate.cronExpression,
+        timeout: candidate.timeout,
+        retries: candidate.retries,
+        nextRunTime: candidate.nextRunTime ? new Date(candidate.nextRunTime) : undefined,
+      });
+      await candidate.schedule.save();
+      savedSchedules.push(candidate.schedule);
+    }
+
+    ensureAIRunnerSupervisor();
+    return {
+      schedules: savedSchedules.map(mapSchedule),
+      updatedCount: savedSchedules.length,
+    };
   }
 
   async deleteSchedule(id: string): Promise<boolean> {
