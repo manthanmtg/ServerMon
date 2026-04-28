@@ -1,3 +1,10 @@
+---
+id: test-corrector
+title: Test Corrector Prompt
+category: testing
+enabled: true
+autonomousSafe: true
+---
 # Test Corrector Prompt
 
 ## Objective

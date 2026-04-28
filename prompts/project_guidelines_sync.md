@@ -1,3 +1,10 @@
+---
+id: project-guidelines-sync
+title: Project Guidelines Sync Prompt
+category: documentation
+enabled: true
+autonomousSafe: true
+---
 # Project Guidelines Sync Prompt
 
 ## Objective

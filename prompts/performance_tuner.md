@@ -1,3 +1,10 @@
+---
+id: performance-tuner
+title: Performance Tuner Prompt
+category: performance
+enabled: true
+autonomousSafe: true
+---
 # Performance Tuner Prompt
 
 ## Objective

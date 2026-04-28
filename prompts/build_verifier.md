@@ -1,3 +1,10 @@
+---
+id: build-verifier
+title: Build Verifier Prompt
+category: verification
+enabled: true
+autonomousSafe: true
+---
 # Build Verifier Prompt
 
 ## Objective

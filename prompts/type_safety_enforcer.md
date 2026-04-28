@@ -1,3 +1,10 @@
+---
+id: type-safety-enforcer
+title: Type Safety Enforcer Prompt
+category: verification
+enabled: true
+autonomousSafe: true
+---
 # Type Safety Enforcer Prompt
 
 ## Objective

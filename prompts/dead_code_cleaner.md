@@ -1,3 +1,10 @@
+---
+id: dead-code-cleaner
+title: Dead Code Cleaner Prompt
+category: code-quality
+enabled: true
+autonomousSafe: true
+---
 # Dead Code Cleaner Prompt
 
 ## Objective

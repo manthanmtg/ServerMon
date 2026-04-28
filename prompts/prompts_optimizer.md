@@ -1,3 +1,10 @@
+---
+id: prompts-optimizer
+title: Prompts Optimizer
+category: prompt-maintenance
+enabled: true
+autonomousSafe: true
+---
 # Prompts Optimizer - Autonomous Prompt Maintenance Agent
 
 ## Objective

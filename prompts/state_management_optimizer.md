@@ -1,3 +1,10 @@
+---
+id: state-management-optimizer
+title: State Management Optimizer Prompt
+category: reliability
+enabled: true
+autonomousSafe: true
+---
 # State Management Optimizer Prompt
 
 ## Objective

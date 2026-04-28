@@ -1,3 +1,10 @@
+---
+id: random-selector
+title: Random Selector
+category: selector
+enabled: false
+autonomousSafe: false
+---
 # Random Selector — Autonomous Improvement Agent
 
 ## Objective
@@ -12,21 +19,25 @@ You are an autonomous improvement agent for the ServerMon project. Your job is t
 
 ## Workflow
 
+### Prompt Observability
+
+- Treat `prompts/prompts_metadata.json` as the source of truth for prompt eligibility and run counters.
+- Select only prompts whose metadata has `enabled: true` and `autonomousSafe: true`. Keep the rare `prompts_optimizer.md` branch at about 1 in 25 runs.
+- Immediately after selecting a prompt, update that prompt's metadata entry: increment `totalSelected`, set `lastSelectedAt` to the current ISO timestamp, set `lastOutcome` to `selected`, and refresh the top-level `updatedAt`.
+- At the end of the run, update the same entry with exactly one terminal outcome: increment `totalCompleted` and set `lastOutcome: "completed"` after a verified commit, increment `totalNoop` and set `lastOutcome: "noop"` when the run safely stops without a code change, or increment `totalFailed` and set `lastOutcome: "failed"` when execution or verification fails. Set `lastCompletedAt` for every terminal outcome.
+- Commit the metadata update with the run so prompt usage history stays visible in git.
+
+
 ### 1. Select a Prompt
 
 - Identify and pick one **at random** from prompts that are safe for autonomous execution. `prompts_optimizer.md` should run rarely, about 1 in 25 runs, because it maintains the prompt suite itself:
-  ```bash
-  if [ "$((RANDOM % 25))" -eq 0 ]; then
-    printf '%s\n' prompts/prompts_optimizer.md
-  else
-    find prompts -maxdepth 1 -name "*.md" \
-      ! -name "random_selector.md" \
-      ! -name "module_generator_prompt.md" \
-      ! -name "prompts_optimizer.md" \
-      | sort \
-      | awk 'BEGIN{srand()} {a[NR]=$0} END{if (NR > 0) print a[int(rand()*NR)+1]}'
-  fi
-  ```
+```bash
+if [ "$((RANDOM % 25))" -eq 0 ]; then
+  printf '%s\n' prompts/prompts_optimizer.md
+else
+  node -e 'const fs=require("fs"); const metadata=JSON.parse(fs.readFileSync("prompts/prompts_metadata.json","utf8")); const candidates=Object.values(metadata.prompts).filter((prompt)=>prompt.enabled&&prompt.autonomousSafe&&prompt.file!=="prompts_optimizer.md").map((prompt)=>`prompts/${prompt.file}`).sort(); if(candidates.length===0){console.error("No eligible prompts found in prompts/prompts_metadata.json."); process.exit(1);} console.log(candidates[Math.floor(Math.random()*candidates.length)]);'
+fi
+```
 - Do not execute prompts that explicitly say they are not for autonomous use.
 - Log which prompt you selected so the run is traceable.
 

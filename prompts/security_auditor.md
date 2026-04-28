@@ -1,3 +1,10 @@
+---
+id: security-auditor
+title: Security Auditor Prompt
+category: security
+enabled: true
+autonomousSafe: true
+---
 # Security Auditor Prompt
 
 ## Objective

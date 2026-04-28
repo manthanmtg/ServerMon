@@ -1,3 +1,10 @@
+---
+id: api-resilience-improver
+title: API Resilience Improver Prompt
+category: reliability
+enabled: true
+autonomousSafe: true
+---
 # API Resilience Improver Prompt
 
 ## Objective

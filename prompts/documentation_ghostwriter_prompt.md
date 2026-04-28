@@ -1,3 +1,10 @@
+---
+id: documentation-ghostwriter-prompt
+title: Documentation Ghostwriter Prompt
+category: documentation
+enabled: true
+autonomousSafe: true
+---
 # Documentation Ghostwriter Prompt
 
 ## Objective

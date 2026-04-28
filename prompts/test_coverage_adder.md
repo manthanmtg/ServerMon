@@ -1,3 +1,10 @@
+---
+id: test-coverage-adder
+title: Test Coverage Adder Prompt
+category: testing
+enabled: true
+autonomousSafe: true
+---
 # Test Coverage Adder Prompt
 
 ## Objective

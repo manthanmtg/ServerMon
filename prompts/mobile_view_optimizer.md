@@ -1,3 +1,10 @@
+---
+id: mobile-view-optimizer
+title: Mobile View Optimizer Prompt
+category: ui-quality
+enabled: true
+autonomousSafe: true
+---
 # Mobile View Optimizer Prompt
 
 ## Objective

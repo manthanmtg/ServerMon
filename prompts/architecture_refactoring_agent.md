@@ -1,3 +1,10 @@
+---
+id: architecture-refactoring-agent
+title: Architecture Refactoring Agent Prompt
+category: code-quality
+enabled: true
+autonomousSafe: true
+---
 # Architecture Refactoring Agent Prompt
 
 ## Objective

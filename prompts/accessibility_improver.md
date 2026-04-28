@@ -1,3 +1,10 @@
+---
+id: accessibility-improver
+title: Accessibility Improver Prompt
+category: ui-quality
+enabled: true
+autonomousSafe: true
+---
 # Accessibility Improver Prompt
 
 ## Objective

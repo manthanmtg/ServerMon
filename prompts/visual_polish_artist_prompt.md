@@ -1,3 +1,10 @@
+---
+id: visual-polish-artist-prompt
+title: Visual Polish Artist Prompt
+category: ui-quality
+enabled: true
+autonomousSafe: true
+---
 # Visual Polish Artist Prompt
 
 ## Objective
