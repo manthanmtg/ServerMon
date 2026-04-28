@@ -290,6 +290,20 @@ describe('EndpointsPage', () => {
     });
   });
 
+  it('labels endpoint status toggles with action context and state', async () => {
+    await renderPage();
+    await waitFor(() => screen.getByText('Test Endpoint'));
+
+    expect(screen.getByRole('button', { name: 'Disable Test Endpoint' })).toHaveAttribute(
+      'aria-pressed',
+      'true'
+    );
+    expect(screen.getByRole('button', { name: 'Enable Webhook API' })).toHaveAttribute(
+      'aria-pressed',
+      'false'
+    );
+  });
+
   it('saves changes to an endpoint', async () => {
     await renderPage();
     await waitFor(() => screen.getByText('Test Endpoint'));

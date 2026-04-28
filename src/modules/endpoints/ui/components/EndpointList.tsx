@@ -273,12 +273,15 @@ export function EndpointList({
                   role="button"
                   tabIndex={0}
                   data-testid="endpoint-toggle"
+                  aria-label={`${ep.enabled ? 'Disable' : 'Enable'} ${ep.name}`}
+                  aria-pressed={ep.enabled}
                   onClick={(e) => {
                     e.stopPropagation();
                     onToggle(ep._id);
                   }}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
                       e.stopPropagation();
                       onToggle(ep._id);
                     }

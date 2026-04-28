@@ -501,8 +501,8 @@ export class AgentClient {
   }
 
   private async handleCommand(cmd: AgentCommand): Promise<void> {
-    if (!cmd || typeof cmd !== "object" || !cmd.command) {
-      this.log("error", "agent.command.invalid", "Received invalid command payload");
+    if (!cmd || typeof cmd !== 'object' || !cmd.command) {
+      this.log('error', 'agent.command.invalid', 'Received invalid command payload');
       return;
     }
 

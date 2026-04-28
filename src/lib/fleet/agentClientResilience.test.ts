@@ -17,7 +17,9 @@ function mkInvalidJsonResponse(): Response {
     ok: true,
     status: 200,
     statusText: 'OK',
-    json: async () => { throw new Error('Invalid JSON'); },
+    json: async () => {
+      throw new Error('Invalid JSON');
+    },
     text: async () => 'not a json',
   } as unknown as Response;
 }
@@ -55,15 +57,19 @@ describe('AgentClient Resilience', () => {
     // Accessing private handleCommand for testing
     // @ts-expect-error - testing private method
     await client.handleCommand(null);
-    expect(logEntry).toHaveBeenCalledWith(expect.objectContaining({
-      eventType: 'agent.command.invalid'
-    }));
+    expect(logEntry).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: 'agent.command.invalid',
+      })
+    );
 
     logEntry.mockClear();
     // @ts-expect-error - testing private method
     await client.handleCommand({});
-    expect(logEntry).toHaveBeenCalledWith(expect.objectContaining({
-      eventType: 'agent.command.invalid'
-    }));
+    expect(logEntry).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: 'agent.command.invalid',
+      })
+    );
   });
 });
