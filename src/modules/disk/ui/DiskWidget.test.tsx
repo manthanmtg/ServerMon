@@ -122,7 +122,7 @@ describe('DiskWidget', () => {
 
     const { container } = render(<DiskWidget />);
     await waitFor(() => {
-      const progressBar = container.querySelector('.bg-orange-500');
+      const progressBar = container.querySelector('.bg-warning');
       expect(progressBar).toBeTruthy();
     });
   });
