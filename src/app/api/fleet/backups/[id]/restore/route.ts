@@ -17,6 +17,7 @@ import ImportedConfig from '@/models/ImportedConfig';
 import { recordAudit } from '@/lib/fleet/audit';
 import { getSession } from '@/lib/session';
 import { enforceRbac } from '@/lib/fleet/rbac';
+import type { BackupManifest } from '@/lib/fleet/backup';
 
 export const dynamic = 'force-dynamic';
 
@@ -37,17 +38,6 @@ const SCOPE_MODELS: Record<string, Model<unknown>> = {
   templates: RouteTemplate as unknown as Model<unknown>,
   imported: ImportedConfig as unknown as Model<unknown>,
 };
-
-interface ManifestFileEntry {
-  path: string;
-  count: number;
-  sizeBytes: number;
-}
-
-interface ManifestShape {
-  scopes: string[];
-  files: Record<string, ManifestFileEntry>;
-}
 
 export async function POST(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -74,7 +64,7 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
     }
 
     const manifestRaw = await fs.readFile(job.manifestPath, 'utf8');
-    const manifest = JSON.parse(manifestRaw) as ManifestShape;
+    const manifest = JSON.parse(manifestRaw) as BackupManifest;
 
     const restored: Record<string, number> = {};
 
@@ -89,13 +79,8 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
         restored[scope] = 0;
         continue;
       }
-      const insertMany = (
-        model as unknown as {
-          insertMany: (docs: unknown[], opts: { ordered: boolean }) => Promise<unknown>;
-        }
-      ).insertMany;
       try {
-        await insertMany.call(model, docs, { ordered: false });
+        await model.insertMany(docs, { ordered: false });
       } catch (err) {
         log.warn(`Partial insertMany failure for scope ${scope}`, err);
       }
