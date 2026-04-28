@@ -30,6 +30,14 @@ function makeRequest(body: unknown): Request {
   });
 }
 
+function makeRawRequest(body: string): Request {
+  return new Request('http://localhost/api/settings/branding', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body,
+  });
+}
+
 describe('GET /api/settings/branding', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -98,6 +106,28 @@ describe('POST /api/settings/branding', () => {
       expect.objectContaining({ $set: expect.objectContaining({ pageTitle: 'ServerMon' }) }),
       expect.anything()
     );
+  });
+
+  it('returns 400 for malformed JSON without writing settings', async () => {
+    mockGetSession.mockResolvedValue({ user: { role: 'admin' } });
+
+    const res = await POST(makeRawRequest('{bad json'));
+
+    expect(res.status).toBe(400);
+    expect(mockConnectDB).not.toHaveBeenCalled();
+    expect(mockFindOneAndUpdate).not.toHaveBeenCalled();
+    expect(await res.json()).toEqual({ error: 'Invalid request body' });
+  });
+
+  it('returns 400 for invalid branding payload fields', async () => {
+    mockGetSession.mockResolvedValue({ user: { role: 'admin' } });
+
+    const res = await POST(makeRequest({ pageTitle: { text: 'ServerMon' }, logoBase64: 123 }));
+
+    expect(res.status).toBe(400);
+    expect(mockConnectDB).not.toHaveBeenCalled();
+    expect(mockFindOneAndUpdate).not.toHaveBeenCalled();
+    expect(await res.json()).toEqual({ error: 'Invalid request body' });
   });
 
   it('returns 500 on DB error', async () => {
