@@ -111,6 +111,14 @@ function isAbortError(err: unknown): boolean {
   );
 }
 
+async function safeJson<T>(res: Response): Promise<T | null> {
+  try {
+    return (await res.json()) as T;
+  } catch {
+    return null;
+  }
+}
+
 async function fetchHubWithTimeout(
   fetchImpl: typeof fetch,
   input: Parameters<typeof fetch>[0],
@@ -226,7 +234,13 @@ export class AgentClient {
       this.status_.lastError = `pair-failed: ${pairRes.status}`;
       throw new Error(`pair-failed: ${pairRes.status}`);
     }
-    this.pairResponse = (await pairRes.json()) as PairResponse;
+    const pairData = await safeJson<PairResponse>(pairRes);
+    if (!pairData || !pairData.hub) {
+      this.status_.tunnelStatus = 'auth_failed';
+      this.status_.lastError = 'pair-failed: invalid-payload';
+      throw new Error('pair-failed: invalid-payload');
+    }
+    this.pairResponse = pairData;
     this.status_.paired = true;
     this.activeProxies.clear();
 
@@ -256,7 +270,12 @@ export class AgentClient {
       this.status_.lastError = `node-fetch-failed: ${nodeRes.status}`;
       throw new Error(`node-fetch-failed: ${nodeRes.status}`);
     }
-    const data = (await nodeRes.json()) as NodeConfigResponse | { node?: NodeConfigResponse };
+    const data = await safeJson<NodeConfigResponse | { node?: NodeConfigResponse }>(nodeRes);
+    if (!data) {
+      this.status_.tunnelStatus = 'config_invalid';
+      this.status_.lastError = 'node-fetch-failed: invalid-payload';
+      throw new Error('node-fetch-failed: invalid-payload');
+    }
     this.nodeConfig = unwrapNodeConfig(data);
 
     // 3. Ensure frpc binary
@@ -464,8 +483,8 @@ export class AgentClient {
       );
       if (res.ok) {
         this.status_.lastHeartbeatAt = nowDate;
-        const data = await res.json().catch(() => ({}));
-        if (Array.isArray(data.commands) && data.commands.length > 0) {
+        const data = await safeJson<{ commands?: AgentCommand[] }>(res);
+        if (data && Array.isArray(data.commands) && data.commands.length > 0) {
           for (const cmd of data.commands) {
             void this.handleCommand(cmd);
           }
@@ -482,6 +501,11 @@ export class AgentClient {
   }
 
   private async handleCommand(cmd: AgentCommand): Promise<void> {
+    if (!cmd || typeof cmd !== "object" || !cmd.command) {
+      this.log("error", "agent.command.invalid", "Received invalid command payload");
+      return;
+    }
+
     this.log('info', 'agent.command.received', `Received remote command: ${cmd.command}`, {
       commandId: cmd.id,
     });
@@ -556,7 +580,10 @@ export class AgentClient {
       if (!nodeRes.ok) {
         throw new Error(`node-fetch-failed: ${nodeRes.status}`);
       }
-      const data = (await nodeRes.json()) as NodeConfigResponse | { node?: NodeConfigResponse };
+      const data = await safeJson<NodeConfigResponse | { node?: NodeConfigResponse }>(nodeRes);
+      if (!data) {
+        throw new Error('node-fetch-failed: invalid-payload');
+      }
       this.nodeConfig = unwrapNodeConfig(data);
 
       // 2. Render frpc.toml
