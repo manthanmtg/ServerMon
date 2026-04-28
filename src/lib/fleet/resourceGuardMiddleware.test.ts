@@ -1,20 +1,22 @@
 import { describe, it, expect, vi } from 'vitest';
 import type { Model } from 'mongoose';
+import type { IResourcePolicy } from '@/models/ResourcePolicy';
+import type { IFleetLogEvent } from '@/models/FleetLogEvent';
 import { enforceResourceGuard } from './resourceGuardMiddleware';
 
-function mockPolicyModel(docs: Array<Record<string, unknown>>): Model<unknown> {
+function mockPolicyModel(docs: Array<any>): Model<IResourcePolicy> {
   const find = vi.fn().mockReturnValue({
     lean: () => Promise.resolve(docs),
   });
-  return { find } as unknown as Model<unknown>;
+  return { find } as unknown as Model<IResourcePolicy>;
 }
 
 function mockLogModel(): {
-  model: Model<unknown>;
+  model: Model<IFleetLogEvent>;
   create: ReturnType<typeof vi.fn>;
 } {
   const create = vi.fn().mockResolvedValue({});
-  const model = { create } as unknown as Model<unknown>;
+  const model = { create } as unknown as Model<IFleetLogEvent>;
   return { model, create };
 }
 
@@ -156,7 +158,7 @@ describe('enforceResourceGuard', () => {
       },
     ]);
     const create = vi.fn().mockRejectedValue(new Error('db down'));
-    const FleetLogEvent = { create } as unknown as Model<unknown>;
+    const FleetLogEvent = { create } as unknown as Model<IFleetLogEvent>;
 
     const result = await enforceResourceGuard({
       key: 'maxPublicRoutes',

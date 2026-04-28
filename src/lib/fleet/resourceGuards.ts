@@ -1,4 +1,5 @@
 import type { Model } from 'mongoose';
+import type { IResourcePolicy } from '@/models/ResourcePolicy';
 
 export type LimitKey =
   | 'maxAgents'
@@ -65,18 +66,10 @@ export function checkLimit(i: CheckLimitInput): CheckLimitResult {
 export interface GetEffectivePolicyInput {
   scope: 'global' | 'node' | 'tag' | 'role';
   scopeId?: string;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  model: Model<any>;
+  model: Model<IResourcePolicy>;
 }
 
-interface PolicyDoc {
-  scope: 'global' | 'node' | 'tag' | 'role';
-  scopeId?: string;
-  limits?: Partial<Record<LimitKey, number>>;
-  enforcement?: Partial<Record<LimitKey, Enforcement>>;
-}
-
-function mergePolicy(base: EffectivePolicy, override: PolicyDoc): EffectivePolicy {
+function mergePolicy(base: EffectivePolicy, override: Partial<IResourcePolicy>): EffectivePolicy {
   return {
     limits: { ...base.limits, ...(override.limits ?? {}) },
     enforcement: { ...base.enforcement, ...(override.enforcement ?? {}) },
@@ -85,7 +78,7 @@ function mergePolicy(base: EffectivePolicy, override: PolicyDoc): EffectivePolic
 
 export async function getEffectivePolicy(i: GetEffectivePolicyInput): Promise<EffectivePolicy> {
   const query = i.model.find({});
-  const docs = (await query.lean()) as PolicyDoc[];
+  const docs = (await query.lean()) as Partial<IResourcePolicy>[];
 
   let merged: EffectivePolicy = { limits: {}, enforcement: {} };
 

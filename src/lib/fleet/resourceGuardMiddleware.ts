@@ -1,4 +1,6 @@
 import type { Model } from 'mongoose';
+import type { IResourcePolicy } from '@/models/ResourcePolicy';
+import type { IFleetLogEvent } from '@/models/FleetLogEvent';
 import type { LimitKey, Enforcement, EffectivePolicy } from './resourceGuards';
 import { checkLimit, getEffectivePolicy } from './resourceGuards';
 
@@ -7,12 +9,15 @@ export interface ResourceGuardCheckInput {
   scope: 'global' | 'node' | 'tag' | 'role';
   scopeId?: string;
   currentCounter: () => Promise<number>;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  ResourcePolicy: Model<any>;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  FleetLogEvent?: Model<any>;
+  ResourcePolicy: Model<IResourcePolicy>;
+  FleetLogEvent?: Model<IFleetLogEvent>;
   actorUserId?: string;
 }
+
+export type ResourceGuardCheckInputMinimal = Omit<
+  ResourceGuardCheckInput,
+  'ResourcePolicy' | 'FleetLogEvent'
+>;
 
 export interface ResourceGuardCheckResult {
   allowed: boolean;

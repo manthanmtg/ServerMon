@@ -4,7 +4,10 @@ import type { Server as SocketIOServer } from 'socket.io';
 import { registerFleetTtyNamespace, FLEET_TTY_NAMESPACE_PATH } from './fleetTtyNamespace';
 import { TTY_MSG } from './tty-bridge';
 import type { HubTtySession, HubTtySessionExitInfo, HubTtyBridge } from './hubTtyBridge';
-import type { ResourceGuardCheckInput, ResourceGuardCheckResult } from './resourceGuardMiddleware';
+import type {
+  ResourceGuardCheckInputMinimal,
+  ResourceGuardCheckResult,
+} from './resourceGuardMiddleware';
 
 interface FakeSocket extends EventEmitter {
   id: string;
@@ -503,9 +506,9 @@ describe('registerFleetTtyNamespace', () => {
     const { io, nsp } = makeFakeIo();
     const session = makeFakeSession('node-1', 'sess-1');
     const { bridge, openSession } = makeFakeBridge(() => session);
-    let capturedInput: ResourceGuardCheckInput | null = null;
+    let capturedInput: ResourceGuardCheckInputMinimal | null = null;
     const guardImpl = vi.fn(
-      async (input: ResourceGuardCheckInput): Promise<ResourceGuardCheckResult> => {
+      async (input: ResourceGuardCheckInputMinimal): Promise<ResourceGuardCheckResult> => {
         capturedInput = input;
         return {
           allowed: false,
@@ -535,7 +538,7 @@ describe('registerFleetTtyNamespace', () => {
 
     expect(guardImpl).toHaveBeenCalledTimes(1);
     expect(capturedInput).not.toBeNull();
-    const input = capturedInput as unknown as ResourceGuardCheckInput;
+    const input = capturedInput as unknown as ResourceGuardCheckInputMinimal;
     expect(input.key).toBe('maxActiveTerminals');
     expect(input.scope).toBe('global');
     await expect(input.currentCounter()).resolves.toBe(1);
@@ -555,7 +558,7 @@ describe('registerFleetTtyNamespace', () => {
     const session = makeFakeSession('node-1', 'sess-1');
     const { bridge, openSession } = makeFakeBridge(() => session);
     const guardImpl = vi.fn(
-      async (_input: ResourceGuardCheckInput): Promise<ResourceGuardCheckResult> => ({
+      async (_input: ResourceGuardCheckInputMinimal): Promise<ResourceGuardCheckResult> => ({
         allowed: true,
         enforcement: 'hard',
         message: 'ok',
