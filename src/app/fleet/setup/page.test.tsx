@@ -51,4 +51,12 @@ describe('Fleet Setup Page', () => {
     expect(screen.getByText('Cloud ingress setup')).toBeDefined();
     expect(screen.getByText('Hub URL')).toBeDefined();
   });
+
+  it('marks the active wizard step for assistive technology', async () => {
+    await act(async () => {
+      render(<Page />);
+    });
+
+    expect(screen.getByText('Hub URL').parentElement).toHaveAttribute('aria-current', 'step');
+  });
 });
