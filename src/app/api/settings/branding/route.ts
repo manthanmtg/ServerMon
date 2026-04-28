@@ -3,10 +3,16 @@ import connectDB from '@/lib/db';
 import BrandSettings from '@/models/BrandSettings';
 import { getSession } from '@/lib/session';
 import { createLogger } from '@/lib/logger';
+import { z } from 'zod';
 
 const log = createLogger('api:settings:branding');
 
 export const dynamic = 'force-dynamic';
+
+const BrandingPostBodySchema = z.object({
+  pageTitle: z.string().optional(),
+  logoBase64: z.string().optional(),
+});
 
 export async function GET() {
   try {
@@ -34,8 +40,19 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const body = await request.json();
-    const { pageTitle, logoBase64 } = body;
+    let body: unknown;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
+    }
+
+    const parsed = BrandingPostBodySchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
+    }
+
+    const { pageTitle, logoBase64 } = parsed.data;
 
     await connectDB();
     const settings = await BrandSettings.findOneAndUpdate(
