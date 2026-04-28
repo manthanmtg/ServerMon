@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import {
   AlertTriangle,
@@ -63,6 +63,8 @@ import { RunDetailDrawer } from './components/RunDetailDrawer';
 import { ScheduleBuilder } from './components/ScheduleBuilder';
 import { ScheduleVisualizationModal } from './components/ScheduleVisualizationModal';
 import { MultiScheduleEditorModal } from './components/MultiScheduleEditorModal';
+import { PromptModal } from './components/PromptModal';
+import { PromptLibrary } from './components/PromptLibrary';
 import { CompactStat, LabelWithHint, ProfileIconPreview } from './components/AIRunnerShared';
 import type {
   HistoryDetailSection,
@@ -76,6 +78,8 @@ import type {
 } from './types';
 import { useRealtimeNow } from './useRealtimeNow';
 import {
+  acceptAttachmentDrag,
+  applyPromptTemplate,
   emptyPromptForm,
   emptyScheduleForm,
   formatCountdown,
@@ -84,6 +88,7 @@ import {
   formatMemory,
   formatRelative,
   formatScheduleDate,
+  getDroppedAttachmentFiles,
   getRunStatusVariant,
   getScheduleModeLabel,
   getScheduleStatusVariant,
@@ -288,14 +293,6 @@ function mergeLogEntries(
     .slice(-LOG_ENTRY_LIMIT);
 }
 
-function applyPromptTemplate(template: string, current: string): string {
-  if (!current.trim()) return template;
-  if (template.includes(PROMPT_TEMPLATE_PLACEHOLDER)) {
-    return template.replaceAll(PROMPT_TEMPLATE_PLACEHOLDER, current);
-  }
-  return `${template.trim()}\n\n${current.trim()}`;
-}
-
 function fileToBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -324,17 +321,6 @@ function validateAttachmentFiles(
     return 'Prompt attachments must be 10 MB or smaller in total.';
   }
   return null;
-}
-
-function acceptAttachmentDrag(event: DragEvent<HTMLElement>): void {
-  event.preventDefault();
-  event.stopPropagation();
-  event.dataTransfer.dropEffect = 'copy';
-}
-
-function getDroppedAttachmentFiles(event: DragEvent<HTMLElement>): FileList {
-  acceptAttachmentDrag(event);
-  return event.dataTransfer.files;
 }
 
 function emptyWorkspaceForm(path = ''): WorkspaceFormState {
@@ -2587,377 +2573,31 @@ export default function AIRunnerPage() {
           ) : null}
 
           {activeTab === 'prompts' && (
-            <div
-              id="runner-tab-prompts"
-              role="tabpanel"
-              aria-labelledby="tab-prompts"
-              className="space-y-5"
-            >
-              <div className="flex flex-wrap gap-3">
-                <Button size="lg" onClick={openCreatePromptModal} className="shrink-0">
-                  <Save className="w-4 h-4" />
-                  Create Prompt
-                </Button>
-              </div>
+            <div id="runner-tab-prompts" role="tabpanel" aria-labelledby="tab-prompts">
+              <PromptLibrary
+                prompts={filteredPrompts}
+                selectedPromptId={selectedPromptId}
+                setSelectedPromptId={setSelectedPromptId}
+                onOpenCreateModal={openCreatePromptModal}
+                onOpenInAutoflow={openPromptInAutoflow}
+                onSelectForEdit={selectPromptForEdit}
+                onDelete={(id) => runExclusiveAction(`prompt:delete:${id}`, () => deletePrompt(id))}
+                isActionPending={isActionPending}
+              />
 
-              <div>
-                <Card className="overflow-hidden border-border/60">
-                  <CardHeader className="border-b border-border/60">
-                    <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-                      <div>
-                        <CardTitle className="text-lg tracking-tight">Library</CardTitle>
-                      </div>
-                      <Badge variant="outline">{prompts.length} saved</Badge>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="pt-2">
-                    {filteredPrompts.map((prompt) => (
-                      <div
-                        key={prompt._id}
-                        onClick={() => setSelectedPromptId(prompt._id)}
-                        className={cn(
-                          'border-b border-border/60 px-4 py-3 transition-colors last:border-b-0 hover:bg-accent/20',
-                          selectedPromptId === prompt._id && 'bg-primary/5'
-                        )}
-                      >
-                        <div className="flex flex-col gap-3 lg:grid lg:grid-cols-[minmax(0,1.5fr)_minmax(0,0.8fr)_auto] lg:items-center">
-                          <div className="min-w-0 space-y-1.5">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <h3 className="text-sm font-semibold tracking-tight">
-                                {prompt.name}
-                              </h3>
-                              <Badge variant="secondary">{prompt.type}</Badge>
-                              {prompt.attachments.length > 0 ? (
-                                <Badge variant="outline">{prompt.attachments.length} files</Badge>
-                              ) : null}
-                            </div>
-                            <p className="line-clamp-2 text-xs text-muted-foreground whitespace-pre-wrap">
-                              {prompt.content}
-                            </p>
-                          </div>
-                          <div className="flex flex-wrap gap-1.5">
-                            {prompt.tags.length > 0 ? (
-                              prompt.tags.map((tag) => (
-                                <Badge key={tag} variant="outline" className="text-[10px]">
-                                  {tag}
-                                </Badge>
-                              ))
-                            ) : (
-                              <span className="text-xs text-muted-foreground">
-                                {prompt.content.length} chars
-                              </span>
-                            )}
-                          </div>
-                          <div className="flex flex-wrap gap-2 lg:justify-end">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                setSelectedPromptId(prompt._id);
-                              }}
-                            >
-                              Preview
-                            </Button>
-                            <Button
-                              size="sm"
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                openPromptInAutoflow(prompt._id);
-                              }}
-                            >
-                              <Play className="w-4 h-4" />
-                              Run
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                selectPromptForEdit(prompt);
-                              }}
-                            >
-                              Edit
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="destructive"
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                void runExclusiveAction(`prompt:delete:${prompt._id}`, () =>
-                                  deletePrompt(prompt._id)
-                                );
-                              }}
-                              loading={isActionPending(`prompt:delete:${prompt._id}`)}
-                            >
-                              <Trash2 className="w-4 h-4" />
-                              Delete
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                    {filteredPrompts.length === 0 && (
-                      <div className="px-6 py-14 text-center">
-                        <h3 className="text-lg font-semibold tracking-tight">
-                          No prompts in the library yet
-                        </h3>
-                        <p className="mt-2 text-sm text-muted-foreground">
-                          Create a reusable prompt and it will show up here ready for runs and
-                          schedules.
-                        </p>
-                        <div className="mt-5">
-                          <Button onClick={openCreatePromptModal}>
-                            <Save className="w-4 h-4" />
-                            Create Prompt
-                          </Button>
-                        </div>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              </div>
-
-              {promptModalOpen && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 md:p-6">
-                  <div
-                    className="absolute inset-0 bg-background/80 backdrop-blur-sm animate-in fade-in duration-300"
-                    onClick={closePromptModal}
-                  />
-                  <div className="relative flex max-h-[92dvh] w-full max-w-5xl flex-col overflow-hidden rounded-[32px] border border-primary/20 bg-card/95 shadow-2xl animate-in fade-in zoom-in-95 slide-in-from-bottom-4 duration-300">
-                    <div className="flex items-center justify-between border-b border-border/60 bg-background/80 px-6 py-5 backdrop-blur">
-                      <div>
-                        <p className="text-[11px] uppercase tracking-[0.26em] text-primary/80">
-                          Prompt Studio
-                        </p>
-                        <h3 className="mt-2 text-2xl font-semibold tracking-tight">
-                          {editingPromptId ? 'Edit prompt' : 'Create prompt'}
-                        </h3>
-                        <p className="mt-2 text-sm text-muted-foreground">
-                          Write the prompt once, tag it clearly, and keep it portable across runs
-                          and schedules.
-                        </p>
-                      </div>
-                      <button
-                        onClick={closePromptModal}
-                        className="flex h-10 w-10 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
-                        aria-label="Close prompt modal"
-                      >
-                        <X className="h-5 w-5" />
-                      </button>
-                    </div>
-                    <div className="overflow-y-auto px-6 py-6">
-                      <div className="grid gap-6 xl:grid-cols-[0.85fr_1.15fr]">
-                        <div className="space-y-6">
-                          <div className="rounded-[24px] border border-border/60 bg-background/80 p-5 space-y-4">
-                            <div>
-                              <p className="text-sm font-semibold">Identity</p>
-                              <p className="mt-1 text-xs text-muted-foreground">
-                                Give this prompt a strong name so it reads clearly in libraries and
-                                launch flows.
-                              </p>
-                            </div>
-                            <Input
-                              label="Name"
-                              value={promptForm.name}
-                              onChange={(event) =>
-                                setPromptForm((current) => ({
-                                  ...current,
-                                  name: event.target.value,
-                                }))
-                              }
-                            />
-                            <Input
-                              label="Tags (comma separated)"
-                              value={promptForm.tags.join(', ')}
-                              onChange={(event) =>
-                                setPromptForm((current) => ({
-                                  ...current,
-                                  tags: event.target.value
-                                    .split(',')
-                                    .map((item) => item.trim())
-                                    .filter(Boolean),
-                                }))
-                              }
-                            />
-                            <div className="rounded-xl border border-primary/20 bg-primary/5 px-4 py-3 text-xs text-muted-foreground">
-                              Execution settings live in AutoFlow and schedules, so this prompt
-                              stays reusable across profiles and repos.
-                            </div>
-                          </div>
-
-                          <div className="rounded-[24px] border border-border/60 bg-background/80 p-5 space-y-4">
-                            <div>
-                              <p className="text-sm font-semibold">Storage Mode</p>
-                              <p className="mt-1 text-xs text-muted-foreground">
-                                Choose whether this prompt lives inline or points to a file on disk.
-                              </p>
-                            </div>
-                            <div className="flex gap-2">
-                              <Button
-                                size="sm"
-                                variant={promptForm.type === 'inline' ? 'default' : 'outline'}
-                                onClick={() =>
-                                  setPromptForm((current) => ({ ...current, type: 'inline' }))
-                                }
-                              >
-                                Inline
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant={
-                                  promptForm.type === 'file-reference' ? 'default' : 'outline'
-                                }
-                                onClick={() =>
-                                  setPromptForm((current) => ({
-                                    ...current,
-                                    type: 'file-reference',
-                                  }))
-                                }
-                              >
-                                File Reference
-                              </Button>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="rounded-[24px] border border-border/60 bg-background/80 p-5 space-y-4">
-                          <div>
-                            <div className="flex items-center justify-between gap-3">
-                              <p className="text-sm font-semibold">
-                                {promptForm.type === 'inline'
-                                  ? 'Prompt Content'
-                                  : 'Prompt File Path'}
-                              </p>
-                              {promptForm.type === 'inline' && promptTemplates.length > 0 ? (
-                                <select
-                                  aria-label="Load prompt template into saved prompt"
-                                  onChange={(event) => {
-                                    const template = promptTemplates.find(
-                                      (item) => item._id === event.target.value
-                                    );
-                                    if (!template) return;
-                                    setPromptForm((current) => ({
-                                      ...current,
-                                      content: applyPromptTemplate(
-                                        template.content,
-                                        current.content
-                                      ),
-                                    }));
-                                    event.target.value = '';
-                                  }}
-                                  className="h-9 max-w-[260px] rounded-lg border border-input bg-background px-3 text-xs outline-none focus:ring-2 focus:ring-ring/40"
-                                >
-                                  <option value="">Load template...</option>
-                                  {promptTemplates.map((template) => (
-                                    <option key={template._id} value={template._id}>
-                                      {template.name}
-                                    </option>
-                                  ))}
-                                </select>
-                              ) : null}
-                            </div>
-                            <p className="mt-1 text-xs text-muted-foreground">
-                              {promptForm.type === 'inline'
-                                ? 'Draft the actual reusable instruction here.'
-                                : 'Reference a prompt file path that should be loaded at run time.'}
-                            </p>
-                          </div>
-                          <textarea
-                            value={promptForm.content}
-                            onChange={(event) =>
-                              setPromptForm((current) => ({
-                                ...current,
-                                content: event.target.value,
-                              }))
-                            }
-                            className="min-h-[420px] w-full rounded-xl border border-input bg-background px-3 py-3 text-sm outline-none focus:ring-2 focus:ring-ring/40"
-                            placeholder={
-                              promptForm.type === 'inline'
-                                ? 'Ask the agent to review code, prepare a changelog, refactor a module, or anything else you want to save for reuse...'
-                                : '/root/repos/project/prompts/release-review.md'
-                            }
-                          />
-                          <div
-                            role="region"
-                            aria-label="Saved prompt attachments"
-                            onDragEnter={acceptAttachmentDrag}
-                            onDragOver={acceptAttachmentDrag}
-                            onDrop={(event) => {
-                              void addSavedPromptAttachments(getDroppedAttachmentFiles(event));
-                            }}
-                            className="space-y-3 rounded-xl border border-dashed border-border/70 bg-card/60 p-4 transition-colors hover:border-primary/50"
-                          >
-                            <div className="flex flex-wrap items-center justify-between gap-3">
-                              <div>
-                                <p className="text-sm font-semibold">Files & images</p>
-                                <p className="mt-1 text-xs text-muted-foreground">
-                                  Stored with this saved prompt and exported with prompt bundles.
-                                  Drop files here or use upload.
-                                </p>
-                              </div>
-                              <label className="inline-flex h-9 cursor-pointer items-center gap-2 rounded-lg border border-input bg-background px-3 text-xs font-medium transition-colors hover:bg-accent/50">
-                                <Upload className="h-4 w-4" />
-                                Upload
-                                <input
-                                  type="file"
-                                  multiple
-                                  className="sr-only"
-                                  onChange={(event) => {
-                                    void addSavedPromptAttachments(event.target.files);
-                                    event.target.value = '';
-                                  }}
-                                />
-                              </label>
-                            </div>
-                            {promptForm.attachments.length > 0 ? (
-                              <div className="space-y-2">
-                                {promptForm.attachments.map((attachment, index) => (
-                                  <div
-                                    key={`${attachment.name}-${index}`}
-                                    className="flex items-center justify-between gap-3 rounded-lg border border-border/60 bg-background px-3 py-2 text-xs"
-                                  >
-                                    <span className="min-w-0 truncate">
-                                      {attachment.name}
-                                      <span className="ml-2 text-muted-foreground">
-                                        {formatMemory(attachment.size)}
-                                      </span>
-                                    </span>
-                                    <Button
-                                      size="sm"
-                                      variant="ghost"
-                                      onClick={() => removeSavedPromptAttachment(index)}
-                                    >
-                                      <X className="h-4 w-4" />
-                                    </Button>
-                                  </div>
-                                ))}
-                              </div>
-                            ) : null}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex flex-col-reverse gap-3 border-t border-border/60 bg-background/80 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
-                      <Button variant="outline" onClick={closePromptModal}>
-                        Cancel
-                      </Button>
-                      <div className="flex flex-wrap gap-2">
-                        <Button variant="outline" onClick={resetPromptForm}>
-                          Reset
-                        </Button>
-                        <Button
-                          onClick={() => void runExclusiveAction('prompt:save', submitPrompt)}
-                          loading={isActionPending('prompt:save')}
-                        >
-                          <Save className="w-4 h-4" />
-                          {editingPromptId ? 'Update prompt' : 'Create prompt'}
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
+              <PromptModal
+                isOpen={promptModalOpen}
+                onClose={closePromptModal}
+                editingPromptId={editingPromptId}
+                promptForm={promptForm}
+                setPromptForm={setPromptForm}
+                promptTemplates={promptTemplates}
+                isSaving={isActionPending('prompt:save')}
+                onSave={() => runExclusiveAction('prompt:save', submitPrompt)}
+                onReset={resetPromptForm}
+                addAttachments={addSavedPromptAttachments}
+                removeAttachment={removeSavedPromptAttachment}
+              />
             </div>
           )}
 

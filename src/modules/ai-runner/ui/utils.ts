@@ -1,10 +1,32 @@
 import { formatBytes, relativeTime, slugify } from '@/lib/utils';
 import cronstrue from 'cronstrue';
+import type { DragEvent } from 'react';
 import type { AIRunnerRunDTO, AIRunnerScheduleDTO } from '../types';
 import { ICON_PRESETS } from './constants';
 import type { PromptFormState, ScheduleBuilderMode, ScheduleFormState } from './types';
 
 export { relativeTime as formatRelative, slugify as slugifyValue, formatBytes as formatMemory };
+
+export const PROMPT_TEMPLATE_PLACEHOLDER = '<YOUR_PROMPT>';
+
+export function applyPromptTemplate(template: string, current: string): string {
+  if (!current.trim()) return template;
+  if (template.includes(PROMPT_TEMPLATE_PLACEHOLDER)) {
+    return template.replaceAll(PROMPT_TEMPLATE_PLACEHOLDER, current);
+  }
+  return `${template.trim()}\n\n${current.trim()}`;
+}
+
+export function acceptAttachmentDrag(event: DragEvent<HTMLElement>): void {
+  event.preventDefault();
+  event.stopPropagation();
+  event.dataTransfer.dropEffect = 'copy';
+}
+
+export function getDroppedAttachmentFiles(event: DragEvent<HTMLElement>): FileList {
+  acceptAttachmentDrag(event);
+  return event.dataTransfer.files;
+}
 
 export function emptyPromptForm(): PromptFormState {
   return {
