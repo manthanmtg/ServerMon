@@ -31,20 +31,20 @@ function SessionFiltersInner({
   refreshing,
 }: Props) {
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <div className="relative flex-1 min-w-[200px]">
+    <div className="flex flex-wrap items-stretch gap-2">
+      <div className="relative min-w-0 flex-1 basis-full sm:basis-[200px]">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
         <input
           type="text"
           placeholder="Search agents, repos, users..."
           value={search}
           onChange={(e) => onSearchChange(e.target.value)}
-          className="w-full h-9 pl-9 pr-3 text-sm rounded-lg border border-border bg-background placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-ring"
+          className="w-full h-11 pl-9 pr-3 text-sm rounded-lg border border-border bg-background placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-ring"
         />
         {search && (
           <button
             onClick={() => onSearchChange('')}
-            className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-muted-foreground hover:text-foreground cursor-pointer"
+            className="absolute right-1 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center text-muted-foreground hover:text-foreground cursor-pointer"
             aria-label="Clear search"
           >
             <X className="w-3.5 h-3.5" />
@@ -55,7 +55,7 @@ function SessionFiltersInner({
       <select
         value={filterStatus}
         onChange={(e) => onStatusChange(e.target.value as FilterStatus)}
-        className="h-9 px-3 text-xs font-medium bg-secondary border border-border rounded-lg text-secondary-foreground outline-none cursor-pointer hover:bg-accent transition-colors"
+        className="h-11 px-3 text-xs font-medium bg-secondary border border-border rounded-lg text-secondary-foreground outline-none cursor-pointer hover:bg-accent transition-colors"
       >
         <option value="all">All Status</option>
         <option value="running">Running</option>
@@ -68,7 +68,7 @@ function SessionFiltersInner({
       <select
         value={filterAgent}
         onChange={(e) => onAgentChange(e.target.value as FilterAgent)}
-        className="h-9 px-3 text-xs font-medium bg-secondary border border-border rounded-lg text-secondary-foreground outline-none cursor-pointer hover:bg-accent transition-colors"
+        className="h-11 px-3 text-xs font-medium bg-secondary border border-border rounded-lg text-secondary-foreground outline-none cursor-pointer hover:bg-accent transition-colors"
       >
         <option value="all">All Agents</option>
         {AGENT_TYPES.map((t) => (
@@ -78,7 +78,7 @@ function SessionFiltersInner({
         ))}
       </select>
 
-      <Button variant="outline" size="sm" onClick={onRefresh} loading={refreshing}>
+      <Button variant="outline" size="sm" onClick={onRefresh} loading={refreshing} className="h-11">
         <RefreshCcw className="w-3.5 h-3.5" />
         Refresh
       </Button>
