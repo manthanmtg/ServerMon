@@ -2,7 +2,10 @@ import type { Server as SocketIOServer } from 'socket.io';
 import { HubTtyBridge, type HubTtySession } from './hubTtyBridge';
 import { TTY_MSG, parseTtyMessage } from './tty-bridge';
 import { hasCapability, mapRole } from './rbac';
-import type { ResourceGuardCheckInput, ResourceGuardCheckResult } from './resourceGuardMiddleware';
+import type {
+  ResourceGuardCheckInputMinimal,
+  ResourceGuardCheckResult,
+} from './resourceGuardMiddleware';
 
 export const FLEET_TTY_NAMESPACE_PATH = '/api/fleet/tty';
 
@@ -23,7 +26,9 @@ export interface RegisterFleetTtyNamespaceOpts {
   bridge: HubTtyBridge;
   verifySession?: (cookieHeader: string | undefined) => Promise<FleetTtySessionUser | null>;
   logEntry?: (e: FleetTtyNamespaceLogEntry) => void;
-  enforceResourceGuardImpl?: (input: ResourceGuardCheckInput) => Promise<ResourceGuardCheckResult>;
+  enforceResourceGuardImpl?: (
+    input: ResourceGuardCheckInputMinimal
+  ) => Promise<ResourceGuardCheckResult>;
 }
 
 export function registerFleetTtyNamespace(opts: RegisterFleetTtyNamespaceOpts): void {
@@ -118,8 +123,6 @@ export function registerFleetTtyNamespace(opts: RegisterFleetTtyNamespaceOpts): 
             key: 'maxActiveTerminals',
             scope: 'global',
             currentCounter: async () => sessions.size + 1,
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            ResourcePolicy: {} as any,
             actorUserId: user?.userId,
           });
           if (!guard.allowed) {

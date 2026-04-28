@@ -1,21 +1,23 @@
 /** @vitest-environment node */
 import { describe, it, expect, vi } from 'vitest';
 import type { Model } from 'mongoose';
+import type { IResourcePolicy } from '@/models/ResourcePolicy';
+import type { IFleetLogEvent } from '@/models/FleetLogEvent';
 import { enforceResourceGuard } from '@/lib/fleet/resourceGuardMiddleware';
 import { NodeZodSchema } from '@/models/Node';
 
 // Minimal ResourcePolicy model that returns a fixed list of policies.
-function mockPolicyModel(docs: Array<Record<string, unknown>>): Model<unknown> {
+function mockPolicyModel(docs: Array<any>): Model<IResourcePolicy> {
   return {
     find: vi.fn(() => ({
       lean: () => Promise.resolve(docs),
     })),
-  } as unknown as Model<unknown>;
+  } as unknown as Model<IResourcePolicy>;
 }
 
-function mockLogModel(): { model: Model<unknown>; create: ReturnType<typeof vi.fn> } {
+function mockLogModel(): { model: Model<IFleetLogEvent>; create: ReturnType<typeof vi.fn> } {
   const create = vi.fn().mockResolvedValue({});
-  return { model: { create } as unknown as Model<unknown>, create };
+  return { model: { create } as unknown as Model<IFleetLogEvent>, create };
 }
 
 // Small "node repo" to simulate Node.create + Node.countDocuments.

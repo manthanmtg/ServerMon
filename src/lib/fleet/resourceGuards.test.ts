@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import type { Model } from 'mongoose';
+import type { IResourcePolicy } from '@/models/ResourcePolicy';
 import { checkLimit, getEffectivePolicy, type EffectivePolicy } from './resourceGuards';
 
 describe('checkLimit', () => {
@@ -66,11 +67,11 @@ describe('checkLimit', () => {
 });
 
 describe('getEffectivePolicy', () => {
-  function mockModel(docs: Array<Record<string, unknown>>) {
+  function mockModel(docs: Array<any>): Model<IResourcePolicy> {
     const find = vi.fn().mockReturnValue({
       lean: () => Promise.resolve(docs),
     });
-    return { find } as unknown as Model<unknown>;
+    return { find } as unknown as Model<IResourcePolicy>;
   }
 
   it('returns global-only policy when scope=global', async () => {
