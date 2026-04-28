@@ -65,8 +65,7 @@ describe('LogsWidget', () => {
     });
   });
 
-  it('handles fetch failure gracefully', async () => {
-    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+  it('shows a failure state when logs cannot be loaded', async () => {
     vi.mocked(global.fetch).mockRejectedValue(new Error('Fetch failed'));
 
     await act(async () => {
@@ -74,9 +73,8 @@ describe('LogsWidget', () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByText('No activity yet')).toBeTruthy();
-      expect(consoleSpy).toHaveBeenCalled();
+      expect(screen.getByText('Unable to load activity')).toBeTruthy();
+      expect(screen.getByText('Recent audit events could not be fetched.')).toBeTruthy();
     });
-    consoleSpy.mockRestore();
   });
 });
