@@ -13,6 +13,19 @@ describe('DnsVerifier', () => {
     expect(screen.getByText(/Check DNS/i)).toBeDefined();
   });
 
+  it('keeps the check label visible while loading', async () => {
+    const fetchMock = vi.fn(() => new Promise(() => {}));
+    vi.stubGlobal('fetch', fetchMock);
+    render(<DnsVerifier />);
+
+    const btn = screen.getByRole('button', { name: /Check DNS \+ TLS/i });
+    await act(async () => {
+      fireEvent.click(btn);
+    });
+
+    expect(screen.getByRole('button', { name: /Check DNS \+ TLS/i })).toBeDisabled();
+  });
+
   it('fetches /api/fleet/server/preflight and renders filtered DNS/TLS results', async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,

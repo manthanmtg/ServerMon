@@ -1,7 +1,6 @@
 'use client';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Spinner } from '@/components/ui/spinner';
 import { Badge } from '@/components/ui/badge';
 
 interface PreflightResult {
@@ -36,8 +35,8 @@ export function DnsVerifier() {
   };
   return (
     <div className="space-y-3">
-      <Button onClick={run} disabled={loading} variant="outline">
-        {loading ? <Spinner /> : 'Check DNS + TLS'}
+      <Button onClick={run} loading={loading} variant="outline">
+        Check DNS + TLS
       </Button>
       {error && <div className="text-sm text-destructive">{error}</div>}
       {results && (
