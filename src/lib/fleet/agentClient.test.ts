@@ -1,3 +1,4 @@
+/** @vitest-environment node */
 import { describe, it, expect, vi } from 'vitest';
 import { AgentClient } from './agentClient';
 import type { AgentPtyBridge } from './agentPtyBridge';
@@ -142,6 +143,10 @@ describe('AgentClient', () => {
     expect(pairInit?.method).toBe('POST');
     const headers = pairInit?.headers as Record<string, string>;
     expect(headers.Authorization).toBe('Bearer pair-token');
+    expect(pairInit?.signal).toBeInstanceOf(AbortSignal);
+
+    const nodeCall = fetchImpl.mock.calls[1] as unknown as [string, RequestInit | undefined];
+    expect(nodeCall[1]?.signal).toBeInstanceOf(AbortSignal);
 
     // ensureBinary called
     expect(ensureBinaryImpl).toHaveBeenCalled();
@@ -309,6 +314,7 @@ describe('AgentClient', () => {
     const hdrs = call.init?.headers as Record<string, string>;
     expect(hdrs.Authorization).toBe('Bearer pair-token');
     expect(hdrs['Content-Type']).toBe('application/json');
+    expect(call.init?.signal).toBeInstanceOf(AbortSignal);
     const body = JSON.parse(String(call.init?.body));
     expect(body.nodeId).toBe('node-1');
     expect(body.tunnel).toBeDefined();
