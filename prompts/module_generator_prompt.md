@@ -17,7 +17,7 @@ Generate a complete, standard-compliant ServerMon module based on a user-provide
 ## Requirements
 
 1.  **Structure**: Create `src/modules/[name]/` with:
-    - `module.ts`: Define the module's core interface (must follow types in `src/lib/types.ts`).
+    - `module.ts`: Define the module's core interface (must follow `Module` from `src/types/module.ts`).
     - `ui/`: Subfolder for components.
     - `ui/[Name]Page.tsx`: Main view for the module.
 2.  **Registration**:
