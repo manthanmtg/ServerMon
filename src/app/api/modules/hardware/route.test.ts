@@ -1,12 +1,16 @@
 /** @vitest-environment node */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-const { mockGetSnapshot } = vi.hoisted(() => ({
+const { mockGetSnapshot, mockGetSession } = vi.hoisted(() => ({
   mockGetSnapshot: vi.fn(),
+  mockGetSession: vi.fn().mockResolvedValue({ user: { id: 'u1' } }),
 }));
 
 vi.mock('@/lib/hardware/service', () => ({
   hardwareService: { getSnapshot: mockGetSnapshot },
+}));
+vi.mock('@/lib/session', () => ({
+  getSession: mockGetSession,
 }));
 vi.mock('@/lib/logger', () => ({
   createLogger: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }),
