@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   BookOpen,
   Search,
@@ -74,13 +74,22 @@ export default function UserGuidePage() {
     moduleGuides[0]?.id || null
   );
 
-  const selectedModule = moduleGuides.find((m) => m.id === selectedModuleId);
+  const selectedModule = useMemo(
+    () => moduleGuides.find((m) => m.id === selectedModuleId),
+    [selectedModuleId]
+  );
 
-  const filteredModules = moduleGuides.filter(
-    (m) =>
-      m.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      m.guide.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      m.guide.sections.some((s) => s.title.toLowerCase().includes(searchQuery.toLowerCase()))
+  const normalizedSearchQuery = useMemo(() => searchQuery.toLowerCase(), [searchQuery]);
+
+  const filteredModules = useMemo(
+    () =>
+      moduleGuides.filter(
+        (m) =>
+          m.name.toLowerCase().includes(normalizedSearchQuery) ||
+          m.guide.title.toLowerCase().includes(normalizedSearchQuery) ||
+          m.guide.sections.some((s) => s.title.toLowerCase().includes(normalizedSearchQuery))
+      ),
+    [normalizedSearchQuery]
   );
 
   return (
