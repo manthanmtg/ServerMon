@@ -36,6 +36,11 @@ UNINSTALL="false"
 SKIP_MONGO_INSTALL="false"
 ALLOW_ROOT="false"
 USE_EXISTING="false"
+PREBUILT="false"
+SERVERMON_INSTALL_MODE="${SERVERMON_INSTALL_MODE:-source}"
+SERVERMON_VERSION_TARGET="${SERVERMON_VERSION_TARGET:-latest}"
+SERVERMON_RELEASE_BASE_URL="${SERVERMON_RELEASE_BASE_URL:-}"
+SERVERMON_SOURCE_REF="${SERVERMON_SOURCE_REF:-main}"
 
 # Fleet Hub Defaults
 HUB_MODE="false"
@@ -127,6 +132,7 @@ usage() {
     echo "  --skip-mongo         Skip MongoDB installation (use remote MongoDB)"
     echo "  --unattended         Non-interactive mode, use defaults/flags"
     echo "  --use-existing-values Use existing config values, no prompts (upgrade shortcut)"
+    echo "  --prebuilt          Use bundled .next and node_modules; skip pnpm install/build"
     echo "  --allow-root         Run service as root (not recommended)"
     echo "  --uninstall          Remove ServerMon completely"
     echo "  -h, --help           Show this help message"
@@ -150,6 +156,7 @@ while [[ $# -gt 0 ]]; do
         --skip-mongo)  SKIP_MONGO_INSTALL="true"; shift ;;
         --unattended)  UNATTENDED="true"; shift ;;
         --use-existing-values) USE_EXISTING="true"; UNATTENDED="true"; shift ;;
+        --prebuilt)    PREBUILT="true"; [ "$SERVERMON_INSTALL_MODE" = "source" ] && SERVERMON_INSTALL_MODE="release"; shift ;;
         --keep-last-n-release) KEEP_RELEASES="$2"; shift 2 ;;
         --allow-root)  ALLOW_ROOT="true"; shift ;;
         --uninstall)   UNINSTALL="true"; shift ;;
@@ -512,11 +519,19 @@ else
 fi
 
 # ── Step 4: Application Setup ────────────────────────────
-step "4/${TOTAL_STEPS}" "Building ServerMon"
+if [ "$PREBUILT" = "true" ]; then
+    step "4/${TOTAL_STEPS}" "Installing prebuilt ServerMon"
+else
+    step "4/${TOTAL_STEPS}" "Building ServerMon"
+fi
 
 # Determine source directory (where this script lives)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SOURCE_DIR="${SOURCE_DIR:-$(dirname "$SCRIPT_DIR")}"
+SERVERMON_REPO_DIR_VALUE="$SOURCE_DIR"
+if [ "$SERVERMON_INSTALL_MODE" = "release" ]; then
+    SERVERMON_REPO_DIR_VALUE=""
+fi
 
 # Prepare new release directory (build happens here to minimize downtime)
 mkdir -p "$RELEASES_DIR"
@@ -530,54 +545,72 @@ else
     log_info "Performing fresh install into new release: ${NEW_RELEASE_DIR}"
 fi
 
-# Copy source excluding git, node_modules, .pnpm-store, .next, env files
-log_info "Syncing source files to ${NEW_RELEASE_DIR}..."
-rsync -a --exclude='.git' --exclude='node_modules' --exclude='.pnpm-store' \
-    --exclude='.next' --exclude='.env*' \
-    "${SOURCE_DIR}/" "${NEW_RELEASE_DIR}/" 2>/dev/null || {
-    # Fallback if rsync is not available
-    log_warn "rsync not available, falling back to cp..."
-    cp -r "${SOURCE_DIR}/." "${NEW_RELEASE_DIR}/"
-    rm -rf "${NEW_RELEASE_DIR}/.git" "${NEW_RELEASE_DIR}/node_modules" "${NEW_RELEASE_DIR}/.pnpm-store" "${NEW_RELEASE_DIR}/.next"
-}
+if [ "$PREBUILT" = "true" ]; then
+    if [ ! -d "${SOURCE_DIR}/.next" ] || [ ! -d "${SOURCE_DIR}/node_modules" ]; then
+        log_err "Prebuilt install requires .next and node_modules in ${SOURCE_DIR}"
+        exit 1
+    fi
+    log_info "Syncing prebuilt application files to ${NEW_RELEASE_DIR}..."
+    rsync -a --exclude='.git' --exclude='.pnpm-store' --exclude='.env*' \
+        "${SOURCE_DIR}/" "${NEW_RELEASE_DIR}/" 2>/dev/null || {
+        log_warn "rsync not available, falling back to cp..."
+        cp -r "${SOURCE_DIR}/." "${NEW_RELEASE_DIR}/"
+        rm -rf "${NEW_RELEASE_DIR}/.git" "${NEW_RELEASE_DIR}/.pnpm-store"
+    }
+else
+    # Copy source excluding git, node_modules, .pnpm-store, .next, env files
+    log_info "Syncing source files to ${NEW_RELEASE_DIR}..."
+    rsync -a --exclude='.git' --exclude='node_modules' --exclude='.pnpm-store' \
+        --exclude='.next' --exclude='.env*' \
+        "${SOURCE_DIR}/" "${NEW_RELEASE_DIR}/" 2>/dev/null || {
+        # Fallback if rsync is not available
+        log_warn "rsync not available, falling back to cp..."
+        cp -r "${SOURCE_DIR}/." "${NEW_RELEASE_DIR}/"
+        rm -rf "${NEW_RELEASE_DIR}/.git" "${NEW_RELEASE_DIR}/node_modules" "${NEW_RELEASE_DIR}/.pnpm-store" "${NEW_RELEASE_DIR}/.next"
+    }
+fi
 log "Release source prepared"
 
 cd "$NEW_RELEASE_DIR"
 
-log_info "Installing dependencies..."
-# Pre-approve native builds for pnpm v10+ to avoid interactive prompts
-log_info "Configuring pre-approved built dependencies (node-pty, argon2)..."
-pnpm config set only-built-dependencies --json '["node-pty", "argon2"]' > /dev/null 2>&1
-
-pnpm install --frozen-lockfile 2>&1 | tail -5 || pnpm install 2>&1 | tail -5
-
-# Calculate optimal Node memory based on available system RAM
-TOTAL_RAM_MB=$(free -m 2>/dev/null | awk '/^Mem:/{print $2}' || echo "4096")
-if [ "$TOTAL_RAM_MB" -ge 8192 ]; then
-    NODE_MEM=4096
-elif [ "$TOTAL_RAM_MB" -ge 4096 ]; then
-    NODE_MEM=3072
-elif [ "$TOTAL_RAM_MB" -ge 2048 ]; then
-    NODE_MEM=1536
+if [ "$PREBUILT" = "true" ]; then
+    log "Prebuilt application detected; skipping pnpm install and build"
 else
-    NODE_MEM=1024
+    log_info "Installing dependencies..."
+    # Pre-approve native builds for pnpm v10+ to avoid interactive prompts
+    log_info "Configuring pre-approved built dependencies (node-pty, argon2)..."
+    pnpm config set only-built-dependencies --json '["node-pty", "argon2"]' > /dev/null 2>&1
+
+    pnpm install --frozen-lockfile 2>&1 | tail -5 || pnpm install 2>&1 | tail -5
+
+    # Calculate optimal Node memory based on available system RAM
+    TOTAL_RAM_MB=$(free -m 2>/dev/null | awk '/^Mem:/{print $2}' || echo "4096")
+    if [ "$TOTAL_RAM_MB" -ge 8192 ]; then
+        NODE_MEM=4096
+    elif [ "$TOTAL_RAM_MB" -ge 4096 ]; then
+        NODE_MEM=3072
+    elif [ "$TOTAL_RAM_MB" -ge 2048 ]; then
+        NODE_MEM=1536
+    else
+        NODE_MEM=1024
+    fi
+
+    CPU_CORES=$(nproc 2>/dev/null || echo "2")
+    log_info "Building application (Node memory: ${NODE_MEM}MB, CPUs: ${CPU_CORES})..."
+    log_info "This may take 2-10 minutes depending on your server's CPU and RAM."
+
+    # Inject temporary environment for build time to satisfy Next.js static analysis/checks
+    export NODE_OPTIONS="--max-old-space-size=${NODE_MEM}"
+    export JWT_SECRET="${JWT_SECRET:-build_time_temporary_secret}"
+    export MONGO_URI="${MONGO_URI:-mongodb://localhost:27017/servermon}"
+    export SERVERMON_BUILDING=1
+    pnpm run build 2>&1 || {
+        log_err "Build failed. Check above output for errors."
+        exit 1;
+    }
+    unset SERVERMON_BUILDING
+    log "Application built successfully"
 fi
-
-CPU_CORES=$(nproc 2>/dev/null || echo "2")
-log_info "Building application (Node memory: ${NODE_MEM}MB, CPUs: ${CPU_CORES})..."
-log_info "This may take 2-10 minutes depending on your server's CPU and RAM."
-
-# Inject temporary environment for build time to satisfy Next.js static analysis/checks
-export NODE_OPTIONS="--max-old-space-size=${NODE_MEM}"
-export JWT_SECRET="${JWT_SECRET:-build_time_temporary_secret}"
-export MONGO_URI="${MONGO_URI:-mongodb://localhost:27017/servermon}"
-export SERVERMON_BUILDING=1
-pnpm run build 2>&1 || {
-    log_err "Build failed. Check above output for errors."
-    exit 1;
-}
-unset SERVERMON_BUILDING
-log "Application built successfully"
 
 # ── Environment Configuration ────────────────────────────
 mkdir -p "$CONFIG_DIR"
@@ -596,7 +629,11 @@ if [ "$EXISTING_INSTALL" = "true" ] && [ -f "${CONFIG_DIR}/env" ]; then
     update_env_line "MONGO_URI" "${MONGO_URI}"
     update_env_line "PORT" "${APP_PORT}"
     update_env_line "DOMAIN" "${DOMAIN}"
-    update_env_line "SERVERMON_REPO_DIR" "${SOURCE_DIR}"
+    update_env_line "SERVERMON_REPO_DIR" "${SERVERMON_REPO_DIR_VALUE}"
+    update_env_line "SERVERMON_INSTALL_MODE" "${SERVERMON_INSTALL_MODE}"
+    update_env_line "SERVERMON_VERSION_TARGET" "${SERVERMON_VERSION_TARGET}"
+    update_env_line "SERVERMON_RELEASE_BASE_URL" "${SERVERMON_RELEASE_BASE_URL}"
+    update_env_line "SERVERMON_SOURCE_REF" "${SERVERMON_SOURCE_REF}"
 
     if [ "$HUB_MODE" = "true" ]; then
         # Ensure managed directory exists for Hub snippets
@@ -636,7 +673,11 @@ PORT=${APP_PORT}
 MONGO_URI=${MONGO_URI}
 JWT_SECRET=${JWT_SECRET}
 DOMAIN=${DOMAIN}
-SERVERMON_REPO_DIR=${SOURCE_DIR}
+SERVERMON_REPO_DIR=${SERVERMON_REPO_DIR_VALUE}
+SERVERMON_INSTALL_MODE=${SERVERMON_INSTALL_MODE}
+SERVERMON_VERSION_TARGET=${SERVERMON_VERSION_TARGET}
+SERVERMON_RELEASE_BASE_URL=${SERVERMON_RELEASE_BASE_URL}
+SERVERMON_SOURCE_REF=${SERVERMON_SOURCE_REF}
 ENVEOF
 
     if [ "$HUB_MODE" = "true" ]; then

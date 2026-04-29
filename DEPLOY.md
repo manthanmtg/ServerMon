@@ -817,6 +817,27 @@ WantedBy=multi-user.target
 
 The agent performs the pairing handshake against `/api/fleet/nodes/<id>/pair` using its one-time token, receives the hub FRP connection info, and establishes the tunnel. The token is consumed on first use. Fleet-triggered updates use the recorded install mode: release installs download and verify release artifacts, while source installs continue to pull and build from the configured source ref.
 
+### Installing ServerMon on a fleet node
+
+The node detail page includes a ServerMon tab for installing a hub instance on that node. The install source selector supports:
+
+- **Latest release artifact**: downloads `servermon-hub-<os>-<arch>.tar.gz` from the latest GitHub release.
+- **Pinned release artifact**: downloads the same hub artifact from a specific tag such as `v0.1.1`.
+- **Build from source**: clones or updates the repository and runs the traditional `pnpm install` and `pnpm build` flow.
+
+Release installs verify `SHA256SUMS` before extraction and call `scripts/install.sh --prebuilt`, which skips dependency install and Next.js build because `.next` and production `node_modules` are already in the artifact. Installer output is streamed back through fleet logs and appears below the Start install action in the UI.
+
+The hub installer records its mode in `/etc/servermon/env`:
+
+```dotenv
+SERVERMON_INSTALL_MODE=release
+SERVERMON_VERSION_TARGET=latest
+SERVERMON_RELEASE_BASE_URL=
+SERVERMON_SOURCE_REF=main
+```
+
+`scripts/update-servermon.sh` uses those values for future updates. Release-installed hubs continue downloading and verifying hub artifacts; source-installed hubs keep using the git pull and build flow.
+
 ### Backup and restore
 
 The hub exposes full-fleet backups via the UI and API:

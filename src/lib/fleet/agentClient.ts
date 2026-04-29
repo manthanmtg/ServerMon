@@ -87,6 +87,10 @@ interface InstallServerMonCommandArgs {
   port?: unknown;
   skipMongo?: unknown;
   allowRoot?: unknown;
+  installMode?: unknown;
+  versionTarget?: unknown;
+  releaseBaseUrl?: unknown;
+  sourceRef?: unknown;
 }
 
 interface EndpointRunArgs {
@@ -574,6 +578,19 @@ export class AgentClient {
     const port = typeof installArgs.port === 'number' ? installArgs.port : DEFAULT_SERVERMON_PORT;
     const skipMongo = installArgs.skipMongo !== false;
     const allowRoot = installArgs.allowRoot !== false;
+    const installMode = installArgs.installMode === 'source' ? 'source' : 'release';
+    const versionTarget =
+      typeof installArgs.versionTarget === 'string' && installArgs.versionTarget.trim()
+        ? installArgs.versionTarget.trim()
+        : 'latest';
+    const releaseBaseUrl =
+      typeof installArgs.releaseBaseUrl === 'string' && installArgs.releaseBaseUrl.trim()
+        ? installArgs.releaseBaseUrl.trim()
+        : undefined;
+    const sourceRef =
+      typeof installArgs.sourceRef === 'string' && installArgs.sourceRef.trim()
+        ? installArgs.sourceRef.trim()
+        : 'main';
 
     if (!mongoUri) {
       this.log('error', 'servermon.install.failed', 'ServerMon install missing MongoDB URI', {
@@ -587,12 +604,19 @@ export class AgentClient {
       port,
       skipMongo,
       allowRoot,
+      installMode,
+      versionTarget,
+      releaseBaseUrl,
+      sourceRef,
     });
     this.log('info', 'servermon.install.starting', 'Starting ServerMon install', {
       commandId,
       port,
       skipMongo,
       allowRoot,
+      installMode,
+      versionTarget: installMode === 'release' ? versionTarget : undefined,
+      sourceRef: installMode === 'source' ? sourceRef : undefined,
     });
 
     const spawn = this.opts.spawnImpl ?? realSpawn;

@@ -54,6 +54,8 @@ interface ServerMonResponse {
   defaultRouteIntent: RouteIntent;
 }
 
+type ServerMonInstallSource = 'latest' | 'version' | 'source';
+
 interface InstallLogEvent {
   _id: string;
   createdAt?: string;
@@ -105,6 +107,10 @@ export function NodeServerMonPanel({ nodeId }: { nodeId: string }) {
   const [skipMongo, setSkipMongo] = useState(true);
   const [createPublicRoute, setCreatePublicRoute] = useState(false);
   const [routeDomain, setRouteDomain] = useState('');
+  const [installSource, setInstallSource] = useState<ServerMonInstallSource>('latest');
+  const [versionTarget, setVersionTarget] = useState('v0.1.1');
+  const [releaseBaseUrl, setReleaseBaseUrl] = useState('');
+  const [sourceRef, setSourceRef] = useState('main');
   const [installLogStartedAt, setInstallLogStartedAt] = useState<string | null>(null);
   const [installCommandId, setInstallCommandId] = useState<string | null>(null);
   const [installLogs, setInstallLogs] = useState<InstallLogEvent[]>([]);
@@ -256,6 +262,11 @@ export function NodeServerMonPanel({ nodeId }: { nodeId: string }) {
           port,
           skipMongo,
           allowRoot: true,
+          installMode: installSource === 'source' ? 'source' : 'release',
+          versionTarget: installSource === 'version' ? versionTarget : 'latest',
+          releaseBaseUrl:
+            installSource !== 'source' && releaseBaseUrl.trim() ? releaseBaseUrl.trim() : undefined,
+          sourceRef: installSource === 'source' ? sourceRef : undefined,
           createPublicRoute,
           routeDomain: createPublicRoute ? routeDomain : undefined,
         }),
@@ -419,6 +430,48 @@ export function NodeServerMonPanel({ nodeId }: { nodeId: string }) {
             value={port}
             onChange={(event) => setPort(Number(event.target.value) || 8912)}
           />
+        </div>
+
+        <div className="grid gap-3 rounded-lg border border-border p-3 md:grid-cols-2">
+          <label className="space-y-1.5 text-sm">
+            <span className="block font-medium text-foreground">ServerMon install source</span>
+            <select
+              aria-label="ServerMon install source"
+              value={installSource}
+              onChange={(event) => setInstallSource(event.target.value as ServerMonInstallSource)}
+              className="flex h-10 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+            >
+              <option value="latest">Latest release artifact</option>
+              <option value="version">Pinned release artifact</option>
+              <option value="source">Build from source</option>
+            </select>
+          </label>
+          {installSource === 'version' && (
+            <Input
+              label="ServerMon release version"
+              value={versionTarget}
+              placeholder="v0.1.1"
+              onChange={(event) => setVersionTarget(event.target.value)}
+            />
+          )}
+          {installSource === 'source' && (
+            <Input
+              label="ServerMon source ref"
+              value={sourceRef}
+              placeholder="main"
+              onChange={(event) => setSourceRef(event.target.value)}
+            />
+          )}
+          {installSource !== 'source' && (
+            <div className="md:col-span-2">
+              <Input
+                label="ServerMon release base URL"
+                value={releaseBaseUrl}
+                placeholder="Optional mirror URL"
+                onChange={(event) => setReleaseBaseUrl(event.target.value)}
+              />
+            </div>
+          )}
         </div>
 
         <label className="flex min-h-[44px] items-center gap-3 text-sm">

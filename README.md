@@ -136,6 +136,10 @@ Fleet agent onboarding installs from the latest release artifact by default. The
 
 Agent installs write `/etc/servermon-agent/install.env`. Fleet-triggered updates and local colocated-agent updates read that file, so release-installed agents continue updating from release artifacts and source-installed agents continue using `git pull`, `pnpm install`, and `pnpm build`.
 
+The Fleet node detail page can also install a full ServerMon hub on a managed node. That flow now defaults to the matching `servermon-hub-<os>-<arch>.tar.gz` release artifact, verifies it with `SHA256SUMS`, and runs the installer in prebuilt mode so Raspberry Pi-class machines do not build Next.js locally. The same form can pin a release version, use a custom release asset base URL, or switch back to source mode with a selected source ref.
+
+Hub installs write `/etc/servermon/env` with `SERVERMON_INSTALL_MODE`, `SERVERMON_VERSION_TARGET`, `SERVERMON_RELEASE_BASE_URL`, and `SERVERMON_SOURCE_REF`. `scripts/update-servermon.sh` reads those values: release installs keep updating from verified hub artifacts, while source installs continue using the git-based update flow.
+
 ### Local Development
 
 ```bash

@@ -28,6 +28,10 @@ export const ServerMonInstallRequestZ = z.object({
   port: z.number().int().min(1).max(65535).default(8912),
   skipMongo: z.boolean().default(true),
   allowRoot: z.boolean().default(true),
+  installMode: z.enum(['release', 'source']).default('release'),
+  versionTarget: z.string().trim().min(1).max(80).default('latest'),
+  releaseBaseUrl: z.string().trim().min(1).max(500).optional(),
+  sourceRef: z.string().trim().min(1).max(120).default('main'),
   createPublicRoute: z.boolean().default(false),
   routeDomain: z.string().min(1).max(253).optional(),
 });

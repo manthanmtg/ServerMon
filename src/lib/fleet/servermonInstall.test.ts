@@ -16,6 +16,9 @@ describe('servermonInstall', () => {
       port: 8912,
       skipMongo: true,
       allowRoot: true,
+      installMode: 'release',
+      versionTarget: 'latest',
+      sourceRef: 'main',
       createPublicRoute: false,
     });
   });

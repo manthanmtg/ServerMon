@@ -109,6 +109,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       port: parsed.port,
       skipMongo: parsed.skipMongo,
       allowRoot: parsed.allowRoot,
+      installMode: parsed.installMode,
+      versionTarget: parsed.installMode === 'release' ? parsed.versionTarget : undefined,
+      releaseBaseUrl: parsed.installMode === 'release' ? parsed.releaseBaseUrl : undefined,
+      sourceRef: parsed.installMode === 'source' ? parsed.sourceRef : undefined,
       secretRef: commandId,
     };
 
@@ -150,6 +154,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         port: parsed.port,
         skipMongo: parsed.skipMongo,
         allowRoot: parsed.allowRoot,
+        installMode: parsed.installMode,
+        versionTarget: parsed.installMode === 'release' ? parsed.versionTarget : undefined,
+        releaseBaseUrl: parsed.installMode === 'release' ? parsed.releaseBaseUrl : undefined,
+        sourceRef: parsed.installMode === 'source' ? parsed.sourceRef : undefined,
         routeDomain: parsed.createPublicRoute ? routeIntent.domain : undefined,
       },
     });

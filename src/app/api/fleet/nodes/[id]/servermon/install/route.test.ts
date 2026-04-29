@@ -119,7 +119,49 @@ describe('POST /api/fleet/nodes/[id]/servermon/install', () => {
     };
     expect(update.$push.pendingCommands.args.mongoUri).toBeUndefined();
     expect(update.$push.pendingCommands.args.secretRef).toBe(json.commandId);
+    expect(update.$push.pendingCommands.args.installMode).toBe('release');
+    expect(update.$push.pendingCommands.args.versionTarget).toBe('latest');
     expect(JSON.stringify(update)).not.toContain('mongodb://user:pass@db/servermon');
+  });
+
+  it('queues pinned release and source install options', async () => {
+    const releaseRes = await POST(
+      makeReq({
+        mongoUri: 'mongodb://db/servermon',
+        installMode: 'release',
+        versionTarget: 'v0.1.1',
+        releaseBaseUrl: 'https://mirror.example.com/releases/v0.1.1',
+      }),
+      makeContext()
+    );
+
+    expect(releaseRes.status).toBe(202);
+    const releaseUpdate = mockNodeUpdateOne.mock.calls.at(-1)![1] as {
+      $push: { pendingCommands: { args: Record<string, unknown> } };
+    };
+    expect(releaseUpdate.$push.pendingCommands.args).toMatchObject({
+      installMode: 'release',
+      versionTarget: 'v0.1.1',
+      releaseBaseUrl: 'https://mirror.example.com/releases/v0.1.1',
+    });
+
+    const sourceRes = await POST(
+      makeReq({
+        mongoUri: 'mongodb://db/servermon',
+        installMode: 'source',
+        sourceRef: 'develop',
+      }),
+      makeContext()
+    );
+
+    expect(sourceRes.status).toBe(202);
+    const sourceUpdate = mockNodeUpdateOne.mock.calls.at(-1)![1] as {
+      $push: { pendingCommands: { args: Record<string, unknown> } };
+    };
+    expect(sourceUpdate.$push.pendingCommands.args).toMatchObject({
+      installMode: 'source',
+      sourceRef: 'develop',
+    });
   });
 
   it('rejects non-admin users', async () => {

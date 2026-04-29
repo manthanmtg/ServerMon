@@ -181,8 +181,86 @@ describe('NodeServerMonPanel', () => {
       port: 8912,
       skipMongo: true,
       allowRoot: true,
+      installMode: 'release',
+      versionTarget: 'latest',
       createPublicRoute: true,
       routeDomain: 'orion-servermon.ultron.manthanby.cv',
+    });
+  });
+
+  it('queues ServerMon install with configurable release and source options', async () => {
+    const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+      if (url === '/api/fleet/nodes/node-1/servermon/install' && init?.method === 'POST') {
+        return {
+          ok: true,
+          status: 202,
+          json: async () => ({ queued: true, commandId: 'cmd-1', routeIntent: null }),
+        };
+      }
+      if (String(url).startsWith('/api/fleet/logs?')) {
+        return {
+          ok: true,
+          json: async () => ({ events: [] }),
+        };
+      }
+      return {
+        ok: true,
+        json: async () => missingResponse,
+      };
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await act(async () => {
+      render(<NodeServerMonPanel nodeId="node-1" />);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('MongoDB URI')).toBeDefined();
+    });
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('MongoDB URI'), {
+        target: { value: 'mongodb://db/servermon' },
+      });
+      fireEvent.change(screen.getByLabelText('ServerMon install source'), {
+        target: { value: 'version' },
+      });
+      fireEvent.change(screen.getByLabelText('ServerMon release version'), {
+        target: { value: 'v0.1.1' },
+      });
+      fireEvent.change(screen.getByLabelText('ServerMon release base URL'), {
+        target: { value: 'https://mirror.example.com/releases/v0.1.1' },
+      });
+      fireEvent.click(screen.getByRole('button', { name: 'Start install' }));
+    });
+
+    let installCalls = fetchMock.mock.calls.filter(
+      ([url, init]) =>
+        url === '/api/fleet/nodes/node-1/servermon/install' && init?.method === 'POST'
+    );
+    expect(JSON.parse(String(installCalls.at(-1)?.[1]?.body))).toMatchObject({
+      installMode: 'release',
+      versionTarget: 'v0.1.1',
+      releaseBaseUrl: 'https://mirror.example.com/releases/v0.1.1',
+    });
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('ServerMon install source'), {
+        target: { value: 'source' },
+      });
+      fireEvent.change(screen.getByLabelText('ServerMon source ref'), {
+        target: { value: 'develop' },
+      });
+      fireEvent.click(screen.getByRole('button', { name: 'Start install' }));
+    });
+
+    installCalls = fetchMock.mock.calls.filter(
+      ([url, init]) =>
+        url === '/api/fleet/nodes/node-1/servermon/install' && init?.method === 'POST'
+    );
+    expect(JSON.parse(String(installCalls.at(-1)?.[1]?.body))).toMatchObject({
+      installMode: 'source',
+      sourceRef: 'develop',
     });
   });
 
