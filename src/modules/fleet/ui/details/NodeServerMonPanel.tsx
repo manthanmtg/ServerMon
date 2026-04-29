@@ -1,12 +1,13 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ExternalLink, RefreshCcw, RotateCw, Server } from 'lucide-react';
 import { Badge, type BadgeVariant } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Spinner } from '@/components/ui/spinner';
+import { AutoscrollButton } from '@/components/ui/AutoscrollButton';
 import { useToast } from '@/components/ui/toast';
 
 interface ServerMonStatus {
@@ -543,13 +544,31 @@ function InstallLogsPanel({
   error: string | null;
   polling: boolean;
 }) {
+  const [autoscroll, setAutoscroll] = useState(true);
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!autoscroll) return;
+    const el = scrollRef.current;
+    if (!el) return;
+    el.scrollTop = el.scrollHeight;
+  }, [autoscroll, logs]);
+
   return (
     <div className="rounded-lg border border-border bg-muted/20">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-3 py-2">
         <div className="text-sm font-medium">Install logs</div>
-        <Badge variant={polling ? 'default' : 'outline'}>{polling ? 'running' : 'idle'}</Badge>
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <Badge variant={polling ? 'default' : 'outline'}>{polling ? 'running' : 'idle'}</Badge>
+          <AutoscrollButton
+            enabled={autoscroll}
+            onToggle={setAutoscroll}
+            aria-label="Install log autoscroll"
+            className="h-8 px-2"
+          />
+        </div>
       </div>
-      <div className="max-h-72 overflow-auto p-3">
+      <div ref={scrollRef} className="max-h-72 overflow-auto p-3">
         {error && (
           <div
             role="alert"

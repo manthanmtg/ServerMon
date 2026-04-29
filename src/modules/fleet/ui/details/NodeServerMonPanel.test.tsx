@@ -328,6 +328,15 @@ describe('NodeServerMonPanel', () => {
       expect(screen.getByText(/Installing dependencies/)).toBeDefined();
     });
 
+    const autoscroll = screen.getByRole('button', { name: 'Install log autoscroll' });
+    expect(autoscroll).toHaveAttribute('aria-pressed', 'true');
+
+    await act(async () => {
+      fireEvent.click(autoscroll);
+    });
+
+    expect(autoscroll).toHaveAttribute('aria-pressed', 'false');
+
     const logCall = fetchMock.mock.calls.find(([url]) => String(url).startsWith('/api/fleet/logs?'));
     expect(String(logCall?.[0])).toContain('nodeId=node-1');
     expect(String(logCall?.[0])).toContain('since=');
