@@ -10,7 +10,7 @@ autonomousSafe: true
 
 ## Objective
 
-Ensure the ServerMon project completes its required verification commands successfully. Fix any errors, lint warnings, or build warnings that prevent a clean `pnpm build` or `pnpm check`.
+Ensure the ServerMon project completes its required verification commands successfully. Fix any formatting errors, lint warnings, type errors, test failures, or build warnings that prevent clean `pnpm format:check` and `pnpm check` runs.
 
 ## Philosophy
 
@@ -21,21 +21,23 @@ A broken build is the most fundamental regression — it means the app cannot de
 ### 1. Run the Full Check
 
 ```bash
+pnpm format:check
 pnpm check
 ```
 
-This runs lint, typecheck, build, and tests in sequence. If it exits successfully and does not report lint or build warnings, you're done — no-op.
+This checks formatting first, then runs lint, typecheck, build, and tests in sequence. If both commands exit successfully and do not report lint or build warnings, you're done — no-op.
 
 ### 2. Triage Failures
 
-If `pnpm check` fails, identify the stage:
+If either command fails, identify the stage:
 
-| Stage     | Command        | Common Issues                                     |
-| --------- | -------------- | ------------------------------------------------- |
-| Lint      | `pnpm lint`    | Unused imports, `any` types, missing deps         |
-| Typecheck | `tsc --noEmit` | Type mismatches, missing properties               |
-| Build     | `next build`   | Import errors, missing modules, SSR issues        |
-| Test      | `pnpm test`    | Failing assertions (delegate to `test_corrector`) |
+| Stage     | Command             | Common Issues                                     |
+| --------- | ------------------- | ------------------------------------------------- |
+| Format    | `pnpm format:check` | Prettier formatting drift                         |
+| Lint      | `pnpm lint`         | Unused imports, `any` types, missing deps         |
+| Typecheck | `tsc --noEmit`      | Type mismatches, missing properties               |
+| Build     | `next build`        | Import errors, missing modules, SSR issues        |
+| Test      | `pnpm test`         | Failing assertions (delegate to `test_corrector`) |
 
 Runtime warning noise emitted by passing tests is not a build-verifier failure by itself. If the suite passes but warning cleanup would span unrelated components, leave it for a dedicated warning-cleanup issue instead of expanding this run.
 
@@ -51,7 +53,7 @@ Runtime warning noise emitted by passing tests is not a build-verifier failure b
 
 ### 4. Verify
 
-- Run `pnpm check` again — must pass fully.
+- Run `pnpm format:check` and `pnpm check` again — both must pass fully.
 - If it still fails after your fix, revert and log to `issues_to_look/`.
 
 ### 5. Commit
