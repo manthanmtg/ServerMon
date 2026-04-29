@@ -152,7 +152,9 @@ describe('ProcessWidget', () => {
     fireEvent.click(expandButtons[0]);
 
     // Click SIGTERM
-    const termButton = screen.getAllByRole('button', { name: /SIGTERM/i })[0];
+    const termButton = screen.getAllByRole('button', {
+      name: /Send SIGTERM to process node \(101\)/i,
+    })[0];
     fireEvent.click(termButton);
 
     await waitFor(() => {
@@ -174,7 +176,9 @@ describe('ProcessWidget', () => {
     fireEvent.click(expandButtons[0]);
 
     // Click SIGKILL
-    const killButton = screen.getAllByRole('button', { name: /SIGKILL/i })[0];
+    const killButton = screen.getAllByRole('button', {
+      name: /Send SIGKILL to process node \(101\)/i,
+    })[0];
     fireEvent.click(killButton);
 
     await waitFor(() => {
