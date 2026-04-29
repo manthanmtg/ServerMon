@@ -1023,6 +1023,70 @@ describe('AIRunnerPage', () => {
     }
   });
 
+  it('shows the enabled schedule run rate on profile cards', async () => {
+    mockSchedules.splice(
+      0,
+      mockSchedules.length,
+      {
+        _id: 'schedule-1',
+        name: 'Morning Audit',
+        promptId: 'prompt-1',
+        agentProfileId: 'profile-1',
+        workingDirectory: '/root/repos/ServerMon',
+        timeout: 28,
+        retries: 1,
+        cronExpression: '30 9 * * *',
+        enabled: true,
+        nextRunTime: '2026-04-21T10:30:00.000Z',
+        createdAt: '2026-04-21T00:00:00.000Z',
+        updatedAt: '2026-04-21T00:00:00.000Z',
+      },
+      {
+        _id: 'schedule-2',
+        name: 'Evening Audit',
+        promptId: 'prompt-1',
+        agentProfileId: 'profile-1',
+        workingDirectory: '/root/repos/ServerMon',
+        timeout: 20,
+        retries: 1,
+        cronExpression: '0 18 * * *',
+        enabled: true,
+        nextRunTime: '2026-04-21T18:00:00.000Z',
+        createdAt: '2026-04-21T00:00:00.000Z',
+        updatedAt: '2026-04-21T00:00:00.000Z',
+      },
+      {
+        _id: 'schedule-3',
+        name: 'Paused Audit',
+        promptId: 'prompt-1',
+        agentProfileId: 'profile-1',
+        workingDirectory: '/root/repos/ServerMon',
+        timeout: 20,
+        retries: 1,
+        cronExpression: '0 22 * * *',
+        enabled: false,
+        createdAt: '2026-04-21T00:00:00.000Z',
+        updatedAt: '2026-04-21T00:00:00.000Z',
+      }
+    );
+
+    try {
+      await act(async () => {
+        render(<AIRunnerPage />);
+      });
+
+      await waitFor(() => expect(screen.getByText('AI Agent Runner')).toBeInTheDocument());
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('tab', { name: /Settings/i }));
+      });
+
+      expect(screen.getByText('2 runs/day')).toBeInTheDocument();
+    } finally {
+      mockSchedules.splice(0, mockSchedules.length);
+    }
+  });
+
   it('shows schedule retries in the create schedule studio with a default of 1', async () => {
     await act(async () => {
       render(<AIRunnerPage />);

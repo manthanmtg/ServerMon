@@ -87,6 +87,7 @@ import {
   formatDuration,
   formatMemory,
   formatRelative,
+  formatRunsPerDayLabel,
   formatScheduleDate,
   getDroppedAttachmentFiles,
   getRunStatusVariant,
@@ -94,6 +95,7 @@ import {
   getScheduleStatusVariant,
   humanizeCron,
   slugifyValue,
+  summarizeRunsPerDay,
 } from './utils';
 import { buildScheduleVisualizationModel } from './scheduleVisualization';
 
@@ -1103,6 +1105,7 @@ export default function AIRunnerPage() {
             {
               totalSchedules: profileSchedules.length,
               enabledSchedules: profileSchedules.filter((schedule) => schedule.enabled).length,
+              runsPerDayLabel: formatRunsPerDayLabel(summarizeRunsPerDay(profileSchedules)),
               workspaceCount: visualization.workspaceCount,
               highRiskWorkspaceCount: visualization.highRiskWorkspaceCount,
               nextLaunch,
@@ -4284,6 +4287,9 @@ export default function AIRunnerPage() {
                                     {scheduleSummary.enabledSchedules} enabled schedule
                                     {scheduleSummary.enabledSchedules === 1 ? '' : 's'}
                                   </Badge>
+                                ) : null}
+                                {scheduleSummary.runsPerDayLabel ? (
+                                  <Badge variant="outline">{scheduleSummary.runsPerDayLabel}</Badge>
                                 ) : null}
                                 {scheduleSummary.workspaceCount > 0 ? (
                                   <Badge variant="outline">

@@ -286,6 +286,167 @@ export function humanizeCron(expression: string): string {
   }
 }
 
+export interface RunsPerDaySummary {
+  runsPerDay: number;
+  approximate: boolean;
+}
+
+type ScheduleCadenceInput = Pick<AIRunnerScheduleDTO, 'cronExpression' | 'enabled'>;
+
+interface CronFieldEstimate {
+  count: number;
+  approximate: boolean;
+}
+
+function countCronFieldValues(
+  field: string,
+  min: number,
+  max: number,
+  normalize?: (value: number) => number
+): CronFieldEstimate | null {
+  const values = new Set<number>();
+  let approximate = false;
+
+  for (const rawToken of field.split(',')) {
+    const token = rawToken.trim();
+    if (!token) return null;
+
+    const [base, stepRaw] = token.split('/');
+    if (stepRaw !== undefined && !isCronNumber(stepRaw, 1, max - min + 1)) return null;
+    const step = stepRaw === undefined ? 1 : Number(stepRaw);
+    let start = min;
+    let end = max;
+
+    if (base === '*') {
+      // Keep the full field range.
+    } else if (base.includes('-')) {
+      const [startRaw, endRaw] = base.split('-');
+      if (!isCronNumber(startRaw, min, max) || !isCronNumber(endRaw, min, max)) return null;
+      start = Number(startRaw);
+      end = Number(endRaw);
+      if (start > end) return null;
+    } else if (isCronNumber(base, min, max)) {
+      start = Number(base);
+      end = Number(base);
+      if (stepRaw !== undefined) {
+        approximate = true;
+      }
+    } else {
+      return null;
+    }
+
+    for (let value = start; value <= end; value += step) {
+      values.add(normalize ? normalize(value) : value);
+    }
+  }
+
+  return { count: values.size, approximate };
+}
+
+function getAdvancedCronRunsPerDay(expression: string): RunsPerDaySummary | null {
+  const [minute = '*', hour = '*', dayOfMonth = '*', month = '*', dayOfWeek = '*', extra] =
+    expression.trim().split(/\s+/);
+
+  if (extra) return null;
+
+  const minuteEstimate = countCronFieldValues(minute, 0, 59);
+  const hourEstimate = countCronFieldValues(hour, 0, 23);
+  const dayOfMonthEstimate = countCronFieldValues(dayOfMonth, 1, 31);
+  const monthEstimate = countCronFieldValues(month, 1, 12);
+  const dayOfWeekEstimate = countCronFieldValues(dayOfWeek, 0, 7, (value) => value % 7);
+
+  if (
+    !minuteEstimate ||
+    !hourEstimate ||
+    !dayOfMonthEstimate ||
+    !monthEstimate ||
+    !dayOfWeekEstimate
+  ) {
+    return null;
+  }
+
+  const dayOfMonthRestricted = dayOfMonth !== '*';
+  const dayOfWeekRestricted = dayOfWeek !== '*';
+  const monthRestricted = month !== '*';
+  const dayOfMonthRatio = dayOfMonthRestricted ? dayOfMonthEstimate.count / 31 : 1;
+  const dayOfWeekRatio = dayOfWeekRestricted ? dayOfWeekEstimate.count / 7 : 1;
+  const activeDayRatio =
+    dayOfMonthRestricted && dayOfWeekRestricted
+      ? 1 - (1 - dayOfMonthRatio) * (1 - dayOfWeekRatio)
+      : Math.min(dayOfMonthRatio, dayOfWeekRatio);
+  const monthRatio = monthRestricted ? monthEstimate.count / 12 : 1;
+
+  return {
+    runsPerDay: minuteEstimate.count * hourEstimate.count * activeDayRatio * monthRatio,
+    approximate:
+      dayOfMonthRestricted ||
+      dayOfWeekRestricted ||
+      monthRestricted ||
+      minuteEstimate.approximate ||
+      hourEstimate.approximate ||
+      dayOfMonthEstimate.approximate ||
+      monthEstimate.approximate ||
+      dayOfWeekEstimate.approximate,
+  };
+}
+
+export function estimateCronRunsPerDay(expression: string): RunsPerDaySummary | null {
+  const parsed = parseScheduleBuilder(expression);
+
+  if (parsed.mode === 'every') {
+    return { runsPerDay: 1440 / parsed.interval, approximate: false };
+  }
+  if (parsed.mode === 'hourly') {
+    return { runsPerDay: 24, approximate: false };
+  }
+  if (parsed.mode === 'daily') {
+    return { runsPerDay: 1, approximate: false };
+  }
+  if (parsed.mode === 'weekly') {
+    return {
+      runsPerDay: parsed.days.length / 7,
+      approximate: parsed.days.length !== 7,
+    };
+  }
+  if (parsed.mode === 'monthly') {
+    return { runsPerDay: 12 / 365.2425, approximate: true };
+  }
+
+  return getAdvancedCronRunsPerDay(expression);
+}
+
+export function summarizeRunsPerDay(schedules: ScheduleCadenceInput[]): RunsPerDaySummary | null {
+  let runsPerDay = 0;
+  let approximate = false;
+  let estimatedSchedules = 0;
+
+  for (const schedule of schedules) {
+    if (!schedule.enabled) continue;
+    const estimate = estimateCronRunsPerDay(schedule.cronExpression);
+    if (!estimate) {
+      approximate = true;
+      continue;
+    }
+    runsPerDay += estimate.runsPerDay;
+    approximate = approximate || estimate.approximate;
+    estimatedSchedules += 1;
+  }
+
+  if (estimatedSchedules === 0) return null;
+  return { runsPerDay, approximate };
+}
+
+export function formatRunsPerDayLabel(summary: RunsPerDaySummary | null): string | null {
+  if (!summary) return null;
+
+  const rounded =
+    summary.runsPerDay >= 1
+      ? Math.round(summary.runsPerDay * 10) / 10
+      : Math.round(summary.runsPerDay * 100) / 100;
+  const value = Number.isInteger(rounded) ? rounded.toFixed(0) : rounded.toString();
+  return `${summary.approximate ? '≈' : ''}${value} runs/day`;
+}
+
 export function getScheduleModeLabel(expression: string): string {
   const parsed = parseScheduleBuilder(expression);
   if (parsed.mode === 'every') return 'Interval';

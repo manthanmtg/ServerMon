@@ -7,9 +7,11 @@ import {
   formatDayOfWeekField,
   formatDuration,
   getDefaultCronExpressionForMode,
+  formatRunsPerDayLabel,
   getRunStatusVariant,
   getScheduleStatusVariant,
   humanizeCron,
+  summarizeRunsPerDay,
   parseScheduleBuilder,
 } from './utils';
 
@@ -104,6 +106,30 @@ describe('ai-runner ui utils', () => {
       expect(humanizeCron('30 1-23/2 * * *')).toBe(
         'Custom cron: 30 1-23/2 * * * (At 30 minutes past the hour, every 2 hours, between 01:00 AM and 11:59 PM)'
       );
+    });
+  });
+
+  describe('runs per day estimates', () => {
+    it('sums exact enabled daily schedules', () => {
+      const summary = summarizeRunsPerDay([
+        { cronExpression: '0 9 * * *', enabled: true },
+        { cronExpression: '30 17 * * *', enabled: true },
+        { cronExpression: '0 22 * * *', enabled: false },
+      ]);
+
+      expect(summary).toEqual({ runsPerDay: 2, approximate: false });
+      expect(formatRunsPerDayLabel(summary)).toBe('2 runs/day');
+    });
+
+    it('marks weekday, monthly, and advanced cron totals as approximate', () => {
+      const summary = summarizeRunsPerDay([
+        { cronExpression: '0 9 * * 1-5', enabled: true },
+        { cronExpression: '0 8 1 * *', enabled: true },
+        { cronExpression: '30 1-23/2 * * *', enabled: true },
+      ]);
+
+      expect(summary?.approximate).toBe(true);
+      expect(formatRunsPerDayLabel(summary)).toBe('≈12.7 runs/day');
     });
   });
 
