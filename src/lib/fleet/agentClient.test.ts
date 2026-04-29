@@ -324,11 +324,17 @@ describe('AgentClient', () => {
   });
 
   it('remote update command uses shared release/source updater arguments', async () => {
+    const logEntry = vi.fn();
     const spawnImpl = vi.fn(() => {
       const child = new EventEmitter() as unknown as ReturnType<
         typeof import('node:child_process').spawn
       >;
-      Object.assign(child, { unref: vi.fn(), pid: 777 });
+      Object.assign(child, {
+        stdout: new EventEmitter(),
+        stderr: new EventEmitter(),
+        unref: vi.fn(),
+        pid: 777,
+      });
       return child;
     });
 
@@ -337,6 +343,7 @@ describe('AgentClient', () => {
       pairingToken: 'pair-token',
       nodeId: 'node-1',
       spawnImpl: spawnImpl as unknown as typeof import('node:child_process').spawn,
+      logEntry,
     });
 
     await (
@@ -352,12 +359,45 @@ describe('AgentClient', () => {
     expect(spawnImpl).toHaveBeenCalledWith(
       'bash',
       ['-c', expect.stringContaining('VERSION_TARGET="v0.1.1"')],
-      expect.objectContaining({ detached: true, stdio: 'ignore' })
+      expect.objectContaining({ detached: true, stdio: ['ignore', 'pipe', 'pipe'] })
     );
     const updateCall = spawnImpl.mock.calls.at(-1)! as unknown as [string, string[], unknown];
     const script = String(updateCall[1][1]);
     expect(script).toContain('UPDATE_MODE="release"');
     expect(script).toContain('install_from_release');
     expect(script).toContain('servermon-agent-$PLATFORM_NAME-$ARCH_NAME.tar.gz');
+
+    const child = spawnImpl.mock.results[0].value as unknown as {
+      stdout: EventEmitter;
+      stderr: EventEmitter;
+      emit: (event: string, ...args: unknown[]) => boolean;
+    };
+    child.stdout.emit('data', Buffer.from('downloading artifact\n'));
+    child.stderr.emit('data', Buffer.from('restart pending\n'));
+    child.emit('close', 0);
+
+    expect(logEntry).toHaveBeenCalledWith(
+      expect.objectContaining({
+        level: 'info',
+        eventType: 'agent.update.log',
+        message: 'downloading artifact',
+        metadata: expect.objectContaining({ commandId: 'cmd-1' }),
+      })
+    );
+    expect(logEntry).toHaveBeenCalledWith(
+      expect.objectContaining({
+        level: 'warn',
+        eventType: 'agent.update.log',
+        message: 'restart pending',
+        metadata: expect.objectContaining({ commandId: 'cmd-1' }),
+      })
+    );
+    expect(logEntry).toHaveBeenCalledWith(
+      expect.objectContaining({
+        level: 'info',
+        eventType: 'agent.update.succeeded',
+        metadata: expect.objectContaining({ commandId: 'cmd-1', exitCode: 0 }),
+      })
+    );
   });
 });

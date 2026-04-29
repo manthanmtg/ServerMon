@@ -1,7 +1,7 @@
 'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
+import { Badge, type BadgeVariant } from '@/components/ui/badge';
 import { Spinner } from '@/components/ui/spinner';
 import { Button } from '@/components/ui/button';
 import { deriveNodeTransition, lastSeenLabel } from '@/lib/fleet/status';
@@ -9,6 +9,7 @@ import type { TunnelStatus } from '@/lib/fleet/enums';
 import type { ReconcileReport } from '@/lib/fleet/reconcile';
 import { useFleetStream } from '../lib/useFleetStream';
 import { useToast } from '@/components/ui/toast';
+import { AutoscrollButton } from '@/components/ui/AutoscrollButton';
 
 interface Node {
   _id: string;
@@ -36,6 +37,36 @@ interface Node {
   tags?: string[];
 }
 
+interface AgentUpdateLogEvent {
+  _id: string;
+  createdAt?: string;
+  service?: string;
+  level: string;
+  eventType: string;
+  message: string;
+  metadata?: { commandId?: unknown };
+}
+
+function logLevelVariant(level: string): BadgeVariant {
+  if (level === 'error') return 'destructive';
+  if (level === 'warn') return 'warning';
+  return 'outline';
+}
+
+function isAgentUpdateEvent(event: AgentUpdateLogEvent): boolean {
+  return event.eventType.startsWith('agent.update.');
+}
+
+function isTerminalAgentUpdateEvent(event: AgentUpdateLogEvent): boolean {
+  return event.eventType === 'agent.update.succeeded' || event.eventType === 'agent.update.failed';
+}
+
+function logEventTime(event: AgentUpdateLogEvent): number {
+  if (!event.createdAt) return 0;
+  const time = new Date(event.createdAt).getTime();
+  return Number.isFinite(time) ? time : 0;
+}
+
 export function NodeStatusPanel({ nodeId }: { nodeId: string }) {
   const { toast } = useToast();
   const [node, setNode] = useState<Node | null>(null);
@@ -43,7 +74,42 @@ export function NodeStatusPanel({ nodeId }: { nodeId: string }) {
   const [busy, setBusy] = useState(false);
   const [reconcileReport, setReconcileReport] = useState<ReconcileReport | null>(null);
   const [reconcileBusy, setReconcileBusy] = useState(false);
+  const [updateLogStartedAt, setUpdateLogStartedAt] = useState<string | null>(null);
+  const [updateCommandId, setUpdateCommandId] = useState<string | null>(null);
+  const [updateLogs, setUpdateLogs] = useState<AgentUpdateLogEvent[]>([]);
+  const [updateLogsError, setUpdateLogsError] = useState<string | null>(null);
+  const [updateLogPolling, setUpdateLogPolling] = useState(false);
   const refreshRef = useRef<() => void>(() => {});
+
+  const loadUpdateLogs = useCallback(
+    async (startedAt: string, commandId: string | null) => {
+      try {
+        const params = new URLSearchParams({
+          nodeId,
+          service: 'agent',
+          since: startedAt,
+          limit: '100',
+        });
+        const res = await fetch(`/api/fleet/logs?${params.toString()}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const body = (await res.json()) as { events?: AgentUpdateLogEvent[] };
+        const events = (body.events ?? [])
+          .filter(isAgentUpdateEvent)
+          .filter((event) => {
+            if (!commandId) return true;
+            const eventCommandId = event.metadata?.commandId;
+            return eventCommandId == null || String(eventCommandId) === commandId;
+          })
+          .sort((a, b) => logEventTime(a) - logEventTime(b));
+        setUpdateLogs(events);
+        setUpdateLogsError(null);
+        setUpdateLogPolling(!events.some(isTerminalAgentUpdateEvent));
+      } catch (err) {
+        setUpdateLogsError(err instanceof Error ? err.message : 'Failed to load update logs');
+      }
+    },
+    [nodeId]
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -85,6 +151,14 @@ export function NodeStatusPanel({ nodeId }: { nodeId: string }) {
 
   useFleetStream({ nodeId, onEvent: onStreamEvent });
 
+  useEffect(() => {
+    if (!updateLogStartedAt || !updateLogPolling) return;
+    const iv = setInterval(() => {
+      void loadUpdateLogs(updateLogStartedAt, updateCommandId);
+    }, 2500);
+    return () => clearInterval(iv);
+  }, [loadUpdateLogs, updateCommandId, updateLogPolling, updateLogStartedAt]);
+
   const toggleMaintenance = async (enabled: boolean) => {
     setBusy(true);
     try {
@@ -111,15 +185,25 @@ export function NodeStatusPanel({ nodeId }: { nodeId: string }) {
   };
 
   const runUpdate = async () => {
+    const startedAt = new Date(Date.now() - 5000).toISOString();
+    setUpdateLogStartedAt(startedAt);
+    setUpdateCommandId(null);
+    setUpdateLogs([]);
+    setUpdateLogsError(null);
+    setUpdateLogPolling(true);
     setBusy(true);
     try {
       const res = await fetch(`/api/fleet/nodes/${nodeId}/updates`, { method: 'POST' });
       if (res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { commandId?: unknown };
+        const commandId = typeof body.commandId === 'string' ? body.commandId : null;
+        setUpdateCommandId(commandId);
         toast({
           title: 'Update Queued',
           description: 'The update command will be received on the next heartbeat (within 30s).',
           variant: 'success',
         });
+        void loadUpdateLogs(startedAt, commandId);
       } else {
         throw new Error('Failed to queue update');
       }
@@ -129,6 +213,7 @@ export function NodeStatusPanel({ nodeId }: { nodeId: string }) {
         description: err instanceof Error ? err.message : 'Unknown error',
         variant: 'destructive',
       });
+      setUpdateLogPolling(false);
     } finally {
       setBusy(false);
     }
@@ -259,6 +344,13 @@ export function NodeStatusPanel({ nodeId }: { nodeId: string }) {
                 Update Agent
               </Button>
             </div>
+            {updateLogStartedAt && (
+              <AgentUpdateLogsPanel
+                logs={updateLogs}
+                error={updateLogsError}
+                polling={updateLogPolling}
+              />
+            )}
             <div className="text-sm">
               <div className="font-medium mb-1">Capabilities</div>
               <div className="flex flex-wrap gap-1">
@@ -303,6 +395,75 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
     <div className="flex justify-between gap-2">
       <span className="text-muted-foreground">{label}</span>
       <span className="text-right">{children}</span>
+    </div>
+  );
+}
+
+function AgentUpdateLogsPanel({
+  logs,
+  error,
+  polling,
+}: {
+  logs: AgentUpdateLogEvent[];
+  error: string | null;
+  polling: boolean;
+}) {
+  const [autoscroll, setAutoscroll] = useState(true);
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!autoscroll) return;
+    const el = scrollRef.current;
+    if (!el) return;
+    el.scrollTop = el.scrollHeight;
+  }, [autoscroll, logs]);
+
+  return (
+    <div className="rounded-lg border border-border bg-muted/20">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-3 py-2">
+        <div className="text-sm font-medium">Agent update logs</div>
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <Badge variant={polling ? 'default' : 'outline'}>{polling ? 'running' : 'idle'}</Badge>
+          <AutoscrollButton
+            enabled={autoscroll}
+            onToggle={setAutoscroll}
+            aria-label="Agent update log autoscroll"
+            className="h-8 px-2"
+          />
+        </div>
+      </div>
+      <div ref={scrollRef} className="max-h-72 overflow-auto p-3">
+        {error && (
+          <div
+            role="alert"
+            className="mb-2 rounded border border-destructive/30 bg-destructive/5 p-2 text-xs text-destructive"
+          >
+            {error}
+          </div>
+        )}
+        {logs.length === 0 ? (
+          <div className="font-mono text-xs text-muted-foreground">Waiting for agent output...</div>
+        ) : (
+          <div className="space-y-2">
+            {logs.map((event) => (
+              <div key={event._id} className="grid gap-1 text-xs md:grid-cols-[7rem_5rem_1fr]">
+                <div className="font-mono text-muted-foreground">
+                  {event.createdAt ? new Date(event.createdAt).toLocaleTimeString() : '--:--:--'}
+                </div>
+                <div>
+                  <Badge variant={logLevelVariant(event.level)}>{event.level}</Badge>
+                </div>
+                <div className="min-w-0">
+                  <div className="font-mono text-muted-foreground">{event.eventType}</div>
+                  <div className="mt-0.5 whitespace-pre-wrap break-words font-mono text-foreground">
+                    {event.message}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

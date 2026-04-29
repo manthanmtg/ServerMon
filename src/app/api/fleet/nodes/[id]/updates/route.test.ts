@@ -2,10 +2,11 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { NextRequest } from 'next/server';
 
-const { mockGetSession, mockFindById, mockUpdateOne } = vi.hoisted(() => ({
+const { mockGetSession, mockFindById, mockUpdateOne, mockFleetLogCreate } = vi.hoisted(() => ({
   mockGetSession: vi.fn(),
   mockFindById: vi.fn(),
   mockUpdateOne: vi.fn(),
+  mockFleetLogCreate: vi.fn(),
 }));
 
 vi.mock('@/lib/db', () => ({ default: vi.fn().mockResolvedValue(undefined) }));
@@ -18,6 +19,11 @@ vi.mock('@/models/Node', () => ({
   default: {
     findById: mockFindById,
     updateOne: mockUpdateOne,
+  },
+}));
+vi.mock('@/models/FleetLogEvent', () => ({
+  default: {
+    create: mockFleetLogCreate,
   },
 }));
 
@@ -41,6 +47,7 @@ describe('POST /api/fleet/nodes/[id]/updates', () => {
     mockGetSession.mockResolvedValue({ user: { username: 'admin', role: 'admin' } });
     mockFindById.mockResolvedValue({ _id: 'node-1', name: 'Node One' });
     mockUpdateOne.mockResolvedValue({});
+    mockFleetLogCreate.mockResolvedValue({});
   });
 
   it('queues update command arguments for release and source overrides', async () => {
@@ -55,11 +62,14 @@ describe('POST /api/fleet/nodes/[id]/updates', () => {
     );
 
     expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.commandId).toEqual(expect.any(String));
     expect(mockUpdateOne).toHaveBeenCalledWith(
       { _id: 'node-1' },
       {
         $push: {
           pendingCommands: expect.objectContaining({
+            id: body.commandId,
             command: 'update',
             args: {
               mode: 'release',
@@ -70,6 +80,15 @@ describe('POST /api/fleet/nodes/[id]/updates', () => {
           }),
         },
       }
+    );
+    expect(mockFleetLogCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        nodeId: 'node-1',
+        service: 'agent',
+        level: 'info',
+        eventType: 'agent.update.queued',
+        metadata: expect.objectContaining({ commandId: body.commandId }),
+      })
     );
   });
 });

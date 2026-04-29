@@ -538,15 +538,7 @@ export class AgentClient {
     });
 
     if (cmd.command === 'update') {
-      this.log('info', 'agent.update.starting', 'Executing remote update...');
-      const spawn = this.opts.spawnImpl ?? realSpawn;
-      const updateCmd = buildAgentUpdateShell(parseAgentUpdateShellOptions(cmd.args));
-
-      const child = spawn('bash', ['-c', updateCmd], {
-        detached: true,
-        stdio: 'ignore',
-      });
-      child.unref();
+      void this.runAgentUpdateCommand(cmd.id, cmd.args);
     }
 
     if (cmd.command === 'install-servermon') {
@@ -568,6 +560,64 @@ export class AgentClient {
     if (cmd.command === 'reconcile') {
       void this.syncConfig();
     }
+  }
+
+  private runAgentUpdateCommand(commandId: string, args: unknown): void {
+    const updateOptions = parseAgentUpdateShellOptions(args);
+    const updateCmd = buildAgentUpdateShell(updateOptions);
+    const spawn = this.opts.spawnImpl ?? realSpawn;
+
+    this.log('info', 'agent.update.starting', 'Executing remote update...', {
+      commandId,
+      mode: updateOptions.mode,
+      versionTarget: updateOptions.versionTarget,
+      releaseBaseUrl: updateOptions.releaseBaseUrl,
+      sourceRef: updateOptions.sourceRef,
+    });
+
+    let child: ReturnType<typeof realSpawn>;
+    try {
+      child = spawn('bash', ['-c', updateCmd], {
+        detached: true,
+        stdio: ['ignore', 'pipe', 'pipe'],
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      this.log('error', 'agent.update.failed', `Agent update failed to start: ${message}`, {
+        commandId,
+        error: message,
+      });
+      void this.sendHeartbeat();
+      return;
+    }
+
+    const writeLog = (level: 'info' | 'warn', chunk: Buffer) => {
+      const message = chunk.toString().trim();
+      if (!message) return;
+      this.log(level, 'agent.update.log', message, { commandId });
+      void this.sendHeartbeat();
+    };
+
+    child.stdout?.on('data', (chunk: Buffer) => writeLog('info', chunk));
+    child.stderr?.on('data', (chunk: Buffer) => writeLog('warn', chunk));
+    child.on('close', (code) => {
+      const ok = code === 0;
+      this.log(
+        ok ? 'info' : 'error',
+        ok ? 'agent.update.succeeded' : 'agent.update.failed',
+        ok ? 'Agent update completed' : `Agent update exited with code ${code}`,
+        { commandId, exitCode: code }
+      );
+      void this.sendHeartbeat();
+    });
+    child.on('error', (err) => {
+      this.log('error', 'agent.update.failed', `Agent update failed: ${err.message}`, {
+        commandId,
+        error: err.message,
+      });
+      void this.sendHeartbeat();
+    });
+    child.unref?.();
   }
 
   private async handleInstallServerMon(commandId: string, args: unknown): Promise<void> {

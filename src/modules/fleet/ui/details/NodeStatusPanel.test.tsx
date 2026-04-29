@@ -146,6 +146,75 @@ describe('NodeStatusPanel', () => {
     });
   });
 
+  it('shows agent update logs after queuing an update', async () => {
+    const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+      if (url === '/api/fleet/nodes/n1/updates' && init?.method === 'POST') {
+        return { ok: true, json: async () => ({ ok: true, queued: true, commandId: 'cmd-1' }) };
+      }
+      if (url.startsWith('/api/fleet/logs?')) {
+        return {
+          ok: true,
+          json: async () => ({
+            events: [
+              {
+                _id: 'log-2',
+                createdAt: new Date('2026-04-29T16:55:02.000Z').toISOString(),
+                service: 'agent',
+                level: 'info',
+                eventType: 'agent.update.log',
+                message: 'servermon-agent-update: downloaded release artifact',
+                metadata: { commandId: 'cmd-1' },
+              },
+              {
+                _id: 'log-1',
+                createdAt: new Date('2026-04-29T16:55:01.000Z').toISOString(),
+                service: 'agent',
+                level: 'info',
+                eventType: 'agent.update.starting',
+                message: 'Executing remote update...',
+                metadata: { commandId: 'cmd-1' },
+              },
+            ],
+          }),
+        };
+      }
+      return {
+        ok: true,
+        json: async () => ({ node: baseNode, computedStatus: 'online' }),
+      };
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await act(async () => {
+      render(<NodeStatusPanel nodeId="n1" />);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText('Update Agent')).toBeDefined();
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByText('Update Agent'));
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText('Agent update logs')).toBeDefined();
+      expect(screen.getByText('servermon-agent-update: downloaded release artifact')).toBeDefined();
+    });
+
+    expect(
+      fetchMock.mock.calls.some(
+        ([url]) =>
+          typeof url === 'string' &&
+          url.startsWith('/api/fleet/logs?') &&
+          url.includes('nodeId=n1') &&
+          url.includes('service=agent') &&
+          url.includes('limit=100')
+      )
+    ).toBe(true);
+    expect(screen.getByLabelText('Agent update log autoscroll')).toBeDefined();
+  });
+
   it('subscribes to the fleet event stream scoped to the nodeId', async () => {
     mockUseFleetStream.mockClear();
     vi.stubGlobal(

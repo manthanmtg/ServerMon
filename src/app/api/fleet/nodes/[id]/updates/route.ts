@@ -4,6 +4,7 @@ import Node from '@/models/Node';
 import { getSession } from '@/lib/session';
 import { createLogger } from '@/lib/logger';
 import { enforceRbac } from '@/lib/fleet/rbac';
+import FleetLogEvent from '@/models/FleetLogEvent';
 import crypto from 'node:crypto';
 import type { AgentUpdateMode } from '@/lib/fleet/agentUpdateCommand';
 
@@ -63,24 +64,36 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       return NextResponse.json({ error: 'Node not found' }, { status: 404 });
     }
 
+    const commandId = crypto.randomBytes(8).toString('hex');
+    const args = await parseUpdateArgs(req);
+
     // Queue the update command
     await Node.updateOne(
       { _id: id },
       {
         $push: {
           pendingCommands: {
-            id: crypto.randomBytes(8).toString('hex'),
+            id: commandId,
             command: 'update',
-            args: await parseUpdateArgs(req),
+            args,
             issuedAt: new Date(),
           },
         },
       }
     );
 
+    await FleetLogEvent.create({
+      nodeId: id,
+      service: 'agent',
+      level: 'info',
+      eventType: 'agent.update.queued',
+      message: `Agent update queued for ${node.name}`,
+      metadata: { commandId, args },
+    });
+
     log.info(`Queued update command for node ${id} (${node.name})`);
 
-    return NextResponse.json({ ok: true, queued: true });
+    return NextResponse.json({ ok: true, queued: true, commandId });
   } catch (error) {
     log.error('Failed to queue agent update', error);
     return NextResponse.json({ error: 'Failed to queue update' }, { status: 500 });
