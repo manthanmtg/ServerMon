@@ -107,7 +107,7 @@ export function ScheduleBuilder({
         </div>
       </div>
 
-      <div className="grid grid-cols-5 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-5">
         {SCHEDULE_FIELDS.map(({ label, field, placeholder }) => (
           <label key={field} className="space-y-1">
             <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
