@@ -12,6 +12,7 @@ import { executeScript, type ScriptExecutionConfig } from '../endpoints/script-e
 import type { ExecutionInput } from '../endpoints/types';
 import { collectServerMonStatus, type ServerMonStatus } from './servermonStatus';
 import { buildInstallServerMonCommand, redactServerMonInstallText } from './servermonAgentCommands';
+import { buildAgentUpdateShell, parseAgentUpdateShellOptions } from './agentUpdateCommand';
 
 export interface AgentClientLogEntry {
   level: string;
@@ -535,17 +536,7 @@ export class AgentClient {
     if (cmd.command === 'update') {
       this.log('info', 'agent.update.starting', 'Executing remote update...');
       const spawn = this.opts.spawnImpl ?? realSpawn;
-
-      const updateCmd = [
-        'export PATH=$PATH:/usr/local/bin:/usr/bin:/bin',
-        'cd /opt/servermon-agent/source',
-        'git reset --hard origin/main',
-        'git pull',
-        'rm -rf .next',
-        'pnpm install',
-        'pnpm build',
-        'systemctl restart servermon-agent',
-      ].join(' && ');
+      const updateCmd = buildAgentUpdateShell(parseAgentUpdateShellOptions(cmd.args));
 
       const child = spawn('bash', ['-c', updateCmd], {
         detached: true,

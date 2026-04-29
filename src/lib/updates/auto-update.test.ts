@@ -302,6 +302,44 @@ describe('local auto-update service', () => {
     expect(stored.activeRunId).toBe('launched-1');
     expect(stored.lastScheduledDateLaunched).toBe('2026-04-26');
   });
+
+  it('launches release-mode agent update without requiring a git checkout', async () => {
+    const { saveAutoUpdateSettings, runLocalAutoUpdateOnce } = await import('./auto-update');
+    await saveAutoUpdateSettings({
+      enabled: true,
+      time: '03:00',
+      timezone: 'Asia/Kolkata',
+    });
+    mockGetServermonAgentStatus.mockResolvedValue({
+      installed: true,
+      active: true,
+      updateSupported: true,
+      installMode: 'release',
+      versionTarget: 'latest',
+      repoDir: '/opt/servermon-agent/source',
+    });
+    mockExecFile((cmd, args, ...rest: unknown[]) => {
+      const cb = rest.at(-1) as (
+        error: Error | null,
+        result: { stdout: string; stderr: string }
+      ) => void;
+      const argList = args as string[];
+      if (argList.includes('fetch')) return cb(null, { stdout: '', stderr: '' });
+      if (argList.includes('HEAD') || argList.includes('@{u}')) {
+        return cb(null, { stdout: 'same\n', stderr: '' });
+      }
+      return cb(new Error(`unexpected ${String(cmd)}`), { stdout: '', stderr: '' });
+    });
+
+    const result = await runLocalAutoUpdateOnce(new Date('2026-04-25T21:30:00.000Z'));
+
+    expect(result).toMatchObject({ launched: true, runId: 'launched-1' });
+    expect(mockTriggerLocalAutoUpdateRun).toHaveBeenCalledWith({
+      servermonNeedsUpdate: false,
+      agentNeedsUpdate: true,
+      agentRepoDir: '/opt/servermon-agent/source',
+    });
+  });
 });
 
 function mockExecFile(fn: (...args: unknown[]) => void): void {

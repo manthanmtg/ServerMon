@@ -88,6 +88,54 @@ sudo ./scripts/install-launchd.sh
 
 This installs a system `launchd` daemon so ServerMon starts at boot and scheduled runs do not wait for a user login. See [DEPLOY.md](DEPLOY.md) for setup details and management commands.
 
+### Prebuilt Release Artifacts
+
+Tagged releases publish native Linux and macOS tarballs from GitHub Actions so small machines do not need to run `pnpm build` locally. This is especially useful for Raspberry Pi and other low-memory fleet agents.
+
+Release assets are published at [GitHub Releases](https://github.com/manthanmtg/ServerMon/releases):
+
+| Target      | Hub artifact                        | Agent artifact                        |
+| ----------- | ----------------------------------- | ------------------------------------- |
+| Linux x64   | `servermon-hub-linux-x64.tar.gz`    | `servermon-agent-linux-x64.tar.gz`    |
+| Linux arm64 | `servermon-hub-linux-arm64.tar.gz`  | `servermon-agent-linux-arm64.tar.gz`  |
+| macOS x64   | `servermon-hub-darwin-x64.tar.gz`   | `servermon-agent-darwin-x64.tar.gz`   |
+| macOS arm64 | `servermon-hub-darwin-arm64.tar.gz` | `servermon-agent-darwin-arm64.tar.gz` |
+
+Verify downloads with `SHA256SUMS`:
+
+```bash
+BASE_URL="https://github.com/manthanmtg/ServerMon/releases/latest/download"
+ASSET="servermon-agent-linux-arm64.tar.gz"
+
+curl -fLO "$BASE_URL/$ASSET"
+curl -fLO "$BASE_URL/SHA256SUMS"
+grep "  $ASSET$" SHA256SUMS | sha256sum -c -
+```
+
+On macOS, use `shasum -a 256 -c -` for the checksum step:
+
+```bash
+grep "  $ASSET$" SHA256SUMS | shasum -a 256 -c -
+```
+
+Fleet agent onboarding installs from the latest release artifact by default. The generated curl command accepts these optional flags after `bash -s --`:
+
+```bash
+# Pin an agent to a specific release artifact
+--version v0.1.1
+
+# Keep tracking the latest release artifact
+--release latest
+
+# Preserve the old source-build behavior for machines that should track main
+--build-from-source --source-ref main
+
+# Use a custom release asset mirror
+--release-base-url https://example.com/servermon/releases/v0.1.1
+```
+
+Agent installs write `/etc/servermon-agent/install.env`. Fleet-triggered updates and local colocated-agent updates read that file, so release-installed agents continue updating from release artifacts and source-installed agents continue using `git pull`, `pnpm install`, and `pnpm build`.
+
 ### Local Development
 
 ```bash
@@ -269,6 +317,17 @@ ServerMon is designed to be exposed to the internet with confidence:
 | **Fully automated**            | `sudo ./scripts/install.sh --unattended --domain mon.example.com --ssl`  |
 
 See **[DEPLOY.md](DEPLOY.md)** for the full deployment guide including upgrading, troubleshooting, logging, and health checks.
+
+### Publishing Release Artifacts
+
+Release artifacts are built and attached automatically when a `v*` tag is pushed:
+
+```bash
+git tag -a v0.1.1 -m "v0.1.1"
+git push origin v0.1.1
+```
+
+The release workflow builds Linux and macOS artifacts on native GitHub-hosted runners, prunes development dependencies after the build, generates `SHA256SUMS`, and publishes the assets to the matching GitHub Release.
 
 ---
 

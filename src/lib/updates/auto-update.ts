@@ -245,21 +245,27 @@ export async function runLocalAutoUpdateOnce(now = new Date()): Promise<AutoUpda
   let agentNeedsUpdate = false;
   let agentRepoDir: string | undefined;
   if (agentStatus.active && agentStatus.updateSupported && agentStatus.repoDir) {
-    const agentCheck = await checkRepoForUpdates(agentStatus.repoDir);
-    if (agentCheck.status === 'failed') {
-      await saveAutoUpdateSettings({
-        lastRunStatus: 'failed',
-        lastRunAt: now.toISOString(),
-        lastRunMessage: `Agent check failed: ${agentCheck.message}`,
-      });
-      return {
-        launched: false,
-        reason: 'agent-check-failed',
-        scheduledDate: decision.scheduledDate,
-      };
+    if (agentStatus.installMode === 'release') {
+      agentNeedsUpdate =
+        agentStatus.versionTarget === undefined || agentStatus.versionTarget === 'latest';
+      agentRepoDir = agentStatus.repoDir;
+    } else {
+      const agentCheck = await checkRepoForUpdates(agentStatus.repoDir);
+      if (agentCheck.status === 'failed') {
+        await saveAutoUpdateSettings({
+          lastRunStatus: 'failed',
+          lastRunAt: now.toISOString(),
+          lastRunMessage: `Agent check failed: ${agentCheck.message}`,
+        });
+        return {
+          launched: false,
+          reason: 'agent-check-failed',
+          scheduledDate: decision.scheduledDate,
+        };
+      }
+      agentNeedsUpdate = agentCheck.status === 'changed';
+      agentRepoDir = agentStatus.repoDir;
     }
-    agentNeedsUpdate = agentCheck.status === 'changed';
-    agentRepoDir = agentStatus.repoDir;
   }
 
   const servermonNeedsUpdate = servermonCheck.status === 'changed';

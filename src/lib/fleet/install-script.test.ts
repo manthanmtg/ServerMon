@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { renderInstallSnippet } from './install-script';
+import { AGENT_INSTALLER_BASH, renderInstallSnippet } from './install-script';
 
 const base = {
   hubUrl: 'ultron.manthanby.cv',
@@ -82,5 +82,31 @@ describe('renderInstallSnippet', () => {
         kind: 'windows' as unknown as 'linux',
       })
     ).toThrow(/Unknown installer kind/);
+  });
+});
+
+describe('AGENT_INSTALLER_BASH', () => {
+  it('installs release artifacts by default with checksum verification', () => {
+    expect(AGENT_INSTALLER_BASH).toContain('INSTALL_MODE="release"');
+    expect(AGENT_INSTALLER_BASH).toContain('servermon-agent-$PLATFORM_NAME-$ARCH_NAME.tar.gz');
+    expect(AGENT_INSTALLER_BASH).toContain('SHA256SUMS');
+    expect(AGENT_INSTALLER_BASH).toContain('sha256sum -c');
+    expect(AGENT_INSTALLER_BASH).toContain('shasum -a 256 -c');
+    expect(AGENT_INSTALLER_BASH).toContain('install_from_release');
+    expect(AGENT_INSTALLER_BASH).toContain('write_install_metadata');
+  });
+
+  it('keeps explicit source builds available for main-tracking installs', () => {
+    expect(AGENT_INSTALLER_BASH).toContain('--build-from-source');
+    expect(AGENT_INSTALLER_BASH).toContain('--source-ref');
+    expect(AGENT_INSTALLER_BASH).toContain('install_from_source');
+    expect(AGENT_INSTALLER_BASH).toContain('pnpm build');
+  });
+
+  it('supports latest and pinned release selection', () => {
+    expect(AGENT_INSTALLER_BASH).toContain('--release');
+    expect(AGENT_INSTALLER_BASH).toContain('--version');
+    expect(AGENT_INSTALLER_BASH).toContain('/releases/latest/download');
+    expect(AGENT_INSTALLER_BASH).toContain('/releases/download/$VERSION_TARGET');
   });
 });

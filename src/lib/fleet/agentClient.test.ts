@@ -1,5 +1,6 @@
 /** @vitest-environment node */
 import { describe, it, expect, vi } from 'vitest';
+import { EventEmitter } from 'node:events';
 import { AgentClient } from './agentClient';
 import type { AgentPtyBridge } from './agentPtyBridge';
 import type { FrpHandle } from './frpProcess';
@@ -320,5 +321,43 @@ describe('AgentClient', () => {
     expect(body.tunnel).toBeDefined();
     expect(body.capabilities).toBeDefined();
     await client.stop();
+  });
+
+  it('remote update command uses shared release/source updater arguments', async () => {
+    const spawnImpl = vi.fn(() => {
+      const child = new EventEmitter() as unknown as ReturnType<
+        typeof import('node:child_process').spawn
+      >;
+      Object.assign(child, { unref: vi.fn(), pid: 777 });
+      return child;
+    });
+
+    const client = new AgentClient({
+      hubUrl: 'https://hub.example.com',
+      pairingToken: 'pair-token',
+      nodeId: 'node-1',
+      spawnImpl: spawnImpl as unknown as typeof import('node:child_process').spawn,
+    });
+
+    await (
+      client as unknown as {
+        handleCommand: (cmd: { id: string; command: string; args?: unknown }) => Promise<void>;
+      }
+    ).handleCommand({
+      id: 'cmd-1',
+      command: 'update',
+      args: { mode: 'release', versionTarget: 'v0.1.1' },
+    });
+
+    expect(spawnImpl).toHaveBeenCalledWith(
+      'bash',
+      ['-c', expect.stringContaining('VERSION_TARGET="v0.1.1"')],
+      expect.objectContaining({ detached: true, stdio: 'ignore' })
+    );
+    const updateCall = spawnImpl.mock.calls.at(-1)! as unknown as [string, string[], unknown];
+    const script = String(updateCall[1][1]);
+    expect(script).toContain('UPDATE_MODE="release"');
+    expect(script).toContain('install_from_release');
+    expect(script).toContain('servermon-agent-$PLATFORM_NAME-$ARCH_NAME.tar.gz');
   });
 });

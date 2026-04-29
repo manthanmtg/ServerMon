@@ -231,6 +231,48 @@ describe('SystemUpdateService', () => {
       expect(status.updateSupported).toBe(true);
     });
 
+    it('reports release install metadata when the agent was installed from an artifact', async () => {
+      (
+        execFile as unknown as { mockImplementation: (fn: (...a: unknown[]) => void) => void }
+      ).mockImplementation((...args: unknown[]) => {
+        const callback = args[args.length - 1] as (
+          err: Error | null,
+          result: { stdout: string; stderr: string }
+        ) => void;
+        callback(null, {
+          stdout:
+            'LoadState=loaded\nActiveState=active\nUnitFileState=enabled\nFragmentPath=/etc/systemd/system/servermon-agent.service\n',
+          stderr: '',
+        });
+      });
+      vi.mocked(readFile).mockImplementation(async (path) => {
+        if (path === '/etc/servermon-agent/install.env') {
+          return [
+            'SERVERMON_AGENT_INSTALL_MODE=release',
+            'SERVERMON_AGENT_VERSION_TARGET=latest',
+            'SERVERMON_AGENT_APP_DIR=/opt/servermon-agent/source',
+          ].join('\n');
+        }
+        return 'WorkingDirectory=/opt/servermon-agent/source\n';
+      });
+      vi.mocked(existsSync).mockImplementation(
+        ((p: unknown) =>
+          p === '/etc/systemd/system/servermon-agent.service' ||
+          p === '/etc/servermon-agent/install.env' ||
+          p === '/opt/servermon-agent/source') as typeof existsSync
+      );
+
+      const status = (await systemUpdateService.getServermonAgentStatus()) as {
+        installMode?: string;
+        versionTarget?: string;
+        updateSupported: boolean;
+      };
+
+      expect(status.updateSupported).toBe(true);
+      expect(status.installMode).toBe('release');
+      expect(status.versionTarget).toBe('latest');
+    });
+
     it('reports update unsupported when the agent service is missing', async () => {
       (
         execFile as unknown as { mockImplementation: (fn: (...a: unknown[]) => void) => void }
@@ -253,7 +295,7 @@ describe('SystemUpdateService', () => {
   });
 
   describe('triggerAgentUpdate', () => {
-    it('updates the colocated agent repo and restarts the agent service', async () => {
+    it('updates the colocated agent through the shared release/source updater', async () => {
       (
         execFile as unknown as { mockImplementation: (fn: (...a: unknown[]) => void) => void }
       ).mockImplementation((...args: unknown[]) => {
@@ -287,7 +329,9 @@ describe('SystemUpdateService', () => {
       const lastCall = vi.mocked(spawn).mock.calls.at(-1)!;
       const commandText = JSON.stringify(lastCall);
       expect(commandText).toContain('/opt/servermon-agent/source');
-      expect(commandText).toContain('pnpm build');
+      expect(commandText).toContain('install_from_release');
+      expect(commandText).toContain('install_from_source');
+      expect(commandText).toContain('SERVERMON_AGENT_INSTALL_MODE');
       expect(commandText).toContain('systemctl restart servermon-agent.service');
     });
   });
@@ -321,7 +365,9 @@ describe('SystemUpdateService', () => {
       );
       expect(commandText).toContain('if ! "/app/scripts/update-servermon.sh"; then');
       expect(commandText).toContain('exit 1');
-      expect(commandText).toContain('cd "/opt/servermon-agent/source"');
+      expect(commandText).toContain('APP_DIR="/opt/servermon-agent/source"');
+      expect(commandText).toContain('install_from_release');
+      expect(commandText).toContain('install_from_source');
       expect(commandText).toContain('systemctl restart servermon-agent.service');
     });
 

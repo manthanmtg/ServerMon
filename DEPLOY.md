@@ -761,9 +761,12 @@ volumes:
 
 The onboarding wizard generates a one-shot install command that:
 
-- downloads ServerMon,
-- writes `/etc/servermon-agent/env` with `FLEET_AGENT_MODE=true`, the hub URL, pairing token, and node ID,
-- installs a systemd service.
+- downloads the latest `servermon-agent-<os>-<arch>.tar.gz` release artifact by default,
+- verifies the artifact with `SHA256SUMS`,
+- writes `/etc/servermon-agent/install.env` so future updates know whether the agent tracks release artifacts or source builds,
+- installs a systemd service on Linux or a launchd service on macOS.
+
+To pin a release, append `--version v0.1.1` to the generated command. To preserve the older source-build flow, append `--build-from-source --source-ref main`.
 
 systemd unit for agent mode:
 
@@ -775,19 +778,24 @@ After=network.target
 
 [Service]
 Type=simple
-User=servermon
-WorkingDirectory=/opt/servermon
-EnvironmentFile=/etc/servermon-agent/env
+User=root
+WorkingDirectory=/opt/servermon-agent/source
+Environment=NODE_ENV=production
+Environment=PORT=8918
 Environment=FLEET_AGENT_MODE=true
+Environment=FLEET_AGENT_PTY_PORT=8918
+Environment=FLEET_AGENT_HUB_URL=https://hub.example.com
+Environment=FLEET_AGENT_PAIRING_TOKEN=<pairing-token>
+Environment=FLEET_AGENT_NODE_ID=<node-id>
 ExecStart=/usr/bin/pnpm start
 Restart=always
-RestartSec=5
+RestartSec=10
 
 [Install]
 WantedBy=multi-user.target
 ```
 
-The agent performs the pairing handshake against `/api/fleet/nodes/<id>/pair` using its one-time token, receives the hub FRP connection info, and establishes the tunnel. The token is consumed on first use.
+The agent performs the pairing handshake against `/api/fleet/nodes/<id>/pair` using its one-time token, receives the hub FRP connection info, and establishes the tunnel. The token is consumed on first use. Fleet-triggered updates use the recorded install mode: release installs download and verify release artifacts, while source installs continue to pull and build from the configured source ref.
 
 ### Backup and restore
 

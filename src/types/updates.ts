@@ -14,6 +14,8 @@ export interface ServermonAgentStatus {
   installed: boolean;
   active: boolean;
   enabled: boolean;
+  installMode?: 'release' | 'source' | 'unknown';
+  versionTarget?: string;
   loadState?: string;
   activeState?: string;
   unitFileState?: string;
