@@ -184,8 +184,10 @@ Concise map of major directories, commands, and key files. Update this section w
 - `src/lib/ai-agents/` — agent adapters (Claude Code, Codex, Gemini CLI) and session monitoring
 - `src/lib/ai-runner/` — automated task supervisor, watchdog, and worker orchestration
 - `src/models/` — Mongoose schemas
-- `src/modules/` — feature modules (terminal, processes, logs, metrics, fleet, AI, etc.)
-- `src/models/NetworkSpeedtestResult.ts`, `src/models/NetworkSpeedtestSettings.ts` — persisted Network module speedtest history and schedule configuration
+  - **Core**: `User.ts`, `AnalyticsEvent.ts`, `BrandSettings.ts`, `SavedCommand.ts`, `QuickAccessSettings.ts`
+  - **Modules**: `CustomEndpoint.ts`, `EndpointExecutionLog.ts`, `TerminalHistory.ts`, `TerminalSession.ts`, `TerminalSettings.ts`, `FileBrowserSettings.ts`, `DiskSettings.ts`, `UpdateHistory.ts`
+  - **Monitoring**: `NetworkSpeedtestResult.ts`, `NetworkSpeedtestSettings.ts`, `NetworkStatAggregate.ts`, `NetworkAlert.ts`, `DockerStatAggregate.ts`, `DockerAlert.ts`, `ServiceAlert.ts`
+  - **AI & Fleet**: (see specific sections below)
 - `src/lib/env-vars/` — stateless host environment variable helpers for OS target detection, shell env parsing, user-scope add/delete, and system-scope instructions
 - `src/lib/network/speedtest.ts`, `src/lib/network/speedtest-scheduler.ts` — speedtest CLI normalization, history persistence, fixed-interval scheduling, and startup scheduler
 - `src/server.ts` — custom Next.js server entry (Socket.IO bridge)

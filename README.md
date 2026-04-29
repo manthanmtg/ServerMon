@@ -51,7 +51,7 @@ ServerMon ships with a rich set of modules out of the box:
 | **Updates**      | Track available system and package updates                                                           |
 | **Fleet**        | Centralized management of remote nodes, public routes, and reverse proxies                           |
 | **AI Agents**    | Monitor AI coding agent sessions running on the server                                               |
-| **AI Runner**    | Configure AI automation profiles, prompts, schedules, and run history                                |
+| **AI Runner**    | AI automation with profiles, prompts, schedules, run rate visualization, and history                 |
 | **Self Service** | Browse and install managed apps, CLI tools, and services                                             |
 | **Endpoints**    | Define and execute custom API endpoints, scripts, and webhook proxies                                |
 | **EnvVars**      | Inspect and update host-level user environment variables with OS-aware system instructions           |

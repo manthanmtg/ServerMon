@@ -912,18 +912,19 @@ Goal: allow developers to create modules quickly.
 
 The following modules are currently implemented in the core system:
 
-- **Dashboard**: Real-time widgets
-- **Terminal**: Interactive shell
-- **Processes**: Process management
+- **Dashboard**: Real-time widgets for CPU, memory, uptime, and latency
+- **Terminal**: Interactive shell with multi-session support
+- **Processes**: View, search, and manage host processes
 - **File Browser**: Filesystem navigation and CodeMirror 6 editing
-- **Docker**: Container management
-- **Disk & Network**: Resource monitoring
+- **Docker**: Container, image, volume, and network management
+- **Disk, Memory & Network**: Resource monitoring and I/O performance
 - **Services & Cron Jobs**: System daemon and schedule management
-- **AI Agents**: Passive observability of AI CLI tools
-- **AI Runner**: Active orchestration and scheduling of AI CLI tools
-- **Security & Audit Logs**: MFA, settings, and action history
-- **Certificates, Ports, Hardware, Nginx**: Infrastructure monitoring
+- **AI Agents**: Passive observability of AI CLI tools (Claude Code, etc.)
+- **AI Runner**: Active orchestration, scheduling, and run rate visualization for AI CLI tools
+- **Security, Audit Logs & Users**: MFA, settings, and action history
+- **Certificates, Ports, Hardware, Nginx**: Infrastructure monitoring and site management
 - **Fleet Management**: Centralized administration of remote nodes, public routes, and reverse proxies
+- **Self Service, Endpoints & EnvVars**: App installs, custom API endpoints, and host environment variables
 
 ---
 
