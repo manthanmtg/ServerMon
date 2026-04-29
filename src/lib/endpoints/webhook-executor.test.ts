@@ -166,6 +166,32 @@ describe('executeWebhook', () => {
     expect(call.body).toBeUndefined();
   });
 
+  it('retries idempotent requests once after a transient upstream 5xx', async () => {
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValueOnce({
+        status: 503,
+        headers: new Headers(),
+        text: vi.fn().mockResolvedValue('try again'),
+      })
+      .mockResolvedValueOnce({
+        status: 200,
+        headers: new Headers(),
+        text: vi.fn().mockResolvedValue('ok'),
+      });
+    vi.stubGlobal('fetch', mockFetch);
+
+    const endpoint = makeEndpoint({
+      method: 'GET',
+      webhookConfig: { targetUrl: 'https://example.com/hook', method: 'GET' },
+    });
+    const result = await executeWebhook(endpoint, makeInput({ method: 'GET' }));
+
+    expect(result.statusCode).toBe(200);
+    expect(result.body).toBe('ok');
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+  });
+
   // ── transformBody ──────────────────────────────────────────────────────────
 
   it('applies transformBody function to the outgoing body', async () => {
