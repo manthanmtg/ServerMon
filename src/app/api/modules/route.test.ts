@@ -4,7 +4,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 const { mockGetAllModules, mockInitializeModules, mockGetSession } = vi.hoisted(() => ({
   mockGetAllModules: vi.fn(),
   mockInitializeModules: vi.fn().mockResolvedValue(undefined),
-  mockGetSession: vi.fn().mockResolvedValue({ user: { id: 'u1', username: 'admin', role: 'admin' } }),
+  mockGetSession: vi
+    .fn()
+    .mockResolvedValue({ user: { id: 'u1', username: 'admin', role: 'admin' } }),
 }));
 
 vi.mock('@/lib/modules/ModuleRegistry', () => ({
