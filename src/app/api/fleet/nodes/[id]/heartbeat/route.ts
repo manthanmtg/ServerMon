@@ -7,6 +7,7 @@ import FleetLogEvent from '@/models/FleetLogEvent';
 import { HeartbeatZodSchema } from '@/lib/fleet/heartbeat';
 import { fleetEventBus } from '@/lib/fleet/eventBus';
 import { verifyPairingToken } from '@/lib/fleet/pairing';
+import { hydrateCommandSecrets } from '@/lib/fleet/commandSecrets';
 
 export const dynamic = 'force-dynamic';
 
@@ -88,6 +89,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if (hb.frpcVersion !== undefined) updateData.$set.frpcVersion = hb.frpcVersion;
     if (hb.tunnel.connectedSince) updateData.$set.connectedSince = hb.tunnel.connectedSince;
     if (previousBootId !== hb.bootId) updateData.$set.lastBootAt = hb.bootAt;
+    if (hb.servermon) updateData.$set.servermon = hb.servermon;
 
     if (
       hb.tunnel.status === 'connected' &&
@@ -208,7 +210,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       });
     }
 
-    const commands = updatedNode.pendingCommands || [];
+    const commands = await hydrateCommandSecrets(id, updatedNode.pendingCommands || []);
     if (commands.length > 0) {
       await Node.updateOne({ _id: id }, { $set: { pendingCommands: [] } });
     }

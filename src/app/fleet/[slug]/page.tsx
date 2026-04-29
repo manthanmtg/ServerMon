@@ -5,6 +5,7 @@ import ProShell from '@/components/layout/ProShell';
 import { Spinner } from '@/components/ui/spinner';
 import { cn } from '@/lib/utils';
 import { NodeStatusPanel } from '@/modules/fleet/ui/details/NodeStatusPanel';
+import { NodeServerMonPanel } from '@/modules/fleet/ui/details/NodeServerMonPanel';
 import { ProxyRuleTable } from '@/modules/fleet/ui/details/ProxyRuleTable';
 import { PublicRouteTable } from '@/modules/fleet/ui/details/PublicRouteTable';
 import { NodeLogsView } from '@/modules/fleet/ui/details/NodeLogsView';
@@ -12,7 +13,15 @@ import { NodeHardwareCharts } from '@/modules/fleet/ui/details/NodeHardwareChart
 import { NodeTerminal } from '@/modules/fleet/ui/details/NodeTerminal';
 import { RemoteProcessTable } from '@/modules/fleet/ui/details/RemoteProcessTable';
 
-type Tab = 'overview' | 'terminal' | 'proxies' | 'routes' | 'processes' | 'logs' | 'hardware';
+type Tab =
+  | 'overview'
+  | 'servermon'
+  | 'terminal'
+  | 'proxies'
+  | 'routes'
+  | 'processes'
+  | 'logs'
+  | 'hardware';
 
 export default function NodeDetailPage() {
   const params = useParams<{ slug: string }>();
@@ -65,6 +74,7 @@ export default function NodeDetailPage() {
 
   const tabs: Array<{ id: Tab; label: string }> = [
     { id: 'overview', label: 'Overview' },
+    { id: 'servermon', label: 'ServerMon' },
     { id: 'terminal', label: 'Terminal' },
     { id: 'proxies', label: 'Proxies' },
     { id: 'routes', label: 'Public Routes' },
@@ -94,6 +104,9 @@ export default function NodeDetailPage() {
         </div>
         <div className={tab === 'overview' ? 'block' : 'hidden'}>
           <NodeStatusPanel nodeId={node._id} />
+        </div>
+        <div className={tab === 'servermon' ? 'block' : 'hidden'}>
+          <NodeServerMonPanel nodeId={node._id} />
         </div>
         <div className={tab === 'terminal' ? 'block' : 'hidden'}>
           <NodeTerminal nodeId={node._id} />

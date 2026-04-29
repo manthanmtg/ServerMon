@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { TUNNEL_STATUSES, PROXY_STATUSES } from './enums';
+import { ServerMonStatusZodSchema } from './servermonStatus';
 
 export const HeartbeatZodSchema = z.object({
   nodeId: z.string().min(1),
@@ -56,6 +57,7 @@ export const HeartbeatZodSchema = z.object({
       authToken: z.string(),
     })
     .optional(),
+  servermon: ServerMonStatusZodSchema.optional(),
   /**
    * Optional batch of log entries piggy-backed onto the heartbeat. The hub
    * persists each entry as a FleetLogEvent so the user can see frpc output

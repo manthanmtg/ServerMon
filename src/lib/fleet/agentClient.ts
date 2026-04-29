@@ -10,6 +10,8 @@ import { renderFrpcToml } from './toml';
 import { AgentPtyBridge } from './agentPtyBridge';
 import { executeScript, type ScriptExecutionConfig } from '../endpoints/script-executor';
 import type { ExecutionInput } from '../endpoints/types';
+import { collectServerMonStatus, type ServerMonStatus } from './servermonStatus';
+import { buildInstallServerMonCommand, redactServerMonInstallText } from './servermonAgentCommands';
 
 export interface AgentClientLogEntry {
   level: string;
@@ -79,6 +81,13 @@ interface AgentCommand {
   args?: unknown;
 }
 
+interface InstallServerMonCommandArgs {
+  mongoUri?: unknown;
+  port?: unknown;
+  skipMongo?: unknown;
+  allowRoot?: unknown;
+}
+
 interface EndpointRunArgs {
   endpointId?: string;
   endpointSlug?: string;
@@ -100,6 +109,7 @@ function unwrapNodeConfig(
 const DEFAULT_BINARY_CACHE_DIR = '.fleet-cache/frp';
 const DEFAULT_CONFIG_DIR = '.fleet-cache/agent';
 const DEFAULT_PTY_LISTEN_PORT = 8918;
+const DEFAULT_SERVERMON_PORT = 8912;
 const DEFAULT_HEARTBEAT_INTERVAL_MS = 30_000;
 const DEFAULT_HUB_REQUEST_TIMEOUT_MS = 10_000;
 const DEFAULT_BINARY_VERSION = 'latest';
@@ -424,6 +434,17 @@ export class AgentClient {
       // ignore collection errors
     }
 
+    let servermon: ServerMonStatus | undefined;
+    try {
+      servermon = await collectServerMonStatus({
+        spawnImpl: this.opts.spawnImpl ?? realSpawn,
+        fetchImpl,
+        now: this.opts.now,
+      });
+    } catch {
+      servermon = undefined;
+    }
+
     const body = {
       nodeId,
       bootId: this.bootId,
@@ -465,6 +486,7 @@ export class AgentClient {
         port: this.opts.ptyListenPort ?? DEFAULT_PTY_LISTEN_PORT,
         authToken: this.ptyToken,
       },
+      servermon,
     };
 
     try {
@@ -532,6 +554,18 @@ export class AgentClient {
       child.unref();
     }
 
+    if (cmd.command === 'install-servermon') {
+      void this.handleInstallServerMon(cmd.id, cmd.args);
+    }
+
+    if (cmd.command === 'servermon-recheck') {
+      void this.sendHeartbeat();
+    }
+
+    if (cmd.command === 'servermon-restart') {
+      void this.runServerMonRestart(cmd.id);
+    }
+
     if (cmd.command === 'endpoint-run') {
       void this.handleEndpointRun(cmd.id, cmd.args);
     }
@@ -539,6 +573,118 @@ export class AgentClient {
     if (cmd.command === 'reconcile') {
       void this.syncConfig();
     }
+  }
+
+  private async handleInstallServerMon(commandId: string, args: unknown): Promise<void> {
+    const installArgs = (
+      args && typeof args === 'object' ? args : {}
+    ) as InstallServerMonCommandArgs;
+    const mongoUri = typeof installArgs.mongoUri === 'string' ? installArgs.mongoUri : '';
+    const port = typeof installArgs.port === 'number' ? installArgs.port : DEFAULT_SERVERMON_PORT;
+    const skipMongo = installArgs.skipMongo !== false;
+    const allowRoot = installArgs.allowRoot !== false;
+
+    if (!mongoUri) {
+      this.log('error', 'servermon.install.failed', 'ServerMon install missing MongoDB URI', {
+        commandId,
+      });
+      return;
+    }
+
+    const [command, commandArgs] = buildInstallServerMonCommand({
+      mongoUri,
+      port,
+      skipMongo,
+      allowRoot,
+    });
+    this.log('info', 'servermon.install.starting', 'Starting ServerMon install', {
+      commandId,
+      port,
+      skipMongo,
+      allowRoot,
+    });
+
+    const spawn = this.opts.spawnImpl ?? realSpawn;
+    await new Promise<void>((resolve) => {
+      let child: ReturnType<typeof realSpawn>;
+      try {
+        child = spawn(command, commandArgs, {
+          env: {
+            ...process.env,
+            SERVERMON_INSTALL_MONGO_URI: mongoUri,
+            SERVERMON_INSTALL_PORT: String(port),
+          },
+          stdio: ['ignore', 'pipe', 'pipe'],
+        });
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        this.log('error', 'servermon.install.failed', `ServerMon install failed: ${message}`, {
+          commandId,
+          error: message,
+        });
+        resolve();
+        return;
+      }
+
+      child.stdout?.on('data', (chunk: Buffer) => {
+        const message = redactServerMonInstallText(chunk.toString(), mongoUri).trim();
+        if (message) this.log('info', 'servermon.install.log', message, { commandId });
+      });
+      child.stderr?.on('data', (chunk: Buffer) => {
+        const message = redactServerMonInstallText(chunk.toString(), mongoUri).trim();
+        if (message) this.log('warn', 'servermon.install.log', message, { commandId });
+      });
+      child.on('close', (code) => {
+        const ok = code === 0;
+        this.log(
+          ok ? 'info' : 'error',
+          ok ? 'servermon.install.succeeded' : 'servermon.install.failed',
+          ok ? 'ServerMon install completed' : `ServerMon install exited with code ${code}`,
+          { commandId, exitCode: code }
+        );
+        void this.sendHeartbeat();
+        resolve();
+      });
+      child.on('error', (err) => {
+        this.log('error', 'servermon.install.failed', `ServerMon install failed: ${err.message}`, {
+          commandId,
+          error: err.message,
+        });
+        void this.sendHeartbeat();
+        resolve();
+      });
+    });
+  }
+
+  private async runServerMonRestart(commandId: string): Promise<void> {
+    const spawn = this.opts.spawnImpl ?? realSpawn;
+    await new Promise<void>((resolve) => {
+      const child = spawn('systemctl', ['restart', 'servermon'], {
+        stdio: ['ignore', 'pipe', 'pipe'],
+      });
+      let stderr = '';
+      child.stderr?.on('data', (chunk: Buffer) => {
+        stderr += chunk.toString();
+      });
+      child.on('close', (code) => {
+        this.log(
+          code === 0 ? 'info' : 'error',
+          code === 0 ? 'servermon.restart.succeeded' : 'servermon.restart.failed',
+          code === 0 ? 'ServerMon restarted' : `ServerMon restart failed: ${stderr.trim()}`,
+          { commandId, exitCode: code }
+        );
+        void this.sendHeartbeat();
+        resolve();
+      });
+      child.on('error', (err) => {
+        this.log('error', 'servermon.restart.failed', `ServerMon restart failed: ${err.message}`, {
+          commandId,
+          error: err.message,
+        });
+        void this.sendHeartbeat();
+        resolve();
+      });
+    });
   }
 
   /**

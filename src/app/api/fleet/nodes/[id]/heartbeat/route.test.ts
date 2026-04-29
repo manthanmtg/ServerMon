@@ -159,6 +159,43 @@ describe('POST /api/fleet/nodes/[id]/heartbeat', () => {
     expect(saveFn).not.toHaveBeenCalled();
   });
 
+  it('persists reported ServerMon status on heartbeat', async () => {
+    mockFindById.mockResolvedValue({
+      pairingTokenHash: 'h',
+      bootId: 'boot-xyz',
+      tunnelStatus: 'connected',
+      proxyRules: [],
+      capabilities: {},
+    });
+    mockVerifyPairingToken.mockResolvedValue(true);
+
+    const servermon = {
+      installed: true,
+      serviceName: 'servermon.service',
+      serviceState: 'running',
+      serviceEnabled: true,
+      port: 8912,
+      installDir: '/opt/servermon',
+      healthUrl: 'http://127.0.0.1:8912/api/health',
+      healthStatus: 'healthy',
+      lastCheckedAt: new Date('2026-04-29T00:00:00.000Z').toISOString(),
+    };
+
+    const res = await POST(
+      makeReq({ ...validHeartbeat, servermon }, { Authorization: 'Bearer tok' }),
+      makeContext('node-1')
+    );
+
+    expect(res.status).toBe(200);
+    expect(mockFindByIdAndUpdate).toHaveBeenCalledWith(
+      'node-1',
+      expect.objectContaining({
+        $set: expect.objectContaining({ servermon }),
+      }),
+      { returnDocument: 'after' }
+    );
+  });
+
   it('emits node.reboot_detected on boot id change', async () => {
     const saveFn = vi.fn().mockResolvedValue(undefined);
     const nodeDoc = {

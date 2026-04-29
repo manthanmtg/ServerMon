@@ -32,6 +32,11 @@ vi.mock('@/modules/fleet/ui/details/NodeStatusPanel', () => ({
     <div data-testid="overview">overview:{nodeId}</div>
   ),
 }));
+vi.mock('@/modules/fleet/ui/details/NodeServerMonPanel', () => ({
+  NodeServerMonPanel: ({ nodeId }: { nodeId: string }) => (
+    <div data-testid="servermon">servermon:{nodeId}</div>
+  ),
+}));
 vi.mock('@/modules/fleet/ui/details/ProxyRuleTable', () => ({
   ProxyRuleTable: ({ nodeId }: { nodeId: string }) => (
     <div data-testid="proxies">proxies:{nodeId}</div>
@@ -100,6 +105,7 @@ describe('NodeDetailPage', () => {
     await waitFor(() => {
       expect(screen.getByRole('button', { name: 'Overview' })).toBeDefined();
     });
+    expect(screen.getByRole('button', { name: 'ServerMon' })).toBeDefined();
     expect(screen.getByRole('button', { name: 'Terminal' })).toBeDefined();
     expect(screen.getByRole('button', { name: 'Proxies' })).toBeDefined();
     expect(screen.getByRole('button', { name: 'Public Routes' })).toBeDefined();
@@ -127,6 +133,24 @@ describe('NodeDetailPage', () => {
 
     await waitFor(() => {
       expect(screen.getByTestId('logs').textContent).toBe('logs:node-abc');
+    });
+  });
+
+  it('switches to ServerMon tab when clicked', async () => {
+    await act(async () => {
+      render(<NodeDetailPage />);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('overview')).toBeDefined();
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'ServerMon' }));
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('servermon').textContent).toBe('servermon:node-abc');
     });
   });
 
