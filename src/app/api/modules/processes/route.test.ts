@@ -6,6 +6,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 const mockProcesses = vi.hoisted(() => vi.fn());
 const mockCurrentLoad = vi.hoisted(() => vi.fn());
 const mockMem = vi.hoisted(() => vi.fn());
+const mockGetSession = vi.hoisted(() => vi.fn().mockResolvedValue({ user: { id: 'u1' } }));
 
 vi.mock('systeminformation', () => ({
   default: {
@@ -22,6 +23,10 @@ vi.mock('@/lib/logger', () => ({
     warn: vi.fn(),
     error: vi.fn(),
   }),
+}));
+
+vi.mock('@/lib/session', () => ({
+  getSession: mockGetSession,
 }));
 
 vi.mock('next/server', () => ({
@@ -190,9 +195,24 @@ describe('GET /api/modules/processes', () => {
     expect(body.processes[0].user).toBe('system'); // falls back to 'system'
     expect(body.processes[0].state).toBe('unknown'); // falls back to 'unknown'
   });
+
+  it('returns 401 without reading processes when unauthenticated', async () => {
+    mockGetSession.mockResolvedValueOnce(null);
+
+    const response = await GET(makeGetRequest());
+    const body = await response.json();
+
+    expect(response.status).toBe(401);
+    expect(body.error).toBe('Unauthorized');
+    expect(mockProcesses).not.toHaveBeenCalled();
+  });
 });
 
 describe('POST /api/modules/processes', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   it('sends SIGTERM to the specified PID', async () => {
     const killSpy = vi.spyOn(process, 'kill').mockImplementation(() => true);
 
@@ -245,6 +265,20 @@ describe('POST /api/modules/processes', () => {
     const response = await POST(req);
 
     expect(response.status).toBe(400);
+  });
+
+  it('returns 401 without sending a signal when unauthenticated', async () => {
+    mockGetSession.mockResolvedValueOnce(null);
+    const killSpy = vi.spyOn(process, 'kill').mockImplementation(() => true);
+
+    const req = makePostRequest({ pid: 1234 });
+    const response = await POST(req);
+    const body = await response.json();
+
+    expect(response.status).toBe(401);
+    expect(body.error).toBe('Unauthorized');
+    expect(killSpy).not.toHaveBeenCalled();
+    killSpy.mockRestore();
   });
 
   it('returns 500 when process.kill throws', async () => {
