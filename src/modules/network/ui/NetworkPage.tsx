@@ -489,7 +489,7 @@ export default function NetworkPage() {
                   className="inline-flex items-center gap-1 text-primary hover:underline"
                   href={latestSpeedtest.resultUrl}
                   target="_blank"
-                  rel="noreferrer"
+                  rel="noopener noreferrer"
                 >
                   Result
                   <ExternalLink className="h-3.5 w-3.5" />

@@ -108,7 +108,7 @@ Tests use **Vitest** for unit/integration and **Playwright** for E2E.
 
 ## Security Rules
 
-- **Default Authentication**: All routes are protected by default via `src/middleware.ts`.
+- **Default Authentication**: All routes are protected by default via `src/proxy.ts`.
 - **WebSocket Security**: Connections **must** be authenticated using the session cookie.
 - **Manual Verification**: Proactively verify session existence (`getSession()`) in sensitive API handlers.
 - **Input Validation**: Always validate user input with Zod before processing.
