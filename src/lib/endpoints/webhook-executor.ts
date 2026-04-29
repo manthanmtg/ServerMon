@@ -3,6 +3,17 @@ import type { ICustomEndpoint } from '@/models/CustomEndpoint';
 import type { ExecutionInput, ExecutionResult } from './types';
 
 const log = createLogger('endpoints:webhook');
+const IDEMPOTENT_RETRY_METHODS = new Set(['GET', 'HEAD']);
+const MAX_IDEMPOTENT_ATTEMPTS = 2;
+
+function shouldRetryResponse(method: string, response: Response, attempt: number): boolean {
+  return (
+    attempt < MAX_IDEMPOTENT_ATTEMPTS &&
+    IDEMPOTENT_RETRY_METHODS.has(method.toUpperCase()) &&
+    response.status >= 500 &&
+    response.status < 600
+  );
+}
 
 export async function executeWebhook(
   endpoint: ICustomEndpoint,
@@ -59,25 +70,35 @@ export async function executeWebhook(
         }
       }
 
-      const response = await fetch(config.targetUrl, {
-        method,
-        headers,
-        body,
-        signal: controller.signal,
-      });
+      for (let attempt = 1; attempt <= MAX_IDEMPOTENT_ATTEMPTS; attempt += 1) {
+        const response = await fetch(config.targetUrl, {
+          method,
+          headers,
+          body,
+          signal: controller.signal,
+        });
 
-      const responseBody = await response.text();
-      const responseHeaders: Record<string, string> = {};
-      response.headers.forEach((value, key) => {
-        responseHeaders[key] = value;
-      });
+        const responseBody = await response.text();
 
-      return {
-        statusCode: response.status,
-        headers: responseHeaders,
-        body: responseBody.slice(0, 10_240),
-        duration: 0,
-      };
+        if (shouldRetryResponse(method, response, attempt)) {
+          log.warn(`Retrying webhook ${endpoint.slug} after upstream ${response.status}`);
+          continue;
+        }
+
+        const responseHeaders: Record<string, string> = {};
+        response.headers.forEach((value, key) => {
+          responseHeaders[key] = value;
+        });
+
+        return {
+          statusCode: response.status,
+          headers: responseHeaders,
+          body: responseBody.slice(0, 10_240),
+          duration: 0,
+        };
+      }
+
+      throw new Error('Webhook request failed after retry attempts');
     } finally {
       clearTimeout(timer);
     }
