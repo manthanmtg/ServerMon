@@ -50,8 +50,7 @@ export function terminalBridgeRemotePort(slug: string): number {
   const safeSlug = slug || 'node';
   const hash = crypto.createHash('sha256').update(safeSlug).digest();
   return (
-    TERMINAL_BRIDGE_REMOTE_PORT_BASE +
-    (hash.readUInt32BE(0) % TERMINAL_BRIDGE_REMOTE_PORT_RANGE)
+    TERMINAL_BRIDGE_REMOTE_PORT_BASE + (hash.readUInt32BE(0) % TERMINAL_BRIDGE_REMOTE_PORT_RANGE)
   );
 }
 

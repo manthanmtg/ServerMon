@@ -2,11 +2,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { NextRequest } from 'next/server';
 
-const {
-  mockGetSession,
-  mockNodeFindById,
-  mockNodeUpdateOne,
-} = vi.hoisted(() => ({
+const { mockGetSession, mockNodeFindById, mockNodeUpdateOne } = vi.hoisted(() => ({
   mockGetSession: vi.fn(),
   mockNodeFindById: vi.fn(),
   mockNodeUpdateOne: vi.fn(),

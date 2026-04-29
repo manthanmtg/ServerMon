@@ -16,7 +16,9 @@ describe('servermonAgentCommands', () => {
     expect(command[1][0]).toBe('-lc');
     expect(command[1][1]).toContain('INSTALL_MODE="release"');
     expect(command[1][1]).toContain('VERSION_TARGET="v0.1.1"');
-    expect(command[1][1]).toContain('RELEASE_BASE_URL="https://mirror.example.com/releases/v0.1.1"');
+    expect(command[1][1]).toContain(
+      'RELEASE_BASE_URL="https://mirror.example.com/releases/v0.1.1"'
+    );
     expect(command[1][1]).toContain('servermon-hub-$PLATFORM_NAME-$ARCH_NAME.tar.gz');
     expect(command[1][1]).toContain('SHA256SUMS');
     expect(command[1][1]).toContain('run_installer release --prebuilt');

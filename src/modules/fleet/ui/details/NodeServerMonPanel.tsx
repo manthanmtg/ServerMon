@@ -84,11 +84,17 @@ function logLevelVariant(level: string): BadgeVariant {
 }
 
 function isInstallEvent(event: InstallLogEvent): boolean {
-  return event.eventType === 'servermon.install_queued' || event.eventType.startsWith('servermon.install.');
+  return (
+    event.eventType === 'servermon.install_queued' ||
+    event.eventType.startsWith('servermon.install.')
+  );
 }
 
 function isTerminalInstallEvent(event: InstallLogEvent): boolean {
-  return event.eventType === 'servermon.install.succeeded' || event.eventType === 'servermon.install.failed';
+  return (
+    event.eventType === 'servermon.install.succeeded' ||
+    event.eventType === 'servermon.install.failed'
+  );
 }
 
 function logEventTime(event: InstallLogEvent): number {
