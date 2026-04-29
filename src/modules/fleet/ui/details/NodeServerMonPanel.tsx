@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { ExternalLink, RefreshCcw, RotateCw, Server } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
+import { Badge, type BadgeVariant } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -54,6 +54,16 @@ interface ServerMonResponse {
   defaultRouteIntent: RouteIntent;
 }
 
+interface InstallLogEvent {
+  _id: string;
+  createdAt?: string;
+  service?: string;
+  level: string;
+  eventType: string;
+  message: string;
+  metadata?: { commandId?: unknown };
+}
+
 function publicRouteUrl(route: ServerMonRoute): string {
   return `${route.tlsEnabled === false ? 'http' : 'https'}://${route.domain}`;
 }
@@ -62,6 +72,26 @@ function statusVariant(status: string): 'default' | 'outline' | 'secondary' | 'd
   if (status === 'running' || status === 'healthy' || status === 'active') return 'default';
   if (status === 'failed' || status === 'unhealthy' || status === 'down') return 'destructive';
   return 'outline';
+}
+
+function logLevelVariant(level: string): BadgeVariant {
+  if (level === 'error') return 'destructive';
+  if (level === 'warn') return 'warning';
+  return 'outline';
+}
+
+function isInstallEvent(event: InstallLogEvent): boolean {
+  return event.eventType === 'servermon.install_queued' || event.eventType.startsWith('servermon.install.');
+}
+
+function isTerminalInstallEvent(event: InstallLogEvent): boolean {
+  return event.eventType === 'servermon.install.succeeded' || event.eventType === 'servermon.install.failed';
+}
+
+function logEventTime(event: InstallLogEvent): number {
+  if (!event.createdAt) return 0;
+  const time = new Date(event.createdAt).getTime();
+  return Number.isFinite(time) ? time : 0;
 }
 
 export function NodeServerMonPanel({ nodeId }: { nodeId: string }) {
@@ -75,6 +105,11 @@ export function NodeServerMonPanel({ nodeId }: { nodeId: string }) {
   const [skipMongo, setSkipMongo] = useState(true);
   const [createPublicRoute, setCreatePublicRoute] = useState(false);
   const [routeDomain, setRouteDomain] = useState('');
+  const [installLogStartedAt, setInstallLogStartedAt] = useState<string | null>(null);
+  const [installCommandId, setInstallCommandId] = useState<string | null>(null);
+  const [installLogs, setInstallLogs] = useState<InstallLogEvent[]>([]);
+  const [installLogsError, setInstallLogsError] = useState<string | null>(null);
+  const [installLogPolling, setInstallLogPolling] = useState(false);
 
   const load = useCallback(async (): Promise<ServerMonResponse | null> => {
     try {
@@ -93,6 +128,39 @@ export function NodeServerMonPanel({ nodeId }: { nodeId: string }) {
     }
   }, [nodeId]);
 
+  const loadInstallLogs = useCallback(
+    async (startedAt = installLogStartedAt, commandId = installCommandId) => {
+      if (!startedAt) return;
+      try {
+        const params = new URLSearchParams({
+          nodeId,
+          since: startedAt,
+          limit: '100',
+        });
+        const res = await fetch(`/api/fleet/logs?${params.toString()}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const body = (await res.json()) as { events?: InstallLogEvent[] };
+        const events = (body.events ?? [])
+          .filter((event) => {
+            if (!isInstallEvent(event)) return false;
+            const eventCommandId = event.metadata?.commandId;
+            return !commandId || !eventCommandId || eventCommandId === commandId;
+          })
+          .sort((a, b) => logEventTime(a) - logEventTime(b));
+        setInstallLogs(events);
+        setInstallLogsError(null);
+        if (events.some(isTerminalInstallEvent)) {
+          setInstallLogPolling(false);
+          void load();
+        }
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Unable to load install logs';
+        setInstallLogsError(message);
+      }
+    },
+    [installCommandId, installLogStartedAt, load, nodeId]
+  );
+
   useEffect(() => {
     let cancelled = false;
     const run = async () => {
@@ -104,6 +172,22 @@ export function NodeServerMonPanel({ nodeId }: { nodeId: string }) {
       cancelled = true;
     };
   }, [load]);
+
+  useEffect(() => {
+    if (!installLogPolling || !installLogStartedAt) return;
+    let cancelled = false;
+    const run = async () => {
+      if (!cancelled) await loadInstallLogs();
+    };
+    void run();
+    const interval = setInterval(() => {
+      void run();
+    }, 2500);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [installLogPolling, installLogStartedAt, loadInstallLogs]);
 
   const queueRecheck = async () => {
     setBusy(true);
@@ -157,6 +241,12 @@ export function NodeServerMonPanel({ nodeId }: { nodeId: string }) {
       return;
     }
     setBusy(true);
+    const startedAt = new Date().toISOString();
+    setInstallLogStartedAt(startedAt);
+    setInstallCommandId(null);
+    setInstallLogs([]);
+    setInstallLogsError(null);
+    setInstallLogPolling(true);
     try {
       const res = await fetch(`/api/fleet/nodes/${nodeId}/servermon/install`, {
         method: 'POST',
@@ -172,16 +262,21 @@ export function NodeServerMonPanel({ nodeId }: { nodeId: string }) {
       });
       const body = (await res.json().catch(() => ({}))) as {
         error?: string;
+        commandId?: string;
         routeIntent?: RouteIntent | null;
       };
       if (!res.ok) throw new Error(body.error ?? `HTTP ${res.status}`);
+      const commandId = typeof body.commandId === 'string' ? body.commandId : null;
+      setInstallCommandId(commandId);
       toast({
         title: 'Install queued',
         description: 'The agent will start the ServerMon installer on its next heartbeat.',
         variant: 'success',
       });
+      await loadInstallLogs(startedAt, commandId);
       await createRouteIfHealthy(createPublicRoute ? (body.routeIntent ?? null) : null);
     } catch (err) {
+      setInstallLogPolling(false);
       toast({
         title: 'Install failed',
         description: err instanceof Error ? err.message : 'Unable to queue install',
@@ -364,6 +459,14 @@ export function NodeServerMonPanel({ nodeId }: { nodeId: string }) {
             Recheck
           </Button>
         </div>
+
+        {installLogStartedAt && (
+          <InstallLogsPanel
+            logs={installLogs}
+            error={installLogsError}
+            polling={installLogPolling}
+          />
+        )}
       </CardContent>
     </Card>
   );
@@ -374,6 +477,57 @@ function StatusCell({ label, children }: { label: string; children: React.ReactN
     <div className="rounded-md border border-border p-3">
       <div className="text-xs text-muted-foreground">{label}</div>
       <div className="mt-2 text-sm font-medium">{children}</div>
+    </div>
+  );
+}
+
+function InstallLogsPanel({
+  logs,
+  error,
+  polling,
+}: {
+  logs: InstallLogEvent[];
+  error: string | null;
+  polling: boolean;
+}) {
+  return (
+    <div className="rounded-lg border border-border bg-muted/20">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-3 py-2">
+        <div className="text-sm font-medium">Install logs</div>
+        <Badge variant={polling ? 'default' : 'outline'}>{polling ? 'running' : 'idle'}</Badge>
+      </div>
+      <div className="max-h-72 overflow-auto p-3">
+        {error && (
+          <div
+            role="alert"
+            className="mb-2 rounded border border-destructive/30 bg-destructive/5 p-2 text-xs text-destructive"
+          >
+            {error}
+          </div>
+        )}
+        {logs.length === 0 ? (
+          <div className="font-mono text-xs text-muted-foreground">Waiting for agent output...</div>
+        ) : (
+          <div className="space-y-2">
+            {logs.map((event) => (
+              <div key={event._id} className="grid gap-1 text-xs md:grid-cols-[7rem_5rem_1fr]">
+                <div className="font-mono text-muted-foreground">
+                  {event.createdAt ? new Date(event.createdAt).toLocaleTimeString() : '--:--:--'}
+                </div>
+                <div>
+                  <Badge variant={logLevelVariant(event.level)}>{event.level}</Badge>
+                </div>
+                <div className="min-w-0">
+                  <div className="font-mono text-muted-foreground">{event.eventType}</div>
+                  <div className="mt-0.5 whitespace-pre-wrap break-words font-mono text-foreground">
+                    {event.message}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

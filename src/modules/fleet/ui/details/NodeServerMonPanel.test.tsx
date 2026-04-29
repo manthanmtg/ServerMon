@@ -133,6 +133,12 @@ describe('NodeServerMonPanel', () => {
           json: async () => ({ route: { _id: 'route-1', ...routeIntent } }),
         };
       }
+      if (String(url).startsWith('/api/fleet/logs?')) {
+        return {
+          ok: true,
+          json: async () => ({ events: [] }),
+        };
+      }
       return {
         ok: true,
         json: async () => (fetchMock.mock.calls.length > 2 ? installedResponse : missingResponse),
@@ -178,5 +184,75 @@ describe('NodeServerMonPanel', () => {
       createPublicRoute: true,
       routeDomain: 'orion-servermon.ultron.manthanby.cv',
     });
+  });
+
+  it('shows ServerMon install logs below the install action after queuing', async () => {
+    const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+      if (url === '/api/fleet/nodes/node-1/servermon/install' && init?.method === 'POST') {
+        return {
+          ok: true,
+          status: 202,
+          json: async () => ({ queued: true, commandId: 'cmd-1', routeIntent: null }),
+        };
+      }
+      if (String(url).startsWith('/api/fleet/logs?')) {
+        return {
+          ok: true,
+          json: async () => ({
+            events: [
+              {
+                _id: 'log-2',
+                createdAt: '2026-04-29T16:35:02.000Z',
+                service: 'agent',
+                level: 'info',
+                eventType: 'servermon.install.log',
+                message: 'Installing dependencies...',
+                metadata: { commandId: 'cmd-1' },
+              },
+              {
+                _id: 'log-1',
+                createdAt: '2026-04-29T16:35:01.000Z',
+                service: 'servermon',
+                level: 'info',
+                eventType: 'servermon.install_queued',
+                message: 'ServerMon install queued for Orion',
+                metadata: { commandId: 'cmd-1' },
+              },
+            ],
+          }),
+        };
+      }
+      return {
+        ok: true,
+        json: async () => missingResponse,
+      };
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await act(async () => {
+      render(<NodeServerMonPanel nodeId="node-1" />);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('MongoDB URI')).toBeDefined();
+    });
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('MongoDB URI'), {
+        target: { value: 'mongodb://db/servermon' },
+      });
+      fireEvent.click(screen.getByRole('button', { name: 'Start install' }));
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText('Install logs')).toBeDefined();
+      expect(screen.getByText(/ServerMon install queued for Orion/)).toBeDefined();
+      expect(screen.getByText(/Installing dependencies/)).toBeDefined();
+    });
+
+    const logCall = fetchMock.mock.calls.find(([url]) => String(url).startsWith('/api/fleet/logs?'));
+    expect(String(logCall?.[0])).toContain('nodeId=node-1');
+    expect(String(logCall?.[0])).toContain('since=');
+    expect(String(logCall?.[0])).toContain('limit=100');
   });
 });
