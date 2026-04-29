@@ -81,6 +81,7 @@ const Sparkline = React.memo(function Sparkline({
     <svg
       viewBox={`0 0 ${width} ${height}`}
       className="w-full h-8 opacity-50 overflow-visible translate-y-1"
+      aria-hidden="true"
     >
       <polyline
         fill="none"
@@ -212,6 +213,7 @@ function DashboardContent() {
             <Badge variant={connected ? 'success' : 'secondary'} className="gap-1.5 py-0.5">
               <span
                 className={`w-1.5 h-1.5 rounded-full ${connected ? 'bg-success animate-pulse' : 'bg-muted-foreground'}`}
+                aria-hidden="true"
               />
               {connected ? 'Live' : 'Offline'}
             </Badge>
@@ -292,7 +294,10 @@ const StatCard = React.memo(function StatCard({
           <span className="text-[10px] sm:text-xs font-medium uppercase tracking-wider text-muted-foreground/80">
             {label}
           </span>
-          <span className={status === 'warning' ? 'text-warning' : 'text-muted-foreground/60'}>
+          <span
+            className={status === 'warning' ? 'text-warning' : 'text-muted-foreground/60'}
+            aria-hidden="true"
+          >
             {status === 'loading' ? <Spinner size="sm" /> : icon}
           </span>
         </div>
