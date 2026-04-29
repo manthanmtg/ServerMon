@@ -16,6 +16,32 @@ interface SessionUser {
   user: { id?: string; username: string; role: string };
 }
 
+async function findServerMonRoute(input: {
+  nodeId: string;
+  slug: string;
+  domain: string;
+  port: number;
+}) {
+  const exactRoute = await PublicRoute.findOne({
+    nodeId: input.nodeId,
+    proxyRuleName: 'servermon',
+  }).lean();
+  if (exactRoute) return exactRoute;
+
+  return PublicRoute.findOne({
+    nodeId: input.nodeId,
+    $or: [
+      { proxyRuleName: input.slug },
+      { slug: input.slug },
+      { domain: input.domain },
+      {
+        'target.localPort': input.port,
+        'target.protocol': { $in: ['http', 'https'] },
+      },
+    ],
+  }).lean();
+}
+
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const session = (await getSession()) as SessionUser | null;
@@ -24,15 +50,14 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 
     await connectDB();
     const { id } = await params;
-    const node = await Node.findById(id).lean();
+    const [node, frpServer] = await Promise.all([
+      Node.findById(id).lean(),
+      FrpServerState.findOne({ key: 'global' }).lean(),
+    ]);
     if (!node) {
       return NextResponse.json({ error: 'Node not found' }, { status: 404 });
     }
 
-    const [route, frpServer] = await Promise.all([
-      PublicRoute.findOne({ nodeId: id, proxyRuleName: 'servermon' }).lean(),
-      FrpServerState.findOne({ key: 'global' }).lean(),
-    ]);
     const port = node.servermon?.port ?? 8912;
     const defaultRouteIntent = buildDefaultServerMonRouteIntent({
       nodeId: id,
@@ -40,6 +65,12 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       nodeSlug: node.slug,
       port,
       subdomainHost: frpServer?.subdomainHost,
+    });
+    const route = await findServerMonRoute({
+      nodeId: id,
+      slug: defaultRouteIntent.slug,
+      domain: defaultRouteIntent.domain,
+      port,
     });
 
     return NextResponse.json({
