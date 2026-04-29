@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { renderFrpsToml, renderFrpcToml, hashToml } from './toml';
+import { renderFrpsToml, renderFrpcToml, hashToml, terminalBridgeRemotePort } from './toml';
 
 describe('renderFrpsToml', () => {
   it('renders minimal config', () => {
@@ -93,6 +93,9 @@ describe('renderFrpcToml', () => {
     expect(out).toContain('transport.poolCount = 1');
     expect(out).toContain('transport.useEncryption = true');
     expect(out).toContain('transport.useCompression = false');
+    expect(out).toContain('name = "orion-terminal-bridge"');
+    expect(out).toContain('localPort = 8918');
+    expect(out).toContain(`remotePort = ${terminalBridgeRemotePort('orion')}`);
   });
   it('emits tcp proxy with remotePort', () => {
     const node = {
@@ -119,8 +122,10 @@ describe('renderFrpcToml', () => {
     expect(out).toContain('[[proxies]]');
     expect(out).toContain('name = "orion-terminal"');
     expect(out).toContain('type = "tcp"');
-    expect(out).toContain('localPort = 8918');
+    expect(out).toContain('localPort = 8001');
     expect(out).toContain('remotePort = 9001');
+    expect(out).toContain('name = "orion-terminal-bridge"');
+    expect(out).toContain(`remotePort = ${terminalBridgeRemotePort('orion')}`);
   });
   it('emits http proxy with subdomain + customDomains', () => {
     const node = {

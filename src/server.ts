@@ -31,12 +31,6 @@ interface AgentRuntimeDiagnostics {
   bootAt: Date;
 }
 
-interface TerminalBridgeProxyRule {
-  name: string;
-  status?: string;
-  remotePort?: number;
-}
-
 function parsePort(value: string | undefined, fallback: number): number {
   const parsed = Number.parseInt(value ?? '', 10);
   return Number.isInteger(parsed) && parsed > 0 && parsed <= 65535 ? parsed : fallback;
@@ -500,6 +494,7 @@ if (process.env.FLEET_AGENT_MODE === 'true') {
         const { enforceResourceGuard } = await import('./lib/fleet/resourceGuardMiddleware');
         const { default: ResourcePolicy } = await import('./models/ResourcePolicy');
         const { default: FleetLogEvent } = await import('./models/FleetLogEvent');
+        const { resolveAgentEndpoint } = await import('./lib/fleet/resolveAgentEndpoint');
         // Touch nginx orchestrator so its singleton is ready when apply calls land.
         void getNginxOrchestrator();
         const frpOrch = getFrpOrchestrator() as { start?: () => void };
@@ -508,36 +503,11 @@ if (process.env.FLEET_AGENT_MODE === 'true') {
         const bridge = new HubTtyBridge({
           resolveAgentEndpoint: async (nodeId) => {
             await connectDB();
-            const node = await NodeModel.findById(nodeId).lean();
-            if (!node || !node.ptyBridge?.port || !node.ptyBridge?.authToken) {
-              return null;
-            }
-
-            // Check if the agent has a terminal-bridge proxy active
-            const terminalBridge = (node.proxyRules || []).find(
-              (p: TerminalBridgeProxyRule) =>
-                (p.name === 'terminal-bridge' || `${node.slug}-terminal-bridge` === p.name) &&
-                p.status === 'active'
-            );
-
-            if (terminalBridge && terminalBridge.remotePort) {
-              // Remote agent reachable via the Hub's public domain on the mapped remote port.
-              // Note: For simplicity and security, we dial 127.0.0.1 on the hub since
-              // frps is running locally and mapped ports are bound to the hub.
-              return {
-                host: '127.0.0.1',
-                port: terminalBridge.remotePort,
-                authToken: node.ptyBridge.authToken,
-              };
-            }
-
-            // Fallback for local agents or agents not using the auto-proxy yet.
-            // Reached via the Hub's loopback directly if on the same machine.
-            return {
-              host: '127.0.0.1',
-              port: node.ptyBridge.port,
-              authToken: node.ptyBridge.authToken,
-            };
+            return resolveAgentEndpoint(nodeId, {
+              Node: {
+                findById: async (id) => NodeModel.findById(id).lean(),
+              },
+            });
           },
           wsFactory: (url, _protocols, headers) => {
             const ws = new WebSocket(url, { headers });

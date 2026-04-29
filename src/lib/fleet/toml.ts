@@ -1,6 +1,11 @@
 import crypto from 'node:crypto';
 import type { INodeDTO } from '@/models/Node';
 
+export const TERMINAL_BRIDGE_PROXY_NAME = 'terminal-bridge';
+export const DEFAULT_PTY_LISTEN_PORT = 8918;
+export const TERMINAL_BRIDGE_REMOTE_PORT_BASE = 20000;
+export const TERMINAL_BRIDGE_REMOTE_PORT_RANGE = 20000;
+
 export interface FrpsRenderInput {
   bindPort: number;
   vhostHttpPort: number;
@@ -41,6 +46,15 @@ export interface FrpcRenderInput {
     Partial<Pick<INodeDTO, 'capabilities'>>;
 }
 
+export function terminalBridgeRemotePort(slug: string): number {
+  const safeSlug = slug || 'node';
+  const hash = crypto.createHash('sha256').update(safeSlug).digest();
+  return (
+    TERMINAL_BRIDGE_REMOTE_PORT_BASE +
+    (hash.readUInt32BE(0) % TERMINAL_BRIDGE_REMOTE_PORT_RANGE)
+  );
+}
+
 export function renderFrpcToml(i: FrpcRenderInput): string {
   const cfg = i.node.frpcConfig ?? {
     protocol: 'tcp',
@@ -67,13 +81,16 @@ export function renderFrpcToml(i: FrpcRenderInput): string {
   const rules = [...(i.node.proxyRules || [])];
   const ptyConfig = cfg as typeof cfg & { ptyListenPort?: number };
   // 1. Ensure terminal-bridge exists if enabled and not already present
-  if (i.node.capabilities?.terminal !== false && !rules.some((r) => r.name === 'terminal-bridge')) {
+  if (
+    i.node.capabilities?.terminal !== false &&
+    !rules.some((r) => r.name === TERMINAL_BRIDGE_PROXY_NAME)
+  ) {
     rules.push({
-      name: 'terminal-bridge',
+      name: TERMINAL_BRIDGE_PROXY_NAME,
       type: 'tcp',
       localIp: '127.0.0.1',
-      localPort: ptyConfig.ptyListenPort || 8918,
-      remotePort: 0,
+      localPort: ptyConfig.ptyListenPort || DEFAULT_PTY_LISTEN_PORT,
+      remotePort: terminalBridgeRemotePort(i.node.slug),
       enabled: true,
       status: 'disabled',
       customDomains: [],
@@ -88,7 +105,10 @@ export function renderFrpcToml(i: FrpcRenderInput): string {
     out.push(`type = ${escapeStr(p.type)}`);
     out.push(`localIP = ${escapeStr(p.localIp)}`);
     out.push(`localPort = ${p.localPort}`);
-    if (p.remotePort) out.push(`remotePort = ${p.remotePort}`);
+    const remotePort =
+      p.remotePort ??
+      (p.name === TERMINAL_BRIDGE_PROXY_NAME ? terminalBridgeRemotePort(i.node.slug) : undefined);
+    if (remotePort) out.push(`remotePort = ${remotePort}`);
     out.push(`transport.useEncryption = ${!!cfg.transportEncryptionEnabled}`);
     out.push(`transport.useCompression = ${!!cfg.compressionEnabled}`);
 
