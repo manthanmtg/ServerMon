@@ -168,13 +168,14 @@ Concise map of major directories, commands, and key files. Update this section w
 
 - `src/` — application source (see sub-index below)
 - `e2e/` — Playwright end-to-end specs
-- `scripts/` — CLI helper scripts
+- `scripts/` — CLI helper scripts (installers, updates, macOS launchd)
 - `public/` — static assets
 - `docs/` — plans and reference docs (superpowers plans live under `docs/superpowers/plans/`)
 - `module_ideas/` — product specs per module (e.g. `fleet_management.md`)
 - `prompts/`, `manual_prompts/`, `issues_to_look/` — autonomous run prompts, prompt observability metadata (`prompts/prompts_metadata.json`), manual prompts, and investigation notes
 - `.env.example` — required runtime env vars (do NOT commit real `.env`)
 - `CLAUDE.md`, `README.md`, `PRD.md`, `DEPLOY.md`, `AGENTS.md` — project docs
+- `Release Artifacts` — prebuilt hub and agent tarballs (see `DEPLOY.md`)
 
 ## `src/` Layout
 
@@ -196,10 +197,10 @@ Concise map of major directories, commands, and key files. Update this section w
 ### Fleet Management
 
 - `src/models/` — fleet Mongoose models: Node, FrpServerState, FleetLogEvent, ConfigRevision, PublicRoute, NginxState, AgentUpdateJob, BackupJob, ResourcePolicy, AccessPolicy, RouteTemplate, DiagnosticRun, ImportedConfig, AlertChannel, AlertSubscription
-- `src/lib/fleet/` — pure libraries: enums, status, pairing, toml, toml-parse, nginx, binary, frpProcess, nginxProcess, heartbeat, audit, revisions, templates, install-script, preflight, preflightExecutors, diagnostics, firewall, dns, acme, resourceGuards, resourceGuardMiddleware, access, rbac, import, backup, frpOrchestrator, nginxOrchestrator, applyEngine, orchestrators, reconcile, publicRouteLifecycle, publicRouteProxy, resolveAgentEndpoint, agentClient, agentPtyBridge, tty-bridge, hubAuth, hubTtyBridge, fleetTtyNamespace, eventBus, docsMarkdown, alerts, alertSubscriber
-- `src/app/api/fleet/` — fleet HTTP routes: nodes, server, routes, nginx, templates, access-policies, resource-policies, logs, revisions (incl. `[id]/apply` + `[id]/rollback`), updates, backups, emergency, install, import, endpoint-exec, public, stream, alerts/channels (+ `[id]`), alerts/subscriptions (+ `[id]`), alerts/test
+- `src/lib/fleet/` — pure libraries: enums, status, pairing, toml, toml-parse, nginx, binary, frpProcess, nginxProcess, heartbeat, audit, revisions, templates, install-script, preflight, preflightExecutors, diagnostics, firewall, dns, acme, resourceGuards, resourceGuardMiddleware, access, rbac, import, backup, frpOrchestrator, nginxOrchestrator, applyEngine, orchestrators, reconcile, publicRouteLifecycle, publicRouteProxy, resolveAgentEndpoint, agentClient, agentPtyBridge, tty-bridge, hubAuth, hubTtyBridge, fleetTtyNamespace, eventBus, docsMarkdown, alerts, alertSubscriber, servermonStatus, servermonInstall, servermonAgentCommands, agentUpdateCommand, commandSecrets, domain
+- `src/app/api/fleet/` — fleet HTTP routes: nodes (+ `[id]/diagnose`, `/heartbeat`, `/maintenance`, `/pair`, `/reconcile`, `/rotate-token`, `/servermon`, `/updates`), server, routes, nginx, templates, access-policies, resource-policies, logs, revisions (incl. `[id]/apply` + `[id]/rollback`), backups, emergency, install, import, endpoint-exec, public, stream, alerts/channels (+ `[id]`), alerts/subscriptions (+ `[id]`), alerts/test
 - `src/app/fleet/` — fleet UI pages: dashboard, node detail `[slug]`, onboarding, setup, routes (incl. `[id]` detail), logs, server, nginx, updates, backups, diagnostics, templates, policies, emergency, import, endpoint-runner, alerts
-- `src/modules/fleet/` — module definition + shared types + UI components (`ui/dashboard/`, `ui/onboarding/`, `ui/details/`, `ui/operations/`); `ui/details/exposeService/` houses the 6-step Expose Remote Service wizard (`ExposeServiceWizard`, `StepIdentity`, `StepTarget`, `StepAccess`, `StepPreview`, `StepDns`, `StepCreate`, `schema.ts`, `index.ts` barrel); `ui/details/terminal/` houses node-specific terminal; `ui/operations/rotate/` holds `RotateTokenFlow` and `RotateAllTokensFlow` for `EmergencyControls`; `ui/operations/AlertChannelManager.tsx` manages alerts
+- `src/modules/fleet/` — module definition + shared types + UI components (`ui/dashboard/`, `ui/onboarding/`, `ui/details/`, `ui/operations/`); `ui/details/` houses `NodeStatusPanel` and `NodeServerMonPanel` (install/update logs); `ui/details/exposeService/` houses the 6-step Expose Remote Service wizard (`ExposeServiceWizard`, `StepIdentity`, `StepTarget`, `StepAccess`, `StepPreview`, `StepDns`, `StepCreate`, `schema.ts`, `index.ts` barrel); `ui/details/terminal/` houses node-specific terminal; `ui/operations/rotate/` holds `RotateTokenFlow` and `RotateAllTokensFlow` for `EmergencyControls`; `ui/operations/AlertChannelManager.tsx` manages alerts
 - `module_ideas/fleet_management.md` — full product spec (phases 1-5)
 
 ### AI & Automation
