@@ -6,15 +6,16 @@ This file is the single source of truth for all project rules, coding convention
 
 Every change (PR or commit to `main`) **must** satisfy these requirements:
 
-| Check  | Command             | Expectation          |
-| ------ | ------------------- | -------------------- |
-| Format | `pnpm format:check` | 0 changes needed     |
-| Lint   | `pnpm lint`         | 0 errors, 0 warnings |
-| Types  | `pnpm typecheck`    | 0 errors             |
-| Build  | `pnpm build`        | Exit code 0          |
-| Tests  | `pnpm test`         | Exit code 0          |
+| Check            | Command                       | Expectation          |
+| ---------------- | ----------------------------- | -------------------- |
+| Format           | `pnpm format:check`           | 0 changes needed     |
+| Release contract | `pnpm check:release-contract` | Exit code 0          |
+| Lint             | `pnpm lint`                   | 0 errors, 0 warnings |
+| Types            | `pnpm typecheck`              | 0 errors             |
+| Build            | `pnpm build`                  | Exit code 0          |
+| Tests            | `pnpm test`                   | Exit code 0          |
 
-Shortcut: `pnpm check` runs lint, typecheck, build, and tests in sequence; run `pnpm format:check` separately. **A failure in any required step blocks the merge.**
+Shortcut: `pnpm check` runs the release contract check, lint, typecheck, build, and tests in sequence; run `pnpm format:check` separately. **A failure in any required step blocks the merge.**
 
 ---
 
@@ -158,11 +159,12 @@ Concise map of major directories, commands, and key files. Update this section w
 - `pnpm start` — run production server
 - `pnpm lint` — ESLint over `src/`
 - `pnpm typecheck` — `tsc --noEmit` (`NODE_OPTIONS` enabled)
+- `pnpm check:release-contract` — validate required release artifact contracts
 - `pnpm test` — Vitest unit/integration
 - `pnpm test:e2e` — Playwright end-to-end
 - `pnpm format` — Prettier write
 - `pnpm format:check` — Prettier check
-- `pnpm check` — lint + typecheck + build + test
+- `pnpm check` — release contract + lint + typecheck + build + test
 
 ## Top-level Layout
 
