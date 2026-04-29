@@ -185,6 +185,7 @@ const ProcessCard = React.memo(
               className="flex-1 text-xs"
               onClick={() => onKill(p.pid, 'SIGTERM')}
               loading={isKilling}
+              aria-label={`Send SIGTERM to process ${p.name} (${p.pid})`}
             >
               SIGTERM
             </Button>
@@ -194,6 +195,7 @@ const ProcessCard = React.memo(
               className="flex-1 text-xs"
               onClick={() => onKill(p.pid, 'SIGKILL')}
               loading={isKilling}
+              aria-label={`Send SIGKILL to process ${p.name} (${p.pid})`}
             >
               <Skull className="w-3 h-3" /> SIGKILL
             </Button>
@@ -271,9 +273,10 @@ const ProcessRow = React.memo(
           <Button
             variant="ghost"
             size="sm"
-            className="h-7 px-2 text-xs opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive"
+            className="h-7 px-2 text-xs opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity text-destructive hover:text-destructive"
             onClick={() => onKill(p.pid, 'SIGTERM')}
             loading={isKilling}
+            aria-label={`Send SIGTERM to process ${p.name} (${p.pid})`}
           >
             Kill
           </Button>
@@ -320,6 +323,7 @@ const ProcessRow = React.memo(
                   className="text-xs"
                   onClick={() => onKill(p.pid, 'SIGTERM')}
                   loading={isKilling}
+                  aria-label={`Send SIGTERM to process ${p.name} (${p.pid})`}
                 >
                   SIGTERM
                 </Button>
@@ -329,6 +333,7 @@ const ProcessRow = React.memo(
                   className="text-xs gap-1"
                   onClick={() => onKill(p.pid, 'SIGKILL')}
                   loading={isKilling}
+                  aria-label={`Send SIGKILL to process ${p.name} (${p.pid})`}
                 >
                   <Skull className="w-3 h-3" /> Force Kill
                 </Button>
