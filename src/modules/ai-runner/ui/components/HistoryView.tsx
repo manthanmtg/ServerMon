@@ -1,25 +1,17 @@
 'use client';
 
-import { 
-  ListFilter, 
-  RefreshCcw, 
-  Search 
-} from 'lucide-react';
+import { ListFilter, RefreshCcw, Search } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
-import type {
-  AIRunnerProfileDTO,
-  AIRunnerRunDTO,
-  AIRunnerScheduleDTO,
-} from '../types';
-import { 
-  formatDateTime, 
-  formatDuration, 
-  formatMemory, 
-  formatRelative, 
+import type { AIRunnerProfileDTO, AIRunnerRunDTO, AIRunnerScheduleDTO } from '../types';
+import {
+  formatDateTime,
+  formatDuration,
+  formatMemory,
+  formatRelative,
   getRunStatusVariant,
 } from '../utils';
 
@@ -106,9 +98,7 @@ export function HistoryView({
                   <select
                     value={historyStatusFilter}
                     onChange={(event) =>
-                      setHistoryStatusFilter(
-                        event.target.value as typeof historyStatusFilter
-                      )
+                      setHistoryStatusFilter(event.target.value as typeof historyStatusFilter)
                     }
                     className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring/40"
                   >
@@ -129,9 +119,7 @@ export function HistoryView({
                   <select
                     value={historyTriggerFilter}
                     onChange={(event) =>
-                      setHistoryTriggerFilter(
-                        event.target.value as typeof historyTriggerFilter
-                      )
+                      setHistoryTriggerFilter(event.target.value as typeof historyTriggerFilter)
                     }
                     className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring/40"
                   >
@@ -159,9 +147,7 @@ export function HistoryView({
                 </label>
 
                 <label className="space-y-1">
-                  <span className="text-xs font-medium text-muted-foreground">
-                    Schedule
-                  </span>
+                  <span className="text-xs font-medium text-muted-foreground">Schedule</span>
                   <select
                     value={historyScheduleFilter}
                     onChange={(event) => setHistoryScheduleFilter(event.target.value)}
@@ -180,9 +166,7 @@ export function HistoryView({
 
               <Button
                 variant="outline"
-                onClick={() =>
-                  void runExclusiveAction('history:refresh', () => loadAll(runSearch))
-                }
+                onClick={() => void runExclusiveAction('history:refresh', () => loadAll(runSearch))}
                 loading={isActionPending('history:refresh')}
                 className="h-10 shrink-0 self-end"
               >
@@ -263,9 +247,7 @@ export function HistoryView({
                         </p>
                       </div>
                     </td>
-                    <td className="px-4 py-3 align-top">
-                      {formatDuration(run.durationSeconds)}
-                    </td>
+                    <td className="px-4 py-3 align-top">{formatDuration(run.durationSeconds)}</td>
                     <td className="px-4 py-3 align-top">
                       {run.exitCode === undefined ? '—' : run.exitCode}
                     </td>

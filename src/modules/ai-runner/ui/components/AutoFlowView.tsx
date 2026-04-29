@@ -1,12 +1,6 @@
 'use client';
 
-import { 
-  Play, 
-  Plus, 
-  Square, 
-  Upload, 
-  X 
-} from 'lucide-react';
+import { Play, Plus, Square, Upload, X } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -18,9 +12,7 @@ import type {
   AIRunnerPromptTemplateDTO,
   AIRunnerWorkspaceDTO,
 } from '../types';
-import type {
-  AutoflowItemDraft,
-} from '../types';
+import type { AutoflowItemDraft } from '../types';
 import { formatMemory } from '../utils';
 
 interface AutoFlowViewProps {
@@ -97,8 +89,8 @@ export function AutoFlowView({
         <CardHeader>
           <CardTitle className="text-sm">AutoFlow Builder</CardTitle>
           <CardDescription>
-            Queue a chain of prompts. Sequential mode waits for each step; parallel mode
-            still respects blocking workspaces.
+            Queue a chain of prompts. Sequential mode waits for each step; parallel mode still
+            respects blocking workspaces.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -113,9 +105,7 @@ export function AutoFlowView({
               <span className="block text-sm font-medium">Run Mode</span>
               <select
                 value={autoflowMode}
-                onChange={(event) =>
-                  setAutoflowMode(event.target.value as typeof autoflowMode)
-                }
+                onChange={(event) => setAutoflowMode(event.target.value as typeof autoflowMode)}
                 className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring/40"
               >
                 <option value="sequential">Sequential</option>
@@ -279,8 +269,8 @@ export function AutoFlowView({
                 <div>
                   <p className="text-sm font-semibold">Step files & images</p>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    Uploaded to temp storage and passed to this ad-hoc step by path. Drop
-                    files here or use upload.
+                    Uploaded to temp storage and passed to this ad-hoc step by path. Drop files here
+                    or use upload.
                   </p>
                 </div>
                 <label className="inline-flex h-9 cursor-pointer items-center gap-2 rounded-lg border border-input bg-background px-3 text-xs font-medium transition-colors hover:bg-accent/50">
@@ -376,8 +366,8 @@ export function AutoFlowView({
             ))}
             {autoflowItems.length === 0 ? (
               <div className="rounded-xl border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
-                Start the current draft as a one-step AutoFlow, or add steps to build a
-                larger queue.
+                Start the current draft as a one-step AutoFlow, or add steps to build a larger
+                queue.
               </div>
             ) : null}
           </div>
@@ -403,10 +393,7 @@ export function AutoFlowView({
         </CardHeader>
         <CardContent className="p-0">
           {autoflows.map((autoflow) => (
-            <div
-              key={autoflow._id}
-              className="border-b border-border/60 px-5 py-4 last:border-b-0"
-            >
+            <div key={autoflow._id} className="border-b border-border/60 px-5 py-4 last:border-b-0">
               <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                 <div>
                   <div className="flex flex-wrap items-center gap-2">
