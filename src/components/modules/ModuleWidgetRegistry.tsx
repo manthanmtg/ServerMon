@@ -136,7 +136,10 @@ export function renderWidget(componentName: string, props: Record<string, unknow
   const entry = widgetMap[componentName];
   if (!entry) {
     return (
-      <div className="p-4 rounded-lg border border-destructive/20 bg-destructive/5 text-destructive text-sm">
+      <div
+        role="alert"
+        className="p-4 rounded-lg border border-destructive/20 bg-destructive/5 text-destructive text-sm"
+      >
         Widget &quot;{componentName}&quot; not found
       </div>
     );
