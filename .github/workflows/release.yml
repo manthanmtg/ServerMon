@@ -46,7 +46,6 @@ jobs:
       MONGO_URI: mongodb://localhost:27017/servermon-build
       JWT_SECRET: build_time_temporary_secret
       PORT: '8912'
-      NODE_ENV: production
 
     steps:
       - name: Checkout
@@ -68,6 +67,8 @@ jobs:
 
       - name: Build hub application
         run: pnpm build
+        env:
+          NODE_ENV: production
 
       - name: Prune development dependencies
         run: pnpm prune --prod
