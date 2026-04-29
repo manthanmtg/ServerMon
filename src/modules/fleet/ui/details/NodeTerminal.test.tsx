@@ -44,8 +44,8 @@ const {
     onData: vi.fn(() => ({ dispose: vi.fn() })),
     onResize: vi.fn(() => ({ dispose: vi.fn() })),
   };
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const MockTerminal = vi.fn(function (this: any) {
+  type MockTerminalInstance = typeof mockTerminalInstance;
+  const MockTerminal = vi.fn(function (this: MockTerminalInstance) {
     Object.assign(this, mockTerminalInstance);
   });
   const mockFitAddonFit = vi.fn();
@@ -93,8 +93,7 @@ describe('NodeTerminal', () => {
       resize: mockResize,
       close: mockClose,
     });
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (MockTerminal as any).mockImplementation(function (this: any) {
+    MockTerminal.mockImplementation(function (this: typeof mockTerminalInstance) {
       Object.assign(this, mockTerminalInstance);
     });
   });
