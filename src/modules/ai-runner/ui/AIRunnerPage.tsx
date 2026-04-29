@@ -933,8 +933,16 @@ export default function AIRunnerPage() {
     () => Object.fromEntries(prompts.map((prompt) => [prompt._id, prompt])),
     [prompts]
   );
+  const promptNameMap = useMemo(
+    () => Object.fromEntries(prompts.map((prompt) => [prompt._id, prompt.name])),
+    [prompts]
+  );
   const workspaceMap = useMemo(
     () => Object.fromEntries(workspaces.map((workspace) => [workspace._id, workspace])),
+    [workspaces]
+  );
+  const workspaceNameMap = useMemo(
+    () => Object.fromEntries(workspaces.map((workspace) => [workspace._id, workspace.name])),
     [workspaces]
   );
   const scheduleMap = useMemo(
@@ -944,6 +952,10 @@ export default function AIRunnerPage() {
   const autoflowMap = useMemo(
     () => Object.fromEntries(autoflows.map((autoflow) => [autoflow._id, autoflow])),
     [autoflows]
+  );
+  const profileNameMap = useMemo(
+    () => Object.fromEntries(profiles.map((profile) => [profile._id, profile.name])),
+    [profiles]
   );
   const getAutoflowItemForRun = useCallback(
     (run: Pick<AIRunnerRunDTO, '_id' | 'autoflowId' | 'autoflowItemId'>) => {
@@ -5608,11 +5620,9 @@ export default function AIRunnerPage() {
       {multiScheduleEditorOpen ? (
         <MultiScheduleEditorModal
           schedules={sortedSchedules}
-          promptNames={Object.fromEntries(prompts.map((prompt) => [prompt._id, prompt.name]))}
-          profileNames={Object.fromEntries(profiles.map((profile) => [profile._id, profile.name]))}
-          workspaceNames={Object.fromEntries(
-            workspaces.map((workspace) => [workspace._id, workspace.name])
-          )}
+          promptNames={promptNameMap}
+          profileNames={profileNameMap}
+          workspaceNames={workspaceNameMap}
           onClose={() => setMultiScheduleEditorOpen(false)}
           onSaved={loadAll}
         />
