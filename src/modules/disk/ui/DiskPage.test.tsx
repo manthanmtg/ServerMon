@@ -80,4 +80,19 @@ describe('DiskPage', () => {
     });
     await waitFor(() => expect(screen.getByText('/')).toBeDefined());
   });
+
+  it('keeps the settings control large enough for mobile taps', async () => {
+    await act(async () => {
+      render(
+        <ToastProvider>
+          <DiskPage />
+        </ToastProvider>
+      );
+    });
+
+    const settingsButton = screen.getByRole('button', { name: /disk settings/i });
+
+    expect(settingsButton.className).toContain('min-h-[44px]');
+    expect(settingsButton.className).toContain('min-w-[44px]');
+  });
 });
