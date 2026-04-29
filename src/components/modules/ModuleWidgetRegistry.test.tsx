@@ -80,4 +80,9 @@ describe('renderWidget()', () => {
     // Has some styling class indicating error state
     expect(el!.className).toContain('destructive');
   });
+
+  it('announces unknown widget errors to assistive technology', () => {
+    render(<>{renderWidget('BogusWidget')}</>);
+    expect(screen.getByRole('alert')).toHaveTextContent('Widget "BogusWidget" not found');
+  });
 });
