@@ -82,6 +82,7 @@ import {
   applyPromptTemplate,
   emptyPromptForm,
   emptyScheduleForm,
+  deriveScheduleDashboardState,
   formatCountdown,
   formatDateTime,
   formatDuration,
@@ -1031,19 +1032,17 @@ export default function AIRunnerPage() {
     getAutoflowItemForRun,
   ]);
 
-  const enabledScheduleCount = schedules.filter((schedule) => schedule.enabled).length;
+  const {
+    enabledScheduleCount,
+    pausedScheduleCount,
+    scheduledProfileCount,
+    recentlyActiveScheduleCount,
+    nextSchedule,
+    sortedSchedules,
+  } = useMemo(() => deriveScheduleDashboardState(schedules), [schedules]);
   const schedulesGloballyEnabled = runnerSettings?.schedulesGloballyEnabled ?? true;
   const schedulerReliabilityWarning = getSchedulerReliabilityWarning(runtimeDiagnostics);
   const enabledProfileCount = profiles.filter((profile) => profile.enabled).length;
-  const pausedScheduleCount = schedules.length - enabledScheduleCount;
-  const scheduledProfileCount = new Set(schedules.map((schedule) => schedule.agentProfileId)).size;
-  const recentlyActiveScheduleCount = schedules.filter((schedule) => {
-    if (!schedule.lastRunAt) return false;
-    return Date.now() - new Date(schedule.lastRunAt).getTime() < 24 * 60 * 60 * 1000;
-  }).length;
-  const nextSchedule = schedules
-    .filter((schedule) => schedule.enabled && schedule.nextRunTime)
-    .sort((a, b) => new Date(a.nextRunTime!).getTime() - new Date(b.nextRunTime!).getTime())[0];
   const activeScheduleRunMap = useMemo(() => {
     const statusRank: Record<AIRunnerRunDTO['status'], number> = {
       running: 3,
@@ -1083,15 +1082,6 @@ export default function AIRunnerPage() {
   }, [activeScheduleRuns]);
   const nextScheduleActiveRun = nextSchedule ? activeScheduleRunMap[nextSchedule._id] : undefined;
   const nextScheduleStatusLabel = getActiveScheduleRunLabel(nextScheduleActiveRun);
-  const sortedSchedules = [...schedules].sort((left, right) => {
-    if (left.enabled !== right.enabled) return left.enabled ? -1 : 1;
-    if (left.nextRunTime && right.nextRunTime) {
-      return new Date(left.nextRunTime).getTime() - new Date(right.nextRunTime).getTime();
-    }
-    if (left.nextRunTime) return -1;
-    if (right.nextRunTime) return 1;
-    return new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime();
-  });
   const scheduleVisualizationProfile = scheduleVisualizationProfileId
     ? (profileMap[scheduleVisualizationProfileId] ?? null)
     : null;

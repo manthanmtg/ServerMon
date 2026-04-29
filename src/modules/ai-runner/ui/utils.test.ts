@@ -8,6 +8,7 @@ import {
   formatDuration,
   getDefaultCronExpressionForMode,
   formatRunsPerDayLabel,
+  deriveScheduleDashboardState,
   getRunStatusVariant,
   getScheduleStatusVariant,
   humanizeCron,
@@ -130,6 +131,53 @@ describe('ai-runner ui utils', () => {
 
       expect(summary?.approximate).toBe(true);
       expect(formatRunsPerDayLabel(summary)).toBe('≈12.7 runs/day');
+    });
+  });
+
+  describe('deriveScheduleDashboardState', () => {
+    it('summarizes and orders schedules without mutating the source list', () => {
+      const now = new Date('2026-04-29T12:00:00.000Z').getTime();
+      const schedules = [
+        {
+          _id: 'disabled',
+          name: 'Disabled',
+          agentProfileId: 'profile-2',
+          enabled: false,
+          updatedAt: '2026-04-29T11:00:00.000Z',
+        },
+        {
+          _id: 'later',
+          name: 'Later',
+          agentProfileId: 'profile-1',
+          enabled: true,
+          nextRunTime: '2026-04-29T15:00:00.000Z',
+          lastRunAt: '2026-04-28T11:30:00.000Z',
+          updatedAt: '2026-04-29T10:00:00.000Z',
+        },
+        {
+          _id: 'soon',
+          name: 'Soon',
+          agentProfileId: 'profile-1',
+          enabled: true,
+          nextRunTime: '2026-04-29T13:00:00.000Z',
+          lastRunAt: '2026-04-29T11:30:00.000Z',
+          updatedAt: '2026-04-29T09:00:00.000Z',
+        },
+      ];
+
+      const state = deriveScheduleDashboardState(schedules, now);
+
+      expect(state.enabledScheduleCount).toBe(2);
+      expect(state.pausedScheduleCount).toBe(1);
+      expect(state.scheduledProfileCount).toBe(2);
+      expect(state.recentlyActiveScheduleCount).toBe(1);
+      expect(state.nextSchedule?._id).toBe('soon');
+      expect(state.sortedSchedules.map((schedule) => schedule._id)).toEqual([
+        'soon',
+        'later',
+        'disabled',
+      ]);
+      expect(schedules.map((schedule) => schedule._id)).toEqual(['disabled', 'later', 'soon']);
     });
   });
 
