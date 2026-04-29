@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { EventEmitter } from 'node:events';
-import { AgentPtyBridge, type AgentWsServer } from './agentPtyBridge';
+import { AgentPtyBridge, type AgentWsServer, type AgentConnectionRequest } from './agentPtyBridge';
 import { TTY_MSG } from './tty-bridge';
 
 interface FakePty extends EventEmitter {
@@ -84,8 +84,8 @@ function send(socket: FakeSocket, frame: { type: string; payload: unknown }): vo
   socket.emit('message', JSON.stringify(frame));
 }
 
-function makeConnectionReq(authHeader?: string): { headers: Record<string, string> } {
-  const headers: Record<string, string> = {};
+function makeConnectionReq(authHeader?: string): AgentConnectionRequest {
+  const headers: NonNullable<AgentConnectionRequest['headers']> = {};
   if (authHeader !== undefined) headers.authorization = authHeader;
   return { headers };
 }
@@ -93,7 +93,7 @@ function makeConnectionReq(authHeader?: string): { headers: Record<string, strin
 describe('AgentPtyBridge', () => {
   it('start() creates a WebSocketServer on the configured port', async () => {
     const server = makeFakeServer();
-    const wsServerFactory = vi.fn((_port: number) => server as unknown as AgentWsServer);
+    const wsServerFactory = vi.fn((_port: number): AgentWsServer => server);
     const bridge = new AgentPtyBridge({
       port: 8001,
       authToken: 'tok',
@@ -112,7 +112,7 @@ describe('AgentPtyBridge', () => {
     const bridge = new AgentPtyBridge({
       port: 8001,
       authToken: 'tok',
-      wsServerFactory: () => server as unknown as AgentWsServer,
+      wsServerFactory: () => server,
       ptySpawn: ptySpawn as unknown as typeof import('node-pty').spawn,
     });
     await bridge.start();
@@ -131,7 +131,7 @@ describe('AgentPtyBridge', () => {
     const bridge = new AgentPtyBridge({
       port: 8001,
       authToken: 'tok',
-      wsServerFactory: () => server as unknown as AgentWsServer,
+      wsServerFactory: () => server,
       ptySpawn: ptySpawn as unknown as typeof import('node-pty').spawn,
     });
     await bridge.start();
@@ -149,7 +149,7 @@ describe('AgentPtyBridge', () => {
     const bridge = new AgentPtyBridge({
       port: 8001,
       authToken: 'tok',
-      wsServerFactory: () => server as unknown as AgentWsServer,
+      wsServerFactory: () => server,
       ptySpawn: vi.fn(() => makeFakePty()) as unknown as typeof import('node-pty').spawn,
     });
     await bridge.start();
@@ -168,7 +168,7 @@ describe('AgentPtyBridge', () => {
       port: 8001,
       authToken: 'tok',
       defaultShell: '/bin/bash',
-      wsServerFactory: () => server as unknown as AgentWsServer,
+      wsServerFactory: () => server,
       ptySpawn: ptySpawn as unknown as typeof import('node-pty').spawn,
     });
     await bridge.start();
@@ -226,7 +226,7 @@ describe('AgentPtyBridge', () => {
     const bridge = new AgentPtyBridge({
       port: 8001,
       authToken: 'tok',
-      wsServerFactory: () => server as unknown as AgentWsServer,
+      wsServerFactory: () => server,
       ptySpawn: vi.fn(() => pty) as unknown as typeof import('node-pty').spawn,
     });
     await bridge.start();
@@ -250,7 +250,7 @@ describe('AgentPtyBridge', () => {
     const bridge = new AgentPtyBridge({
       port: 8001,
       authToken: 'tok',
-      wsServerFactory: () => server as unknown as AgentWsServer,
+      wsServerFactory: () => server,
       ptySpawn: vi.fn(() => pty) as unknown as typeof import('node-pty').spawn,
     });
     await bridge.start();
@@ -273,7 +273,7 @@ describe('AgentPtyBridge', () => {
     const bridge = new AgentPtyBridge({
       port: 8001,
       authToken: 'tok',
-      wsServerFactory: () => server as unknown as AgentWsServer,
+      wsServerFactory: () => server,
       ptySpawn: vi.fn(() => pty) as unknown as typeof import('node-pty').spawn,
     });
     await bridge.start();
@@ -302,7 +302,7 @@ describe('AgentPtyBridge', () => {
     const bridge = new AgentPtyBridge({
       port: 8001,
       authToken: 'tok',
-      wsServerFactory: () => server as unknown as AgentWsServer,
+      wsServerFactory: () => server,
       ptySpawn: vi.fn(() => {
         return ptys[spawnCount++];
       }) as unknown as typeof import('node-pty').spawn,
@@ -328,7 +328,7 @@ describe('AgentPtyBridge', () => {
     const bridge = new AgentPtyBridge({
       port: 8001,
       authToken: 'tok',
-      wsServerFactory: () => server as unknown as AgentWsServer,
+      wsServerFactory: () => server,
       ptySpawn: vi.fn() as unknown as typeof import('node-pty').spawn,
     });
     await bridge.start();
@@ -342,7 +342,7 @@ describe('AgentPtyBridge', () => {
     const bridge = new AgentPtyBridge({
       port: 8001,
       authToken: 'tok',
-      wsServerFactory: () => server as unknown as AgentWsServer,
+      wsServerFactory: () => server,
       ptySpawn: vi.fn(() => makeFakePty()) as unknown as typeof import('node-pty').spawn,
     });
     await bridge.start();
