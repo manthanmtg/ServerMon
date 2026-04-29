@@ -24,6 +24,35 @@ describe('renderInstallSnippet', () => {
     expect(out).toContain('curl -sL https://staging.example.com/api/fleet/public/install-script |');
   });
 
+  it('linux: includes pinned release flags when requested', () => {
+    const out = renderInstallSnippet({
+      ...base,
+      kind: 'linux',
+      releaseChannel: 'version',
+      versionTarget: 'v0.1.1',
+    });
+    expect(out).toContain('--version v0.1.1');
+  });
+
+  it('linux: includes source build flags when requested', () => {
+    const out = renderInstallSnippet({
+      ...base,
+      kind: 'linux',
+      installMode: 'source',
+      sourceRef: 'main',
+    });
+    expect(out).toContain("--build-from-source --source-ref 'main'");
+  });
+
+  it('linux: includes custom release base URL when requested', () => {
+    const out = renderInstallSnippet({
+      ...base,
+      kind: 'linux',
+      releaseBaseUrl: 'https://mirror.example/releases/v0.1.1',
+    });
+    expect(out).toContain("--release-base-url 'https://mirror.example/releases/v0.1.1'");
+  });
+
   it('docker: docker run with env vars and default image', () => {
     const out = renderInstallSnippet({ ...base, kind: 'docker' });
     expect(out).toBe(

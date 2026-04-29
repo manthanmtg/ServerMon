@@ -7,6 +7,11 @@ export interface InstallSnippetInput {
   nodeId: string;
   agentImage?: string;
   installerBaseUrl?: string;
+  installMode?: 'release' | 'source';
+  releaseChannel?: 'latest' | 'version';
+  versionTarget?: string;
+  releaseBaseUrl?: string;
+  sourceRef?: string;
 }
 
 function shellEscape(value: string): string {
@@ -24,12 +29,29 @@ export function renderInstallSnippet(i: InstallSnippetInput): string {
   const hubArg = shellEscape(i.hubUrl);
   const tokenArg = shellEscape(i.token);
   const nodeArg = shellEscape(i.nodeId);
+  const extraArgs: string[] = [];
+  if (i.kind !== 'docker') {
+    if (i.installMode === 'source') {
+      extraArgs.push('--build-from-source');
+      if (i.sourceRef) extraArgs.push('--source-ref', shellEscape(i.sourceRef));
+    } else {
+      if (i.releaseChannel === 'version' && i.versionTarget) {
+        extraArgs.push('--version', i.versionTarget);
+      } else if (i.releaseChannel === 'latest') {
+        extraArgs.push('--release', 'latest');
+      }
+      if (i.releaseBaseUrl) {
+        extraArgs.push('--release-base-url', shellEscape(i.releaseBaseUrl));
+      }
+    }
+  }
+  const suffix = extraArgs.length ? ` ${extraArgs.join(' ')}` : '';
 
   if (i.kind === 'linux') {
-    return `curl -sL ${base}/api/fleet/public/install-script | bash -s -- --hub-url ${hubArg} --token ${tokenArg} --node-id ${nodeArg}`;
+    return `curl -sL ${base}/api/fleet/public/install-script | bash -s -- --hub-url ${hubArg} --token ${tokenArg} --node-id ${nodeArg}${suffix}`;
   }
   if (i.kind === 'macos') {
-    return `curl -sL ${base}/api/fleet/public/install-script | bash -s -- --hub-url ${hubArg} --token ${tokenArg} --node-id ${nodeArg} --platform macos`;
+    return `curl -sL ${base}/api/fleet/public/install-script | bash -s -- --hub-url ${hubArg} --token ${tokenArg} --node-id ${nodeArg} --platform macos${suffix}`;
   }
   if (i.kind === 'docker') {
     const image = i.agentImage ?? 'servermon/agent:latest';
