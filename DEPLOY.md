@@ -37,7 +37,10 @@ If you are running ServerMon on macOS and want schedules to survive reboot witho
 
 ```bash
 pnpm install
-cp .env.example .env.local
+cat > .env.local <<'EOF'
+MONGO_URI=mongodb://localhost:27017/servermon
+JWT_SECRET=change-this-development-secret
+EOF
 sudo ./scripts/install-launchd.sh
 ```
 
@@ -623,7 +626,7 @@ ServerMon can run as a **Hub** (master controller) that manages remote **Agents*
 
 ### Environment variables
 
-Copy from `.env.example`. The fleet-specific section:
+Add these fleet-specific values to `/etc/servermon/env` for production installs or `.env.local` for local development:
 
 ```env
 # Master Hub public URL — used by the install script and pair callbacks
