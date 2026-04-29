@@ -2,8 +2,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { NextRequest } from 'next/server';
 
-const { mockGetUpdateRunDetails } = vi.hoisted(() => ({
+const { mockGetUpdateRunDetails, mockGetSession } = vi.hoisted(() => ({
   mockGetUpdateRunDetails: vi.fn(),
+  mockGetSession: vi.fn(),
 }));
 
 vi.mock('@/lib/updates/system-service', () => ({
@@ -12,6 +13,7 @@ vi.mock('@/lib/updates/system-service', () => ({
 vi.mock('@/lib/logger', () => ({
   createLogger: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }),
 }));
+vi.mock('@/lib/session', () => ({ getSession: mockGetSession }));
 
 import { GET } from './route';
 
@@ -22,6 +24,13 @@ function makeContext(id: string) {
 describe('GET /api/system/update/history/[id]', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockGetSession.mockResolvedValue({ user: { id: 'admin-id' } });
+  });
+
+  it('rejects unauthenticated requests', async () => {
+    mockGetSession.mockResolvedValue(null);
+    const res = await GET(new NextRequest('http://localhost'), makeContext('run-abc'));
+    expect(res.status).toBe(401);
   });
 
   it('returns update run details', async () => {

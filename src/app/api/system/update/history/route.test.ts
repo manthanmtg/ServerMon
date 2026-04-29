@@ -1,8 +1,9 @@
 /** @vitest-environment node */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-const { mockListUpdateRuns } = vi.hoisted(() => ({
+const { mockListUpdateRuns, mockGetSession } = vi.hoisted(() => ({
   mockListUpdateRuns: vi.fn(),
+  mockGetSession: vi.fn(),
 }));
 
 vi.mock('@/lib/updates/system-service', () => ({
@@ -11,12 +12,20 @@ vi.mock('@/lib/updates/system-service', () => ({
 vi.mock('@/lib/logger', () => ({
   createLogger: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }),
 }));
+vi.mock('@/lib/session', () => ({ getSession: mockGetSession }));
 
 import { GET } from './route';
 
 describe('GET /api/system/update/history', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockGetSession.mockResolvedValue({ user: { id: 'admin-id' } });
+  });
+
+  it('rejects unauthenticated requests', async () => {
+    mockGetSession.mockResolvedValue(null);
+    const res = await GET();
+    expect(res.status).toBe(401);
   });
 
   it('returns update history list', async () => {

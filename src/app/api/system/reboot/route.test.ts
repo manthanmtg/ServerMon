@@ -5,9 +5,12 @@ vi.mock('@/lib/logger', () => ({
   createLogger: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }),
 }));
 
-const { mockExec } = vi.hoisted(() => ({
+const { mockExec, mockGetSession } = vi.hoisted(() => ({
   mockExec: vi.fn(),
+  mockGetSession: vi.fn(),
 }));
+
+vi.mock('@/lib/session', () => ({ getSession: mockGetSession }));
 
 vi.mock('child_process', () => ({ exec: mockExec }));
 vi.mock('util', () => ({
@@ -19,6 +22,13 @@ import { POST } from './route';
 describe('POST /api/system/reboot', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockGetSession.mockResolvedValue({ user: { id: 'admin-id' } });
+  });
+
+  it('rejects unauthenticated requests', async () => {
+    mockGetSession.mockResolvedValue(null);
+    const res = await POST();
+    expect(res.status).toBe(401);
   });
 
   it('returns success response in development mode', async () => {
