@@ -89,6 +89,71 @@ export function formatCountdown(targetIso?: string, now = Date.now()): string {
   return diffMs > 0 ? `in ${parts.join(' ')}` : `overdue by ${parts.join(' ')}`;
 }
 
+export type ScheduleDashboardState<T extends Pick<AIRunnerScheduleDTO, '_id'>> = {
+  enabledScheduleCount: number;
+  pausedScheduleCount: number;
+  scheduledProfileCount: number;
+  recentlyActiveScheduleCount: number;
+  nextSchedule: T | undefined;
+  sortedSchedules: T[];
+};
+
+type ScheduleDashboardInput = Pick<
+  AIRunnerScheduleDTO,
+  '_id' | 'agentProfileId' | 'enabled' | 'lastRunAt' | 'nextRunTime' | 'updatedAt'
+>;
+
+export function deriveScheduleDashboardState<T extends ScheduleDashboardInput>(
+  schedules: T[],
+  now = Date.now()
+): ScheduleDashboardState<T> {
+  let enabledScheduleCount = 0;
+  let recentlyActiveScheduleCount = 0;
+  let nextSchedule: T | undefined;
+  const scheduledProfileIds = new Set<string>();
+
+  for (const schedule of schedules) {
+    scheduledProfileIds.add(schedule.agentProfileId);
+
+    if (schedule.enabled) {
+      enabledScheduleCount += 1;
+    }
+
+    if (schedule.lastRunAt && now - new Date(schedule.lastRunAt).getTime() < 24 * 60 * 60 * 1000) {
+      recentlyActiveScheduleCount += 1;
+    }
+
+    if (schedule.enabled && schedule.nextRunTime) {
+      const nextTime = new Date(schedule.nextRunTime).getTime();
+      const currentNextTime = nextSchedule?.nextRunTime
+        ? new Date(nextSchedule.nextRunTime).getTime()
+        : Number.POSITIVE_INFINITY;
+      if (nextTime < currentNextTime) {
+        nextSchedule = schedule;
+      }
+    }
+  }
+
+  const sortedSchedules = [...schedules].sort((left, right) => {
+    if (left.enabled !== right.enabled) return left.enabled ? -1 : 1;
+    if (left.nextRunTime && right.nextRunTime) {
+      return new Date(left.nextRunTime).getTime() - new Date(right.nextRunTime).getTime();
+    }
+    if (left.nextRunTime) return -1;
+    if (right.nextRunTime) return 1;
+    return new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime();
+  });
+
+  return {
+    enabledScheduleCount,
+    pausedScheduleCount: schedules.length - enabledScheduleCount,
+    scheduledProfileCount: scheduledProfileIds.size,
+    recentlyActiveScheduleCount,
+    nextSchedule,
+    sortedSchedules,
+  };
+}
+
 const MINUTE_OPTIONS = Array.from({ length: 60 }, (_, index) => index);
 const HOUR_OPTIONS = Array.from({ length: 24 }, (_, index) => index);
 const WEEKDAY_OPTIONS = [
