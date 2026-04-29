@@ -137,8 +137,9 @@ export default function DiskPage() {
           <Button
             variant="outline"
             size="sm"
+            aria-label="Disk settings"
             onClick={() => setShowSettings(true)}
-            className="h-8 w-8 p-0 text-muted-foreground hover:text-primary transition-colors"
+            className="min-h-[44px] min-w-[44px] p-0 text-muted-foreground transition-colors hover:text-primary sm:h-8 sm:min-h-8 sm:w-8 sm:min-w-8"
           >
             <Settings2 className="h-4 w-4" />
           </Button>
