@@ -1,11 +1,24 @@
 import type {
+  AIRunnerAutoflowDTO,
   AIRunnerAutoflowItemDTO,
   AIRunnerProfileDTO,
   AIRunnerPromptDTO,
   AIRunnerPromptTemplateDTO,
+  AIRunnerRunDTO,
   AIRunnerScheduleDTO,
   AIRunnerWorkspaceDTO,
 } from '../types';
+
+export type {
+  AIRunnerAutoflowDTO,
+  AIRunnerAutoflowItemDTO,
+  AIRunnerProfileDTO,
+  AIRunnerPromptDTO,
+  AIRunnerPromptTemplateDTO,
+  AIRunnerRunDTO,
+  AIRunnerScheduleDTO,
+  AIRunnerWorkspaceDTO,
+};
 
 export type ViewTab = 'prompts' | 'schedules' | 'autoflows' | 'history' | 'settings' | 'logs';
 
