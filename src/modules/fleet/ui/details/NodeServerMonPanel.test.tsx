@@ -337,7 +337,9 @@ describe('NodeServerMonPanel', () => {
 
     expect(autoscroll).toHaveAttribute('aria-pressed', 'false');
 
-    const logCall = fetchMock.mock.calls.find(([url]) => String(url).startsWith('/api/fleet/logs?'));
+    const logCall = fetchMock.mock.calls.find(([url]) =>
+      String(url).startsWith('/api/fleet/logs?')
+    );
     expect(String(logCall?.[0])).toContain('nodeId=node-1');
     expect(String(logCall?.[0])).toContain('since=');
     expect(String(logCall?.[0])).toContain('limit=100');
