@@ -1,4 +1,4 @@
-import type { Server as SocketIOServer } from 'socket.io';
+import type { Server as SocketIOServer, Socket } from 'socket.io';
 import { HubTtyBridge, type HubTtySession } from './hubTtyBridge';
 import { TTY_MSG, parseTtyMessage } from './tty-bridge';
 import { hasCapability, mapRole } from './rbac';
@@ -12,6 +12,10 @@ export const FLEET_TTY_NAMESPACE_PATH = '/api/fleet/tty';
 export interface FleetTtySessionUser {
   userId: string;
   role: string;
+}
+
+interface FleetTtySocket extends Socket {
+  user?: FleetTtySessionUser;
 }
 
 export interface FleetTtyNamespaceLogEntry {
@@ -49,7 +53,7 @@ export function registerFleetTtyNamespace(opts: RegisterFleetTtyNamespaceOpts): 
     }
   };
 
-  nsp.use(async (socket, next) => {
+  nsp.use(async (socket: FleetTtySocket, next) => {
     try {
       const cookieHeader = socket.handshake?.headers?.cookie;
       if (!verifySession) {
@@ -68,7 +72,7 @@ export function registerFleetTtyNamespace(opts: RegisterFleetTtyNamespaceOpts): 
         });
         return next(new Error('Forbidden'));
       }
-      (socket as unknown as { user: FleetTtySessionUser }).user = user;
+      socket.user = user;
       next();
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -77,9 +81,9 @@ export function registerFleetTtyNamespace(opts: RegisterFleetTtyNamespaceOpts): 
     }
   });
 
-  nsp.on('connection', (socket) => {
+  nsp.on('connection', (socket: FleetTtySocket) => {
     const sessions = new Map<string, HubTtySession>();
-    const user = (socket as unknown as { user?: FleetTtySessionUser }).user;
+    const user = socket.user;
     log('info', 'hub.tty.connected', 'fleet tty socket connected', {
       socketId: socket.id,
       userId: user?.userId,

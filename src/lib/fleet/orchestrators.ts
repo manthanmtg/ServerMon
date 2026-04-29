@@ -15,39 +15,41 @@ import { NginxOrchestrator } from './nginxOrchestrator';
 
 const log = createLogger('fleet:orchestrators');
 
-let frpOrch: unknown = null;
-let nginxOrch: unknown = null;
+type FrpPublicInterface = Pick<FrpOrchestrator, 'applyRevision' | 'reconcileOnce'>;
+type NginxPublicInterface = Pick<
+  NginxOrchestrator,
+  'writeSnippet' | 'removeSnippet' | 'applyAndReload'
+>;
 
-function buildFrp(): unknown {
+let frpOrch: FrpPublicInterface | null = null;
+let nginxOrch: NginxPublicInterface | null = null;
+
+function buildFrp(): FrpOrchestrator {
   const cacheDir = process.env.FLEET_BINARY_CACHE_DIR || '/var/lib/servermon/frp-cache';
   const configDir = process.env.FLEET_FRPS_CONFIG_DIR || '/etc/servermon/frp';
   const version = process.env.FLEET_FRP_VERSION;
 
+  type Deps = ConstructorParameters<typeof FrpOrchestrator>[0];
+
   return new FrpOrchestrator({
-    FrpServerState: FrpServerState as unknown as ConstructorParameters<
-      typeof FrpOrchestrator
-    >[0]['FrpServerState'],
-    FleetLogEvent: FleetLogEvent as unknown as ConstructorParameters<
-      typeof FrpOrchestrator
-    >[0]['FleetLogEvent'],
+    FrpServerState: FrpServerState as unknown as Deps['FrpServerState'],
+    FleetLogEvent: FleetLogEvent as unknown as Deps['FleetLogEvent'],
     binaryCacheDir: cacheDir,
     configDir,
     binaryVersion: version,
   });
 }
 
-function buildNginx(): unknown {
+function buildNginx(): NginxOrchestrator {
+  type Deps = ConstructorParameters<typeof NginxOrchestrator>[0];
+
   return new NginxOrchestrator({
-    NginxState: NginxState as unknown as ConstructorParameters<
-      typeof NginxOrchestrator
-    >[0]['NginxState'],
-    FleetLogEvent: FleetLogEvent as unknown as ConstructorParameters<
-      typeof NginxOrchestrator
-    >[0]['FleetLogEvent'],
+    NginxState: NginxState as unknown as Deps['NginxState'],
+    FleetLogEvent: FleetLogEvent as unknown as Deps['FleetLogEvent'],
   });
 }
 
-function makeNoopFrp(): Pick<FrpOrchestrator, 'applyRevision' | 'reconcileOnce'> {
+function makeNoopFrp(): FrpPublicInterface {
   return {
     applyRevision: async () => {
       log.warn('FRP orchestrator not configured; applyRevision is a no-op');
@@ -59,7 +61,7 @@ function makeNoopFrp(): Pick<FrpOrchestrator, 'applyRevision' | 'reconcileOnce'>
   };
 }
 
-export function getFrpOrchestrator(): Pick<FrpOrchestrator, 'applyRevision' | 'reconcileOnce'> {
+export function getFrpOrchestrator(): FrpPublicInterface {
   if (!frpOrch) {
     try {
       frpOrch = buildFrp();
@@ -68,13 +70,10 @@ export function getFrpOrchestrator(): Pick<FrpOrchestrator, 'applyRevision' | 'r
       frpOrch = makeNoopFrp();
     }
   }
-  return frpOrch as Pick<FrpOrchestrator, 'applyRevision' | 'reconcileOnce'>;
+  return frpOrch;
 }
 
-export function getNginxOrchestrator(): Pick<
-  NginxOrchestrator,
-  'writeSnippet' | 'removeSnippet' | 'applyAndReload'
-> {
+export function getNginxOrchestrator(): NginxPublicInterface {
   if (!nginxOrch) {
     try {
       nginxOrch = buildNginx();
@@ -91,13 +90,16 @@ export function getNginxOrchestrator(): Pick<
       };
     }
   }
-  return nginxOrch as Pick<NginxOrchestrator, 'writeSnippet' | 'removeSnippet' | 'applyAndReload'>;
+  return nginxOrch;
 }
 
 /**
  * Test-only hook to inject orchestrator singletons. Pass `null` to reset.
  */
-export function __setOrchestrators__(f: unknown, n: unknown): void {
+export function __setOrchestrators__(
+  f: FrpPublicInterface | null,
+  n: NginxPublicInterface | null
+): void {
   frpOrch = f;
   nginxOrch = n;
 }

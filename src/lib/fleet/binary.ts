@@ -112,7 +112,9 @@ export async function ensureBinary(
     spawnImpl = realSpawn,
     fsImpl = {
       existsSync: fs.existsSync,
-      mkdirSync: (p: string, o?: { recursive: boolean }) => fs.mkdirSync(p, o) as unknown as void,
+      mkdirSync: (p, o) => {
+        fs.mkdirSync(p, o);
+      },
       writeFile: (p: string, data: Buffer) => fs.promises.writeFile(p, data),
     },
   } = opts;
