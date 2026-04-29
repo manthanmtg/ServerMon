@@ -10,6 +10,9 @@ describe('buildAgentUpdateShell', () => {
     expect(script).toContain('SHA256SUMS');
     expect(script).toContain('sha256sum -c');
     expect(script).toContain('shasum -a 256 -c');
+    expect(script).toContain('RELEASE_TMP_DIR="$(mktemp -d)"');
+    expect(script).toContain('trap \'rm -rf "$RELEASE_TMP_DIR"\' EXIT');
+    expect(script).not.toContain('trap \'rm -rf "$tmp_dir"\' EXIT');
     expect(script).toContain('install_from_release');
     expect(script).toContain('install_from_source');
     expect(script).toContain('systemctl restart servermon-agent.service');

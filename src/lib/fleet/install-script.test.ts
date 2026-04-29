@@ -121,6 +121,9 @@ describe('AGENT_INSTALLER_BASH', () => {
     expect(AGENT_INSTALLER_BASH).toContain('SHA256SUMS');
     expect(AGENT_INSTALLER_BASH).toContain('sha256sum -c');
     expect(AGENT_INSTALLER_BASH).toContain('shasum -a 256 -c');
+    expect(AGENT_INSTALLER_BASH).toContain('RELEASE_TMP_DIR="$(mktemp -d)"');
+    expect(AGENT_INSTALLER_BASH).toContain('trap \'rm -rf "$RELEASE_TMP_DIR"\' EXIT');
+    expect(AGENT_INSTALLER_BASH).not.toContain('trap \'rm -rf "$tmp_dir"\' EXIT');
     expect(AGENT_INSTALLER_BASH).toContain('install_from_release');
     expect(AGENT_INSTALLER_BASH).toContain('write_install_metadata');
   });

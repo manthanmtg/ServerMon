@@ -80,6 +80,7 @@ VERSION_TARGET="latest"
 RELEASE_BASE_URL=""
 SOURCE_REF="main"
 REPO_URL="https://github.com/manthanmtg/ServerMon.git"
+RELEASE_TMP_DIR=""
 
 if [ "$EUID" -eq 0 ]; then
   SUDO=""
@@ -241,22 +242,22 @@ METAEOF
 }
 
 install_from_release() {
-  local base_url asset tmp_dir checksum_line
+  local base_url asset checksum_line
   base_url="$(resolve_release_base_url)"
   asset="servermon-agent-$PLATFORM_NAME-$ARCH_NAME.tar.gz"
-  tmp_dir="$(mktemp -d)"
-  trap 'rm -rf "$tmp_dir"' EXIT
+  RELEASE_TMP_DIR="$(mktemp -d)"
+  trap 'rm -rf "$RELEASE_TMP_DIR"' EXIT
 
   log_info "Downloading $asset from $base_url"
-  curl -fsSL "$base_url/$asset" -o "$tmp_dir/$asset"
-  curl -fsSL "$base_url/SHA256SUMS" -o "$tmp_dir/SHA256SUMS"
-  checksum_line="$tmp_dir/SHA256SUM"
-  grep "  $asset$" "$tmp_dir/SHA256SUMS" > "$checksum_line" || log_err "Checksum missing for $asset"
-  (cd "$tmp_dir" && verify_checksum "$checksum_line")
+  curl -fsSL "$base_url/$asset" -o "$RELEASE_TMP_DIR/$asset"
+  curl -fsSL "$base_url/SHA256SUMS" -o "$RELEASE_TMP_DIR/SHA256SUMS"
+  checksum_line="$RELEASE_TMP_DIR/SHA256SUM"
+  grep "  $asset$" "$RELEASE_TMP_DIR/SHA256SUMS" > "$checksum_line" || log_err "Checksum missing for $asset"
+  (cd "$RELEASE_TMP_DIR" && verify_checksum "$checksum_line")
 
   $SUDO rm -rf "$APP_DIR.next"
   $SUDO mkdir -p "$INSTALL_DIR" "$APP_DIR.next"
-  $SUDO tar -xzf "$tmp_dir/$asset" -C "$APP_DIR.next" --strip-components=1
+  $SUDO tar -xzf "$RELEASE_TMP_DIR/$asset" -C "$APP_DIR.next" --strip-components=1
   $SUDO rm -rf "$APP_DIR.previous"
   if [ -e "$APP_DIR" ]; then
     $SUDO mv "$APP_DIR" "$APP_DIR.previous"
