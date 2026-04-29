@@ -1,12 +1,13 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Package, ArrowRight, CheckCircle2, XCircle, Loader2, Clock } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { WidgetCardSkeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import type { InstallJob, TemplateListItem } from '../types';
+import { summarizeInstallJobs } from './widgetStats';
 
 export default function SelfServiceWidget() {
   const [templates, setTemplates] = useState<TemplateListItem[]>([]);
@@ -41,12 +42,12 @@ export default function SelfServiceWidget() {
     return () => clearInterval(interval);
   }, [load]);
 
-  if (loading) return <WidgetCardSkeleton />;
+  const { recentJobs, successCount, failedCount, runningCount } = useMemo(
+    () => summarizeInstallJobs(jobs),
+    [jobs]
+  );
 
-  const recentJobs = jobs.slice(0, 3);
-  const successCount = jobs.filter((j) => j.status === 'success').length;
-  const failedCount = jobs.filter((j) => j.status === 'failed').length;
-  const runningCount = jobs.filter((j) => j.status === 'running').length;
+  if (loading) return <WidgetCardSkeleton />;
 
   return (
     <Card>
