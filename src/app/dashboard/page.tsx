@@ -31,9 +31,12 @@ function DashboardSkeleton() {
   return (
     <div className="space-y-4 sm:space-y-6 animate-fade-in">
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
-        {Array.from({ length: 5 }).map((_, i) => (
+        {Array.from({ length: 4 }).map((_, i) => (
           <StatCardSkeleton key={i} />
         ))}
+        <div className="col-span-2 lg:col-span-1">
+          <StatCardSkeleton />
+        </div>
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4">
         <div className="lg:col-span-2">
@@ -189,15 +192,17 @@ function DashboardContent() {
           historyData={latencyHistory}
           color="var(--info)"
         />
-        <StatCard
-          label="Ping"
-          value={pingLatency !== null ? `${pingLatency}ms` : '--'}
-          subLabel="Network RTT"
-          icon={<ActivityIcon className="w-4 h-4" />}
-          status={pingLatency === null ? 'loading' : pingLatency > 150 ? 'warning' : 'normal'}
-          historyData={pingHistory}
-          color="var(--warning)"
-        />
+        <div className="col-span-2 lg:col-span-1">
+          <StatCard
+            label="Ping"
+            value={pingLatency !== null ? `${pingLatency}ms` : '--'}
+            subLabel="Network RTT"
+            icon={<ActivityIcon className="w-4 h-4" />}
+            status={pingLatency === null ? 'loading' : pingLatency > 150 ? 'warning' : 'normal'}
+            historyData={pingHistory}
+            color="var(--warning)"
+          />
+        </div>
       </div>
 
       {/* Charts Row */}
@@ -302,7 +307,7 @@ const StatCard = React.memo(function StatCard({
           </span>
         </div>
 
-        <div className="flex items-baseline gap-2">
+        <div className="flex items-baseline gap-2 flex-wrap">
           <h3
             className={`text-xl sm:text-2xl font-bold tracking-tight ${
               status === 'warning' ? 'text-warning' : 'text-foreground'
