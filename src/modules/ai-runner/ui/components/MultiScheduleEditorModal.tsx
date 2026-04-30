@@ -122,7 +122,7 @@ export function MultiScheduleEditorModal({
     () => Object.fromEntries(draftRows.map((row) => [row.id, row])),
     [draftRows]
   );
-  const localErrors = validateRows(draftRows);
+  const localErrors = useMemo(() => validateRows(draftRows), [draftRows]);
   const serverErrorMap = useMemo(() => {
     const errors: Record<string, string> = {};
     for (const error of serverErrors) {
@@ -130,15 +130,19 @@ export function MultiScheduleEditorModal({
     }
     return errors;
   }, [serverErrors]);
-  const dirtyRows = draftRows.filter((row) => {
-    const schedule = scheduleMap[row.id];
-    if (!schedule) return false;
-    return (
-      row.cronExpression !== schedule.cronExpression ||
-      row.timeout !== String(schedule.timeout) ||
-      row.retries !== String(schedule.retries)
-    );
-  });
+  const dirtyRows = useMemo(
+    () =>
+      draftRows.filter((row) => {
+        const schedule = scheduleMap[row.id];
+        if (!schedule) return false;
+        return (
+          row.cronExpression !== schedule.cronExpression ||
+          row.timeout !== String(schedule.timeout) ||
+          row.retries !== String(schedule.retries)
+        );
+      }),
+    [draftRows, scheduleMap]
+  );
   const canSave = dirtyRows.length > 0 && Object.keys(localErrors).length === 0 && !saving;
 
   const updateDraft = (id: string, field: EditableField, value: string) => {
