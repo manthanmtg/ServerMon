@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   CalendarClock,
   CheckCircle2,
@@ -82,9 +82,11 @@ export default function ServerMonServicesCard({ onOpenHistory }: ServerMonServic
     time: '03:00',
     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
   });
-  const timezoneOptions = getTimezoneOptions(scheduleForm.timezone, autoSettings?.timezone);
-  const scheduleTimeParts = parseScheduleTime(scheduleForm.time);
-  const minuteOptions = getMinuteOptions(scheduleTimeParts.minute);
+  const { timezoneOptions, scheduleTimeParts, minuteOptions } = useMemo(
+    () =>
+      deriveScheduleSelectState(scheduleForm.time, scheduleForm.timezone, autoSettings?.timezone),
+    [autoSettings?.timezone, scheduleForm.time, scheduleForm.timezone]
+  );
 
   const loadAgentStatus = useCallback(async () => {
     setAgentLoading(true);
@@ -601,6 +603,20 @@ function getTimezoneOptions(...timezones: Array<string | null | undefined>) {
     options.push({ value: timezone, label: timezone, description: 'Custom timezone' });
   }
   return options;
+}
+
+export function deriveScheduleSelectState(
+  time: string,
+  timezone: string,
+  savedTimezone?: string | null
+) {
+  const scheduleTimeParts = parseScheduleTime(time);
+
+  return {
+    timezoneOptions: getTimezoneOptions(timezone, savedTimezone),
+    scheduleTimeParts,
+    minuteOptions: getMinuteOptions(scheduleTimeParts.minute),
+  };
 }
 
 function getMinuteOptions(currentMinute: string): string[] {
