@@ -60,8 +60,13 @@ Options:
   --mongo-uri URI      MongoDB connection string
   --domain DOMAIN      Domain name for Nginx reverse proxy
   --ssl                Enable SSL via Let's Encrypt (requires --domain)
-  --skip-mongo         Skip local MongoDB installation
+  --skip-mongo         Skip MongoDB installation (use remote MongoDB)
   --unattended         Non-interactive mode, use defaults/flags
+  --use-existing-values Use existing config values, no prompts (upgrade shortcut)
+  --prebuilt           Use bundled .next and node_modules; skip pnpm install/build
+  --keep-last-n-release N
+                      Number of release directories to keep during cleanup
+  --allow-root         Run service as root (not recommended)
   --uninstall          Remove ServerMon completely
   -h, --help           Show help
 ```
