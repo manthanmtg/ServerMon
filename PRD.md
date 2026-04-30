@@ -912,18 +912,33 @@ Goal: allow developers to create modules quickly.
 
 The following modules are currently implemented in the core system:
 
-- **Dashboard**: Real-time widgets
-- **Terminal**: Interactive shell
-- **Processes**: Process management
-- **File Browser**: Filesystem navigation and CodeMirror 6 editing
-- **Docker**: Container management
-- **Disk & Network**: Resource monitoring
-- **Services & Cron Jobs**: System daemon and schedule management
-- **AI Agents**: Passive observability of AI CLI tools
-- **AI Runner**: Active orchestration and scheduling of AI CLI tools
-- **Security & Audit Logs**: MFA, settings, and action history
-- **Certificates, Ports, Hardware, Nginx**: Infrastructure monitoring
+- **Dashboard**: Real-time CPU, memory, and system health widgets with live charts
+- **Terminal**: Interactive web terminal powered by xterm.js and node-pty
+- **Processes**: View, search, and manage running processes
+- **File Browser**: Filesystem navigation and CodeMirror 6 editing (20+ languages)
+- **Docker**: Monitor containers, images, volumes, and networks
+- **Disk**: Disk usage, I/O performance, and storage health monitoring
+- **Memory**: RAM and swap pressure analysis with top memory consumers
+- **Metrics**: Real-time CPU and memory chart widgets backed by the shared metrics stream
+- **Health**: Core health status widgets for CPU, memory, and disk pressure
+- **Network**: Real-time bandwidth, interface stats, and connection monitoring
+- **Services**: Monitor and manage systemd services
+- **Cron Jobs**: View and manage cron schedules and execution history
+- **Updates**: Track available system and package updates
 - **Fleet Management**: Centralized administration of remote nodes, public routes, and reverse proxies
+- **AI Agents**: Passive observability of AI coding agent sessions running on the server
+- **AI Runner**: Configure AI automation profiles, workspaces, prompts, schedules, and run history
+- **Self Service**: Browse and install managed apps, CLI tools, and services
+- **Endpoints**: Define and execute custom API endpoints, scripts, and webhook proxies
+- **EnvVars**: Inspect and update host-level user environment variables with OS-aware system instructions
+- **Certificates**: Manage SSL/TLS certificates and renewals
+- **Ports**: Monitor open ports and listening services
+- **Hardware**: Detailed hardware specifications and health info
+- **Nginx**: Manage Nginx configurations and site status
+- **Security**: Security configuration and MFA management
+- **System Logs**: Search and inspect host and application log output
+- **Users**: Manage user accounts, roles, and permissions
+- **Guide**: Built-in interactive onboarding and documentation
 
 ---
 
