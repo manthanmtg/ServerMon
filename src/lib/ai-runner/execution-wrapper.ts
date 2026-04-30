@@ -3,6 +3,7 @@ import { spawn, type ChildProcessByStdio } from 'node:child_process';
 import { createWriteStream } from 'node:fs';
 import { appendFile, readFile, writeFile } from 'node:fs/promises';
 import type { Readable } from 'node:stream';
+import { finished } from 'node:stream/promises';
 import type { AIRunnerArtifactPathsDTO, AIRunnerExecutionExitDTO } from '@/modules/ai-runner/types';
 
 interface DurableLaunchFile {
@@ -21,8 +22,7 @@ async function appendWrapperLog(paths: AIRunnerArtifactPathsDTO, message: string
   );
 }
 
-async function main(): Promise<void> {
-  const launchPath = process.argv[2];
+export async function runAIRunnerExecutionWrapper(launchPath: string | undefined): Promise<void> {
   if (!launchPath) {
     throw new Error('AI Runner execution wrapper requires a launch file path');
   }
@@ -109,9 +109,12 @@ async function main(): Promise<void> {
   stdout.end();
   stderr.end();
   combined.end();
+  await Promise.all([finished(stdout), finished(stderr), finished(combined)]);
 }
 
-void main().catch((error) => {
-  process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
-  process.exitCode = 1;
-});
+if (process.argv[1]?.endsWith('execution-wrapper.ts')) {
+  void runAIRunnerExecutionWrapper(process.argv[2]).catch((error) => {
+    process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
+    process.exitCode = 1;
+  });
+}

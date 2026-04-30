@@ -95,8 +95,8 @@ export async function executeWebhook(
             }
           }
           reader.releaseLock();
-          // We don't necessarily need to cancel the stream here, 
-          // but we stop reading from it. 
+          // We don't necessarily need to cancel the stream here,
+          // but we stop reading from it.
           // In some environments, not canceling might keep the connection open.
           if (response.body?.cancel) await response.body.cancel();
         }

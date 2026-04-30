@@ -1,12 +1,12 @@
 /** @vitest-environment node */
 import { describe, it, expect } from 'vitest';
-import { 
-  renderFrpsToml, 
-  renderFrpcToml, 
-  terminalBridgeRemotePort, 
+import {
+  renderFrpsToml,
+  renderFrpcToml,
+  terminalBridgeRemotePort,
   hashToml,
   DEFAULT_PTY_LISTEN_PORT,
-  type FrpcRenderInput
+  type FrpcRenderInput,
 } from './toml';
 
 describe('toml', () => {
@@ -16,7 +16,7 @@ describe('toml', () => {
         bindPort: 7000,
         vhostHttpPort: 80,
         authToken: 'secret',
-        subdomainHost: 'example.com'
+        subdomainHost: 'example.com',
       };
       const rendered = renderFrpsToml(input);
       expect(rendered).toContain('bindPort = 7000');
@@ -32,7 +32,7 @@ describe('toml', () => {
         vhostHttpPort: 80,
         vhostHttpsPort: 443,
         authToken: 'secret',
-        subdomainHost: 'example.com'
+        subdomainHost: 'example.com',
       };
       const rendered = renderFrpsToml(input);
       expect(rendered).toContain('vhostHTTPSPort = 443');
@@ -44,7 +44,7 @@ describe('toml', () => {
         vhostHttpPort: 80,
         authToken: 'secret',
         subdomainHost: 'example.com',
-        tlsOnly: true
+        tlsOnly: true,
       };
       const rendered = renderFrpsToml(input);
       expect(rendered).toContain('transport.tls.force = true');
@@ -56,7 +56,7 @@ describe('toml', () => {
       const port1 = terminalBridgeRemotePort('node-1');
       const port2 = terminalBridgeRemotePort('node-1');
       const port3 = terminalBridgeRemotePort('node-2');
-      
+
       expect(port1).toBe(port2);
       expect(port1).not.toBe(port3);
       expect(port1).toBeGreaterThanOrEqual(20000);
@@ -85,9 +85,9 @@ describe('toml', () => {
           heartbeatTimeout: 30,
           poolCount: 5,
           transportEncryptionEnabled: true,
-          compressionEnabled: true
-        }
-      }
+          compressionEnabled: true,
+        },
+      },
     };
 
     it('should render basic frpc config with default rules', () => {
@@ -95,7 +95,7 @@ describe('toml', () => {
       expect(rendered).toContain('serverAddr = "hub.example.com"');
       expect(rendered).toContain('serverPort = 7000');
       expect(rendered).toContain('transport.protocol = "websocket"');
-      
+
       // Should automatically add terminal-bridge
       expect(rendered).toContain('[[proxies]]');
       expect(rendered).toContain('name = "my-node-terminal-bridge"');
@@ -115,10 +115,10 @@ describe('toml', () => {
               localPort: 3000,
               subdomain: 'app',
               customDomains: ['myapp.com'],
-              enabled: true
-            }
-          ]
-        }
+              enabled: true,
+            },
+          ],
+        },
       };
       const rendered = renderFrpcToml(input as unknown as FrpcRenderInput);
       expect(rendered).toContain('name = "my-node-web"');
@@ -132,8 +132,8 @@ describe('toml', () => {
         ...baseInput,
         node: {
           ...baseInput.node,
-          capabilities: { terminal: false }
-        }
+          capabilities: { terminal: false },
+        },
       };
       const rendered = renderFrpcToml(input as unknown as FrpcRenderInput);
       expect(rendered).not.toContain('terminal-bridge');

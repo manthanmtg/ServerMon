@@ -78,7 +78,11 @@ describe('executeWebhook', () => {
   // ── successful request ─────────────────────────────────────────────────────
 
   it('calls fetch and returns the upstream status code and body', async () => {
-    const mockFetch = vi.fn().mockResolvedValue(mockResponse(200, '{"result":"ok"}', new Headers({ 'content-type': 'application/json' })));
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValue(
+        mockResponse(200, '{"result":"ok"}', new Headers({ 'content-type': 'application/json' }))
+      );
     vi.stubGlobal('fetch', mockFetch);
 
     const endpoint = makeEndpoint({
