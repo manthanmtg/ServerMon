@@ -155,16 +155,19 @@ export default function EnvVarsPage() {
                 Environment
               </CardTitle>
               <div className="flex flex-wrap items-center gap-2">
-                {(['session', 'persistent', 'system'] as const).map((view) => (
-                  <Button
-                    key={view}
-                    type="button"
-                    variant={activeView === view ? 'default' : 'outline'}
-                    onClick={() => setActiveView(view)}
-                  >
-                    {VIEW_LABELS[view]}
-                  </Button>
-                ))}
+                <div role="group" aria-label="Environment views" className="flex flex-wrap gap-2">
+                  {(['session', 'persistent', 'system'] as const).map((view) => (
+                    <Button
+                      key={view}
+                      type="button"
+                      variant={activeView === view ? 'default' : 'outline'}
+                      aria-pressed={activeView === view}
+                      onClick={() => setActiveView(view)}
+                    >
+                      {VIEW_LABELS[view]}
+                    </Button>
+                  ))}
+                </div>
                 <Button type="button" variant="outline" onClick={load} aria-label="Refresh">
                   <RefreshCw className="h-4 w-4" />
                 </Button>
