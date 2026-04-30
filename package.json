@@ -12,6 +12,7 @@
     "clean": "rm -rf .next tsconfig.tsbuildinfo",
     "check:release-contract": "tsx scripts/check-release-contract.ts",
     "check": "pnpm check:release-contract && pnpm lint && pnpm typecheck && pnpm build && pnpm test",
+    "release": "./scripts/release.sh",
     "test": "NODE_ENV=test vitest run",
     "test:watch": "NODE_ENV=test vitest",
     "test:ui": "NODE_ENV=test vitest --ui",

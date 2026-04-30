@@ -256,6 +256,17 @@ function checkCiHardening(): void {
   );
 }
 
+function checkReleaseHelperContract(): void {
+  const script = 'scripts/release.sh';
+  requireBashSyntax(script);
+  requireContains('package.json', '"release": "./scripts/release.sh"', 'package script must expose release helper');
+  requireContains(script, 'Usage: ./scripts/release.sh [major|minor|patch|VERSION]', 'release helper must document SemVer bump args');
+  requireContains(script, 'git commit -m "chore: release $TAG"', 'release helper must commit package version bump');
+  requireContains(script, 'git tag -a "$TAG" -m "$TAG"', 'release helper must create annotated release tag');
+  requireContains(script, 'git push "$REMOTE" "$BRANCH"', 'release helper must push main branch');
+  requireContains(script, 'git push "$REMOTE" "$TAG"', 'release helper must push release tag');
+}
+
 function checkTestsCoverContracts(): void {
   requireContains(
     'src/lib/fleet/install-script.test.ts',
@@ -284,6 +295,7 @@ checkInstallerContract();
 checkAgentUpdateContract();
 checkServerMonInstallUpdateContract();
 checkCiHardening();
+checkReleaseHelperContract();
 checkTestsCoverContracts();
 
 if (failures.length > 0) {
