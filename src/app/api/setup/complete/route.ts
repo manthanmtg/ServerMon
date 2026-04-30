@@ -1,7 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 import connectDB from '@/lib/db';
 import User from '@/models/User';
 import { hashPassword, verifyTOTPToken } from '@/lib/auth-utils';
+
+const SetupCompleteSchema = z.object({
+  username: z.string().min(1),
+  password: z.string().min(1),
+  totpSecret: z.string().min(1),
+  totpToken: z.string().min(1),
+});
 
 export async function POST(req: NextRequest) {
   try {
@@ -16,7 +24,14 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { username, password, totpSecret, totpToken } = await req.json();
+    const body = await req.json();
+    const result = SetupCompleteSchema.safeParse(body);
+
+    if (!result.success) {
+      return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
+    }
+
+    const { username, password, totpSecret, totpToken } = result.data;
 
     // Verify TOTP token
     const isValidToken = verifyTOTPToken(totpToken, totpSecret);
