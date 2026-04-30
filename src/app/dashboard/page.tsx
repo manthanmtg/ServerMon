@@ -203,7 +203,9 @@ function DashboardContent() {
           <StatCard
             label="Memory"
             value={latest ? `${latest.memory.toFixed(1)}%` : '--'}
-            subLabel={latest ? `${formatGB(latest.memUsed)} of ${formatGB(latest.memTotal)} GB` : ''}
+            subLabel={
+              latest ? `${formatGB(latest.memUsed)} of ${formatGB(latest.memTotal)} GB` : ''
+            }
             icon={<MemoryStick className="w-4 h-4" />}
             status={!latest ? 'loading' : latest.memory > 80 ? 'warning' : 'normal'}
             historyData={memoryHistory}

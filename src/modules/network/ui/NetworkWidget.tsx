@@ -62,7 +62,7 @@ export default function NetworkWidget() {
           transition={{ duration: 0.24, delay: 0.04, ease: 'easeOut' }}
           whileHover={{ scale: 1.01 }}
           whileTap={{ scale: 0.99 }}
-          className="group relative overflow-hidden rounded-2xl border border-white/10 bg-zinc-900/50 p-3 shadow-[0_0_0_1px_color-mix(in_oklab,var(--border)_60%,transparent),0_20px_40px_-28px_color-mix(in_oklab,var(--success)_45%,transparent)] backdrop-blur-md transition-colors hover:border-white/15"
+          className="group relative overflow-hidden rounded-2xl border border-border/60 bg-card/45 p-3 shadow-[0_0_0_1px_color-mix(in_oklab,var(--border)_60%,transparent),0_20px_40px_-28px_color-mix(in_oklab,var(--success)_45%,transparent)] backdrop-blur-md transition-colors hover:border-success/35 hover:bg-card/65"
         >
           <div className="pointer-events-none absolute inset-x-4 top-0 h-12 rounded-full bg-success/10 opacity-70 blur-2xl transition-opacity group-hover:opacity-100" />
           <div className="relative flex flex-col gap-1.5">
@@ -82,7 +82,7 @@ export default function NetworkWidget() {
           transition={{ duration: 0.24, delay: 0.08, ease: 'easeOut' }}
           whileHover={{ scale: 1.01 }}
           whileTap={{ scale: 0.99 }}
-          className="group relative overflow-hidden rounded-2xl border border-white/10 bg-zinc-900/50 p-3 shadow-[0_0_0_1px_color-mix(in_oklab,var(--border)_60%,transparent),0_20px_40px_-28px_color-mix(in_oklab,var(--primary)_45%,transparent)] backdrop-blur-md transition-colors hover:border-white/15"
+          className="group relative overflow-hidden rounded-2xl border border-border/60 bg-card/45 p-3 shadow-[0_0_0_1px_color-mix(in_oklab,var(--border)_60%,transparent),0_20px_40px_-28px_color-mix(in_oklab,var(--primary)_45%,transparent)] backdrop-blur-md transition-colors hover:border-primary/35 hover:bg-card/65"
         >
           <div className="pointer-events-none absolute inset-x-4 top-0 h-12 rounded-full bg-primary/10 opacity-70 blur-2xl transition-opacity group-hover:opacity-100" />
           <div className="relative flex flex-col gap-1.5">
