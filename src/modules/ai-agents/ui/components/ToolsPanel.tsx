@@ -31,11 +31,23 @@ import type {
 import { agentIcons } from '../constants';
 
 const JOBS_ENDPOINT = '/api/modules/ai-agents/tools/jobs';
+const EMPTY_SESSIONS: AgentSession[] = [];
 
-function sessionsForTool(snapshot: AgentsSnapshot | null, type: AgentType): AgentSession[] {
-  return [...(snapshot?.sessions ?? []), ...(snapshot?.pastSessions ?? [])].filter(
-    (session) => session.agent.type === type
-  );
+export function buildToolSessionsByType(
+  snapshot: AgentsSnapshot | null
+): Map<AgentType, AgentSession[]> {
+  const sessionsByType = new Map<AgentType, AgentSession[]>();
+
+  for (const session of [...(snapshot?.sessions ?? []), ...(snapshot?.pastSessions ?? [])]) {
+    const sessions = sessionsByType.get(session.agent.type);
+    if (sessions) {
+      sessions.push(session);
+    } else {
+      sessionsByType.set(session.agent.type, [session]);
+    }
+  }
+
+  return sessionsByType;
 }
 
 function latestModel(sessions: AgentSession[], fallback: string): string {
@@ -93,13 +105,15 @@ async function fetchToolJobs(): Promise<AgentToolJob[]> {
 export function ToolsPanel({ snapshot }: { snapshot: AgentsSnapshot | null }) {
   const [selectedType, setSelectedType] = useState<AgentType | null>(null);
 
+  const sessionsByType = useMemo(() => buildToolSessionsByType(snapshot), [snapshot]);
+
   const sessionCounts = useMemo(() => {
     const counts = new Map<AgentType, number>();
-    for (const session of [...(snapshot?.sessions ?? []), ...(snapshot?.pastSessions ?? [])]) {
-      counts.set(session.agent.type, (counts.get(session.agent.type) ?? 0) + 1);
+    for (const [type, sessions] of sessionsByType) {
+      counts.set(type, sessions.length);
     }
     return counts;
-  }, [snapshot]);
+  }, [sessionsByType]);
 
   const cards = useMemo(
     () => sortAgentToolCards({ statuses: snapshot?.tools ?? [], sessionCounts }),
@@ -131,7 +145,7 @@ export function ToolsPanel({ snapshot }: { snapshot: AgentsSnapshot | null }) {
             <ToolCard
               key={tool.type}
               tool={tool}
-              sessions={sessionsForTool(snapshot, tool.type)}
+              sessions={sessionsByType.get(tool.type) ?? EMPTY_SESSIONS}
               onOpen={() => setSelectedType(tool.type)}
             />
           ))}
@@ -141,7 +155,7 @@ export function ToolsPanel({ snapshot }: { snapshot: AgentsSnapshot | null }) {
       {selectedTool ? (
         <ToolModal
           tool={selectedTool}
-          sessions={sessionsForTool(snapshot, selectedTool.type)}
+          sessions={sessionsByType.get(selectedTool.type) ?? EMPTY_SESSIONS}
           status={selectedTool.status}
           onClose={() => setSelectedType(null)}
         />
