@@ -1,61 +1,116 @@
 import { describe, it, expect } from 'vitest';
 import { parseRendered } from './toml-parse';
-import { renderFrpsToml, renderFrpcToml } from './toml';
 
-describe('parseRendered', () => {
-  it('parses frps output', () => {
-    const toml = renderFrpsToml({
-      bindPort: 7000,
-      vhostHttpPort: 8080,
-      authToken: 'secret',
-      subdomainHost: 'example.com',
+describe('toml-parse', () => {
+  describe('parseRendered', () => {
+    it('should parse simple top-level key-value pairs', () => {
+      const toml = `
+        name = "ServerMon"
+        version = 1
+        enabled = true
+        pi = 3.14
+      `;
+      const result = parseRendered(toml);
+      expect(result.top).toEqual({
+        name: 'ServerMon',
+        version: 1,
+        enabled: true,
+        pi: 3.14,
+      });
+      expect(result.proxies).toHaveLength(0);
     });
-    const p = parseRendered(toml);
-    expect(p.top.bindPort).toBe(7000);
-    expect(p.top.vhostHTTPPort).toBe(8080);
-    expect(p.top['auth.token']).toBe('secret');
-    expect(p.top.subDomainHost).toBe('example.com');
-    expect(p.proxies.length).toBe(0);
-  });
-  it('parses frpc proxies array', () => {
-    const node = {
-      slug: 'orion',
-      frpcConfig: {
-        protocol: 'tcp' as const,
-        tlsEnabled: true,
-        tlsVerify: true,
-        transportEncryptionEnabled: true,
-        compressionEnabled: false,
-        heartbeatInterval: 30,
-        heartbeatTimeout: 90,
-        poolCount: 1,
-        advanced: {},
-      },
-      proxyRules: [
-        {
-          name: 'term',
-          type: 'tcp' as const,
-          localIp: '127.0.0.1',
-          localPort: 8001,
-          remotePort: 9001,
-          customDomains: [],
-          enabled: true,
-          status: 'disabled' as const,
-        },
-      ],
-    };
-    const toml = renderFrpcToml({
-      serverAddr: 'h',
-      serverPort: 7000,
-      authToken: 't',
-      node,
+
+    it('should parse proxies blocks', () => {
+      const toml = `
+        global_key = "global"
+        [[proxies]]
+        id = "proxy1"
+        port = 8080
+        [[proxies]]
+        id = "proxy2"
+        port = 9090
+      `;
+      const result = parseRendered(toml);
+      expect(result.top).toEqual({ global_key: 'global' });
+      expect(result.proxies).toHaveLength(2);
+      expect(result.proxies[0]).toEqual({ id: 'proxy1', port: 8080 });
+      expect(result.proxies[1]).toEqual({ id: 'proxy2', port: 9090 });
     });
-    const p = parseRendered(toml);
-    expect(p.proxies.length).toBe(2);
-    expect(p.proxies[0].name).toBe('orion-term');
-    expect(p.proxies[0].type).toBe('tcp');
-    expect(p.proxies[0].localPort).toBe(8001);
-    expect(p.proxies[0].remotePort).toBe(9001);
-    expect(p.proxies[1].name).toBe('orion-terminal-bridge');
+
+    it('should handle unquoted strings and types correctly', () => {
+      const toml = `
+        s1 = "quoted"
+        s2 = unquoted
+        b1 = true
+        b2 = false
+        n1 = 123
+        n2 = -456
+        f1 = 1.23
+        f2 = -4.56
+      `;
+      const result = parseRendered(toml);
+      expect(result.top).toEqual({
+        s1: 'quoted',
+        s2: 'unquoted', // Current implementation returns raw trim for unknown
+        b1: true,
+        b2: false,
+        n1: 123,
+        n2: -456,
+        f1: 1.23,
+        f2: -4.56,
+      });
+    });
+
+    it('should parse arrays of strings', () => {
+      const toml = `
+        tags = ["a", "b", "c"]
+        empty = []
+        with_escapes = ["quote \\"", "backslash \\\\"]
+      `;
+      const result = parseRendered(toml);
+      expect(result.top).toEqual({
+        tags: ['a', 'b', 'c'],
+        empty: [],
+        with_escapes: ['quote "', 'backslash \\'],
+      });
+    });
+
+    it('should handle complex array scenarios', () => {
+      const toml = `
+        mixed = ["a", "b,c", "d"]
+      `;
+      const result = parseRendered(toml);
+      expect(result.top).toEqual({
+        mixed: ['a', 'b,c', 'd'],
+      });
+    });
+
+    it('should skip comments and empty lines (if supported by implementation)', () => {
+      // The current implementation skips empty lines but doesn't explicitly skip comments
+      // Unless they fail eqIdx check
+      const toml = `
+        # This is a comment
+        key = "value"
+
+        [[proxies]]
+        # proxy comment
+        id = "p1"
+      `;
+      const result = parseRendered(toml);
+      expect(result.top).toEqual({ key: 'value' });
+      expect(result.proxies[0]).toEqual({ id: 'p1' });
+    });
+
+    it('should handle escaped characters in strings', () => {
+      const toml = `
+        path = "C:\\\\Program Files\\\\App"
+        desc = "He said \\"Hello\\""
+      `;
+      const result = parseRendered(toml);
+      expect(result.top).toEqual({
+        path: 'C:\\Program Files\\App',
+        desc: 'He said "Hello"',
+      });
+    });
   });
 });
