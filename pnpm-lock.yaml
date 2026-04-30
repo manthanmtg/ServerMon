@@ -80,9 +80,6 @@ importers:
       '@simplewebauthn/server':
         specifier: ^13.3.0
         version: 13.3.0
-      '@types/mongoose':
-        specifier: ^5.11.96
-        version: 5.11.97
       '@types/qrcode':
         specifier: ^1.5.6
         version: 1.5.6
@@ -1386,10 +1383,6 @@ packages:
 
   '@types/mdast@4.0.4':
     resolution: {integrity: sha512-kGaNbPh1k7AFzgpud/gMdvIm5xuECykRR+JnWKQno9TAXVa6WIVCGTPvYGekIDL4uwCZQSYbUxNBSb1aUo79oA==}
-
-  '@types/mongoose@5.11.97':
-    resolution: {integrity: sha512-cqwOVYT3qXyLiGw7ueU2kX9noE8DPGRY6z8eUxudhXY8NZ7DMKYAxyZkLSevGfhCX3dO/AoX5/SO9lAzfjon0Q==}
-    deprecated: Mongoose publishes its own types, so you do not need to install this package.
 
   '@types/ms@2.1.0':
     resolution: {integrity: sha512-GsCCIZDE/p3i96vtEqx+7dBUGXrc7zeSK3wwPHIaRThS+9OhWIXRqzs4d6k1SVU8g91DrNRWxWUGhp5KXQb2VA==}
@@ -5327,18 +5320,6 @@ snapshots:
   '@types/mdast@4.0.4':
     dependencies:
       '@types/unist': 3.0.3
-
-  '@types/mongoose@5.11.97':
-    dependencies:
-      mongoose: 9.2.4
-    transitivePeerDependencies:
-      - '@aws-sdk/credential-providers'
-      - '@mongodb-js/zstd'
-      - gcp-metadata
-      - kerberos
-      - mongodb-client-encryption
-      - snappy
-      - socks
 
   '@types/ms@2.1.0': {}
 
