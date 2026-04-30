@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-04-30T01:41:05.335Z",
+  "updatedAt": "2026-04-30T01:50:12.389Z",
   "description": "Prompt-suite observability metadata. Keep static identity here aligned with prompt frontmatter and update counters during random_selector runs.",
   "outcomeDefinitions": {
     "selected": "The prompt has been selected and the run has not recorded a terminal outcome yet.",
@@ -61,13 +61,13 @@
       "category": "verification",
       "enabled": true,
       "autonomousSafe": true,
-      "totalSelected": 0,
+      "totalSelected": 1,
       "totalCompleted": 0,
-      "totalNoop": 0,
+      "totalNoop": 1,
       "totalFailed": 0,
-      "lastSelectedAt": null,
-      "lastCompletedAt": null,
-      "lastOutcome": null
+      "lastSelectedAt": "2026-04-30T01:45:54.405Z",
+      "lastCompletedAt": "2026-04-30T01:50:12.389Z",
+      "lastOutcome": "noop"
     },
     "dead_code_cleaner.md": {
       "id": "dead-code-cleaner",
