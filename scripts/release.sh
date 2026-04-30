@@ -16,7 +16,7 @@ Arguments:
 
 Options:
   --remote NAME         Git remote to push to (default: origin)
-  --branch NAME         Branch to release from and push (default: main)
+  --branch NAME         Branch to release from and push (default: remote default branch, fallback: main)
   --dry-run             Show the computed release without changing files
   --no-push             Commit and tag locally, but do not push
   -h, --help            Show this help
@@ -95,7 +95,13 @@ CURRENT_BRANCH="$(git branch --show-current)"
 if [ -z "$CURRENT_BRANCH" ]; then
   die "Detached HEAD is not supported for releases."
 fi
-BRANCH="${BRANCH:-main}"
+
+DEFAULT_BRANCH="$(
+  git symbolic-ref --quiet --short "refs/remotes/$REMOTE/HEAD" 2>/dev/null |
+    sed "s#^$REMOTE/##" || true
+)"
+DEFAULT_BRANCH="${DEFAULT_BRANCH:-main}"
+BRANCH="${BRANCH:-$DEFAULT_BRANCH}"
 if [ "$CURRENT_BRANCH" != "$BRANCH" ]; then
   die "Releases must be run from $BRANCH (current branch: $CURRENT_BRANCH). Use --branch $CURRENT_BRANCH to override."
 fi

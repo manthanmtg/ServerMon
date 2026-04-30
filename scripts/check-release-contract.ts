@@ -261,9 +261,11 @@ function checkReleaseHelperContract(): void {
   requireBashSyntax(script);
   requireContains('package.json', '"release": "./scripts/release.sh"', 'package script must expose release helper');
   requireContains(script, 'Usage: ./scripts/release.sh [major|minor|patch|VERSION]', 'release helper must document SemVer bump args');
+  requireContains(script, 'remote default branch, fallback: main', 'release helper must default to the repository default branch');
+  requireContains(script, 'refs/remotes/$REMOTE/HEAD', 'release helper must discover the repository default branch');
   requireContains(script, 'git commit -m "chore: release $TAG"', 'release helper must commit package version bump');
   requireContains(script, 'git tag -a "$TAG" -m "$TAG"', 'release helper must create annotated release tag');
-  requireContains(script, 'git push "$REMOTE" "$BRANCH"', 'release helper must push main branch');
+  requireContains(script, 'git push "$REMOTE" "$BRANCH"', 'release helper must push default branch');
   requireContains(script, 'git push "$REMOTE" "$TAG"', 'release helper must push release tag');
 }
 

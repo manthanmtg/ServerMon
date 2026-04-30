@@ -330,7 +330,7 @@ Release artifacts are built and attached automatically when a `v*` tag is pushed
 ./scripts/release.sh patch
 ```
 
-`scripts/release.sh` follows SemVer for `major`, `minor`, and `patch` bumps, prompts when no bump is provided, updates `package.json`, commits `chore: release vX.Y.Z`, creates the annotated `vX.Y.Z` tag, and pushes `main` plus the tag.
+`scripts/release.sh` follows SemVer for `major`, `minor`, and `patch` bumps, prompts when no bump is provided, updates `package.json`, commits `chore: release vX.Y.Z`, creates the annotated `vX.Y.Z` tag, and pushes the default branch plus the tag.
 
 The release workflow builds Linux and macOS artifacts on native GitHub-hosted runners, prunes development dependencies after the build, generates `SHA256SUMS`, and publishes the assets to the matching GitHub Release.
 
