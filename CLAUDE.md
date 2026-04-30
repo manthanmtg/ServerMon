@@ -185,9 +185,11 @@ Concise map of major directories, commands, and key files. Update this section w
 - `src/app/` — Next.js App Router pages + `api/` route handlers (dashboard, fleet, ai-runner, self-service, endpoints, etc.)
 - `src/components/` — shared UI (including `layout/`, `ui/`, `modules/`)
 - `src/lib/` — utilities, domain logic, fleet libraries, AI orchestration
-- `src/lib/ai-agents/` — agent adapters (Claude Code, Codex, Gemini CLI) and session monitoring
-- `src/lib/ai-runner/` — automated task supervisor, watchdog, and worker orchestration
-- `src/lib/endpoints/` — executors for custom API logic (scripts, webhooks, logic handlers)
+- src/lib/ai-agents/ — agent adapters (Claude Code, Codex, Gemini CLI) and session monitoring
+- src/lib/ai-runner/ — automated task supervisor, watchdog, and worker orchestration
+- src/lib/ai-runner/run-as-user.ts — Run as user isolation and sudo-based execution logic
+- src/lib/ai-runner/shared.ts — profile mapping, template validation, and output buffering
+- src/lib/endpoints/ — executors for custom API logic (scripts, webhooks, logic handlers)
 - `src/models/` — Mongoose schemas
 - `src/modules/` — feature modules (terminal, processes, logs, metrics, fleet, AI, self-service, endpoints, etc.)
 - `src/models/NetworkSpeedtestResult.ts`, `src/models/NetworkSpeedtestSettings.ts` — persisted Network module speedtest history and schedule configuration
@@ -217,9 +219,9 @@ Concise map of major directories, commands, and key files. Update this section w
 ### AI & Automation
 
 - `src/modules/ai-agents/` — AI agent monitoring; `ui/AIAgentsPage.tsx` displays active sessions, tool catalog, and conversation history across multiple adapters (Claude Code, Codex, Gemini CLI, etc.)
-- `src/modules/ai-runner/` — automated task orchestration; `ui/AIRunnerPage.tsx` and `ui/components/` (`AutoFlowView`, `HistoryView`, etc.) manage prompts, profiles, workspaces, schedules, AutoFlows, logs, prompt templates, worker concurrency, import/export, and schedule visualization; uses supervisor/worker pattern for background execution
-- `src/models/AIRunnerPrompt.ts`, `src/models/AIRunnerPromptTemplate.ts`, `src/models/AIRunnerProfile.ts`, `src/models/AIRunnerWorkspace.ts`, `src/models/AIRunnerSchedule.ts`, `src/models/AIRunnerAutoflow.ts`, `src/models/AIRunnerJob.ts`, `src/models/AIRunnerRun.ts`, `src/models/AIRunnerSupervisorLease.ts`, `src/models/AIRunnerSettings.ts` — persisted AI Runner prompt library, templates, profiles, reusable workspaces, schedules, AutoFlows, durable job queue, run history, supervisor lease, and global settings
-- `src/app/api/modules/ai-runner/` — AI Runner routes for prompts, prompt templates, prompt attachments, profiles, workspaces, schedules (including bulk update), AutoFlows, runs, logs/stream, settings, bundle import/export, directories, and direct run dispatch
+- src/modules/ai-runner/ — automated task orchestration; `ui/AIRunnerPage.tsx` and `ui/components/` (`AutoFlowView`, `HistoryView`, etc.) manage prompts, profiles (with run-as user support), workspaces, schedules, AutoFlows, logs, prompt templates, worker concurrency, import/export, and schedule visualization; uses supervisor/worker pattern for background execution
+- `src/models/AIRunnerPrompt.ts`, `src/models/AIRunnerPromptTemplate.ts`, `src/models/AIRunnerProfile.ts`, `src/models/AIRunnerWorkspace.ts`, `src/models/AIRunnerSchedule.ts`, `src/models/AIRunnerAutoflow.ts`, `src/models/AIRunnerJob.ts`, `src/models/AIRunnerRun.ts`, `src/models/AIRunnerSupervisorLease.ts`, `src/models/AIRunnerSettings.ts` — persisted AI Runner prompt library, templates, profiles (including `runAsUser` and `runAsUserAuthMode`), reusable workspaces, schedules, AutoFlows, durable job queue, run history, supervisor lease, and global settings
+- `src/app/api/modules/ai-runner/` — AI Runner routes for prompts, prompt templates, prompt attachments, profiles (including validation), workspaces, schedules (including bulk update), AutoFlows, runs, logs/stream, settings, bundle import/export, directories, and direct run dispatch
 - `src/modules/env-vars/` — EnvVars module definition and UI for managing host-level environment variables (stateless, bypassing MongoDB)
 - `docs/ai-runner-module.md` — technical architecture for automation runner
 - Env keys added: `FLEET_HUB_PUBLIC_URL`, `FRP_BIND_PORT`, `FRP_VHOST_HTTP_PORT`, `FRP_VHOST_HTTPS_PORT`, `FRP_AUTH_TOKEN`, `FRP_SUBDOMAIN_HOST`, `FLEET_HUB_AUTH_TOKEN`, `FLEET_HUB_ORCHESTRATORS_ENABLED`, `FLEET_AGENT_*`, `FLEET_NGINX_*`, `FLEET_ACME_*`, `FLEET_BINARY_CACHE_DIR`, `FLEET_FRP_VERSION`, `FLEET_FRPS_CONFIG_DIR`, `FLEET_BACKUP_DIR`, `FLEET_AUTO_APPLY_REVISIONS` (set to `'true'`), `AI_RUNNER_*` (concurrency, logs, workers), `SERVERMON_INSTALL_MODE`, `SERVERMON_VERSION_TARGET`, `SERVERMON_SOURCE_REF`
