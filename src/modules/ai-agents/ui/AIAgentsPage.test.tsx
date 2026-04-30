@@ -116,6 +116,24 @@ describe('AIAgentsPage', () => {
     expect(document.querySelector('svg.animate-spin')).toBeDefined();
   });
 
+  it('shows a toast when the snapshot request returns an HTTP error', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 503,
+    });
+
+    await act(async () => {
+      render(<AIAgentsPage />);
+    });
+
+    await waitFor(() => {
+      expect(mockToast).toHaveBeenCalledWith({
+        title: 'Failed to load AI agents',
+        variant: 'destructive',
+      });
+    });
+  });
+
   it('renders summary cards after loading', async () => {
     await act(async () => {
       render(<AIAgentsPage />);
