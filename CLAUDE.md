@@ -160,6 +160,7 @@ Concise map of major directories, commands, and key files. Update this section w
 - `pnpm lint` — ESLint over `src/`
 - `pnpm typecheck` — `tsc --noEmit` (`NODE_OPTIONS` enabled)
 - `pnpm check:release-contract` — validate required release artifact contracts
+- `pnpm release` — create and tag a new SemVer release (patch, minor, major)
 - `pnpm test` — Vitest unit/integration
 - `pnpm test:e2e` — Playwright end-to-end
 - `pnpm format` — Prettier write
@@ -170,13 +171,13 @@ Concise map of major directories, commands, and key files. Update this section w
 
 - `src/` — application source (see sub-index below)
 - `e2e/` — Playwright end-to-end specs
-- `scripts/` — CLI helper scripts (installers, updates, macOS launchd)
+- `scripts/` — CLI helper scripts (installers, updates, macOS launchd, releases)
 - `public/` — static assets
 - `docs/` — plans and reference docs (superpowers plans live under `docs/superpowers/plans/`)
 - `module_ideas/` — product specs per module (e.g. `fleet_management.md`)
 - `prompts/`, `manual_prompts/`, `issues_to_look/` — autonomous run prompts, prompt observability metadata (`prompts/prompts_metadata.json`), manual prompts, and investigation notes
 - `.env.example` — required runtime env vars (do NOT commit real `.env`)
-- `CLAUDE.md`, `README.md`, `PRD.md`, `DEPLOY.md`, `AGENTS.md` — project docs
+- `CLAUDE.md`, `README.md`, `PRD.md`, `DEPLOY.md`, `AGENTS.md`, `GO_LIVE.md` — project docs
 - `Release Artifacts` — prebuilt hub and agent tarballs (see `DEPLOY.md`)
 
 ## `src/` Layout
