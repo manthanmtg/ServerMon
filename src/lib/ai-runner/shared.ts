@@ -22,6 +22,7 @@ import type { IAIRunnerSchedule } from '@/models/AIRunnerSchedule';
 import type { IAIRunnerWorkspace } from '@/models/AIRunnerWorkspace';
 import { computeNextRuns } from '@/lib/crons/service';
 import { encodeStoredPromptAttachment, normalizeAttachmentRefs } from './attachments';
+import { normalizeRunAsUser, RUN_AS_USER_AUTH_MODE } from './run-as-user';
 
 export const DEFAULT_MAX_CONCURRENT_RUNS = 3;
 export const MAX_CONCURRENT_RUNS_CAP = 8;
@@ -105,6 +106,9 @@ export function mapProfile(
     maxTimeout: Number(doc.maxTimeout),
     shell: String(doc.shell),
     requiresTTY: Boolean(doc.requiresTTY),
+    runAsUser: normalizeRunAsUser(typeof doc.runAsUser === 'string' ? doc.runAsUser : undefined),
+    runAsUserAuthMode:
+      typeof doc.runAsUser === 'string' && doc.runAsUser.trim() ? RUN_AS_USER_AUTH_MODE : undefined,
     env: (envValue ?? {}) as Record<string, string>,
     enabled: Boolean(doc.enabled),
     locked,
@@ -371,6 +375,8 @@ function containsDangerousPattern(template: string): boolean {
 export async function validateProfileTemplate(input: {
   invocationTemplate: string;
   shell: string;
+  runAsUser?: string;
+  runAsUserAuthMode?: 'passwordless-sudo';
   execFileAsync: (
     file: string,
     args: string[],
@@ -418,6 +424,27 @@ export async function validateProfileTemplate(input: {
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown shell parse error';
       errors.push(`Shell validation failed: ${message}`);
+    }
+  }
+
+  const runAsUser = normalizeRunAsUser(input.runAsUser);
+  if (errors.length === 0 && runAsUser) {
+    if (input.runAsUserAuthMode && input.runAsUserAuthMode !== RUN_AS_USER_AUTH_MODE) {
+      errors.push('Unsupported run as user auth mode');
+    } else {
+      try {
+        const validation = await input.execFileAsync(
+          'sudo',
+          ['-n', '-E', '-u', runAsUser, '--', input.shell || '/bin/bash', '-lc', 'id -un'],
+          { timeout: 5000 }
+        );
+        if (validation.stdout.trim() !== runAsUser) {
+          errors.push(`Run as user validation failed for ${runAsUser}: unexpected user`);
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Unknown sudo validation error';
+        errors.push(`Run as user validation failed for ${runAsUser}: ${message}`);
+      }
     }
   }
 

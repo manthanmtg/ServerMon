@@ -40,7 +40,7 @@ describe('ai-runner execution wrapper', () => {
           shell: '/bin/sh',
           command: overrides.command ?? 'printf stdout-text; printf stderr-text >&2',
           cwd: tempDir,
-          env: { PATH: process.env.PATH },
+          env: { PATH: process.env.PATH, HOME: tempDir },
           paths,
         },
         null,

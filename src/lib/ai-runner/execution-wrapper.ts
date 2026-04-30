@@ -4,7 +4,12 @@ import { createWriteStream } from 'node:fs';
 import { appendFile, readFile, writeFile } from 'node:fs/promises';
 import type { Readable } from 'node:stream';
 import { finished } from 'node:stream/promises';
-import type { AIRunnerArtifactPathsDTO, AIRunnerExecutionExitDTO } from '@/modules/ai-runner/types';
+import type {
+  AIRunnerArtifactPathsDTO,
+  AIRunnerExecutionExitDTO,
+  AIRunnerRunAsUserAuthMode,
+} from '@/modules/ai-runner/types';
+import { buildRunAsUserLaunchArgs } from './run-as-user';
 
 interface DurableLaunchFile {
   jobId: string;
@@ -14,6 +19,9 @@ interface DurableLaunchFile {
   cwd: string;
   env: NodeJS.ProcessEnv;
   paths: AIRunnerArtifactPathsDTO;
+  requiresTTY?: boolean;
+  runAsUser?: string;
+  runAsUserAuthMode?: AIRunnerRunAsUserAuthMode;
 }
 
 async function appendWrapperLog(paths: AIRunnerArtifactPathsDTO, message: string): Promise<void> {
@@ -35,7 +43,14 @@ export async function runAIRunnerExecutionWrapper(launchPath: string | undefined
   const stderr = createWriteStream(launch.paths.stderrPath, { flags: 'a' });
   const combined = createWriteStream(launch.paths.combinedPath, { flags: 'a' });
 
-  const child = spawn(launch.shell, ['-lc', launch.command], {
+  const launchArgs = buildRunAsUserLaunchArgs({
+    shell: launch.shell,
+    command: launch.command,
+    requiresTTY: launch.requiresTTY,
+    runAsUser: launch.runAsUser,
+    runAsUserAuthMode: launch.runAsUserAuthMode,
+  });
+  const child = spawn(launchArgs[0], launchArgs.slice(1), {
     cwd: launch.cwd,
     env: launch.env,
     detached: false,

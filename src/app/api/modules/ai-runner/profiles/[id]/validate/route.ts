@@ -20,6 +20,8 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
     const result = await getAIRunnerService().validateProfileTemplate({
       invocationTemplate: profile.invocationTemplate,
       shell: profile.shell,
+      runAsUser: profile.runAsUser,
+      runAsUserAuthMode: profile.runAsUserAuthMode,
     });
     return NextResponse.json(result);
   } catch (error) {

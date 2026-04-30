@@ -570,6 +570,8 @@ export class AIRunnerWorker {
         command: job.command,
         shell: job.shell,
         workingDirectory: job.workingDirectory,
+        runAsUser: job.runAsUser,
+        runAsUserAuthMode: job.runAsUserAuthMode,
         promptId: job.promptId ? stringifyId(job.promptId) : undefined,
         scheduleId: job.scheduleId ? stringifyId(job.scheduleId) : undefined,
         autoflowId: job.autoflowId ? stringifyId(job.autoflowId) : undefined,
@@ -588,6 +590,9 @@ export class AIRunnerWorker {
         cwd: job.workingDirectory,
         env: runEnv,
         paths,
+        requiresTTY: job.requiresTTY,
+        runAsUser: job.runAsUser,
+        runAsUserAuthMode: job.runAsUserAuthMode,
       });
       const child = childExecution.child;
 
@@ -616,6 +621,8 @@ export class AIRunnerWorker {
           artifactDir: paths.artifactDir,
           requiresTTY: job.requiresTTY,
           shell: job.shell,
+          runAsUser: job.runAsUser,
+          runAsUserAuthMode: job.runAsUserAuthMode,
         },
       });
 

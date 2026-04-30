@@ -229,6 +229,8 @@ export class AIRunnerService {
   async validateProfileTemplate(input: {
     invocationTemplate: string;
     shell: string;
+    runAsUser?: string;
+    runAsUserAuthMode?: 'passwordless-sudo';
   }): Promise<AIRunnerTemplateValidationResult> {
     return validateProfileTemplate({
       ...input,
@@ -253,6 +255,8 @@ export class AIRunnerService {
     const validation = await this.validateProfileTemplate({
       invocationTemplate: input.invocationTemplate,
       shell: input.shell,
+      runAsUser: input.runAsUser,
+      runAsUserAuthMode: input.runAsUserAuthMode,
     });
     if (!validation.valid) {
       throw new Error(validation.errors.join(', '));
@@ -272,6 +276,8 @@ export class AIRunnerService {
     const validation = await this.validateProfileTemplate({
       invocationTemplate: input.invocationTemplate ?? existing.invocationTemplate,
       shell: input.shell ?? existing.shell,
+      runAsUser: input.runAsUser ?? existing.runAsUser,
+      runAsUserAuthMode: input.runAsUserAuthMode ?? existing.runAsUserAuthMode,
     });
     if (!validation.valid) {
       throw new Error(validation.errors.join(', '));
@@ -734,6 +740,8 @@ export class AIRunnerService {
           maxTimeout,
           shell,
           requiresTTY,
+          runAsUser,
+          runAsUserAuthMode,
           env,
           enabled,
           icon,
@@ -746,6 +754,8 @@ export class AIRunnerService {
           maxTimeout,
           shell,
           requiresTTY,
+          runAsUser,
+          runAsUserAuthMode,
           env,
           enabled,
           icon,

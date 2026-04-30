@@ -1,5 +1,9 @@
 import mongoose, { Document, Model, Schema } from 'mongoose';
-import type { AIRunnerJobStatus, AIRunnerTrigger } from '@/modules/ai-runner/types';
+import type {
+  AIRunnerJobStatus,
+  AIRunnerRunAsUserAuthMode,
+  AIRunnerTrigger,
+} from '@/modules/ai-runner/types';
 
 export interface IAIRunnerJob extends Document {
   runId: mongoose.Types.ObjectId;
@@ -16,6 +20,8 @@ export interface IAIRunnerJob extends Document {
   command: string;
   shell: string;
   requiresTTY: boolean;
+  runAsUser?: string;
+  runAsUserAuthMode?: AIRunnerRunAsUserAuthMode;
   env: Map<string, string> | Record<string, string>;
   timeoutMinutes: number;
   status: AIRunnerJobStatus;
@@ -66,6 +72,12 @@ const AIRunnerJobSchema = new Schema<IAIRunnerJob>(
     command: { type: String, required: true, maxlength: 20_000 },
     shell: { type: String, required: true, maxlength: 512 },
     requiresTTY: { type: Boolean, default: false },
+    runAsUser: { type: String, trim: true, maxlength: 64 },
+    runAsUserAuthMode: {
+      type: String,
+      enum: ['passwordless-sudo'],
+      default: 'passwordless-sudo',
+    },
     env: { type: Map, of: String, default: {} },
     timeoutMinutes: { type: Number, required: true, min: 1, max: 24 * 60 },
     status: {

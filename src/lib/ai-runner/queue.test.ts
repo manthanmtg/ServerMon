@@ -315,6 +315,38 @@ describe('ai-runner queue', () => {
       expect(result._id).toBe('run1');
     });
 
+    it('copies run-as user settings from the profile into the queued job', async () => {
+      const runAsResolved: AIRunnerResolvedExecution = {
+        ...resolved,
+        profile: {
+          ...resolved.profile,
+          runAsUser: 'servermon-ai',
+          runAsUserAuthMode: 'passwordless-sudo',
+        },
+      };
+      const mockRun = {
+        _id: 'run1',
+        save: vi.fn().mockResolvedValue(undefined),
+        createdAt: now,
+        updatedAt: now,
+        queuedAt: now,
+        jobId: '',
+        ...runAsResolved,
+      } as unknown as IAIRunnerRun;
+
+      vi.mocked(AIRunnerRun.create).mockResolvedValue(mockRun as unknown as never);
+      vi.mocked(AIRunnerJob.create).mockResolvedValue({ _id: 'job1' } as unknown as never);
+
+      await queue.enqueueResolvedRun(runAsResolved, { requestedAt: now });
+
+      expect(AIRunnerJob.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          runAsUser: 'servermon-ai',
+          runAsUserAuthMode: 'passwordless-sudo',
+        })
+      );
+    });
+
     it('updates schedule if scheduleId is provided', async () => {
       const resolvedWithSchedule = {
         ...resolved,

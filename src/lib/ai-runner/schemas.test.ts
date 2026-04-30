@@ -70,6 +70,21 @@ describe('ai-runner schemas', () => {
         expect(issues.some((i) => i.path[0] === 'maxTimeout')).toBe(true);
       }
     });
+
+    it('accepts a valid optional run-as user and rejects unsafe values', () => {
+      const valid = profileCreateSchema.safeParse({
+        ...validProfile,
+        runAsUser: 'servermon-ai',
+        runAsUserAuthMode: 'passwordless-sudo',
+      });
+      expect(valid.success).toBe(true);
+
+      const invalid = profileCreateSchema.safeParse({
+        ...validProfile,
+        runAsUser: '-root',
+      });
+      expect(invalid.success).toBe(false);
+    });
   });
 
   describe('profileUpdateSchema', () => {
@@ -101,6 +116,8 @@ describe('ai-runner schemas', () => {
       const result = profileValidateSchema.safeParse({
         invocationTemplate: 'echo $PROMPT',
         shell: '/bin/zsh',
+        runAsUser: 'servermon-ai',
+        runAsUserAuthMode: 'passwordless-sudo',
       });
       expect(result.success).toBe(true);
     });

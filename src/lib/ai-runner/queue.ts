@@ -341,6 +341,8 @@ export async function enqueueResolvedRun(
       command: resolved.command,
       shell: resolved.profile.shell,
       requiresTTY: resolved.profile.requiresTTY,
+      runAsUser: resolved.profile.runAsUser,
+      runAsUserAuthMode: resolved.profile.runAsUserAuthMode,
       env: resolved.profile.env,
       timeoutMinutes: resolved.timeoutMinutes,
       status: 'queued',

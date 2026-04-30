@@ -227,6 +227,18 @@ function parseMaxConcurrentRuns(value: string): number | null {
   return parsed;
 }
 
+function getSafeRunAsUser(value?: string): string {
+  const trimmed = value?.trim();
+  if (!trimmed) return 'servermon-ai';
+  return /^[A-Za-z_][A-Za-z0-9_.-]{0,62}\$?$/.test(trimmed) ? trimmed : 'servermon-ai';
+}
+
+function getSafeRunAsShell(value?: string): string {
+  const trimmed = value?.trim();
+  if (!trimmed) return '/bin/bash';
+  return trimmed.startsWith('/') && /^[A-Za-z0-9_./-]+$/.test(trimmed) ? trimmed : '/bin/bash';
+}
+
 function getLocalDateTimeInputValue(date: Date): string {
   const pad = (value: number) => String(value).padStart(2, '0');
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(
@@ -1132,6 +1144,8 @@ export default function AIRunnerPage() {
       maxTimeout: profile.maxTimeout,
       shell: profile.shell,
       requiresTTY: profile.requiresTTY,
+      runAsUser: profile.runAsUser ?? '',
+      runAsUserAuthMode: profile.runAsUserAuthMode ?? 'passwordless-sudo',
       env: profile.env,
       enabled: profile.enabled,
       icon: profile.icon ?? '',
@@ -1593,6 +1607,8 @@ export default function AIRunnerPage() {
       body: JSON.stringify({
         invocationTemplate: profileForm.invocationTemplate,
         shell: profileForm.shell,
+        runAsUser: profileForm.runAsUser,
+        runAsUserAuthMode: profileForm.runAsUserAuthMode,
       }),
     });
     const payload = await response.json();
@@ -2243,6 +2259,29 @@ export default function AIRunnerPage() {
     });
   };
 
+  const copyRunAsSetupGuide = async () => {
+    const targetUser = getSafeRunAsUser(profileForm.runAsUser);
+    const shellPath = getSafeRunAsShell(profileForm.shell);
+    const setupGuide = [
+      '# Replace servermon with the OS user that runs the ServerMon service.',
+      `sudo useradd --create-home --shell ${shellPath} ${targetUser}`,
+      'ps -o user= -p "$(pgrep -f \'servermon\')"',
+      `sudo visudo -f /etc/sudoers.d/servermon-ai-runner-${targetUser}`,
+      '',
+      '# sudoers entry:',
+      `servermon ALL=(${targetUser}) NOPASSWD:SETENV: ${shellPath}`,
+      '',
+      '# Validation command:',
+      `sudo -n -E -u ${targetUser} -- ${shellPath} -lc 'id -un'`,
+    ].join('\n');
+    await navigator.clipboard.writeText(setupGuide);
+    toast({
+      title: 'Copied',
+      description: 'Run-as user setup guide copied to clipboard.',
+      variant: 'success',
+    });
+  };
+
   const downloadExportJson = () => {
     if (!exportJson) return;
     const blob = new Blob([exportJson], { type: 'application/json' });
@@ -2503,6 +2542,9 @@ export default function AIRunnerPage() {
       variant: 'success',
     });
   };
+
+  const profileRunAsUser = getSafeRunAsUser(profileForm.runAsUser);
+  const profileRunAsShell = getSafeRunAsShell(profileForm.shell);
 
   if (loading) {
     return <PageSkeleton statCards={4} />;
@@ -3714,6 +3756,9 @@ export default function AIRunnerPage() {
                                 {profile.requiresTTY && (
                                   <Badge variant="outline">TTY required</Badge>
                                 )}
+                                {profile.runAsUser ? (
+                                  <Badge variant="outline">runs as {profile.runAsUser}</Badge>
+                                ) : null}
                                 <Badge variant="outline">
                                   {scheduleSummary.totalSchedules} schedule
                                   {scheduleSummary.totalSchedules === 1 ? '' : 's'}
@@ -4190,6 +4235,83 @@ export default function AIRunnerPage() {
                                 </p>
                               </div>
                             </label>
+                            <div className="space-y-3 rounded-xl border border-border/60 bg-secondary/10 p-4">
+                              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                                <div className="space-y-1">
+                                  <LabelWithHint
+                                    label="Run As User"
+                                    hint="Optionally execute this profile as a dedicated OS user. Leave blank to keep the current ServerMon process user."
+                                  />
+                                  <p className="text-xs leading-5 text-muted-foreground">
+                                    Use a low-privilege account and configure passwordless sudo on
+                                    the host. Passwords are never stored in profiles.
+                                  </p>
+                                </div>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() =>
+                                    void runExclusiveAction(
+                                      'profile:run-as-copy',
+                                      copyRunAsSetupGuide
+                                    )
+                                  }
+                                  loading={isActionPending('profile:run-as-copy')}
+                                >
+                                  <Copy className="h-4 w-4" />
+                                  Copy setup
+                                </Button>
+                              </div>
+                              <div className="grid gap-4 md:grid-cols-2">
+                                <label className="block space-y-1.5">
+                                  <span className="text-sm font-medium text-foreground">
+                                    Target OS user
+                                  </span>
+                                  <Input
+                                    value={profileForm.runAsUser ?? ''}
+                                    onChange={(event) =>
+                                      setProfileForm((current) => ({
+                                        ...current,
+                                        runAsUser: event.target.value,
+                                      }))
+                                    }
+                                    placeholder="servermon-ai"
+                                  />
+                                </label>
+                                <label className="block space-y-1.5">
+                                  <span className="text-sm font-medium text-foreground">
+                                    Auth mode
+                                  </span>
+                                  <select
+                                    value={profileForm.runAsUserAuthMode ?? 'passwordless-sudo'}
+                                    onChange={(event) =>
+                                      setProfileForm((current) => ({
+                                        ...current,
+                                        runAsUserAuthMode: event.target
+                                          .value as ProfileFormState['runAsUserAuthMode'],
+                                      }))
+                                    }
+                                    className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring/40"
+                                  >
+                                    <option value="passwordless-sudo">
+                                      Configured on host / passwordless sudo
+                                    </option>
+                                  </select>
+                                </label>
+                              </div>
+                              <div className="rounded-lg border border-border/60 bg-background/80 p-3 text-xs leading-5 text-muted-foreground">
+                                <p>
+                                  Sudoers needs to allow the ServerMon service user to run this
+                                  profile as <span className="font-mono">{profileRunAsUser}</span>.
+                                  Include <span className="font-mono">SETENV</span> so profile
+                                  environment variables are available to the target user.
+                                </p>
+                                <pre className="mt-2 overflow-auto whitespace-pre-wrap rounded-md bg-secondary/30 p-2 font-mono text-[11px] text-foreground">
+                                  {`servermon ALL=(${profileRunAsUser}) NOPASSWD:SETENV: ${profileRunAsShell}`}
+                                </pre>
+                              </div>
+                            </div>
                           </div>
 
                           <div className="rounded-[24px] border border-border/60 bg-background/80 p-5 space-y-4">

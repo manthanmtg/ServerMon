@@ -12,7 +12,12 @@ import { fileURLToPath } from 'node:url';
 import os from 'node:os';
 import path from 'node:path';
 import { createLogger } from '@/lib/logger';
-import type { AIRunnerArtifactPathsDTO, AIRunnerExecutionRefDTO } from '@/modules/ai-runner/types';
+import type {
+  AIRunnerArtifactPathsDTO,
+  AIRunnerExecutionRefDTO,
+  AIRunnerRunAsUserAuthMode,
+} from '@/modules/ai-runner/types';
+import { buildRunAsUserLaunchArgs } from './run-as-user';
 import { shellEscape } from './shared';
 
 const log = createLogger('ai-runner:execution');
@@ -206,6 +211,9 @@ export async function spawnDurableAIRunnerCommand(input: {
   cwd: string;
   env: NodeJS.ProcessEnv;
   paths: AIRunnerArtifactPathsDTO;
+  requiresTTY?: boolean;
+  runAsUser?: string;
+  runAsUserAuthMode?: AIRunnerRunAsUserAuthMode;
 }): Promise<AIRunnerDurableCommand> {
   await mkdir(input.paths.artifactDir, { recursive: true, mode: 0o700 });
   const launchPath = path.join(input.paths.artifactDir, `launch-${randomUUID()}.json`);
@@ -224,6 +232,9 @@ export async function spawnDurableAIRunnerCommand(input: {
           })
         ),
         paths: input.paths,
+        requiresTTY: input.requiresTTY,
+        runAsUser: input.runAsUser,
+        runAsUserAuthMode: input.runAsUserAuthMode,
       },
       null,
       2
@@ -282,12 +293,11 @@ export async function spawnAIRunnerCommand(input: {
   cwd: string;
   env: NodeJS.ProcessEnv;
   requiresTTY?: boolean;
+  runAsUser?: string;
+  runAsUserAuthMode?: AIRunnerRunAsUserAuthMode;
 }): Promise<AIRunnerSpawnedCommand> {
   const useSystemdIsolation = await canUseSystemdIsolation();
-  const launchArgs =
-    input.requiresTTY && process.platform === 'linux'
-      ? [SCRIPT_BIN, '-qefc', `${input.shell} -lc ${shellEscape(input.command)}`, '/dev/null']
-      : [input.shell, '-lc', input.command];
+  const launchArgs = buildRunAsUserLaunchArgs(input);
 
   if (!useSystemdIsolation) {
     const child = spawn(launchArgs[0], launchArgs.slice(1), {
@@ -309,7 +319,9 @@ export async function spawnAIRunnerCommand(input: {
     'set -a',
     `. ${shellEscape(envPath)}`,
     `rm -f ${shellEscape(envPath)}`,
-    `exec ${shellEscape(input.shell)} -lc ${shellEscape(input.command)}`,
+    `exec ${buildRunAsUserLaunchArgs({ ...input, requiresTTY: false })
+      .map(shellEscape)
+      .join(' ')}`,
   ].join('; ');
 
   const child = spawn(

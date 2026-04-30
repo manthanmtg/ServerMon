@@ -291,6 +291,45 @@ describe('ai-runner shared utilities', () => {
       expect(result.errors).toHaveLength(0);
     });
 
+    it('validates passwordless sudo access when a run-as user is configured', async () => {
+      const runAsExec = vi.fn().mockResolvedValue({ stdout: 'servermon-ai\n', stderr: '' });
+
+      const result = await validateProfileTemplate({
+        invocationTemplate: 'echo $PROMPT',
+        shell: '/bin/bash',
+        runAsUser: 'servermon-ai',
+        runAsUserAuthMode: 'passwordless-sudo',
+        execFileAsync: runAsExec,
+      });
+
+      expect(result.valid).toBe(true);
+      expect(runAsExec).toHaveBeenCalledWith(
+        'sudo',
+        ['-n', '-E', '-u', 'servermon-ai', '--', '/bin/bash', '-lc', 'id -un'],
+        { timeout: 5000 }
+      );
+    });
+
+    it('returns an actionable error when passwordless sudo is not configured', async () => {
+      const runAsExec = vi
+        .fn()
+        .mockResolvedValueOnce({ stdout: '', stderr: '' })
+        .mockRejectedValueOnce(new Error('a password is required'));
+
+      const result = await validateProfileTemplate({
+        invocationTemplate: 'echo $PROMPT',
+        shell: '/bin/bash',
+        runAsUser: 'servermon-ai',
+        runAsUserAuthMode: 'passwordless-sudo',
+        execFileAsync: runAsExec,
+      });
+
+      expect(result.valid).toBe(false);
+      expect(result.errors).toContain(
+        'Run as user validation failed for servermon-ai: a password is required'
+      );
+    });
+
     it('returns error if $PROMPT is missing', async () => {
       const result = await validateProfileTemplate({
         invocationTemplate: 'echo hello',

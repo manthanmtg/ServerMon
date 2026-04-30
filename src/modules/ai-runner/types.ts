@@ -25,6 +25,7 @@ export type AIRunnerJobStatus =
   | 'completed'
   | 'failed'
   | 'canceled';
+export type AIRunnerRunAsUserAuthMode = 'passwordless-sudo';
 export type AIRunnerAutoflowStatus = 'draft' | 'running' | 'completed' | 'failed' | 'canceled';
 export type AIRunnerAutoflowItemStatus =
   | 'pending'
@@ -56,6 +57,8 @@ export interface AIRunnerProfileDTO {
   maxTimeout: number;
   shell: string;
   requiresTTY: boolean;
+  runAsUser?: string;
+  runAsUserAuthMode?: AIRunnerRunAsUserAuthMode;
   env: Record<string, string>;
   enabled: boolean;
   locked: boolean;
@@ -176,6 +179,8 @@ export interface AIRunnerExecutionMetadataDTO {
   command: string;
   shell: string;
   workingDirectory: string;
+  runAsUser?: string;
+  runAsUserAuthMode?: AIRunnerRunAsUserAuthMode;
   promptId?: string;
   scheduleId?: string;
   autoflowId?: string;
@@ -335,6 +340,8 @@ export interface AIRunnerPortableProfile {
   maxTimeout: number;
   shell: string;
   requiresTTY: boolean;
+  runAsUser?: string;
+  runAsUserAuthMode?: AIRunnerRunAsUserAuthMode;
   env: Record<string, string>;
   enabled: boolean;
   icon?: string;
