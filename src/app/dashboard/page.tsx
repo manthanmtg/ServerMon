@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { Cpu, MemoryStick, Clock, Activity as ActivityIcon } from 'lucide-react';
+import { motion, Variants } from 'framer-motion';
 import ProShell from '@/components/layout/ProShell';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -9,6 +10,31 @@ import { Spinner } from '@/components/ui/spinner';
 import { Skeleton, SkeletonChart, SkeletonTable } from '@/components/ui/skeleton';
 import { renderWidget } from '@/components/modules/ModuleWidgetRegistry';
 import { MetricsProvider, useMetrics } from '@/lib/MetricsContext';
+
+const MotionCard = motion.create(Card);
+
+const containerVariants: Variants = {
+  hidden: { opacity: 0 },
+  show: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.05,
+    },
+  },
+};
+
+const itemVariants: Variants = {
+  hidden: { y: 15, opacity: 0 },
+  show: {
+    y: 0,
+    opacity: 1,
+    transition: {
+      type: 'spring',
+      stiffness: 300,
+      damping: 24,
+    },
+  },
+};
 
 function StatCardSkeleton() {
   return (
@@ -157,42 +183,55 @@ function DashboardContent() {
   return (
     <div className="space-y-4 sm:space-y-6 animate-fade-in">
       {/* Stat Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
-        <StatCard
-          label="CPU"
-          value={latest ? `${latest.cpu.toFixed(1)}%` : '--'}
-          subLabel={latest ? `${latest.cpuCores} Cores` : ''}
-          icon={<Cpu className="w-4 h-4" />}
-          status={!latest ? 'loading' : latest.cpu > 80 ? 'warning' : 'normal'}
-          historyData={cpuHistory}
-        />
-        <StatCard
-          label="Memory"
-          value={latest ? `${latest.memory.toFixed(1)}%` : '--'}
-          subLabel={latest ? `${formatGB(latest.memUsed)} of ${formatGB(latest.memTotal)} GB` : ''}
-          icon={<MemoryStick className="w-4 h-4" />}
-          status={!latest ? 'loading' : latest.memory > 80 ? 'warning' : 'normal'}
-          historyData={memoryHistory}
-          color="var(--accent)"
-        />
-        <StatCard
-          label="Uptime"
-          value={latest ? formatUptime(latest.uptime) : '--'}
-          subLabel="System Online"
-          icon={<Clock className="w-4 h-4" />}
-          status={!latest ? 'loading' : 'normal'}
-          color="var(--success)"
-        />
-        <StatCard
-          label="Data Latency"
-          value={connected ? `${dataLatency}ms` : '--'}
-          subLabel={connected ? 'Stream Lag' : 'Reconnecting...'}
-          icon={<ActivityIcon className="w-4 h-4" />}
-          status={!connected ? 'loading' : dataLatency > 200 ? 'warning' : 'normal'}
-          historyData={latencyHistory}
-          color="var(--info)"
-        />
-        <div className="col-span-2 lg:col-span-1">
+      <motion.div
+        variants={containerVariants}
+        initial="hidden"
+        animate="show"
+        className="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4"
+      >
+        <motion.div variants={itemVariants}>
+          <StatCard
+            label="CPU"
+            value={latest ? `${latest.cpu.toFixed(1)}%` : '--'}
+            subLabel={latest ? `${latest.cpuCores} Cores` : ''}
+            icon={<Cpu className="w-4 h-4" />}
+            status={!latest ? 'loading' : latest.cpu > 80 ? 'warning' : 'normal'}
+            historyData={cpuHistory}
+          />
+        </motion.div>
+        <motion.div variants={itemVariants}>
+          <StatCard
+            label="Memory"
+            value={latest ? `${latest.memory.toFixed(1)}%` : '--'}
+            subLabel={latest ? `${formatGB(latest.memUsed)} of ${formatGB(latest.memTotal)} GB` : ''}
+            icon={<MemoryStick className="w-4 h-4" />}
+            status={!latest ? 'loading' : latest.memory > 80 ? 'warning' : 'normal'}
+            historyData={memoryHistory}
+            color="var(--accent)"
+          />
+        </motion.div>
+        <motion.div variants={itemVariants}>
+          <StatCard
+            label="Uptime"
+            value={latest ? formatUptime(latest.uptime) : '--'}
+            subLabel="System Online"
+            icon={<Clock className="w-4 h-4" />}
+            status={!latest ? 'loading' : 'normal'}
+            color="var(--success)"
+          />
+        </motion.div>
+        <motion.div variants={itemVariants}>
+          <StatCard
+            label="Data Latency"
+            value={connected ? `${dataLatency}ms` : '--'}
+            subLabel={connected ? 'Stream Lag' : 'Reconnecting...'}
+            icon={<ActivityIcon className="w-4 h-4" />}
+            status={!connected ? 'loading' : dataLatency > 200 ? 'warning' : 'normal'}
+            historyData={latencyHistory}
+            color="var(--info)"
+          />
+        </motion.div>
+        <motion.div variants={itemVariants} className="col-span-2 lg:col-span-1">
           <StatCard
             label="Ping"
             value={pingLatency !== null ? `${pingLatency}ms` : '--'}
@@ -202,8 +241,8 @@ function DashboardContent() {
             historyData={pingHistory}
             color="var(--warning)"
           />
-        </div>
-      </div>
+        </motion.div>
+      </motion.div>
 
       {/* Charts Row */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4">
@@ -293,7 +332,10 @@ const StatCard = React.memo(function StatCard({
   color?: string;
 }) {
   return (
-    <Card className="relative overflow-hidden group hover:border-border transition-colors duration-300">
+    <MotionCard
+      whileHover={{ y: -4, transition: { duration: 0.2 } }}
+      className="relative overflow-hidden group hover:border-border transition-colors duration-300"
+    >
       <CardContent className="p-3 sm:p-4 relative z-10">
         <div className="flex items-center justify-between mb-1">
           <span className="text-[10px] sm:text-xs font-medium uppercase tracking-wider text-muted-foreground/80">
@@ -329,9 +371,11 @@ const StatCard = React.memo(function StatCard({
 
       {/* Subtle background glow on hover */}
       <div
-        className="absolute inset-0 opacity-0 group-hover:opacity-5 transition-opacity duration-500 pointer-events-none"
-        style={{ backgroundColor: color || 'var(--primary)' }}
+        className="absolute inset-0 opacity-0 group-hover:opacity-10 transition-opacity duration-500 pointer-events-none"
+        style={{
+          background: `radial-gradient(circle at center, ${color || 'var(--primary)'} 0%, transparent 70%)`,
+        }}
       />
-    </Card>
+    </MotionCard>
   );
 });
