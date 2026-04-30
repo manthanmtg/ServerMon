@@ -47,14 +47,14 @@ and a fallback before launch.
 
 ### P2 - Advanced Hardening
 
-| Area      | Task                                                               | Owner | Evidence                                      | Risk If Skipped                              | Fallback                                       |
-| --------- | ------------------------------------------------------------------ | ----- | --------------------------------------------- | -------------------------------------------- | ---------------------------------------------- |
-| Security  | Run external appsec review or focused penetration test             | TBD   | Review report and fixed findings              | Subtle exploit paths remain                  | Limit launch audience and disclose beta status |
-| Security  | Add DAST scan against staging                                      | TBD   | ZAP/StackHawk/other report                    | Common web issues may be missed              | Manual route review and CSP/header checks      |
-| Fuzzing   | Fuzz parsers and import/upload handlers                            | TBD   | Fuzz corpus or crash-free run log             | Parser edge cases crash or hang app          | Restrict upload/import availability            |
-| Hardening | Add systemd sandboxing review                                      | TBD   | Service unit reviewed with least privilege    | Host-management app runs broader than needed | Document trusted-admin-only deployment model   |
-| Release   | Add reproducible build notes                                       | TBD   | Documented build inputs and artifact manifest | Harder to verify artifact integrity          | Keep release manifest with commit SHA          |
-| Packaging | Publish package-manager manifests after artifact release is stable | TBD   | Homebrew/npm/Docker/apt metadata published    | Users rely only on manual install            | Keep GitHub Releases as primary channel        |
+| Area      | Task                                                                  | Owner | Evidence                                             | Risk If Skipped                              | Fallback                                       |
+| --------- | --------------------------------------------------------------------- | ----- | ---------------------------------------------------- | -------------------------------------------- | ---------------------------------------------- |
+| Security  | Run external appsec review or focused penetration test                | TBD   | Review report and fixed findings                     | Subtle exploit paths remain                  | Limit launch audience and disclose beta status |
+| Security  | Add DAST scan against staging                                         | TBD   | ZAP/StackHawk/other report                           | Common web issues may be missed              | Manual route review and CSP/header checks      |
+| Fuzzing   | Fuzz parsers and import/upload handlers                               | TBD   | Fuzz corpus or crash-free run log                    | Parser edge cases crash or hang app          | Restrict upload/import availability            |
+| Hardening | Add systemd sandboxing review                                         | TBD   | Service unit reviewed with least privilege           | Host-management app runs broader than needed | Document trusted-admin-only deployment model   |
+| Release   | Add reproducible build notes                                          | TBD   | Documented build inputs and artifact manifest        | Harder to verify artifact integrity          | Keep release manifest with commit SHA          |
+| Packaging | Publish pnpm-installable CLI package after artifact release is stable | TBD   | Package can install, start, and manage service paths | Users rely only on manual install            | Keep GitHub Releases as primary channel        |
 
 ## Security Verification
 
@@ -207,43 +207,65 @@ and a fallback before launch.
 | Test fleet agent source fallback with `--build-from-source` | TBD   | Source install log                    | Advanced users lose fallback  | Document release-only support |
 | Test rotate token path after update                         | TBD   | Node reconnects with rotated token    | Stale tokens survive release  | Manual token rotation         |
 
-## Package Manager And Distribution Checklist
+## pnpm Package Distribution Checklist
 
-ServerMon currently appears to use GitHub Releases as the primary distribution
-channel, and `package.json` is marked `"private": true`. Do not publish to npm
-or package managers until you intentionally choose the distribution model.
+Launch distribution should be pnpm-first. The published package should act as a
+CLI installer/launcher for ServerMon, not as a claim that pnpm alone creates a
+native service on every OS. There is no separate pnpm registry; the package is
+published to an npm-compatible registry and installed with pnpm.
+
+Do not pursue apt, yum, Homebrew, Winget, Scoop, or Docker distribution for the
+first public launch unless this decision is revisited. GitHub Release artifacts
+can remain the runtime payload behind the pnpm CLI.
 
 ### Distribution Decision
 
-| Channel         | Use When                                            | Required Before Publishing                                                |
-| --------------- | --------------------------------------------------- | ------------------------------------------------------------------------- |
-| GitHub Releases | Primary app, hub, and agent tarballs                | Release workflow stable, checksums verified, rollback notes published     |
-| npm             | You expose a CLI/library package, not the whole app | Remove `"private": true`, define `bin`/`exports`, verify package contents |
-| Docker Hub/GHCR | Users should run ServerMon as a container           | Dockerfile, healthcheck, non-root user, volume/env docs, image scan       |
-| Homebrew Tap    | macOS users need one-command install                | Formula/cask, checksum, service instructions, notarization decision       |
-| apt/yum repo    | Linux package-manager install is strategic          | Signed repository, systemd unit, config migration, upgrade scripts        |
-| Winget/Scoop    | Windows install is supported                        | Confirm Windows runtime support first                                     |
+| Channel         | Launch Decision                      | Required Before Publishing                                             |
+| --------------- | ------------------------------------ | ---------------------------------------------------------------------- |
+| pnpm package    | Primary public install entrypoint    | Package exposes a working `servermon` CLI and verified service setup   |
+| GitHub Releases | Runtime artifact source and fallback | Hub/agent tarballs, `SHA256SUMS`, rollback notes, and release manifest |
+| apt/yum         | Deferred                             | Revisit only after Linux service install is stable via pnpm            |
+| Homebrew        | Deferred                             | Revisit only after macOS launchd install is stable via pnpm            |
+| Docker/GHCR     | Deferred                             | Revisit only after container runtime model is designed                 |
+| Winget/Scoop    | Deferred                             | Revisit only after Windows support is intentionally built and tested   |
 
-### npm Publishing Tasks, If Chosen
+### pnpm Package Tasks
 
-| Task                                                                                       | Owner | Evidence                    | Risk If Skipped                       | Fallback                                  |
-| ------------------------------------------------------------------------------------------ | ----- | --------------------------- | ------------------------------------- | ----------------------------------------- |
-| Decide exact npm package purpose: CLI, library, or installer shim                          | TBD   | Package design note         | Users install an unusable app package | Do not publish npm package                |
-| Remove `"private": true` only when ready                                                   | TBD   | `package.json` reviewed     | Accidental publish or blocked publish | Keep private and use GitHub Releases      |
-| Add `files`, `bin`, `exports`, `engines`, `license`, `repository`, and `homepage` metadata | TBD   | `npm pack --dry-run` output | Bloated or broken package             | Fix manifest before publish               |
-| Enable npm 2FA and provenance where available                                              | TBD   | npm account/org settings    | Package takeover/supply-chain risk    | Delay npm launch                          |
-| Run `npm pack --dry-run` and inspect tarball contents                                      | TBD   | Tarball file list reviewed  | Secrets/build junk published          | Block publish                             |
-| Publish a pre-release tag first, such as `next` or `beta`                                  | TBD   | `npm view` output           | Bad version goes to latest users      | Deprecate/unpublish within allowed window |
+| Task                                                                                           | Owner | Evidence                                 | Risk If Skipped                              | Fallback                                  |
+| ---------------------------------------------------------------------------------------------- | ----- | ---------------------------------------- | -------------------------------------------- | ----------------------------------------- |
+| Decide package name and scope, such as `servermon` or `@servermon/cli`                         | TBD   | Package naming note                      | Name conflict or confusing install path      | Use scoped package                        |
+| Make package purpose explicit: CLI installer/launcher, not full cross-OS service magic         | TBD   | README install section                   | Users expect pnpm alone to manage services   | Add warning before publish                |
+| Remove `"private": true` only when publishing is intentional                                   | TBD   | `package.json` reviewed                  | Accidental publish or blocked publish        | Keep package private                      |
+| Add `bin`, `files`, `engines`, `license`, `repository`, `homepage`, and package metadata       | TBD   | `npm pack --dry-run` output              | Package installs without usable CLI          | Fix manifest before publish               |
+| Add CLI commands: `install-service`, `start`, `stop`, `restart`, `status`, `logs`, `uninstall` | TBD   | CLI help output and smoke tests          | Users cannot run ServerMon as a service      | Keep GitHub install script as primary     |
+| Add `pnpm dlx` quick-start command                                                             | TBD   | `pnpm dlx <package> --help` works        | Users must globally install before trying    | Document global install only              |
+| Keep release artifact download and checksum verification inside the CLI                        | TBD   | CLI verifies `SHA256SUMS` before install | Corrupt/tampered downloads can install       | Keep direct GitHub Release install        |
+| Run `npm pack --dry-run` and inspect tarball contents                                          | TBD   | Tarball file list reviewed               | Secrets, `.env`, caches, or source junk ship | Block publish                             |
+| Run package install smoke test in a clean temp project                                         | TBD   | `pnpm add -g` or `pnpm dlx` smoke log    | Package works only inside repo               | Patch package files                       |
+| Publish a pre-release tag first, such as `next` or `beta`                                      | TBD   | `npm view` output                        | Broken package goes to latest users          | Deprecate/unpublish within allowed window |
+| Enable npm registry 2FA and provenance where available                                         | TBD   | Registry account/org settings            | Package takeover or provenance gap           | Delay package launch                      |
 
-### Docker/Container Tasks, If Chosen
+### Service Support Matrix
 
-| Task                                                | Owner | Evidence                       | Risk If Skipped                   | Fallback                   |
-| --------------------------------------------------- | ----- | ------------------------------ | --------------------------------- | -------------------------- |
-| Add multi-stage Dockerfile with pinned base image   | TBD   | Dockerfile review              | Large or non-reproducible image   | Keep container unpublished |
-| Run as non-root inside container                    | TBD   | `docker inspect` or Dockerfile | Container escape impact increases | Document trusted-only use  |
-| Add healthcheck and graceful shutdown               | TBD   | `docker run` smoke test        | Orchestrators cannot manage app   | Add external health probe  |
-| Define volumes for config/data and env var contract | TBD   | README/compose example         | Users lose config/data            | Mark image experimental    |
-| Scan image for vulnerabilities                      | TBD   | Trivy/Docker Scout report      | Known CVEs ship                   | Patch or accept with note  |
+| OS / Runtime | Launch Claim                     | Service Mechanism                  | Required Before Claiming Support                         |
+| ------------ | -------------------------------- | ---------------------------------- | -------------------------------------------------------- |
+| Linux        | Supported service install        | systemd unit generated by CLI      | Fresh install, start, restart, logs, update, uninstall   |
+| macOS        | Supported only if tested         | launchd plist generated by CLI     | Fresh install, boot persistence, logs, update, uninstall |
+| Windows      | Experimental/manual unless built | Windows Service or Task Scheduler  | Intentional implementation and clean Windows smoke test  |
+| Other Unix   | Manual run only                  | `pnpm start` or documented command | Explicit docs that service mode is unsupported           |
+
+### Service Installer Tasks
+
+| Task                                                                                     | Owner | Evidence                              | Risk If Skipped                            | Fallback                                   |
+| ---------------------------------------------------------------------------------------- | ----- | ------------------------------------- | ------------------------------------------ | ------------------------------------------ |
+| Linux CLI creates service user, config dir, env file, release dir, and systemd unit      | TBD   | Clean Linux VM install log            | pnpm package installs but cannot daemonize | Keep `scripts/install.sh` as required path |
+| macOS CLI creates launchd plist and wrapper with env loading                             | TBD   | Clean macOS install log               | macOS users cannot run at boot             | Mark macOS service support as deferred     |
+| Windows CLI refuses service install cleanly until Windows support exists                 | TBD   | Windows/manual test output            | Users get broken or partial install        | Document Windows manual-only mode          |
+| CLI detects unsupported OS/arch and prints clear guidance                                | TBD   | Unsupported-platform test             | Confusing install failures                 | Link to manual docs                        |
+| CLI has `--release`, `--version`, `--release-base-url`, and source fallback flags        | TBD   | CLI help and install tests            | Users cannot pin or mirror releases        | Keep direct release scripts documented     |
+| CLI update path preserves install metadata and verifies checksums                        | TBD   | Before/after env diff and update log  | Updates switch mode or install bad assets  | Pin previous release                       |
+| CLI uninstall path removes service files without deleting MongoDB/Nginx unless requested | TBD   | Uninstall log and host inspection     | User data or unrelated infra is removed    | Disable automated uninstall                |
+| Docs clearly say pnpm installs the CLI, while service behavior is OS-specific            | TBD   | README/GO_LIVE/release notes reviewed | Overclaiming "all OSes supported"          | Use conservative support wording           |
 
 ## Operational Readiness
 
