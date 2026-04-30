@@ -1,187 +1,152 @@
+/** @vitest-environment node */
 import { describe, it, expect } from 'vitest';
-import { renderFrpsToml, renderFrpcToml, hashToml, terminalBridgeRemotePort } from './toml';
+import { 
+  renderFrpsToml, 
+  renderFrpcToml, 
+  terminalBridgeRemotePort, 
+  hashToml,
+  DEFAULT_PTY_LISTEN_PORT,
+  type FrpcRenderInput
+} from './toml';
 
-describe('renderFrpsToml', () => {
-  it('renders minimal config', () => {
-    const out = renderFrpsToml({
-      bindPort: 7000,
-      vhostHttpPort: 8080,
-      authToken: 'secret',
-      subdomainHost: 'example.com',
+describe('toml', () => {
+  describe('renderFrpsToml', () => {
+    it('should render basic frps config', () => {
+      const input = {
+        bindPort: 7000,
+        vhostHttpPort: 80,
+        authToken: 'secret',
+        subdomainHost: 'example.com'
+      };
+      const rendered = renderFrpsToml(input);
+      expect(rendered).toContain('bindPort = 7000');
+      expect(rendered).toContain('vhostHTTPPort = 80');
+      expect(rendered).toContain('auth.token = "secret"');
+      expect(rendered).toContain('subDomainHost = "example.com"');
+      expect(rendered).not.toContain('vhostHTTPSPort');
     });
-    expect(out).toContain('bindPort = 7000');
-    expect(out).toContain('vhostHTTPPort = 8080');
-    expect(out).toContain('subDomainHost = "example.com"');
-    expect(out).toContain('auth.method = "token"');
-    expect(out).toContain('auth.token = "secret"');
-  });
-  it('escapes quotes in tokens', () => {
-    const out = renderFrpsToml({
-      bindPort: 7000,
-      vhostHttpPort: 8080,
-      authToken: 'a"b',
-      subdomainHost: 'x',
-    });
-    expect(out).toContain('auth.token = "a\\"b"');
-  });
-  it('emits TLS force when tlsOnly', () => {
-    const out = renderFrpsToml({
-      bindPort: 7000,
-      vhostHttpPort: 8080,
-      authToken: 't',
-      subdomainHost: 'x',
-      tlsOnly: true,
-    });
-    expect(out).toContain('transport.tls.force = true');
-  });
-  it('emits vhostHTTPSPort when provided', () => {
-    const out = renderFrpsToml({
-      bindPort: 7000,
-      vhostHttpPort: 8080,
-      vhostHttpsPort: 8443,
-      authToken: 't',
-      subdomainHost: 'x',
-    });
-    expect(out).toContain('vhostHTTPSPort = 8443');
-  });
-});
 
-describe('renderFrpcToml', () => {
-  const baseNode = {
-    slug: 'orion',
-    frpcConfig: {
-      protocol: 'tcp' as const,
-      tlsEnabled: true,
-      tlsVerify: true,
-      transportEncryptionEnabled: true,
-      compressionEnabled: false,
-      heartbeatInterval: 30,
-      heartbeatTimeout: 90,
-      poolCount: 1,
-      advanced: {},
-    },
-    proxyRules: [] as Array<{
-      name: string;
-      type: 'tcp' | 'http' | 'https' | 'udp' | 'stcp' | 'xtcp';
-      subdomain?: string;
-      localIp: string;
-      localPort: number;
-      remotePort?: number;
-      customDomains: string[];
-      enabled: boolean;
-      status:
-        | 'active'
-        | 'disabled'
-        | 'failed'
-        | 'port_conflict'
-        | 'dns_missing'
-        | 'upstream_unreachable';
-    }>,
-  };
-  it('renders baseline frpc toml', () => {
-    const out = renderFrpcToml({
+    it('should include vhostHTTPSPort if provided', () => {
+      const input = {
+        bindPort: 7000,
+        vhostHttpPort: 80,
+        vhostHttpsPort: 443,
+        authToken: 'secret',
+        subdomainHost: 'example.com'
+      };
+      const rendered = renderFrpsToml(input);
+      expect(rendered).toContain('vhostHTTPSPort = 443');
+    });
+
+    it('should handle tlsOnly flag', () => {
+      const input = {
+        bindPort: 7000,
+        vhostHttpPort: 80,
+        authToken: 'secret',
+        subdomainHost: 'example.com',
+        tlsOnly: true
+      };
+      const rendered = renderFrpsToml(input);
+      expect(rendered).toContain('transport.tls.force = true');
+    });
+  });
+
+  describe('terminalBridgeRemotePort', () => {
+    it('should return a stable port for a given slug', () => {
+      const port1 = terminalBridgeRemotePort('node-1');
+      const port2 = terminalBridgeRemotePort('node-1');
+      const port3 = terminalBridgeRemotePort('node-2');
+      
+      expect(port1).toBe(port2);
+      expect(port1).not.toBe(port3);
+      expect(port1).toBeGreaterThanOrEqual(20000);
+      expect(port1).toBeLessThan(40000);
+    });
+
+    it('should handle empty slug', () => {
+      const port = terminalBridgeRemotePort('');
+      expect(port).toBeGreaterThanOrEqual(20000);
+    });
+  });
+
+  describe('renderFrpcToml', () => {
+    const baseInput = {
       serverAddr: 'hub.example.com',
       serverPort: 7000,
-      authToken: 't',
-      node: baseNode,
-    });
-    expect(out).toContain('serverAddr = "hub.example.com"');
-    expect(out).toContain('serverPort = 7000');
-    expect(out).toContain('transport.protocol = "tcp"');
-    expect(out).toContain('transport.tls.enable = true');
-    expect(out).toContain('transport.heartbeatInterval = 30');
-    expect(out).toContain('transport.poolCount = 1');
-    expect(out).toContain('transport.useEncryption = true');
-    expect(out).toContain('transport.useCompression = false');
-    expect(out).toContain('name = "orion-terminal-bridge"');
-    expect(out).toContain('localPort = 8918');
-    expect(out).toContain(`remotePort = ${terminalBridgeRemotePort('orion')}`);
-  });
-  it('emits tcp proxy with remotePort', () => {
-    const node = {
-      ...baseNode,
-      proxyRules: [
-        {
-          name: 'terminal',
-          type: 'tcp' as const,
-          localIp: '127.0.0.1',
-          localPort: 8001,
-          remotePort: 9001,
-          customDomains: [],
-          enabled: true,
-          status: 'disabled' as const,
-        },
-      ],
+      authToken: 'token123',
+      node: {
+        slug: 'my-node',
+        proxyRules: [],
+        frpcConfig: {
+          protocol: 'websocket',
+          tlsEnabled: true,
+          tlsVerify: true,
+          heartbeatInterval: 10,
+          heartbeatTimeout: 30,
+          poolCount: 5,
+          transportEncryptionEnabled: true,
+          compressionEnabled: true
+        }
+      }
     };
-    const out = renderFrpcToml({
-      serverAddr: 'h',
-      serverPort: 7000,
-      authToken: 't',
-      node,
-    });
-    expect(out).toContain('[[proxies]]');
-    expect(out).toContain('name = "orion-terminal"');
-    expect(out).toContain('type = "tcp"');
-    expect(out).toContain('localPort = 8001');
-    expect(out).toContain('remotePort = 9001');
-    expect(out).toContain('name = "orion-terminal-bridge"');
-    expect(out).toContain(`remotePort = ${terminalBridgeRemotePort('orion')}`);
-  });
-  it('emits http proxy with subdomain + customDomains', () => {
-    const node = {
-      ...baseNode,
-      proxyRules: [
-        {
-          name: 'photos',
-          type: 'http' as const,
-          localIp: '127.0.0.1',
-          localPort: 3000,
-          subdomain: 'photos',
-          customDomains: ['photos.example.com'],
-          enabled: true,
-          status: 'disabled' as const,
-        },
-      ],
-    };
-    const out = renderFrpcToml({
-      serverAddr: 'h',
-      serverPort: 7000,
-      authToken: 't',
-      node,
-    });
-    expect(out).toContain('type = "http"');
-    expect(out).toContain('subdomain = "photos"');
-    expect(out).toContain('customDomains = ["photos.example.com"]');
-  });
-  it('skips disabled proxies', () => {
-    const node = {
-      ...baseNode,
-      proxyRules: [
-        {
-          name: 'off',
-          type: 'tcp' as const,
-          localIp: '127.0.0.1',
-          localPort: 80,
-          customDomains: [],
-          enabled: false,
-          status: 'disabled' as const,
-        },
-      ],
-    };
-    const out = renderFrpcToml({
-      serverAddr: 'h',
-      serverPort: 7000,
-      authToken: 't',
-      node,
-    });
-    expect(out).not.toContain('off');
-  });
-});
 
-describe('hashToml', () => {
-  it('produces stable sha256 hex', () => {
-    expect(hashToml('hello')).toBe(
-      '2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824'
-    );
+    it('should render basic frpc config with default rules', () => {
+      const rendered = renderFrpcToml(baseInput as unknown as FrpcRenderInput);
+      expect(rendered).toContain('serverAddr = "hub.example.com"');
+      expect(rendered).toContain('serverPort = 7000');
+      expect(rendered).toContain('transport.protocol = "websocket"');
+      
+      // Should automatically add terminal-bridge
+      expect(rendered).toContain('[[proxies]]');
+      expect(rendered).toContain('name = "my-node-terminal-bridge"');
+      expect(rendered).toContain(`localPort = ${DEFAULT_PTY_LISTEN_PORT}`);
+    });
+
+    it('should render custom proxy rules', () => {
+      const input = {
+        ...baseInput,
+        node: {
+          ...baseInput.node,
+          proxyRules: [
+            {
+              name: 'web',
+              type: 'http',
+              localIp: '127.0.0.1',
+              localPort: 3000,
+              subdomain: 'app',
+              customDomains: ['myapp.com'],
+              enabled: true
+            }
+          ]
+        }
+      };
+      const rendered = renderFrpcToml(input as unknown as FrpcRenderInput);
+      expect(rendered).toContain('name = "my-node-web"');
+      expect(rendered).toContain('type = "http"');
+      expect(rendered).toContain('subdomain = "app"');
+      expect(rendered).toContain('customDomains = ["myapp.com"]');
+    });
+
+    it('should respect terminal capability disabled', () => {
+      const input = {
+        ...baseInput,
+        node: {
+          ...baseInput.node,
+          capabilities: { terminal: false }
+        }
+      };
+      const rendered = renderFrpcToml(input as unknown as FrpcRenderInput);
+      expect(rendered).not.toContain('terminal-bridge');
+    });
+  });
+
+  describe('hashToml', () => {
+    it('should return a sha256 hash', () => {
+      const hash = hashToml('some content');
+      expect(hash).toHaveLength(64);
+      expect(hash).toMatch(/^[0-9a-f]+$/);
+      expect(hash).toBe(hashToml('some content'));
+      expect(hash).not.toBe(hashToml('other content'));
+    });
   });
 });

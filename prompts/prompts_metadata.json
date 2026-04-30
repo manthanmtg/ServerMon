@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-04-30T13:04:51.287Z",
+  "updatedAt": "2026-04-30T13:30:00.000Z",
   "description": "Prompt-suite observability metadata. Keep static identity here aligned with prompt frontmatter and update counters during random_selector runs.",
   "outcomeDefinitions": {
     "selected": "The prompt has been selected and the run has not recorded a terminal outcome yet.",
@@ -238,17 +238,17 @@
     "test_adder.md": {
       "id": "test-adder",
       "file": "test_adder.md",
-      "title": "Test Adder",
+      "title": "Test Adder Prompt",
       "category": "testing",
       "enabled": true,
       "autonomousSafe": true,
-      "totalSelected": 0,
-      "totalCompleted": 0,
+      "totalSelected": 1,
+      "totalCompleted": 1,
       "totalNoop": 0,
       "totalFailed": 0,
-      "lastSelectedAt": null,
-      "lastCompletedAt": null,
-      "lastOutcome": null
+      "lastSelectedAt": "2026-04-30T13:30:00.000Z",
+      "lastCompletedAt": "2026-04-30T13:40:00.000Z",
+      "lastOutcome": "completed"
     },
     "test_corrector.md": {
       "id": "test-corrector",
