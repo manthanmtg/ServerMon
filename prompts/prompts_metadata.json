@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-04-30T05:49:56.373Z",
+  "updatedAt": "2026-04-30T07:40:20.171Z",
   "description": "Prompt-suite observability metadata. Keep static identity here aligned with prompt frontmatter and update counters during random_selector runs.",
   "outcomeDefinitions": {
     "selected": "The prompt has been selected and the run has not recorded a terminal outcome yet.",
@@ -182,12 +182,12 @@
       "category": "feature-quality",
       "enabled": true,
       "autonomousSafe": true,
-      "totalSelected": 4,
-      "totalCompleted": 4,
+      "totalSelected": 5,
+      "totalCompleted": 5,
       "totalNoop": 0,
       "totalFailed": 0,
-      "lastSelectedAt": "2026-04-30T05:31:27.711Z",
-      "lastCompletedAt": "2026-04-30T05:40:13.885Z",
+      "lastSelectedAt": "2026-04-30T07:31:10.978Z",
+      "lastCompletedAt": "2026-04-30T07:40:20.171Z",
       "lastOutcome": "completed"
     },
     "random_selector.md": {
