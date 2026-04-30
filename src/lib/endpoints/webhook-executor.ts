@@ -78,7 +78,28 @@ export async function executeWebhook(
           signal: controller.signal,
         });
 
-        const responseBody = await response.text();
+        const reader = response.body?.getReader();
+        let responseBody = '';
+        if (reader) {
+          const MAX_BODY_SIZE = 10_240;
+          let bytesRead = 0;
+          while (bytesRead < MAX_BODY_SIZE) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            const chunk = new TextDecoder().decode(value);
+            responseBody += chunk;
+            bytesRead += value.length;
+            if (responseBody.length > MAX_BODY_SIZE) {
+              responseBody = responseBody.slice(0, MAX_BODY_SIZE);
+              break;
+            }
+          }
+          reader.releaseLock();
+          // We don't necessarily need to cancel the stream here, 
+          // but we stop reading from it. 
+          // In some environments, not canceling might keep the connection open.
+          if (response.body?.cancel) await response.body.cancel();
+        }
 
         if (shouldRetryResponse(method, response, attempt)) {
           log.warn(`Retrying webhook ${endpoint.slug} after upstream ${response.status}`);
