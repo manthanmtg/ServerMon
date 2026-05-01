@@ -255,10 +255,13 @@ export default function ServicesPage() {
     }
   }
 
-  function SortIcon({ field }: { field: SortField }) {
-    if (sortField !== field) return <ArrowUpDown className="w-3 h-3 text-muted-foreground/50" />;
-    return sortDir === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />;
-  }
+  const SortIcon = useCallback(
+    ({ field, sortField: currentSortField, sortDir: currentSortDir }: { field: SortField; sortField: SortField; sortDir: SortDir }) => {
+      if (currentSortField !== field) return <ArrowUpDown className="w-3 h-3 text-muted-foreground/50" />;
+      return currentSortDir === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />;
+    },
+    []
+  );
 
   async function runAction(
     serviceName: string,
@@ -576,7 +579,7 @@ export default function ServicesPage() {
                     onClick={() => toggleSort('name')}
                   >
                     <span className="inline-flex items-center gap-1">
-                      Service <SortIcon field="name" />
+                      Service <SortIcon field="name" sortField={sortField} sortDir={sortDir} />
                     </span>
                   </th>
                   <th
@@ -584,7 +587,7 @@ export default function ServicesPage() {
                     onClick={() => toggleSort('status')}
                   >
                     <span className="inline-flex items-center gap-1">
-                      Status <SortIcon field="status" />
+                      Status <SortIcon field="status" sortField={sortField} sortDir={sortDir} />
                     </span>
                   </th>
                   <th className="py-3 px-4">PID</th>
@@ -593,7 +596,7 @@ export default function ServicesPage() {
                     onClick={() => toggleSort('cpu')}
                   >
                     <span className="inline-flex items-center gap-1">
-                      CPU <SortIcon field="cpu" />
+                      CPU <SortIcon field="cpu" sortField={sortField} sortDir={sortDir} />
                     </span>
                   </th>
                   <th
@@ -601,7 +604,7 @@ export default function ServicesPage() {
                     onClick={() => toggleSort('memory')}
                   >
                     <span className="inline-flex items-center gap-1">
-                      Memory <SortIcon field="memory" />
+                      Memory <SortIcon field="memory" sortField={sortField} sortDir={sortDir} />
                     </span>
                   </th>
                   <th
@@ -609,7 +612,7 @@ export default function ServicesPage() {
                     onClick={() => toggleSort('uptime')}
                   >
                     <span className="inline-flex items-center gap-1">
-                      Uptime <SortIcon field="uptime" />
+                      Uptime <SortIcon field="uptime" sortField={sortField} sortDir={sortDir} />
                     </span>
                   </th>
                   <th
@@ -617,7 +620,7 @@ export default function ServicesPage() {
                     onClick={() => toggleSort('restarts')}
                   >
                     <span className="inline-flex items-center gap-1">
-                      Restarts <SortIcon field="restarts" />
+                      Restarts <SortIcon field="restarts" sortField={sortField} sortDir={sortDir} />
                     </span>
                   </th>
                   <th className="py-3 px-4">Enabled</th>

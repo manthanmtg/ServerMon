@@ -1,5 +1,6 @@
 'use client';
 
+import { useMemo } from 'react';
 import { CheckCircle, Cog, Play, Power, Shield, ShieldAlert, Square, XCircle } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
@@ -48,7 +49,7 @@ function HealthGauge({ score }: { score: number }) {
 }
 
 export function ServicesSummaryGrid({ summary, alertsCount }: ServicesSummaryGridProps) {
-  const cards = [
+  const cards = useMemo(() => [
     {
       label: 'Running',
       value: summary?.running ?? 0,
@@ -92,7 +93,7 @@ export function ServicesSummaryGrid({ summary, alertsCount }: ServicesSummaryGri
       icon: ShieldAlert,
       color: alertsCount > 0 ? 'text-destructive' : 'text-muted-foreground',
     },
-  ];
+  ], [summary, alertsCount]);
 
   return (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
