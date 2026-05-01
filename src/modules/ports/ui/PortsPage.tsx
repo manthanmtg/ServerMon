@@ -69,6 +69,8 @@ export function getFilteredListeningPorts(
         port.port.toString().includes(query) ||
         port.process.toLowerCase().includes(query) ||
         port.address.toLowerCase().includes(query) ||
+        port.user.toLowerCase().includes(query) ||
+        port.state.toLowerCase().includes(query) ||
         (port.pid?.toString() || '').includes(query) ||
         (WELL_KNOWN[port.port] || '').toLowerCase().includes(query)
       );
