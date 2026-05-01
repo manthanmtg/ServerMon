@@ -169,8 +169,8 @@ export class AgentClient {
   private frpHandle: FrpHandle | null = null;
   private bridge: AgentPtyBridge | null = null;
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
-  private bootId: string = crypto.randomUUID();
-  private bootAt: Date = new Date();
+  public readonly bootId: string = crypto.randomUUID();
+  public readonly bootAt: Date = new Date();
   private ptyToken: string = '';
   private pairResponse: PairResponse | null = null;
   private nodeConfig: NodeConfigResponse | null = null;
