@@ -210,6 +210,12 @@ Concise map of major directories, commands, and key files. Update this section w
 - `src/modules/fleet/` — module definition + UI components (`ui/dashboard/`, `ui/onboarding/`, `ui/details/`, `ui/operations/`); `ui/details/` houses `NodeStatusPanel` and `NodeServerMonPanel` (install/update logs); `ui/details/exposeService/` houses the 6-step Expose Remote Service wizard (`ExposeServiceWizard`, `StepIdentity`, `StepTarget`, `StepAccess`, `StepPreview`, `StepDns`, `StepCreate`, `schema.ts`, `index.ts` barrel); `ui/details/terminal/` houses node-specific terminal; `ui/operations/rotate/` holds `RotateTokenFlow` and `RotateAllTokensFlow` for `EmergencyControls`; `ui/operations/AlertChannelManager.tsx` manages alerts
 - `module_ideas/fleet_management.md` — full product spec (phases 1-5)
 
+### Disk Module
+
+- `src/app/api/modules/disk/` — disk routes for hardware health, scan, and settings; `health/cache.ts` centralizes short-lived health result caching
+- `src/modules/disk/` — disk module definition, page, widget, settings modal, hardware health panel, and focused UI components (`DiskSummaryCards`, `IoThroughputChart`) with colocated Vitest coverage
+- `src/app/disk/` — Disk module page route and route-level tests
+
 ### Self-Service & Custom Endpoints
 
 - `src/modules/self-service/` — Browse and install services/tools with fully managed provisioning (Nginx, SSL, systemd); logic in `engine/`, definitions in `templates/`
