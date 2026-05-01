@@ -56,7 +56,7 @@ describe('NetworkWidget', () => {
     });
   });
 
-  it('shows 0 B before data loads', () => {
+  it('shows 0 B before data loads', async () => {
     let resolveFetch!: (v: Response) => void;
     global.fetch = vi.fn().mockImplementation(
       () =>
@@ -67,7 +67,7 @@ describe('NetworkWidget', () => {
     render(<NetworkWidget />);
     const zeroValues = screen.getAllByText('0 B/s');
     expect(zeroValues.length).toBeGreaterThanOrEqual(1);
-    act(() => {
+    await act(async () => {
       resolveFetch({ ok: true, json: async () => mockNetworkData } as Response);
     });
   });
@@ -109,6 +109,41 @@ describe('NetworkWidget', () => {
       render(<NetworkWidget />);
     });
     await waitFor(() => expect(screen.getByText('Network')).toBeDefined());
+  });
+
+  it('does not parse failed HTTP responses', async () => {
+    const json = vi.fn();
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      json,
+    });
+    await act(async () => {
+      render(<NetworkWidget />);
+    });
+    await waitFor(() => expect(global.fetch).toHaveBeenCalled());
+    expect(json).not.toHaveBeenCalled();
+    expect(screen.getByText('Network')).toBeDefined();
+  });
+
+  it('passes an abort signal to each poll request', async () => {
+    vi.useFakeTimers();
+    await act(async () => {
+      render(<NetworkWidget />);
+    });
+
+    expect(global.fetch).toHaveBeenLastCalledWith(
+      '/api/modules/network',
+      expect.objectContaining({ signal: expect.any(AbortSignal) })
+    );
+
+    await act(async () => {
+      vi.advanceTimersByTime(5001);
+    });
+
+    expect(global.fetch).toHaveBeenLastCalledWith(
+      '/api/modules/network',
+      expect.objectContaining({ signal: expect.any(AbortSignal) })
+    );
   });
 
   it('polls every 5 seconds', async () => {

@@ -10,23 +10,37 @@ export default function NetworkWidget() {
   const [stats, setStats] = useState<{ rx: number; tx: number; iface: string } | null>(null);
 
   useEffect(() => {
+    let mounted = true;
+
     const fetchStats = async () => {
+      const controller = new AbortController();
+      const timeout = window.setTimeout(() => controller.abort(), 4000);
+
       try {
-        const res = await fetch('/api/modules/network');
+        const res = await fetch('/api/modules/network', { signal: controller.signal });
+        if (!res.ok) return;
+
         const data: NetworkSnapshot = await res.json();
-        if (data.stats.length > 0) {
+        if (!Array.isArray(data.stats) || data.stats.length === 0) return;
+
+        if (mounted) {
           // Show stats for the first non-internal interface or first one
           const primary = data.stats.find((s) => !s.iface.includes('lo')) || data.stats[0];
           setStats({ rx: primary.rx_sec, tx: primary.tx_sec, iface: primary.iface });
         }
       } catch {
         /* ignore */
+      } finally {
+        window.clearTimeout(timeout);
       }
     };
 
     fetchStats();
     const interval = setInterval(fetchStats, 5000);
-    return () => clearInterval(interval);
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+    };
   }, []);
 
   return (
