@@ -239,11 +239,7 @@ export default function ProShell({ children, title, subtitle, headerContent }: P
             onClick={() => setSidebarOpen(false)}
           />
           <aside className="absolute left-0 top-0 bottom-0 w-[260px] bg-sidebar border-r border-sidebar-border shadow-xl animate-fade-in">
-            <SidebarNav
-              pathname={pathname}
-              onNavigate={handleNavigate}
-              onLogout={handleLogout}
-            />
+            <SidebarNav pathname={pathname} onNavigate={handleNavigate} onLogout={handleLogout} />
           </aside>
         </div>
       )}
