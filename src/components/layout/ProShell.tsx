@@ -32,7 +32,7 @@ function getBrowserStorage(): Storage | null {
   return window.localStorage;
 }
 
-function SidebarNav({
+const SidebarNav = React.memo(function SidebarNav({
   pathname,
   onNavigate,
   onLogout,
@@ -137,7 +137,7 @@ function SidebarNav({
       </div>
     </div>
   );
-}
+});
 
 export default function ProShell({ children, title, subtitle, headerContent }: ProShellProps) {
   useTheme();
@@ -189,13 +189,17 @@ export default function ProShell({ children, title, subtitle, headerContent }: P
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  const handleLogout = async () => {
+  const handleLogout = React.useCallback(async () => {
     try {
       await fetch('/api/auth/logout', { method: 'POST' });
     } finally {
       router.push('/login');
     }
-  };
+  }, [router]);
+
+  const handleNavigate = React.useCallback(() => {
+    setSidebarOpen(false);
+  }, []);
 
   const handleReboot = async () => {
     setShowRebootConfirm(false);
@@ -237,7 +241,7 @@ export default function ProShell({ children, title, subtitle, headerContent }: P
           <aside className="absolute left-0 top-0 bottom-0 w-[260px] bg-sidebar border-r border-sidebar-border shadow-xl animate-fade-in">
             <SidebarNav
               pathname={pathname}
-              onNavigate={() => setSidebarOpen(false)}
+              onNavigate={handleNavigate}
               onLogout={handleLogout}
             />
           </aside>
