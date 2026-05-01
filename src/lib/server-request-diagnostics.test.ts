@@ -1,3 +1,4 @@
+/** @vitest-environment node */
 import { EventEmitter } from 'node:events';
 import { describe, expect, it, vi } from 'vitest';
 import {
@@ -105,6 +106,170 @@ describe('server request diagnostics', () => {
       outcome: 'error',
     });
     expect(log.error).toHaveBeenCalled();
+  });
+
+  it('records an aborted request when the response closes before ending', async () => {
+    const diagnostics = {
+      beginRequest: vi.fn(() => 'req-3'),
+      completeRequest: vi.fn(() => ({ durationMs: 10 })),
+      getSlowRequestThresholdMs: vi.fn(() => 2000),
+    };
+    const log = { warn: vi.fn(), error: vi.fn() };
+    const response = new FakeResponse();
+    const handle = vi.fn(async (_req, res: FakeResponse) => {
+      res.emit('close');
+    });
+
+    await handleRequestWithDiagnostics({
+      req: { method: 'POST', url: '/api/test' } as never,
+      res: response as never,
+      parsedUrl: { pathname: '/api/test' } as never,
+      handle: handle as never,
+      diagnostics,
+      log,
+    });
+
+    expect(diagnostics.completeRequest).toHaveBeenCalledWith('req-3', {
+      statusCode: 200,
+      outcome: 'aborted',
+    });
+    expect(log.error).not.toHaveBeenCalled();
+  });
+
+  it('logs slow requests when completed duration reaches the threshold', async () => {
+    const record = { durationMs: 2500 };
+    const diagnostics = {
+      beginRequest: vi.fn(() => 'req-4'),
+      completeRequest: vi.fn(() => record),
+      getSlowRequestThresholdMs: vi.fn(() => 2000),
+    };
+    const log = { warn: vi.fn(), error: vi.fn() };
+    const response = new FakeResponse();
+    const handle = vi.fn(async (_req, res: FakeResponse) => {
+      res.emit('finish');
+    });
+
+    await handleRequestWithDiagnostics({
+      req: { method: 'GET', url: '/api/slow' } as never,
+      res: response as never,
+      parsedUrl: { pathname: '/api/slow' } as never,
+      handle: handle as never,
+      diagnostics,
+      log,
+    });
+
+    expect(log.warn).toHaveBeenCalledWith('Slow request detected', record);
+  });
+
+  it('falls back to req.url when parsedUrl has no pathname', async () => {
+    const diagnostics = {
+      beginRequest: vi.fn(() => 'req-5'),
+      completeRequest: vi.fn(() => ({ durationMs: 10 })),
+      getSlowRequestThresholdMs: vi.fn(() => 2000),
+    };
+    const log = { warn: vi.fn(), error: vi.fn() };
+    const response = new FakeResponse();
+    const handle = vi.fn(async (_req, res: FakeResponse) => {
+      res.emit('finish');
+    });
+
+    await handleRequestWithDiagnostics({
+      req: { method: 'PATCH', url: '/api/from-url' } as never,
+      res: response as never,
+      parsedUrl: { pathname: null } as never,
+      handle: handle as never,
+      diagnostics,
+      log,
+    });
+
+    expect(diagnostics.beginRequest).toHaveBeenCalledWith({
+      method: 'PATCH',
+      path: '/api/from-url',
+    });
+  });
+
+  it('defaults missing request methods to GET', async () => {
+    const diagnostics = {
+      beginRequest: vi.fn(() => 'req-6'),
+      completeRequest: vi.fn(() => ({ durationMs: 10 })),
+      getSlowRequestThresholdMs: vi.fn(() => 2000),
+    };
+    const log = { warn: vi.fn(), error: vi.fn() };
+    const response = new FakeResponse();
+    const handle = vi.fn(async (_req, res: FakeResponse) => {
+      res.emit('finish');
+    });
+
+    await handleRequestWithDiagnostics({
+      req: { url: '/api/default-method' } as never,
+      res: response as never,
+      parsedUrl: { pathname: '/api/default-method' } as never,
+      handle: handle as never,
+      diagnostics,
+      log,
+    });
+
+    expect(diagnostics.beginRequest).toHaveBeenCalledWith({
+      method: 'GET',
+      path: '/api/default-method',
+    });
+  });
+
+  it('finalizes only once when finish and close both fire', async () => {
+    const diagnostics = {
+      beginRequest: vi.fn(() => 'req-7'),
+      completeRequest: vi.fn(() => ({ durationMs: 10 })),
+      getSlowRequestThresholdMs: vi.fn(() => 2000),
+    };
+    const log = { warn: vi.fn(), error: vi.fn() };
+    const response = new FakeResponse();
+    const handle = vi.fn(async (_req, res: FakeResponse) => {
+      res.writableEnded = true;
+      res.emit('finish');
+      res.emit('close');
+    });
+
+    await handleRequestWithDiagnostics({
+      req: { method: 'GET', url: '/api/double-event' } as never,
+      res: response as never,
+      parsedUrl: { pathname: '/api/double-event' } as never,
+      handle: handle as never,
+      diagnostics,
+      log,
+    });
+
+    expect(diagnostics.completeRequest).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not rewrite the response body when headers were already sent before an error', async () => {
+    const diagnostics = {
+      beginRequest: vi.fn(() => 'req-8'),
+      completeRequest: vi.fn(() => ({ durationMs: 10 })),
+      getSlowRequestThresholdMs: vi.fn(() => 2000),
+    };
+    const log = { warn: vi.fn(), error: vi.fn() };
+    const response = new FakeResponse();
+    const handle = vi.fn(async (_req, res: FakeResponse) => {
+      res.statusCode = 202;
+      res.headersSent = true;
+      throw new Error('after headers');
+    });
+
+    await handleRequestWithDiagnostics({
+      req: { method: 'GET', url: '/api/partial' } as never,
+      res: response as never,
+      parsedUrl: { pathname: '/api/partial' } as never,
+      handle: handle as never,
+      diagnostics,
+      log,
+    });
+
+    expect(response.statusCode).toBe(202);
+    expect(response.end).not.toHaveBeenCalled();
+    expect(diagnostics.completeRequest).toHaveBeenCalledWith('req-8', {
+      statusCode: 202,
+      outcome: 'error',
+    });
   });
 
   it('exposes the ignored-route rule directly', () => {
