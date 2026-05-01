@@ -5,7 +5,6 @@ import {
   ArrowDown,
   ArrowUp,
   ArrowUpDown,
-  Calendar,
   Check,
   ChevronDown,
   ChevronRight,
@@ -20,7 +19,6 @@ import {
   RefreshCcw,
   Search,
   Terminal,
-  Timer,
   Trash2,
   X,
   Zap,
@@ -32,6 +30,8 @@ import { useToast } from '@/components/ui/toast';
 import ConfirmationModal from '@/components/ui/ConfirmationModal';
 import { cn } from '@/lib/utils';
 import type { CronJob, CronRunStatus, CronsSnapshot } from '../types';
+import { CronSummaryCards } from './components/CronSummaryCards';
+import { NextScheduledRunCard } from './components/NextScheduledRunCard';
 import { ScheduleBuilder } from './components/ScheduleBuilder';
 import { formatCountdown, formatPastTime, useRealtimeNow } from './time';
 
@@ -732,89 +732,15 @@ export default function CronsPage() {
       </section>
 
       {/* Summary cards */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-        {[
-          {
-            label: 'Total Jobs',
-            value: snapshot?.summary.total ?? 0,
-            icon: Clock,
-            color: 'text-primary',
-          },
-          {
-            label: 'Active',
-            value: snapshot?.summary.active ?? 0,
-            icon: Play,
-            color: 'text-success',
-          },
-          {
-            label: 'Disabled',
-            value: snapshot?.summary.disabled ?? 0,
-            icon: Pause,
-            color: 'text-warning',
-          },
-          {
-            label: 'User Crons',
-            value: snapshot?.summary.userCrons ?? 0,
-            icon: Calendar,
-            color: 'text-primary',
-          },
-          {
-            label: 'System Crons',
-            value: snapshot?.summary.systemCrons ?? 0,
-            icon: Timer,
-            color: 'text-muted-foreground',
-          },
-        ].map(({ label, value, icon: Icon, color }) => (
-          <Card key={label} className="border-border/60 bg-card/80">
-            <CardContent className="flex items-center justify-between p-4 min-h-[80px]">
-              <div>
-                <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
-                  {label}
-                </p>
-                <p className="mt-1 text-2xl font-semibold tracking-tight">{value}</p>
-              </div>
-              <div className="rounded-xl border border-border/60 bg-muted/30 p-2.5">
-                <Icon className={cn('h-5 w-5', color)} />
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+      <CronSummaryCards summary={snapshot?.summary} />
 
       {/* Next run card */}
       {snapshot?.summary.nextRunTime && (
-        <Card className="border-border/60 bg-card/80">
-          <CardContent className="flex items-center gap-4 p-4">
-            <div className="rounded-xl border border-primary/20 bg-primary/5 p-3">
-              <Timer className="h-6 w-6 text-primary" />
-            </div>
-            <div>
-              <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
-                Next Scheduled Run
-              </p>
-              <p className="text-sm font-semibold text-foreground">
-                {snapshot.summary.nextRunJob || 'Unknown job'}
-                <span
-                  className="text-muted-foreground font-normal ml-2 font-mono whitespace-nowrap cursor-help underline decoration-dashed decoration-border underline-offset-4"
-                  title={new Date(snapshot.summary.nextRunTime).toLocaleString(undefined, {
-                    weekday: 'short',
-                    month: 'short',
-                    day: 'numeric',
-                    hour: '2-digit',
-                    minute: '2-digit',
-                    second: '2-digit',
-                    timeZoneName: 'short',
-                  })}
-                >
-                  {formatCountdown(snapshot.summary.nextRunTime, now)}
-                </span>
-              </p>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                {new Date(snapshot.summary.nextRunTime).toLocaleString()}
-              </p>
-            </div>
-          </CardContent>
-        </Card>
+        <NextScheduledRunCard
+          nextRunJob={snapshot.summary.nextRunJob}
+          nextRunTime={snapshot.summary.nextRunTime}
+          now={now}
+        />
       )}
 
       {/* Tab navigation */}
