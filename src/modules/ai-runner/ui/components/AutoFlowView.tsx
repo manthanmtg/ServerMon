@@ -61,6 +61,16 @@ export function getEnabledRunnerOptions({
   };
 }
 
+export function getAutoflowCompletionCounts(autoflows: AIRunnerAutoflowDTO[]) {
+  return autoflows.reduce<Record<string, number>>((counts, autoflow) => {
+    counts[autoflow._id] = autoflow.items.reduce(
+      (total, item) => total + (item.status === 'completed' ? 1 : 0),
+      0
+    );
+    return counts;
+  }, {});
+}
+
 export function AutoFlowView({
   autoflowName,
   setAutoflowName,
@@ -95,6 +105,10 @@ export function AutoFlowView({
   const { enabledProfiles, enabledWorkspaces } = useMemo(
     () => getEnabledRunnerOptions({ profiles, workspaces }),
     [profiles, workspaces]
+  );
+  const autoflowCompletionCounts = useMemo(
+    () => getAutoflowCompletionCounts(autoflows),
+    [autoflows]
   );
 
   return (
@@ -429,8 +443,7 @@ export function AutoFlowView({
                     <Badge variant="outline">{autoflow.mode}</Badge>
                   </div>
                   <p className="mt-2 text-xs text-muted-foreground">
-                    {autoflow.items.filter((item) => item.status === 'completed').length}/
-                    {autoflow.items.length} complete
+                    {autoflowCompletionCounts[autoflow._id] ?? 0}/{autoflow.items.length} complete
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-2">

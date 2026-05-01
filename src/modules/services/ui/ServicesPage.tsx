@@ -256,9 +256,22 @@ export default function ServicesPage() {
   }
 
   const SortIcon = useCallback(
-    ({ field, sortField: currentSortField, sortDir: currentSortDir }: { field: SortField; sortField: SortField; sortDir: SortDir }) => {
-      if (currentSortField !== field) return <ArrowUpDown className="w-3 h-3 text-muted-foreground/50" />;
-      return currentSortDir === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />;
+    ({
+      field,
+      sortField: currentSortField,
+      sortDir: currentSortDir,
+    }: {
+      field: SortField;
+      sortField: SortField;
+      sortDir: SortDir;
+    }) => {
+      if (currentSortField !== field)
+        return <ArrowUpDown className="w-3 h-3 text-muted-foreground/50" />;
+      return currentSortDir === 'asc' ? (
+        <ArrowUp className="w-3 h-3" />
+      ) : (
+        <ArrowDown className="w-3 h-3" />
+      );
     },
     []
   );

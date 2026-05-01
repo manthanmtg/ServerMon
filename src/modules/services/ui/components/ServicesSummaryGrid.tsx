@@ -49,51 +49,54 @@ function HealthGauge({ score }: { score: number }) {
 }
 
 export function ServicesSummaryGrid({ summary, alertsCount }: ServicesSummaryGridProps) {
-  const cards = useMemo(() => [
-    {
-      label: 'Running',
-      value: summary?.running ?? 0,
-      icon: Play,
-      color: 'text-success',
-    },
-    {
-      label: 'Failed',
-      value: summary?.failed ?? 0,
-      icon: XCircle,
-      color: 'text-destructive',
-    },
-    {
-      label: 'Inactive',
-      value: summary?.inactive ?? 0,
-      icon: Power,
-      color: 'text-warning',
-    },
-    { label: 'Total', value: summary?.total ?? 0, icon: Cog, color: 'text-primary' },
-    {
-      label: 'Enabled',
-      value: summary?.enabled ?? 0,
-      icon: CheckCircle,
-      color: 'text-success',
-    },
-    {
-      label: 'Disabled',
-      value: summary?.disabled ?? 0,
-      icon: Shield,
-      color: 'text-muted-foreground',
-    },
-    {
-      label: 'Exited',
-      value: summary?.exited ?? 0,
-      icon: Square,
-      color: 'text-muted-foreground',
-    },
-    {
-      label: 'Alerts',
-      value: alertsCount,
-      icon: ShieldAlert,
-      color: alertsCount > 0 ? 'text-destructive' : 'text-muted-foreground',
-    },
-  ], [summary, alertsCount]);
+  const cards = useMemo(
+    () => [
+      {
+        label: 'Running',
+        value: summary?.running ?? 0,
+        icon: Play,
+        color: 'text-success',
+      },
+      {
+        label: 'Failed',
+        value: summary?.failed ?? 0,
+        icon: XCircle,
+        color: 'text-destructive',
+      },
+      {
+        label: 'Inactive',
+        value: summary?.inactive ?? 0,
+        icon: Power,
+        color: 'text-warning',
+      },
+      { label: 'Total', value: summary?.total ?? 0, icon: Cog, color: 'text-primary' },
+      {
+        label: 'Enabled',
+        value: summary?.enabled ?? 0,
+        icon: CheckCircle,
+        color: 'text-success',
+      },
+      {
+        label: 'Disabled',
+        value: summary?.disabled ?? 0,
+        icon: Shield,
+        color: 'text-muted-foreground',
+      },
+      {
+        label: 'Exited',
+        value: summary?.exited ?? 0,
+        icon: Square,
+        color: 'text-muted-foreground',
+      },
+      {
+        label: 'Alerts',
+        value: alertsCount,
+        icon: ShieldAlert,
+        color: alertsCount > 0 ? 'text-destructive' : 'text-muted-foreground',
+      },
+    ],
+    [summary, alertsCount]
+  );
 
   return (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
