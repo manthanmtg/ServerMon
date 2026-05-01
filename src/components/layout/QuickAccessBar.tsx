@@ -69,7 +69,7 @@ const ICON_MAP: Record<string, LucideIcon> = {
   'env-vars': KeyRound,
 };
 
-export default function QuickAccessBar() {
+export default React.memo(function QuickAccessBar() {
   const pathname = usePathname();
   const scrollRef = useRef<HTMLDivElement>(null);
   const [items, setItems] = useState<QuickAccessItem[]>([]);
@@ -129,4 +129,4 @@ export default function QuickAccessBar() {
       </div>
     </div>
   );
-}
+});
