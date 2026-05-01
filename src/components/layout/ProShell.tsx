@@ -278,7 +278,7 @@ export default function ProShell({ children, title, subtitle, headerContent }: P
 
             <button
               onClick={() => setCommandSearchOpen(true)}
-              className="flex h-9 w-9 items-center justify-center rounded-xl border border-border bg-background text-muted-foreground transition-colors hover:bg-accent hover:text-foreground active:bg-accent"
+              className="flex h-11 w-11 items-center justify-center rounded-xl border border-border bg-background text-muted-foreground transition-colors hover:bg-accent hover:text-foreground active:bg-accent sm:h-9 sm:w-9"
               aria-label="Open search"
               title="Open search"
             >
@@ -289,7 +289,7 @@ export default function ProShell({ children, title, subtitle, headerContent }: P
               onClick={() => setShowRebootConfirm(true)}
               disabled={isRebooting}
               className={cn(
-                'flex items-center justify-center h-9 w-9 rounded-xl transition-all duration-300',
+                'flex items-center justify-center h-11 w-11 rounded-xl transition-all duration-300 sm:h-9 sm:w-9',
                 'bg-destructive/10 text-destructive border border-destructive/20 hover:bg-destructive hover:text-white hover:shadow-lg hover:shadow-destructive/20',
                 'active:scale-95 disabled:opacity-50 disabled:grayscale disabled:pointer-events-none'
               )}
@@ -304,7 +304,7 @@ export default function ProShell({ children, title, subtitle, headerContent }: P
 
             <ThemeSelector />
 
-            <div className="flex items-center gap-2 pl-2 sm:pl-3 border-l border-border">
+            <div className="hidden xs:flex items-center gap-2 pl-2 sm:pl-3 border-l border-border">
               <div className="w-8 h-8 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center text-xs font-semibold text-primary">
                 A
               </div>
