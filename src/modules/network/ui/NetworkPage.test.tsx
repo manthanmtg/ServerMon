@@ -155,6 +155,25 @@ describe('NetworkPage', () => {
     expect(screen.getByText('ip addr')).toBeDefined();
   });
 
+  it('does not refetch the snapshot when only the selected interface changes', async () => {
+    await renderPage();
+    await waitFor(() => expect(screen.getByText('eth0')).toBeDefined());
+
+    const networkFetchesBeforeChange = vi
+      .mocked(global.fetch)
+      .mock.calls.filter(([input]) => String(input) === '/api/modules/network').length;
+
+    fireEvent.change(screen.getByLabelText('Interface'), { target: { value: 'lo' } });
+
+    await waitFor(() => expect(screen.getByText('127.0.0.1')).toBeDefined());
+
+    const networkFetchesAfterChange = vi
+      .mocked(global.fetch)
+      .mock.calls.filter(([input]) => String(input) === '/api/modules/network').length;
+
+    expect(networkFetchesAfterChange).toBe(networkFetchesBeforeChange);
+  });
+
   it('renders speedtest summary and opens history modal', async () => {
     await renderPage();
     await waitFor(() => expect(screen.getByText('Internet Speedtest')).toBeDefined());
