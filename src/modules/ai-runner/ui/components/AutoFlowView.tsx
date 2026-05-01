@@ -1,5 +1,6 @@
 'use client';
 
+import { useMemo } from 'react';
 import { Play, Plus, Square, Upload, X } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -47,6 +48,19 @@ interface AutoFlowViewProps {
   getDroppedAttachmentFiles: (event: React.DragEvent<HTMLElement>) => FileList | null;
 }
 
+export function getEnabledRunnerOptions({
+  profiles,
+  workspaces,
+}: {
+  profiles: AIRunnerProfileDTO[];
+  workspaces: AIRunnerWorkspaceDTO[];
+}) {
+  return {
+    enabledProfiles: profiles.filter((profile) => profile.enabled),
+    enabledWorkspaces: workspaces.filter((workspace) => workspace.enabled),
+  };
+}
+
 export function AutoFlowView({
   autoflowName,
   setAutoflowName,
@@ -78,6 +92,11 @@ export function AutoFlowView({
   acceptAttachmentDrag,
   getDroppedAttachmentFiles,
 }: AutoFlowViewProps) {
+  const { enabledProfiles, enabledWorkspaces } = useMemo(
+    () => getEnabledRunnerOptions({ profiles, workspaces }),
+    [profiles, workspaces]
+  );
+
   return (
     <div
       id="runner-tab-autoflows"
@@ -142,13 +161,11 @@ export function AutoFlowView({
                   className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring/40"
                 >
                   <option value="">Select profile</option>
-                  {profiles
-                    .filter((profile) => profile.enabled)
-                    .map((profile) => (
-                      <option key={profile._id} value={profile._id}>
-                        {profile.name}
-                      </option>
-                    ))}
+                  {enabledProfiles.map((profile) => (
+                    <option key={profile._id} value={profile._id}>
+                      {profile.name}
+                    </option>
+                  ))}
                 </select>
               </label>
               <Input
@@ -181,13 +198,11 @@ export function AutoFlowView({
                   className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring/40"
                 >
                   <option value="">Custom path</option>
-                  {workspaces
-                    .filter((workspace) => workspace.enabled)
-                    .map((workspace) => (
-                      <option key={workspace._id} value={workspace._id}>
-                        {workspace.name}
-                      </option>
-                    ))}
+                  {enabledWorkspaces.map((workspace) => (
+                    <option key={workspace._id} value={workspace._id}>
+                      {workspace.name}
+                    </option>
+                  ))}
                 </select>
               </label>
               <div className="space-y-1.5">
