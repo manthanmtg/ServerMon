@@ -113,13 +113,10 @@ export default function NetworkPage() {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Failed to fetch network data');
       setSnapshot(data);
-      if (data.interfaces.length > 0 && selectedIface === 'all') {
-        // Keep 'all' or default to first non-internal if possible
-      }
     } catch (error) {
       console.error(error);
     }
-  }, [selectedIface]);
+  }, []);
 
   const loadSpeedtestOverview = useCallback(async () => {
     const response = await fetch('/api/modules/network/speedtest', { cache: 'no-store' });
@@ -284,6 +281,21 @@ export default function NetworkPage() {
         dropped: s.rx_dropped + s.tx_dropped,
       }));
   }, [snapshot, selectedIface]);
+
+  const selectedInterfaces = useMemo(() => {
+    if (!snapshot) return [];
+    return snapshot.interfaces.filter((i) => selectedIface === 'all' || i.iface === selectedIface);
+  }, [snapshot, selectedIface]);
+
+  const selectedStats = useMemo(() => {
+    if (!snapshot) return [];
+    return snapshot.stats.filter((s) => selectedIface === 'all' || s.iface === selectedIface);
+  }, [snapshot, selectedIface]);
+
+  const statsByInterface = useMemo(
+    () => new Map(snapshot?.stats.map((stats) => [stats.iface, stats]) ?? []),
+    [snapshot]
+  );
 
   const speedtestHistory = useMemo(() => speedtestOverview?.history ?? [], [speedtestOverview]);
   const latestSpeedtest = speedtestOverview?.latest ?? null;
@@ -507,42 +519,40 @@ export default function NetworkPage() {
       </Card>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {snapshot?.interfaces
-          .filter((i) => selectedIface === 'all' || i.iface === selectedIface)
-          .map((iface) => {
-            const stats = snapshot.stats.find((s) => s.iface === iface.iface);
-            return (
-              <Card key={iface.iface} className="border-border/60 bg-card/80">
-                <CardContent className="p-5 space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
-                        {iface.iface}
-                      </p>
-                      <p className="text-sm font-mono mt-1">{iface.ip4 || '-'}</p>
-                    </div>
-                    <Badge variant={iface.operstate === 'up' ? 'success' : 'destructive'}>
-                      {iface.operstate.toUpperCase()}
-                    </Badge>
+        {selectedInterfaces.map((iface) => {
+          const stats = statsByInterface.get(iface.iface);
+          return (
+            <Card key={iface.iface} className="border-border/60 bg-card/80">
+              <CardContent className="p-5 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
+                      {iface.iface}
+                    </p>
+                    <p className="text-sm font-mono mt-1">{iface.ip4 || '-'}</p>
                   </div>
-                  <div className="grid grid-cols-2 gap-2 text-xs">
-                    <div className="flex items-center gap-1.5 text-muted-foreground">
-                      <ArrowDown className="h-3 w-3 text-success" />
-                      <span>{stats ? formatBytes(stats.rx_sec) : '0 B'}/s</span>
-                    </div>
-                    <div className="flex items-center gap-1.5 text-muted-foreground">
-                      <ArrowUp className="h-3 w-3 text-primary" />
-                      <span>{stats ? formatBytes(stats.tx_sec) : '0 B'}/s</span>
-                    </div>
+                  <Badge variant={iface.operstate === 'up' ? 'success' : 'destructive'}>
+                    {iface.operstate.toUpperCase()}
+                  </Badge>
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div className="flex items-center gap-1.5 text-muted-foreground">
+                    <ArrowDown className="h-3 w-3 text-success" />
+                    <span>{stats ? formatBytes(stats.rx_sec) : '0 B'}/s</span>
                   </div>
-                  <div className="pt-2 border-t border-border/40 flex items-center justify-between text-[10px] uppercase tracking-wider text-muted-foreground font-medium">
-                    <span>{iface.speed > 0 ? formatSpeed(iface.speed) : 'N/A Speed'}</span>
-                    <span>MTU {iface.mtu}</span>
+                  <div className="flex items-center gap-1.5 text-muted-foreground">
+                    <ArrowUp className="h-3 w-3 text-primary" />
+                    <span>{stats ? formatBytes(stats.tx_sec) : '0 B'}/s</span>
                   </div>
-                </CardContent>
-              </Card>
-            );
-          })}
+                </div>
+                <div className="pt-2 border-t border-border/40 flex items-center justify-between text-[10px] uppercase tracking-wider text-muted-foreground font-medium">
+                  <span>{iface.speed > 0 ? formatSpeed(iface.speed) : 'N/A Speed'}</span>
+                  <span>MTU {iface.mtu}</span>
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })}
       </div>
 
       <section className="grid gap-6 2xl:grid-cols-[2fr_1fr]">
@@ -571,30 +581,28 @@ export default function NetworkPage() {
                   contentStyle={{ background: 'var(--card)', border: '1px solid var(--border)' }}
                 />
                 <Legend />
-                {snapshot?.stats
-                  .filter((s) => selectedIface === 'all' || s.iface === selectedIface)
-                  .map((s, idx) => (
-                    <Fragment key={s.iface}>
-                      <Area
-                        type="monotone"
-                        dataKey={`${s.iface}_rx`}
-                        stroke={chartColors[idx % chartColors.length]}
-                        fill={chartColors[idx % chartColors.length]}
-                        fillOpacity={0.15}
-                        name={`${s.iface} Down`}
-                        strokeWidth={2}
-                      />
-                      <Area
-                        type="monotone"
-                        dataKey={`${s.iface}_tx`}
-                        stroke={chartColors[(idx + 1) % chartColors.length]}
-                        fill={chartColors[(idx + 1) % chartColors.length]}
-                        fillOpacity={0.05}
-                        name={`${s.iface} Up`}
-                        strokeWidth={2}
-                      />
-                    </Fragment>
-                  ))}
+                {selectedStats.map((s, idx) => (
+                  <Fragment key={s.iface}>
+                    <Area
+                      type="monotone"
+                      dataKey={`${s.iface}_rx`}
+                      stroke={chartColors[idx % chartColors.length]}
+                      fill={chartColors[idx % chartColors.length]}
+                      fillOpacity={0.15}
+                      name={`${s.iface} Down`}
+                      strokeWidth={2}
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey={`${s.iface}_tx`}
+                      stroke={chartColors[(idx + 1) % chartColors.length]}
+                      fill={chartColors[(idx + 1) % chartColors.length]}
+                      fillOpacity={0.05}
+                      name={`${s.iface} Up`}
+                      strokeWidth={2}
+                    />
+                  </Fragment>
+                ))}
               </AreaChart>
             </ResponsiveContainer>
           </CardContent>
