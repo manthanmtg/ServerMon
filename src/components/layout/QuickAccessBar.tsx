@@ -90,7 +90,7 @@ export default function QuickAccessBar() {
   if (!loaded) return null;
 
   return (
-    <div className="animate-slide-down h-12 w-full bg-background/60 backdrop-blur-md border-b border-border/50 sticky top-14 z-30 flex items-center">
+    <div className="animate-slide-down h-14 w-full bg-background/60 backdrop-blur-md border-b border-border/50 sticky top-14 z-30 flex items-center sm:h-12">
       <div
         ref={scrollRef}
         className="flex items-center gap-1 px-3 lg:px-5 overflow-x-auto scrollbar-none h-full"
@@ -98,7 +98,7 @@ export default function QuickAccessBar() {
         {items.length === 0 ? (
           <Link
             href="/settings"
-            className="flex items-center gap-1.5 px-3 h-8 rounded-full text-xs text-muted-foreground hover:text-foreground hover:bg-accent transition-all whitespace-nowrap"
+            className="flex items-center gap-1.5 px-3 h-11 rounded-full text-xs text-muted-foreground hover:text-foreground hover:bg-accent transition-all whitespace-nowrap sm:h-8"
           >
             <Settings className="w-3.5 h-3.5 shrink-0" />
             <span>Pin modules in Settings →</span>
@@ -112,7 +112,7 @@ export default function QuickAccessBar() {
                 key={item.id}
                 href={item.href}
                 className={cn(
-                  'flex items-center gap-1.5 px-3 h-8 rounded-full text-xs font-medium transition-all duration-200 whitespace-nowrap shrink-0 min-w-[44px] justify-center',
+                  'flex items-center gap-1.5 px-3 h-11 rounded-full text-xs font-medium transition-all duration-200 whitespace-nowrap shrink-0 min-w-[44px] justify-center sm:h-8',
                   'hover:scale-[1.04] active:scale-[0.97]',
                   isActive
                     ? 'bg-primary text-primary-foreground shadow-sm shadow-primary/30'

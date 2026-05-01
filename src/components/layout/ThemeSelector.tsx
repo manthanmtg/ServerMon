@@ -39,7 +39,7 @@ export default function ThemeSelector() {
         size="sm"
         onClick={() => setIsOpen(!isOpen)}
         className={cn(
-          'flex items-center gap-2 px-3 h-9 rounded-xl transition-all duration-300',
+          'flex items-center gap-2 px-3 h-11 rounded-xl transition-all duration-300 sm:h-9',
           isOpen
             ? 'bg-accent text-accent-foreground'
             : 'hover:bg-accent/50 text-muted-foreground hover:text-foreground'
@@ -48,7 +48,10 @@ export default function ThemeSelector() {
         <CurrentIcon className="w-4 h-4" />
         <span className="text-xs font-bold hidden sm:inline tracking-tight">{theme.name}</span>
         <ChevronDown
-          className={cn('w-3 h-3 transition-transform duration-300', isOpen && 'rotate-180')}
+          className={cn(
+            'w-3 h-3 transition-transform duration-300 hidden sm:block',
+            isOpen && 'rotate-180'
+          )}
         />
       </Button>
 
