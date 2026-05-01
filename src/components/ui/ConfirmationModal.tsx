@@ -115,7 +115,7 @@ export default function ConfirmationModal({
               )}
               {verificationText && (
                 <div className="mt-4 space-y-2">
-                  <p className="text-[11px] font-medium text-muted-foreground tracking-wider">
+                  <p id="verification-instruction" className="text-[11px] font-medium text-muted-foreground tracking-wider">
                     Type{' '}
                     <span className="text-foreground font-bold font-mono">
                       &quot;{verificationText}&quot;
@@ -124,6 +124,7 @@ export default function ConfirmationModal({
                   </p>
                   <input
                     type="text"
+                    aria-labelledby="verification-instruction"
                     value={inputValue}
                     onChange={(e) => setInputValue(e.target.value)}
                     placeholder={verificationText}
