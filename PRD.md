@@ -32,19 +32,20 @@ The application runs locally on the server and exposes a secure web interface.
 
 Frontend + Backend (Monolithic App)
 
-- **NextJS (Latest)**
+- **Next.js 16 (App Router)**
 - **TypeScript (strict mode)**
 - **MongoDB**
-- **Node.js (LTS)**
+- **Node.js 20 LTS**
+- **Tailwind CSS 4**
 
 Libraries (Recommended)
 
-- **Zod** for schema validation and strongly typed data contracts across API routes, modules, and database models
+- **Zod 4** for schema validation and strongly typed data contracts across API routes, modules, and database models
 - mongoose / mongodb native driver with typed models
 - socket.io / ws for realtime streams
 - node-pty for terminal module
-- bcrypt / argon2 for password hashing
-- speakeasy or otplib for TOTP
+- argon2 for password hashing
+- otplib for TOTP
 
 ---
 

@@ -7,10 +7,10 @@
 Real-time metrics · Web terminal · Docker management · File browser · AI agent monitoring
 — all through a beautiful, theme-aware web interface.
 
-[![Next.js](https://img.shields.io/badge/Next.js-16-black?logo=next.js)](https://nextjs.org/)
+[![Next.js](https://img.shields.io/badge/Next.js-16.1-black?logo=next.js)](https://nextjs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![MongoDB](https://img.shields.io/badge/MongoDB-7.0-47A248?logo=mongodb&logoColor=white)](https://www.mongodb.com/)
-[![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4-06B6D4?logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
+[![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4.2-06B6D4?logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
 [![codecov](https://codecov.io/gh/manthanmtg/ServerMon/graph/badge.svg?token=94SEBA831Y)](https://codecov.io/gh/manthanmtg/ServerMon)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
@@ -202,10 +202,10 @@ Runtime config lives in `/etc/servermon/env` (production) or `.env.local` (devel
 
 | Layer           | Technology                                          |
 | --------------- | --------------------------------------------------- |
-| **Framework**   | Next.js 16 (App Router) + TypeScript (strict)       |
+| **Framework**   | Next.js 16.1 (App Router) + TypeScript (strict)     |
 | **Database**    | MongoDB 7+ with Mongoose                            |
-| **Validation**  | Zod 4                                               |
-| **Styling**     | Tailwind CSS 4 with CSS variable theming            |
+| **Validation**  | Zod 4.3                                             |
+| **Styling**     | Tailwind CSS 4.2 with CSS variable theming          |
 | **Charts**      | Recharts                                            |
 | **Terminal**    | xterm.js + node-pty                                 |
 | **Code Editor** | CodeMirror 6 (20+ language modes)                   |

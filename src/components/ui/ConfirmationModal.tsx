@@ -115,7 +115,10 @@ export default function ConfirmationModal({
               )}
               {verificationText && (
                 <div className="mt-4 space-y-2">
-                  <p id="verification-instruction" className="text-[11px] font-medium text-muted-foreground tracking-wider">
+                  <p
+                    id="verification-instruction"
+                    className="text-[11px] font-medium text-muted-foreground tracking-wider"
+                  >
                     Type{' '}
                     <span className="text-foreground font-bold font-mono">
                       &quot;{verificationText}&quot;

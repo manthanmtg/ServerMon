@@ -21,7 +21,7 @@ Shortcut: `pnpm check` runs the release contract check, lint, typecheck, build, 
 
 ## Project Overview
 
-ServerMon is a self-hosted server monitoring platform built with Next.js 16 (App Router), TypeScript, MongoDB, and Tailwind CSS 4. It follows a modular architecture where features (terminal, processes, logs, metrics) are independent modules that register into a core shell.
+ServerMon is a self-hosted server monitoring platform built with Next.js 16.1 (App Router), TypeScript, MongoDB, and Tailwind CSS 4.2. It follows a modular architecture where features (terminal, processes, logs, metrics) are independent modules that register into a core shell.
 
 ---
 
