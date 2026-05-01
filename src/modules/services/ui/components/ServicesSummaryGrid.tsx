@@ -105,14 +105,19 @@ export function ServicesSummaryGrid({ summary, alertsCount }: ServicesSummaryGri
         </CardContent>
       </Card>
       {cards.map(({ label, value, icon: Icon, color }) => (
-        <Card key={label} className="border-border/60 bg-card/80 transition-all hover:bg-card hover:shadow-sm group overflow-hidden relative">
+        <Card
+          key={label}
+          className="border-border/60 bg-card/80 transition-all hover:bg-card hover:shadow-sm group overflow-hidden relative"
+        >
           <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
           <CardContent className="flex items-center justify-between p-4 min-h-[80px] relative z-10">
             <div>
               <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground transition-colors group-hover:text-foreground/80">
                 {label}
               </p>
-              <p className="mt-1 text-2xl font-semibold tracking-tight transition-transform group-hover:translate-x-0.5">{value}</p>
+              <p className="mt-1 text-2xl font-semibold tracking-tight transition-transform group-hover:translate-x-0.5">
+                {value}
+              </p>
             </div>
             <div className="rounded-xl border border-border/60 bg-muted/30 p-2.5 transition-all group-hover:bg-muted/50 group-hover:scale-105 group-hover:rotate-3">
               <Icon className={cn('h-5 w-5', color)} />

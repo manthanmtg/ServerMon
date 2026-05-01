@@ -41,6 +41,13 @@ type SortField = 'command' | 'expression' | 'user' | 'source' | 'nextRun';
 type SortDir = 'asc' | 'desc';
 type ViewTab = 'jobs' | 'system' | 'manual' | 'logs';
 
+const viewTabLabels: Record<ViewTab, string> = {
+  jobs: 'jobs',
+  system: 'system',
+  manual: 'manual run history',
+  logs: 'system logs',
+};
+
 // ---- Create/Edit Modal ----
 
 interface CronFormModalProps {
@@ -812,11 +819,19 @@ export default function CronsPage() {
 
       {/* Tab navigation */}
       <div className="flex items-center gap-4 flex-wrap">
-        <div className="inline-flex rounded-xl border border-border bg-muted/30 p-1">
+        <div
+          role="tablist"
+          aria-label="Cron views"
+          className="inline-flex rounded-xl border border-border bg-muted/30 p-1"
+        >
           {(['jobs', 'system', 'manual', 'logs'] as ViewTab[]).map((tab) => (
             <button
               key={tab}
               type="button"
+              id={`cron-view-tab-${tab}`}
+              role="tab"
+              aria-selected={viewTab === tab}
+              aria-controls={`cron-view-panel-${tab}`}
               onClick={() => setViewTab(tab)}
               className={cn(
                 'min-h-[44px] rounded-lg px-4 text-xs font-semibold uppercase tracking-[0.18em] transition-colors flex items-center gap-2',
@@ -829,7 +844,7 @@ export default function CronsPage() {
               {tab === 'system' && <FolderOpen className="w-3.5 h-3.5" />}
               {tab === 'manual' && <RefreshCcw className="w-3.5 h-3.5" />}
               {tab === 'logs' && <Terminal className="w-3.5 h-3.5" />}
-              {tab === 'manual' ? 'manual run history' : tab === 'logs' ? 'system logs' : tab}
+              {viewTabLabels[tab]}
             </button>
           ))}
         </div>
@@ -864,7 +879,12 @@ export default function CronsPage() {
 
       {/* Jobs table */}
       {viewTab === 'jobs' && (
-        <Card className="border-border/60 overflow-hidden">
+        <Card
+          id="cron-view-panel-jobs"
+          role="tabpanel"
+          aria-labelledby="cron-view-tab-jobs"
+          className="border-border/60 overflow-hidden"
+        >
           <div className="overflow-x-auto">
             <table className="min-w-full text-sm">
               <thead className="text-left text-xs uppercase tracking-[0.18em] text-muted-foreground bg-muted/20">
@@ -1151,7 +1171,12 @@ export default function CronsPage() {
 
       {/* System cron directories tab */}
       {viewTab === 'system' && (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div
+          id="cron-view-panel-system"
+          role="tabpanel"
+          aria-labelledby="cron-view-tab-system"
+          className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3"
+        >
           {(snapshot?.systemDirs || []).map((dir) => (
             <Card key={dir.name} className="border-border/60">
               <CardHeader className="pb-2">
@@ -1195,7 +1220,12 @@ export default function CronsPage() {
 
       {/* Execution logs tab */}
       {viewTab === 'logs' && (
-        <Card className="border-border/60">
+        <Card
+          id="cron-view-panel-logs"
+          role="tabpanel"
+          aria-labelledby="cron-view-tab-logs"
+          className="border-border/60"
+        >
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
@@ -1236,7 +1266,12 @@ export default function CronsPage() {
 
       {/* Global Manual Run History tab */}
       {viewTab === 'manual' && (
-        <Card className="border-border/60">
+        <Card
+          id="cron-view-panel-manual"
+          role="tabpanel"
+          aria-labelledby="cron-view-tab-manual"
+          className="border-border/60"
+        >
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>

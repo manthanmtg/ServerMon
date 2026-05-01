@@ -179,6 +179,25 @@ describe('CronsPage', () => {
     expect(screen.getByText('Manual Execution History')).toBeDefined();
   });
 
+  it('exposes the view switcher as an accessible tablist', async () => {
+    await renderPage();
+
+    const tablist = screen.getByRole('tablist', { name: 'Cron views' });
+    const jobsTab = within(tablist).getByRole('tab', { name: 'jobs' });
+    const logsTab = within(tablist).getByRole('tab', { name: 'system logs' });
+
+    expect(jobsTab).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('tabpanel', { name: 'jobs' })).toBeDefined();
+
+    await act(async () => {
+      fireEvent.click(logsTab);
+    });
+
+    expect(jobsTab).toHaveAttribute('aria-selected', 'false');
+    expect(logsTab).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('tabpanel', { name: 'system logs' })).toBeDefined();
+  });
+
   it('switches to execution logs tab', async () => {
     await renderPage();
     const logsTab = screen.getByText('system logs');
