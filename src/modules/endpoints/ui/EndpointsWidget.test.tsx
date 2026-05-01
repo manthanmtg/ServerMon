@@ -163,6 +163,55 @@ describe('EndpointsWidget', () => {
     await waitFor(() => expect(screen.queryByRole('status')).toBeNull());
   });
 
+  it('ignores malformed endpoint payloads', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ endpoints: null, total: 1 }),
+    });
+
+    await act(async () => {
+      render(<EndpointsWidget />);
+    });
+
+    await waitFor(() => expect(screen.getByText('No endpoints configured yet')).toBeDefined());
+  });
+
+  it('aborts stale endpoint requests and clears the timeout after completion', async () => {
+    vi.useFakeTimers();
+    const abortSpy = vi.spyOn(AbortController.prototype, 'abort');
+    const clearTimeoutSpy = vi.spyOn(window, 'clearTimeout');
+    let requestSignal: AbortSignal | undefined;
+    let resolveFetch!: (v: Response) => void;
+    global.fetch = vi.fn().mockImplementation((_input: RequestInfo | URL, init?: RequestInit) => {
+      requestSignal = init?.signal ?? undefined;
+      return new Promise<Response>((resolve) => {
+        resolveFetch = resolve;
+      });
+    });
+
+    render(<EndpointsWidget />);
+
+    expect(requestSignal).toBeDefined();
+
+    await act(async () => {
+      vi.advanceTimersByTime(8000);
+    });
+
+    expect(abortSpy).toHaveBeenCalledTimes(1);
+    expect(requestSignal?.aborted).toBe(true);
+
+    await act(async () => {
+      resolveFetch({
+        ok: true,
+        json: async () => ({ endpoints: [], total: 0 }),
+      } as Response);
+    });
+
+    expect(clearTimeoutSpy).toHaveBeenCalled();
+    abortSpy.mockRestore();
+    clearTimeoutSpy.mockRestore();
+  });
+
   it('polls every 30 seconds', async () => {
     vi.useFakeTimers();
     await act(async () => {
