@@ -95,7 +95,10 @@ export function ServiceLogPanel({ serviceName }: ServiceLogPanelProps) {
         className="max-h-[240px] overflow-y-auto space-y-1 font-mono text-xs custom-scrollbar scroll-smooth p-2 rounded-xl bg-black/20 border border-border/40"
       >
         {logs.map((entry, i) => (
-          <div key={i} className="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-2 py-1 sm:py-0.5 border-b border-border/10 last:border-0 sm:border-0">
+          <div
+            key={i}
+            className="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-2 py-1 sm:py-0.5 border-b border-border/10 last:border-0 sm:border-0"
+          >
             <div className="flex items-center gap-2 shrink-0">
               <Badge
                 variant={logPriorityVariant(entry.priority)}
