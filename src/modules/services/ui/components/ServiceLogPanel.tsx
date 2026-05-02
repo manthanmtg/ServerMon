@@ -95,23 +95,25 @@ export function ServiceLogPanel({ serviceName }: ServiceLogPanelProps) {
         className="max-h-[240px] overflow-y-auto space-y-1 font-mono text-xs custom-scrollbar scroll-smooth p-2 rounded-xl bg-black/20 border border-border/40"
       >
         {logs.map((entry, i) => (
-          <div key={i} className="flex items-start gap-2 py-0.5">
-            <Badge
-              variant={logPriorityVariant(entry.priority)}
-              className="shrink-0 text-[10px] px-1.5 py-0 min-w-[48px] justify-center"
-            >
-              {entry.priority}
-            </Badge>
-            <span className="text-muted-foreground shrink-0 w-[140px]">
-              {new Date(entry.timestamp).toLocaleString([], {
-                hour: '2-digit',
-                minute: '2-digit',
-                second: '2-digit',
-                month: 'short',
-                day: 'numeric',
-              })}
-            </span>
-            <span className="text-foreground break-all">{entry.message}</span>
+          <div key={i} className="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-2 py-1 sm:py-0.5 border-b border-border/10 last:border-0 sm:border-0">
+            <div className="flex items-center gap-2 shrink-0">
+              <Badge
+                variant={logPriorityVariant(entry.priority)}
+                className="shrink-0 text-[10px] px-1.5 py-0 min-w-[48px] justify-center"
+              >
+                {entry.priority}
+              </Badge>
+              <span className="text-muted-foreground text-[10px] sm:text-xs shrink-0 sm:w-[140px]">
+                {new Date(entry.timestamp).toLocaleString([], {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                  second: '2-digit',
+                  month: 'short',
+                  day: 'numeric',
+                })}
+              </span>
+            </div>
+            <span className="text-foreground break-words sm:break-all">{entry.message}</span>
           </div>
         ))}
       </div>
