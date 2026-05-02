@@ -239,6 +239,7 @@ export default function UsersPage() {
                       <td className="px-6 py-4">
                         {activeTab === 'web' ? (
                           <button
+                            aria-label={`Toggle role for ${user.username}`}
                             onClick={() =>
                               handleUpdateRole((user as WebUser).id, (user as WebUser).role)
                             }
@@ -278,6 +279,7 @@ export default function UsersPage() {
                         ) : (
                           <button
                             data-testid="toggle-sudo-btn"
+                            aria-label={`Toggle sudo privileges for ${user.username}`}
                             onClick={() =>
                               handleToggleSudo((user as OSUser).username, (user as OSUser).hasSudo)
                             }
