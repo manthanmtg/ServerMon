@@ -512,6 +512,10 @@ describe('SettingsPage', () => {
     const hourSelect = screen.getByRole('combobox', { name: 'Daily hour' });
     const minuteSelect = screen.getByRole('combobox', { name: 'Daily minute' });
     const periodSelect = screen.getByRole('combobox', { name: 'Daily period' });
+    expect(hourSelect.parentElement).toHaveClass(
+      'grid-cols-1',
+      'sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_96px]'
+    );
     expect(hourSelect).toHaveValue('03');
     expect(minuteSelect).toHaveValue('00');
     expect(periodSelect).toHaveValue('AM');

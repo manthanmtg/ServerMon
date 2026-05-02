@@ -465,7 +465,7 @@ export default function ServerMonServicesCard({ onOpenHistory }: ServerMonServic
                 <span className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
                   Daily time
                 </span>
-                <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_96px] gap-2">
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_96px]">
                   <select
                     aria-label="Daily hour"
                     value={scheduleTimeParts.hour}
