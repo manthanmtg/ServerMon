@@ -26,11 +26,6 @@ const app = next({ dev });
 const handle = app.getRequestHandler();
 const port = parseInt(process.env.PORT || '8912', 10);
 
-interface AgentRuntimeDiagnostics {
-  bootId: string;
-  bootAt: Date;
-}
-
 function parsePort(value: string | undefined, fallback: number): number {
   const parsed = Number.parseInt(value ?? '', 10);
   return Number.isInteger(parsed) && parsed > 0 && parsed <= 65535 ? parsed : fallback;
@@ -78,6 +73,15 @@ async function cleanupStaleSessions() {
   }
 }
 
+interface SessionPayload {
+  user: {
+    id: string;
+    username: string;
+    role: string;
+  };
+  expires: string;
+}
+
 if (process.env.FLEET_AGENT_MODE === 'true') {
   void (async () => {
     const { AgentClient } = await import('./lib/fleet/agentClient');
@@ -109,6 +113,7 @@ if (process.env.FLEET_AGENT_MODE === 'true') {
       logEntry: (entry) => {
         // Send logs to hub via a fire-and-forget fetch
         const logUrl = `${hubUrl}/api/fleet/nodes/${nodeId}/heartbeat`;
+        const agentStatus = agent.status();
         fetch(logUrl, {
           method: 'POST',
           headers: {
@@ -117,8 +122,8 @@ if (process.env.FLEET_AGENT_MODE === 'true') {
           },
           body: JSON.stringify({
             nodeId,
-            bootId: (agent as unknown as AgentRuntimeDiagnostics).bootId,
-            bootAt: (agent as unknown as AgentRuntimeDiagnostics).bootAt?.toISOString(),
+            bootId: agentStatus.bootId,
+            bootAt: agentStatus.bootAt.toISOString(),
             agentVersion: '0.0.0',
             hardware: {},
             metrics: {},
@@ -203,31 +208,20 @@ if (process.env.FLEET_AGENT_MODE === 'true') {
           return next(new Error('Authentication error: Session cookie not found'));
         }
 
-        const session = (await decrypt(sessionCookie).catch(
-          () => null
-        )) as unknown as SessionPayload;
+        const session = (await decrypt(sessionCookie).catch(() => null)) as SessionPayload | null;
         if (!session || !session.user) {
           log.warn('Socket connection rejected: Invalid or expired session');
           return next(new Error('Authentication error: Invalid session'));
         }
 
         // Attach user info to socket
-        (socket as unknown as { user: SessionPayload['user'] }).user = session.user;
+        socket.data = { ...socket.data, user: session.user };
         next();
       } catch (err) {
         log.error('Socket authentication middleware error', err);
         next(new Error('Internal authentication error'));
       }
     });
-
-    interface SessionPayload {
-      user: {
-        id: string;
-        username: string;
-        role: string;
-      };
-      expires: string;
-    }
 
     // Persistent PTY sessions
     interface ptySession {
@@ -520,15 +514,18 @@ if (process.env.FLEET_AGENT_MODE === 'true') {
               emitter.emit('close', code, reason.toString('utf8'))
             );
 
-            return Object.assign(emitter, {
+            const adapter: HubWsAdapter = Object.assign(emitter, {
               send: (data: string | Buffer) => ws.send(data),
               close: (code?: number, reason?: string) => ws.close(code, reason),
               get readyState() {
                 return ws.readyState as HubWsAdapter['readyState'];
               },
-              off: (event: string, listener: (...args: unknown[]) => void) =>
-                emitter.removeListener(event, listener),
-            }) as unknown as HubWsAdapter;
+              off: (event: string, listener: (...args: unknown[]) => void) => {
+                emitter.removeListener(event, listener);
+              },
+            });
+
+            return adapter;
           },
         });
         registerFleetTtyNamespace({

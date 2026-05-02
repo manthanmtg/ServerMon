@@ -58,6 +58,8 @@ export interface AgentStatus {
   bridgeRunning: boolean;
   lastHeartbeatAt?: Date;
   lastError?: string;
+  bootId: string;
+  bootAt: Date;
 }
 
 interface PairResponse {
@@ -161,11 +163,7 @@ async function fetchHubWithTimeout(
 
 export class AgentClient {
   private readonly opts: AgentClientOpts;
-  private readonly status_: AgentStatus = {
-    paired: false,
-    tunnelStatus: 'disconnected',
-    bridgeRunning: false,
-  };
+  private readonly status_: AgentStatus;
   private frpHandle: FrpHandle | null = null;
   private bridge: AgentPtyBridge | null = null;
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
@@ -191,6 +189,13 @@ export class AgentClient {
     if (opts.now) {
       this.bootAt = opts.now();
     }
+    this.status_ = {
+      paired: false,
+      tunnelStatus: 'disconnected',
+      bridgeRunning: false,
+      bootId: this.bootId,
+      bootAt: this.bootAt,
+    };
   }
 
   status(): AgentStatus {
