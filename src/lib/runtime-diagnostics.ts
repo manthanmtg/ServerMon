@@ -4,7 +4,7 @@ import {
   type RuntimeLaunchContextSnapshot,
 } from './runtime-launch-context';
 
-export interface RuntimeDiagnosticsCompletedRequest {
+interface RuntimeDiagnosticsCompletedRequest {
   id: string;
   method: string;
   path: string;
@@ -22,7 +22,7 @@ interface InFlightRequestRecord {
   startedAtMs: number;
 }
 
-export interface RuntimeDiagnosticsSnapshot {
+interface RuntimeDiagnosticsSnapshot {
   generatedAt: string;
   runtime: RuntimeLaunchContextSnapshot;
   process: {
