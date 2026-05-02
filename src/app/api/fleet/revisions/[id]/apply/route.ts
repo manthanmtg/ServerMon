@@ -48,7 +48,7 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
       };
       const result = await applyRevision(id, engineDeps);
 
-      await recordAudit(FleetLogEvent as unknown as Model<unknown>, {
+      await recordAudit(FleetLogEvent, {
         action: 'revision.apply',
         actorUserId: session.user.username,
         metadata: {

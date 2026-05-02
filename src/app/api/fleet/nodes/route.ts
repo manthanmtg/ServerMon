@@ -180,7 +180,7 @@ export async function POST(req: NextRequest) {
 
     await node.save();
 
-    await recordAudit(FleetLogEvent as unknown as Model<unknown>, {
+    await recordAudit(FleetLogEvent, {
       action: 'node.create',
       actorUserId: session.user.username,
       nodeId: String(node._id),

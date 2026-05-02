@@ -254,7 +254,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     };
     await updated.save();
 
-    await recordAudit(FleetLogEvent as unknown as Model<unknown>, {
+    await recordAudit(FleetLogEvent, {
       action: 'node.update',
       actorUserId: actorUsername,
       nodeId: id,
@@ -314,7 +314,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     }
     await node.save();
 
-    await recordAudit(FleetLogEvent as unknown as Model<unknown>, {
+    await recordAudit(FleetLogEvent, {
       action: 'node.delete',
       actorUserId: session.user.username,
       nodeId: id,

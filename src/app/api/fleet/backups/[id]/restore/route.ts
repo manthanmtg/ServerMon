@@ -34,7 +34,7 @@ const SCOPE_MODELS: Record<string, Model<unknown>> = {
   nginx: NginxState as unknown as Model<unknown>,
   policies: AccessPolicy as unknown as Model<unknown>,
   retention: ResourcePolicy as unknown as Model<unknown>,
-  audit: FleetLogEvent as unknown as Model<unknown>,
+  audit: FleetLogEvent,
   templates: RouteTemplate as unknown as Model<unknown>,
   imported: ImportedConfig as unknown as Model<unknown>,
 };
@@ -90,7 +90,7 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
     job.restoreVerified = true;
     await job.save();
 
-    await recordAudit(FleetLogEvent as unknown as Model<unknown>, {
+    await recordAudit(FleetLogEvent, {
       action: 'backup.restore',
       actorUserId: session.user.username,
       service: 'backup',

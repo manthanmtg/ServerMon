@@ -266,7 +266,7 @@ export async function POST(req: NextRequest) {
     if (frpcRevisionId) created.frpConfigRevisionId = frpcRevisionId;
     await created.save();
 
-    await recordAudit(FleetLogEvent as unknown as Model<unknown>, {
+    await recordAudit(FleetLogEvent, {
       action: 'route.create',
       actorUserId: session.user.username,
       routeId,

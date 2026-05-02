@@ -186,7 +186,7 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    await recordAudit(FleetLogEvent as unknown as Model<unknown>, {
+    await recordAudit(FleetLogEvent, {
       action: 'endpoint.fleet_dispatch',
       actorUserId: session.user.username,
       service: 'endpoint-runner',

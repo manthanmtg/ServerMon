@@ -70,7 +70,7 @@ export async function POST(req: NextRequest) {
       createdBy: session.user.username,
     });
 
-    await recordAudit(FleetLogEvent as unknown as Model<unknown>, {
+    await recordAudit(FleetLogEvent, {
       action: 'template.create',
       actorUserId: session.user.username,
       metadata: { templateId: String(created._id), slug: parsed.slug },

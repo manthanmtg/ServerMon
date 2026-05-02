@@ -159,7 +159,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    await recordAudit(FleetLogEvent as unknown as Model<unknown>, {
+    await recordAudit(FleetLogEvent, {
       action: `emergency.${action}`,
       actorUserId: session.user.username,
       service: 'servermon',

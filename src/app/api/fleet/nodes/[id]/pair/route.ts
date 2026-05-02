@@ -58,7 +58,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     node.tunnelStatus = 'disconnected';
     await node.save();
 
-    await recordAudit(FleetLogEvent as unknown as Model<unknown>, {
+    await recordAudit(FleetLogEvent, {
       action: 'node.pair_verified',
       nodeId: id,
     });

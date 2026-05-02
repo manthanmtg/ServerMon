@@ -58,7 +58,7 @@ export async function POST(req: NextRequest) {
       initiatedBy: session.user.username,
     });
 
-    await recordAudit(FleetLogEvent as unknown as Model<unknown>, {
+    await recordAudit(FleetLogEvent, {
       action: 'update_job.create',
       actorUserId: session.user.username,
       service: 'update',

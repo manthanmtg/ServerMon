@@ -176,7 +176,7 @@ export async function POST(req: NextRequest) {
     state.runtimeState = enabled ? 'starting' : 'stopping';
     await state.save();
 
-    await recordAudit(FleetLogEvent as unknown as Model<unknown>, {
+    await recordAudit(FleetLogEvent, {
       action: 'frps.toggle',
       actorUserId: session.user.username,
       service: 'frps',
@@ -229,7 +229,7 @@ export async function PATCH(req: NextRequest) {
 
     await rerenderAndSaveRevision(state, session.user.username);
 
-    await recordAudit(FleetLogEvent as unknown as Model<unknown>, {
+    await recordAudit(FleetLogEvent, {
       action: 'frps.update',
       actorUserId: session.user.username,
       service: 'frps',
