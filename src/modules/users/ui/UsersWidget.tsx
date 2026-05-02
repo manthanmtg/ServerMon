@@ -18,7 +18,12 @@ function toPayloadArray(payload: unknown): unknown[] {
 }
 
 function isAdminUser(user: unknown): user is WebUserSummary {
-  return typeof user === 'object' && user !== null && 'role' in user && (user as Record<string, unknown>).role === 'admin';
+  return (
+    typeof user === 'object' &&
+    user !== null &&
+    'role' in user &&
+    (user as Record<string, unknown>).role === 'admin'
+  );
 }
 
 export default function UsersWidget() {
