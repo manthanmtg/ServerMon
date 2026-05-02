@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Users, Shield, Key, ArrowRight, ShieldCheck } from 'lucide-react';
+import { Users, Shield, Key, ArrowRight, ShieldCheck, Loader2 } from 'lucide-react';
 
 interface UserStats {
   osCount: number;
@@ -10,7 +10,7 @@ interface UserStats {
 }
 
 interface WebUserSummary {
-  role?: unknown;
+  role?: 'admin' | 'user';
 }
 
 function toPayloadArray(payload: unknown): unknown[] {
@@ -18,11 +18,12 @@ function toPayloadArray(payload: unknown): unknown[] {
 }
 
 function isAdminUser(user: unknown): user is WebUserSummary {
-  return typeof user === 'object' && user !== null && 'role' in user && user.role === 'admin';
+  return typeof user === 'object' && user !== null && 'role' in user && (user as Record<string, unknown>).role === 'admin';
 }
 
 export default function UsersWidget() {
   const [stats, setStats] = useState<UserStats>({ osCount: 0, webCount: 0, admins: 0 });
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const fetchStats = async () => {
@@ -43,6 +44,8 @@ export default function UsersWidget() {
         }
       } catch (_err) {
         console.error('Failed to fetch user stats');
+      } finally {
+        setIsLoading(false);
       }
     };
     fetchStats();
@@ -66,7 +69,11 @@ export default function UsersWidget() {
 
       <div className="grid grid-cols-2 gap-3">
         <div className="p-3 rounded-xl bg-accent/30 border border-border/50">
-          <div className="text-xl font-bold tracking-tight">{stats.webCount}</div>
+          {isLoading ? (
+            <div className="h-7 w-12 bg-muted animate-pulse rounded-md" />
+          ) : (
+            <div className="text-xl font-bold tracking-tight">{stats.webCount}</div>
+          )}
           <div className="flex items-center gap-1.5 mt-0.5">
             <ShieldCheck className="w-3 h-3 text-emerald-500" />
             <span className="text-[10px] font-medium text-muted-foreground uppercase">
@@ -75,7 +82,11 @@ export default function UsersWidget() {
           </div>
         </div>
         <div className="p-3 rounded-xl bg-accent/30 border border-border/50">
-          <div className="text-xl font-bold tracking-tight">{stats.osCount}</div>
+          {isLoading ? (
+            <div className="h-7 w-12 bg-muted animate-pulse rounded-md" />
+          ) : (
+            <div className="text-xl font-bold tracking-tight">{stats.osCount}</div>
+          )}
           <div className="flex items-center gap-1.5 mt-0.5">
             <Key className="w-3 h-3 text-amber-500" />
             <span className="text-[10px] font-medium text-muted-foreground uppercase">
@@ -91,7 +102,11 @@ export default function UsersWidget() {
             <Shield className="w-3.5 h-3.5 text-emerald-500" />
             <span className="text-[11px] font-medium">Active Admins</span>
           </div>
-          <span className="text-xs font-bold text-emerald-600">{stats.admins}</span>
+          {isLoading ? (
+            <Loader2 className="w-4 h-4 text-emerald-600 animate-spin" />
+          ) : (
+            <span className="text-xs font-bold text-emerald-600">{stats.admins}</span>
+          )}
         </div>
       </div>
 
