@@ -2,29 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Users, Shield, Key, ArrowRight, ShieldCheck, Loader2 } from 'lucide-react';
-
-interface UserStats {
-  osCount: number;
-  webCount: number;
-  admins: number;
-}
-
-interface WebUserSummary {
-  role?: 'admin' | 'user';
-}
-
-function toPayloadArray(payload: unknown): unknown[] {
-  return Array.isArray(payload) ? payload : [];
-}
-
-function isAdminUser(user: unknown): user is WebUserSummary {
-  return (
-    typeof user === 'object' &&
-    user !== null &&
-    'role' in user &&
-    (user as Record<string, unknown>).role === 'admin'
-  );
-}
+import { summarizeUserStats, type UserStats } from './userStats';
 
 export default function UsersWidget() {
   const [stats, setStats] = useState<UserStats>({ osCount: 0, webCount: 0, admins: 0 });
@@ -39,13 +17,12 @@ export default function UsersWidget() {
         ]);
 
         if (osRes.ok && webRes.ok) {
-          const osUsers = toPayloadArray(await osRes.json());
-          const webUsers = toPayloadArray(await webRes.json());
-          setStats({
-            osCount: osUsers.length,
-            webCount: webUsers.length,
-            admins: webUsers.filter(isAdminUser).length,
-          });
+          setStats(
+            summarizeUserStats({
+              osPayload: await osRes.json(),
+              webPayload: await webRes.json(),
+            })
+          );
         }
       } catch (_err) {
         console.error('Failed to fetch user stats');
