@@ -21,13 +21,13 @@ export interface EffectivePolicy {
   enforcement: Partial<Record<LimitKey, Enforcement>>;
 }
 
-export interface CheckLimitInput {
+interface CheckLimitInput {
   key: LimitKey;
   current: number;
   policy: EffectivePolicy;
 }
 
-export interface CheckLimitResult {
+interface CheckLimitResult {
   key: LimitKey;
   passed: boolean;
   soft: boolean;
@@ -63,7 +63,7 @@ export function checkLimit(i: CheckLimitInput): CheckLimitResult {
   };
 }
 
-export interface GetEffectivePolicyInput {
+interface GetEffectivePolicyInput {
   scope: 'global' | 'node' | 'tag' | 'role';
   scopeId?: string;
   model: Model<IResourcePolicy>;
