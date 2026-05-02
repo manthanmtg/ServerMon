@@ -47,7 +47,7 @@ export async function POST() {
     state.lastRestartAt = new Date();
     await state.save();
 
-    await recordAudit(FleetLogEvent as unknown as Model<unknown>, {
+    await recordAudit(FleetLogEvent, {
       action: 'frps.restart',
       actorUserId: session.user.username,
       service: 'frps',

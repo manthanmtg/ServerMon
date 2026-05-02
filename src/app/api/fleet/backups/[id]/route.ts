@@ -54,7 +54,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
 
     await BackupJob.findByIdAndDelete(id);
 
-    await recordAudit(FleetLogEvent as unknown as Model<unknown>, {
+    await recordAudit(FleetLogEvent, {
       action: 'backup.delete',
       actorUserId: session.user.username,
       service: 'backup',

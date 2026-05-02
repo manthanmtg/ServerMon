@@ -48,7 +48,7 @@ export async function POST(req: NextRequest) {
 
     const created = await AlertSubscription.create(parsed);
 
-    await recordAudit(FleetLogEvent as unknown as Model<unknown>, {
+    await recordAudit(FleetLogEvent, {
       action: 'alert_subscription.create',
       actorUserId: session.user.username,
       metadata: {

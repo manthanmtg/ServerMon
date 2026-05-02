@@ -143,7 +143,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       },
     });
 
-    await recordAudit(FleetLogEvent as unknown as Model<unknown>, {
+    await recordAudit(FleetLogEvent, {
       action: 'servermon.install_queued',
       actorUserId: session.user.username,
       nodeId: id,

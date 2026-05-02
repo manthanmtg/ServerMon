@@ -69,7 +69,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       return NextResponse.json({ error: 'Template not found' }, { status: 404 });
     }
 
-    await recordAudit(FleetLogEvent as unknown as Model<unknown>, {
+    await recordAudit(FleetLogEvent, {
       action: 'template.update',
       actorUserId: session.user.username,
       metadata: { templateId: id },
@@ -106,7 +106,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
 
     await RouteTemplate.findByIdAndDelete(id);
 
-    await recordAudit(FleetLogEvent as unknown as Model<unknown>, {
+    await recordAudit(FleetLogEvent, {
       action: 'template.delete',
       actorUserId: session.user.username,
       metadata: { templateId: id },

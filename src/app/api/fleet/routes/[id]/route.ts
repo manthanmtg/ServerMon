@@ -209,7 +209,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
     await updated.save();
 
-    await recordAudit(FleetLogEvent as unknown as Model<unknown>, {
+    await recordAudit(FleetLogEvent, {
       action: 'route.update',
       actorUserId: session.user.username,
       routeId: id,
@@ -359,7 +359,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     // Remove nginx config revisions associated with this route.
     await ConfigRevision.deleteMany({ kind: 'nginx', targetId: id });
 
-    await recordAudit(FleetLogEvent as unknown as Model<unknown>, {
+    await recordAudit(FleetLogEvent, {
       action: 'route.delete',
       actorUserId: session.user.username,
       routeId: id,

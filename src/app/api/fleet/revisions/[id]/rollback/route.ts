@@ -145,7 +145,7 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
       revision.rolledBackAt = new Date();
       await revision.save();
 
-      await recordAudit(FleetLogEvent as unknown as Model<unknown>, {
+      await recordAudit(FleetLogEvent, {
         action: 'revision.rollback',
         actorUserId: session.user.username,
         metadata: {
@@ -232,7 +232,7 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
       revision.rolledBackAt = new Date();
       await revision.save();
 
-      await recordAudit(FleetLogEvent as unknown as Model<unknown>, {
+      await recordAudit(FleetLogEvent, {
         action: 'revision.rollback',
         actorUserId: session.user.username,
         nodeId: targetId,
@@ -342,7 +342,7 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
       revision.rolledBackAt = new Date();
       await revision.save();
 
-      await recordAudit(FleetLogEvent as unknown as Model<unknown>, {
+      await recordAudit(FleetLogEvent, {
         action: 'revision.rollback',
         actorUserId: session.user.username,
         routeId: targetId,

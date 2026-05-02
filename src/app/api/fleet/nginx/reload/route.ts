@@ -46,7 +46,7 @@ export async function POST() {
     state.lastReloadSuccess = reloadResult.ok;
     await state.save();
 
-    await recordAudit(FleetLogEvent as unknown as Model<unknown>, {
+    await recordAudit(FleetLogEvent, {
       action: 'nginx.reload',
       actorUserId: session.user.username,
       service: 'nginx',

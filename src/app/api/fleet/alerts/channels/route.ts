@@ -49,7 +49,7 @@ export async function POST(req: NextRequest) {
 
     const created = await AlertChannel.create(parsed);
 
-    await recordAudit(FleetLogEvent as unknown as Model<unknown>, {
+    await recordAudit(FleetLogEvent, {
       action: 'alert_channel.create',
       actorUserId: session.user.username,
       metadata: { channelId: String(created._id), slug: parsed.slug, kind: parsed.kind },

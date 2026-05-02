@@ -106,7 +106,7 @@ export async function POST(req: NextRequest) {
 
     const result = await dispatchAlert(testPayload, deps);
 
-    await recordAudit(FleetLogEvent as unknown as Model<unknown>, {
+    await recordAudit(FleetLogEvent, {
       action: 'alert_channel.test',
       actorUserId: session.user.username,
       metadata: {
