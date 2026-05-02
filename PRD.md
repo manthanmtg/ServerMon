@@ -152,7 +152,7 @@ Credentials are stored in MongoDB.
 
 Security requirements:
 
-- Passwords hashed using **Argon2 or bcrypt**
+- Passwords hashed using **Argon2**
 - Salting required
 - No plaintext storage
 - Rate limiting on login attempts
@@ -515,7 +515,7 @@ users
 
 Notes:
 
-- `passwordHash` uses **Argon2 or bcrypt**.
+- `passwordHash` uses **Argon2**.
 - `totpSecret` stored securely and used for Google Authenticator.
 - `passkeys` stores credential ID, public key, and metadata for WebAuthn.
 - `createdBy` references the admin who created the user.
