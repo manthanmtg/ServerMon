@@ -55,6 +55,15 @@ const CATEGORY_ORDER: TemplateCategory[] = [
 const ALL_METHODS: HttpMethod[] = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'];
 const ALL_TYPES: EndpointType[] = ['script', 'logic', 'webhook'];
 
+export function buildTemplateCategoryCounts(
+  templates: EndpointTemplate[]
+): Partial<Record<TemplateCategory, number>> {
+  return templates.reduce<Partial<Record<TemplateCategory, number>>>((counts, template) => {
+    counts[template.category] = (counts[template.category] ?? 0) + 1;
+    return counts;
+  }, {});
+}
+
 interface TemplateGalleryProps {
   templates: EndpointTemplate[];
   onClose: () => void;
@@ -75,6 +84,8 @@ export function TemplateGallery({
     const cats = new Set(templates.map((t) => t.category));
     return CATEGORY_ORDER.filter((c) => cats.has(c));
   }, [templates]);
+
+  const categoryCounts = useMemo(() => buildTemplateCategoryCounts(templates), [templates]);
 
   const availableMethods = useMemo(() => {
     const methods = new Set(templates.map((t) => t.method));
@@ -189,7 +200,7 @@ export function TemplateGallery({
             </button>
             {availableCategories.map((cat) => {
               const meta = CATEGORY_META[cat];
-              const count = templates.filter((t) => t.category === cat).length;
+              const count = categoryCounts[cat] ?? 0;
               const isActive = activeCategory === cat;
               return (
                 <button
