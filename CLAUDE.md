@@ -123,6 +123,7 @@ Tests use **Vitest** for unit/integration and **Playwright** for E2E.
 - **CSS variable theming**: All colors flow through variables defined in `src/app/globals.css`.
 - **Error boundaries**: `ModuleWidgetRegistry` wraps each widget automatically.
 - **Structured logging**: Use `createLogger()` from `src/lib/logger.ts`. Never use `console.log`.
+- **Runtime Diagnostics**: Centralized system health snapshots and request instrumentation via `src/lib/runtime-diagnostics.ts` and `src/lib/server-request-diagnostics.ts`.
 
 ---
 
@@ -182,9 +183,12 @@ Concise map of major directories, commands, and key files. Update this section w
 
 ## `src/` Layout
 
-- `src/app/` — Next.js App Router pages + `api/` route handlers (dashboard, fleet, ai-runner, self-service, endpoints, etc.)
+- `src/app/` — Next.js App Router pages + `api/` route handlers (dashboard, fleet, ai-runner, crons, self-service, endpoints, etc.)
 - `src/components/` — shared UI (including `layout/`, `ui/`, `modules/`)
 - `src/lib/` — utilities, domain logic, fleet libraries, AI orchestration
+- `src/lib/runtime-diagnostics.ts`, `src/lib/server-request-diagnostics.ts` — system health snapshots and Next.js request instrumentation
+- `src/lib/runtime-launch-context.ts` — platform and environment detection during server startup
+- `src/lib/crons/service.ts` — internal job scheduling and management
 - src/lib/ai-agents/ — agent adapters (Claude Code, Codex, Gemini CLI) and session monitoring
 - src/lib/ai-runner/ — automated task supervisor, watchdog, and worker orchestration
 - src/lib/ai-runner/run-as-user.ts — Run as user isolation and sudo-based execution logic
