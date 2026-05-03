@@ -43,6 +43,6 @@ describe('DELETE /api/modules/docker/networks/[networkId]', () => {
     const res = await DELETE(new Request('http://localhost'), makeContext('net123'));
     expect(res.status).toBe(500);
     const json = await res.json();
-    expect(json.error).toBe('Failed to remove network');
+    expect(json.error).toBe('network active');
   });
 });

@@ -43,6 +43,6 @@ describe('DELETE /api/modules/docker/images/[imageId]', () => {
     const res = await DELETE(new Request('http://localhost'), makeContext('sha256:abc'));
     expect(res.status).toBe(500);
     const json = await res.json();
-    expect(json.error).toBe('Failed to remove image');
+    expect(json.error).toBe('image in use');
   });
 });

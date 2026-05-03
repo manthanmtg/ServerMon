@@ -26,6 +26,7 @@ export async function POST(
     return NextResponse.json(result);
   } catch (error) {
     log.error('Failed to execute docker action', error);
-    return NextResponse.json({ error: 'Failed to execute action' }, { status: 500 });
+    const message = error instanceof Error ? error.message : 'Failed to execute action';
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

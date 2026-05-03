@@ -74,6 +74,6 @@ describe('POST /api/modules/docker/[containerId]/action', () => {
     const res = await POST(makeRequest({ action: 'start' }), makeContext('abc123'));
     expect(res.status).toBe(500);
     const json = await res.json();
-    expect(json.error).toBe('Failed to execute action');
+    expect(json.error).toBe('docker error');
   });
 });

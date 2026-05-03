@@ -43,6 +43,6 @@ describe('DELETE /api/modules/docker/volumes/[volumeName]', () => {
     const res = await DELETE(new Request('http://localhost'), makeContext('my-volume'));
     expect(res.status).toBe(500);
     const json = await res.json();
-    expect(json.error).toBe('Failed to remove volume');
+    expect(json.error).toBe('volume in use');
   });
 });
