@@ -460,6 +460,8 @@ export default function AIRunnerPage() {
   const [autoflowMode, setAutoflowMode] = useState<'sequential' | 'parallel'>('sequential');
   const [autoflowContinueOnFailure, setAutoflowContinueOnFailure] = useState(false);
   const [autoflowItems, setAutoflowItems] = useState<AutoflowItemDraft[]>([]);
+  const [editingAutoflowId, setEditingAutoflowId] = useState<string | null>(null);
+  const [autoflowShouldStart, setAutoflowShouldStart] = useState(true);
   const [autoflowDraft, setAutoflowDraft] = useState<AutoflowItemDraft>({
     name: '',
     promptContent: '',
@@ -2031,6 +2033,7 @@ export default function AIRunnerPage() {
   const openPromptInAutoflow = (promptId: string) => {
     const prompt = promptMap[promptId];
     if (!prompt) return;
+    clearAutoflowEdit();
     setSelectedPromptId(promptId);
     setAutoflowDraft((current) => ({
       ...current,
@@ -2433,10 +2436,7 @@ export default function AIRunnerPage() {
     return { ...autoflowDraft, name };
   };
 
-  const addAutoflowItem = () => {
-    const item = buildAutoflowDraftItem();
-    if (!item) return;
-    setAutoflowItems((current) => [...current, item]);
+  const clearAutoflowDraft = () => {
     setAutoflowDraft((current) => ({
       ...current,
       promptId: undefined,
@@ -2446,47 +2446,134 @@ export default function AIRunnerPage() {
     }));
   };
 
+  const clearAutoflowEdit = () => {
+    setEditingAutoflowId(null);
+    setAutoflowName('');
+    setAutoflowShouldStart(true);
+    setAutoflowContinueOnFailure(false);
+    setAutoflowItems([]);
+    clearAutoflowDraft();
+  };
+
+  const addAutoflowItem = (replaceStepIndex: number | null = null) => {
+    const item = buildAutoflowDraftItem();
+    if (!item) return;
+    setAutoflowItems((current) => {
+      if (replaceStepIndex === null) {
+        return [...current, item];
+      }
+      if (replaceStepIndex < 0 || replaceStepIndex >= current.length) return current;
+      const next = [...current];
+      next[replaceStepIndex] = item;
+      return next;
+    });
+    clearAutoflowDraft();
+  };
+
   const submitAutoflow = async () => {
     try {
+      const isEditingFlow = Boolean(editingAutoflowId);
+      const payload = {
+        name: autoflowName.trim() || 'Untitled AutoFlow',
+        mode: autoflowMode,
+        continueOnFailure: autoflowContinueOnFailure,
+      };
       const draftItem = autoflowItems.length === 0 ? buildAutoflowDraftItem() : null;
       const items = autoflowItems.length > 0 ? autoflowItems : draftItem ? [draftItem] : [];
       if (items.length === 0) return;
-      const response = await fetch('/api/modules/ai-runner/autoflows', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: autoflowName.trim() || 'Untitled AutoFlow',
-          mode: autoflowMode,
-          continueOnFailure: autoflowContinueOnFailure,
-          items,
-          startImmediately: true,
-        }),
-      });
-      const payload = await response.json();
-      if (!response.ok) throw new Error(payload.error || 'Unable to start AutoFlow');
-      setAutoflowName('');
-      setAutoflowItems([]);
-      setAutoflowDraft((current) => ({
-        ...current,
-        promptId: undefined,
-        name: '',
-        promptContent: '',
-        attachments: [],
-      }));
-      setAutoflows((current) => [payload, ...current]);
+
+      if (editingAutoflowId) {
+        const response = await fetch(`/api/modules/ai-runner/autoflows/${editingAutoflowId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...payload, items }),
+        });
+        const responsePayload = await response.json();
+        if (!response.ok) throw new Error(responsePayload.error || 'Unable to update AutoFlow');
+        if (autoflowShouldStart) {
+          const startResponse = await fetch(
+            `/api/modules/ai-runner/autoflows/${editingAutoflowId}/start`,
+            { method: 'POST' }
+          );
+          const startPayload = await startResponse.json();
+          if (!startResponse.ok) {
+            throw new Error(startPayload.error || 'Unable to start updated AutoFlow');
+          }
+        }
+      } else {
+        const response = await fetch('/api/modules/ai-runner/autoflows', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...payload, items, startImmediately: autoflowShouldStart }),
+        });
+        const responsePayload = await response.json();
+        if (!response.ok) {
+          throw new Error(responsePayload.error || 'Unable to save AutoFlow');
+        }
+      }
+
+      clearAutoflowEdit();
       toast({
-        title: 'AutoFlow started',
-        description: 'Steps will queue according to the selected run mode and workspace locks.',
+        title: isEditingFlow ? 'AutoFlow saved' : autoflowShouldStart ? 'AutoFlow started' : 'AutoFlow draft saved',
+        description: isEditingFlow
+          ? autoflowShouldStart
+            ? 'Your changes were saved and execution started.'
+            : 'Your changes were saved to the selected AutoFlow.'
+          : autoflowShouldStart
+            ? 'Steps were queued according to the selected run mode and workspace locks.'
+            : 'AutoFlow was saved as a draft.',
         variant: 'success',
       });
       await loadAll();
+      setActiveTab('autoflows');
     } catch (error) {
       toast({
         title: 'AutoFlow failed',
-        description: error instanceof Error ? error.message : 'Unable to start AutoFlow',
+        description: error instanceof Error ? error.message : 'Unable to save AutoFlow',
         variant: 'destructive',
       });
     }
+  };
+
+  const editAutoflow = (id: string) => {
+    const autoflow = autoflows.find((item) => item._id === id);
+    if (!autoflow) {
+      toast({
+        title: 'AutoFlow not found',
+        description: 'Unable to load the selected AutoFlow.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    if (autoflow.status === 'running') {
+      toast({
+        title: 'Unable to edit AutoFlow',
+        description: 'Stop this flow before editing.',
+        variant: 'warning',
+      });
+      return;
+    }
+
+    setEditingAutoflowId(id);
+    setAutoflowName(autoflow.name);
+    setAutoflowMode(autoflow.mode);
+    setAutoflowContinueOnFailure(autoflow.continueOnFailure);
+    setAutoflowItems(
+      autoflow.items.map((item) => ({
+        name: item.name,
+        promptId: item.promptId,
+        promptContent: item.promptContent ?? '',
+        promptType: item.promptType,
+        attachments: item.attachments ?? [],
+        agentProfileId: item.agentProfileId,
+        workspaceId: item.workspaceId,
+        workingDirectory: item.workingDirectory,
+        timeout: item.timeout,
+      }))
+    );
+    clearAutoflowDraft();
+    setAutoflowShouldStart(false);
+    setActiveTab('autoflows');
   };
 
   const startAutoflow = async (id: string) => {
@@ -3279,10 +3366,15 @@ export default function AIRunnerPage() {
               submitAutoflow={submitAutoflow}
               startAutoflow={startAutoflow}
               cancelAutoflow={cancelAutoflow}
+              editAutoflow={editAutoflow}
               revealHistoryRun={revealHistoryRun}
               isActionPending={isActionPending}
               runExclusiveAction={runExclusiveAction}
               hasAutoflowDraftPrompt={hasAutoflowDraftPrompt}
+              editingAutoflowId={editingAutoflowId}
+              autoflowShouldStart={autoflowShouldStart}
+              setAutoflowShouldStart={setAutoflowShouldStart}
+              clearAutoflowEdit={clearAutoflowEdit}
               applyPromptTemplate={applyPromptTemplate}
               acceptAttachmentDrag={acceptAttachmentDrag}
               getDroppedAttachmentFiles={getDroppedAttachmentFiles}

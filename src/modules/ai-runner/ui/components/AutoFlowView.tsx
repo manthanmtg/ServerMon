@@ -1,7 +1,7 @@
 'use client';
 
-import { useMemo } from 'react';
-import { Play, Plus, Square, Upload, X } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { ArrowDown, ArrowUp, Pencil, Play, Plus, Square, Upload, X } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -35,14 +35,19 @@ interface AutoFlowViewProps {
   autoflows: AIRunnerAutoflowDTO[];
   uploadAutoflowAttachments: (fileList: FileList | null) => Promise<void>;
   removeAutoflowAttachment: (index: number) => void;
-  addAutoflowItem: () => void;
+  addAutoflowItem: (replaceStepIndex?: number | null) => void;
   submitAutoflow: () => Promise<void>;
   startAutoflow: (id: string) => Promise<void>;
   cancelAutoflow: (id: string) => Promise<void>;
+  editAutoflow: (id: string) => void;
   revealHistoryRun: (runId: string) => Promise<void>;
   isActionPending: (key: string) => boolean;
   runExclusiveAction: (key: string, action: () => Promise<void>) => Promise<void>;
   hasAutoflowDraftPrompt: boolean;
+  editingAutoflowId: string | null;
+  autoflowShouldStart: boolean;
+  setAutoflowShouldStart: (startImmediately: boolean) => void;
+  clearAutoflowEdit: () => void;
   applyPromptTemplate: (template: string, current: string) => string;
   acceptAttachmentDrag: (event: React.DragEvent<HTMLElement>) => void;
   getDroppedAttachmentFiles: (event: React.DragEvent<HTMLElement>) => FileList | null;
@@ -94,10 +99,15 @@ export function AutoFlowView({
   submitAutoflow,
   startAutoflow,
   cancelAutoflow,
+  editAutoflow,
   revealHistoryRun,
   isActionPending,
   runExclusiveAction,
   hasAutoflowDraftPrompt,
+  editingAutoflowId,
+  autoflowShouldStart,
+  setAutoflowShouldStart,
+  clearAutoflowEdit,
   applyPromptTemplate,
   acceptAttachmentDrag,
   getDroppedAttachmentFiles,
@@ -106,10 +116,47 @@ export function AutoFlowView({
     () => getEnabledRunnerOptions({ profiles, workspaces }),
     [profiles, workspaces]
   );
+  const [editingStepIndex, setEditingStepIndex] = useState<number | null>(null);
   const autoflowCompletionCounts = useMemo(
     () => getAutoflowCompletionCounts(autoflows),
     [autoflows]
   );
+  const isEditingExistingAutoflow = Boolean(editingAutoflowId);
+
+  useEffect(() => {
+    if (editingStepIndex !== null && editingStepIndex >= autoflowItems.length) {
+      setEditingStepIndex(null);
+    }
+  }, [autoflowItems, editingStepIndex]);
+
+  const submitButtonLabel = autoflowShouldStart
+    ? 'Start AutoFlow'
+    : 'Save as draft';
+  const addStepButtonLabel = editingStepIndex === null ? 'Add Step' : 'Update Step';
+
+  const resetDraftToBlankStep = () => {
+    setAutoflowDraft((current) => ({
+      ...current,
+      name: '',
+      promptId: undefined,
+      promptContent: '',
+      attachments: [],
+    }));
+  };
+
+  const clearStepEdit = () => {
+    setEditingStepIndex(null);
+    resetDraftToBlankStep();
+  };
+
+  const commitStep = () => {
+    if (editingStepIndex === null) {
+      addAutoflowItem();
+      return;
+    }
+    addAutoflowItem(editingStepIndex);
+    setEditingStepIndex(null);
+  };
 
   return (
     <div
@@ -120,10 +167,13 @@ export function AutoFlowView({
     >
       <Card className="border-border/60">
         <CardHeader>
-          <CardTitle className="text-sm">AutoFlow Builder</CardTitle>
+          <CardTitle className="text-sm">
+            {isEditingExistingAutoflow ? 'Edit AutoFlow' : 'AutoFlow Builder'}
+          </CardTitle>
           <CardDescription>
             Queue a chain of prompts. Sequential mode waits for each step; parallel mode still
             respects blocking workspaces.
+            {isEditingExistingAutoflow ? ' Current edits will update the selected flow.' : ''}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -351,9 +401,34 @@ export function AutoFlowView({
                 />
                 Continue after failed step
               </label>
-              <Button variant="outline" onClick={addAutoflowItem}>
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={autoflowShouldStart}
+                  onChange={(event) => setAutoflowShouldStart(event.target.checked)}
+                />
+                Start this flow now
+              </label>
+            </div>
+
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              {isEditingExistingAutoflow ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={clearAutoflowEdit}
+                >
+                  Create new AutoFlow
+                </Button>
+              ) : null}
+              {editingStepIndex === null ? null : (
+                <Button variant="outline" size="sm" onClick={clearStepEdit}>
+                  Cancel step edit
+                </Button>
+              )}
+              <Button variant="outline" onClick={commitStep}>
                 <Plus className="w-4 h-4" />
-                Add Step
+                {addStepButtonLabel}
               </Button>
             </div>
           </div>
@@ -380,17 +455,83 @@ export function AutoFlowView({
                     </Badge>
                   ) : null}
                 </div>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() =>
-                    setAutoflowItems((current) =>
-                      current.filter((_, itemIndex) => itemIndex !== index)
-                    )
-                  }
-                >
-                  Remove
-                </Button>
+                <div className="flex flex-wrap justify-end gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setEditingStepIndex(index);
+                      setAutoflowDraft({
+                        ...autoflowDraft,
+                        name: item.name,
+                        promptId: item.promptId,
+                        promptContent: item.promptContent ?? '',
+                        promptType: item.promptType,
+                        attachments: item.attachments ?? [],
+                        agentProfileId: item.agentProfileId,
+                        workspaceId: item.workspaceId,
+                        workingDirectory: item.workingDirectory,
+                        timeout: item.timeout,
+                      });
+                    }}
+                  >
+                    <Pencil className="w-4 h-4" />
+                    Edit
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={index === 0}
+                    onClick={() => {
+                      if (editingStepIndex !== null) return;
+                      setAutoflowItems((current) => {
+                        if (index === 0) return current;
+                        const next = [...current];
+                        [next[index - 1], next[index]] = [next[index], next[index - 1]];
+                        return next;
+                      });
+                    }}
+                  >
+                    <ArrowUp className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={index === autoflowItems.length - 1}
+                    onClick={() => {
+                      if (editingStepIndex !== null) return;
+                      setAutoflowItems((current) => {
+                        if (index >= current.length - 1) return current;
+                        const next = [...current];
+                        [next[index + 1], next[index]] = [next[index], next[index + 1]];
+                        return next;
+                      });
+                    }}
+                  >
+                    <ArrowDown className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setAutoflowItems((current) => {
+                        const next = current.filter((_, itemIndex) => itemIndex !== index);
+                        if (editingStepIndex === null) return next;
+                        if (editingStepIndex === index) {
+                          setEditingStepIndex(null);
+                          resetDraftToBlankStep();
+                          return next;
+                        }
+                        if (editingStepIndex > index) {
+                          setEditingStepIndex(editingStepIndex - 1);
+                        }
+                        return next;
+                      });
+                    }}
+                  >
+                    Remove
+                  </Button>
+                </div>
               </div>
             ))}
             {autoflowItems.length === 0 ? (
@@ -401,14 +542,27 @@ export function AutoFlowView({
             ) : null}
           </div>
 
+          {editingStepIndex !== null && (
+            <p className="text-xs text-muted-foreground">
+              Editing step {editingStepIndex + 1}. Save your draft to replace this step.
+            </p>
+          )}
+
           <Button
             size="lg"
-            disabled={autoflowItems.length === 0 && !hasAutoflowDraftPrompt}
-            onClick={() => void runExclusiveAction('autoflow:submit', submitAutoflow)}
+            disabled={
+              (autoflowItems.length === 0 && !hasAutoflowDraftPrompt) || editingStepIndex !== null
+            }
+            onClick={() =>
+              void runExclusiveAction(
+                'autoflow:submit',
+                async () => submitAutoflow()
+              )
+            }
             loading={isActionPending('autoflow:submit')}
           >
             <Play className="w-4 h-4" />
-            Start AutoFlow
+            {submitButtonLabel}
           </Button>
         </CardContent>
       </Card>
@@ -475,6 +629,19 @@ export function AutoFlowView({
                       Cancel
                     </Button>
                   )}
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={autoflow.status === 'running'}
+                    onClick={() => editAutoflow(autoflow._id)}
+                    title={
+                      autoflow.status === 'running'
+                        ? 'Stop this flow before editing'
+                        : 'Edit this AutoFlow'
+                    }
+                  >
+                    Edit
+                  </Button>
                 </div>
               </div>
               <div className="mt-3 grid gap-2">
