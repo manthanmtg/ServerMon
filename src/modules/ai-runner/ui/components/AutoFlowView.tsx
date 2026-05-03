@@ -131,9 +131,7 @@ export function AutoFlowView({
     }
   }, [autoflowItems, editingStepIndex]);
 
-  const submitButtonLabel = autoflowShouldStart
-    ? 'Start AutoFlow'
-    : 'Save as draft';
+  const submitButtonLabel = autoflowShouldStart ? 'Start AutoFlow' : 'Save as draft';
   const addStepButtonLabel = editingStepIndex === null ? 'Add Step' : 'Update Step';
 
   const resetDraftToBlankStep = () => {
@@ -415,11 +413,7 @@ export function AutoFlowView({
 
             <div className="flex flex-wrap items-center justify-between gap-2">
               {isEditingExistingAutoflow ? (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={clearAutoflowEdit}
-                >
+                <Button variant="outline" size="sm" onClick={clearAutoflowEdit}>
                   Create new AutoFlow
                 </Button>
               ) : null}
@@ -555,12 +549,7 @@ export function AutoFlowView({
             disabled={
               (autoflowItems.length === 0 && !hasAutoflowDraftPrompt) || editingStepIndex !== null
             }
-            onClick={() =>
-              void runExclusiveAction(
-                'autoflow:submit',
-                async () => submitAutoflow()
-              )
-            }
+            onClick={() => void runExclusiveAction('autoflow:submit', async () => submitAutoflow())}
             loading={isActionPending('autoflow:submit')}
           >
             <Play className="w-4 h-4" />
