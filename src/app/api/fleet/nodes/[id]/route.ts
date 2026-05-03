@@ -9,7 +9,7 @@ import FrpServerState from '@/models/FrpServerState';
 import PublicRoute from '@/models/PublicRoute';
 import ResourcePolicy from '@/models/ResourcePolicy';
 import { renderFrpcToml, hashToml } from '@/lib/fleet/toml';
-import { saveRevision } from '@/lib/fleet/revisions';
+import { saveRevision, type ConfigRevisionModelLike } from '@/lib/fleet/revisions';
 import { recordAudit } from '@/lib/fleet/audit';
 import { deriveNodeStatus } from '@/lib/fleet/status';
 import { enforceResourceGuard } from '@/lib/fleet/resourceGuardMiddleware';
@@ -239,7 +239,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       },
     });
 
-    const revision = await saveRevision(ConfigRevision as unknown as Model<unknown>, {
+    const revision = await saveRevision(ConfigRevision as ConfigRevisionModelLike, {
       kind: 'frpc',
       targetId: id,
       structured: updated.toObject(),
