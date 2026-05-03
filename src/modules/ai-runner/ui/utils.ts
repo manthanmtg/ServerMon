@@ -98,6 +98,47 @@ export type ScheduleDashboardState<T extends Pick<AIRunnerScheduleDTO, '_id'>> =
   sortedSchedules: T[];
 };
 
+export interface RunnerInventoryCounts {
+  enabledProfileCount: number;
+  activeWorkspaceCount: number;
+  blockingWorkspaceCount: number;
+}
+
+interface RunnerInventoryInput {
+  profiles: Array<Pick<{ enabled: boolean }, 'enabled'>>;
+  workspaces: Array<Pick<{ enabled: boolean; blocking: boolean }, 'enabled' | 'blocking'>>;
+}
+
+export function deriveRunnerInventoryCounts({
+  profiles,
+  workspaces,
+}: RunnerInventoryInput): RunnerInventoryCounts {
+  let enabledProfileCount = 0;
+  let activeWorkspaceCount = 0;
+  let blockingWorkspaceCount = 0;
+
+  for (const profile of profiles) {
+    if (profile.enabled) {
+      enabledProfileCount += 1;
+    }
+  }
+
+  for (const workspace of workspaces) {
+    if (workspace.enabled) {
+      activeWorkspaceCount += 1;
+    }
+    if (workspace.blocking) {
+      blockingWorkspaceCount += 1;
+    }
+  }
+
+  return {
+    enabledProfileCount,
+    activeWorkspaceCount,
+    blockingWorkspaceCount,
+  };
+}
+
 type ScheduleDashboardInput = Pick<
   AIRunnerScheduleDTO,
   '_id' | 'agentProfileId' | 'enabled' | 'lastRunAt' | 'nextRunTime' | 'updatedAt'

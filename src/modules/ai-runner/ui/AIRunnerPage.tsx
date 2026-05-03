@@ -82,6 +82,7 @@ import {
   applyPromptTemplate,
   emptyPromptForm,
   emptyScheduleForm,
+  deriveRunnerInventoryCounts,
   deriveScheduleDashboardState,
   formatCountdown,
   formatDateTime,
@@ -993,8 +994,10 @@ export default function AIRunnerPage() {
     return missing;
   };
   const filteredPrompts = useMemo(() => prompts, [prompts]);
-  const activeWorkspaceCount = workspaces.filter((workspace) => workspace.enabled).length;
-  const blockingWorkspaceCount = workspaces.filter((workspace) => workspace.blocking).length;
+  const { activeWorkspaceCount, blockingWorkspaceCount, enabledProfileCount } = useMemo(
+    () => deriveRunnerInventoryCounts({ profiles, workspaces }),
+    [profiles, workspaces]
+  );
 
   const filteredHistoryRuns = useMemo(() => {
     const query = runSearch.trim().toLowerCase();
@@ -1051,7 +1054,6 @@ export default function AIRunnerPage() {
   } = useMemo(() => deriveScheduleDashboardState(schedules), [schedules]);
   const schedulesGloballyEnabled = runnerSettings?.schedulesGloballyEnabled ?? true;
   const schedulerReliabilityWarning = getSchedulerReliabilityWarning(runtimeDiagnostics);
-  const enabledProfileCount = profiles.filter((profile) => profile.enabled).length;
   const activeScheduleRunMap = useMemo(() => {
     const statusRank: Record<AIRunnerRunDTO['status'], number> = {
       running: 3,
