@@ -44,7 +44,7 @@ import type {
   NetworkSpeedtestScheduleInterval,
 } from '../types';
 import TerminalUI from '@/modules/terminal/ui/TerminalUI';
-import { SpeedtestHistoryModal } from "./components/SpeedtestHistoryModal";
+import { SpeedtestHistoryModal } from './components/SpeedtestHistoryModal';
 
 const chartColors = [
   'var(--primary)',
