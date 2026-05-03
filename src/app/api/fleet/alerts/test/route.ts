@@ -92,7 +92,7 @@ export async function POST(req: NextRequest) {
           ({
             lean: async () => [transientSub as any],
             then: (cb: any) => Promise.resolve([transientSub]).then(cb),
-          } as any),
+          }) as any,
       },
       FleetLogEvent: {
         create: FleetLogEvent.create.bind(
