@@ -7,7 +7,6 @@ import FleetLogEvent from '@/models/FleetLogEvent';
 import { recordAudit } from '@/lib/fleet/audit';
 import { getSession } from '@/lib/session';
 import { enforceRbac } from '@/lib/fleet/rbac';
-import type { Model } from 'mongoose';
 
 export const dynamic = 'force-dynamic';
 

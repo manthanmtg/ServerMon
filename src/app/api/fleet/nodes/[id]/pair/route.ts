@@ -7,7 +7,6 @@ import FrpServerState from '@/models/FrpServerState';
 import { verifyPairingToken } from '@/lib/fleet/pairing';
 import { recordAudit } from '@/lib/fleet/audit';
 import { getOrCreateHubAuthToken } from '@/lib/fleet/hubAuth';
-import type { Model } from 'mongoose';
 
 export const dynamic = 'force-dynamic';
 

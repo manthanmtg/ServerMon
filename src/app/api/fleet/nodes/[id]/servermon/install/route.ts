@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'node:crypto';
-import type { Model } from 'mongoose';
 import { ZodError } from 'zod';
 import { createLogger } from '@/lib/logger';
 import connectDB from '@/lib/db';

@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server';
-import type { Model } from 'mongoose';
 import { createLogger } from '@/lib/logger';
 import connectDB from '@/lib/db';
 import FrpServerState from '@/models/FrpServerState';
