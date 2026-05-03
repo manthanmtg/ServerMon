@@ -21,7 +21,6 @@ import {
   type PublicRouteProxySource,
   upsertPublicRouteProxyRule,
 } from '@/lib/fleet/publicRouteProxy';
-import type { Model } from 'mongoose';
 
 export const dynamic = 'force-dynamic';
 

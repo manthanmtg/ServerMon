@@ -1,4 +1,3 @@
-import type { Model } from 'mongoose';
 import { hashToml } from './toml';
 
 export interface SaveRevisionInput {
