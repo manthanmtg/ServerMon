@@ -160,7 +160,81 @@ describe('NginxPage', () => {
     await waitFor(() => screen.getByText('orion-servermon.ultron.manthanby.cv'));
     fireEvent.click(screen.getByText('orion-servermon.ultron.manthanby.cv'));
     expect(screen.getByText('Hostnames:')).toBeDefined();
-    expect(screen.getByText('www.orion-servermon.ultron.manthanby.cv')).toBeDefined();
+    expect(
+      screen.getAllByText(
+        'orion-servermon.ultron.manthanby.cv, www.orion-servermon.ultron.manthanby.cv'
+      ).length
+    ).toBeGreaterThan(0);
+  });
+
+  it('renders loaded config details for managed wildcard TLS hosts', async () => {
+    const detailedSnapshot = {
+      ...mockNginxSnapshot,
+      summary: { ...mockNginxSnapshot.summary, totalVhosts: 1, sslVhosts: 1 },
+      virtualHosts: [
+        {
+          id: '/etc/nginx/servermon/wildcard.conf::0',
+          name: 'wildcard.conf',
+          filename: '/etc/nginx/servermon/wildcard.conf',
+          sourcePath: '/etc/nginx/servermon/wildcard.conf',
+          sourceLine: 1,
+          loaded: true,
+          managed: true,
+          primaryServerName: '*.ultron.manthanby.cv',
+          wildcard: true,
+          serverNames: ['*.ultron.manthanby.cv'],
+          listenPorts: ['443 ssl'],
+          listen: [{ value: '443 ssl', port: 443, ssl: true, http2: false, defaultServer: false }],
+          tls: {
+            enabled: true,
+            certificate: '/etc/letsencrypt/live/ultron.manthanby.cv/fullchain.pem',
+            certificateKey: '/etc/letsencrypt/live/ultron.manthanby.cv/privkey.pem',
+            certbotManaged: true,
+          },
+          sslEnabled: true,
+          enabled: true,
+          root: '',
+          proxyPass: 'http://127.0.0.1:8080',
+          locations: [
+            {
+              path: '/',
+              proxyPass: 'http://127.0.0.1:8080',
+              directives: { proxy_read_timeout: '300s' },
+            },
+          ],
+          redirects: [{ code: 301, target: 'https://$host$request_uri', raw: 'return 301 https://$host$request_uri;' }],
+          warnings: [],
+          raw: 'server { listen 443 ssl; server_name *.ultron.manthanby.cv; }',
+        },
+      ],
+    };
+
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => detailedSnapshot,
+    });
+
+    await act(async () => {
+      render(<NginxPage />);
+    });
+    await waitFor(() => screen.getAllByText('*.ultron.manthanby.cv').length > 0);
+    fireEvent.click(screen.getAllByText('*.ultron.manthanby.cv')[0]);
+
+    expect(screen.getByText('Wildcard')).toBeDefined();
+    expect(screen.getByText('Loaded')).toBeDefined();
+    expect(screen.getByText('Managed')).toBeDefined();
+    expect(screen.getByText('TLS certificate:')).toBeDefined();
+    expect(
+      screen.getByText('/etc/letsencrypt/live/ultron.manthanby.cv/fullchain.pem')
+    ).toBeDefined();
+    expect(screen.getByText('TLS key:')).toBeDefined();
+    expect(screen.getByText('/etc/letsencrypt/live/ultron.manthanby.cv/privkey.pem')).toBeDefined();
+    expect(screen.getByText('Source:')).toBeDefined();
+    expect(screen.getByText('/etc/nginx/servermon/wildcard.conf:1')).toBeDefined();
+    expect(screen.getByText('Redirects:')).toBeDefined();
+    expect(screen.getByText('301 -> https://$host$request_uri')).toBeDefined();
+    expect(screen.getByText('Locations:')).toBeDefined();
+    expect(screen.getByText('/ -> http://127.0.0.1:8080')).toBeDefined();
   });
 
   it('expands virtual host details', async () => {

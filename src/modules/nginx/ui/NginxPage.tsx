@@ -19,7 +19,16 @@ import { cn } from '@/lib/utils';
 import type { NginxSnapshot, NginxConfigTest, NginxVirtualHost } from '../types';
 
 function getDisplayVhostName(vhost: NginxVirtualHost): string {
-  return vhost.serverNames.find((name) => name && name !== '_') ?? vhost.name;
+  return vhost.primaryServerName ?? vhost.serverNames.find((name) => name && name !== '_') ?? vhost.name;
+}
+
+function getSourceLabel(vhost: NginxVirtualHost): string {
+  const source = vhost.sourcePath ?? vhost.filename;
+  return vhost.sourceLine ? `${source}:${vhost.sourceLine}` : source;
+}
+
+function formatRedirect(code: number, target?: string): string {
+  return target ? `${code} -> ${target}` : `${code}`;
 }
 
 export default function NginxPage() {
@@ -332,6 +341,11 @@ export default function NginxPage() {
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
+                        {vhost.wildcard && (
+                          <Badge variant="outline" className="text-[10px]">
+                            Wildcard
+                          </Badge>
+                        )}
                         {vhost.sslEnabled && (
                           <Badge variant="warning" className="text-[10px]">
                             <Lock className="w-2.5 h-2.5 mr-1" />
@@ -344,6 +358,16 @@ export default function NginxPage() {
                         >
                           {vhost.enabled ? 'Enabled' : 'Disabled'}
                         </Badge>
+                        {vhost.loaded && (
+                          <Badge variant="success" className="text-[10px]">
+                            Loaded
+                          </Badge>
+                        )}
+                        {vhost.managed && (
+                          <Badge variant="outline" className="text-[10px]">
+                            Managed
+                          </Badge>
+                        )}
                       </div>
                     </button>
                     {expandedVhost === vhostKey && (
@@ -372,10 +396,62 @@ export default function NginxPage() {
                             </div>
                           )}
                           <div>
+                            <span className="text-muted-foreground">Source:</span>{' '}
+                            <span className="font-mono break-all">{getSourceLabel(vhost)}</span>
+                          </div>
+                          <div>
                             <span className="text-muted-foreground">File:</span>{' '}
                             <span className="font-mono">{vhost.filename}</span>
                           </div>
                         </div>
+                        {vhost.tls?.certificate && (
+                          <div>
+                            <span className="text-muted-foreground">TLS certificate:</span>{' '}
+                            <span className="font-mono break-all">{vhost.tls.certificate}</span>
+                          </div>
+                        )}
+                        {vhost.tls?.certificateKey && (
+                          <div>
+                            <span className="text-muted-foreground">TLS key:</span>{' '}
+                            <span className="font-mono break-all">{vhost.tls.certificateKey}</span>
+                          </div>
+                        )}
+                        {vhost.tls?.certbotManaged && (
+                          <div>
+                            <span className="text-muted-foreground">Certificate manager:</span>{' '}
+                            <span className="font-medium">Certbot</span>
+                          </div>
+                        )}
+                        {vhost.redirects && vhost.redirects.length > 0 && (
+                          <div>
+                            <span className="text-muted-foreground">Redirects:</span>{' '}
+                            <span className="font-mono break-all">
+                              {vhost.redirects
+                                .map((redirect) => formatRedirect(redirect.code, redirect.target))
+                                .join(', ')}
+                            </span>
+                          </div>
+                        )}
+                        {vhost.locations && vhost.locations.length > 0 && (
+                          <div>
+                            <span className="text-muted-foreground">Locations:</span>{' '}
+                            <span className="font-mono break-all">
+                              {vhost.locations
+                                .map((location) =>
+                                  location.proxyPass
+                                    ? `${location.path} -> ${location.proxyPass}`
+                                    : location.path
+                                )
+                                .join(', ')}
+                            </span>
+                          </div>
+                        )}
+                        {vhost.warnings && vhost.warnings.length > 0 && (
+                          <div>
+                            <span className="text-muted-foreground">Warnings:</span>{' '}
+                            <span className="font-mono break-all">{vhost.warnings.join(', ')}</span>
+                          </div>
+                        )}
                         {vhost.raw && (
                           <details className="mt-2">
                             <summary className="cursor-pointer text-muted-foreground hover:text-foreground text-[11px]">
