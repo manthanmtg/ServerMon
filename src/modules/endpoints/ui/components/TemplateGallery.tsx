@@ -64,6 +64,32 @@ export function buildTemplateCategoryCounts(
   }, {});
 }
 
+export function buildTemplateGalleryFacets(templates: EndpointTemplate[]): {
+  availableCategories: TemplateCategory[];
+  availableMethods: HttpMethod[];
+  availableTypes: EndpointType[];
+  categoryCounts: Partial<Record<TemplateCategory, number>>;
+} {
+  const categories = new Set<TemplateCategory>();
+  const methods = new Set<HttpMethod>();
+  const types = new Set<EndpointType>();
+  const categoryCounts: Partial<Record<TemplateCategory, number>> = {};
+
+  for (const template of templates) {
+    categories.add(template.category);
+    methods.add(template.method);
+    types.add(template.endpointType);
+    categoryCounts[template.category] = (categoryCounts[template.category] ?? 0) + 1;
+  }
+
+  return {
+    availableCategories: CATEGORY_ORDER.filter((category) => categories.has(category)),
+    availableMethods: ALL_METHODS.filter((method) => methods.has(method)),
+    availableTypes: ALL_TYPES.filter((type) => types.has(type)),
+    categoryCounts,
+  };
+}
+
 interface TemplateGalleryProps {
   templates: EndpointTemplate[];
   onClose: () => void;
@@ -80,22 +106,10 @@ export function TemplateGallery({
   const [filterType, setFilterType] = useState<EndpointType | ''>('');
   const [showFilters, setShowFilters] = useState(false);
 
-  const availableCategories = useMemo(() => {
-    const cats = new Set(templates.map((t) => t.category));
-    return CATEGORY_ORDER.filter((c) => cats.has(c));
-  }, [templates]);
-
-  const categoryCounts = useMemo(() => buildTemplateCategoryCounts(templates), [templates]);
-
-  const availableMethods = useMemo(() => {
-    const methods = new Set(templates.map((t) => t.method));
-    return ALL_METHODS.filter((m) => methods.has(m));
-  }, [templates]);
-
-  const availableTypes = useMemo(() => {
-    const types = new Set(templates.map((t) => t.endpointType));
-    return ALL_TYPES.filter((t) => types.has(t));
-  }, [templates]);
+  const { availableCategories, availableMethods, availableTypes, categoryCounts } = useMemo(
+    () => buildTemplateGalleryFacets(templates),
+    [templates]
+  );
 
   const filtered = useMemo(() => {
     return templates.filter((t) => {

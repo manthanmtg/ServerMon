@@ -1,7 +1,7 @@
 /** @vitest-environment node */
 import { describe, expect, it } from 'vitest';
 import type { EndpointTemplate } from '../../types';
-import { buildTemplateCategoryCounts } from './TemplateGallery';
+import { buildTemplateCategoryCounts, buildTemplateGalleryFacets } from './TemplateGallery';
 
 const template = (id: string, category: EndpointTemplate['category']): EndpointTemplate => ({
   id,
@@ -27,6 +27,28 @@ describe('buildTemplateCategoryCounts', () => {
       monitoring: 2,
       security: 1,
       devops: 1,
+    });
+  });
+});
+
+describe('buildTemplateGalleryFacets', () => {
+  it('derives category counts and available filters in one result', () => {
+    expect(
+      buildTemplateGalleryFacets([
+        { ...template('cpu', 'monitoring'), method: 'GET', endpointType: 'script' },
+        { ...template('audit', 'security'), method: 'POST', endpointType: 'webhook' },
+        { ...template('query', 'data'), method: 'PATCH', endpointType: 'logic' },
+        { ...template('latency', 'monitoring'), method: 'GET', endpointType: 'script' },
+      ])
+    ).toEqual({
+      availableCategories: ['monitoring', 'security', 'data'],
+      availableMethods: ['GET', 'POST', 'PATCH'],
+      availableTypes: ['script', 'logic', 'webhook'],
+      categoryCounts: {
+        monitoring: 2,
+        security: 1,
+        data: 1,
+      },
     });
   });
 });
