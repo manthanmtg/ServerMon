@@ -1,6 +1,6 @@
 'use client';
 
-import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Bar,
   BarChart,
@@ -16,41 +16,18 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import {
-  AlertTriangle,
-  ArrowDown,
-  ArrowUp,
-  ArrowUpDown,
-  CheckCircle,
-  ChevronDown,
-  ChevronRight,
-  Clock,
-  Cog,
-  LoaderCircle,
-  Pause,
-  Play,
-  Power,
-  RefreshCcw,
-  RotateCcw,
-  Search,
-  Shield,
-  Square,
-  Timer,
-  XCircle,
-} from 'lucide-react';
+import { AlertTriangle, CheckCircle, Clock, Cog, RefreshCcw, Search, Timer } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { PageSkeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/components/ui/toast';
 import { cn, formatBytes, relativeTime } from '@/lib/utils';
 import type { ServicesSnapshot } from '../types';
-import { ServiceLogPanel } from './components/ServiceLogPanel';
+import type { ServiceAction, ServicesSortDir, ServicesSortField } from './components/ServicesTable';
 import { ServicesSummaryGrid } from './components/ServicesSummaryGrid';
+import { ServicesTable } from './components/ServicesTable';
 
 type FilterStatus = 'all' | 'running' | 'failed' | 'inactive' | 'exited';
-type SortField = 'name' | 'status' | 'cpu' | 'memory' | 'uptime' | 'restarts';
-type SortDir = 'asc' | 'desc';
 type ViewTab = 'services' | 'timers' | 'alerts';
 
 const chartColors = [
@@ -64,16 +41,6 @@ const chartColors = [
   '#f97316',
 ];
 
-function formatUptime(seconds: number): string {
-  if (seconds <= 0) return '-';
-  const d = Math.floor(seconds / 86400);
-  const h = Math.floor((seconds % 86400) / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  if (d > 0) return `${d}d ${h}h`;
-  if (h > 0) return `${h}h ${m}m`;
-  return `${m}m`;
-}
-
 function futureTime(value: string): string {
   const diff = new Date(value).getTime() - Date.now();
   if (diff < 0) return 'overdue';
@@ -84,24 +51,6 @@ function futureTime(value: string): string {
   return `in ${Math.round(hours / 24)}d`;
 }
 
-function statusVariant(state: string): 'success' | 'warning' | 'destructive' | 'secondary' {
-  if (state === 'active') return 'success';
-  if (state === 'activating' || state === 'deactivating' || state === 'reloading') return 'warning';
-  if (state === 'failed') return 'destructive';
-  return 'secondary';
-}
-
-function subStateIcon(sub: string) {
-  if (sub === 'running') return <Play className="w-3.5 h-3.5" />;
-  if (sub === 'exited') return <Square className="w-3.5 h-3.5" />;
-  if (sub === 'failed') return <XCircle className="w-3.5 h-3.5" />;
-  if (sub === 'dead') return <Power className="w-3.5 h-3.5" />;
-  if (sub === 'waiting' || sub === 'start-pre' || sub === 'start')
-    return <LoaderCircle className="w-3.5 h-3.5 animate-spin" />;
-  if (sub === 'auto-restart') return <RotateCcw className="w-3.5 h-3.5 animate-spin" />;
-  return <Pause className="w-3.5 h-3.5" />;
-}
-
 export default function ServicesPage() {
   const { toast } = useToast();
   const [snapshot, setSnapshot] = useState<ServicesSnapshot | null>(null);
@@ -109,8 +58,8 @@ export default function ServicesPage() {
   const [refreshMs, setRefreshMs] = useState(5000);
   const [filter, setFilter] = useState<FilterStatus>('all');
   const [search, setSearch] = useState('');
-  const [sortField, setSortField] = useState<SortField>('name');
-  const [sortDir, setSortDir] = useState<SortDir>('asc');
+  const [sortField, setSortField] = useState<ServicesSortField>('name');
+  const [sortDir, setSortDir] = useState<ServicesSortDir>('asc');
   const [expandedService, setExpandedService] = useState<string | null>(null);
   const [pendingAction, setPendingAction] = useState<string | null>(null);
   const [viewTab, setViewTab] = useState<ViewTab>('services');
@@ -246,7 +195,7 @@ export default function ServicesPage() {
     });
   }, [snapshot]);
 
-  function toggleSort(field: SortField) {
+  function toggleSort(field: ServicesSortField) {
     if (sortField === field) {
       setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
     } else {
@@ -255,31 +204,7 @@ export default function ServicesPage() {
     }
   }
 
-  const SortIcon = useCallback(
-    ({
-      field,
-      sortField: currentSortField,
-      sortDir: currentSortDir,
-    }: {
-      field: SortField;
-      sortField: SortField;
-      sortDir: SortDir;
-    }) => {
-      if (currentSortField !== field)
-        return <ArrowUpDown className="w-3 h-3 text-muted-foreground/50" />;
-      return currentSortDir === 'asc' ? (
-        <ArrowUp className="w-3 h-3" />
-      ) : (
-        <ArrowDown className="w-3 h-3" />
-      );
-    },
-    []
-  );
-
-  async function runAction(
-    serviceName: string,
-    action: 'start' | 'stop' | 'restart' | 'enable' | 'disable' | 'reload'
-  ) {
+  async function runAction(serviceName: string, action: ServiceAction) {
     setPendingAction(`${serviceName}:${action}`);
     try {
       const response = await fetch(
@@ -581,274 +506,19 @@ export default function ServicesPage() {
 
       {/* Services table */}
       {viewTab === 'services' && (
-        <Card className="border-border/60 overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-sm">
-              <thead className="text-left text-xs uppercase tracking-[0.18em] text-muted-foreground bg-muted/20">
-                <tr>
-                  <th className="py-3 px-4 w-8" />
-                  <th
-                    className="py-3 px-4 cursor-pointer select-none"
-                    onClick={() => toggleSort('name')}
-                  >
-                    <span className="inline-flex items-center gap-1">
-                      Service <SortIcon field="name" sortField={sortField} sortDir={sortDir} />
-                    </span>
-                  </th>
-                  <th
-                    className="py-3 px-4 cursor-pointer select-none"
-                    onClick={() => toggleSort('status')}
-                  >
-                    <span className="inline-flex items-center gap-1">
-                      Status <SortIcon field="status" sortField={sortField} sortDir={sortDir} />
-                    </span>
-                  </th>
-                  <th className="py-3 px-4">PID</th>
-                  <th
-                    className="py-3 px-4 cursor-pointer select-none"
-                    onClick={() => toggleSort('cpu')}
-                  >
-                    <span className="inline-flex items-center gap-1">
-                      CPU <SortIcon field="cpu" sortField={sortField} sortDir={sortDir} />
-                    </span>
-                  </th>
-                  <th
-                    className="py-3 px-4 cursor-pointer select-none"
-                    onClick={() => toggleSort('memory')}
-                  >
-                    <span className="inline-flex items-center gap-1">
-                      Memory <SortIcon field="memory" sortField={sortField} sortDir={sortDir} />
-                    </span>
-                  </th>
-                  <th
-                    className="py-3 px-4 cursor-pointer select-none"
-                    onClick={() => toggleSort('uptime')}
-                  >
-                    <span className="inline-flex items-center gap-1">
-                      Uptime <SortIcon field="uptime" sortField={sortField} sortDir={sortDir} />
-                    </span>
-                  </th>
-                  <th
-                    className="py-3 px-4 cursor-pointer select-none"
-                    onClick={() => toggleSort('restarts')}
-                  >
-                    <span className="inline-flex items-center gap-1">
-                      Restarts <SortIcon field="restarts" sortField={sortField} sortDir={sortDir} />
-                    </span>
-                  </th>
-                  <th className="py-3 px-4">Enabled</th>
-                  <th className="py-3 px-4">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredServices.length === 0 ? (
-                  <tr>
-                    <td colSpan={10} className="py-12 text-center text-muted-foreground">
-                      No services match your filter.
-                    </td>
-                  </tr>
-                ) : (
-                  filteredServices.map((svc) => {
-                    const isExpanded = expandedService === svc.name;
-                    return (
-                      <Fragment key={svc.name}>
-                        <tr
-                          className={cn(
-                            'border-t border-border/60 transition-colors hover:bg-muted/10',
-                            isExpanded && 'bg-muted/10'
-                          )}
-                        >
-                          <td className="py-3 px-4">
-                            <button
-                              type="button"
-                              onClick={() => setExpandedService(isExpanded ? null : svc.name)}
-                              className="p-1 rounded hover:bg-accent transition-colors"
-                            >
-                              {isExpanded ? (
-                                <ChevronDown className="w-4 h-4 text-muted-foreground" />
-                              ) : (
-                                <ChevronRight className="w-4 h-4 text-muted-foreground" />
-                              )}
-                            </button>
-                          </td>
-                          <td className="py-3 px-4">
-                            <div>
-                              <span className="font-medium">{svc.name}</span>
-                              <p className="text-xs text-muted-foreground truncate max-w-[250px]">
-                                {svc.description}
-                              </p>
-                            </div>
-                          </td>
-                          <td className="py-3 px-4">
-                            <Badge variant={statusVariant(svc.activeState)} className="gap-1">
-                              {subStateIcon(svc.subState)}
-                              {svc.activeState} ({svc.subState})
-                            </Badge>
-                          </td>
-                          <td className="py-3 px-4 font-mono text-xs">
-                            {svc.mainPid > 0 ? svc.mainPid : '-'}
-                          </td>
-                          <td className="py-3 px-4">
-                            <span
-                              className={cn(
-                                'font-medium',
-                                svc.cpuPercent > 50
-                                  ? 'text-destructive'
-                                  : svc.cpuPercent > 20
-                                    ? 'text-warning'
-                                    : ''
-                              )}
-                            >
-                              {svc.cpuPercent > 0 ? `${svc.cpuPercent.toFixed(1)}%` : '-'}
-                            </span>
-                          </td>
-                          <td className="py-3 px-4">
-                            <span
-                              className={cn(
-                                'font-medium',
-                                svc.memoryBytes > 2 * 1024 * 1024 * 1024
-                                  ? 'text-destructive'
-                                  : svc.memoryBytes > 512 * 1024 * 1024
-                                    ? 'text-warning'
-                                    : ''
-                              )}
-                            >
-                              {svc.memoryBytes > 0 ? formatBytes(svc.memoryBytes) : '-'}
-                            </span>
-                            {svc.memoryPercent > 0 && (
-                              <span className="text-xs text-muted-foreground ml-1">
-                                ({svc.memoryPercent}%)
-                              </span>
-                            )}
-                          </td>
-                          <td className="py-3 px-4 text-xs">{formatUptime(svc.uptimeSeconds)}</td>
-                          <td className="py-3 px-4">
-                            {svc.restartCount > 0 ? (
-                              <Badge variant={svc.restartCount > 3 ? 'destructive' : 'warning'}>
-                                {svc.restartCount}
-                              </Badge>
-                            ) : (
-                              <span className="text-muted-foreground">0</span>
-                            )}
-                          </td>
-                          <td className="py-3 px-4">
-                            <Badge variant={svc.enabled ? 'success' : 'secondary'}>
-                              {svc.enabled ? 'yes' : 'no'}
-                            </Badge>
-                          </td>
-                          <td className="py-3 px-4">
-                            <div className="flex items-center gap-1">
-                              {svc.activeState !== 'active' && (
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  className="h-8 w-8 p-0 text-success hover:bg-success/10"
-                                  title="Start"
-                                  loading={pendingAction === `${svc.name}:start`}
-                                  onClick={() => runAction(svc.name, 'start')}
-                                >
-                                  <Play className="h-4 w-4" />
-                                </Button>
-                              )}
-                              {svc.activeState === 'active' && (
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  className="h-8 w-8 p-0 text-destructive hover:bg-destructive/10"
-                                  title="Stop"
-                                  loading={pendingAction === `${svc.name}:stop`}
-                                  onClick={() => runAction(svc.name, 'stop')}
-                                >
-                                  <Square className="h-4 w-4" />
-                                </Button>
-                              )}
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                className="h-8 w-8 p-0 text-primary hover:bg-primary/10"
-                                title="Restart"
-                                loading={pendingAction === `${svc.name}:restart`}
-                                onClick={() => runAction(svc.name, 'restart')}
-                              >
-                                <RotateCcw className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                className="h-8 w-8 p-0 hover:bg-accent"
-                                title={svc.enabled ? 'Disable' : 'Enable'}
-                                loading={
-                                  pendingAction === `${svc.name}:enable` ||
-                                  pendingAction === `${svc.name}:disable`
-                                }
-                                onClick={() =>
-                                  runAction(svc.name, svc.enabled ? 'disable' : 'enable')
-                                }
-                              >
-                                {svc.enabled ? (
-                                  <Shield className="h-4 w-4 text-muted-foreground" />
-                                ) : (
-                                  <CheckCircle className="h-4 w-4 text-success" />
-                                )}
-                              </Button>
-                            </div>
-                          </td>
-                        </tr>
-                        {isExpanded && (
-                          <tr className="bg-muted/5">
-                            <td colSpan={10} className="px-4 py-3">
-                              <div className="space-y-3">
-                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-                                  <div>
-                                    <span className="text-muted-foreground">Type: </span>
-                                    <span className="font-medium">{svc.type}</span>
-                                  </div>
-                                  <div>
-                                    <span className="text-muted-foreground">Unit file: </span>
-                                    <span className="font-mono">{svc.unitFileState}</span>
-                                  </div>
-                                  <div>
-                                    <span className="text-muted-foreground">Path: </span>
-                                    <span className="font-mono truncate">
-                                      {svc.fragmentPath || 'n/a'}
-                                    </span>
-                                  </div>
-                                  {svc.triggeredBy && (
-                                    <div>
-                                      <span className="text-muted-foreground">Triggered by: </span>
-                                      <span className="font-medium">{svc.triggeredBy}</span>
-                                    </div>
-                                  )}
-                                </div>
-                                {svc.after && svc.after.length > 0 && (
-                                  <div className="text-xs">
-                                    <span className="text-muted-foreground">
-                                      Dependencies (After):{' '}
-                                    </span>
-                                    <span className="font-mono">
-                                      {svc.after.slice(0, 8).join(', ')}
-                                      {svc.after.length > 8 && ` +${svc.after.length - 8} more`}
-                                    </span>
-                                  </div>
-                                )}
-                                <div>
-                                  <ServiceLogPanel serviceName={svc.name} />
-                                </div>
-                              </div>
-                            </td>
-                          </tr>
-                        )}
-                      </Fragment>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
-          <div className="px-4 py-3 border-t border-border/60 text-xs text-muted-foreground">
-            Showing {filteredServices.length} of {snapshot?.summary.total ?? 0} services
-          </div>
-        </Card>
+        <ServicesTable
+          services={filteredServices}
+          totalServices={snapshot?.summary.total ?? 0}
+          expandedService={expandedService}
+          pendingAction={pendingAction}
+          sortField={sortField}
+          sortDir={sortDir}
+          onToggleExpanded={setExpandedService}
+          onToggleSort={toggleSort}
+          onRunAction={(serviceName, action) => {
+            void runAction(serviceName, action);
+          }}
+        />
       )}
 
       {/* Timers tab */}
