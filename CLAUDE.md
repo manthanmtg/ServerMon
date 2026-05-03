@@ -183,9 +183,9 @@ Concise map of major directories, commands, and key files. Update this section w
 
 ## `src/` Layout
 
-- `src/app/` — Next.js App Router pages + `api/` route handlers (dashboard, fleet, ai-runner, crons, self-service, endpoints, etc.)
+- `src/app/` — Next.js App Router pages + `api/` route handlers (dashboard, settings, fleet, ai-runner, crons, self-service, endpoints, etc.)
 - `src/components/` — shared UI (including `layout/`, `ui/`, `modules/`)
-- `src/lib/` — utilities, domain logic, fleet libraries, AI orchestration
+- `src/lib/` — utilities, domain logic, fleet libraries, AI orchestration, and core context providers (`ThemeContext.tsx`, `BrandContext.tsx`, `MetricsContext.tsx`)
 - `src/lib/runtime-diagnostics.ts`, `src/lib/server-request-diagnostics.ts` — system health snapshots and Next.js request instrumentation
 - `src/lib/runtime-launch-context.ts` — platform and environment detection during server startup
 - `src/lib/crons/service.ts` — internal job scheduling and management

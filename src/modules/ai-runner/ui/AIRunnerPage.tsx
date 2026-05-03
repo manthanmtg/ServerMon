@@ -2514,7 +2514,11 @@ export default function AIRunnerPage() {
 
       clearAutoflowEdit();
       toast({
-        title: isEditingFlow ? 'AutoFlow saved' : autoflowShouldStart ? 'AutoFlow started' : 'AutoFlow draft saved',
+        title: isEditingFlow
+          ? 'AutoFlow saved'
+          : autoflowShouldStart
+            ? 'AutoFlow started'
+            : 'AutoFlow draft saved',
         description: isEditingFlow
           ? autoflowShouldStart
             ? 'Your changes were saved and execution started.'

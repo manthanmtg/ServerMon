@@ -32,15 +32,15 @@ The application runs locally on the server and exposes a secure web interface.
 
 Frontend + Backend (Monolithic App)
 
-- **Next.js 16 (App Router)**
+- **Next.js 16.1 (App Router)**
 - **TypeScript (strict mode)**
 - **MongoDB**
 - **Node.js 20 LTS**
-- **Tailwind CSS 4**
+- **Tailwind CSS 4.2**
 
 Libraries (Recommended)
 
-- **Zod 4** for schema validation and strongly typed data contracts across API routes, modules, and database models
+- **Zod 4.3** for schema validation and strongly typed data contracts across API routes, modules, and database models
 - mongoose / mongodb native driver with typed models
 - socket.io / ws for realtime streams
 - node-pty for terminal module
@@ -926,7 +926,7 @@ The following modules are currently implemented in the core system:
 - **Services**: Monitor and manage systemd services
 - **Cron Jobs**: View and manage cron schedules and execution history
 - **Updates**: Track available system and package updates
-- **Fleet Management**: Centralized administration of remote nodes, public routes, and reverse proxies
+- **Fleet**: Centralized administration of remote nodes, public routes, and reverse proxies
 - **AI Agents**: Passive observability of AI coding agent sessions running on the server
 - **AI Runner**: Configure AI automation profiles, workspaces, prompts, schedules, and run history
 - **Self Service**: Browse and install managed apps, CLI tools, and services
@@ -937,6 +937,7 @@ The following modules are currently implemented in the core system:
 - **Hardware**: Detailed hardware specifications and health info
 - **Nginx**: Manage Nginx configurations and site status
 - **Security**: Security configuration and MFA management
+- **Settings**: System configuration, appearance themes, branding, and module management
 - **System Logs**: Search and inspect host and application log output
 - **Users**: Manage user accounts, roles, and permissions
 - **Guide**: Built-in interactive onboarding and documentation
