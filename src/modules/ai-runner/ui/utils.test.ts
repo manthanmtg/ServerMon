@@ -9,6 +9,7 @@ import {
   getDefaultCronExpressionForMode,
   formatRunsPerDayLabel,
   deriveScheduleDashboardState,
+  deriveRunnerInventoryCounts,
   getRunStatusVariant,
   getScheduleStatusVariant,
   humanizeCron,
@@ -178,6 +179,23 @@ describe('ai-runner ui utils', () => {
         'disabled',
       ]);
       expect(schedules.map((schedule) => schedule._id)).toEqual(['disabled', 'later', 'soon']);
+    });
+  });
+
+  describe('deriveRunnerInventoryCounts', () => {
+    it('summarizes enabled profiles and workspace state in one pass', () => {
+      const state = deriveRunnerInventoryCounts({
+        profiles: [{ enabled: true }, { enabled: false }, { enabled: true }],
+        workspaces: [
+          { enabled: true, blocking: false },
+          { enabled: false, blocking: true },
+          { enabled: true, blocking: true },
+        ],
+      });
+
+      expect(state.enabledProfileCount).toBe(2);
+      expect(state.activeWorkspaceCount).toBe(2);
+      expect(state.blockingWorkspaceCount).toBe(2);
     });
   });
 
