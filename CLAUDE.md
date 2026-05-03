@@ -220,6 +220,12 @@ Concise map of major directories, commands, and key files. Update this section w
 - `src/modules/disk/` — disk module definition, page, widget, settings modal, hardware health panel, and focused UI components (`DiskSummaryCards`, `IoThroughputChart`) with colocated Vitest coverage
 - `src/app/disk/` — Disk module page route and route-level tests
 
+### Nginx Module
+
+- `src/app/api/modules/nginx/` — Nginx routes for service status, config test/reload, DNS checks, and virtual host list/detail/create/update/delete flows
+- `src/lib/nginx/` — Nginx service helpers, virtual host discovery, parser, DNS checks, and managed-config renderer with colocated Vitest coverage
+- `src/modules/nginx/` — Nginx module definition, shared types, dashboard/widget UI, and host creation wizard with colocated UI tests
+
 ### Self-Service & Custom Endpoints
 
 - `src/modules/self-service/` — Browse and install services/tools with fully managed provisioning (Nginx, SSL, systemd); logic in `engine/`, definitions in `templates/`
