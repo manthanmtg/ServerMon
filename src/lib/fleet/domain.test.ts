@@ -22,11 +22,34 @@ describe('slugifyRouteName', () => {
   it('limits slugs to 80 characters', () => {
     expect(slugifyRouteName('a'.repeat(90))).toHaveLength(80);
   });
+
+  it('does not leave a trailing separator when truncation cuts at a word boundary', () => {
+    expect(slugifyRouteName(`${'a'.repeat(79)} route`)).toBe('a'.repeat(79));
+  });
+
+  it('returns an empty slug for punctuation-only names', () => {
+    expect(slugifyRouteName(' / : !!! ')).toBe('');
+  });
 });
 
 describe('isValidPublicHostname', () => {
   it('accepts multi-label hostnames with normalized casing and trailing dots', () => {
     expect(isValidPublicHostname('API.Example.COM.')).toBe(true);
+  });
+
+  it('accepts labels at the DNS length boundary', () => {
+    expect(isValidPublicHostname(`${'a'.repeat(63)}.example.com`)).toBe(true);
+  });
+
+  it('rejects labels longer than the DNS length boundary', () => {
+    expect(isValidPublicHostname(`${'a'.repeat(64)}.example.com`)).toBe(false);
+  });
+
+  it('rejects hostnames longer than the DNS total length boundary', () => {
+    const domain = `${'a'.repeat(63)}.${'b'.repeat(63)}.${'c'.repeat(63)}.${'d'.repeat(61)}.com`;
+
+    expect(domain.length).toBeGreaterThan(253);
+    expect(isValidPublicHostname(domain)).toBe(false);
   });
 
   it('rejects single-label hostnames, wildcards, and underscores', () => {
