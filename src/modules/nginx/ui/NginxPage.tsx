@@ -16,7 +16,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { PageSkeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
-import type { NginxSnapshot, NginxConfigTest } from '../types';
+import type { NginxSnapshot, NginxConfigTest, NginxVirtualHost } from '../types';
+
+function getDisplayVhostName(vhost: NginxVirtualHost): string {
+  return vhost.serverNames.find((name) => name && name !== '_') ?? vhost.name;
+}
 
 export default function NginxPage() {
   const [snapshot, setSnapshot] = useState<NginxSnapshot | null>(null);
@@ -304,79 +308,89 @@ export default function NginxPage() {
             <p className="text-sm text-muted-foreground text-center py-8">No virtual hosts found</p>
           ) : (
             <div className="space-y-3">
-              {snapshot.virtualHosts.map((vhost) => (
-                <div
-                  key={vhost.name}
-                  className="rounded-lg border border-border/60 overflow-hidden"
-                >
-                  <button
-                    onClick={() =>
-                      setExpandedVhost(expandedVhost === vhost.name ? null : vhost.name)
-                    }
-                    className="w-full p-4 flex items-center justify-between hover:bg-accent/30 transition-colors text-left"
+              {snapshot.virtualHosts.map((vhost) => {
+                const vhostKey = `${vhost.filename}::${vhost.name}`;
+                const displayName = getDisplayVhostName(vhost);
+                return (
+                  <div
+                    key={vhostKey}
+                    className="rounded-lg border border-border/60 overflow-hidden"
                   >
-                    <div className="flex items-center gap-3">
-                      <Globe className="w-4 h-4 text-primary shrink-0" />
-                      <div>
-                        <p className="text-sm font-medium">{vhost.name}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {vhost.serverNames.join(', ') || 'No server names'}
-                        </p>
+                    <button
+                      onClick={() =>
+                        setExpandedVhost(expandedVhost === vhostKey ? null : vhostKey)
+                      }
+                      className="w-full p-4 flex items-center justify-between hover:bg-accent/30 transition-colors text-left"
+                    >
+                      <div className="flex items-center gap-3">
+                        <Globe className="w-4 h-4 text-primary shrink-0" />
+                        <div>
+                          <p className="text-sm font-medium break-all">{displayName}</p>
+                          <p className="text-xs text-muted-foreground break-all">
+                            {vhost.serverNames.join(', ') || 'No server names'}
+                          </p>
+                        </div>
                       </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {vhost.sslEnabled && (
-                        <Badge variant="warning" className="text-[10px]">
-                          <Lock className="w-2.5 h-2.5 mr-1" />
-                          SSL
-                        </Badge>
-                      )}
-                      <Badge
-                        variant={vhost.enabled ? 'success' : 'secondary'}
-                        className="text-[10px]"
-                      >
-                        {vhost.enabled ? 'Enabled' : 'Disabled'}
-                      </Badge>
-                    </div>
-                  </button>
-                  {expandedVhost === vhost.name && (
-                    <div className="border-t border-border/60 p-4 bg-secondary/30 space-y-2 text-xs">
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                        <div>
-                          <span className="text-muted-foreground">Listen:</span>{' '}
-                          <span className="font-medium">
-                            {vhost.listenPorts.join(', ') || 'N/A'}
-                          </span>
-                        </div>
-                        <div>
-                          <span className="text-muted-foreground">Root:</span>{' '}
-                          <span className="font-mono">{vhost.root || 'N/A'}</span>
-                        </div>
-                        {vhost.proxyPass && (
-                          <div>
-                            <span className="text-muted-foreground">Proxy Pass:</span>{' '}
-                            <span className="font-mono">{vhost.proxyPass}</span>
-                          </div>
+                      <div className="flex items-center gap-2">
+                        {vhost.sslEnabled && (
+                          <Badge variant="warning" className="text-[10px]">
+                            <Lock className="w-2.5 h-2.5 mr-1" />
+                            SSL
+                          </Badge>
                         )}
-                        <div>
-                          <span className="text-muted-foreground">File:</span>{' '}
-                          <span className="font-mono">{vhost.filename}</span>
-                        </div>
+                        <Badge
+                          variant={vhost.enabled ? 'success' : 'secondary'}
+                          className="text-[10px]"
+                        >
+                          {vhost.enabled ? 'Enabled' : 'Disabled'}
+                        </Badge>
                       </div>
-                      {vhost.raw && (
-                        <details className="mt-2">
-                          <summary className="cursor-pointer text-muted-foreground hover:text-foreground text-[11px]">
-                            View config
-                          </summary>
-                          <pre className="mt-2 p-3 rounded bg-background border border-border text-[11px] font-mono whitespace-pre-wrap max-h-64 overflow-y-auto">
-                            {vhost.raw}
-                          </pre>
-                        </details>
-                      )}
-                    </div>
-                  )}
-                </div>
-              ))}
+                    </button>
+                    {expandedVhost === vhostKey && (
+                      <div className="border-t border-border/60 p-4 bg-secondary/30 space-y-2 text-xs">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          <div>
+                            <span className="text-muted-foreground">Hostnames:</span>{' '}
+                            <span className="font-mono break-all">
+                              {vhost.serverNames.join(', ') || 'N/A'}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">Listen:</span>{' '}
+                            <span className="font-medium">
+                              {vhost.listenPorts.join(', ') || 'N/A'}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">Root:</span>{' '}
+                            <span className="font-mono">{vhost.root || 'N/A'}</span>
+                          </div>
+                          {vhost.proxyPass && (
+                            <div>
+                              <span className="text-muted-foreground">Proxy Pass:</span>{' '}
+                              <span className="font-mono">{vhost.proxyPass}</span>
+                            </div>
+                          )}
+                          <div>
+                            <span className="text-muted-foreground">File:</span>{' '}
+                            <span className="font-mono">{vhost.filename}</span>
+                          </div>
+                        </div>
+                        {vhost.raw && (
+                          <details className="mt-2">
+                            <summary className="cursor-pointer text-muted-foreground hover:text-foreground text-[11px]">
+                              View config
+                            </summary>
+                            <pre className="mt-2 p-3 rounded bg-background border border-border text-[11px] font-mono whitespace-pre-wrap max-h-64 overflow-y-auto">
+                              {vhost.raw}
+                            </pre>
+                          </details>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
         </CardContent>
