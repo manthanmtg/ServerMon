@@ -11,7 +11,8 @@ export function slugifyRouteName(name: string): string {
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
     .replace(/-{2,}/g, '-')
-    .slice(0, 80);
+    .slice(0, 80)
+    .replace(/^-+|-+$/g, '');
 }
 
 export function isValidPublicHostname(hostname: string): boolean {
