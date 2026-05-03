@@ -24,7 +24,9 @@ describe('utils', () => {
     });
 
     it('should handle boolean and numeric values (ignoring falsy ones)', () => {
-      expect(cn('a', true && 'b', false && 'c', 0 as unknown as string, 1 as unknown as string)).toBe('a b 1');
+      expect(
+        cn('a', true && 'b', false && 'c', 0 as unknown as string, 1 as unknown as string)
+      ).toBe('a b 1');
     });
 
     it('should handle no arguments', () => {
@@ -195,7 +197,9 @@ describe('utils', () => {
     });
 
     it('should handle mixed underscores and spaces', () => {
-      expect(slugify('hello_world and special_characters!')).toBe('hello-world-and-special-characters');
+      expect(slugify('hello_world and special_characters!')).toBe(
+        'hello-world-and-special-characters'
+      );
     });
 
     it('should handle numbers', () => {
