@@ -23,19 +23,23 @@ interface PreviousRevisionDoc {
   hash: string;
 }
 
+export interface ConfigRevisionModelLike {
+  findOne: (filter: Record<string, unknown>) => {
+    sort: (s: Record<string, 1 | -1>) => {
+      lean: () => Promise<PreviousRevisionDoc | null>;
+    };
+  };
+  create: (doc: Record<string, unknown>) => Promise<{ _id: unknown }>;
+}
+
 export async function saveRevision(
-  ConfigRevision: Model<unknown>,
+  ConfigRevision: ConfigRevisionModelLike,
   input: SaveRevisionInput
 ): Promise<SaveRevisionResult> {
   const filter: Record<string, unknown> = { kind: input.kind };
   if (input.targetId !== undefined) filter.targetId = input.targetId;
 
-  const cursor = ConfigRevision.findOne(filter) as unknown as {
-    sort: (s: Record<string, 1 | -1>) => {
-      lean: () => Promise<PreviousRevisionDoc | null> | PreviousRevisionDoc | null;
-    };
-  };
-  const previous = (await cursor.sort({ version: -1 }).lean()) as PreviousRevisionDoc | null;
+  const previous = await ConfigRevision.findOne(filter).sort({ version: -1 }).lean();
 
   const hash = hashToml(input.rendered);
 
@@ -61,9 +65,7 @@ export async function saveRevision(
     diffFromPrevious,
   };
 
-  const created = (await ConfigRevision.create(doc)) as unknown as {
-    _id: unknown;
-  };
+  const created = await ConfigRevision.create(doc);
 
   return {
     version,

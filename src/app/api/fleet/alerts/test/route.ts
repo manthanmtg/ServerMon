@@ -79,27 +79,25 @@ export async function POST(req: NextRequest) {
 
     const deps: AlertDispatchDeps = {
       AlertChannel: {
-        find: AlertChannel.find.bind(
-          AlertChannel
-        ) as unknown as AlertDispatchDeps['AlertChannel']['find'],
+        find: AlertChannel.find.bind(AlertChannel) as AlertDispatchDeps['AlertChannel']['find'],
         findById: AlertChannel.findById.bind(
           AlertChannel
-        ) as unknown as AlertDispatchDeps['AlertChannel']['findById'],
+        ) as AlertDispatchDeps['AlertChannel']['findById'],
         findByIdAndUpdate: AlertChannel.findByIdAndUpdate.bind(
           AlertChannel
-        ) as unknown as AlertDispatchDeps['AlertChannel']['findByIdAndUpdate'],
+        ) as AlertDispatchDeps['AlertChannel']['findByIdAndUpdate'],
       },
       AlertSubscription: {
         find: () =>
           ({
-            lean: async () => [transientSub],
-            then: (cb: (v: unknown[]) => unknown) => Promise.resolve([transientSub]).then(cb),
-          }) as never,
+            lean: async () => [transientSub as any],
+            then: (cb: any) => Promise.resolve([transientSub]).then(cb),
+          } as any),
       },
       FleetLogEvent: {
         create: FleetLogEvent.create.bind(
           FleetLogEvent
-        ) as unknown as AlertDispatchDeps['FleetLogEvent']['create'],
+        ) as AlertDispatchDeps['FleetLogEvent']['create'],
       },
     };
 
