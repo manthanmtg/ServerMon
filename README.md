@@ -58,7 +58,7 @@ ServerMon ships with a rich set of modules out of the box:
 | **Certificates** | Manage SSL/TLS certificates and renewals                                                             |
 | **Ports**        | Monitor open ports and listening services                                                            |
 | **Hardware**     | Detailed hardware specifications and health info                                                     |
-| **Nginx**        | Manage Nginx configurations and site status                                                          |
+| **Nginx**        | Discover loaded virtual hosts, create managed reverse proxies, check DNS, and test/reload config     |
 | **Security**     | Security configuration and MFA management                                                            |
 | **System Logs**  | Search and inspect host and application log output                                                   |
 | **Users**        | Manage user accounts, roles, and permissions                                                         |
