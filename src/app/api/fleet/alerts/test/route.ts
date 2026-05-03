@@ -12,6 +12,7 @@ import {
   type AlertDispatchDeps,
   type AlertPayload,
   type AlertSeverity,
+  type AlertSubscriptionLike,
 } from '@/lib/fleet/alerts';
 
 export const dynamic = 'force-dynamic';
@@ -68,7 +69,7 @@ export async function POST(req: NextRequest) {
 
     // For the test endpoint we bypass real subscription lookup and synthesize
     // a transient subscription that targets only the requested channel.
-    const transientSub = {
+    const transientSub: AlertSubscriptionLike = {
       _id: `test-${channelId}`,
       name: 'test-subscription',
       channelId,
@@ -90,9 +91,10 @@ export async function POST(req: NextRequest) {
       AlertSubscription: {
         find: () =>
           ({
-            lean: async () => [transientSub as any],
-            then: (cb: any) => Promise.resolve([transientSub]).then(cb),
-          }) as any,
+            lean: async () => [transientSub],
+            then: (cb: (subscriptions: AlertSubscriptionLike[]) => unknown) =>
+              Promise.resolve([transientSub]).then(cb),
+          }) as ReturnType<AlertDispatchDeps['AlertSubscription']['find']>,
       },
       FleetLogEvent: {
         create: FleetLogEvent.create.bind(

@@ -26,6 +26,16 @@ interface NodeTerminalProps {
   nodeId: string;
 }
 
+export function deriveTerminalWorkspace(
+  tabs: FleetTerminalTab[],
+  activeTabId: string | null
+): { activeTab: FleetTerminalTab | null; activeSessions: number } {
+  return {
+    activeTab: tabs.find((tab) => tab.sessionId === activeTabId) ?? tabs[0] ?? null,
+    activeSessions: tabs.filter((tab) => tab.started).length,
+  };
+}
+
 export function NodeTerminal({ nodeId }: NodeTerminalProps) {
   const initialWorkspace = useMemo(() => loadStoredTabs(nodeId), [nodeId]);
   const [tabs, setTabs] = useState<FleetTerminalTab[]>(initialWorkspace.tabs);
@@ -35,8 +45,10 @@ export function NodeTerminal({ nodeId }: NodeTerminalProps) {
   const requestCounterRef = useRef(0);
   const { toast } = useToast();
 
-  const activeTab = tabs.find((tab) => tab.sessionId === activeTabId) ?? tabs[0] ?? null;
-  const activeSessions = tabs.filter((tab) => tab.started).length;
+  const { activeTab, activeSessions } = useMemo(
+    () => deriveTerminalWorkspace(tabs, activeTabId),
+    [activeTabId, tabs]
+  );
 
   useEffect(() => {
     const storage = browserStorage();

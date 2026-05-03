@@ -77,7 +77,7 @@ vi.mock('@xterm/addon-fit', () => ({
 vi.mock('@xterm/xterm/css/xterm.css', () => ({}));
 
 // Import after mocks
-import { NodeTerminal } from './NodeTerminal';
+import { deriveTerminalWorkspace, NodeTerminal } from './NodeTerminal';
 
 describe('NodeTerminal', () => {
   beforeEach(() => {
@@ -207,5 +207,42 @@ describe('NodeTerminal', () => {
     await waitFor(() => {
       expect(mockSend).toHaveBeenCalledWith('uptime\n');
     });
+  });
+
+  it('derives active tab and active session count from tab state', () => {
+    const tabs = [
+      {
+        sessionId: 'session-1',
+        label: 'Shell 1',
+        order: 0,
+        started: false,
+        status: 'idle' as const,
+        createdAt: '2026-05-03T13:00:00.000Z',
+        lastActiveAt: '2026-05-03T13:00:00.000Z',
+      },
+      {
+        sessionId: 'session-2',
+        label: 'Shell 2',
+        order: 1,
+        started: true,
+        status: 'connected' as const,
+        createdAt: '2026-05-03T13:01:00.000Z',
+        lastActiveAt: '2026-05-03T13:01:00.000Z',
+      },
+      {
+        sessionId: 'session-3',
+        label: 'Shell 3',
+        order: 2,
+        started: true,
+        status: 'connecting' as const,
+        createdAt: '2026-05-03T13:02:00.000Z',
+        lastActiveAt: '2026-05-03T13:02:00.000Z',
+      },
+    ];
+
+    const workspace = deriveTerminalWorkspace(tabs, 'session-2');
+
+    expect(workspace.activeTab?.sessionId).toBe('session-2');
+    expect(workspace.activeSessions).toBe(2);
   });
 });

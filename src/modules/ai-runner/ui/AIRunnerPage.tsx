@@ -5012,7 +5012,7 @@ export default function AIRunnerPage() {
                 logLevelFilter={logLevelFilter}
                 onLogLevelFilterChange={setLogLevelFilter}
                 logFilePath={logFilePath}
-                onRefreshTail={() => void runExclusiveAction('logs:refresh', loadLogs)}
+                onRefreshTail={() => runExclusiveAction('logs:refresh', loadLogs)}
                 isRefreshing={isActionPending('logs:refresh')}
                 logsError={logsError}
                 logViewportRef={logViewportRef}
