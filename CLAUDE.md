@@ -131,13 +131,19 @@ Tests use **Vitest** for unit/integration and **Playwright** for E2E.
 
 Required at runtime (set in `.env.local` or `/etc/servermon/env`):
 
-| Variable     | Required | Description                      |
-| ------------ | -------- | -------------------------------- |
-| `MONGO_URI`  | Yes      | MongoDB connection string        |
-| `JWT_SECRET` | Yes      | Secret for signing session JWTs  |
-| `PORT`       | No       | App port (default: 8912)         |
-| `NODE_ENV`   | No       | `development` or `production`    |
-| `LOG_LEVEL`  | No       | `debug`, `info`, `warn`, `error` |
+| Variable                       | Required | Description                                           |
+| ------------------------------ | -------- | ----------------------------------------------------- |
+| `MONGO_URI`                    | Yes      | MongoDB connection string                             |
+| `JWT_SECRET`                   | Yes      | Secret for signing session JWTs                       |
+| `PORT`                         | No       | App port (default: 8912)                              |
+| `NODE_ENV`                     | No       | `development` or `production`                         |
+| `LOG_LEVEL`                    | No       | `debug`, `info`, `warn`, `error`                      |
+| `SERVERMON_SLOW_REQUEST_MS`    | No       | Threshold for slow request logging (default: 2000)    |
+| `SERVERMON_REPO_DIR`           | No       | Path to ServerMon repo (default: /opt/servermon/repo) |
+| `SERVERMON_NETWORK_MOCK`       | No       | Set to `1` to mock network speedtests                 |
+| `SERVERMON_DOCKER_MOCK`        | No       | Set to `1` to mock Docker operations                  |
+| `SERVERMON_UPDATES_MOCK`       | No       | Set to `1` to mock system updates                     |
+| `SERVERMON_AUTO_UPDATE_CONFIG` | No       | Path to auto-update config JSON                       |
 
 ---
 
@@ -184,18 +190,19 @@ Concise map of major directories, commands, and key files. Update this section w
 ## `src/` Layout
 
 - `src/app/` — Next.js App Router pages + `api/` route handlers (dashboard, settings, fleet, ai-runner, crons, self-service, endpoints, etc.)
+- `src/app/api/modules/` — feature-specific API routes (ai-runner, disk, nginx, users, etc.)
 - `src/components/` — shared UI (including `layout/`, `ui/`, `modules/`)
 - `src/lib/` — utilities, domain logic, fleet libraries, AI orchestration, and core context providers (`ThemeContext.tsx`, `BrandContext.tsx`, `MetricsContext.tsx`)
 - `src/lib/runtime-diagnostics.ts`, `src/lib/server-request-diagnostics.ts` — system health snapshots and Next.js request instrumentation
 - `src/lib/runtime-launch-context.ts` — platform and environment detection during server startup
 - `src/lib/crons/service.ts` — internal job scheduling and management
-- src/lib/ai-agents/ — agent adapters (Claude Code, Codex, Gemini CLI) and session monitoring
-- src/lib/ai-runner/ — automated task supervisor, watchdog, and worker orchestration
-- src/lib/ai-runner/run-as-user.ts — Run as user isolation and sudo-based execution logic
-- src/lib/ai-runner/shared.ts — profile mapping, template validation, and output buffering
-- src/lib/endpoints/ — executors for custom API logic (scripts, webhooks, logic handlers)
+- `src/lib/ai-agents/` — agent adapters (Claude Code, Codex, Gemini CLI) and session monitoring
+- `src/lib/ai-runner/` — automated task supervisor, watchdog, and worker orchestration
+- `src/lib/ai-runner/run-as-user.ts` — Run as user isolation and sudo-based execution logic
+- `src/lib/ai-runner/shared.ts` — profile mapping, template validation, and output buffering
+- `src/lib/endpoints/` — executors for custom API logic (scripts, webhooks, logic handlers)
 - `src/models/` — Mongoose schemas
-- `src/modules/` — feature modules (terminal, processes, logs, metrics, fleet, AI, self-service, endpoints, etc.)
+- `src/modules/` — feature modules (terminal, processes, logs, metrics, fleet, ai-agents, ai-runner, disk, nginx, self-service, endpoints, users, etc.)
 - `src/models/NetworkSpeedtestResult.ts`, `src/models/NetworkSpeedtestSettings.ts` — persisted Network module speedtest history and schedule configuration
 - `src/models/CustomEndpoint.ts`, `src/models/EndpointExecutionLog.ts` — persisted endpoint configuration and execution history
 - `src/lib/env-vars/` — stateless host environment variable helpers for OS target detection, shell env parsing, user-scope add/delete, and system-scope instructions
