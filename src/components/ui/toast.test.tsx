@@ -55,4 +55,20 @@ describe('Toast Component', () => {
     expect(screen.queryByText('Test Toast')).toBeNull();
     vi.useRealTimers();
   });
+
+  it('keeps the notification region inside narrow viewports', () => {
+    render(
+      <ToastProvider>
+        <TestTrigger />
+      </ToastProvider>
+    );
+
+    const region = screen.getByRole('region', { name: 'Notifications' });
+
+    expect(region.className).toContain('left-4');
+    expect(region.className).toContain('right-4');
+    expect(region.className).toContain('w-auto');
+    expect(region.className).toContain('sm:left-auto');
+    expect(region.className).toContain('sm:w-full');
+  });
 });
