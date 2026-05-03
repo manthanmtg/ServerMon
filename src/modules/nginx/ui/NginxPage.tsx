@@ -20,7 +20,9 @@ import type { NginxSnapshot, NginxConfigTest, NginxVirtualHost } from '../types'
 import { NginxHostWizard } from './NginxHostWizard';
 
 function getDisplayVhostName(vhost: NginxVirtualHost): string {
-  return vhost.primaryServerName ?? vhost.serverNames.find((name) => name && name !== '_') ?? vhost.name;
+  return (
+    vhost.primaryServerName ?? vhost.serverNames.find((name) => name && name !== '_') ?? vhost.name
+  );
 }
 
 function getSourceLabel(vhost: NginxVirtualHost): string {
@@ -329,9 +331,7 @@ export default function NginxPage() {
                     className="rounded-lg border border-border/60 overflow-hidden"
                   >
                     <button
-                      onClick={() =>
-                        setExpandedVhost(expandedVhost === vhostKey ? null : vhostKey)
-                      }
+                      onClick={() => setExpandedVhost(expandedVhost === vhostKey ? null : vhostKey)}
                       className="w-full p-4 flex items-center justify-between hover:bg-accent/30 transition-colors text-left"
                     >
                       <div className="flex items-center gap-3">

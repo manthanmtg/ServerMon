@@ -274,7 +274,8 @@ function toVirtualHost(block: ServerBlock, sourcePath: string, index: number): N
   }
 
   const locations = parseLocations(block.body);
-  const proxyPass = locations.find((location) => location.proxyPass)?.proxyPass ?? topLevelProxyPass;
+  const proxyPass =
+    locations.find((location) => location.proxyPass)?.proxyPass ?? topLevelProxyPass;
   const tls: NginxTlsDetails = {
     enabled: listen.some((entry) => entry.ssl) || Boolean(certificate || certificateKey),
     certificate,

@@ -43,10 +43,7 @@ async function requireSession(): Promise<NextResponse | null> {
   return session ? null : NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 }
 
-export async function PATCH(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const unauthorized = await requireSession();
     if (unauthorized) return unauthorized;
@@ -73,10 +70,7 @@ export async function PATCH(
 
     const result = await writeManagedConfig({ fileName: decodeURIComponent(id), content });
     if (!result.ok) {
-      return NextResponse.json(
-        { error: 'Nginx config test failed', result },
-        { status: 409 }
-      );
+      return NextResponse.json({ error: 'Nginx config test failed', result }, { status: 409 });
     }
     return NextResponse.json({ result });
   } catch (error) {
@@ -91,10 +85,7 @@ export async function PATCH(
   }
 }
 
-export async function DELETE(
-  _req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const unauthorized = await requireSession();
     if (unauthorized) return unauthorized;
@@ -102,10 +93,7 @@ export async function DELETE(
     const { id } = await params;
     const result = await deleteManagedConfig(decodeURIComponent(id));
     if (!result.ok) {
-      return NextResponse.json(
-        { error: 'Nginx config test failed', result },
-        { status: 409 }
-      );
+      return NextResponse.json({ error: 'Nginx config test failed', result }, { status: 409 });
     }
     return NextResponse.json({ result });
   } catch (error) {

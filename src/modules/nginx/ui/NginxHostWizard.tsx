@@ -33,7 +33,9 @@ export function NginxHostWizard({ onCreated }: NginxHostWizardProps) {
   const [upstreamHost, setUpstreamHost] = useState('127.0.0.1');
   const [upstreamPort, setUpstreamPort] = useState('8912');
   const [websocket, setWebsocket] = useState(true);
-  const [rawConfig, setRawConfig] = useState('server {\n  listen 80;\n  server_name life.manthanby.cv;\n}\n');
+  const [rawConfig, setRawConfig] = useState(
+    'server {\n  listen 80;\n  server_name life.manthanby.cv;\n}\n'
+  );
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -129,7 +131,11 @@ export function NginxHostWizard({ onCreated }: NginxHostWizardProps) {
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <Input label="Domain" value={domain} onChange={(event) => setDomain(event.target.value)} />
+          <Input
+            label="Domain"
+            value={domain}
+            onChange={(event) => setDomain(event.target.value)}
+          />
           <Input
             label="File name"
             value={fileName}
@@ -194,9 +200,14 @@ export function NginxHostWizard({ onCreated }: NginxHostWizardProps) {
           </pre>
         </div>
 
-        {message && <div className="rounded border border-success/30 bg-success/5 p-2 text-sm">{message}</div>}
+        {message && (
+          <div className="rounded border border-success/30 bg-success/5 p-2 text-sm">{message}</div>
+        )}
         {error && (
-          <div role="alert" className="rounded border border-destructive/30 bg-destructive/5 p-2 text-sm text-destructive">
+          <div
+            role="alert"
+            className="rounded border border-destructive/30 bg-destructive/5 p-2 text-sm text-destructive"
+          >
             {error}
           </div>
         )}

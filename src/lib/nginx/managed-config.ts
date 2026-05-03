@@ -25,7 +25,9 @@ export interface ManagedConfigDeps {
 }
 
 function isMissingFile(error: unknown): boolean {
-  return Boolean(error && typeof error === 'object' && (error as { code?: string }).code === 'ENOENT');
+  return Boolean(
+    error && typeof error === 'object' && (error as { code?: string }).code === 'ENOENT'
+  );
 }
 
 function managedPath(managedDir: string, fileName: string): string {

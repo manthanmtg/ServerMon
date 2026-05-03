@@ -138,7 +138,10 @@ describe('NginxPage', () => {
       virtualHosts: [
         {
           name: 'server-block-orion',
-          serverNames: ['orion-servermon.ultron.manthanby.cv', 'www.orion-servermon.ultron.manthanby.cv'],
+          serverNames: [
+            'orion-servermon.ultron.manthanby.cv',
+            'www.orion-servermon.ultron.manthanby.cv',
+          ],
           listenPorts: [443],
           sslEnabled: true,
           enabled: true,
@@ -202,7 +205,13 @@ describe('NginxPage', () => {
               directives: { proxy_read_timeout: '300s' },
             },
           ],
-          redirects: [{ code: 301, target: 'https://$host$request_uri', raw: 'return 301 https://$host$request_uri;' }],
+          redirects: [
+            {
+              code: 301,
+              target: 'https://$host$request_uri',
+              raw: 'return 301 https://$host$request_uri;',
+            },
+          ],
           warnings: [],
           raw: 'server { listen 443 ssl; server_name *.ultron.manthanby.cv; }',
         },

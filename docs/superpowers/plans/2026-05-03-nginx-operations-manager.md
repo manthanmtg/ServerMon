@@ -13,6 +13,7 @@
 ### Task 1: Parser And Discovery
 
 **Files:**
+
 - Create: `src/lib/nginx/parser.ts`
 - Create: `src/lib/nginx/discovery.ts`
 - Modify: `src/lib/nginx/service.ts`
@@ -57,6 +58,7 @@ Expected: pass.
 ### Task 2: Rich Nginx UI Details
 
 **Files:**
+
 - Modify: `src/modules/nginx/ui/NginxPage.tsx`
 - Modify: `src/modules/nginx/ui/NginxWidget.tsx`
 - Test: `src/modules/nginx/ui/NginxPage.test.tsx`
@@ -84,6 +86,7 @@ Expected: pass.
 ### Task 3: Managed Config Backend
 
 **Files:**
+
 - Create: `src/lib/nginx/renderer.ts`
 - Create: `src/lib/nginx/managed-config.ts`
 - Create: `src/app/api/modules/nginx/vhosts/route.ts`
@@ -129,6 +132,7 @@ Expected: pass.
 ### Task 4: Add Host UI And DNS Guidance
 
 **Files:**
+
 - Create: `src/lib/nginx/dns.ts`
 - Create: `src/app/api/modules/nginx/dns/check/route.ts`
 - Create: `src/modules/nginx/ui/NginxHostWizard.tsx`
@@ -174,6 +178,7 @@ Expected: pass.
 ### Task 5: Final Verification
 
 **Files:**
+
 - Modify only files required by failed checks.
 
 - [ ] **Step 1: Run focused test suite**

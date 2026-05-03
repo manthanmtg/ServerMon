@@ -68,10 +68,7 @@ export async function POST(req: NextRequest) {
 
     const result = await writeManagedConfig({ fileName: body.fileName, content });
     if (!result.ok) {
-      return NextResponse.json(
-        { error: 'Nginx config test failed', result },
-        { status: 409 }
-      );
+      return NextResponse.json({ error: 'Nginx config test failed', result }, { status: 409 });
     }
 
     return NextResponse.json({ result }, { status: 201 });

@@ -30,7 +30,11 @@ describe('parseNginxServerBlocks', () => {
     const blocks = parseNginxServerBlocks(certbotConfig, '/etc/nginx/servermon/orion-test.conf');
 
     expect(blocks).toHaveLength(2);
-    expect(blocks[0]).toMatchObject({
+    const first = blocks[0];
+    const second = blocks[1];
+    if (!first || !second) throw new Error('expected parsed server blocks');
+
+    expect(first).toMatchObject({
       sourcePath: '/etc/nginx/servermon/orion-test.conf',
       serverNames: ['orion-test.ultron.manthanby.cv'],
       primaryServerName: 'orion-test.ultron.manthanby.cv',
@@ -38,14 +42,14 @@ describe('parseNginxServerBlocks', () => {
       loaded: true,
       wildcard: false,
     });
-    expect(blocks[0].listen.map((entry) => entry.value)).toContain('443 ssl');
-    expect(blocks[0].tls).toMatchObject({
+    expect(first.listen?.map((entry) => entry.value)).toContain('443 ssl');
+    expect(first.tls).toMatchObject({
       enabled: true,
       certificate: '/etc/letsencrypt/live/orion-test.ultron.manthanby.cv/fullchain.pem',
       certificateKey: '/etc/letsencrypt/live/orion-test.ultron.manthanby.cv/privkey.pem',
       certbotManaged: true,
     });
-    expect(blocks[0].locations).toEqual([
+    expect(first.locations).toEqual([
       expect.objectContaining({
         path: '/',
         proxyPass: 'http://127.0.0.1:8080',
@@ -55,7 +59,7 @@ describe('parseNginxServerBlocks', () => {
       }),
     ]);
 
-    expect(blocks[1].redirects).toEqual([
+    expect(second.redirects).toEqual([
       expect.objectContaining({ code: 301, target: 'https://$host$request_uri' }),
       expect.objectContaining({ code: 404 }),
     ]);
@@ -73,8 +77,9 @@ describe('parseNginxServerBlocks', () => {
       '/etc/nginx/servermon/wildcard.conf'
     );
 
+    if (!block) throw new Error('expected wildcard server block');
     expect(block.wildcard).toBe(true);
     expect(block.primaryServerName).toBe('*.ultron.manthanby.cv');
-    expect(block.locations[0].proxyPass).toBe('http://127.0.0.1:9000');
+    expect(block.locations?.[0]?.proxyPass).toBe('http://127.0.0.1:9000');
   });
 });

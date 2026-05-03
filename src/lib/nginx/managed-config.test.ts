@@ -10,7 +10,9 @@ describe('writeManagedConfig', () => {
       {
         managedDir: '/etc/nginx/servermon',
         mkdir: vi.fn(),
-        readFile: vi.fn().mockRejectedValue(Object.assign(new Error('missing'), { code: 'ENOENT' })),
+        readFile: vi
+          .fn()
+          .mockRejectedValue(Object.assign(new Error('missing'), { code: 'ENOENT' })),
         writeFile: vi.fn(async (path: string, content: string) => {
           writes.push({ path, content });
         }),
@@ -46,7 +48,17 @@ describe('writeManagedConfig', () => {
 
     expect(result.ok).toBe(false);
     expect(result.output).toBe('syntax error');
-    expect(writeFile).toHaveBeenNthCalledWith(1, '/etc/nginx/servermon/life.conf', 'broken config', 'utf-8');
-    expect(writeFile).toHaveBeenNthCalledWith(2, '/etc/nginx/servermon/life.conf', 'previous config', 'utf-8');
+    expect(writeFile).toHaveBeenNthCalledWith(
+      1,
+      '/etc/nginx/servermon/life.conf',
+      'broken config',
+      'utf-8'
+    );
+    expect(writeFile).toHaveBeenNthCalledWith(
+      2,
+      '/etc/nginx/servermon/life.conf',
+      'previous config',
+      'utf-8'
+    );
   });
 });

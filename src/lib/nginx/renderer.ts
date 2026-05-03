@@ -16,7 +16,8 @@ export interface ManagedServerBlockInput {
 }
 
 const FILE_NAME_RE = /^[a-z0-9][a-z0-9.-]*\.conf$/;
-const DOMAIN_RE = /^(\*\.)?[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$/;
+const DOMAIN_RE =
+  /^(\*\.)?[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$/;
 const HOST_RE = /^[A-Za-z0-9_.:-]+$/;
 const HEADER_NAME_RE = /^[A-Za-z0-9!#$%&'*+.^_`|~-]+$/;
 
@@ -49,7 +50,9 @@ function addHeaders(lines: string[], headers: Record<string, string>): void {
     if (!HEADER_NAME_RE.test(name)) {
       throw new Error(`Invalid response header name: ${name}`);
     }
-    const value = String(rawValue).replace(/[\r\n]/g, ' ').trim();
+    const value = String(rawValue)
+      .replace(/[\r\n]/g, ' ')
+      .trim();
     if (!value) continue;
     lines.push(`  add_header ${name} ${value};`);
   }

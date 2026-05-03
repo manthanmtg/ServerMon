@@ -1,11 +1,7 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { createLogger } from '@/lib/logger';
-import type {
-  NginxStatus,
-  NginxConfigTest,
-  NginxSnapshot,
-} from '@/modules/nginx/types';
+import type { NginxStatus, NginxConfigTest, NginxSnapshot } from '@/modules/nginx/types';
 import { discoverNginxVirtualHosts } from './discovery';
 
 const execFileAsync = promisify(execFile);

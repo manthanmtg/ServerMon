@@ -31,19 +31,27 @@ const servermonConfig = `server {
 }`;
 
 function mockExecSuccess(stdout: string, stderr = ''): void {
-  vi.mocked(execFile).mockImplementation(
-    (_cmd, _args, _opts, callback?: (error: Error | null, result: { stdout: string; stderr: string }) => void) => {
-      if (callback) callback(null, { stdout, stderr });
+  (execFile as unknown as ReturnType<typeof vi.fn>).mockImplementation(
+    (_cmd: unknown, _args: unknown, opts: unknown, callback: unknown) => {
+      const cb = (typeof opts === 'function' ? opts : callback) as (
+        error: Error | null,
+        result: { stdout: string; stderr: string }
+      ) => void;
+      cb(null, { stdout, stderr });
       return null as never;
     }
   );
 }
 
 function mockExecFailure(message: string): void {
-  vi.mocked(execFile).mockImplementation(
-    (_cmd, _args, _opts, callback?: (error: Error | null, result: { stdout: string; stderr: string }) => void) => {
+  (execFile as unknown as ReturnType<typeof vi.fn>).mockImplementation(
+    (_cmd: unknown, _args: unknown, opts: unknown, callback: unknown) => {
+      const cb = (typeof opts === 'function' ? opts : callback) as (
+        error: Error | null,
+        result: { stdout: string; stderr: string }
+      ) => void;
       const error = new Error(message);
-      if (callback) callback(error, { stdout: '', stderr: message });
+      cb(error, { stdout: '', stderr: message });
       return null as never;
     }
   );
