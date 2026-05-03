@@ -30,6 +30,18 @@ describe('ServiceLogPanel', () => {
 
     expect(global.fetch).toHaveBeenCalledWith('/api/modules/services/nginx.service/logs?lines=30', {
       cache: 'no-store',
+      signal: expect.any(AbortSignal),
     });
+  });
+
+  it('shows an empty state for malformed log payloads', async () => {
+    vi.mocked(global.fetch).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ logs: 'not-an-array' }),
+    } as Response);
+
+    render(<ServiceLogPanel serviceName="nginx.service" />);
+
+    await waitFor(() => expect(screen.getByText('No logs available.')).toBeDefined());
   });
 });
