@@ -25,17 +25,31 @@ export function ServiceLogPanel({ serviceName }: ServiceLogPanelProps) {
 
   useEffect(() => {
     let active = true;
+    let controller: AbortController | null = null;
 
     function fetchLogs() {
+      controller?.abort();
+      const requestController = new AbortController();
+      controller = requestController;
+
       fetch(`/api/modules/services/${encodeURIComponent(serviceName)}/logs?lines=30`, {
         cache: 'no-store',
+        signal: requestController.signal,
       })
         .then((r) => r.json())
-        .then((data) => {
-          if (active) setLogs(data.logs || []);
+        .then((data: unknown) => {
+          const nextLogs =
+            data && typeof data === 'object' && Array.isArray((data as { logs?: unknown }).logs)
+              ? (data as { logs: ServiceLogEntry[] }).logs
+              : [];
+          if (active) setLogs(nextLogs);
         })
-        .catch(() => {
+        .catch((error: unknown) => {
+          if (error instanceof DOMException && error.name === 'AbortError') return;
           if (active) setLogs([]);
+        })
+        .finally(() => {
+          if (controller === requestController) controller = null;
         });
     }
 
@@ -44,6 +58,7 @@ export function ServiceLogPanel({ serviceName }: ServiceLogPanelProps) {
 
     return () => {
       active = false;
+      controller?.abort();
       clearInterval(interval);
     };
   }, [serviceName]);
