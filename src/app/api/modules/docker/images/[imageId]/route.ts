@@ -13,6 +13,7 @@ export async function DELETE(_request: Request, context: { params: Promise<{ ima
     return NextResponse.json(result);
   } catch (error) {
     log.error('Failed to remove docker image', error);
-    return NextResponse.json({ error: 'Failed to remove image' }, { status: 500 });
+    const message = error instanceof Error ? error.message : 'Failed to remove image';
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

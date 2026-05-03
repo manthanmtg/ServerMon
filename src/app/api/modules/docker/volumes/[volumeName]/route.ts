@@ -16,6 +16,7 @@ export async function DELETE(
     return NextResponse.json(result);
   } catch (error) {
     log.error('Failed to remove docker volume', error);
-    return NextResponse.json({ error: 'Failed to remove volume' }, { status: 500 });
+    const message = error instanceof Error ? error.message : 'Failed to remove volume';
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

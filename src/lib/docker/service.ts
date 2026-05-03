@@ -231,11 +231,17 @@ class DockerService {
   }
 
   private async runDocker(args: string[]) {
-    const { stdout } = await execFileAsync('docker', args, {
-      timeout: 15_000,
-      maxBuffer: 8 * 1024 * 1024,
-    });
-    return stdout;
+    try {
+      const { stdout } = await execFileAsync('docker', args, {
+        timeout: 15_000,
+        maxBuffer: 8 * 1024 * 1024,
+      });
+      return stdout;
+    } catch (error: unknown) {
+      const err = error as { stderr?: string; stdout?: string; message?: string };
+      const output = err.stderr?.trim() || err.stdout?.trim() || err.message || 'Unknown docker error';
+      throw new Error(`Docker error: ${output}`);
+    }
   }
 
   private advanceMockState() {
