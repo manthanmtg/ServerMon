@@ -23,6 +23,10 @@ describe('utils', () => {
       expect(cn('a', '', 'b')).toBe('a b');
     });
 
+    it('should handle boolean and numeric values (ignoring falsy ones)', () => {
+      expect(cn('a', true && 'b', false && 'c', 0 as unknown as string, 1 as unknown as string)).toBe('a b 1');
+    });
+
     it('should handle no arguments', () => {
       expect(cn()).toBe('');
     });
@@ -33,16 +37,27 @@ describe('utils', () => {
       expect(formatBytes(0)).toBe('0 B');
     });
 
+    it('should handle negative values as zero', () => {
+      expect(formatBytes(-1024)).toBe('0 B');
+    });
+
+    it('should handle null or undefined', () => {
+      expect(formatBytes(null)).toBe('0 B');
+      expect(formatBytes(undefined)).toBe('0 B');
+    });
+
     it('should format binary bytes correctly', () => {
       expect(formatBytes(1024)).toBe('1 KiB');
       expect(formatBytes(1024 * 1024)).toBe('1 MiB');
       expect(formatBytes(1024 * 1024 * 1024)).toBe('1 GiB');
+      expect(formatBytes(Math.pow(1024, 4))).toBe('1 TiB');
     });
 
     it('should format decimal bytes correctly', () => {
       expect(formatBytes(1000, 'decimal')).toBe('1 KB');
       expect(formatBytes(1000 * 1000, 'decimal')).toBe('1 MB');
       expect(formatBytes(1000 * 1000 * 1000, 'decimal')).toBe('1 GB');
+      expect(formatBytes(Math.pow(1000, 4), 'decimal')).toBe('1 TB');
     });
 
     it('should default to binary system', () => {
@@ -90,6 +105,15 @@ describe('utils', () => {
       expect(formatDuration(3600)).toBe('1 hour');
       expect(formatDuration(3660)).toBe('1 hour 1 min');
     });
+
+    it('should handle large durations', () => {
+      expect(formatDuration(86400)).toBe('24 hours');
+    });
+
+    it('should handle mixed singular and plural forms', () => {
+      expect(formatDuration(3600 + 60 + 1)).toBe('1 hour 1 min 1 sec');
+      expect(formatDuration(7200 + 120 + 2)).toBe('2 hours 2 mins 2 secs');
+    });
   });
 
   describe('relativeTime', () => {
@@ -105,6 +129,7 @@ describe('utils', () => {
     it('should return "-" for nullish values', () => {
       expect(relativeTime(null)).toBe('—');
       expect(relativeTime(undefined)).toBe('—');
+      expect(relativeTime('')).toBe('—');
     });
 
     it('should return "just now" for very recent times', () => {
@@ -112,9 +137,19 @@ describe('utils', () => {
       expect(relativeTime(now)).toBe('just now');
     });
 
+    it('should return "just now" for future times', () => {
+      const future = new Date('2024-01-01T12:01:00Z');
+      expect(relativeTime(future)).toBe('just now');
+    });
+
     it('should format minutes', () => {
       const fiveMinsAgo = new Date('2024-01-01T11:55:00Z');
       expect(relativeTime(fiveMinsAgo)).toBe('5m ago');
+    });
+
+    it('should format exactly 1 minute ago', () => {
+      const oneMinAgo = new Date('2024-01-01T11:59:00Z');
+      expect(relativeTime(oneMinAgo)).toBe('1m ago');
     });
 
     it('should format hours', () => {
@@ -125,6 +160,11 @@ describe('utils', () => {
     it('should format days', () => {
       const twoDaysAgo = new Date('2023-12-30T12:00:00Z');
       expect(relativeTime(twoDaysAgo)).toBe('2d ago');
+    });
+
+    it('should format long ago as days', () => {
+      const longAgo = new Date('2023-01-01T12:00:00Z');
+      expect(relativeTime(longAgo)).toBe('365d ago');
     });
   });
 
@@ -147,6 +187,19 @@ describe('utils', () => {
 
     it('should handle non-latin characters by removing them', () => {
       expect(slugify('hello 世界')).toBe('hello');
+    });
+
+    it('should handle strings with only special characters', () => {
+      expect(slugify('!!!')).toBe('');
+      expect(slugify('   ')).toBe('');
+    });
+
+    it('should handle mixed underscores and spaces', () => {
+      expect(slugify('hello_world and special_characters!')).toBe('hello-world-and-special-characters');
+    });
+
+    it('should handle numbers', () => {
+      expect(slugify('Version 1.2.3')).toBe('version-123');
     });
   });
 });
