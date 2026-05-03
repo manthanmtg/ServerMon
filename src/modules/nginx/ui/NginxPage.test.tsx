@@ -131,6 +131,38 @@ describe('NginxPage', () => {
     expect(screen.getByText('example.com, www.example.com')).toBeDefined();
   });
 
+  it('prefers configured server_name as the visible host label', async () => {
+    const readableSnapshot = {
+      ...mockNginxSnapshot,
+      summary: { ...mockNginxSnapshot.summary, totalVhosts: 1 },
+      virtualHosts: [
+        {
+          name: 'server-block-orion',
+          serverNames: ['orion-servermon.ultron.manthanby.cv', 'www.orion-servermon.ultron.manthanby.cv'],
+          listenPorts: [443],
+          sslEnabled: true,
+          enabled: true,
+          root: '/var/www/servermon',
+          filename: '/etc/nginx/sites-available/orion-servermon.conf',
+          raw: 'server { listen 443 ssl; server_name orion-servermon.ultron.manthanby.cv www.orion-servermon.ultron.manthanby.cv; }',
+        },
+      ],
+    };
+
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => readableSnapshot,
+    });
+
+    await act(async () => {
+      render(<NginxPage />);
+    });
+    await waitFor(() => screen.getByText('orion-servermon.ultron.manthanby.cv'));
+    fireEvent.click(screen.getByText('orion-servermon.ultron.manthanby.cv'));
+    expect(screen.getByText('Hostnames:')).toBeDefined();
+    expect(screen.getByText('www.orion-servermon.ultron.manthanby.cv')).toBeDefined();
+  });
+
   it('expands virtual host details', async () => {
     await act(async () => {
       render(<NginxPage />);
