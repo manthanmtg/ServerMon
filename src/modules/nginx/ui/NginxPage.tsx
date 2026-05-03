@@ -17,6 +17,7 @@ import { Badge } from '@/components/ui/badge';
 import { PageSkeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import type { NginxSnapshot, NginxConfigTest, NginxVirtualHost } from '../types';
+import { NginxHostWizard } from './NginxHostWizard';
 
 function getDisplayVhostName(vhost: NginxVirtualHost): string {
   return vhost.primaryServerName ?? vhost.serverNames.find((name) => name && name !== '_') ?? vhost.name;
@@ -295,6 +296,8 @@ export default function NginxPage() {
           )}
         </CardContent>
       </Card>
+
+      <NginxHostWizard onCreated={load} />
 
       {/* Virtual Hosts */}
       <Card className="border-border/60">
