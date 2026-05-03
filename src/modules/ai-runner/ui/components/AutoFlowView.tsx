@@ -125,6 +125,8 @@ export function AutoFlowView({
 
   useEffect(() => {
     if (editingStepIndex !== null && editingStepIndex >= autoflowItems.length) {
+      // Explanation: Bounds checking after array length changes needs to reset selection
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setEditingStepIndex(null);
     }
   }, [autoflowItems, editingStepIndex]);
