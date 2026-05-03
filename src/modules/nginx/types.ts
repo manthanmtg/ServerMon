@@ -18,14 +18,54 @@ export interface NginxConnection {
 }
 
 export interface NginxVirtualHost {
+  id?: string;
   name: string;
   filename: string;
   enabled: boolean;
+  loaded?: boolean;
+  managed?: boolean;
+  sourcePath?: string;
+  sourceLine?: number;
   serverNames: string[];
+  primaryServerName?: string;
+  wildcard?: boolean;
   listenPorts: string[];
+  listen?: NginxListenDirective[];
   root: string;
   sslEnabled: boolean;
+  tls?: NginxTlsDetails;
   proxyPass: string;
+  locations?: NginxLocation[];
+  redirects?: NginxRedirect[];
+  warnings?: string[];
+  raw: string;
+}
+
+export interface NginxListenDirective {
+  value: string;
+  port?: number;
+  ssl: boolean;
+  http2: boolean;
+  defaultServer: boolean;
+}
+
+export interface NginxTlsDetails {
+  enabled: boolean;
+  certificate?: string;
+  certificateKey?: string;
+  certbotManaged: boolean;
+}
+
+export interface NginxLocation {
+  path: string;
+  proxyPass?: string;
+  root?: string;
+  directives: Record<string, string>;
+}
+
+export interface NginxRedirect {
+  code: number;
+  target?: string;
   raw: string;
 }
 

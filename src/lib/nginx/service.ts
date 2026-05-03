@@ -1,13 +1,12 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { readFile, readdir } from 'node:fs/promises';
 import { createLogger } from '@/lib/logger';
 import type {
   NginxStatus,
-  NginxVirtualHost,
   NginxConfigTest,
   NginxSnapshot,
 } from '@/modules/nginx/types';
+import { discoverNginxVirtualHosts } from './discovery';
 
 const execFileAsync = promisify(execFile);
 const log = createLogger('nginx');
@@ -95,108 +94,6 @@ async function getNginxStatus(): Promise<NginxStatus> {
   return status;
 }
 
-async function getVirtualHosts(): Promise<NginxVirtualHost[]> {
-  const vhosts: NginxVirtualHost[] = [];
-  const sitesAvailable = '/etc/nginx/sites-available';
-  const sitesEnabled = '/etc/nginx/sites-enabled';
-
-  try {
-    const files = await readdir(sitesAvailable);
-    const enabledFiles = new Set<string>();
-    try {
-      const enabled = await readdir(sitesEnabled);
-      enabled.forEach((f) => enabledFiles.add(f));
-    } catch {
-      // sites-enabled might not exist
-    }
-
-    for (const file of files) {
-      try {
-        const content = await readFile(`${sitesAvailable}/${file}`, 'utf-8');
-        const serverNames: string[] = [];
-        const listenPorts: string[] = [];
-        let root = '';
-        let sslEnabled = false;
-        let proxyPass = '';
-
-        const serverNameMatches = content.matchAll(/server_name\s+([^;]+)/g);
-        for (const m of serverNameMatches) {
-          serverNames.push(...m[1].trim().split(/\s+/));
-        }
-
-        const listenMatches = content.matchAll(/listen\s+([^;]+)/g);
-        for (const m of listenMatches) {
-          listenPorts.push(m[1].trim());
-          if (m[1].includes('ssl')) sslEnabled = true;
-        }
-
-        const rootMatch = content.match(/root\s+([^;]+)/);
-        if (rootMatch) root = rootMatch[1].trim();
-
-        const proxyMatch = content.match(/proxy_pass\s+([^;]+)/);
-        if (proxyMatch) proxyPass = proxyMatch[1].trim();
-
-        if (content.includes('ssl_certificate')) sslEnabled = true;
-
-        vhosts.push({
-          name: file,
-          filename: file,
-          enabled: enabledFiles.has(file),
-          serverNames,
-          listenPorts,
-          root,
-          sslEnabled,
-          proxyPass,
-          raw: content,
-        });
-      } catch {
-        // skip unreadable files
-      }
-    }
-  } catch {
-    // sites-available doesn't exist (e.g. macOS, conf.d setup)
-    try {
-      const confDir = '/etc/nginx/conf.d';
-      const files = await readdir(confDir);
-      for (const file of files.filter((f) => f.endsWith('.conf'))) {
-        try {
-          const content = await readFile(`${confDir}/${file}`, 'utf-8');
-          const serverNames: string[] = [];
-          const listenPorts: string[] = [];
-
-          const serverNameMatches = content.matchAll(/server_name\s+([^;]+)/g);
-          for (const m of serverNameMatches) {
-            serverNames.push(...m[1].trim().split(/\s+/));
-          }
-
-          const listenMatches = content.matchAll(/listen\s+([^;]+)/g);
-          for (const m of listenMatches) {
-            listenPorts.push(m[1].trim());
-          }
-
-          vhosts.push({
-            name: file,
-            filename: file,
-            enabled: true,
-            serverNames,
-            listenPorts,
-            root: '',
-            sslEnabled: content.includes('ssl_certificate'),
-            proxyPass: '',
-            raw: content,
-          });
-        } catch {
-          // skip
-        }
-      }
-    } catch {
-      // no conf.d either
-    }
-  }
-
-  return vhosts;
-}
-
 function getMockData(): NginxSnapshot {
   return {
     timestamp: new Date().toISOString(),
@@ -272,7 +169,10 @@ async function getSnapshot(): Promise<NginxSnapshot> {
   }
 
   try {
-    const [status, virtualHosts] = await Promise.all([getNginxStatus(), getVirtualHosts()]);
+    const [status, virtualHosts] = await Promise.all([
+      getNginxStatus(),
+      discoverNginxVirtualHosts(),
+    ]);
 
     const sslVhosts = virtualHosts.filter((v) => v.sslEnabled).length;
     const enabledVhosts = virtualHosts.filter((v) => v.enabled).length;
