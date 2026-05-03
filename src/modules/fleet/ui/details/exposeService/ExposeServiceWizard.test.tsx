@@ -24,8 +24,8 @@ function buildFetchMock(routeResponse: unknown, options?: { autoInserted?: boole
       return {
         ok: true,
         json: async () => ({
-          state: { subdomainHost: 'ultron.manthanby.cv' },
-          envDefaults: { hubPublicUrl: 'https://ultron.manthanby.cv' },
+          state: { subdomainHost: 'apps.example.com' },
+          envDefaults: { hubPublicUrl: 'https://apps.example.com' },
         }),
       };
     }

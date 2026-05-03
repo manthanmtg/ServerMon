@@ -2,7 +2,7 @@
 
 ## Overview
 
-This module evolves ServerMon from a standalone system into a **Fleet Management Platform**. It enables a central, cloud-hosted **Master Hub** (e.g., `ultron.manthanby.cv`) to orchestrate multiple remote **Agents** (e.g., your home PC `orion`) located behind NAT/Firewalls.
+This module evolves ServerMon from a standalone system into a **Fleet Management Platform**. It enables a central, cloud-hosted **Master Hub** (e.g., `hub.example.com`) to orchestrate multiple remote **Agents** (e.g., your home PC `orion`) located behind NAT/Firewalls.
 
 **Core Engine:** [fatedier/frp](https://github.com/fatedier/frp).
 ServerMon wraps FRP, automating the binary management, config generation, and tunnel maintenance.
@@ -16,7 +16,7 @@ ServerMon wraps FRP, automating the binary management, config generation, and tu
 - Runs the main Next.js application and the `frps` (server) daemon.
 - Aggregates health data from all agents.
 - Provides the UI for terminal access and proxy routing.
-- Handles reverse proxying for dynamic subdomains (e.g., `orion.manthanby.cv`).
+- Handles reverse proxying for dynamic subdomains (e.g., `node.example.com`).
 
 ### The Agent (Edge/Home)
 
@@ -42,13 +42,13 @@ ServerMon will manage the lifecycle of FRP binaries.
 bind_port = 7000
 vhost_http_port = 8080 # FRP routes HTTP traffic here
 auth.token = "random_hub_secret"
-subdomain_host = "manthanby.cv"
+subdomain_host = "example.com"
 ```
 
 **Agent `frpc.toml` Example (Dynamic):**
 
 ```toml
-server_addr = "ultron.manthanby.cv"
+server_addr = "hub.example.com"
 server_port = 7000
 auth.token = "random_hub_secret"
 
@@ -88,7 +88,7 @@ The user experience must be "1-click" simple:
    - **Dry Run Validation:** Before completing onboarding, ServerMon validates that generated TOML parses, required ports are available, proxy names are unique, reserved ports are not used, and the selected features are supported by the bundled FRP binary.
 4. **UI Display:** Master shows a terminal command:
    ```bash
-   curl -sL https://ultron.manthanby.cv/install-agent.sh | bash -s -- --hub-url ultron.manthanby.cv --token MY_TOKEN
+   curl -sL https://hub.example.com/install-agent.sh | bash -s -- --hub-url hub.example.com --token MY_TOKEN
    ```
 5. **Agent Setup:** The script downloads ServerMon (or pulls the Docker image), detects the environment, registers the `frpc` service, enables automatic start on boot, and connects.
    - _Docker Alternative:_ User can simply run `docker run -d --name servermon-agent ...` with the token passed as an env var.
@@ -119,7 +119,7 @@ The existing "Endpoints" feature will be updated with a `target` selection.
 
 Remote services must be publishable from the Hub without manually editing cloud Nginx config.
 
-Example: a service is running on remote agent `orion` at `127.0.0.1:3000`, and the user wants it available as `photos.manthanby.cv` or `orion-photos.manthanby.cv`. ServerMon should configure the entire path:
+Example: a service is running on remote agent `orion` at `127.0.0.1:3000`, and the user wants it available as `photos.example.com` or `orion-photos.example.com`. ServerMon should configure the entire path:
 
 1. Create/update the agent `frpc` HTTP proxy for the remote local service.
 2. Register the route in `frps` using the selected subdomain/custom domain.
@@ -130,7 +130,7 @@ Example: a service is running on remote agent `orion` at `127.0.0.1:3000`, and t
 - **Domain Route Wizard:** Add a UI flow for "Expose Remote Service" from a node detail page or global routes page.
   - Select node/client.
   - Enter remote local service target (`local_ip`, `local_port`, protocol).
-  - Choose public domain/subdomain (`photos.manthanby.cv`, `orion.manthanby.cv`, etc.).
+  - Choose public domain/subdomain (`photos.example.com`, `node.example.com`, etc.).
   - Choose path behavior: whole domain, path prefix, WebSocket support, HTTP/2, max body size, timeouts, headers, and compression.
   - Choose access mode: public, authenticated through ServerMon, IP allowlist, basic auth, or disabled.
   - Preview generated `frpc.toml`, `frps.toml`, and Nginx config before applying.
@@ -145,7 +145,7 @@ Example: a service is running on remote agent `orion` at `127.0.0.1:3000`, and t
   - Track certificate expiry and renewal status.
   - Show failures clearly if DNS is not ready for ACME validation.
 - **DNS Verification:** Check that the chosen domain resolves to the Hub before enabling the route.
-  - Support wildcard DNS (`*.manthanby.cv`) and explicit records (`photos.manthanby.cv`).
+  - Support wildcard DNS (`*.example.com`) and explicit records (`photos.example.com`).
   - Show exact missing/incorrect records and expected values.
 - **Route Health Checks:** After applying, ServerMon probes the public URL, Nginx upstream, FRP proxy, and remote local target.
   - Status should explain whether failure is DNS, TLS, Nginx, FRP, or remote service down.
@@ -429,7 +429,7 @@ Client reboot behavior must be designed and tested as a first-class production p
 
 ## 6. Security & Networking
 
-- **Wildcard DNS:** Hub requires `*.manthanby.cv` to point to its IP.
+- **Wildcard DNS:** Hub requires `*.example.com` to point to its IP.
 - **Nginx Ingress Management:** Local Nginx on Hub forwards managed domains to the `frps` `vhost_http_port`. ServerMon must generate, validate, reload, monitor, and roll back managed Nginx config for public remote-service routes.
 - **Custom Domains:** Support both wildcard subdomains and explicit custom domains, with DNS validation before enabling a public route.
 - **Encryption Defaults:** All FRP traffic is encrypted via TLS between Agent and Hub by default. The onboarding wizard must explicitly ask whether to enable FRP transport encryption, TLS, compression, and related `frpc` options, then render the resulting TOML preview before install.

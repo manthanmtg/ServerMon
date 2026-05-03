@@ -27,7 +27,7 @@ commands.
   - route domain, default `<node-slug>-servermon.<hub-subdomain-host>`.
 - After install, the tab switches to the installed-state view.
 - If public route creation is enabled, the installed-state view links to the
-  public URL, for example `https://orion-servermon.ultron.manthanby.cv/ai-runner`.
+  public URL, for example `https://node-servermon.hub.example.com/ai-runner`.
 
 ## Existing System Fit
 

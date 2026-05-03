@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { AGENT_INSTALLER_BASH, renderInstallSnippet } from './install-script';
 
 const base = {
-  hubUrl: 'ultron.manthanby.cv',
+  hubUrl: 'apps.example.com',
   token: 'tok-ABC-xyz',
   nodeId: 'node-1',
 };
@@ -11,7 +11,7 @@ describe('renderInstallSnippet', () => {
   it('linux: curl | bash with hub-url/token/node-id flags', () => {
     const out = renderInstallSnippet({ ...base, kind: 'linux' });
     expect(out).toBe(
-      "curl -sL https://ultron.manthanby.cv/api/fleet/public/install-script | bash -s -- --hub-url 'ultron.manthanby.cv' --token 'tok-ABC-xyz' --node-id 'node-1'"
+      "curl -sL https://apps.example.com/api/fleet/public/install-script | bash -s -- --hub-url 'apps.example.com' --token 'tok-ABC-xyz' --node-id 'node-1'"
     );
   });
 
@@ -56,7 +56,7 @@ describe('renderInstallSnippet', () => {
   it('docker: docker run with env vars and default image', () => {
     const out = renderInstallSnippet({ ...base, kind: 'docker' });
     expect(out).toBe(
-      "docker run -d --name servermon-agent --restart unless-stopped -e PORT=8918 -e FLEET_AGENT_PTY_PORT=8918 -e FLEET_HUB_URL='ultron.manthanby.cv' -e FLEET_PAIRING_TOKEN='tok-ABC-xyz' -e FLEET_NODE_ID='node-1' servermon/agent:latest"
+      "docker run -d --name servermon-agent --restart unless-stopped -e PORT=8918 -e FLEET_AGENT_PTY_PORT=8918 -e FLEET_HUB_URL='apps.example.com' -e FLEET_PAIRING_TOKEN='tok-ABC-xyz' -e FLEET_NODE_ID='node-1' servermon/agent:latest"
     );
   });
 
@@ -73,7 +73,7 @@ describe('renderInstallSnippet', () => {
   it('macos: curl | bash with --platform macos flag', () => {
     const out = renderInstallSnippet({ ...base, kind: 'macos' });
     expect(out).toBe(
-      "curl -sL https://ultron.manthanby.cv/api/fleet/public/install-script | bash -s -- --hub-url 'ultron.manthanby.cv' --token 'tok-ABC-xyz' --node-id 'node-1' --platform macos"
+      "curl -sL https://apps.example.com/api/fleet/public/install-script | bash -s -- --hub-url 'apps.example.com' --token 'tok-ABC-xyz' --node-id 'node-1' --platform macos"
     );
   });
 

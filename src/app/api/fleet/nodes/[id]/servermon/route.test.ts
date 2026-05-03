@@ -64,7 +64,7 @@ describe('GET /api/fleet/nodes/[id]/servermon', () => {
     mockGetSession.mockResolvedValue({ user: { username: 'admin', role: 'admin' } });
     mockNodeFindById.mockReturnValue({ lean: vi.fn().mockResolvedValue(node) });
     mockFrpFindOne.mockReturnValue({
-      lean: vi.fn().mockResolvedValue({ subdomainHost: 'ultron.manthanby.cv' }),
+      lean: vi.fn().mockResolvedValue({ subdomainHost: 'apps.example.com' }),
     });
   });
 
@@ -74,7 +74,7 @@ describe('GET /api/fleet/nodes/[id]/servermon', () => {
       nodeId: 'node-1',
       name: 'Orion ServerMon',
       slug: 'orion-servermon',
-      domain: 'orion-servermon.ultron.manthanby.cv',
+      domain: 'orion-servermon.apps.example.com',
       proxyRuleName: 'orion-servermon',
       target: { localIp: '127.0.0.1', localPort: 8912, protocol: 'http' },
       tlsEnabled: true,
@@ -105,7 +105,7 @@ describe('GET /api/fleet/nodes/[id]/servermon', () => {
     const json = await res.json();
     expect(json.route).toMatchObject({
       _id: 'route-1',
-      domain: 'orion-servermon.ultron.manthanby.cv',
+      domain: 'orion-servermon.apps.example.com',
       proxyRuleName: 'orion-servermon',
     });
   });

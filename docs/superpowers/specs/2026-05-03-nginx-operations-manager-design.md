@@ -2,7 +2,7 @@
 
 ## Purpose
 
-ServerMon's current Nginx module misses loaded configs under `/etc/nginx/servermon` because it only scans `/etc/nginx/sites-available` and treats `/etc/nginx/conf.d` as a fallback. On this host, `/etc/nginx/conf.d/servermon-public-routes.conf` includes `/etc/nginx/servermon/*.conf`, so the module does not show active ServerMon-managed hosts such as `orion-test.ultron.manthanby.cv` and `orion-servermon.ultron.manthanby.cv`.
+ServerMon's current Nginx module misses loaded configs under `/etc/nginx/servermon` because it only scans `/etc/nginx/sites-available` and treats `/etc/nginx/conf.d` as a fallback. On this host, `/etc/nginx/conf.d/servermon-public-routes.conf` includes `/etc/nginx/servermon/*.conf`, so the module does not show active ServerMon-managed hosts such as `api-test.apps.example.com` and `servermon.apps.example.com`.
 
 The module should become a complete local Nginx operations surface: discover the actual loaded config, show useful details for every virtual host, create new direct or wildcard hosts, guide DNS setup, support advanced raw configs, validate before reload, and rollback failed writes.
 
@@ -10,8 +10,8 @@ The module should become a complete local Nginx operations surface: discover the
 
 - Discover all loaded server blocks, including files reached through `include` directives.
 - Show rich details for active virtual hosts: source file, server names, wildcard status, listen ports, TLS certificate paths, redirects, locations, roots, proxy targets, headers, Certbot-managed markers, and raw config.
-- Support new host creation for direct domains such as `life.manthanby.cv`.
-- Support wildcard server names such as `*.ultron.manthanby.cv` when the DNS provider already has or needs a wildcard DNS record.
+- Support new host creation for direct domains such as `app.example.com`.
+- Support wildcard server names such as `*.apps.example.com` when the DNS provider already has or needs a wildcard DNS record.
 - Guide the user through DNS records for direct and wildcard hostnames.
 - Provide an advanced raw config path for configurations the guided wizard does not model.
 - Write managed config safely, test with `nginx -t`, reload only after a successful test, and rollback failed writes.
@@ -122,16 +122,16 @@ The module validates file names with a strict slug pattern and only writes insid
 
 The UI should not pretend to change DNS provider records. It should show exact DNS records to create and verify resolution.
 
-For direct host `life.manthanby.cv`:
+For direct host `app.example.com`:
 
-- Suggested record: `A life <server IPv4>` and/or `AAAA life <server IPv6>`.
-- Alternative: `CNAME life <canonical host>` when the user supplies a canonical target.
+- Suggested record: `A app <server IPv4>` and/or `AAAA app <server IPv6>`.
+- Alternative: `CNAME app <canonical host>` when the user supplies a canonical target.
 
-For wildcard host `*.ultron.manthanby.cv`:
+For wildcard host `*.apps.example.com`:
 
-- Suggested record: `A *.ultron <server IPv4>` and/or `AAAA *.ultron <server IPv6>`.
-- Warn that wildcard DNS does not cover the apex `ultron.manthanby.cv`; apex needs its own record.
-- Verify a sample hostname such as `test.ultron.manthanby.cv`.
+- Suggested record: `A *.apps <server IPv4>` and/or `AAAA *.apps <server IPv6>`.
+- Warn that wildcard DNS does not cover the apex `apps.example.com`; apex needs its own record.
+- Verify a sample hostname such as `test.apps.example.com`.
 
 The DNS check should show resolved IPs and whether they match the server's detected public IP when available. Missing DNS should not block non-TLS configs but should warn before Let's Encrypt.
 
@@ -155,7 +155,7 @@ The UI should show the exact file path and latest test output after create/updat
 Unit tests should cover:
 
 - `nginx -T` source marker parsing.
-- Server block parsing for Certbot-modified configs like the current `orion-test.conf`.
+- Server block parsing for Certbot-modified configs like the current `app-test.conf`.
 - `/etc/nginx/servermon` discovery.
 - Wildcard `server_name` parsing.
 - Guided config rendering.

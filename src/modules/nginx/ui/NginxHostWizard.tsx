@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { ChevronDown, Plus } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -27,14 +28,15 @@ function apexName(domain: string): string {
 }
 
 export function NginxHostWizard({ onCreated }: NginxHostWizardProps) {
+  const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<Mode>('guided');
-  const [fileName, setFileName] = useState('life.conf');
-  const [domain, setDomain] = useState('life.manthanby.cv');
+  const [fileName, setFileName] = useState('app.conf');
+  const [domain, setDomain] = useState('app.example.com');
   const [upstreamHost, setUpstreamHost] = useState('127.0.0.1');
-  const [upstreamPort, setUpstreamPort] = useState('8912');
+  const [upstreamPort, setUpstreamPort] = useState('8080');
   const [websocket, setWebsocket] = useState(true);
   const [rawConfig, setRawConfig] = useState(
-    'server {\n  listen 80;\n  server_name life.manthanby.cv;\n}\n'
+    'server {\n  listen 80;\n  server_name app.example.com;\n}\n'
   );
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -107,117 +109,138 @@ export function NginxHostWizard({ onCreated }: NginxHostWizardProps) {
   return (
     <Card className="border-border/60">
       <CardHeader className="pb-3">
-        <div className="flex items-center justify-between gap-3">
-          <CardTitle className="text-base">Add host</CardTitle>
-          <div className="flex gap-2">
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div>
+            <CardTitle className="text-base">Add host</CardTitle>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {open && (
+              <>
+                <Button
+                  type="button"
+                  variant={mode === 'guided' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setMode('guided')}
+                >
+                  Guided
+                </Button>
+                <Button
+                  type="button"
+                  variant={mode === 'raw' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setMode('raw')}
+                >
+                  Raw config
+                </Button>
+              </>
+            )}
             <Button
               type="button"
-              variant={mode === 'guided' ? 'default' : 'outline'}
+              variant={open ? 'outline' : 'default'}
               size="sm"
-              onClick={() => setMode('guided')}
+              aria-expanded={open}
+              onClick={() => setOpen((value) => !value)}
             >
-              Guided
-            </Button>
-            <Button
-              type="button"
-              variant={mode === 'raw' ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setMode('raw')}
-            >
-              Raw config
+              {open ? <ChevronDown className="mr-2 h-4 w-4" /> : <Plus className="mr-2 h-4 w-4" />}
+              {open ? 'Collapse' : 'Add host'}
             </Button>
           </div>
         </div>
       </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <Input
-            label="Domain"
-            value={domain}
-            onChange={(event) => setDomain(event.target.value)}
-          />
-          <Input
-            label="File name"
-            value={fileName}
-            onChange={(event) => setFileName(event.target.value)}
-          />
-          {mode === 'guided' && (
-            <Input
-              label="Upstream port"
-              type="number"
-              value={upstreamPort}
-              onChange={(event) => setUpstreamPort(event.target.value)}
-            />
-          )}
-        </div>
-
-        {mode === 'guided' ? (
+      {!open ? null : (
+        <CardContent className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <Input
-              label="Upstream host"
-              value={upstreamHost}
-              onChange={(event) => setUpstreamHost(event.target.value)}
+              label="Domain"
+              value={domain}
+              onChange={(event) => setDomain(event.target.value)}
             />
-            <label className="flex items-center gap-2 pt-7 text-sm">
-              <input
-                type="checkbox"
-                checked={websocket}
-                onChange={(event) => setWebsocket(event.target.checked)}
+            <Input
+              label="File name"
+              value={fileName}
+              onChange={(event) => setFileName(event.target.value)}
+            />
+            {mode === 'guided' && (
+              <Input
+                label="Upstream port"
+                type="number"
+                value={upstreamPort}
+                onChange={(event) => setUpstreamPort(event.target.value)}
               />
-              Websocket
-            </label>
+            )}
           </div>
-        ) : (
-          <div className="space-y-1.5">
-            <label htmlFor="nginx-raw-config" className="block text-sm font-medium">
-              Raw config
-            </label>
-            <textarea
-              id="nginx-raw-config"
-              value={rawConfig}
-              onChange={(event) => setRawConfig(event.target.value)}
-              className="min-h-40 w-full rounded-lg border border-input bg-background p-3 font-mono text-xs"
-            />
-          </div>
-        )}
 
-        <div className="rounded-lg border border-border bg-muted/30 p-3 text-xs">
-          <div className="font-medium text-foreground">DNS records</div>
-          <div className="mt-1 font-mono">A {dnsRecordName} -&gt; &lt;server-ip&gt;</div>
-          <div className="font-mono">AAAA {dnsRecordName} -&gt; &lt;server-ipv6&gt;</div>
-          <div className="text-muted-foreground">Verify name: {sampleName(domain)}</div>
-          {wildcard && (
-            <div className="mt-1 text-warning">
-              Wildcard DNS does not cover {apexName(domain)}; add a separate apex record if needed.
+          {mode === 'guided' ? (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <Input
+                label="Upstream host"
+                value={upstreamHost}
+                onChange={(event) => setUpstreamHost(event.target.value)}
+              />
+              <label className="flex items-center gap-2 pt-7 text-sm">
+                <input
+                  type="checkbox"
+                  checked={websocket}
+                  onChange={(event) => setWebsocket(event.target.checked)}
+                />
+                Websocket
+              </label>
+            </div>
+          ) : (
+            <div className="space-y-1.5">
+              <label htmlFor="nginx-raw-config" className="block text-sm font-medium">
+                Raw config
+              </label>
+              <textarea
+                id="nginx-raw-config"
+                value={rawConfig}
+                onChange={(event) => setRawConfig(event.target.value)}
+                className="min-h-40 w-full rounded-lg border border-input bg-background p-3 font-mono text-xs"
+              />
             </div>
           )}
-        </div>
 
-        <div className="space-y-1.5">
-          <div className="text-sm font-medium">Preview</div>
-          <pre className="max-h-80 overflow-auto rounded-lg border border-border bg-background p-3 text-xs font-mono whitespace-pre">
-            {preview}
-          </pre>
-        </div>
-
-        {message && (
-          <div className="rounded border border-success/30 bg-success/5 p-2 text-sm">{message}</div>
-        )}
-        {error && (
-          <div
-            role="alert"
-            className="rounded border border-destructive/30 bg-destructive/5 p-2 text-sm text-destructive"
-          >
-            {error}
+          <div className="rounded-lg border border-border bg-muted/30 p-3 text-xs">
+            <div className="font-medium text-foreground">DNS records</div>
+            <div className="mt-1 font-mono">A {dnsRecordName} -&gt; &lt;server-ip&gt;</div>
+            <div className="font-mono">AAAA {dnsRecordName} -&gt; &lt;server-ipv6&gt;</div>
+            <div className="text-muted-foreground">Verify name: {sampleName(domain)}</div>
+            {wildcard && (
+              <div className="mt-1 text-warning">
+                Wildcard DNS does not cover {apexName(domain)}; add a separate apex record if
+                needed.
+              </div>
+            )}
           </div>
-        )}
 
-        <div className="flex justify-end">
-          <Button type="button" onClick={submit} loading={submitting}>
-            Create host
-          </Button>
-        </div>
-      </CardContent>
+          <div className="space-y-1.5">
+            <div className="text-sm font-medium">Preview</div>
+            <pre className="max-h-80 overflow-auto rounded-lg border border-border bg-background p-3 text-xs font-mono whitespace-pre">
+              {preview}
+            </pre>
+          </div>
+
+          {message && (
+            <div className="rounded border border-success/30 bg-success/5 p-2 text-sm">
+              {message}
+            </div>
+          )}
+          {error && (
+            <div
+              role="alert"
+              className="rounded border border-destructive/30 bg-destructive/5 p-2 text-sm text-destructive"
+            >
+              {error}
+            </div>
+          )}
+
+          <div className="flex justify-end">
+            <Button type="button" onClick={submit} loading={submitting}>
+              Create host
+            </Button>
+          </div>
+        </CardContent>
+      )}
     </Card>
   );
 }

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { parseNginxServerBlocks } from './parser';
 
 const certbotConfig = `server {
-  server_name orion-test.ultron.manthanby.cv;
+  server_name api-test.apps.example.com;
   client_max_body_size 32m;
 
   location / {
@@ -12,22 +12,22 @@ const certbotConfig = `server {
   }
 
     listen 443 ssl; # managed by Certbot
-    ssl_certificate /etc/letsencrypt/live/orion-test.ultron.manthanby.cv/fullchain.pem; # managed by Certbot
-    ssl_certificate_key /etc/letsencrypt/live/orion-test.ultron.manthanby.cv/privkey.pem; # managed by Certbot
+    ssl_certificate /etc/letsencrypt/live/api-test.apps.example.com/fullchain.pem; # managed by Certbot
+    ssl_certificate_key /etc/letsencrypt/live/api-test.apps.example.com/privkey.pem; # managed by Certbot
 }
 server {
-    if ($host = orion-test.ultron.manthanby.cv) {
+    if ($host = api-test.apps.example.com) {
         return 301 https://$host$request_uri;
     } # managed by Certbot
 
   listen 80;
-  server_name orion-test.ultron.manthanby.cv;
+  server_name api-test.apps.example.com;
     return 404; # managed by Certbot
 }`;
 
 describe('parseNginxServerBlocks', () => {
   it('extracts Certbot-modified host details from multiple server blocks', () => {
-    const blocks = parseNginxServerBlocks(certbotConfig, '/etc/nginx/servermon/orion-test.conf');
+    const blocks = parseNginxServerBlocks(certbotConfig, '/etc/nginx/servermon/app-test.conf');
 
     expect(blocks).toHaveLength(2);
     const first = blocks[0];
@@ -35,9 +35,9 @@ describe('parseNginxServerBlocks', () => {
     if (!first || !second) throw new Error('expected parsed server blocks');
 
     expect(first).toMatchObject({
-      sourcePath: '/etc/nginx/servermon/orion-test.conf',
-      serverNames: ['orion-test.ultron.manthanby.cv'],
-      primaryServerName: 'orion-test.ultron.manthanby.cv',
+      sourcePath: '/etc/nginx/servermon/app-test.conf',
+      serverNames: ['api-test.apps.example.com'],
+      primaryServerName: 'api-test.apps.example.com',
       managed: true,
       loaded: true,
       wildcard: false,
@@ -45,8 +45,8 @@ describe('parseNginxServerBlocks', () => {
     expect(first.listen?.map((entry) => entry.value)).toContain('443 ssl');
     expect(first.tls).toMatchObject({
       enabled: true,
-      certificate: '/etc/letsencrypt/live/orion-test.ultron.manthanby.cv/fullchain.pem',
-      certificateKey: '/etc/letsencrypt/live/orion-test.ultron.manthanby.cv/privkey.pem',
+      certificate: '/etc/letsencrypt/live/api-test.apps.example.com/fullchain.pem',
+      certificateKey: '/etc/letsencrypt/live/api-test.apps.example.com/privkey.pem',
       certbotManaged: true,
     });
     expect(first.locations).toEqual([
@@ -69,7 +69,7 @@ describe('parseNginxServerBlocks', () => {
     const [block] = parseNginxServerBlocks(
       `server {
         listen 80;
-        server_name *.ultron.manthanby.cv;
+        server_name *.apps.example.com;
         location / {
           proxy_pass http://127.0.0.1:9000;
         }
@@ -79,7 +79,7 @@ describe('parseNginxServerBlocks', () => {
 
     if (!block) throw new Error('expected wildcard server block');
     expect(block.wildcard).toBe(true);
-    expect(block.primaryServerName).toBe('*.ultron.manthanby.cv');
+    expect(block.primaryServerName).toBe('*.apps.example.com');
     expect(block.locations?.[0]?.proxyPass).toBe('http://127.0.0.1:9000');
   });
 });

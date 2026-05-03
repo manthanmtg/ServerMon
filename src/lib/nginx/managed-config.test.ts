@@ -6,7 +6,7 @@ describe('writeManagedConfig', () => {
   it('writes a managed file after a successful nginx config test', async () => {
     const writes: Array<{ path: string; content: string }> = [];
     const result = await writeManagedConfig(
-      { fileName: 'life.conf', content: 'server { listen 80; server_name life.manthanby.cv; }' },
+      { fileName: 'app.conf', content: 'server { listen 80; server_name app.example.com; }' },
       {
         managedDir: '/etc/nginx/servermon',
         mkdir: vi.fn(),
@@ -22,11 +22,11 @@ describe('writeManagedConfig', () => {
     );
 
     expect(result.ok).toBe(true);
-    expect(result.path).toBe('/etc/nginx/servermon/life.conf');
+    expect(result.path).toBe('/etc/nginx/servermon/app.conf');
     expect(writes).toEqual([
       {
-        path: '/etc/nginx/servermon/life.conf',
-        content: 'server { listen 80; server_name life.manthanby.cv; }',
+        path: '/etc/nginx/servermon/app.conf',
+        content: 'server { listen 80; server_name app.example.com; }',
       },
     ]);
   });
@@ -35,7 +35,7 @@ describe('writeManagedConfig', () => {
     const writeFile = vi.fn(async () => undefined);
 
     const result = await writeManagedConfig(
-      { fileName: 'life.conf', content: 'broken config' },
+      { fileName: 'app.conf', content: 'broken config' },
       {
         managedDir: '/etc/nginx/servermon',
         mkdir: vi.fn(),
@@ -50,13 +50,13 @@ describe('writeManagedConfig', () => {
     expect(result.output).toBe('syntax error');
     expect(writeFile).toHaveBeenNthCalledWith(
       1,
-      '/etc/nginx/servermon/life.conf',
+      '/etc/nginx/servermon/app.conf',
       'broken config',
       'utf-8'
     );
     expect(writeFile).toHaveBeenNthCalledWith(
       2,
-      '/etc/nginx/servermon/life.conf',
+      '/etc/nginx/servermon/app.conf',
       'previous config',
       'utf-8'
     );

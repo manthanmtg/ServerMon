@@ -263,8 +263,8 @@ function StepDns() {
         <h4 className="font-semibold mb-1">DNS Requirement</h4>
         <p>
           Before adding this agent, ensure you have a wildcard DNS record (e.g.{' '}
-          <code>*.ultron.manthanby.cv</code>) pointing to this Hub&apos;s IP address. This allows
-          the Hub to route traffic to your agent automatically.
+          <code>*.apps.example.com</code>) pointing to this Hub&apos;s IP address. This allows the
+          Hub to route traffic to your agent automatically.
         </p>
       </div>
     </div>

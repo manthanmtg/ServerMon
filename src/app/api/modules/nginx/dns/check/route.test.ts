@@ -33,9 +33,9 @@ describe('POST /api/modules/nginx/dns/check', () => {
     vi.clearAllMocks();
     mockGetSession.mockResolvedValue({ user: { username: 'admin', role: 'admin' } });
     mockCheckNginxDns.mockResolvedValue({
-      domainPattern: '*.ultron.manthanby.cv',
-      lookupName: 'test.ultron.manthanby.cv',
-      recordName: '*.ultron',
+      domainPattern: '*.apps.example.com',
+      lookupName: 'test.apps.example.com',
+      recordName: '*.apps',
       records: [],
       warnings: [],
       resolved: { a: ['203.0.113.10'], aaaa: [], cname: [] },
@@ -47,7 +47,7 @@ describe('POST /api/modules/nginx/dns/check', () => {
     mockGetSession.mockResolvedValue(null);
     const { POST } = await import('./route');
 
-    const res = await POST(request({ domainPattern: 'life.manthanby.cv' }));
+    const res = await POST(request({ domainPattern: 'app.example.com' }));
 
     expect(res.status).toBe(401);
   });
@@ -56,11 +56,11 @@ describe('POST /api/modules/nginx/dns/check', () => {
     const { POST } = await import('./route');
 
     const res = await POST(
-      request({ domainPattern: '*.ultron.manthanby.cv', serverIp: '203.0.113.10' })
+      request({ domainPattern: '*.apps.example.com', serverIp: '203.0.113.10' })
     );
 
     expect(res.status).toBe(200);
-    expect(mockCheckNginxDns).toHaveBeenCalledWith('*.ultron.manthanby.cv', {
+    expect(mockCheckNginxDns).toHaveBeenCalledWith('*.apps.example.com', {
       serverIp: '203.0.113.10',
     });
     expect(await res.json()).toEqual({

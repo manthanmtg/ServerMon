@@ -137,17 +137,14 @@ describe('NginxPage', () => {
       summary: { ...mockNginxSnapshot.summary, totalVhosts: 1 },
       virtualHosts: [
         {
-          name: 'server-block-orion',
-          serverNames: [
-            'orion-servermon.ultron.manthanby.cv',
-            'www.orion-servermon.ultron.manthanby.cv',
-          ],
+          name: 'server-block-app',
+          serverNames: ['servermon.apps.example.com', 'www.servermon.apps.example.com'],
           listenPorts: [443],
           sslEnabled: true,
           enabled: true,
           root: '/var/www/servermon',
-          filename: '/etc/nginx/sites-available/orion-servermon.conf',
-          raw: 'server { listen 443 ssl; server_name orion-servermon.ultron.manthanby.cv www.orion-servermon.ultron.manthanby.cv; }',
+          filename: '/etc/nginx/sites-available/servermon-app.conf',
+          raw: 'server { listen 443 ssl; server_name servermon.apps.example.com www.servermon.apps.example.com; }',
         },
       ],
     };
@@ -160,13 +157,11 @@ describe('NginxPage', () => {
     await act(async () => {
       render(<NginxPage />);
     });
-    await waitFor(() => screen.getByText('orion-servermon.ultron.manthanby.cv'));
-    fireEvent.click(screen.getByText('orion-servermon.ultron.manthanby.cv'));
+    await waitFor(() => screen.getByText('servermon.apps.example.com'));
+    fireEvent.click(screen.getByText('servermon.apps.example.com'));
     expect(screen.getByText('Hostnames:')).toBeDefined();
     expect(
-      screen.getAllByText(
-        'orion-servermon.ultron.manthanby.cv, www.orion-servermon.ultron.manthanby.cv'
-      ).length
+      screen.getAllByText('servermon.apps.example.com, www.servermon.apps.example.com').length
     ).toBeGreaterThan(0);
   });
 
@@ -183,15 +178,15 @@ describe('NginxPage', () => {
           sourceLine: 1,
           loaded: true,
           managed: true,
-          primaryServerName: '*.ultron.manthanby.cv',
+          primaryServerName: '*.apps.example.com',
           wildcard: true,
-          serverNames: ['*.ultron.manthanby.cv'],
+          serverNames: ['*.apps.example.com'],
           listenPorts: ['443 ssl'],
           listen: [{ value: '443 ssl', port: 443, ssl: true, http2: false, defaultServer: false }],
           tls: {
             enabled: true,
-            certificate: '/etc/letsencrypt/live/ultron.manthanby.cv/fullchain.pem',
-            certificateKey: '/etc/letsencrypt/live/ultron.manthanby.cv/privkey.pem',
+            certificate: '/etc/letsencrypt/live/apps.example.com/fullchain.pem',
+            certificateKey: '/etc/letsencrypt/live/apps.example.com/privkey.pem',
             certbotManaged: true,
           },
           sslEnabled: true,
@@ -213,7 +208,7 @@ describe('NginxPage', () => {
             },
           ],
           warnings: [],
-          raw: 'server { listen 443 ssl; server_name *.ultron.manthanby.cv; }',
+          raw: 'server { listen 443 ssl; server_name *.apps.example.com; }',
         },
       ],
     };
@@ -226,18 +221,16 @@ describe('NginxPage', () => {
     await act(async () => {
       render(<NginxPage />);
     });
-    await waitFor(() => screen.getAllByText('*.ultron.manthanby.cv').length > 0);
-    fireEvent.click(screen.getAllByText('*.ultron.manthanby.cv')[0]);
+    await waitFor(() => screen.getAllByText('*.apps.example.com').length > 0);
+    fireEvent.click(screen.getAllByText('*.apps.example.com')[0]);
 
     expect(screen.getByText('Wildcard')).toBeDefined();
     expect(screen.getByText('Loaded')).toBeDefined();
     expect(screen.getByText('Managed')).toBeDefined();
     expect(screen.getByText('TLS certificate:')).toBeDefined();
-    expect(
-      screen.getByText('/etc/letsencrypt/live/ultron.manthanby.cv/fullchain.pem')
-    ).toBeDefined();
+    expect(screen.getByText('/etc/letsencrypt/live/apps.example.com/fullchain.pem')).toBeDefined();
     expect(screen.getByText('TLS key:')).toBeDefined();
-    expect(screen.getByText('/etc/letsencrypt/live/ultron.manthanby.cv/privkey.pem')).toBeDefined();
+    expect(screen.getByText('/etc/letsencrypt/live/apps.example.com/privkey.pem')).toBeDefined();
     expect(screen.getByText('Source:')).toBeDefined();
     expect(screen.getByText('/etc/nginx/servermon/wildcard.conf:1')).toBeDefined();
     expect(screen.getByText('Redirects:')).toBeDefined();

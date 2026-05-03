@@ -86,7 +86,7 @@ describe('POST /api/fleet/nodes/[id]/servermon/install', () => {
     mockNodeUpdateOne.mockResolvedValue({ modifiedCount: 1 });
     mockRouteFindOne.mockResolvedValue(null);
     mockFrpFindOne.mockReturnValue({
-      lean: vi.fn().mockResolvedValue({ subdomainHost: 'ultron.manthanby.cv' }),
+      lean: vi.fn().mockResolvedValue({ subdomainHost: 'apps.example.com' }),
     });
     mockStoreCommandSecret.mockResolvedValue(undefined);
     mockFleetLogCreate.mockResolvedValue({});
@@ -106,7 +106,7 @@ describe('POST /api/fleet/nodes/[id]/servermon/install', () => {
     expect(res.status).toBe(202);
     const json = await res.json();
     expect(json.queued).toBe(true);
-    expect(json.routeIntent.domain).toBe('orion-servermon.ultron.manthanby.cv');
+    expect(json.routeIntent.domain).toBe('orion-servermon.apps.example.com');
 
     expect(mockStoreCommandSecret).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -176,7 +176,7 @@ describe('POST /api/fleet/nodes/[id]/servermon/install', () => {
       makeReq({
         mongoUri: 'mongodb://db/servermon',
         createPublicRoute: true,
-        routeDomain: 'orion-servermon.ultron.manthanby.cv',
+        routeDomain: 'orion-servermon.apps.example.com',
       }),
       makeContext()
     );

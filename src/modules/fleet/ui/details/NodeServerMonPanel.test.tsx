@@ -9,7 +9,7 @@ vi.mock('@/components/ui/toast', () => ({
 const routeIntent = {
   name: 'Orion ServerMon',
   slug: 'orion-servermon',
-  domain: 'orion-servermon.ultron.manthanby.cv',
+  domain: 'orion-servermon.apps.example.com',
   nodeId: 'node-1',
   proxyRuleName: 'servermon',
   target: { localIp: '127.0.0.1', localPort: 8912, protocol: 'http' },
@@ -37,7 +37,7 @@ const installedResponse = {
   canInstall: false,
   route: {
     _id: 'route-1',
-    domain: 'orion-servermon.ultron.manthanby.cv',
+    domain: 'orion-servermon.apps.example.com',
     status: 'active',
     healthStatus: 'healthy',
     tlsEnabled: true,
@@ -86,10 +86,10 @@ describe('NodeServerMonPanel', () => {
     });
     expect(screen.getByText('running')).toBeDefined();
     expect(screen.getAllByText('healthy')).toHaveLength(2);
-    expect(screen.getByText('orion-servermon.ultron.manthanby.cv')).toBeDefined();
+    expect(screen.getByText('orion-servermon.apps.example.com')).toBeDefined();
     expect(screen.getByRole('link', { name: /Open ServerMon/ })).toHaveProperty(
       'href',
-      'https://orion-servermon.ultron.manthanby.cv/'
+      'https://orion-servermon.apps.example.com/'
     );
   });
 
@@ -184,7 +184,7 @@ describe('NodeServerMonPanel', () => {
       installMode: 'release',
       versionTarget: 'latest',
       createPublicRoute: true,
-      routeDomain: 'orion-servermon.ultron.manthanby.cv',
+      routeDomain: 'orion-servermon.apps.example.com',
     });
   });
 

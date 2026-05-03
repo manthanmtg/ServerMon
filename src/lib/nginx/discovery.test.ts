@@ -23,8 +23,8 @@ vi.mock('@/lib/logger', () => ({
 
 const servermonConfig = `server {
   listen 443 ssl;
-  server_name orion-servermon.ultron.manthanby.cv;
-  ssl_certificate /etc/letsencrypt/live/orion-servermon.ultron.manthanby.cv/fullchain.pem;
+  server_name servermon.apps.example.com;
+  ssl_certificate /etc/letsencrypt/live/servermon.apps.example.com/fullchain.pem;
   location / {
     proxy_pass http://127.0.0.1:8080;
   }
@@ -64,7 +64,7 @@ describe('discoverNginxVirtualHosts', () => {
   });
 
   it('discovers loaded server blocks from nginx -T source file markers', async () => {
-    mockExecSuccess(`# configuration file /etc/nginx/servermon/orion-servermon.conf:
+    mockExecSuccess(`# configuration file /etc/nginx/servermon/servermon-app.conf:
 ${servermonConfig}
 `);
 
@@ -73,10 +73,10 @@ ${servermonConfig}
 
     expect(vhosts).toHaveLength(1);
     expect(vhosts[0]).toMatchObject({
-      sourcePath: '/etc/nginx/servermon/orion-servermon.conf',
+      sourcePath: '/etc/nginx/servermon/servermon-app.conf',
       loaded: true,
       managed: true,
-      primaryServerName: 'orion-servermon.ultron.manthanby.cv',
+      primaryServerName: 'servermon.apps.example.com',
       proxyPass: 'http://127.0.0.1:8080',
     });
   });
@@ -85,11 +85,11 @@ ${servermonConfig}
     mockExecFailure('nginx -T failed');
     vi.mocked(readdir).mockImplementation(async (path) => {
       if (String(path) === '/etc/nginx/sites-available') return ['default'] as never;
-      if (String(path) === '/etc/nginx/servermon') return ['orion-servermon.conf'] as never;
+      if (String(path) === '/etc/nginx/servermon') return ['servermon-app.conf'] as never;
       return [] as never;
     });
     vi.mocked(readFile).mockImplementation(async (path) => {
-      if (String(path) === '/etc/nginx/servermon/orion-servermon.conf') {
+      if (String(path) === '/etc/nginx/servermon/servermon-app.conf') {
         return servermonConfig;
       }
       return 'server { listen 80; server_name default; }';
@@ -99,7 +99,7 @@ ${servermonConfig}
     const vhosts = await discoverNginxVirtualHosts();
 
     expect(vhosts.map((vhost) => vhost.sourcePath)).toContain(
-      '/etc/nginx/servermon/orion-servermon.conf'
+      '/etc/nginx/servermon/servermon-app.conf'
     );
     expect(vhosts.find((vhost) => vhost.sourcePath?.includes('/servermon/'))?.managed).toBe(true);
   });

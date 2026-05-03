@@ -39,7 +39,7 @@ describe('POST /api/modules/nginx/vhosts', () => {
     mockGetSession.mockResolvedValue({ user: { username: 'admin', role: 'admin' } });
     mockWriteManagedConfig.mockResolvedValue({
       ok: true,
-      path: '/etc/nginx/servermon/life.conf',
+      path: '/etc/nginx/servermon/app.conf',
       output: 'syntax is ok',
     });
   });
@@ -48,7 +48,7 @@ describe('POST /api/modules/nginx/vhosts', () => {
     mockGetSession.mockResolvedValue(null);
     const { POST } = await import('./route');
 
-    const res = await POST(request({ mode: 'raw', fileName: 'life.conf', rawConfig: 'server {}' }));
+    const res = await POST(request({ mode: 'raw', fileName: 'app.conf', rawConfig: 'server {}' }));
 
     expect(res.status).toBe(401);
     expect(await res.json()).toEqual({ error: 'Unauthorized' });
@@ -60,8 +60,8 @@ describe('POST /api/modules/nginx/vhosts', () => {
     const res = await POST(
       request({
         mode: 'guided',
-        fileName: 'life.conf',
-        domainPattern: 'life.manthanby.cv',
+        fileName: 'app.conf',
+        domainPattern: 'app.example.com',
         upstreamProtocol: 'http',
         upstreamHost: '127.0.0.1',
         upstreamPort: 8912,
@@ -77,8 +77,8 @@ describe('POST /api/modules/nginx/vhosts', () => {
     expect(res.status).toBe(201);
     expect(mockWriteManagedConfig).toHaveBeenCalledWith(
       expect.objectContaining({
-        fileName: 'life.conf',
-        content: expect.stringContaining('server_name life.manthanby.cv;'),
+        fileName: 'app.conf',
+        content: expect.stringContaining('server_name app.example.com;'),
       })
     );
   });
@@ -90,14 +90,14 @@ describe('POST /api/modules/nginx/vhosts', () => {
       request({
         mode: 'raw',
         fileName: 'wildcard.conf',
-        rawConfig: 'server { listen 80; server_name *.ultron.manthanby.cv; }',
+        rawConfig: 'server { listen 80; server_name *.apps.example.com; }',
       })
     );
 
     expect(res.status).toBe(201);
     expect(mockWriteManagedConfig).toHaveBeenCalledWith({
       fileName: 'wildcard.conf',
-      content: 'server { listen 80; server_name *.ultron.manthanby.cv; }',
+      content: 'server { listen 80; server_name *.apps.example.com; }',
     });
   });
 });

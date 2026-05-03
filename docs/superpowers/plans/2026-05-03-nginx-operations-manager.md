@@ -23,7 +23,7 @@
 
 - [ ] **Step 1: Write parser tests**
 
-Add tests that parse a Certbot-modified config with `server_name orion-test.ultron.manthanby.cv`, `ssl_certificate`, redirect block, `location /`, and `proxy_pass http://127.0.0.1:8080`. Add a wildcard case for `server_name *.ultron.manthanby.cv`.
+Add tests that parse a Certbot-modified config with `server_name api-test.apps.example.com`, `ssl_certificate`, redirect block, `location /`, and `proxy_pass http://127.0.0.1:8080`. Add a wildcard case for `server_name *.apps.example.com`.
 
 - [ ] **Step 2: Run parser tests red**
 
@@ -37,7 +37,7 @@ Create `parseNginxServerBlocks(raw, sourcePath)` and structured types for `liste
 
 - [ ] **Step 4: Write discovery tests**
 
-Mock `execFile`, `readdir`, and `readFile`. Verify `nginx -T` discovery returns `/etc/nginx/servermon/orion-test.conf` as loaded. Verify fallback scans `/etc/nginx/servermon` even when `/etc/nginx/sites-available` exists.
+Mock `execFile`, `readdir`, and `readFile`. Verify `nginx -T` discovery returns `/etc/nginx/servermon/app-test.conf` as loaded. Verify fallback scans `/etc/nginx/servermon` even when `/etc/nginx/sites-available` exists.
 
 - [ ] **Step 5: Run discovery tests red**
 
@@ -143,7 +143,7 @@ Expected: pass.
 
 - [ ] **Step 1: Write DNS tests**
 
-Cover direct domain guidance for `life.manthanby.cv`, wildcard guidance for `*.ultron.manthanby.cv`, apex warning, and resolver output.
+Cover direct domain guidance for `app.example.com`, wildcard guidance for `*.apps.example.com`, apex warning, and resolver output.
 
 - [ ] **Step 2: Run DNS tests red**
 

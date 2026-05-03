@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Add a Fleet node `ServerMon` tab that detects full ServerMon on the remote node, guides root install through the paired agent when missing, and optionally creates a public route such as `orion-servermon.ultron.manthanby.cv`.
+**Goal:** Add a Fleet node `ServerMon` tab that detects full ServerMon on the remote node, guides root install through the paired agent when missing, and optionally creates a public route such as `node-servermon.hub.example.com`.
 
 **Architecture:** The hub exposes node-scoped ServerMon APIs and queues fixed agent commands. The agent reports read-only ServerMon status on heartbeat and executes only structured install/recheck/restart commands. The UI owns the guided flow and reuses the existing public route API after local health passes.
 

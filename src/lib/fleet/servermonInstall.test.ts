@@ -34,12 +34,12 @@ describe('servermonInstall', () => {
         nodeName: 'Orion',
         nodeSlug: 'orion',
         port: 8912,
-        subdomainHost: 'ultron.manthanby.cv',
+        subdomainHost: 'apps.example.com',
       })
     ).toEqual({
       name: 'Orion ServerMon',
       slug: 'orion-servermon',
-      domain: 'orion-servermon.ultron.manthanby.cv',
+      domain: 'orion-servermon.apps.example.com',
       nodeId: 'node-1',
       proxyRuleName: 'servermon',
       target: { localIp: '127.0.0.1', localPort: 8912, protocol: 'http' },

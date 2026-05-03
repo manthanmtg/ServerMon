@@ -27,7 +27,7 @@ vi.mock('@/lib/logger', () => ({
 }));
 
 function request(method: string, body?: unknown): NextRequest {
-  return new NextRequest('http://localhost/api/modules/nginx/vhosts/life.conf', {
+  return new NextRequest('http://localhost/api/modules/nginx/vhosts/app.conf', {
     method,
     body: body === undefined ? undefined : JSON.stringify(body),
     headers: { 'content-type': 'application/json' },
@@ -41,12 +41,12 @@ describe('/api/modules/nginx/vhosts/[id]', () => {
     mockGetSession.mockResolvedValue({ user: { username: 'admin', role: 'admin' } });
     mockWriteManagedConfig.mockResolvedValue({
       ok: true,
-      path: '/etc/nginx/servermon/life.conf',
+      path: '/etc/nginx/servermon/app.conf',
       output: 'syntax is ok',
     });
     mockDeleteManagedConfig.mockResolvedValue({
       ok: true,
-      path: '/etc/nginx/servermon/life.conf',
+      path: '/etc/nginx/servermon/app.conf',
       output: 'syntax is ok',
     });
   });
@@ -55,12 +55,12 @@ describe('/api/modules/nginx/vhosts/[id]', () => {
     const { PATCH } = await import('./route');
 
     const res = await PATCH(request('PATCH', { mode: 'raw', rawConfig: 'server {}' }), {
-      params: Promise.resolve({ id: 'life.conf' }),
+      params: Promise.resolve({ id: 'app.conf' }),
     });
 
     expect(res.status).toBe(200);
     expect(mockWriteManagedConfig).toHaveBeenCalledWith({
-      fileName: 'life.conf',
+      fileName: 'app.conf',
       content: 'server {}',
     });
   });
@@ -69,10 +69,10 @@ describe('/api/modules/nginx/vhosts/[id]', () => {
     const { DELETE } = await import('./route');
 
     const res = await DELETE(request('DELETE'), {
-      params: Promise.resolve({ id: 'life.conf' }),
+      params: Promise.resolve({ id: 'app.conf' }),
     });
 
     expect(res.status).toBe(200);
-    expect(mockDeleteManagedConfig).toHaveBeenCalledWith('life.conf');
+    expect(mockDeleteManagedConfig).toHaveBeenCalledWith('app.conf');
   });
 });
