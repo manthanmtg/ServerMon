@@ -112,7 +112,7 @@ export default function TerminalPage() {
     fetchUser();
   }, [fetchSessions, fetchSettings, fetchUser]);
 
-  const addTab = async () => {
+  const addTab = useCallback(async () => {
     if (tabs.length >= settings.maxSessions) {
       toast({ title: `Maximum ${settings.maxSessions} sessions reached`, variant: 'warning' });
       return;
@@ -134,27 +134,30 @@ export default function TerminalPage() {
     } catch {
       toast({ title: 'Failed to create session', variant: 'destructive' });
     }
-  };
+  }, [tabs.length, settings.maxSessions, toast]);
 
-  const closeTab = async (sessionId: string) => {
-    try {
-      await fetch(`/api/terminal/sessions?sessionId=${sessionId}`, { method: 'DELETE' });
-      setTabs((prev) => {
-        const next = prev.filter((t) => t.sessionId !== sessionId);
-        if (activeTabId === sessionId && next.length > 0) {
-          setActiveTabId(next[0].sessionId);
+  const closeTab = useCallback(
+    async (sessionId: string) => {
+      try {
+        await fetch(`/api/terminal/sessions?sessionId=${sessionId}`, { method: 'DELETE' });
+        setTabs((prev) => {
+          const next = prev.filter((t) => t.sessionId !== sessionId);
+          if (activeTabId === sessionId && next.length > 0) {
+            setActiveTabId(next[0].sessionId);
+          }
+          return next;
+        });
+        if (tabs.length <= 1) {
+          fetchSessions();
         }
-        return next;
-      });
-      if (tabs.length <= 1) {
-        fetchSessions();
+      } catch {
+        toast({ title: 'Failed to close session', variant: 'destructive' });
       }
-    } catch {
-      toast({ title: 'Failed to close session', variant: 'destructive' });
-    }
-  };
+    },
+    [activeTabId, tabs.length, fetchSessions, toast]
+  );
 
-  const resetAll = async () => {
+  const resetAll = useCallback(async () => {
     try {
       const res = await fetch('/api/terminal/sessions?resetAll=true', { method: 'DELETE' });
       const data = await res.json();
@@ -171,34 +174,37 @@ export default function TerminalPage() {
     } catch {
       toast({ title: 'Failed to reset', variant: 'destructive' });
     }
-  };
+  }, [toast]);
 
-  const startRename = (tab: SessionTab) => {
+  const startRename = useCallback((tab: SessionTab) => {
     setEditingTabId(tab.sessionId);
     setEditLabel(tab.label);
     setTimeout(() => editInputRef.current?.focus(), 50);
-  };
+  }, []);
 
-  const commitRename = async (sessionId: string) => {
-    const trimmed = editLabel.trim();
-    if (!trimmed) {
+  const commitRename = useCallback(
+    async (sessionId: string) => {
+      const trimmed = editLabel.trim();
+      if (!trimmed) {
+        setEditingTabId(null);
+        return;
+      }
+      try {
+        await fetch('/api/terminal/sessions', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sessionId, label: trimmed }),
+        });
+        setTabs((prev) =>
+          prev.map((t) => (t.sessionId === sessionId ? { ...t, label: trimmed } : t))
+        );
+      } catch {
+        /* ignore */
+      }
       setEditingTabId(null);
-      return;
-    }
-    try {
-      await fetch('/api/terminal/sessions', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sessionId, label: trimmed }),
-      });
-      setTabs((prev) =>
-        prev.map((t) => (t.sessionId === sessionId ? { ...t, label: trimmed } : t))
-      );
-    } catch {
-      /* ignore */
-    }
-    setEditingTabId(null);
-  };
+    },
+    [editLabel]
+  );
 
   const updateTabStatus = useCallback(
     (sessionId: string, status: 'connected' | 'disconnected' | 'connecting') => {
@@ -211,6 +217,11 @@ export default function TerminalPage() {
     setSettings(newSettings);
     toast({ title: 'Terminal settings saved', variant: 'success' });
   };
+
+  const handleShowResetConfirm = useCallback(() => setShowResetConfirm(true), []);
+  const handleShowSavedCommands = useCallback(() => setShowSavedCommands(true), []);
+  const handleShowHistory = useCallback(() => setShowHistory(true), []);
+  const handleShowSettings = useCallback(() => setShowSettings(true), []);
 
   if (loading) {
     return (
@@ -247,10 +258,10 @@ export default function TerminalPage() {
         onAddTab={addTab}
         onStartRename={startRename}
         onCloseTab={closeTab}
-        onShowResetConfirm={() => setShowResetConfirm(true)}
-        onShowSavedCommands={() => setShowSavedCommands(true)}
-        onShowHistory={() => setShowHistory(true)}
-        onShowSettings={() => setShowSettings(true)}
+        onShowResetConfirm={handleShowResetConfirm}
+        onShowSavedCommands={handleShowSavedCommands}
+        onShowHistory={handleShowHistory}
+        onShowSettings={handleShowSettings}
       />
 
       {/* Terminal body */}
