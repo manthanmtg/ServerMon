@@ -24,6 +24,25 @@ const BodyZ = z.object({
   sourcePath: z.string().max(500).optional(),
 });
 
+const NodeLikeListZ = z.array(
+  z.object({
+    proxyRules: z
+      .array(
+        z.object({
+          name: z.string().optional(),
+          remotePort: z.number().optional(),
+        }).passthrough()
+      )
+      .optional(),
+  }).passthrough()
+);
+
+const RouteListZ = z.array(
+  z.object({
+    domain: z.string(),
+  }).passthrough()
+);
+
 interface NodeLike {
   proxyRules?: Array<{ name?: string; remotePort?: number }>;
 }
@@ -42,10 +61,13 @@ export async function POST(req: NextRequest) {
 
     const parsed = kind === 'frp' ? parseFrpConfig(raw) : parseNginxConfig(raw);
 
-    const [nodes, routes] = await Promise.all([
-      Node.find({}).select('proxyRules').lean() as unknown as Promise<NodeLike[]>,
-      PublicRoute.find({}).select('domain').lean() as unknown as Promise<Array<{ domain: string }>>,
+    const [rawNodes, rawRoutes] = await Promise.all([
+      Node.find({}).select('proxyRules').lean(),
+      PublicRoute.find({}).select('domain').lean(),
     ]);
+
+    const nodes = NodeLikeListZ.parse(rawNodes) as NodeLike[];
+    const routes = RouteListZ.parse(rawRoutes);
     const nodeProxyNames: string[] = [];
     const usedRemotePorts: number[] = [];
     for (const n of nodes) {
