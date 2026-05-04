@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-05-04T09:16:54.620Z",
+  "updatedAt": "2026-05-04T09:48:23.748Z",
   "description": "Prompt-suite observability metadata. Keep static identity here aligned with prompt frontmatter and update counters during random_selector runs.",
   "outcomeDefinitions": {
     "selected": "The prompt has been selected and the run has not recorded a terminal outcome yet.",
@@ -106,13 +106,13 @@
       "category": "ui-quality",
       "enabled": true,
       "autonomousSafe": true,
-      "totalSelected": 9,
+      "totalSelected": 10,
       "totalCompleted": 9,
       "totalNoop": 0,
-      "totalFailed": 0,
-      "lastSelectedAt": "2026-05-03T01:46:08.663Z",
-      "lastCompletedAt": "2026-05-03T01:51:52.157Z",
-      "lastOutcome": "completed"
+      "totalFailed": 1,
+      "lastSelectedAt": "2026-05-04T09:46:25.017Z",
+      "lastCompletedAt": "2026-05-04T09:48:23.748Z",
+      "lastOutcome": "failed"
     },
     "module_generator_prompt.md": {
       "id": "module-generator-prompt",
