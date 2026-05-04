@@ -38,7 +38,7 @@ interface TerminalTabsToolbarProps {
   onShowSettings: () => void;
 }
 
-export function TerminalTabsToolbar({
+export const TerminalTabsToolbar = React.memo(function TerminalTabsToolbar({
   tabs,
   activeTabId,
   editingTabId,
@@ -189,4 +189,4 @@ export function TerminalTabsToolbar({
       </div>
     </div>
   );
-}
+});
