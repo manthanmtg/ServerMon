@@ -23,12 +23,23 @@ export async function resilientFetch(
   url: string | URL | Request,
   options: ResilientFetchOptions = {}
 ): Promise<Response> {
-  const { timeout = 10000, retries = 0, retryDelay = 1000, ...fetchOptions } = options;
+  const { timeout = 10000, retries = 0, retryDelay = 1000, signal, ...fetchOptions } = options;
 
   let lastError: unknown = null;
   for (let i = 0; i <= retries; i++) {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), timeout);
+    let timedOut = false;
+    const abortFromCaller = () => controller.abort(signal?.reason);
+    const timeoutId = setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, timeout);
+
+    if (signal?.aborted) {
+      abortFromCaller();
+    } else {
+      signal?.addEventListener('abort', abortFromCaller, { once: true });
+    }
 
     try {
       const response = await fetch(url, {
@@ -36,12 +47,14 @@ export async function resilientFetch(
         signal: controller.signal,
       });
       clearTimeout(timeoutId);
+      signal?.removeEventListener('abort', abortFromCaller);
       return response;
     } catch (err: unknown) {
       clearTimeout(timeoutId);
+      signal?.removeEventListener('abort', abortFromCaller);
       lastError = err;
 
-      if (isAbortError(err)) {
+      if (timedOut && isAbortError(err)) {
         lastError = new Error(`Request timed out after ${timeout}ms`);
       }
 

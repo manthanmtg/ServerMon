@@ -23,6 +23,26 @@ describe('resilientFetch', () => {
     await expect(resilientFetch('/api/test', { timeout: 10 })).rejects.toThrow(/timed out/);
   });
 
+  it('propagates caller abort signals to the in-flight request', async () => {
+    const controller = new AbortController();
+    vi.mocked(fetch).mockImplementationOnce((_url: string | URL | Request, init?: RequestInit) => {
+      return new Promise((_resolve, reject) => {
+        init?.signal?.addEventListener('abort', () => {
+          reject(new DOMException('Aborted', 'AbortError'));
+        });
+      });
+    });
+
+    const request = resilientFetch('/api/test', {
+      signal: controller.signal,
+      timeout: 1000,
+    });
+
+    controller.abort();
+
+    await expect(request).rejects.toThrow(/Aborted/);
+  });
+
   it('retries on failure', async () => {
     vi.mocked(fetch)
       .mockRejectedValueOnce(new Error('Network error'))
