@@ -62,4 +62,34 @@ describe('TerminalTabsToolbar', () => {
     fireEvent.click(screen.getAllByTitle('Close')[0]);
     expect(onCloseTab).toHaveBeenCalledWith('sess-1');
   });
+
+  it('exposes icon-only controls with accessible names', () => {
+    render(
+      <TerminalTabsToolbar
+        tabs={tabs}
+        activeTabId="sess-1"
+        editingTabId={null}
+        editLabel=""
+        onEditLabelChange={vi.fn()}
+        onCommitRename={vi.fn()}
+        editInputRef={{ current: null }}
+        onSelectTab={vi.fn()}
+        onAddTab={vi.fn()}
+        onStartRename={vi.fn()}
+        onCloseTab={vi.fn()}
+        onShowResetConfirm={vi.fn()}
+        onShowSavedCommands={vi.fn()}
+        onShowHistory={vi.fn()}
+        onShowSettings={vi.fn()}
+      />
+    );
+
+    expect(screen.getByRole('button', { name: 'New terminal' })).toBeDefined();
+    expect(screen.getByRole('button', { name: 'Reset all terminals' })).toBeDefined();
+    expect(screen.getByRole('button', { name: 'Saved commands' })).toBeDefined();
+    expect(screen.getByRole('button', { name: 'Session history' })).toBeDefined();
+    expect(screen.getByRole('button', { name: 'Terminal settings' })).toBeDefined();
+    expect(screen.getByRole('button', { name: 'Rename Terminal 1' })).toBeDefined();
+    expect(screen.getByRole('button', { name: 'Close Terminal 1' })).toBeDefined();
+  });
 });

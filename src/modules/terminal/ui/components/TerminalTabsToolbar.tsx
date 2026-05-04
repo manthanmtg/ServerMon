@@ -93,10 +93,15 @@ export const TerminalTabsToolbar = React.memo(function TerminalTabsToolbar({
                   value={editLabel}
                   onChange={(event) => onEditLabelChange(event.target.value)}
                   onBlur={() => onCommitRename(tab.sessionId)}
+                  aria-label={`Rename ${tab.label}`}
                   className="w-20 bg-transparent border-b border-current outline-none text-xs"
                   maxLength={20}
                 />
-                <button type="submit" className="p-0.5 hover:bg-white/10 rounded">
+                <button
+                  type="submit"
+                  className="p-0.5 hover:bg-white/10 rounded"
+                  aria-label={`Save ${tab.label} name`}
+                >
                   <Check className="w-3 h-3" />
                 </button>
               </form>
@@ -115,6 +120,7 @@ export const TerminalTabsToolbar = React.memo(function TerminalTabsToolbar({
             {editingTabId !== tab.sessionId && (
               <button
                 className="p-0.5 opacity-0 group-hover:opacity-100 hover:bg-white/10 rounded transition-opacity ml-auto"
+                aria-label={`Rename ${tab.label}`}
                 onClick={(event) => {
                   event.stopPropagation();
                   onStartRename(tab);
@@ -127,6 +133,7 @@ export const TerminalTabsToolbar = React.memo(function TerminalTabsToolbar({
             {tabs.length > 1 && (
               <button
                 className="p-0.5 opacity-0 group-hover:opacity-100 hover:bg-white/10 rounded transition-opacity"
+                aria-label={`Close ${tab.label}`}
                 onClick={(event) => {
                   event.stopPropagation();
                   onCloseTab(tab.sessionId);
@@ -144,6 +151,7 @@ export const TerminalTabsToolbar = React.memo(function TerminalTabsToolbar({
           className="h-9 w-9 shrink-0"
           onClick={onAddTab}
           title="New terminal"
+          aria-label="New terminal"
         >
           <Plus className="w-4 h-4" />
         </Button>
@@ -156,6 +164,7 @@ export const TerminalTabsToolbar = React.memo(function TerminalTabsToolbar({
           className="h-9 w-9"
           onClick={onShowResetConfirm}
           title="Reset all terminals"
+          aria-label="Reset all terminals"
         >
           <RotateCcw className="w-4 h-4" />
         </Button>
@@ -165,6 +174,7 @@ export const TerminalTabsToolbar = React.memo(function TerminalTabsToolbar({
           className="h-9 w-9 text-muted-foreground hover:text-primary"
           onClick={onShowSavedCommands}
           title="Saved commands"
+          aria-label="Saved commands"
         >
           <Bookmark className="w-4 h-4" />
         </Button>
@@ -174,6 +184,7 @@ export const TerminalTabsToolbar = React.memo(function TerminalTabsToolbar({
           className="h-9 w-9 text-muted-foreground hover:text-primary"
           onClick={onShowHistory}
           title="Session history"
+          aria-label="Session history"
         >
           <History className="w-4 h-4" />
         </Button>
@@ -183,6 +194,7 @@ export const TerminalTabsToolbar = React.memo(function TerminalTabsToolbar({
           className="h-9 w-9"
           onClick={onShowSettings}
           title="Terminal settings"
+          aria-label="Terminal settings"
         >
           <SettingsIcon className="w-4 h-4" />
         </Button>
