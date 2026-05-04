@@ -259,6 +259,12 @@ Concise map of major directories, commands, and key files. Update this section w
 - `src/modules/env-vars/` — EnvVars module definition and UI for managing host-level environment variables (stateless, bypassing MongoDB)
 - `docs/ai-runner-module.md` — technical architecture for automation runner
 
+### Crons Module
+
+- `src/lib/crons/service.ts` — cron discovery, schedule calculation, create/update/delete actions, manual run tracking, and mock-mode support for tests and non-host environments
+- `src/app/api/modules/crons/` — cron snapshot, create/update/delete, and per-job run routes with focused route coverage
+- `src/modules/crons/` — Cron Jobs module definition, widget, page, type contracts, scheduling helpers, and extracted UI panels/forms under `ui/components/`
+
 ### Users, Security & Settings
 
 - `src/models/` — Users & Settings models: User, BrandSettings, QuickAccessSettings, FileBrowserSettings, UpdateHistory, AnalyticsEvent
