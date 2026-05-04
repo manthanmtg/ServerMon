@@ -34,7 +34,7 @@ Pick one module from `src/modules/` and improve it — cleaner code, better type
 
 ### 4. Verify
 
-- Run `pnpm check` to ensure no regressions in linting, types, or build.
+- Run `pnpm format:check`, then `pnpm check` to cover the release contract, lint, types, build, and tests.
 - Add Vitest unit tests if the module lacks coverage for core logic.
 
 ## Scope Guardrail
