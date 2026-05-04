@@ -40,7 +40,7 @@ export async function resilientFetch(
     } catch (err: unknown) {
       clearTimeout(timeoutId);
       lastError = err;
-      
+
       if (isAbortError(err)) {
         lastError = new Error(`Request timed out after ${timeout}ms`);
       }
