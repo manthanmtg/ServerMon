@@ -192,8 +192,9 @@ Concise map of major directories, commands, and key files. Update this section w
 
 ## `src/` Layout
 
-- `src/app/` — Next.js App Router pages + `api/` route handlers (dashboard, settings, fleet, ai-runner, crons, self-service, endpoints, etc.)
-- `src/app/api/modules/` — feature-specific API routes (ai-runner, disk, nginx, users, services, processes, terminal, etc.)
+- `src/app/` — Next.js App Router pages + `api/` route handlers (dashboard, settings, fleet, ai-runner, crons, self-service, endpoints, security, certificates, ports, memory, guide, etc.)
+- `src/app/api/modules/` — feature-specific API routes (ai-runner, disk, nginx, users, services, processes, terminal, security, etc.)
+- `src/app/api/analytics/` — internal usage analytics and recent event history
 - `src/components/` — shared UI (including `layout/`, `ui/`, `modules/`)
 - `src/lib/` — utilities, domain logic, fleet libraries, AI orchestration, and core context providers (`ThemeContext.tsx`, `BrandContext.tsx`, `MetricsContext.tsx`)
 - `src/lib/runtime-diagnostics.ts`, `src/lib/server-request-diagnostics.ts` — system health snapshots and Next.js request instrumentation
@@ -205,8 +206,9 @@ Concise map of major directories, commands, and key files. Update this section w
 - `src/lib/ai-runner/run-as-user.ts` — Run as user isolation and sudo-based execution logic
 - `src/lib/ai-runner/shared.ts` — profile mapping, template validation, and output buffering
 - `src/lib/endpoints/` — executors for custom API logic (scripts, webhooks, logic handlers)
+- `src/lib/certificates/`, `src/lib/ports/`, `src/lib/memory/`, `src/lib/security/` — service-layer logic for certificates, ports, memory monitoring, and security management
 - `src/models/` — Mongoose schemas
-- `src/modules/` — feature modules (terminal, processes, logs, metrics, fleet, ai-agents, ai-runner, disk, nginx, self-service, endpoints, users, services, etc.)
+- `src/modules/` — feature modules (terminal, processes, logs, metrics, fleet, ai-agents, ai-runner, disk, nginx, self-service, endpoints, users, services, security, certificates, ports, memory, guide, etc.)
 - `src/models/NetworkSpeedtestResult.ts`, `src/models/NetworkSpeedtestSettings.ts`, `src/models/NetworkAlert.ts`, `src/models/NetworkStatAggregate.ts` — persisted Network module data
 - `src/models/CustomEndpoint.ts`, `src/models/EndpointExecutionLog.ts` — persisted endpoint configuration and execution history
 - `src/lib/env-vars/` — stateless host environment variable helpers for OS target detection, shell env parsing, user-scope add/delete, and system-scope instructions
@@ -264,6 +266,14 @@ Concise map of major directories, commands, and key files. Update this section w
 - `src/lib/crons/service.ts` — cron discovery, schedule calculation, create/update/delete actions, manual run tracking, and mock-mode support for tests and non-host environments
 - `src/app/api/modules/crons/` — cron snapshot, create/update/delete, and per-job run routes with focused route coverage
 - `src/modules/crons/` — Cron Jobs module definition, widget, page, type contracts, scheduling helpers, and extracted UI panels/forms under `ui/components/`
+
+### Security & System Health
+
+- `src/modules/security/`, `src/lib/security/` — WebAuthn passkey management, security settings, and auth audit logs
+- `src/modules/certificates/`, `src/lib/certificates/` — SSL/TLS certificate monitoring, expiry alerts, and PEM parsing
+- `src/modules/ports/`, `src/lib/ports/` — Host port scanning, service detection, and open port monitoring
+- `src/modules/memory/`, `src/lib/memory/` — Real-time memory pressure monitoring, swap usage, and OOM risk detection
+- `src/modules/guide/`, `src/modules/guide-registry.ts` — Interactive project walkthroughs and module documentation overlays
 
 ### Users, Security & Settings
 
