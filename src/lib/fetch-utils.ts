@@ -25,7 +25,7 @@ export async function resilientFetch(
 ): Promise<Response> {
   const { timeout = 10000, retries = 0, retryDelay = 1000, ...fetchOptions } = options;
 
-  let lastError: any = null;
+  let lastError: unknown = null;
   for (let i = 0; i <= retries; i++) {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeout);
@@ -37,7 +37,7 @@ export async function resilientFetch(
       });
       clearTimeout(timeoutId);
       return response;
-    } catch (err: any) {
+    } catch (err: unknown) {
       clearTimeout(timeoutId);
       lastError = err;
       

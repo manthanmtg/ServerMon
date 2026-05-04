@@ -7,15 +7,15 @@ describe('resilientFetch', () => {
   });
 
   it('successfully fetches data', async () => {
-    (fetch as any).mockResolvedValueOnce(new Response('ok'));
+    vi.mocked(fetch).mockResolvedValueOnce(new Response('ok'));
     const res = await resilientFetch('/api/test');
     expect(res.ok).toBe(true);
   });
 
   it('times out if request takes too long', async () => {
-    (fetch as any).mockImplementationOnce((_url: string, init: any) => {
+    vi.mocked(fetch).mockImplementationOnce((_url: string | URL | Request, init?: RequestInit) => {
       return new Promise((_resolve, reject) => {
-        init.signal.addEventListener('abort', () => {
+        init?.signal?.addEventListener('abort', () => {
           reject(new DOMException('Aborted', 'AbortError'));
         });
       });
@@ -24,7 +24,7 @@ describe('resilientFetch', () => {
   });
 
   it('retries on failure', async () => {
-    (fetch as any)
+    vi.mocked(fetch)
       .mockRejectedValueOnce(new Error('Network error'))
       .mockResolvedValueOnce(new Response('ok'));
     

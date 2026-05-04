@@ -10,6 +10,8 @@ import { NodeGrid } from '@/modules/fleet/ui/dashboard/NodeGrid';
 import { Plus } from 'lucide-react';
 import { Spinner } from '@/components/ui/spinner';
 
+import { resilientFetch } from '@/lib/fetch-utils';
+
 export default function FleetPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
@@ -22,7 +24,7 @@ export default function FleetPage() {
   useEffect(() => {
     async function checkSetup() {
       try {
-        const res = await fetch('/api/fleet/server');
+        const res = await resilientFetch('/api/fleet/server', { timeout: 5000 });
         if (res.ok) {
           const data = await res.json();
           // If not enabled or no subdomain host, go to setup
