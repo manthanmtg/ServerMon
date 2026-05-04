@@ -1,16 +1,6 @@
 'use client';
 
 import React, { useEffect, useState, useCallback, useRef } from 'react';
-import {
-  Plus,
-  X,
-  Settings as SettingsIcon,
-  RotateCcw,
-  Pencil,
-  Check,
-  History,
-  Bookmark,
-} from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -20,14 +10,9 @@ import TerminalUI from './TerminalUI';
 import TerminalSettingsModal from './TerminalSettingsModal';
 import TerminalHistoryModal from './TerminalHistoryModal';
 import SavedCommandsModal from './SavedCommandsModal';
+import { TerminalTabsToolbar, type TerminalSessionTab } from './components/TerminalTabsToolbar';
 
-interface SessionTab {
-  sessionId: string;
-  label: string;
-  order: number;
-  status: 'connected' | 'disconnected' | 'connecting';
-  pid?: number;
-}
+type SessionTab = TerminalSessionTab;
 
 interface TermSettings {
   idleTimeoutMinutes: number;
@@ -250,139 +235,23 @@ export default function TerminalPage() {
 
   return (
     <div className="h-full flex flex-col gap-2">
-      {/* Toolbar */}
-      <div className="flex items-center justify-between shrink-0">
-        <div className="flex items-center gap-1 overflow-x-auto pb-1 flex-1 min-w-0">
-          {tabs.map((tab) => (
-            <div
-              key={tab.sessionId}
-              className={cn(
-                'group flex items-center gap-1.5 pl-3 pr-1.5 h-9 rounded-lg text-xs font-medium transition-colors cursor-pointer shrink-0 min-w-0',
-                tab.sessionId === activeTabId
-                  ? 'bg-primary text-primary-foreground'
-                  : 'bg-secondary text-muted-foreground hover:text-foreground hover:bg-accent'
-              )}
-              onClick={() => setActiveTabId(tab.sessionId)}
-            >
-              <span
-                className={cn(
-                  'w-1.5 h-1.5 rounded-full shrink-0',
-                  tab.status === 'connected'
-                    ? 'bg-success'
-                    : tab.status === 'connecting'
-                      ? 'bg-warning animate-pulse'
-                      : 'bg-destructive'
-                )}
-              />
-              {editingTabId === tab.sessionId ? (
-                <form
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    commitRename(tab.sessionId);
-                  }}
-                  className="flex items-center gap-1"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <input
-                    ref={editInputRef}
-                    value={editLabel}
-                    onChange={(e) => setEditLabel(e.target.value)}
-                    onBlur={() => commitRename(tab.sessionId)}
-                    className="w-20 bg-transparent border-b border-current outline-none text-xs"
-                    maxLength={20}
-                  />
-                  <button type="submit" className="p-0.5 hover:bg-white/10 rounded">
-                    <Check className="w-3 h-3" />
-                  </button>
-                </form>
-              ) : (
-                <span
-                  className="truncate max-w-[100px]"
-                  onDoubleClick={(e) => {
-                    e.stopPropagation();
-                    startRename(tab);
-                  }}
-                  title="Double-click to rename"
-                >
-                  {tab.label}
-                </span>
-              )}
-              {editingTabId !== tab.sessionId && (
-                <button
-                  className="p-0.5 opacity-0 group-hover:opacity-100 hover:bg-white/10 rounded transition-opacity ml-auto"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    startRename(tab);
-                  }}
-                  title="Rename"
-                >
-                  <Pencil className="w-2.5 h-2.5" />
-                </button>
-              )}
-              {tabs.length > 1 && (
-                <button
-                  className="p-0.5 opacity-0 group-hover:opacity-100 hover:bg-white/10 rounded transition-opacity"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    closeTab(tab.sessionId);
-                  }}
-                  title="Close"
-                >
-                  <X className="w-3 h-3" />
-                </button>
-              )}
-            </div>
-          ))}
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-9 w-9 shrink-0"
-            onClick={addTab}
-            title="New terminal"
-          >
-            <Plus className="w-4 h-4" />
-          </Button>
-        </div>
-
-        <div className="flex items-center gap-1 shrink-0 ml-2">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-9 w-9"
-            onClick={() => setShowResetConfirm(true)}
-            title="Reset all terminals"
-          >
-            <RotateCcw className="w-4 h-4" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-9 w-9 text-muted-foreground hover:text-primary"
-            onClick={() => setShowSavedCommands(true)}
-            title="Saved commands"
-          >
-            <Bookmark className="w-4 h-4" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-9 w-9 text-muted-foreground hover:text-primary"
-            onClick={() => setShowHistory(true)}
-            title="Session history"
-          >
-            <History className="w-4 h-4" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-9 w-9"
-            onClick={() => setShowSettings(true)}
-            title="Terminal settings"
-          >
-            <SettingsIcon className="w-4 h-4" />
-          </Button>
-        </div>
-      </div>
+      <TerminalTabsToolbar
+        tabs={tabs}
+        activeTabId={activeTabId}
+        editingTabId={editingTabId}
+        editLabel={editLabel}
+        editInputRef={editInputRef}
+        onEditLabelChange={setEditLabel}
+        onCommitRename={commitRename}
+        onSelectTab={setActiveTabId}
+        onAddTab={addTab}
+        onStartRename={startRename}
+        onCloseTab={closeTab}
+        onShowResetConfirm={() => setShowResetConfirm(true)}
+        onShowSavedCommands={() => setShowSavedCommands(true)}
+        onShowHistory={() => setShowHistory(true)}
+        onShowSettings={() => setShowSettings(true)}
+      />
 
       {/* Terminal body */}
       <div className="flex-1 rounded-xl border border-border bg-card overflow-hidden flex flex-col">
