@@ -980,22 +980,28 @@ export default function AIRunnerPage() {
     },
     [autoflowMap]
   );
-  const getLinkedScheduleCount = (kind: LinkedDeleteTarget['kind'], id: string): number => {
-    if (kind === 'prompt') {
-      return schedules.filter((schedule) => schedule.promptId === id).length;
-    }
-    if (kind === 'profile') {
-      return schedules.filter((schedule) => schedule.agentProfileId === id).length;
-    }
-    return schedules.filter((schedule) => schedule.workspaceId === id).length;
-  };
-  const getScheduleMissingReferences = (schedule: AIRunnerScheduleDTO): string[] => {
-    const missing: string[] = [];
-    if (!promptMap[schedule.promptId]) missing.push('prompt');
-    if (!profileMap[schedule.agentProfileId]) missing.push('profile');
-    if (schedule.workspaceId && !workspaceMap[schedule.workspaceId]) missing.push('workspace');
-    return missing;
-  };
+  const getLinkedScheduleCount = useCallback(
+    (kind: LinkedDeleteTarget['kind'], id: string): number => {
+      if (kind === 'prompt') {
+        return schedules.filter((schedule) => schedule.promptId === id).length;
+      }
+      if (kind === 'profile') {
+        return schedules.filter((schedule) => schedule.agentProfileId === id).length;
+      }
+      return schedules.filter((schedule) => schedule.workspaceId === id).length;
+    },
+    [schedules]
+  );
+  const getScheduleMissingReferences = useCallback(
+    (schedule: AIRunnerScheduleDTO): string[] => {
+      const missing: string[] = [];
+      if (!promptMap[schedule.promptId]) missing.push('prompt');
+      if (!profileMap[schedule.agentProfileId]) missing.push('profile');
+      if (schedule.workspaceId && !workspaceMap[schedule.workspaceId]) missing.push('workspace');
+      return missing;
+    },
+    [promptMap, profileMap, workspaceMap]
+  );
   const filteredPrompts = useMemo(() => prompts, [prompts]);
   const { activeWorkspaceCount, blockingWorkspaceCount, enabledProfileCount } = useMemo(
     () => deriveRunnerInventoryCounts({ profiles, workspaces }),
