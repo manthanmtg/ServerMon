@@ -10,7 +10,9 @@ autonomousSafe: true
 
 ## Objective
 
-Keep the project documentation (`PRD.md`, `README.md`, `DEPLOY.md`, `CLAUDE.md`) in sync with the actual implementation. One document update per run.
+Keep the user-facing project documentation (`PRD.md`, `README.md`, `DEPLOY.md`) in sync with the actual implementation. One document update per run.
+
+Agent-facing guideline drift belongs to `project_guidelines_sync.md`; do not update `CLAUDE.md` or `AGENTS.md` from this prompt.
 
 ## No-Op Protocol
 
@@ -22,7 +24,7 @@ Keep the project documentation (`PRD.md`, `README.md`, `DEPLOY.md`, `CLAUDE.md`)
 1.  **Code Correlation**: After a feature is added or changed, identify which docs need updates.
 2.  **Update PRD**: Ensure the Product Requirements Document reflects the latest state of "Implemented" features vs. "Backlog".
 3.  **Update README/DEPLOY**: If setup steps or env variables change, update these immediately.
-4.  **Sync CLAUDE.md**: If a new architectural pattern or coding standard is established, document it in the "Unified Project Guidelines".
+4.  **Defer Agent Guidelines**: If the only stale document is `CLAUDE.md` or `AGENTS.md`, no-op and leave it for `project_guidelines_sync.md`.
 
 ## Style Guidelines
 
