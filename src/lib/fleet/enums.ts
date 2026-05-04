@@ -38,7 +38,6 @@ export const PROXY_STATUSES = [
   'dns_missing',
   'upstream_unreachable',
 ] as const;
-export type ProxyStatus = (typeof PROXY_STATUSES)[number];
 
 export const PUBLIC_ROUTE_STATUSES = [
   'active',
@@ -51,7 +50,6 @@ export const PUBLIC_ROUTE_STATUSES = [
   'upstream_down',
   'degraded',
 ] as const;
-export type PublicRouteStatus = (typeof PUBLIC_ROUTE_STATUSES)[number];
 
 export const SERVICE_STATES = [
   'running',
@@ -64,7 +62,6 @@ export const SERVICE_STATES = [
 export type ServiceState = (typeof SERVICE_STATES)[number];
 
 export const FRPC_PROTOCOLS = ['tcp', 'kcp', 'quic', 'websocket'] as const;
-export type FrpcProtocol = (typeof FRPC_PROTOCOLS)[number];
 
 export const ACCESS_MODES = [
   'public',
@@ -77,10 +74,8 @@ export const ACCESS_MODES = [
 export type AccessMode = (typeof ACCESS_MODES)[number];
 
 export const SERVICE_MANAGERS = ['systemd', 'launchd', 'docker', 'manual', 'unknown'] as const;
-export type ServiceManager = (typeof SERVICE_MANAGERS)[number];
 
 export const FLEET_LOG_LEVELS = ['debug', 'info', 'warn', 'error', 'audit'] as const;
-export type FleetLogLevel = (typeof FLEET_LOG_LEVELS)[number];
 
 export const FLEET_LOG_SERVICES = [
   'servermon',
