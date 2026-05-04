@@ -512,10 +512,10 @@ describe('DockerPage', () => {
           <DockerPage />
         </ToastProvider>
       );
-      
+
       // Initial fetch and loading finish
       await vi.advanceTimersByTimeAsync(5000);
-      
+
       vi.mocked(global.fetch).mockClear();
 
       // Advance 5 seconds for polling
@@ -530,10 +530,10 @@ describe('DockerPage', () => {
           <DockerPage />
         </ToastProvider>
       );
-      
+
       // Initial fetch and loading finish
       await vi.advanceTimersByTimeAsync(5000);
-      
+
       vi.mocked(global.fetch).mockClear();
 
       const refreshSelect = screen.getByRole('combobox', { name: /^Refresh$/i });

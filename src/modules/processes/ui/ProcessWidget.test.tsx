@@ -214,10 +214,10 @@ describe('ProcessWidget', () => {
         <ProcessWidget />
       </ToastProvider>
     );
-    
+
     // Initial fetch
     await vi.advanceTimersByTimeAsync(0);
-    
+
     vi.clearAllMocks();
 
     // Advance 5 seconds for polling

@@ -25,22 +25,28 @@ const BodyZ = z.object({
 });
 
 const NodeLikeListZ = z.array(
-  z.object({
-    proxyRules: z
-      .array(
-        z.object({
-          name: z.string().optional(),
-          remotePort: z.number().optional(),
-        }).passthrough()
-      )
-      .optional(),
-  }).passthrough()
+  z
+    .object({
+      proxyRules: z
+        .array(
+          z
+            .object({
+              name: z.string().optional(),
+              remotePort: z.number().optional(),
+            })
+            .passthrough()
+        )
+        .optional(),
+    })
+    .passthrough()
 );
 
 const RouteListZ = z.array(
-  z.object({
-    domain: z.string(),
-  }).passthrough()
+  z
+    .object({
+      domain: z.string(),
+    })
+    .passthrough()
 );
 
 interface NodeLike {
