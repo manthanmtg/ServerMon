@@ -27,7 +27,7 @@ describe('resilientFetch', () => {
     vi.mocked(fetch)
       .mockRejectedValueOnce(new Error('Network error'))
       .mockResolvedValueOnce(new Response('ok'));
-    
+
     const res = await resilientFetch('/api/test', { retries: 1, retryDelay: 10 });
     expect(res.ok).toBe(true);
     expect(fetch).toHaveBeenCalledTimes(2);
