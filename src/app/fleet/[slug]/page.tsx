@@ -23,6 +23,8 @@ type Tab =
   | 'logs'
   | 'hardware';
 
+import { resilientFetch } from '@/lib/fetch-utils';
+
 export default function NodeDetailPage() {
   const params = useParams<{ slug: string }>();
   const slug = params?.slug ?? '';
@@ -39,7 +41,10 @@ export default function NodeDetailPage() {
     let cancelled = false;
     const load = async () => {
       try {
-        const res = await fetch(`/api/fleet/nodes/by-slug/${encodeURIComponent(slug)}`);
+        const res = await resilientFetch(`/api/fleet/nodes/by-slug/${encodeURIComponent(slug)}`, {
+          timeout: 8000,
+          retries: 2,
+        });
         if (!res.ok) {
           if (res.status === 404) throw new Error('Node not found');
           throw new Error(`HTTP ${res.status}`);
