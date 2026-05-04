@@ -144,6 +144,9 @@ Required at runtime (set in `.env.local` or `/etc/servermon/env`):
 | `SERVERMON_DOCKER_MOCK`        | No       | Set to `1` to mock Docker operations                  |
 | `SERVERMON_UPDATES_MOCK`       | No       | Set to `1` to mock system updates                     |
 | `SERVERMON_AUTO_UPDATE_CONFIG` | No       | Path to auto-update config JSON                       |
+| `FLEET_HUB_PUBLIC_URL`         | No       | Public URL for the Fleet Hub                          |
+| `AI_RUNNER_MAX_WORKERS`        | No       | Max concurrent AI Runner workers                      |
+| `SERVERMON_INSTALL_MODE`       | No       | `hub` or `agent` installation mode                    |
 
 ---
 
@@ -190,7 +193,7 @@ Concise map of major directories, commands, and key files. Update this section w
 ## `src/` Layout
 
 - `src/app/` — Next.js App Router pages + `api/` route handlers (dashboard, settings, fleet, ai-runner, crons, self-service, endpoints, etc.)
-- `src/app/api/modules/` — feature-specific API routes (ai-runner, disk, nginx, users, etc.)
+- `src/app/api/modules/` — feature-specific API routes (ai-runner, disk, nginx, users, services, processes, terminal, etc.)
 - `src/components/` — shared UI (including `layout/`, `ui/`, `modules/`)
 - `src/lib/` — utilities, domain logic, fleet libraries, AI orchestration, and core context providers (`ThemeContext.tsx`, `BrandContext.tsx`, `MetricsContext.tsx`)
 - `src/lib/runtime-diagnostics.ts`, `src/lib/server-request-diagnostics.ts` — system health snapshots and Next.js request instrumentation
@@ -202,8 +205,8 @@ Concise map of major directories, commands, and key files. Update this section w
 - `src/lib/ai-runner/shared.ts` — profile mapping, template validation, and output buffering
 - `src/lib/endpoints/` — executors for custom API logic (scripts, webhooks, logic handlers)
 - `src/models/` — Mongoose schemas
-- `src/modules/` — feature modules (terminal, processes, logs, metrics, fleet, ai-agents, ai-runner, disk, nginx, self-service, endpoints, users, etc.)
-- `src/models/NetworkSpeedtestResult.ts`, `src/models/NetworkSpeedtestSettings.ts` — persisted Network module speedtest history and schedule configuration
+- `src/modules/` — feature modules (terminal, processes, logs, metrics, fleet, ai-agents, ai-runner, disk, nginx, self-service, endpoints, users, services, etc.)
+- `src/models/NetworkSpeedtestResult.ts`, `src/models/NetworkSpeedtestSettings.ts`, `src/models/NetworkAlert.ts`, `src/models/NetworkStatAggregate.ts` — persisted Network module data
 - `src/models/CustomEndpoint.ts`, `src/models/EndpointExecutionLog.ts` — persisted endpoint configuration and execution history
 - `src/lib/env-vars/` — stateless host environment variable helpers for OS target detection, shell env parsing, user-scope add/delete, and system-scope instructions
 - `src/lib/network/speedtest.ts`, `src/lib/network/speedtest-scheduler.ts` — speedtest CLI normalization, history persistence, fixed-interval scheduling, and startup scheduler
@@ -214,7 +217,7 @@ Concise map of major directories, commands, and key files. Update this section w
 
 ### Fleet Management
 
-- `src/models/` — fleet Mongoose models: Node, FrpServerState, FleetLogEvent, ConfigRevision, PublicRoute, NginxState, AgentUpdateJob, BackupJob, ResourcePolicy, AccessPolicy, RouteTemplate, DiagnosticRun, ImportedConfig, AlertChannel, AlertSubscription
+- `src/models/` — fleet Mongoose models: Node, FrpServerState, FleetLogEvent, ConfigRevision, PublicRoute, NginxState, AgentUpdateJob, BackupJob, ResourcePolicy, AccessPolicy, RouteTemplate, DiagnosticRun, ImportedConfig, AlertChannel, AlertSubscription, FleetCommandSecret
 - `src/lib/fleet/` — pure libraries: enums, status, pairing, toml, toml-parse, nginx, binary, frpProcess, nginxProcess, heartbeat, audit, revisions, templates, install-script, preflight, preflightExecutors, diagnostics, firewall, dns, acme, resourceGuards, resourceGuardMiddleware, access, rbac, import, backup, frpOrchestrator, nginxOrchestrator, applyEngine, orchestrators, reconcile, publicRouteLifecycle, publicRouteProxy, resolveAgentEndpoint, agentClient, agentPtyBridge, tty-bridge, hubAuth, hubTtyBridge, fleetTtyNamespace, eventBus, docsMarkdown, alerts, alertSubscriber, servermonStatus, servermonInstall, servermonAgentCommands, agentUpdateCommand, commandSecrets, domain
 - `src/app/api/fleet/` — fleet HTTP routes: nodes (+ `[id]/diagnose`, `/heartbeat`, `/maintenance`, `/pair`, `/reconcile`, `/rotate-token`, `/servermon`, `/updates`), server, routes, nginx, templates, access-policies, resource-policies, logs, revisions (incl. `[id]/apply` + `[id]/rollback`), backups, emergency, install, import, endpoint-exec, public, stream, alerts/channels (+ `[id]`), alerts/subscriptions (+ `[id]`), alerts/test
 - `src/app/fleet/` — fleet UI pages: dashboard, node detail `[slug]`, onboarding, setup, routes (incl. `[id]` detail), logs, server, nginx, updates, backups, diagnostics, templates, policies, emergency, import, endpoint-runner, alerts
@@ -224,6 +227,7 @@ Concise map of major directories, commands, and key files. Update this section w
 ### Disk Module
 
 - `src/app/api/modules/disk/` — disk routes for hardware health, scan, and settings; `health/cache.ts` centralizes short-lived health result caching
+- `src/models/DiskSettings.ts` — persisted Disk module settings
 - `src/modules/disk/` — disk module definition, page, widget, settings modal, hardware health panel, and focused UI components (`DiskSummaryCards`, `IoThroughputChart`) with colocated Vitest coverage
 - `src/app/disk/` — Disk module page route and route-level tests
 
@@ -232,6 +236,12 @@ Concise map of major directories, commands, and key files. Update this section w
 - `src/app/api/modules/nginx/` — Nginx routes for service status, config test/reload, DNS checks, and virtual host list/detail/create/update/delete flows
 - `src/lib/nginx/` — Nginx service helpers, virtual host discovery, parser, DNS checks, and managed-config renderer with colocated Vitest coverage
 - `src/modules/nginx/` — Nginx module definition, shared types, dashboard/widget UI, and host creation wizard with colocated UI tests
+
+### Terminal & Processes
+
+- `src/models/` — Terminal & Processes models: TerminalHistory, TerminalSession, TerminalSettings, SavedCommand, DockerAlert, DockerStatAggregate
+- `src/app/api/modules/processes/`, `src/app/api/modules/terminal/`, `src/app/api/modules/docker/` — API handlers for OS processes, host terminal sessions, and Docker container management
+- `src/modules/processes/`, `src/modules/terminal/`, `src/modules/docker/` — UI modules for process monitoring, web terminal, and Docker management; uses extracted component pattern (e.g., `ProcessList.tsx`, `ContainerTable.tsx`)
 
 ### Self-Service & Custom Endpoints
 
@@ -242,16 +252,16 @@ Concise map of major directories, commands, and key files. Update this section w
 ### AI & Automation
 
 - `src/modules/ai-agents/` — AI agent monitoring; `ui/AIAgentsPage.tsx` displays active sessions, tool catalog, and conversation history across multiple adapters (Claude Code, Codex, Gemini CLI, etc.)
-- src/modules/ai-runner/ — automated task orchestration; `ui/AIRunnerPage.tsx` and `ui/components/` (`AutoFlowView`, `HistoryView`, etc.) manage prompts, profiles (with run-as user support), workspaces, schedules, AutoFlows, logs, prompt templates, worker concurrency, import/export, and schedule visualization; uses supervisor/worker pattern for background execution
+- `src/modules/ai-runner/` — automated task orchestration; `ui/AIRunnerPage.tsx` and `ui/components/` (`AutoFlowView`, `HistoryView`, etc.) manage prompts, profiles (with run-as user support), workspaces, schedules, AutoFlows, logs, prompt templates, worker concurrency, import/export, and schedule visualization; uses supervisor/worker pattern for background execution
 - `src/models/AIRunnerPrompt.ts`, `src/models/AIRunnerPromptTemplate.ts`, `src/models/AIRunnerProfile.ts`, `src/models/AIRunnerWorkspace.ts`, `src/models/AIRunnerSchedule.ts`, `src/models/AIRunnerAutoflow.ts`, `src/models/AIRunnerJob.ts`, `src/models/AIRunnerRun.ts`, `src/models/AIRunnerSupervisorLease.ts`, `src/models/AIRunnerSettings.ts` — persisted AI Runner prompt library, templates, profiles (including `runAsUser` and `runAsUserAuthMode`), reusable workspaces, schedules, AutoFlows, durable job queue, run history, supervisor lease, and global settings
 - `src/app/api/modules/ai-runner/` — AI Runner routes for prompts, prompt templates, prompt attachments, profiles (including validation), workspaces, schedules (including bulk update), AutoFlows, runs, logs/stream, settings, bundle import/export, directories, and direct run dispatch
 - `src/modules/env-vars/` — EnvVars module definition and UI for managing host-level environment variables (stateless, bypassing MongoDB)
 - `docs/ai-runner-module.md` — technical architecture for automation runner
-- Env keys added: `FLEET_HUB_PUBLIC_URL`, `FRP_BIND_PORT`, `FRP_VHOST_HTTP_PORT`, `FRP_VHOST_HTTPS_PORT`, `FRP_AUTH_TOKEN`, `FRP_SUBDOMAIN_HOST`, `FLEET_HUB_AUTH_TOKEN`, `FLEET_HUB_ORCHESTRATORS_ENABLED`, `FLEET_AGENT_*`, `FLEET_NGINX_*`, `FLEET_ACME_*`, `FLEET_BINARY_CACHE_DIR`, `FLEET_FRP_VERSION`, `FLEET_FRPS_CONFIG_DIR`, `FLEET_BACKUP_DIR`, `FLEET_AUTO_APPLY_REVISIONS` (set to `'true'`), `AI_RUNNER_*` (concurrency, logs, workers), `SERVERMON_INSTALL_MODE`, `SERVERMON_VERSION_TARGET`, `SERVERMON_RELEASE_BASE_URL`, `SERVERMON_SOURCE_REF`
 
-### Users & Security
+### Users, Security & Settings
 
+- `src/models/` — Users & Settings models: User, BrandSettings, QuickAccessSettings, FileBrowserSettings, UpdateHistory, AnalyticsEvent
 - `src/modules/users/` — Users & Permissions module definition and UI for managing system users, SSH access, sudo privileges, and ServerMon web access controls
-- `src/app/users/` — Users module page route
-- `src/app/api/modules/users/` — Users API routes
+- `src/app/api/modules/users/`, `src/app/api/modules/updates/`, `src/app/api/settings/` — API routes for users, system updates, and global settings (branding, quick-access)
 - `src/lib/passkey-utils.ts`, `src/lib/auth-utils.ts` — Utility functions for WebAuthn passkey registration/authentication and general JWT/session auth logic
+- `src/lib/analytics.ts` — Internal analytics event tracking and persistence logic
