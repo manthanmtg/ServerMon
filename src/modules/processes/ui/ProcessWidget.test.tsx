@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import ProcessWidget from './ProcessWidget';
 import { ToastProvider } from '@/components/ui/toast';
@@ -53,6 +53,10 @@ describe('ProcessWidget', () => {
         json: async () => ({ processes: mockProcs, summary: mockSummary }),
       })
     );
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   const renderWidget = async () => {
@@ -203,11 +207,21 @@ describe('ProcessWidget', () => {
     });
   });
 
-  it.skip('polling works', async () => {
-    await renderWidget();
+  it('polling works', async () => {
+    vi.useFakeTimers();
+    render(
+      <ToastProvider>
+        <ProcessWidget />
+      </ToastProvider>
+    );
+    
+    // Initial fetch
+    await vi.advanceTimersByTimeAsync(0);
+    
     vi.clearAllMocks();
 
-    vi.advanceTimersByTime(5000);
+    // Advance 5 seconds for polling
+    await vi.advanceTimersByTimeAsync(5000);
     expect(global.fetch).toHaveBeenCalled();
   });
 

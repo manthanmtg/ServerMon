@@ -504,38 +504,44 @@ describe('DockerPage', () => {
     expect(select).toHaveValue('container-2');
   });
 
-  describe.skip('Polling', () => {
+  describe('Polling', () => {
     it('automatically polls for updates', async () => {
       vi.useFakeTimers();
-      await renderPage();
-      await waitFor(() => expect(global.fetch).toHaveBeenCalled());
+      render(
+        <ToastProvider>
+          <DockerPage />
+        </ToastProvider>
+      );
+      
+      // Initial fetch and loading finish
+      await vi.advanceTimersByTimeAsync(5000);
+      
       vi.mocked(global.fetch).mockClear();
 
-      await act(async () => {
-        vi.advanceTimersByTime(5010);
-        vi.runOnlyPendingTimers();
-      });
-
-      await waitFor(() => expect(global.fetch).toHaveBeenCalled());
+      // Advance 5 seconds for polling
+      await vi.advanceTimersByTimeAsync(5010);
+      expect(global.fetch).toHaveBeenCalled();
     });
 
     it('changes polling frequency', async () => {
       vi.useFakeTimers();
-      await renderPage();
-      await waitFor(() => expect(global.fetch).toHaveBeenCalled());
+      render(
+        <ToastProvider>
+          <DockerPage />
+        </ToastProvider>
+      );
+      
+      // Initial fetch and loading finish
+      await vi.advanceTimersByTimeAsync(5000);
+      
       vi.mocked(global.fetch).mockClear();
 
       const refreshSelect = screen.getByRole('combobox', { name: /^Refresh$/i });
-      await act(async () => {
-        fireEvent.change(refreshSelect, { target: { value: '2000' } });
-      });
+      fireEvent.change(refreshSelect, { target: { value: '2000' } });
 
-      await act(async () => {
-        vi.advanceTimersByTime(2010);
-        vi.runOnlyPendingTimers();
-      });
-
-      await waitFor(() => expect(global.fetch).toHaveBeenCalled());
+      // Advance 2 seconds for new polling interval
+      await vi.advanceTimersByTimeAsync(2010);
+      expect(global.fetch).toHaveBeenCalled();
     });
   });
 });

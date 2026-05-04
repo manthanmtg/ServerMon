@@ -322,21 +322,21 @@ describe('NginxPage', () => {
     expect(global.fetch).toHaveBeenCalledTimes(2);
   });
 
-  describe.skip('Polling', () => {
+  describe('Polling', () => {
     it('automatically polls for updates', async () => {
       vi.useFakeTimers();
-      await act(async () => {
-        render(<NginxPage />);
-      });
-      await waitFor(() => expect(global.fetch).toHaveBeenCalled());
+      render(<NginxPage />);
+      
+      // Advance enough for initial fetch and loading to finish
+      await vi.advanceTimersByTimeAsync(100);
+      
       vi.mocked(global.fetch).mockClear();
 
-      await act(async () => {
-        vi.advanceTimersByTime(5010);
-        vi.runOnlyPendingTimers();
-      });
-
-      await waitFor(() => expect(global.fetch).toHaveBeenCalled());
+      // Advance 15 seconds for polling
+      await vi.advanceTimersByTimeAsync(15010);
+      expect(global.fetch).toHaveBeenCalled();
+      
+      vi.useRealTimers();
     });
   });
 

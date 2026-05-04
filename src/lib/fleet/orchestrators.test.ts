@@ -89,7 +89,7 @@ describe('fleet orchestrators', () => {
     });
 
     it('should return a no-op orchestrator if construction fails', async () => {
-      vi.mocked(FrpOrchestrator).mockImplementationOnce(() => {
+      vi.mocked(FrpOrchestrator).mockImplementationOnce(function () {
         throw new Error('Construction failed');
       });
 
@@ -114,7 +114,7 @@ describe('fleet orchestrators', () => {
     });
 
     it('should return an error-throwing orchestrator if construction fails', async () => {
-      vi.mocked(NginxOrchestrator).mockImplementationOnce(() => {
+      vi.mocked(NginxOrchestrator).mockImplementationOnce(function () {
         throw new Error('Construction failed');
       });
 
