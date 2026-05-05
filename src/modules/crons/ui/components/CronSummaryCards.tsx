@@ -52,16 +52,16 @@ export function CronSummaryCards({ summary }: CronSummaryCardsProps) {
   return (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
       {cards.map(({ label, value, icon: Icon, color }) => (
-        <Card key={label} className="border-border/60 bg-card/80">
+        <Card key={label} className="border-border/60 bg-card/80 hover:border-primary/20 transition-all duration-300 hover:shadow-[0_4px_12px_-4px_color-mix(in_oklab,var(--primary)_15%,transparent)] group">
           <CardContent className="flex items-center justify-between p-4 min-h-[80px]">
             <div>
-              <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
+              <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground group-hover:text-foreground transition-colors duration-300">
                 {label}
               </p>
-              <p className="mt-1 text-2xl font-semibold tracking-tight">{value}</p>
+              <p className="mt-1 text-2xl font-semibold tracking-tight group-hover:scale-105 origin-left transition-transform duration-300">{value}</p>
             </div>
-            <div className="rounded-xl border border-border/60 bg-muted/30 p-2.5">
-              <Icon className={cn('h-5 w-5', color)} />
+            <div className="rounded-xl border border-border/60 bg-muted/30 p-2.5 group-hover:border-primary/20 group-hover:bg-primary/5 transition-colors duration-300">
+              <Icon className={cn('h-5 w-5 transition-transform duration-300 group-hover:scale-110', color)} />
             </div>
           </CardContent>
         </Card>
