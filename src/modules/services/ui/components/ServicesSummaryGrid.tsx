@@ -133,9 +133,7 @@ export function ServicesSummaryGrid({ summary, alertsCount }: ServicesSummaryGri
       </motion.div>
       {cards.map(({ label, value, icon: Icon, color }) => (
         <motion.div key={label} variants={itemVariants}>
-          <Card
-            className="border-border/60 bg-card/80 transition-all hover:bg-card hover:shadow-sm group overflow-hidden relative h-full"
-          >
+          <Card className="border-border/60 bg-card/80 transition-all hover:bg-card hover:shadow-sm group overflow-hidden relative h-full">
             <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
             <CardContent className="flex items-center justify-between p-4 min-h-[80px] relative z-10">
               <div>
