@@ -75,6 +75,8 @@ function sortIcon(
   return sortDir === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />;
 }
 
+const serviceActionButtonClass = 'min-h-11 min-w-11 sm:h-8 sm:min-h-8 sm:w-8 sm:min-w-8 p-0';
+
 export function ServicesTable({
   services,
   totalServices,
@@ -248,7 +250,10 @@ export function ServicesTable({
                             <Button
                               size="sm"
                               variant="ghost"
-                              className="h-8 w-8 p-0 text-success hover:bg-success/10"
+                              className={cn(
+                                serviceActionButtonClass,
+                                'text-success hover:bg-success/10'
+                              )}
                               title="Start"
                               loading={pendingAction === `${svc.name}:start`}
                               onClick={() => onRunAction(svc.name, 'start')}
@@ -260,7 +265,10 @@ export function ServicesTable({
                             <Button
                               size="sm"
                               variant="ghost"
-                              className="h-8 w-8 p-0 text-destructive hover:bg-destructive/10"
+                              className={cn(
+                                serviceActionButtonClass,
+                                'text-destructive hover:bg-destructive/10'
+                              )}
                               title="Stop"
                               loading={pendingAction === `${svc.name}:stop`}
                               onClick={() => onRunAction(svc.name, 'stop')}
@@ -271,7 +279,10 @@ export function ServicesTable({
                           <Button
                             size="sm"
                             variant="ghost"
-                            className="h-8 w-8 p-0 text-primary hover:bg-primary/10"
+                            className={cn(
+                              serviceActionButtonClass,
+                              'text-primary hover:bg-primary/10'
+                            )}
                             title="Restart"
                             loading={pendingAction === `${svc.name}:restart`}
                             onClick={() => onRunAction(svc.name, 'restart')}
@@ -281,7 +292,7 @@ export function ServicesTable({
                           <Button
                             size="sm"
                             variant="ghost"
-                            className="h-8 w-8 p-0 hover:bg-accent"
+                            className={cn(serviceActionButtonClass, 'hover:bg-accent')}
                             title={svc.enabled ? 'Disable' : 'Enable'}
                             loading={
                               pendingAction === `${svc.name}:enable` ||
