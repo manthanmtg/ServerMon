@@ -17,5 +17,7 @@ export function isPublicRoute(pathname: string) {
 }
 
 export function isPublicApiRoute(pathname: string) {
-  return PUBLIC_API_ROUTE_PREFIXES.some((route) => pathname.startsWith(route));
+  return PUBLIC_API_ROUTE_PREFIXES.some(
+    (route) => pathname === route || pathname.startsWith(`${route}/`)
+  );
 }
