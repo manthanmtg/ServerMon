@@ -60,6 +60,7 @@ export interface EnsureBinaryOpts {
 
 let cachedLatestVersion: { version: string; expiresAt: number } | null = null;
 const CACHE_TTL_MS = 1000 * 60 * 60; // 1 hour
+const GITHUB_LATEST_RELEASE_TIMEOUT_MS = 5000;
 
 interface GitHubLatestReleasePayload {
   tag_name: string;
@@ -74,6 +75,34 @@ function isGitHubLatestReleasePayload(value: unknown): value is GitHubLatestRele
   );
 }
 
+function isAbortError(err: unknown): boolean {
+  return (
+    err instanceof DOMException ||
+    (err instanceof Error && (err.name === 'AbortError' || err.message === 'AbortError'))
+  );
+}
+
+async function fetchLatestRelease(fetchImpl: typeof fetch): Promise<Response> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), GITHUB_LATEST_RELEASE_TIMEOUT_MS);
+
+  try {
+    return await fetchImpl('https://api.github.com/repos/fatedier/frp/releases/latest', {
+      headers: { Accept: 'application/vnd.github.v3+json', 'User-Agent': 'ServerMon-Hub' },
+      signal: controller.signal,
+    });
+  } catch (err) {
+    if (isAbortError(err)) {
+      throw new Error(
+        `GitHub latest release lookup timed out after ${GITHUB_LATEST_RELEASE_TIMEOUT_MS}ms`
+      );
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 export async function resolveVersion(version: string, fetchImpl = fetch): Promise<string> {
   if (version !== 'latest') {
     return version;
@@ -85,9 +114,7 @@ export async function resolveVersion(version: string, fetchImpl = fetch): Promis
   }
 
   try {
-    const res = await fetchImpl('https://api.github.com/repos/fatedier/frp/releases/latest', {
-      headers: { Accept: 'application/vnd.github.v3+json', 'User-Agent': 'ServerMon-Hub' },
-    });
+    const res = await fetchLatestRelease(fetchImpl);
     if (!res.ok) throw new Error(`GitHub API error: ${res.status}`);
     const data: unknown = await res.json();
     if (!isGitHubLatestReleasePayload(data)) {

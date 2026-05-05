@@ -1,3 +1,4 @@
+/** @vitest-environment node */
 import { describe, it, expect, vi } from 'vitest';
 import { EventEmitter } from 'node:events';
 import {
@@ -85,6 +86,24 @@ describe('resolveVersion', () => {
     );
 
     warnSpy.mockRestore();
+  });
+
+  it('bounds the GitHub latest release lookup with an abort signal', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ tag_name: 'v0.62.1' }),
+    });
+
+    await expect(resolveVersion('latest', fetchImpl as unknown as typeof fetch)).resolves.toBe(
+      '0.62.1'
+    );
+
+    expect(fetchImpl).toHaveBeenCalledWith(
+      'https://api.github.com/repos/fatedier/frp/releases/latest',
+      expect.objectContaining({
+        signal: expect.any(AbortSignal),
+      })
+    );
   });
 });
 
