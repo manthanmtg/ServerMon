@@ -102,7 +102,13 @@ function SessionDetailInner({ session, onClose, onTerminate, onKill, actionLoadi
     <div className="space-y-4">
       {/* Header */}
       <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" onClick={onClose} className="shrink-0" aria-label="Back to sessions">
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={onClose}
+          className="shrink-0"
+          aria-label="Back to sessions"
+        >
           <ArrowLeft className="w-4 h-4" />
         </Button>
         <div
