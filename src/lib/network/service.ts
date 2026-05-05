@@ -304,10 +304,9 @@ class NetworkService {
         }));
 
         const statList: NetworkStats[] = (Array.isArray(stats) ? stats : [stats]).map((s) => {
-          const statsData = s as unknown as {
-            rx_packets: number;
-            tx_packets: number;
-            [key: string]: unknown;
+          const statsData = s as typeof s & {
+            rx_packets?: number;
+            tx_packets?: number;
           };
           return {
             iface: s.iface,
