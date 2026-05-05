@@ -50,7 +50,7 @@ export default function DiskSettingsModal({ settings, onClose, onSaved }: Props)
             <Settings2 className="w-4 h-4 text-primary" />
             <CardTitle className="text-lg">Disk Settings</CardTitle>
           </div>
-          <Button variant="ghost" size="icon" onClick={onClose} className="h-8 w-8 rounded-full">
+          <Button variant="ghost" size="icon" onClick={onClose} className="h-8 w-8 rounded-full" aria-label="Close settings">
             <X className="w-4 h-4" />
           </Button>
         </CardHeader>
