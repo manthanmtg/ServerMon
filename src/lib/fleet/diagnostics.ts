@@ -82,23 +82,25 @@ export interface ClientDiagCtx {
   checkLocalCapabilities(): Promise<{ ok: boolean; detail?: string }>;
 }
 
-interface ChainEntry<Ctx> {
+type DiagnosticCheck = () => Promise<{ ok: boolean; detail?: string }>;
+
+interface ChainEntry<Ctx, Method extends keyof Ctx> {
   id: string;
   label: string;
-  method: keyof Ctx;
+  method: Method;
   likelyCause: string;
   recommendedFix: string;
 }
 
-function buildStep<Ctx>(entry: ChainEntry<Ctx>): DiagnosticStep<Ctx> {
+function buildStep<
+  Ctx extends Record<Method, DiagnosticCheck>,
+  Method extends keyof Ctx = keyof Ctx,
+>(entry: ChainEntry<Ctx, Method>): DiagnosticStep<Ctx> {
   return {
     id: entry.id,
     label: entry.label,
     async run(ctx) {
-      const fn = ctx[entry.method] as unknown as () => Promise<{
-        ok: boolean;
-        detail?: string;
-      }>;
+      const fn = ctx[entry.method];
       const r = await fn.call(ctx);
       if (r.ok) {
         return { status: 'pass', evidence: r.detail };
