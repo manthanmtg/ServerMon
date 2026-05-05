@@ -11,6 +11,9 @@ vi.mock('@/lib/certificates/service', () => ({
 vi.mock('@/lib/logger', () => ({
   createLogger: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }),
 }));
+vi.mock('@/lib/session', () => ({
+  getSession: vi.fn().mockResolvedValue({ id: 'mock-session' }),
+}));
 
 import { GET } from './route';
 
