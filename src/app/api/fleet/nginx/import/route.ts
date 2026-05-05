@@ -41,8 +41,8 @@ export async function POST(req: NextRequest) {
 
     // Build existing state for conflict detection.
     const [nodes, routes] = await Promise.all([
-      Node.find({}).select('proxyRules').lean() as unknown as Promise<NodeLike[]>,
-      PublicRoute.find({}).select('domain').lean() as unknown as Promise<Array<{ domain: string }>>,
+      Node.find({}).select('proxyRules').lean() as Promise<NodeLike[]>,
+      PublicRoute.find({}).select('domain').lean() as Promise<Array<{ domain: string }>>,
     ]);
     const nodeProxyNames: string[] = [];
     const usedRemotePorts: number[] = [];
