@@ -61,6 +61,12 @@ describe('auth-routes', () => {
       expect(isPublicApiRoute('/public/api/auth/login')).toBe(false);
     });
 
+    it('should return false for paths that only share a public prefix segment', () => {
+      expect(isPublicApiRoute('/api/auth/loginx')).toBe(false);
+      expect(isPublicApiRoute('/api/setup-wizard')).toBe(false);
+      expect(isPublicApiRoute('/api/fleet/public-routes')).toBe(false);
+    });
+
     it('should return false for empty string', () => {
       expect(isPublicApiRoute('')).toBe(false);
     });
