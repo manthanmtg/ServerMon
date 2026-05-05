@@ -13,8 +13,12 @@ export const TIMEZONE_OPTIONS = [
   { value: 'Australia/Sydney', label: 'AEST/AEDT', description: 'Sydney' },
 ];
 
-export const HOUR_OPTIONS = Array.from({ length: 12 }, (_, index) => String(index + 1).padStart(2, '0'));
-export const MINUTE_OPTIONS = Array.from({ length: 12 }, (_, index) => String(index * 5).padStart(2, '0'));
+export const HOUR_OPTIONS = Array.from({ length: 12 }, (_, index) =>
+  String(index + 1).padStart(2, '0')
+);
+export const MINUTE_OPTIONS = Array.from({ length: 12 }, (_, index) =>
+  String(index * 5).padStart(2, '0')
+);
 
 export function getTimezoneLabel(timezone: string): string {
   return getTimezoneOption(timezone)?.label ?? timezone;

@@ -151,9 +151,11 @@ pnpm install
 
 Create a `.env.local` file:
 
-```env
+```bash
+cat > .env.local <<'EOF'
 MONGO_URI=mongodb://localhost:27017/servermon
 JWT_SECRET=any-dev-secret
+EOF
 ```
 
 Start the dev server:

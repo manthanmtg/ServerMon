@@ -36,8 +36,7 @@ export function AutoUpdateScheduleModal({
   isSaving,
 }: AutoUpdateScheduleModalProps) {
   const { timezoneOptions, scheduleTimeParts, minuteOptions } = useMemo(
-    () =>
-      deriveScheduleSelectState(scheduleForm.time, scheduleForm.timezone, autoSettingsTimezone),
+    () => deriveScheduleSelectState(scheduleForm.time, scheduleForm.timezone, autoSettingsTimezone),
     [autoSettingsTimezone, scheduleForm.time, scheduleForm.timezone]
   );
 
@@ -50,10 +49,7 @@ export function AutoUpdateScheduleModal({
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-      <div
-        className="absolute inset-0 bg-background/80 backdrop-blur-sm"
-        onClick={onClose}
-      />
+      <div className="absolute inset-0 bg-background/80 backdrop-blur-sm" onClick={onClose} />
       <div
         role="dialog"
         aria-modal="true"
@@ -174,12 +170,7 @@ export function AutoUpdateScheduleModal({
         </div>
 
         <div className="flex flex-col-reverse gap-3 border-t border-border bg-muted/20 p-6 sm:flex-row sm:justify-end">
-          <Button
-            variant="ghost"
-            className="h-11 rounded-xl"
-            onClick={onClose}
-            disabled={isSaving}
-          >
+          <Button variant="ghost" className="h-11 rounded-xl" onClick={onClose} disabled={isSaving}>
             Cancel
           </Button>
           <Button className="h-11 rounded-xl" loading={isSaving} onClick={onSave}>
