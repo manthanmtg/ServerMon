@@ -206,7 +206,7 @@ export function RunDetailDrawer({
                 </p>
               </div>
             </div>
-            <Button variant="ghost" size="icon" onClick={onClose}>
+            <Button variant="ghost" size="icon" onClick={onClose} aria-label="Close run details">
               <X className="w-4 h-4" />
             </Button>
           </div>
