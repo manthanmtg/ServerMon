@@ -37,8 +37,6 @@ const BodyZ = z.object({
   targetId: z.string().optional(),
 });
 
-type EmergencyAction = z.infer<typeof BodyZ>['action'];
-
 interface BlastRadius {
   affectedRoutes?: number;
   affectedNodes?: number;
@@ -68,11 +66,10 @@ export async function POST(req: NextRequest) {
     const blastRadius: BlastRadius = {};
     let results: unknown = undefined;
 
-    switch (action as EmergencyAction) {
+    switch (action) {
       case 'disable_all_routes': {
         const update = await PublicRoute.updateMany({}, { status: 'disabled', enabled: false });
-        blastRadius.affectedRoutes =
-          (update as unknown as { modifiedCount?: number }).modifiedCount ?? 0;
+        blastRadius.affectedRoutes = update.modifiedCount ?? 0;
         break;
       }
       case 'stop_all_terminals': {
@@ -139,14 +136,12 @@ export async function POST(req: NextRequest) {
           { status: 'running' },
           { status: 'paused', pausedAt: new Date() }
         );
-        blastRadius.affectedJobs =
-          (update as unknown as { modifiedCount?: number }).modifiedCount ?? 0;
+        blastRadius.affectedJobs = update.modifiedCount ?? 0;
         break;
       }
       case 'fleet_maintenance': {
         const update = await Node.updateMany({}, { 'maintenance.enabled': true });
-        blastRadius.affectedNodes =
-          (update as unknown as { modifiedCount?: number }).modifiedCount ?? 0;
+        blastRadius.affectedNodes = update.modifiedCount ?? 0;
         break;
       }
       case 'stop_frps': {
