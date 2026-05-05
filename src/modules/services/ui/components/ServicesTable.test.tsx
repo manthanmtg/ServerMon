@@ -69,4 +69,28 @@ describe('ServicesTable', () => {
 
     expect(onRunAction).toHaveBeenCalledWith('mongodb.service', 'start');
   });
+
+  it('keeps service action buttons touch-friendly on small screens', () => {
+    render(
+      <ServicesTable
+        services={services}
+        totalServices={2}
+        expandedService={null}
+        pendingAction={null}
+        sortField="name"
+        sortDir="asc"
+        onToggleExpanded={vi.fn()}
+        onToggleSort={vi.fn()}
+        onRunAction={vi.fn()}
+      />
+    );
+
+    const activeRow = screen.getByText('nginx.service').closest('tr');
+    expect(activeRow).not.toBeNull();
+
+    for (const title of ['Stop', 'Restart', 'Disable']) {
+      expect(within(activeRow!).getByTitle(title).className).toContain('min-h-11');
+      expect(within(activeRow!).getByTitle(title).className).toContain('min-w-11');
+    }
+  });
 });
