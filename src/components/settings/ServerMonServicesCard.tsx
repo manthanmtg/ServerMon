@@ -1,15 +1,13 @@
 'use client';
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   CalendarClock,
-  CheckCircle2,
   Download,
   History,
   RefreshCcw,
   ServerCog,
   Settings2,
-  X,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -22,25 +20,10 @@ import type {
   LocalAutoUpdateSettings,
   ServermonAgentStatus,
 } from '@/types/updates';
+import { AutoUpdateScheduleModal } from './AutoUpdateScheduleModal';
+import { formatNextRun, formatScheduleTime, getTimezoneLabel } from './AutoUpdateScheduleUtils';
 
 type ServiceUpdateType = 'servermon' | 'agent';
-
-const TIMEZONE_OPTIONS = [
-  { value: 'UTC', label: 'UTC', description: 'Coordinated Universal Time' },
-  { value: 'Asia/Kolkata', label: 'IST', description: 'India Standard Time' },
-  { value: 'America/Los_Angeles', label: 'PST/PDT', description: 'Pacific Time' },
-  { value: 'America/Denver', label: 'MST/MDT', description: 'Mountain Time' },
-  { value: 'America/Chicago', label: 'CST/CDT', description: 'Central Time' },
-  { value: 'America/New_York', label: 'EST/EDT', description: 'Eastern Time' },
-  { value: 'Europe/London', label: 'GMT/BST', description: 'London' },
-  { value: 'Europe/Berlin', label: 'CET/CEST', description: 'Central Europe' },
-  { value: 'Asia/Dubai', label: 'GST', description: 'Gulf Standard Time' },
-  { value: 'Asia/Singapore', label: 'SGT', description: 'Singapore Time' },
-  { value: 'Asia/Tokyo', label: 'JST', description: 'Japan Standard Time' },
-  { value: 'Australia/Sydney', label: 'AEST/AEDT', description: 'Sydney' },
-];
-const HOUR_OPTIONS = Array.from({ length: 12 }, (_, index) => String(index + 1).padStart(2, '0'));
-const MINUTE_OPTIONS = Array.from({ length: 12 }, (_, index) => String(index * 5).padStart(2, '0'));
 
 const UPDATE_COPY: Record<
   ServiceUpdateType,
@@ -82,11 +65,6 @@ export default function ServerMonServicesCard({ onOpenHistory }: ServerMonServic
     time: '03:00',
     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
   });
-  const { timezoneOptions, scheduleTimeParts, minuteOptions } = useMemo(
-    () =>
-      deriveScheduleSelectState(scheduleForm.time, scheduleForm.timezone, autoSettings?.timezone),
-    [autoSettings?.timezone, scheduleForm.time, scheduleForm.timezone]
-  );
 
   const loadAgentStatus = useCallback(async () => {
     setAgentLoading(true);
@@ -205,13 +183,6 @@ export default function ServerMonServicesCard({ onOpenHistory }: ServerMonServic
     } finally {
       setScheduleSaving(false);
     }
-  };
-
-  const updateScheduleTime = (patch: Partial<TimeParts>) => {
-    setScheduleForm((form) => ({
-      ...form,
-      time: buildScheduleTime({ ...parseScheduleTime(form.time), ...patch }),
-    }));
   };
 
   const copy = confirmType ? UPDATE_COPY[confirmType] : UPDATE_COPY.servermon;
@@ -417,145 +388,14 @@ export default function ServerMonServicesCard({ onOpenHistory }: ServerMonServic
         variant="warning"
       />
       {scheduleOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-          <div
-            className="absolute inset-0 bg-background/80 backdrop-blur-sm"
-            onClick={() => setScheduleOpen(false)}
-          />
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="local-auto-update-title"
-            className="relative w-full max-w-md overflow-hidden rounded-3xl border border-border bg-card shadow-2xl"
-          >
-            <div className="flex items-start justify-between gap-4 border-b border-border p-6">
-              <div>
-                <h3 id="local-auto-update-title" className="text-lg font-bold text-foreground">
-                  Local Auto-Update Schedule
-                </h3>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  ServerMon owns the schedule; update work runs detached through systemd.
-                </p>
-              </div>
-              <button
-                type="button"
-                aria-label="Close schedule modal"
-                onClick={() => setScheduleOpen(false)}
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="space-y-4 p-6">
-              <label className="flex min-h-[44px] items-center justify-between gap-3 rounded-xl border border-border bg-muted/20 px-3 text-sm font-semibold text-foreground">
-                <span>Enable local auto-update</span>
-                <input
-                  aria-label="Enable local auto-update"
-                  type="checkbox"
-                  checked={scheduleForm.enabled}
-                  onChange={(event) =>
-                    setScheduleForm((form) => ({ ...form, enabled: event.target.checked }))
-                  }
-                  className="h-5 w-5 accent-primary"
-                />
-              </label>
-
-              <div className="space-y-2">
-                <span className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-                  Daily time
-                </span>
-                <div className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_96px]">
-                  <select
-                    aria-label="Daily hour"
-                    value={scheduleTimeParts.hour}
-                    onChange={(event) =>
-                      updateScheduleTime({ hour: event.target.value as TimeParts['hour'] })
-                    }
-                    className="h-11 min-w-0 rounded-xl border border-input bg-background px-3 text-sm font-semibold text-foreground outline-none transition-all focus:ring-2 focus:ring-primary/20"
-                  >
-                    {HOUR_OPTIONS.map((hour) => (
-                      <option key={hour} value={hour}>
-                        {hour}
-                      </option>
-                    ))}
-                  </select>
-                  <select
-                    aria-label="Daily minute"
-                    value={scheduleTimeParts.minute}
-                    onChange={(event) => updateScheduleTime({ minute: event.target.value })}
-                    className="h-11 min-w-0 rounded-xl border border-input bg-background px-3 text-sm font-semibold text-foreground outline-none transition-all focus:ring-2 focus:ring-primary/20"
-                  >
-                    {minuteOptions.map((minute) => (
-                      <option key={minute} value={minute}>
-                        {minute}
-                      </option>
-                    ))}
-                  </select>
-                  <select
-                    aria-label="Daily period"
-                    value={scheduleTimeParts.period}
-                    onChange={(event) =>
-                      updateScheduleTime({ period: event.target.value as TimeParts['period'] })
-                    }
-                    className="h-11 min-w-0 rounded-xl border border-input bg-background px-3 text-sm font-semibold text-foreground outline-none transition-all focus:ring-2 focus:ring-primary/20"
-                  >
-                    <option value="AM">AM</option>
-                    <option value="PM">PM</option>
-                  </select>
-                </div>
-              </div>
-
-              <label className="block space-y-2">
-                <span className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-                  Timezone
-                </span>
-                <select
-                  aria-label="Timezone"
-                  value={scheduleForm.timezone}
-                  onChange={(event) =>
-                    setScheduleForm((form) => ({ ...form, timezone: event.target.value }))
-                  }
-                  className="h-11 w-full rounded-xl border border-input bg-background px-3 text-sm font-semibold text-foreground outline-none transition-all focus:ring-2 focus:ring-primary/20"
-                >
-                  {timezoneOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label} - {option.description}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <div className="space-y-2 rounded-xl border border-border bg-muted/20 p-3 text-xs text-muted-foreground">
-                {[
-                  'Check before updating',
-                  'Include running local agent',
-                  'Stop agent update if app fails',
-                  'Missed run retry: 2 hours, 1 retry',
-                ].map((item) => (
-                  <div key={item} className="flex items-center gap-2">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-success" />
-                    <span>{item}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="flex flex-col-reverse gap-3 border-t border-border bg-muted/20 p-6 sm:flex-row sm:justify-end">
-              <Button
-                variant="ghost"
-                className="h-11 rounded-xl"
-                onClick={() => setScheduleOpen(false)}
-                disabled={scheduleSaving}
-              >
-                Cancel
-              </Button>
-              <Button className="h-11 rounded-xl" loading={scheduleSaving} onClick={saveSchedule}>
-                Save Schedule
-              </Button>
-            </div>
-          </div>
-        </div>
+        <AutoUpdateScheduleModal
+          scheduleForm={scheduleForm}
+          setScheduleForm={setScheduleForm}
+          autoSettingsTimezone={autoSettings?.timezone}
+          onClose={() => setScheduleOpen(false)}
+          onSave={saveSchedule}
+          isSaving={scheduleSaving}
+        />
       )}
     </>
   );
@@ -580,87 +420,4 @@ function ScheduleStat({
       </p>
     </div>
   );
-}
-
-function getTimezoneLabel(timezone: string): string {
-  return getTimezoneOption(timezone)?.label ?? timezone;
-}
-
-function getTimezoneOption(timezone: string) {
-  return TIMEZONE_OPTIONS.find((option) => option.value === timezone);
-}
-
-function getTimezoneOptions(...timezones: Array<string | null | undefined>) {
-  const options = [...TIMEZONE_OPTIONS];
-  for (const timezone of timezones) {
-    if (
-      !timezone ||
-      getTimezoneOption(timezone) ||
-      options.some((option) => option.value === timezone)
-    ) {
-      continue;
-    }
-    options.push({ value: timezone, label: timezone, description: 'Custom timezone' });
-  }
-  return options;
-}
-
-export function deriveScheduleSelectState(
-  time: string,
-  timezone: string,
-  savedTimezone?: string | null
-) {
-  const scheduleTimeParts = parseScheduleTime(time);
-
-  return {
-    timezoneOptions: getTimezoneOptions(timezone, savedTimezone),
-    scheduleTimeParts,
-    minuteOptions: getMinuteOptions(scheduleTimeParts.minute),
-  };
-}
-
-function getMinuteOptions(currentMinute: string): string[] {
-  return MINUTE_OPTIONS.includes(currentMinute)
-    ? MINUTE_OPTIONS
-    : [...MINUTE_OPTIONS, currentMinute].sort();
-}
-
-type TimeParts = {
-  hour: string;
-  minute: string;
-  period: 'AM' | 'PM';
-};
-
-function parseScheduleTime(time: string): TimeParts {
-  const [hourText = '03', minuteText = '00'] = time.split(':');
-  const hour24 = Number.parseInt(hourText, 10);
-  const period = hour24 >= 12 ? 'PM' : 'AM';
-  const hour12 = hour24 % 12 || 12;
-  return {
-    hour: String(hour12).padStart(2, '0'),
-    minute: minuteText.padStart(2, '0'),
-    period,
-  };
-}
-
-function buildScheduleTime(parts: TimeParts): string {
-  const hour12 = Number.parseInt(parts.hour, 10);
-  const hour24 =
-    parts.period === 'AM' ? (hour12 === 12 ? 0 : hour12) : hour12 === 12 ? 12 : hour12 + 12;
-  return `${String(hour24).padStart(2, '0')}:${parts.minute}`;
-}
-
-function formatScheduleTime(time: string): string {
-  const parts = parseScheduleTime(time);
-  return `${parts.hour}:${parts.minute} ${parts.period}`;
-}
-
-function formatNextRun(value?: string | null): string {
-  if (!value) return 'Paused';
-  return new Date(value).toLocaleString(undefined, {
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
 }
