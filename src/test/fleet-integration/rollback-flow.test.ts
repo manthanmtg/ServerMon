@@ -1,8 +1,7 @@
 /** @vitest-environment node */
 import { describe, it, expect, vi } from 'vitest';
-import type { Model } from 'mongoose';
 import { renderFrpcToml, renderFrpsToml, hashToml } from '@/lib/fleet/toml';
-import { saveRevision } from '@/lib/fleet/revisions';
+import { saveRevision, type ConfigRevisionModelLike } from '@/lib/fleet/revisions';
 import { applyRevision, type ApplyEngineDeps } from '@/lib/fleet/applyEngine';
 import { NodeZodSchema } from '@/models/Node';
 
@@ -15,13 +14,13 @@ interface StoredRevision {
   rendered: string;
   structured: unknown;
   appliedAt?: Date;
-  save: ReturnType<typeof vi.fn>;
+  save: () => Promise<void>;
 }
 
 // An in-memory ConfigRevision model that supports the subset of the mongoose
 // API `saveRevision` and `applyRevision` need.
 function makeInMemoryRevisionModel(): {
-  model: Model<unknown>;
+  model: ConfigRevisionModelLike & { findById: (id: string) => Promise<StoredRevision | null> };
   getAll: () => StoredRevision[];
   getById: (id: string) => StoredRevision | undefined;
 } {
@@ -67,13 +66,13 @@ function makeInMemoryRevisionModel(): {
         hash: doc.hash as string,
         rendered: doc.rendered as string,
         structured: doc.structured,
-        save: vi.fn().mockResolvedValue(undefined),
+        save: vi.fn().mockResolvedValue(undefined) as unknown as () => Promise<void>,
       };
       store.push(stored);
       return stored;
     },
     findById: async (id: string) => store.find((r) => r._id === id) ?? null,
-  } as unknown as Model<unknown>;
+  };
 
   return {
     model,

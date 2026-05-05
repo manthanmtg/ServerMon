@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ZodError, z } from 'zod';
-import type { Model } from 'mongoose';
 import { createLogger } from '@/lib/logger';
 import connectDB from '@/lib/db';
 import FrpServerState from '@/models/FrpServerState';
@@ -67,7 +66,7 @@ async function rerenderAndSaveRevision(
     authToken,
     subdomainHost: state.subdomainHost ?? '',
   });
-  const revision = await saveRevision(ConfigRevision as unknown as Model<unknown>, {
+  const revision = await saveRevision(ConfigRevision, {
     kind: 'frps',
     targetId: null,
     structured: state.toObject(),
@@ -84,14 +83,10 @@ async function rerenderAndSaveRevision(
     await applyRevision(revision.id, {
       frp: getFrpOrchestrator(),
       nginx: getNginxOrchestrator(),
-      ConfigRevision: ConfigRevision as unknown as Parameters<
-        typeof applyRevision
-      >[1]['ConfigRevision'],
-      FrpServerState: FrpServerState as unknown as Parameters<
-        typeof applyRevision
-      >[1]['FrpServerState'],
-      PublicRoute: PublicRoute as unknown as Parameters<typeof applyRevision>[1]['PublicRoute'],
-      Node: Node as unknown as Parameters<typeof applyRevision>[1]['Node'],
+      ConfigRevision,
+      FrpServerState,
+      PublicRoute,
+      Node,
     }).catch((err) => log.warn('applyRevision failed post-save', err));
   }
 
