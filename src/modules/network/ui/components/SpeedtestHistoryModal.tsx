@@ -68,7 +68,7 @@ export function SpeedtestHistoryModal({
           </Button>
         </div>
         <div className="space-y-5 overflow-y-auto p-5">
-          <div className="h-[320px] rounded-xl border border-border/50 bg-background/40 p-3">
+          <div className="h-[320px] rounded-xl border border-border/50 bg-muted/20 p-3 shadow-inner">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={chartData}>
                 <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" vertical={false} />
@@ -119,9 +119,9 @@ export function SpeedtestHistoryModal({
             </ResponsiveContainer>
           </div>
 
-          <div className="overflow-x-auto rounded-xl border border-border/50">
+          <div className="overflow-x-auto rounded-xl border border-border/50 bg-card/40 shadow-sm">
             <table className="min-w-full text-sm">
-              <thead className="bg-muted/30 text-left text-xs uppercase tracking-[0.16em] text-muted-foreground">
+              <thead className="border-b border-border/50 bg-muted/30 text-left text-xs uppercase tracking-[0.16em] text-muted-foreground">
                 <tr>
                   <th className="px-4 py-3">Time</th>
                   <th className="px-4 py-3">Trigger</th>
@@ -134,7 +134,10 @@ export function SpeedtestHistoryModal({
               </thead>
               <tbody className="divide-y divide-border/40">
                 {history.map((result) => (
-                  <tr key={result.id ?? `${result.startedAt}-${result.trigger}`}>
+                  <tr
+                    key={result.id ?? `${result.startedAt}-${result.trigger}`}
+                    className="transition-colors hover:bg-muted/20"
+                  >
                     <td className="px-4 py-3 whitespace-nowrap">
                       {formatSpeedtestDate(result.finishedAt)}
                     </td>
