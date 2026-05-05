@@ -18,6 +18,10 @@ vi.mock('@/lib/logger', () => ({
   }),
 }));
 
+vi.mock('@/lib/session', () => ({
+  getSession: vi.fn(),
+}));
+
 vi.mock('next/server', () => ({
   NextResponse: {
     json: vi.fn().mockImplementation((body: unknown, init?: { status?: number }) => ({
@@ -29,6 +33,7 @@ vi.mock('next/server', () => ({
 
 import { GET } from './route';
 import { analyticsService } from '@/lib/analytics';
+import { getSession } from '@/lib/session';
 
 const makeRequest = (params: Record<string, string> = {}) => {
   const url = new URL('http://localhost/api/analytics/recent');
@@ -39,6 +44,18 @@ const makeRequest = (params: Record<string, string> = {}) => {
 describe('GET /api/analytics/recent', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(getSession).mockResolvedValue({ user: { id: 'user-1' } } as never);
+  });
+
+  it('returns 401 without calling analytics when unauthenticated', async () => {
+    vi.mocked(getSession).mockResolvedValue(null);
+
+    const response = await GET(makeRequest());
+    const body = await response.json();
+
+    expect(response.status).toBe(401);
+    expect(body.error).toBe('Unauthorized');
+    expect(analyticsService.getRecentEvents).not.toHaveBeenCalled();
   });
 
   it('returns events from the analytics service', async () => {
