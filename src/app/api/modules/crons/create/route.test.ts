@@ -11,6 +11,9 @@ vi.mock('@/lib/crons/service', () => ({
 vi.mock('@/lib/logger', () => ({
   createLogger: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }),
 }));
+vi.mock('@/lib/session', () => ({
+  getSession: vi.fn().mockResolvedValue({ user: { role: 'admin' } }),
+}));
 
 import { POST } from './route';
 import { NextRequest } from 'next/server';
@@ -64,19 +67,26 @@ describe('POST /api/modules/crons/create', () => {
     const res = await POST(makeRequest(partial));
     expect(res.status).toBe(400);
     const json = await res.json();
-    expect(json.error).toContain('minute');
+    expect(json.error).toBe('Validation failed');
+    expect(json.details.minute).toBeDefined();
   });
 
   it('returns 400 for missing command', async () => {
     const { command: _c, ...partial } = validJob;
     const res = await POST(makeRequest(partial));
     expect(res.status).toBe(400);
+    const json = await res.json();
+    expect(json.error).toBe('Validation failed');
+    expect(json.details.command).toBeDefined();
   });
 
   it('returns 400 for missing hour', async () => {
     const { hour: _h, ...partial } = validJob;
     const res = await POST(makeRequest(partial));
     expect(res.status).toBe(400);
+    const json = await res.json();
+    expect(json.error).toBe('Validation failed');
+    expect(json.details.hour).toBeDefined();
   });
 
   it('returns 500 when service creation fails', async () => {
