@@ -91,6 +91,49 @@ describe('env vars service helpers', () => {
     ]);
   });
 
+  it('keeps hashes inside quoted values and strips inline comments from bare values', async () => {
+    const file = await tempFile(
+      [
+        'QUOTED_HASH="value # not a comment"',
+        "SINGLE_HASH='another # value'",
+        'BARE_WITH_COMMENT=value # comment',
+        'BARE_HASH=value#literal',
+      ].join('\n')
+    );
+
+    const parsed = await parseShellEnvFile(file);
+
+    expect(parsed.variables.map(({ key, value }) => ({ key, value }))).toEqual([
+      { key: 'QUOTED_HASH', value: 'value # not a comment' },
+      { key: 'SINGLE_HASH', value: 'another # value' },
+      { key: 'BARE_WITH_COMMENT', value: 'value' },
+      { key: 'BARE_HASH', value: 'value#literal' },
+    ]);
+    expect(parsed.skipped).toEqual([]);
+  });
+
+  it('skips unsafe shell syntax when parsing env files', async () => {
+    const file = await tempFile(
+      [
+        'COMMAND_SUB=$(whoami)',
+        'BACKTICK=`whoami`',
+        'PIPE=value|other',
+        'REDIRECT=value>other',
+        'SAFE=value',
+      ].join('\n')
+    );
+
+    const parsed = await parseShellEnvFile(file);
+
+    expect(parsed.variables.map((record) => record.key)).toEqual(['SAFE']);
+    expect(parsed.skipped.map((record) => record.key)).toEqual([
+      'COMMAND_SUB',
+      'BACKTICK',
+      'PIPE',
+      'REDIRECT',
+    ]);
+  });
+
   it('parses env command output into current session records', () => {
     expect(
       parseEnvCommandOutput('SHELL=/bin/bash\nHOME=/root\nEMPTY=\nBAD LINE\nTOKEN=secret\n')
@@ -164,12 +207,64 @@ describe('env vars service helpers', () => {
     );
   });
 
+  it('creates a missing shell env file when adding a value', async () => {
+    const dir = await mkdtemp(path.join(os.tmpdir(), 'servermon-env-vars-'));
+    tempDirs.push(dir);
+    const file = path.join(dir, 'nested', '.profile');
+
+    await upsertShellEnvFile(file, 'NEW_VALUE', 'created');
+
+    await expect(readFile(file, 'utf8')).resolves.toBe("export NEW_VALUE='created'\n");
+  });
+
+  it('refuses to replace complex shell env assignments', async () => {
+    const file = await tempFile('TOKEN=$(security find-generic-password -w -s token)\n');
+
+    await expect(upsertShellEnvFile(file, 'TOKEN', 'plain')).rejects.toThrow(
+      'Cannot safely replace complex assignment for TOKEN.'
+    );
+    await expect(readFile(file, 'utf8')).resolves.toBe(
+      'TOKEN=$(security find-generic-password -w -s token)\n'
+    );
+  });
+
   it('deletes simple shell env lines and leaves other keys intact', async () => {
     const file = await tempFile("export OPENAI_API_KEY='sk-test'\nOTHER=value\n");
 
     await deleteFromShellEnvFile(file, 'OPENAI_API_KEY');
 
     await expect(readFile(file, 'utf8')).resolves.toBe('OTHER=value\n');
+  });
+
+  it('empties the shell env file when deleting its only editable line', async () => {
+    const file = await tempFile("export ONLY_VALUE='present'\n");
+
+    await deleteFromShellEnvFile(file, 'ONLY_VALUE');
+
+    await expect(readFile(file, 'utf8')).resolves.toBe('');
+  });
+
+  it('refuses to delete complex shell env assignments', async () => {
+    const file = await tempFile('TOKEN=$(security find-generic-password -w -s token)\n');
+
+    await expect(deleteFromShellEnvFile(file, 'TOKEN')).rejects.toThrow(
+      'Cannot safely delete complex assignment for TOKEN.'
+    );
+    await expect(readFile(file, 'utf8')).resolves.toBe(
+      'TOKEN=$(security find-generic-password -w -s token)\n'
+    );
+  });
+
+  it('rejects invalid keys before mutating shell env files', async () => {
+    const file = await tempFile("SAFE='value'\n");
+
+    await expect(upsertShellEnvFile(file, 'BAD-NAME', 'value')).rejects.toThrow(
+      'Environment variable names must start with a letter or underscore'
+    );
+    await expect(deleteFromShellEnvFile(file, 'BAD-NAME')).rejects.toThrow(
+      'Environment variable names must start with a letter or underscore'
+    );
+    await expect(readFile(file, 'utf8')).resolves.toBe("SAFE='value'\n");
   });
 
   it('builds system-scope instructions instead of applying privileged changes', () => {
