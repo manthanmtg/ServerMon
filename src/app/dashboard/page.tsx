@@ -90,6 +90,7 @@ const Sparkline = React.memo(function Sparkline({
   data: number[];
   color?: string;
 }) {
+  const gradientId = React.useId();
   if (data.length < 2) return null;
   const min = Math.min(...data);
   const max = Math.max(...data);
@@ -98,13 +99,17 @@ const Sparkline = React.memo(function Sparkline({
   const height = 30;
 
   // Normalize points to SVG coordinate space
-  const pathData = data
-    .map((v, i) => {
-      const x = (i / (data.length - 1)) * width;
-      const y = height - ((v - min) / range) * height;
-      return `${i === 0 ? 'M' : 'L'} ${x} ${y}`;
-    })
+  const points = data.map((v, i) => {
+    const x = (i / (data.length - 1)) * width;
+    const y = height - ((v - min) / range) * height;
+    return { x, y };
+  });
+
+  const pathData = points
+    .map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`)
     .join(' ');
+
+  const areaPathData = `${pathData} L ${width} ${height} L 0 ${height} Z`;
 
   return (
     <svg
@@ -112,6 +117,20 @@ const Sparkline = React.memo(function Sparkline({
       className="w-full h-8 opacity-60 overflow-visible translate-y-1"
       aria-hidden="true"
     >
+      <defs>
+        <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={color} stopOpacity="0.3" />
+          <stop offset="100%" stopColor={color} stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      <motion.path
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 1.5, delay: 0.2 }}
+        fill={`url(#${gradientId})`}
+        d={areaPathData}
+        stroke="none"
+      />
       <motion.path
         initial={{ pathLength: 0, opacity: 0 }}
         animate={{ pathLength: 1, opacity: 1 }}
@@ -340,9 +359,10 @@ const StatCard = React.memo(function StatCard({
     <MotionCard
       whileHover={{
         y: -4,
-        transition: { duration: 0.3, ease: 'easeOut' },
+        transition: { duration: 0.2, ease: 'easeOut' },
       }}
-      className="relative overflow-hidden group hover:border-primary/40 transition-all duration-300 shadow-sm hover:shadow-md"
+      whileTap={{ scale: 0.98 }}
+      className="relative overflow-hidden group hover:border-primary/50 transition-all duration-300 shadow-sm hover:shadow-lg active:shadow-inner"
     >
       <CardContent className="p-3 sm:p-4 relative z-10">
         <div className="flex items-center justify-between mb-1">
@@ -384,9 +404,9 @@ const StatCard = React.memo(function StatCard({
 
       {/* Subtle background glow on hover */}
       <div
-        className="absolute inset-0 opacity-0 group-hover:opacity-10 transition-opacity duration-500 pointer-events-none"
+        className="absolute inset-0 opacity-0 group-hover:opacity-15 transition-opacity duration-500 pointer-events-none"
         style={{
-          background: `radial-gradient(circle at center, ${color || 'var(--primary)'} 0%, transparent 70%)`,
+          background: `radial-gradient(circle at 70% 30%, ${color || 'var(--primary)'} 0%, transparent 70%)`,
         }}
       />
     </MotionCard>
