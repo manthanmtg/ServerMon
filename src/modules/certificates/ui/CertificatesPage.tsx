@@ -17,6 +17,20 @@ import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import type { CertificatesSnapshot } from '../types';
 
+interface RenewalResponse {
+  success: boolean;
+  output: string;
+}
+
+function isRenewalResponse(value: unknown): value is RenewalResponse {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    typeof (value as { success?: unknown }).success === 'boolean' &&
+    typeof (value as { output?: unknown }).output === 'string'
+  );
+}
+
 function expiryColor(days: number): string {
   if (days < 0) return 'text-destructive';
   if (days <= 7) return 'text-destructive';
@@ -70,9 +84,12 @@ export default function CertificatesPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ domain }),
       });
-      const data = await res.json();
-      setRenewResult({ domain, ...data });
-      if (data.success) load();
+      const data: unknown = await res.json();
+      const result = isRenewalResponse(data)
+        ? data
+        : { success: false, output: 'Invalid renewal response' };
+      setRenewResult({ domain, ...result });
+      if (result.success) load();
     } catch {
       setRenewResult({ domain, success: false, output: 'Request failed' });
     } finally {
