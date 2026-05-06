@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-05-06T01:18:30.000Z",
+  "updatedAt": "2026-05-06T01:52:49.553Z",
   "description": "Prompt-suite observability metadata. Keep static identity here aligned with prompt frontmatter and update counters during random_selector runs.",
   "outcomeDefinitions": {
     "selected": "The prompt has been selected and the run has not recorded a terminal outcome yet.",
@@ -242,12 +242,12 @@
       "category": "testing",
       "enabled": true,
       "autonomousSafe": true,
-      "totalSelected": 4,
-      "totalCompleted": 4,
+      "totalSelected": 5,
+      "totalCompleted": 5,
       "totalNoop": 0,
       "totalFailed": 0,
-      "lastSelectedAt": "2026-05-04T09:01:04.266Z",
-      "lastCompletedAt": "2026-05-04T09:04:08.955Z",
+      "lastSelectedAt": "2026-05-06T01:46:51.452Z",
+      "lastCompletedAt": "2026-05-06T01:52:49.553Z",
       "lastOutcome": "completed"
     },
     "test_corrector.md": {
@@ -263,23 +263,23 @@
       "totalFailed": 0,
       "lastSelectedAt": "2026-05-05T03:46:02.559Z",
       "lastCompletedAt": "2026-05-05T03:48:45.603Z",
-      "updatedAt": "2026-05-06T01:18:30.000Z",
-      ...
-        "test_coverage_adder.md": {
-          "id": "test-coverage-adder",
-          "file": "test_coverage_adder.md",
-          "title": "Test Coverage Adder",
-          "category": "testing",
-          "enabled": true,
-          "autonomousSafe": true,
-          "totalSelected": 15,
-          "totalCompleted": 15,
-          "totalNoop": 0,
-          "totalFailed": 0,
-          "lastSelectedAt": "2026-05-06T01:15:30.000Z",
-          "lastCompletedAt": "2026-05-06T01:18:30.000Z",
-          "lastOutcome": "completed"
-        },
+      "lastOutcome": "noop"
+    },
+    "test_coverage_adder.md": {
+      "id": "test-coverage-adder",
+      "file": "test_coverage_adder.md",
+      "title": "Test Coverage Adder",
+      "category": "testing",
+      "enabled": true,
+      "autonomousSafe": true,
+      "totalSelected": 15,
+      "totalCompleted": 15,
+      "totalNoop": 0,
+      "totalFailed": 0,
+      "lastSelectedAt": "2026-05-06T01:15:30.000Z",
+      "lastCompletedAt": "2026-05-06T01:18:30.000Z",
+      "lastOutcome": "completed"
+    },
     "type_safety_enforcer.md": {
       "id": "type-safety-enforcer",
       "file": "type_safety_enforcer.md",
