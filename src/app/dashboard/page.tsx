@@ -364,9 +364,9 @@ const StatCard = React.memo(function StatCard({
     >
       <CardContent className="p-3 sm:p-4 relative z-10">
         <div className="flex items-center justify-between mb-1">
-          <span className="text-[10px] sm:text-xs font-medium uppercase tracking-wider text-muted-foreground/80">
+          <h4 className="text-[10px] sm:text-xs font-medium uppercase tracking-wider text-muted-foreground/80">
             {label}
-          </span>
+          </h4>
           <motion.span
             whileHover={{ scale: 1.2, rotate: 5 }}
             className={
@@ -374,20 +374,23 @@ const StatCard = React.memo(function StatCard({
                 ? 'text-warning'
                 : 'text-muted-foreground/60 group-hover:text-primary transition-colors'
             }
-            aria-hidden="true"
           >
-            {status === 'loading' ? <Spinner size="sm" /> : icon}
+            {status === 'loading' ? (
+              <Spinner size="sm" />
+            ) : (
+              <div aria-hidden="true">{icon}</div>
+            )}
           </motion.span>
         </div>
 
         <div className="flex items-baseline gap-2 flex-wrap">
-          <h3
+          <p
             className={`text-xl sm:text-2xl font-bold tracking-tight ${
               status === 'warning' ? 'text-warning' : 'text-foreground'
             }`}
           >
             {value}
-          </h3>
+          </p>
           {subLabel && (
             <span className="text-[10px] sm:text-xs text-muted-foreground truncate opacity-70 group-hover:opacity-100 transition-opacity">
               {subLabel}
