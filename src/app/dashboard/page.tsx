@@ -98,27 +98,30 @@ const Sparkline = React.memo(function Sparkline({
   const height = 30;
 
   // Normalize points to SVG coordinate space
-  const points = data
+  const pathData = data
     .map((v, i) => {
       const x = (i / (data.length - 1)) * width;
       const y = height - ((v - min) / range) * height;
-      return `${x},${y}`;
+      return `${i === 0 ? 'M' : 'L'} ${x} ${y}`;
     })
     .join(' ');
 
   return (
     <svg
       viewBox={`0 0 ${width} ${height}`}
-      className="w-full h-8 opacity-50 overflow-visible translate-y-1"
+      className="w-full h-8 opacity-60 overflow-visible translate-y-1"
       aria-hidden="true"
     >
-      <polyline
+      <motion.path
+        initial={{ pathLength: 0, opacity: 0 }}
+        animate={{ pathLength: 1, opacity: 1 }}
+        transition={{ duration: 1.2, ease: 'easeInOut' }}
         fill="none"
         stroke={color}
-        strokeWidth="1.5"
+        strokeWidth="2"
         strokeLinecap="round"
         strokeLinejoin="round"
-        points={points}
+        d={pathData}
       />
     </svg>
   );
@@ -335,20 +338,28 @@ const StatCard = React.memo(function StatCard({
 }) {
   return (
     <MotionCard
-      whileHover={{ y: -4, transition: { duration: 0.2 } }}
-      className="relative overflow-hidden group hover:border-border transition-colors duration-300"
+      whileHover={{
+        y: -4,
+        transition: { duration: 0.3, ease: 'easeOut' },
+      }}
+      className="relative overflow-hidden group hover:border-primary/40 transition-all duration-300 shadow-sm hover:shadow-md"
     >
       <CardContent className="p-3 sm:p-4 relative z-10">
         <div className="flex items-center justify-between mb-1">
           <span className="text-[10px] sm:text-xs font-medium uppercase tracking-wider text-muted-foreground/80">
             {label}
           </span>
-          <span
-            className={status === 'warning' ? 'text-warning' : 'text-muted-foreground/60'}
+          <motion.span
+            whileHover={{ scale: 1.2, rotate: 5 }}
+            className={
+              status === 'warning'
+                ? 'text-warning'
+                : 'text-muted-foreground/60 group-hover:text-primary transition-colors'
+            }
             aria-hidden="true"
           >
             {status === 'loading' ? <Spinner size="sm" /> : icon}
-          </span>
+          </motion.span>
         </div>
 
         <div className="flex items-baseline gap-2 flex-wrap">
