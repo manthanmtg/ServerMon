@@ -17,7 +17,8 @@ import { getSession } from '@/lib/session';
 import { enforceRbac } from '@/lib/fleet/rbac';
 import { getOrCreateHubAuthToken } from '@/lib/fleet/hubAuth';
 import { deriveNodeStatus } from '@/lib/fleet/status';
-import type { Model } from 'mongoose';
+import type { ApplyEngineDeps } from '@/lib/fleet/applyEngine';
+import type { ConfigRevisionModelLike } from '@/lib/fleet/revisions';
 import type { INodeDTO } from '@/models/Node';
 
 export const dynamic = 'force-dynamic';
@@ -27,6 +28,40 @@ const log = createLogger('api:fleet:nodes');
 interface SessionUser {
   user: { id?: string; username: string; role: string };
 }
+
+type ExecutableQuery<T> = Promise<T> | { exec: () => Promise<T> };
+
+function resolveQuery<T>(query: ExecutableQuery<T>): Promise<T> {
+  return 'exec' in query ? query.exec() : query;
+}
+
+const configRevisionModel: ConfigRevisionModelLike = {
+  findOne: (filter) => ({
+    sort: (sortSpec) => ({
+      lean: () => resolveQuery(ConfigRevision.findOne(filter).sort(sortSpec).lean()),
+    }),
+  }),
+  create: (doc) => ConfigRevision.create(doc),
+};
+
+const applyRevisionModels: Pick<
+  ApplyEngineDeps,
+  'ConfigRevision' | 'FrpServerState' | 'PublicRoute' | 'Node'
+> = {
+  ConfigRevision: {
+    findById: (id) => ConfigRevision.findById(id).exec(),
+  },
+  FrpServerState: {
+    findOneAndUpdate: (filter, update, opts) =>
+      FrpServerState.findOneAndUpdate(filter, update, opts).exec(),
+  },
+  PublicRoute: {
+    findByIdAndUpdate: (id, update, opts) => PublicRoute.findByIdAndUpdate(id, update, opts).exec(),
+  },
+  Node: {
+    findByIdAndUpdate: (id, update, opts) => Node.findByIdAndUpdate(id, update, opts).exec(),
+  },
+};
 
 export async function GET(req: NextRequest) {
   try {
@@ -104,12 +139,8 @@ export async function POST(req: NextRequest) {
       key: 'maxAgents',
       scope: 'global',
       currentCounter: async () => Node.countDocuments(),
-      ResourcePolicy: ResourcePolicy as unknown as Parameters<
-        typeof enforceResourceGuard
-      >[0]['ResourcePolicy'],
-      FleetLogEvent: FleetLogEvent as unknown as Parameters<
-        typeof enforceResourceGuard
-      >[0]['FleetLogEvent'],
+      ResourcePolicy,
+      FleetLogEvent,
       actorUserId: session.user.username,
     });
     if (!guard.allowed) {
@@ -164,7 +195,7 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    const revision = await saveRevision(ConfigRevision as unknown as Model<unknown>, {
+    const revision = await saveRevision(configRevisionModel, {
       kind: 'frpc',
       targetId: String(node._id),
       structured: node.toObject(),
@@ -193,14 +224,7 @@ export async function POST(req: NextRequest) {
       await applyRevision(revision.id, {
         frp: getFrpOrchestrator(),
         nginx: getNginxOrchestrator(),
-        ConfigRevision: ConfigRevision as unknown as Parameters<
-          typeof applyRevision
-        >[1]['ConfigRevision'],
-        FrpServerState: FrpServerState as unknown as Parameters<
-          typeof applyRevision
-        >[1]['FrpServerState'],
-        PublicRoute: PublicRoute as unknown as Parameters<typeof applyRevision>[1]['PublicRoute'],
-        Node: Node as unknown as Parameters<typeof applyRevision>[1]['Node'],
+        ...applyRevisionModels,
       }).catch((err) => log.warn('applyRevision failed post-create', err));
     }
 
