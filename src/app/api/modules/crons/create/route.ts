@@ -1,33 +1,42 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createLogger } from '@/lib/logger';
 import { cronsService } from '@/lib/crons/service';
+import { getSession } from '@/lib/session';
+import { z } from 'zod';
 
 export const dynamic = 'force-dynamic';
 
 const log = createLogger('api:crons:create');
 
+const CronCreateSchema = z.object({
+  minute: z.string().min(1),
+  hour: z.string().min(1),
+  dayOfMonth: z.string().min(1),
+  month: z.string().min(1),
+  dayOfWeek: z.string().min(1),
+  command: z.string().min(1),
+  comment: z.string().optional(),
+  user: z.string().optional(),
+});
+
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
-    const { minute, hour, dayOfMonth, month, dayOfWeek, command, comment, user } = body;
+    const session = await getSession();
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
 
-    if (!minute || !hour || !dayOfMonth || !month || !dayOfWeek || !command) {
+    const body = await req.json();
+    const parsed = CronCreateSchema.safeParse(body);
+
+    if (!parsed.success) {
       return NextResponse.json(
-        { error: 'Missing required fields: minute, hour, dayOfMonth, month, dayOfWeek, command' },
+        { error: 'Validation failed', details: parsed.error.flatten().fieldErrors },
         { status: 400 }
       );
     }
 
-    const result = await cronsService.createJob({
-      minute,
-      hour,
-      dayOfMonth,
-      month,
-      dayOfWeek,
-      command,
-      comment,
-      user,
-    });
+    const result = await cronsService.createJob(parsed.data);
 
     if (!result.success) {
       return NextResponse.json({ error: result.message }, { status: 500 });

@@ -7,12 +7,17 @@ const { mockUpdateJob, mockDeleteJob } = vi.hoisted(() => ({
 }));
 
 vi.mock('@/lib/crons/service', () => ({
-  cronsService: { updateJob: mockUpdateJob, deleteJob: mockDeleteJob },
+  cronsService: {
+    updateJob: mockUpdateJob,
+    deleteJob: mockDeleteJob,
+  },
 }));
 vi.mock('@/lib/logger', () => ({
   createLogger: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }),
 }));
-
+vi.mock('@/lib/session', () => ({
+  getSession: vi.fn().mockResolvedValue({ user: { role: 'admin' } }),
+}));
 import { PUT, DELETE } from './route';
 import { NextRequest } from 'next/server';
 
