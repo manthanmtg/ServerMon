@@ -42,7 +42,7 @@ export function DiskSummaryCards({
             </h3>
             <p className="text-xs text-muted-foreground">capacity used</p>
           </div>
-          <div 
+          <div
             className="mt-3 h-1.5 w-full bg-secondary rounded-full overflow-hidden"
             role="progressbar"
             aria-valuenow={primaryDisk?.use || 0}
@@ -75,7 +75,7 @@ export function DiskSummaryCards({
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1.5">
-                <span 
+                <span
                   className="w-4 h-4 rounded-sm bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-[9px] font-black text-emerald-500"
                   aria-label="Read"
                 >
@@ -85,11 +85,16 @@ export function DiskSummaryCards({
                   {formatBytes(totalIORead, settings.unitSystem)}/s
                 </span>
               </div>
-              <span className="text-[10px] text-muted-foreground uppercase font-bold" aria-hidden="true">Read</span>
+              <span
+                className="text-[10px] text-muted-foreground uppercase font-bold"
+                aria-hidden="true"
+              >
+                Read
+              </span>
             </div>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1.5">
-                <span 
+                <span
                   className="w-4 h-4 rounded-sm bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-[9px] font-black text-blue-500"
                   aria-label="Write"
                 >
@@ -99,7 +104,12 @@ export function DiskSummaryCards({
                   {formatBytes(totalIOWrite, settings.unitSystem)}/s
                 </span>
               </div>
-              <span className="text-[10px] text-muted-foreground uppercase font-bold" aria-hidden="true">Write</span>
+              <span
+                className="text-[10px] text-muted-foreground uppercase font-bold"
+                aria-hidden="true"
+              >
+                Write
+              </span>
             </div>
           </div>
           <div className="mt-3 pt-2 border-t border-border/30 flex justify-between items-center whitespace-nowrap overflow-hidden">

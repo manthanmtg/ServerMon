@@ -311,6 +311,10 @@ function envRecordsToDictionary(records: EnvVarRecord[]): EnvDictionary {
   return Object.fromEntries(records.map((record) => [record.key, record.value]));
 }
 
+function toNodeEnv(value: string | undefined): NodeJS.ProcessEnv['NODE_ENV'] {
+  return value === 'production' || value === 'test' ? value : 'development';
+}
+
 export function parseEnvCommandOutput(output: string): EnvVarRecord[] {
   return output
     .split(/\r?\n/)
@@ -337,7 +341,15 @@ export function parseEnvCommandOutput(output: string): EnvVarRecord[] {
 }
 
 function toProcessEnv(env: EnvDictionary): NodeJS.ProcessEnv {
-  return env as unknown as NodeJS.ProcessEnv;
+  const processEnv: NodeJS.ProcessEnv = {
+    NODE_ENV: toNodeEnv(env.NODE_ENV ?? process.env.NODE_ENV),
+  };
+  for (const [key, value] of Object.entries(env)) {
+    if (typeof value === 'string') {
+      processEnv[key] = value;
+    }
+  }
+  return processEnv;
 }
 
 function sanitizedShellSeedEnv(target: EnvVarTarget, env: EnvDictionary): EnvDictionary {
