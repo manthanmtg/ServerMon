@@ -6,7 +6,7 @@ export interface ResilientFetchOptions extends RequestInit {
 
 export function isAbortError(err: unknown): boolean {
   return (
-    err instanceof DOMException ||
+    (err instanceof DOMException && err.name === 'AbortError') ||
     (err instanceof Error && (err.name === 'AbortError' || err.message === 'AbortError'))
   );
 }

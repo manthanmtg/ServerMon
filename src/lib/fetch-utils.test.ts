@@ -1,10 +1,14 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { resilientFetch, isAbortError, safeJson } from './fetch-utils';
 
 describe('fetch-utils', () => {
   describe('isAbortError', () => {
     it('identifies DOMException AbortError', () => {
       expect(isAbortError(new DOMException('Aborted', 'AbortError'))).toBe(true);
+    });
+
+    it('rejects DOMException values with other names', () => {
+      expect(isAbortError(new DOMException('Invalid JSON', 'SyntaxError'))).toBe(false);
     });
 
     it('identifies Error with name AbortError', () => {
@@ -44,6 +48,11 @@ describe('fetch-utils', () => {
       const data = await safeJson(res);
       expect(data).toBeNull();
     });
+
+    it('returns null for an empty response body', async () => {
+      const res = new Response(null, { status: 204 });
+      await expect(safeJson(res)).resolves.toBeNull();
+    });
   });
 
   describe('resilientFetch', () => {
@@ -51,10 +60,30 @@ describe('fetch-utils', () => {
       vi.stubGlobal('fetch', vi.fn());
     });
 
+    afterEach(() => {
+      vi.useRealTimers();
+      vi.unstubAllGlobals();
+    });
+
     it('successfully fetches data', async () => {
       vi.mocked(fetch).mockResolvedValueOnce(new Response('ok'));
       const res = await resilientFetch('/api/test');
       expect(res.ok).toBe(true);
+    });
+
+    it('passes headers through to fetch', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(new Response('ok'));
+
+      await resilientFetch('/api/test', {
+        headers: { authorization: 'Bearer token' },
+      });
+
+      expect(fetch).toHaveBeenCalledWith(
+        '/api/test',
+        expect.objectContaining({
+          headers: { authorization: 'Bearer token' },
+        })
+      );
     });
 
     it('times out if request takes too long', async () => {
@@ -98,6 +127,25 @@ describe('fetch-utils', () => {
         .mockResolvedValueOnce(new Response('ok'));
 
       const res = await resilientFetch('/api/test', { retries: 1, retryDelay: 10 });
+      expect(res.ok).toBe(true);
+      expect(fetch).toHaveBeenCalledTimes(2);
+    });
+
+    it('waits for the configured retry delay before retrying', async () => {
+      vi.useFakeTimers();
+      vi.mocked(fetch)
+        .mockRejectedValueOnce(new Error('Network error'))
+        .mockResolvedValueOnce(new Response('ok'));
+
+      const request = resilientFetch('/api/test', { retries: 1, retryDelay: 250 });
+      await vi.waitFor(() => expect(fetch).toHaveBeenCalledTimes(1));
+
+      await vi.advanceTimersByTimeAsync(249);
+      expect(fetch).toHaveBeenCalledTimes(1);
+
+      await vi.advanceTimersByTimeAsync(1);
+      const res = await request;
+
       expect(res.ok).toBe(true);
       expect(fetch).toHaveBeenCalledTimes(2);
     });
@@ -147,6 +195,15 @@ describe('fetch-utils', () => {
       const req = new Request('https://example.com');
       await resilientFetch(req);
       expect(fetch).toHaveBeenCalledWith(req, expect.any(Object));
+    });
+
+    it('accepts URL objects', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(new Response('ok'));
+      const url = new URL('https://example.com/api/test');
+
+      await resilientFetch(url);
+
+      expect(fetch).toHaveBeenCalledWith(url, expect.any(Object));
     });
   });
 });
