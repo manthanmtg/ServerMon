@@ -208,7 +208,7 @@ Concise map of major directories, commands, and key files. Update this section w
 - `src/lib/endpoints/` — executors for custom API logic (scripts, webhooks, logic handlers)
 - `src/lib/certificates/`, `src/lib/ports/`, `src/lib/memory/`, `src/lib/security/` — service-layer logic for certificates, ports, memory monitoring, and security management
 - `src/models/` — Mongoose schemas
-- `src/modules/` — feature modules (terminal, processes, logs, metrics, fleet, ai-agents, ai-runner, disk, nginx, self-service, endpoints, users, services, security, certificates, ports, memory, guide, etc.)
+- `src/modules/` — feature modules (terminal, processes, logs, metrics, fleet, ai-agents, ai-runner, apps, disk, nginx, self-service, endpoints, users, services, security, certificates, ports, memory, guide, etc.)
 - `src/models/NetworkSpeedtestResult.ts`, `src/models/NetworkSpeedtestSettings.ts`, `src/models/NetworkAlert.ts`, `src/models/NetworkStatAggregate.ts` — persisted Network module data
 - `src/models/CustomEndpoint.ts`, `src/models/EndpointExecutionLog.ts` — persisted endpoint configuration and execution history
 - `src/lib/env-vars/` — stateless host environment variable helpers for OS target detection, shell env parsing, user-scope add/delete, and system-scope instructions
@@ -251,6 +251,14 @@ Concise map of major directories, commands, and key files. Update this section w
 - `src/modules/self-service/` — Browse and install services/tools with fully managed provisioning (Nginx, SSL, systemd); logic in `engine/`, definitions in `templates/`
 - `src/modules/endpoints/` — Define and manage custom API endpoints with script handlers and webhook proxying
 - `src/lib/endpoints/` — Logic executors (script, logic, webhook) and token service for custom endpoints
+
+### Apps
+
+- `src/modules/apps/` — Linux-first managed app deployment module; v1 supports explicit-command Next.js deployments with managed release copies, systemd service generation, Nginx routing, DNS guidance, and Apps UI/widget registration
+- `src/lib/apps/` — Apps deployment helpers for release paths, env masking, systemd/Nginx rendering, and the injectable deployment runner used by API routes
+- `src/models/ManagedApp.ts` — persisted app metadata, commands, masked env source values, status, current release, and deployment history
+- `src/app/api/modules/apps/` — Apps API routes for authenticated app list/create and deploy actions
+- `src/app/apps/` — Apps module page route wrapped in `ProShell`
 
 ### AI & Automation
 

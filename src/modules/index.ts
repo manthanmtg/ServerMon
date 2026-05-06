@@ -23,6 +23,7 @@ import { memoryModule } from './memory/module';
 import { usersModule } from './users/module';
 import { endpointsModule } from './endpoints/module';
 import { selfServiceModule } from './self-service/module';
+import { appsModule } from './apps/module';
 import { fleetModule } from './fleet/module';
 import { envVarsModule } from './env-vars/module';
 
@@ -53,6 +54,7 @@ export const coreModules: Module[] = [
   usersModule,
   endpointsModule,
   selfServiceModule,
+  appsModule,
   fleetModule,
   envVarsModule,
 ];

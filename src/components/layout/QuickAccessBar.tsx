@@ -10,6 +10,7 @@ import {
   Activity,
   Bell,
   FolderTree,
+  Boxes,
   HardDrive,
   KeyRound,
   Package,
@@ -66,6 +67,7 @@ const ICON_MAP: Record<string, LucideIcon> = {
   memory: Brain,
   endpoints: Waypoints,
   'self-service': Zap,
+  apps: Boxes,
   'env-vars': KeyRound,
 };
 

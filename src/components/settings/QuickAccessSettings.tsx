@@ -43,6 +43,7 @@ const ICON_KEY_BY_HREF: Record<string, string> = {
   '/memory': 'Brain',
   '/endpoints': 'Waypoints',
   '/self-service': 'Zap',
+  '/apps': 'Boxes',
   '/env-vars': 'KeyRound',
 };
 

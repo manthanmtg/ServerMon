@@ -65,8 +65,12 @@ describe('coreModules registry', () => {
     expect(coreModules.some((m) => m.id === 'env-vars')).toBe(true);
   });
 
-  it('includes exactly 26 modules', () => {
-    expect(coreModules).toHaveLength(26);
+  it('includes the apps module', () => {
+    expect(coreModules.some((m) => m.id === 'apps')).toBe(true);
+  });
+
+  it('includes exactly 27 modules', () => {
+    expect(coreModules).toHaveLength(27);
   });
 
   it('every module with widgets has valid widget objects', () => {
