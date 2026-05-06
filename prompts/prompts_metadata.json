@@ -302,12 +302,12 @@
       "category": "ui-quality",
       "enabled": true,
       "autonomousSafe": true,
-      "totalSelected": 12,
-      "totalCompleted": 12,
+      "totalSelected": 13,
+      "totalCompleted": 13,
       "totalNoop": 0,
       "totalFailed": 0,
-      "lastSelectedAt": "2026-05-06T09:15:56.082Z",
-      "lastCompletedAt": "2026-05-06T09:18:23.827Z",
+      "lastSelectedAt": "2026-05-06T13:25:54.801Z",
+      "lastCompletedAt": "2026-05-06T13:25:54.801Z",
       "lastOutcome": "completed"
     }
   }
