@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createLogger } from '@/lib/logger';
 import connectDB from '@/lib/db';
+import { getSession } from '@/lib/session';
 import { revokeToken } from '@/lib/endpoints/token-service';
 
 export const dynamic = 'force-dynamic';
@@ -12,6 +13,11 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string; tokenId: string }> }
 ) {
   try {
+    const session = await getSession();
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     await connectDB();
     const { id, tokenId } = await params;
 
