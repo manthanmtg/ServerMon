@@ -371,7 +371,7 @@ interface ProcessListProps {
   onKillProcess: (pid: number, signal: string) => void;
 }
 
-export function ProcessList({
+export const ProcessList = React.memo(function ProcessList({
   processes,
   sortField,
   expandedPid,
@@ -476,4 +476,6 @@ export function ProcessList({
       {footer}
     </div>
   );
-}
+});
+
+ProcessList.displayName = 'ProcessList';

@@ -375,11 +375,7 @@ const StatCard = React.memo(function StatCard({
                 : 'text-muted-foreground/60 group-hover:text-primary transition-colors'
             }
           >
-            {status === 'loading' ? (
-              <Spinner size="sm" />
-            ) : (
-              <div aria-hidden="true">{icon}</div>
-            )}
+            {status === 'loading' ? <Spinner size="sm" /> : <div aria-hidden="true">{icon}</div>}
           </motion.span>
         </div>
 
