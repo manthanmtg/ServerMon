@@ -34,7 +34,7 @@ export function DiskSummaryCards({
             <p className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">
               Main Storage
             </p>
-            <Database className="w-4 h-4 text-primary/40" />
+            <Database className="w-4 h-4 text-primary/40" aria-hidden="true" />
           </div>
           <div className="flex items-baseline gap-2">
             <h3 className="text-2xl font-bold tracking-tight">
@@ -42,7 +42,14 @@ export function DiskSummaryCards({
             </h3>
             <p className="text-xs text-muted-foreground">capacity used</p>
           </div>
-          <div className="mt-3 h-1.5 w-full bg-secondary rounded-full overflow-hidden">
+          <div 
+            className="mt-3 h-1.5 w-full bg-secondary rounded-full overflow-hidden"
+            role="progressbar"
+            aria-valuenow={primaryDisk?.use || 0}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-label={`${primaryDisk?.mount || 'Main'} storage usage`}
+          >
             <div
               className={`h-full transition-all duration-1000 ${(primaryDisk?.use || 0) > 90 ? 'bg-destructive' : (primaryDisk?.use || 0) > 75 ? 'bg-orange-500' : 'bg-primary'}`}
               style={{ width: `${primaryDisk?.use || 0}%` }}
@@ -63,30 +70,36 @@ export function DiskSummaryCards({
             <p className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">
               Live Throughput
             </p>
-            <Zap className="w-4 h-4 text-amber-500/40" />
+            <Zap className="w-4 h-4 text-amber-500/40" aria-hidden="true" />
           </div>
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1.5">
-                <span className="w-4 h-4 rounded-sm bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-[9px] font-black text-emerald-500">
+                <span 
+                  className="w-4 h-4 rounded-sm bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-[9px] font-black text-emerald-500"
+                  aria-label="Read"
+                >
                   R
                 </span>
                 <span className="text-xs font-semibold">
                   {formatBytes(totalIORead, settings.unitSystem)}/s
                 </span>
               </div>
-              <span className="text-[10px] text-muted-foreground uppercase font-bold">Read</span>
+              <span className="text-[10px] text-muted-foreground uppercase font-bold" aria-hidden="true">Read</span>
             </div>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1.5">
-                <span className="w-4 h-4 rounded-sm bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-[9px] font-black text-blue-500">
+                <span 
+                  className="w-4 h-4 rounded-sm bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-[9px] font-black text-blue-500"
+                  aria-label="Write"
+                >
                   W
                 </span>
                 <span className="text-xs font-semibold">
                   {formatBytes(totalIOWrite, settings.unitSystem)}/s
                 </span>
               </div>
-              <span className="text-[10px] text-muted-foreground uppercase font-bold">Write</span>
+              <span className="text-[10px] text-muted-foreground uppercase font-bold" aria-hidden="true">Write</span>
             </div>
           </div>
           <div className="mt-3 pt-2 border-t border-border/30 flex justify-between items-center whitespace-nowrap overflow-hidden">
@@ -104,7 +117,7 @@ export function DiskSummaryCards({
             <p className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">
               Disk Health
             </p>
-            <ShieldCheck className="w-4 h-4 text-emerald-500/40" />
+            <ShieldCheck className="w-4 h-4 text-emerald-500/40" aria-hidden="true" />
           </div>
           <div className="flex flex-col items-start gap-1">
             <div className="flex items-center gap-2">
@@ -132,7 +145,7 @@ export function DiskSummaryCards({
             <p className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">
               Active Load
             </p>
-            <Activity className="w-4 h-4 text-indigo-500/40" />
+            <Activity className="w-4 h-4 text-indigo-500/40" aria-hidden="true" />
           </div>
           <div className="flex items-baseline gap-2">
             <h3 className="text-2xl font-bold tracking-tight">{disks.length}</h3>
