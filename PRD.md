@@ -233,6 +233,7 @@ Features:
 
 - Displays widgets from modules
 - Live updating metrics
+- Real‑time network latency (ping) monitoring
 - Configurable widget layout
 
 Widgets are **registered by modules**.
@@ -913,7 +914,7 @@ Goal: allow developers to create modules quickly.
 
 The following modules are currently implemented in the core system:
 
-- **Dashboard**: Real-time CPU, memory, and system health widgets with live charts
+- **Dashboard**: Real-time CPU, memory, system health, and network latency widgets with live charts
 - **Terminal**: Interactive web terminal powered by xterm.js and node-pty
 - **Processes**: View, search, and manage running processes
 - **File Browser**: Filesystem navigation and CodeMirror 6 editing (20+ languages)
