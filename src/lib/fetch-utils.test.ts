@@ -97,6 +97,57 @@ describe('fetch-utils', () => {
       );
     });
 
+    it('passes request options through while replacing only the signal', async () => {
+      const controller = new AbortController();
+      vi.mocked(fetch).mockResolvedValueOnce(new Response('ok'));
+
+      await resilientFetch('/api/test', {
+        cache: 'no-store',
+        credentials: 'include',
+        mode: 'same-origin',
+        redirect: 'manual',
+        signal: controller.signal,
+      });
+
+      expect(fetch).toHaveBeenCalledWith(
+        '/api/test',
+        expect.objectContaining({
+          cache: 'no-store',
+          credentials: 'include',
+          mode: 'same-origin',
+          redirect: 'manual',
+          signal: expect.any(AbortSignal),
+        })
+      );
+      expect(vi.mocked(fetch).mock.calls[0]?.[1]?.signal).not.toBe(controller.signal);
+    });
+
+    it('removes caller abort listeners after a successful request', async () => {
+      const controller = new AbortController();
+      const addListener = vi.spyOn(controller.signal, 'addEventListener');
+      const removeListener = vi.spyOn(controller.signal, 'removeEventListener');
+      vi.mocked(fetch).mockResolvedValueOnce(new Response('ok'));
+
+      await resilientFetch('/api/test', { signal: controller.signal });
+
+      expect(addListener).toHaveBeenCalledWith('abort', expect.any(Function), { once: true });
+      expect(removeListener).toHaveBeenCalledWith('abort', addListener.mock.calls[0]?.[1]);
+    });
+
+    it('removes caller abort listeners after a failed request', async () => {
+      const controller = new AbortController();
+      const addListener = vi.spyOn(controller.signal, 'addEventListener');
+      const removeListener = vi.spyOn(controller.signal, 'removeEventListener');
+      vi.mocked(fetch).mockRejectedValueOnce(new Error('Network error'));
+
+      await expect(resilientFetch('/api/test', { signal: controller.signal })).rejects.toThrow(
+        'Network error'
+      );
+
+      expect(addListener).toHaveBeenCalledWith('abort', expect.any(Function), { once: true });
+      expect(removeListener).toHaveBeenCalledWith('abort', addListener.mock.calls[0]?.[1]);
+    });
+
     it('times out if request takes too long', async () => {
       vi.mocked(fetch).mockImplementationOnce(
         (_url: string | URL | Request, init?: RequestInit) => {
@@ -140,6 +191,16 @@ describe('fetch-utils', () => {
       const res = await resilientFetch('/api/test', { retries: 1, retryDelay: 10 });
       expect(res.ok).toBe(true);
       expect(fetch).toHaveBeenCalledTimes(2);
+    });
+
+    it('uses the last retry error when every attempt fails', async () => {
+      const firstError = new Error('First failure');
+      const secondError = new Error('Second failure');
+      vi.mocked(fetch).mockRejectedValueOnce(firstError).mockRejectedValueOnce(secondError);
+
+      await expect(resilientFetch('/api/test', { retries: 1, retryDelay: 1 })).rejects.toBe(
+        secondError
+      );
     });
 
     it('uses the default retry delay before a retry attempt', async () => {
@@ -187,6 +248,26 @@ describe('fetch-utils', () => {
         'Persistent failure'
       );
       expect(fetch).toHaveBeenCalledTimes(3);
+    });
+
+    it('retries after a timeout failure', async () => {
+      vi.useFakeTimers();
+      vi.mocked(fetch)
+        .mockImplementationOnce((_url: string | URL | Request, init?: RequestInit) => {
+          return new Promise((_resolve, reject) => {
+            init?.signal?.addEventListener('abort', () => {
+              reject(new DOMException('Aborted', 'AbortError'));
+            });
+          });
+        })
+        .mockResolvedValueOnce(new Response('ok'));
+
+      const request = resilientFetch('/api/test', { timeout: 25, retries: 1, retryDelay: 10 });
+      await vi.advanceTimersByTimeAsync(25);
+      await vi.advanceTimersByTimeAsync(10);
+
+      await expect(request).resolves.toHaveProperty('ok', true);
+      expect(fetch).toHaveBeenCalledTimes(2);
     });
 
     it('does not retry when retries is zero', async () => {
