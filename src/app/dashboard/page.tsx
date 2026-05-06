@@ -105,9 +105,7 @@ const Sparkline = React.memo(function Sparkline({
     return { x, y };
   });
 
-  const pathData = points
-    .map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`)
-    .join(' ');
+  const pathData = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
 
   const areaPathData = `${pathData} L ${width} ${height} L 0 ${height} Z`;
 
