@@ -53,6 +53,17 @@ describe('fetch-utils', () => {
       const res = new Response(null, { status: 204 });
       await expect(safeJson(res)).resolves.toBeNull();
     });
+
+    it('returns JSON null as null without treating it as a parse error', async () => {
+      const res = new Response('null');
+      await expect(safeJson(res)).resolves.toBeNull();
+    });
+
+    it('preserves JSON primitive values', async () => {
+      await expect(safeJson<boolean>(new Response('false'))).resolves.toBe(false);
+      await expect(safeJson<number>(new Response('0'))).resolves.toBe(0);
+      await expect(safeJson<string>(new Response('"ok"'))).resolves.toBe('ok');
+    });
   });
 
   describe('resilientFetch', () => {
@@ -131,6 +142,25 @@ describe('fetch-utils', () => {
       expect(fetch).toHaveBeenCalledTimes(2);
     });
 
+    it('uses the default retry delay before a retry attempt', async () => {
+      vi.useFakeTimers();
+      vi.mocked(fetch)
+        .mockRejectedValueOnce(new Error('Network error'))
+        .mockResolvedValueOnce(new Response('ok'));
+
+      const request = resilientFetch('/api/test', { retries: 1 });
+      await vi.waitFor(() => expect(fetch).toHaveBeenCalledTimes(1));
+
+      await vi.advanceTimersByTimeAsync(999);
+      expect(fetch).toHaveBeenCalledTimes(1);
+
+      await vi.advanceTimersByTimeAsync(1);
+      const res = await request;
+
+      expect(res.ok).toBe(true);
+      expect(fetch).toHaveBeenCalledTimes(2);
+    });
+
     it('waits for the configured retry delay before retrying', async () => {
       vi.useFakeTimers();
       vi.mocked(fetch)
@@ -159,6 +189,13 @@ describe('fetch-utils', () => {
       expect(fetch).toHaveBeenCalledTimes(3);
     });
 
+    it('does not retry when retries is zero', async () => {
+      vi.mocked(fetch).mockRejectedValueOnce(new Error('Network error'));
+
+      await expect(resilientFetch('/api/test', { retryDelay: 1 })).rejects.toThrow('Network error');
+      expect(fetch).toHaveBeenCalledTimes(1);
+    });
+
     it('respects already aborted signals', async () => {
       const controller = new AbortController();
       controller.abort('Already done');
@@ -172,6 +209,16 @@ describe('fetch-utils', () => {
 
       await expect(resilientFetch('/api/test', { signal: controller.signal })).rejects.toThrow();
       expect(fetch).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not wait for the timeout after fetch rejects immediately', async () => {
+      vi.useFakeTimers();
+      vi.mocked(fetch).mockRejectedValueOnce(new Error('Network error'));
+
+      const request = resilientFetch('/api/test', { timeout: 1000 });
+
+      await expect(request).rejects.toThrow('Network error');
+      expect(vi.getTimerCount()).toBe(0);
     });
 
     it('handles different HTTP methods and bodies', async () => {
