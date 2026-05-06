@@ -1,6 +1,6 @@
-export const PUBLIC_ROUTES = ['/login', '/setup'] as const;
+const PUBLIC_ROUTES = ['/login', '/setup'] as const;
 
-export const PUBLIC_API_ROUTE_PREFIXES = [
+const PUBLIC_API_ROUTE_PREFIXES = [
   '/api/auth/login',
   '/api/auth/logout',
   '/api/auth/passkey',

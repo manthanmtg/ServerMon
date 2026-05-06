@@ -77,15 +77,15 @@ interface LocalParts {
   minutes: number;
 }
 
-export function getAutoUpdateConfigPath(): string {
+function getAutoUpdateConfigPath(): string {
   return process.env.SERVERMON_AUTO_UPDATE_CONFIG || DEFAULT_CONFIG_PATH;
 }
 
-export function getSystemTimezone(): string {
+function getSystemTimezone(): string {
   return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
 }
 
-export function getDefaultAutoUpdateSettings(): AutoUpdateSettings {
+function getDefaultAutoUpdateSettings(): AutoUpdateSettings {
   return AutoUpdateSettingsZ.parse({});
 }
 
