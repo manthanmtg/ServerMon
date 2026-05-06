@@ -115,75 +115,87 @@ interface ProcessItemProps {
 const ProcessCard = React.memo(
   ({ process: p, isExpanded, isKilling, onToggleExpand, onKill }: ProcessItemProps) => (
     <div className="p-3">
-      <div className="flex items-start justify-between mb-2">
+      <div
+        className="flex items-start justify-between mb-2 cursor-pointer group/card-header select-none"
+        onClick={() => onToggleExpand(p.pid)}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            onToggleExpand(p.pid);
+          }
+        }}
+        aria-label={`${isExpanded ? 'Collapse' : 'Expand'} details for process ${p.name} (${p.pid})`}
+        aria-expanded={isExpanded}
+      >
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 mb-0.5">
-            <span className="text-sm font-medium text-foreground truncate">{p.name}</span>
-            <Badge variant={stateVariant(p.state)} className="text-[10px]">
+            <span className="text-sm font-semibold text-foreground truncate">{p.name}</span>
+            <Badge variant={stateVariant(p.state)} className="text-[10px] py-0 h-4 px-1.5">
               {p.state}
             </Badge>
           </div>
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <span className="font-mono">PID {p.pid}</span>
+            <span className="font-mono bg-secondary/50 px-1 rounded text-[10px]">PID {p.pid}</span>
             <span>·</span>
             <span>{p.user}</span>
           </div>
         </div>
-        <button
-          type="button"
-          className="flex items-center justify-center h-7 w-7 rounded-md hover:bg-accent transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
-          onClick={() => onToggleExpand(p.pid)}
-          aria-label={`${isExpanded ? 'Collapse' : 'Expand'} details for process ${p.name} (${
-            p.pid
-          })`}
-          aria-expanded={isExpanded}
+        <div
+          className="flex items-center justify-center h-9 w-9 -mr-1.5 -mt-1 rounded-full group-hover/card-header:bg-accent/50 transition-colors text-muted-foreground group-hover/card-header:text-foreground"
+          aria-hidden="true"
         >
-          {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-        </button>
+          {isExpanded ? <ChevronDown className="w-5 h-5" /> : <ChevronRight className="w-5 h-5" />}
+        </div>
       </div>
       <div className="flex items-center gap-4 text-sm">
-        <div className="flex items-center gap-1.5">
-          <Cpu className="w-3 h-3 text-muted-foreground" />
+        <div className="flex items-center gap-1.5" title="CPU Usage">
+          <Cpu className="w-3.5 h-3.5 text-muted-foreground" />
           <span className={cn('font-medium tabular-nums', cpuColor(p.cpu))}>
             {p.cpu.toFixed(1)}%
           </span>
         </div>
-        <div className="flex items-center gap-1.5">
-          <MemoryStick className="w-3 h-3 text-muted-foreground" />
+        <div className="flex items-center gap-1.5" title="Memory Usage">
+          <MemoryStick className="w-3.5 h-3.5 text-muted-foreground" />
           <span className="font-medium text-foreground tabular-nums">{p.mem.toFixed(1)}%</span>
         </div>
         {p.started && (
-          <div className="flex items-center gap-1.5">
-            <Clock className="w-3 h-3 text-muted-foreground" />
+          <div className="flex items-center gap-1.5" title="Uptime">
+            <Clock className="w-3.5 h-3.5 text-muted-foreground" />
             <span className="text-xs text-muted-foreground">{formatTime(p.started)}</span>
           </div>
         )}
       </div>
       {isExpanded && (
-        <div className="mt-3 pt-3 border-t border-border space-y-2 text-xs animate-fade-in">
-          <div className="flex justify-between">
+        <div className="mt-3 pt-3 border-t border-border space-y-2.5 text-xs animate-fade-in">
+          <div className="flex flex-col gap-1">
             <span className="text-muted-foreground">Command</span>
-            <span className="text-foreground font-mono truncate max-w-[60%] text-right">
+            <div className="text-foreground font-mono break-all bg-secondary/30 p-2 rounded border border-border/50 leading-relaxed">
               {p.command}
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="flex flex-col gap-1">
+              <span className="text-muted-foreground">RSS Memory</span>
+              <span className="text-foreground font-medium">{formatBytes(p.memRss)}</span>
+            </div>
+            <div className="flex flex-col gap-1">
+              <span className="text-muted-foreground">Parent PID</span>
+              <span className="text-foreground font-mono">{p.parentPid}</span>
+            </div>
+          </div>
+          <div className="flex justify-between items-center py-1">
+            <span className="text-muted-foreground">Priority</span>
+            <span className="text-foreground bg-secondary/50 px-2 py-0.5 rounded-full font-medium">
+              {p.priority}
             </span>
           </div>
-          <div className="flex justify-between">
-            <span className="text-muted-foreground">RSS Memory</span>
-            <span className="text-foreground">{formatBytes(p.memRss)}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-muted-foreground">Parent PID</span>
-            <span className="text-foreground font-mono">{p.parentPid}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-muted-foreground">Priority</span>
-            <span className="text-foreground">{p.priority}</span>
-          </div>
-          <div className="flex gap-2 mt-2">
+          <div className="flex gap-2 mt-3">
             <Button
               variant="outline"
-              size="sm"
-              className="flex-1 text-xs"
+              size="default"
+              className="flex-1 text-xs h-10"
               onClick={() => onKill(p.pid, 'SIGTERM')}
               loading={isKilling}
               aria-label={`Send SIGTERM to process ${p.name} (${p.pid})`}
@@ -192,13 +204,13 @@ const ProcessCard = React.memo(
             </Button>
             <Button
               variant="destructive"
-              size="sm"
-              className="flex-1 text-xs"
+              size="default"
+              className="flex-1 text-xs h-10"
               onClick={() => onKill(p.pid, 'SIGKILL')}
               loading={isKilling}
               aria-label={`Send SIGKILL to process ${p.name} (${p.pid})`}
             >
-              <Skull className="w-3 h-3" /> SIGKILL
+              <Skull className="w-3.5 h-3.5 mr-1" /> SIGKILL
             </Button>
           </div>
         </div>
