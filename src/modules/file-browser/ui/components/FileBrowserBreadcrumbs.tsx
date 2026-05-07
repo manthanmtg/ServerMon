@@ -41,6 +41,7 @@ export function FileBrowserBreadcrumbs({ segments, onNavigate }: Props) {
                 )}
                 onClick={() => onNavigate(segment.path)}
                 title={segment.label}
+                aria-current={idx === 1 ? 'page' : undefined}
               >
                 {segment.label}
               </button>
@@ -59,6 +60,7 @@ export function FileBrowserBreadcrumbs({ segments, onNavigate }: Props) {
               )}
               onClick={() => onNavigate(segment.path)}
               title={segment.label}
+              aria-current={index === visibleSegments.length - 1 ? 'page' : undefined}
             >
               {index === 0 ? <Home className="w-3.5 h-3.5 shrink-0" /> : null}
               {segment.label}
