@@ -14,6 +14,7 @@ import {
   History,
   LoaderCircle,
   Lock,
+  Pencil,
   Play,
   Plus,
   RefreshCw,
@@ -101,6 +102,59 @@ function buildEnvVars(rows: EnvVarRow[]): Record<string, string> {
   );
 }
 
+function formToPayload(form: FormState) {
+  return {
+    templateId: form.templateId,
+    sourceType: form.sourceType,
+    name: form.name,
+    sourcePath: form.sourceType === 'local' ? form.sourcePath : undefined,
+    gitUrl: form.sourceType === 'git' ? form.gitUrl : undefined,
+    gitBranch: form.sourceType === 'git' ? form.gitBranch || 'main' : undefined,
+    autoUpdate:
+      form.sourceType === 'git'
+        ? {
+            enabled: form.autoUpdateEnabled,
+            intervalMinutes: Number(form.autoUpdateInterval),
+          }
+        : undefined,
+    domain: form.domain,
+    port: Number(form.port),
+    commands: {
+      install: form.install,
+      build: form.build,
+      start: form.start,
+    },
+    healthCheckPath: form.healthCheckPath || '/',
+    tlsEnabled: form.tlsEnabled,
+    envVars: buildEnvVars(form.envVars),
+  };
+}
+
+function appToForm(app: ManagedAppDTO): FormState {
+  return {
+    templateId: app.templateId,
+    sourceType: app.sourceType,
+    name: app.name,
+    sourcePath: app.sourcePath ?? '',
+    gitUrl: app.git?.url ?? '',
+    gitBranch: app.git?.branch ?? 'main',
+    autoUpdateEnabled: Boolean(app.git?.autoUpdate.enabled),
+    autoUpdateInterval: String(app.git?.autoUpdate.intervalMinutes ?? 60),
+    domain: app.domain,
+    port: String(app.port),
+    install: app.commands.install,
+    build: app.commands.build,
+    start: app.commands.start,
+    healthCheckPath: app.healthCheckPath || '/',
+    tlsEnabled: app.tlsEnabled,
+    envVars: Object.entries(app.envVars).map(([key, value], index) => ({
+      id: `env-existing-${index}-${key}`,
+      key,
+      value,
+    })),
+  };
+}
+
 function statusBadge(app: ManagedAppDTO) {
   if (app.status === 'running') {
     return (
@@ -170,6 +224,7 @@ export default function AppsPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [deleteCandidate, setDeleteCandidate] = useState<ManagedAppDTO | null>(null);
   const [historyApp, setHistoryApp] = useState<ManagedAppDTO | null>(null);
+  const [editingApp, setEditingApp] = useState<ManagedAppDTO | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -238,51 +293,43 @@ export default function AppsPage() {
     }, 1200);
   };
 
-  const createApp = async (event: FormEvent<HTMLFormElement>) => {
+  const submitAppForm = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setSubmitting(true);
     setError(null);
     try {
-      const payload = {
-        templateId: form.templateId,
-        sourceType: form.sourceType,
-        name: form.name,
-        sourcePath: form.sourceType === 'local' ? form.sourcePath : undefined,
-        gitUrl: form.sourceType === 'git' ? form.gitUrl : undefined,
-        gitBranch: form.sourceType === 'git' ? form.gitBranch || 'main' : undefined,
-        autoUpdate:
-          form.sourceType === 'git'
-            ? {
-                enabled: form.autoUpdateEnabled,
-                intervalMinutes: Number(form.autoUpdateInterval),
-              }
-            : undefined,
-        domain: form.domain,
-        port: Number(form.port),
-        commands: {
-          install: form.install,
-          build: form.build,
-          start: form.start,
-        },
-        healthCheckPath: form.healthCheckPath || '/',
-        tlsEnabled: form.tlsEnabled,
-        envVars: buildEnvVars(form.envVars),
-      };
+      const payload = formToPayload(form);
+      const url = editingApp ? `/api/modules/apps/${editingApp.id}` : '/api/modules/apps';
 
-      const response = await fetch('/api/modules/apps', {
-        method: 'POST',
+      const response = await fetch(url, {
+        method: editingApp ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
       const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Failed to create app');
+      if (!response.ok)
+        throw new Error(data.error || `Failed to ${editingApp ? 'update' : 'create'} app`);
       setForm(initialForm);
+      setEditingApp(null);
       await load();
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to create app');
+      setError(
+        err instanceof Error ? err.message : `Failed to ${editingApp ? 'update' : 'create'} app`
+      );
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const startEditing = (app: ManagedAppDTO) => {
+    setEditingApp(app);
+    setForm(appToForm(app));
+    setError(null);
+  };
+
+  const cancelEditing = () => {
+    setEditingApp(null);
+    setForm(initialForm);
   };
 
   const deployApp = async (appId: string) => {
@@ -390,15 +437,21 @@ export default function AppsPage() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Rocket className="h-4 w-4 text-primary" />
-              New App
+              {editingApp ? (
+                <Pencil className="h-4 w-4 text-primary" />
+              ) : (
+                <Rocket className="h-4 w-4 text-primary" />
+              )}
+              {editingApp ? 'Edit App' : 'New App'}
             </CardTitle>
             <CardDescription>
-              Pick a template, point ServerMon at the source repo, and configure how it should run.
+              {editingApp
+                ? `Update ${editingApp.name}. Saved changes apply on the next deploy or update.`
+                : 'Pick a template, point ServerMon at the source repo, and configure how it should run.'}
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <form onSubmit={createApp} className="space-y-4">
+            <form onSubmit={submitAppForm} className="space-y-4">
               <Field
                 id="app-template"
                 label="Template"
@@ -704,10 +757,22 @@ export default function AppsPage() {
                 )}
               </div>
 
-              <Button type="submit" className="w-full" loading={submitting}>
-                <Rocket className="h-4 w-4" />
-                Create App
-              </Button>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                {editingApp && (
+                  <Button
+                    type="button"
+                    className="w-full sm:w-auto"
+                    variant="outline"
+                    onClick={cancelEditing}
+                  >
+                    Cancel
+                  </Button>
+                )}
+                <Button type="submit" className="w-full" loading={submitting}>
+                  {editingApp ? <Pencil className="h-4 w-4" /> : <Rocket className="h-4 w-4" />}
+                  {editingApp ? 'Save Changes' : 'Create App'}
+                </Button>
+              </div>
             </form>
           </CardContent>
         </Card>
@@ -749,6 +814,16 @@ export default function AppsPage() {
                     >
                       <Play className="h-3.5 w-3.5" />
                       Deploy
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      aria-label={`Edit ${app.name}`}
+                      onClick={() => startEditing(app)}
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                      Edit
                     </Button>
                     <Button
                       type="button"

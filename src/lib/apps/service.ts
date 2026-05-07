@@ -103,6 +103,8 @@ export const CreateManagedAppSchema = z
   });
 
 export type CreateManagedAppData = z.infer<typeof CreateManagedAppSchema>;
+export const UpdateManagedAppSchema = CreateManagedAppSchema;
+export type UpdateManagedAppData = z.infer<typeof UpdateManagedAppSchema>;
 
 export function getAppTemplate(id: string): AppTemplate | undefined {
   return templates[id];
@@ -134,6 +136,30 @@ export function normalizeCreateManagedAppInput(input: CreateManagedAppData) {
     tlsEnabled: input.tlsEnabled,
     status: 'draft' as ManagedAppStatus,
     releases: [],
+    autoUpdate: {
+      enabled: input.sourceType === 'git' ? input.autoUpdate.enabled : false,
+      intervalMinutes: input.autoUpdate.intervalMinutes,
+      ...(input.sourceType === 'git' && input.autoUpdate.enabled
+        ? { nextRunAt: nextAutoUpdateRun(input.autoUpdate.intervalMinutes) }
+        : {}),
+    },
+  };
+}
+
+function normalizeUpdateManagedAppInput(input: UpdateManagedAppData) {
+  return {
+    name: input.name,
+    templateId: input.templateId,
+    sourceType: input.sourceType,
+    sourcePath: input.sourceType === 'local' ? input.sourcePath : undefined,
+    gitUrl: input.sourceType === 'git' ? input.gitUrl : undefined,
+    gitBranch: input.sourceType === 'git' ? input.gitBranch : undefined,
+    domain: input.domain,
+    port: input.port,
+    commands: input.commands,
+    envVars: input.envVars,
+    healthCheckPath: input.healthCheckPath,
+    tlsEnabled: input.tlsEnabled,
     autoUpdate: {
       enabled: input.sourceType === 'git' ? input.autoUpdate.enabled : false,
       intervalMinutes: input.autoUpdate.intervalMinutes,
@@ -325,6 +351,50 @@ export async function createManagedApp(
   const parsed = CreateManagedAppSchema.parse(input);
   await connectDB();
   const app = await ManagedApp.create(normalizeCreateManagedAppInput(parsed));
+  return mapManagedAppToDTO(app, publicIp);
+}
+
+export async function updateManagedApp(
+  appId: string,
+  input: CreateManagedAppInput,
+  publicIp?: string
+): Promise<ManagedAppDTO> {
+  const parsed = UpdateManagedAppSchema.parse(input);
+  await connectDB();
+  const app = await ManagedApp.findById(appId);
+  if (!app) throw new Error('App not found');
+
+  const previousGitUrl = app.gitUrl;
+  const previousGitBranch = app.gitBranch;
+  const previousSourceType = app.sourceType ?? 'local';
+  const next = normalizeUpdateManagedAppInput(parsed);
+
+  app.name = next.name;
+  app.templateId = next.templateId;
+  app.sourceType = next.sourceType;
+  app.sourcePath = next.sourcePath;
+  app.gitUrl = next.gitUrl;
+  app.gitBranch = next.gitBranch;
+  app.domain = next.domain;
+  app.port = next.port;
+  app.commands = next.commands;
+  app.envVars = new Map(Object.entries(next.envVars)) as IManagedApp['envVars'];
+  app.healthCheckPath = next.healthCheckPath;
+  app.tlsEnabled = next.tlsEnabled;
+  app.autoUpdate = next.autoUpdate;
+
+  if (
+    next.sourceType !== 'git' ||
+    previousSourceType !== 'git' ||
+    previousGitUrl !== next.gitUrl ||
+    previousGitBranch !== next.gitBranch
+  ) {
+    app.gitCurrentSha = undefined;
+    app.gitLastCheckedAt = undefined;
+    app.gitLastUpdatedAt = undefined;
+  }
+
+  await app.save();
   return mapManagedAppToDTO(app, publicIp);
 }
 

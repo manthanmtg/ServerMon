@@ -335,6 +335,82 @@ describe('AppsPage', () => {
     expect(within(dialog).getByText('build failed')).toBeTruthy();
   });
 
+  it('edits an existing app and saves updated commands', async () => {
+    global.fetch = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          apps: [
+            {
+              id: 'app-1',
+              name: 'Inventory Portal',
+              slug: 'inventory-portal',
+              templateId: 'nextjs',
+              sourceType: 'local',
+              sourcePath: '/srv/apps/inventory-portal',
+              domain: 'inventory.example.com',
+              port: 3010,
+              commands: {
+                install: 'pnpm install --frozen-lockfile',
+                build: 'pnpm build',
+                start: 'pnpm start',
+              },
+              envVars: {
+                NEXT_PUBLIC_APP_URL: 'https://inventory.example.com',
+              },
+              healthCheckPath: '/',
+              tlsEnabled: false,
+              status: 'running',
+              releases: [],
+            },
+          ],
+        }),
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ app: { id: 'app-1', name: 'Inventory Portal' } }),
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ apps: [] }),
+      } as Response);
+
+    render(<AppsPage />);
+    await screen.findByText('Inventory Portal');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Inventory Portal' }));
+    expect(screen.getByRole('heading', { name: 'Edit App' })).toBeTruthy();
+    expect(screen.getByLabelText('Install command')).toHaveValue('pnpm install --frozen-lockfile');
+
+    fireEvent.change(screen.getByLabelText('Install command'), {
+      target: { value: 'pnpm install --prod=false' },
+    });
+    fireEvent.change(screen.getByLabelText('Build command'), {
+      target: { value: 'pnpm build:prod' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Save Changes' }));
+
+    await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(3));
+    expect(global.fetch).toHaveBeenNthCalledWith(
+      2,
+      '/api/modules/apps/app-1',
+      expect.objectContaining({
+        method: 'PATCH',
+        body: expect.stringContaining('"install":"pnpm install --prod=false"'),
+      })
+    );
+    const body = JSON.parse((global.fetch as ReturnType<typeof vi.fn>).mock.calls[1][1].body);
+    expect(body.commands).toEqual({
+      install: 'pnpm install --prod=false',
+      build: 'pnpm build:prod',
+      start: 'pnpm start',
+    });
+    expect(body.envVars).toEqual({
+      NEXT_PUBLIC_APP_URL: 'https://inventory.example.com',
+    });
+  });
+
   it('requires confirmation before deleting an app', async () => {
     global.fetch = vi
       .fn()
