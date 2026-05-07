@@ -80,14 +80,14 @@ describe('buildFleetRouteSuggestions', () => {
     },
   };
 
-  it('builds prefilled public-route forms from ServerMon bridge route candidates', () => {
+  it('builds prefilled public-route forms only for web route candidates', () => {
     const suggestions = buildFleetRouteSuggestions({
       node,
       existingRoutes: [],
       subdomainHost: 'apps.example.com',
     });
 
-    expect(suggestions).toHaveLength(2);
+    expect(suggestions).toHaveLength(1);
     expect(suggestions[0]).toMatchObject({
       id: 'servermon:app',
       title: 'ServerMon app detected',
@@ -102,20 +102,7 @@ describe('buildFleetRouteSuggestions', () => {
         createNewProxyRule: true,
       },
     });
-    expect(suggestions[1]).toMatchObject({
-      id: 'database:db-1',
-      title: 'MongoDB database detected',
-      form: {
-        name: 'Main Mongo',
-        slug: 'orion-main-mongo',
-        domain: 'orion-main-mongo.apps.example.com',
-        proxyRuleName: 'main-mongo',
-        target: { localIp: '127.0.0.1', localPort: 27017, protocol: 'tcp' },
-        accessMode: 'public',
-        tlsEnabled: false,
-        createNewProxyRule: true,
-      },
-    });
+    expect(suggestions.some((suggestion) => suggestion.id === 'database:db-1')).toBe(false);
   });
 
   it('skips candidates that already have a matching public route', () => {
@@ -136,6 +123,6 @@ describe('buildFleetRouteSuggestions', () => {
       subdomainHost: 'apps.example.com',
     });
 
-    expect(suggestions.map((suggestion) => suggestion.id)).toEqual(['database:db-1']);
+    expect(suggestions).toEqual([]);
   });
 });

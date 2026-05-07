@@ -80,6 +80,10 @@ function candidateAlreadyRouted(
   return routes.some((route) => routeMatchesCandidate(route, candidate));
 }
 
+function candidateShouldSuggestPublicRoute(candidate: ServerMonBridgeRouteCandidate): boolean {
+  return candidate.kind !== 'database';
+}
+
 function engineTitle(candidate: ServerMonBridgeRouteCandidate): string {
   const engine = candidate.metadata?.database?.engine;
   if (engine === 'mongo') return 'MongoDB database detected';
@@ -213,6 +217,7 @@ export function buildFleetRouteSuggestions(input: {
 
   return candidates
     .filter((candidate) => candidate.status === 'running' && candidate.route.eligible)
+    .filter(candidateShouldSuggestPublicRoute)
     .filter((candidate) => !candidateAlreadyRouted(candidate, input.existingRoutes))
     .map((candidate) => {
       const form =

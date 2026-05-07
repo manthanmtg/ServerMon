@@ -100,7 +100,7 @@ describe('GET /api/fleet/nodes/[id]/route-suggestions', () => {
     });
   });
 
-  it('builds route suggestions when the path uses the node slug', async () => {
+  it('does not build public route suggestions for database TCP candidates', async () => {
     const res = await GET(makeReq(), makeContext('orion'));
 
     expect(res.status).toBe(200);
@@ -109,15 +109,6 @@ describe('GET /api/fleet/nodes/[id]/route-suggestions', () => {
     expect(mockRouteFind).toHaveBeenCalledWith({ nodeId: 'node-1' });
 
     const json = await res.json();
-    expect(json.suggestions).toHaveLength(1);
-    expect(json.suggestions[0]).toMatchObject({
-      id: 'database:db-1',
-      title: 'MongoDB database detected',
-      form: {
-        nodeId: 'node-1',
-        domain: 'orion-main-mongo.apps.example.com',
-        target: { localIp: '127.0.0.1', localPort: 27017, protocol: 'tcp' },
-      },
-    });
+    expect(json.suggestions).toEqual([]);
   });
 });
