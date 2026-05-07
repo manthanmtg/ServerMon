@@ -31,7 +31,15 @@ export function PastRunsPanel({
   }, [loadRuns]);
 
   if (loading)
-    return <div className="text-xs text-muted-foreground animate-pulse py-4">Loading runs...</div>;
+    return (
+      <div
+        role="status"
+        aria-label="Loading run history"
+        className="text-xs text-muted-foreground animate-pulse py-4"
+      >
+        Loading runs...
+      </div>
+    );
   if (runs.length === 0)
     return (
       <div className="text-xs text-muted-foreground py-4 text-center border border-dashed border-border/60 rounded-xl">
@@ -48,8 +56,8 @@ export function PastRunsPanel({
           MANUAL RUN HISTORY
         </p>
       )}
-      <div className="border border-border/40 rounded-xl overflow-hidden bg-background/50">
-        <table className="min-w-full text-xs">
+      <div className="overflow-x-auto rounded-xl border border-border/40 bg-background/50">
+        <table aria-label="Manual run history" className="min-w-[520px] text-xs">
           <thead className="bg-muted/30 border-b border-border/40">
             <tr className="text-[10px] uppercase tracking-wider text-muted-foreground">
               <th className="py-2 px-3 text-left font-medium">Time Started</th>
