@@ -59,7 +59,23 @@ export async function resilientFetch(
       }
 
       if (i < retries) {
-        await new Promise((resolve) => setTimeout(resolve, retryDelay));
+        if (signal?.aborted) {
+          throw signal.reason || lastError;
+        }
+
+        await new Promise((resolve, reject) => {
+          const timer = setTimeout(() => {
+            signal?.removeEventListener('abort', onAbort);
+            resolve(undefined);
+          }, retryDelay);
+
+          const onAbort = () => {
+            clearTimeout(timer);
+            reject(signal?.reason || new DOMException('Aborted', 'AbortError'));
+          };
+
+          signal?.addEventListener('abort', onAbort, { once: true });
+        });
         continue;
       }
     }
