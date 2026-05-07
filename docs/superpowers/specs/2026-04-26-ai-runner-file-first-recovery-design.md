@@ -89,7 +89,7 @@ ServerMon must not kill a job merely because the worker heartbeat is stale. It o
 AI Runner settings should include storage and retention controls:
 
 - `Run artifact directory`: the base directory for run folders. It must be writable by the ServerMon service user.
-- `Mongo run retention days`: age-based cleanup for MongoDB run/job records. Active records are never deleted until they resolve, even if they exceed the configured age.
+- `AI Runner logs retention days`: age-based cleanup for embedded MongoDB run output fields. Run/job history remains, while old output is replaced with a retention notice.
 - `Artifact retention days`: separate age-based cleanup for run folders. Active or recovering run folders are never deleted.
 
 Default artifact directory should be platform-aware:

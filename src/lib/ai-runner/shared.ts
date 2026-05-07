@@ -35,6 +35,7 @@ export const DEFAULT_MAX_ATTEMPTS = 2;
 export const MAX_SCHEDULE_CATCHUP_RUNS = 24;
 export const LEASE_ID = 'airunner-supervisor';
 export const PROFILE_LOCK_RECOVERY_STATE = 'skipped_agent_lock';
+export const AI_RUNNER_LOGS_PURGED_MESSAGE = 'Logs purged due to retention';
 
 export function getMaxConcurrentRuns(): number {
   const raw = Number(process.env.AI_RUNNER_MAX_CONCURRENT_RUNS ?? DEFAULT_MAX_CONCURRENT_RUNS);

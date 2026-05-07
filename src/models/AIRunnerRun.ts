@@ -132,7 +132,6 @@ AIRunnerRunSchema.index({ promptId: 1, startedAt: -1 });
 AIRunnerRunSchema.index({ scheduleId: 1, startedAt: -1 });
 AIRunnerRunSchema.index({ workspaceId: 1, startedAt: -1 });
 AIRunnerRunSchema.index({ autoflowId: 1, startedAt: -1 });
-AIRunnerRunSchema.index({ queuedAt: 1 }, { expireAfterSeconds: 30 * 24 * 60 * 60 });
 
 const AIRunnerRun: Model<IAIRunnerRun> =
   mongoose.models.AIRunnerRun || mongoose.model<IAIRunnerRun>('AIRunnerRun', AIRunnerRunSchema);

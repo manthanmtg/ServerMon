@@ -591,7 +591,7 @@ describe('AIRunnerPage', () => {
       '/tmp/servermon-ai-runner'
     );
     expect(screen.getByLabelText('Max concurrent runs')).toHaveValue(3);
-    expect(screen.getByLabelText('Mongo retention days')).toHaveValue(30);
+    expect(screen.getByLabelText('AI Runner logs retention days')).toHaveValue(30);
     expect(screen.getByLabelText('Artifact retention days')).toHaveValue(90);
 
     await act(async () => {
@@ -601,7 +601,7 @@ describe('AIRunnerPage', () => {
       fireEvent.change(screen.getByLabelText('Max concurrent runs'), {
         target: { value: '5' },
       });
-      fireEvent.change(screen.getByLabelText('Mongo retention days'), {
+      fireEvent.change(screen.getByLabelText('AI Runner logs retention days'), {
         target: { value: '14' },
       });
       fireEvent.change(screen.getByLabelText('Artifact retention days'), {
@@ -640,7 +640,7 @@ describe('AIRunnerPage', () => {
       '/tmp/servermon-ai-runner-default'
     );
     expect(screen.getByLabelText('Max concurrent runs')).toHaveValue(3);
-    expect(screen.getByLabelText('Mongo retention days')).toHaveValue(30);
+    expect(screen.getByLabelText('AI Runner logs retention days')).toHaveValue(30);
     expect(screen.getByLabelText('Artifact retention days')).toHaveValue(90);
   });
 

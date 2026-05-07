@@ -22,6 +22,7 @@ import {
   DEFAULT_LEASE_TTL_MS,
   DEFAULT_RETRY_DELAY_MS,
   DEFAULT_SUPERVISOR_TICK_MS,
+  AI_RUNNER_LOGS_PURGED_MESSAGE,
   LEASE_ID,
   MAX_SCHEDULE_CATCHUP_RUNS,
   getMaxConcurrentRuns,
@@ -31,10 +32,18 @@ import {
 } from './shared';
 
 const log = createLogger('ai-runner:supervisor');
+const RETENTION_CLEANUP_INTERVAL_MS = 3 * 60 * 60 * 1000;
+const TERMINAL_RUN_STATUSES = ['completed', 'failed', 'timeout', 'killed', 'skipped'] as const;
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
+
+type MongoIndexSpec = {
+  name?: string;
+  key?: Record<string, unknown>;
+  expireAfterSeconds?: unknown;
+};
 
 export class AIRunnerSupervisor {
   private readonly instanceId =
@@ -687,12 +696,12 @@ export class AIRunnerSupervisor {
 
   private async cleanupRetainedHistory(): Promise<void> {
     const nowMs = Date.now();
-    if (nowMs - this.lastRetentionCleanupAt < 60 * 60 * 1000) {
+    if (nowMs - this.lastRetentionCleanupAt < RETENTION_CLEANUP_INTERVAL_MS) {
       return;
     }
-    this.lastRetentionCleanupAt = nowMs;
     const settings = await getAIRunnerSettings();
     const now = new Date();
+    await this.dropLegacyRunHistoryTtlIndexes();
     const activeRuns = await AIRunnerRun.find({
       status: { $in: ['queued', 'running', 'retrying'] },
     })
@@ -701,16 +710,33 @@ export class AIRunnerSupervisor {
     const activeRunIds = new Set(activeRuns.map((run) => stringifyId(run._id)));
     const mongoCutoff = new Date(now.getTime() - settings.mongoRetentionDays * 24 * 60 * 60 * 1000);
 
-    await Promise.all([
-      AIRunnerJob.deleteMany({
-        status: { $in: ['completed', 'failed', 'canceled'] },
-        updatedAt: { $lt: mongoCutoff },
-      }),
-      AIRunnerRun.deleteMany({
-        status: { $in: ['completed', 'failed', 'timeout', 'killed'] },
-        updatedAt: { $lt: mongoCutoff },
-      }),
-    ]);
+    const purgedRuns = await AIRunnerRun.updateMany(
+      {
+        status: { $in: [...TERMINAL_RUN_STATUSES] },
+        finishedAt: { $lt: mongoCutoff },
+        rawOutput: { $ne: AI_RUNNER_LOGS_PURGED_MESSAGE },
+      },
+      {
+        $set: {
+          stdout: AI_RUNNER_LOGS_PURGED_MESSAGE,
+          stderr: AI_RUNNER_LOGS_PURGED_MESSAGE,
+          rawOutput: AI_RUNNER_LOGS_PURGED_MESSAGE,
+        },
+      }
+    );
+
+    if (purgedRuns.modifiedCount > 0) {
+      await writeAIRunnerLogEntry({
+        level: 'info',
+        component: 'ai-runner:supervisor',
+        event: 'runs.logs_retention_cleanup',
+        message: 'Purged old AI Runner run logs from Mongo',
+        data: {
+          count: purgedRuns.modifiedCount,
+          retentionDays: settings.mongoRetentionDays,
+        },
+      });
+    }
 
     const deletedArtifacts = await cleanupAIRunnerArtifacts({
       baseDir: settings.artifactBaseDir,
@@ -727,6 +753,42 @@ export class AIRunnerSupervisor {
         message: 'Cleaned up old AI Runner artifact folders',
         data: {
           count: deletedArtifacts.length,
+        },
+      });
+    }
+
+    this.lastRetentionCleanupAt = nowMs;
+  }
+
+  private async dropLegacyRunHistoryTtlIndexes(): Promise<void> {
+    try {
+      const indexes = (await AIRunnerRun.collection.indexes()) as MongoIndexSpec[];
+      const legacyTtlIndexes = indexes.filter(
+        (index) =>
+          index.name && index.key?.queuedAt === 1 && typeof index.expireAfterSeconds === 'number'
+      );
+
+      for (const index of legacyTtlIndexes) {
+        await AIRunnerRun.collection.dropIndex(index.name as string);
+        await writeAIRunnerLogEntry({
+          level: 'warn',
+          component: 'ai-runner:supervisor',
+          event: 'runs.legacy_ttl_index_dropped',
+          message: 'Dropped legacy AI Runner run TTL index',
+          data: {
+            indexName: index.name,
+          },
+        });
+      }
+    } catch (error) {
+      log.warn('Failed to inspect or drop legacy AI Runner run TTL index', error);
+      await writeAIRunnerLogEntry({
+        level: 'warn',
+        component: 'ai-runner:supervisor',
+        event: 'runs.legacy_ttl_index_drop_failed',
+        message: 'Failed to inspect or drop legacy AI Runner run TTL index',
+        data: {
+          error: error instanceof Error ? error.message : String(error),
         },
       });
     }

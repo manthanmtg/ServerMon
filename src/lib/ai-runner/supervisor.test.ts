@@ -11,6 +11,7 @@ import { spawnAIRunnerWorker } from './processes';
 import { enqueueRunRequest } from './queue';
 import { getAIRunnerSettings } from './settings';
 import { writeAIRunnerLogEntry } from './logs';
+import { cleanupAIRunnerArtifacts } from './artifact-store';
 import * as shared from './shared';
 
 vi.mock('@/lib/db', () => ({
@@ -43,6 +44,14 @@ vi.mock('./logs', () => ({
   writeAIRunnerLogEntry: vi.fn().mockResolvedValue(undefined),
 }));
 
+vi.mock('./artifact-store', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./artifact-store')>();
+  return {
+    ...actual,
+    cleanupAIRunnerArtifacts: vi.fn().mockResolvedValue([]),
+  };
+});
+
 vi.mock('./shared', async (importOriginal) => {
   const actual = await importOriginal<typeof import('./shared')>();
   return {
@@ -71,10 +80,29 @@ describe('AIRunnerSupervisor', () => {
       artifactRetentionDays: 90,
     });
     (isAIRunnerExecutionAlive as unknown as ReturnType<typeof vi.fn>).mockReturnValue(false);
+    (enqueueRunRequest as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
+      _id: 'run-default',
+      status: 'queued',
+    });
     (writeAIRunnerLogEntry as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
     (AIRunnerJob.findOne as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
       select: vi.fn().mockResolvedValue(null),
     });
+    (AIRunnerRun.updateMany as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
+      modifiedCount: 0,
+    });
+    (cleanupAIRunnerArtifacts as unknown as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+    (
+      AIRunnerRun as unknown as {
+        collection: {
+          indexes: ReturnType<typeof vi.fn>;
+          dropIndex: ReturnType<typeof vi.fn>;
+        };
+      }
+    ).collection = {
+      indexes: vi.fn().mockResolvedValue([]),
+      dropIndex: vi.fn().mockResolvedValue(undefined),
+    };
     supervisor = new AIRunnerSupervisor();
   });
 
@@ -451,6 +479,107 @@ describe('AIRunnerSupervisor', () => {
           $set: expect.objectContaining({ status: 'failed' }),
         })
       );
+    });
+  });
+
+  describe('cleanupRetainedHistory', () => {
+    it('purges old terminal run logs without deleting run or job history', async () => {
+      vi.setSystemTime(new Date('2026-05-07T03:00:00.000Z'));
+      (AIRunnerRun.find as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
+        select: vi.fn().mockReturnValue({
+          lean: vi.fn().mockResolvedValue([{ _id: 'active-run' }]),
+        }),
+      });
+      (cleanupAIRunnerArtifacts as unknown as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+
+      await (
+        supervisor as unknown as {
+          cleanupRetainedHistory: () => Promise<void>;
+        }
+      ).cleanupRetainedHistory();
+
+      const expectedCutoff = new Date('2026-04-07T03:00:00.000Z');
+      expect(AIRunnerRun.updateMany).toHaveBeenCalledWith(
+        {
+          status: { $in: ['completed', 'failed', 'timeout', 'killed', 'skipped'] },
+          finishedAt: { $lt: expectedCutoff },
+          rawOutput: { $ne: 'Logs purged due to retention' },
+        },
+        {
+          $set: {
+            stdout: 'Logs purged due to retention',
+            stderr: 'Logs purged due to retention',
+            rawOutput: 'Logs purged due to retention',
+          },
+        }
+      );
+      expect(AIRunnerRun.deleteMany).not.toHaveBeenCalled();
+      expect(AIRunnerJob.deleteMany).not.toHaveBeenCalled();
+      expect(cleanupAIRunnerArtifacts).toHaveBeenCalledWith({
+        baseDir: '/tmp/servermon-ai-runner',
+        retentionDays: 90,
+        activeRunIds: new Set(['active-run']),
+        now: new Date('2026-05-07T03:00:00.000Z'),
+      });
+    });
+
+    it('runs retention cleanup at most once every three hours', async () => {
+      vi.setSystemTime(new Date('2026-05-07T03:00:00.000Z'));
+      (AIRunnerRun.find as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
+        select: vi.fn().mockReturnValue({
+          lean: vi.fn().mockResolvedValue([]),
+        }),
+      });
+      (cleanupAIRunnerArtifacts as unknown as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+
+      const retentionSupervisor = new AIRunnerSupervisor();
+      const cleanup = (
+        retentionSupervisor as unknown as {
+          cleanupRetainedHistory: () => Promise<void>;
+        }
+      ).cleanupRetainedHistory.bind(retentionSupervisor);
+
+      await cleanup();
+      vi.setSystemTime(new Date('2026-05-07T05:59:59.000Z'));
+      await cleanup();
+      vi.setSystemTime(new Date('2026-05-07T06:00:00.000Z'));
+      await cleanup();
+
+      expect(AIRunnerRun.updateMany).toHaveBeenCalledTimes(2);
+      expect(cleanupAIRunnerArtifacts).toHaveBeenCalledTimes(2);
+    });
+
+    it('drops the legacy queuedAt TTL index so Mongo does not delete run history', async () => {
+      vi.setSystemTime(new Date('2026-05-07T03:00:00.000Z'));
+      const collection = {
+        indexes: vi.fn().mockResolvedValue([
+          {
+            name: 'queuedAt_1',
+            key: { queuedAt: 1 },
+            expireAfterSeconds: 30 * 24 * 60 * 60,
+          },
+          {
+            name: 'status_1_startedAt_-1',
+            key: { status: 1, startedAt: -1 },
+          },
+        ]),
+        dropIndex: vi.fn().mockResolvedValue(undefined),
+      };
+      (AIRunnerRun as unknown as { collection: typeof collection }).collection = collection;
+      (AIRunnerRun.find as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
+        select: vi.fn().mockReturnValue({
+          lean: vi.fn().mockResolvedValue([]),
+        }),
+      });
+      (cleanupAIRunnerArtifacts as unknown as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+
+      await (
+        supervisor as unknown as {
+          cleanupRetainedHistory: () => Promise<void>;
+        }
+      ).cleanupRetainedHistory();
+
+      expect(collection.dropIndex).toHaveBeenCalledWith('queuedAt_1');
     });
   });
 

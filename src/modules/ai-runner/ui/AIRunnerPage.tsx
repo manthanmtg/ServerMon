@@ -3580,11 +3580,11 @@ export default function AIRunnerPage() {
 
                     <label className="block space-y-2">
                       <LabelWithHint
-                        label="Mongo retention days"
-                        hint="Completed AI Runner jobs and run snapshots older than this are cleaned from Mongo."
+                        label="AI Runner logs retention days"
+                        hint="Completed run output stored in Mongo older than this is replaced with a retention notice."
                       />
                       <Input
-                        aria-label="Mongo retention days"
+                        aria-label="AI Runner logs retention days"
                         type="number"
                         min={MIN_RETENTION_DAYS}
                         max={MAX_RETENTION_DAYS}
