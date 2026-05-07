@@ -7,6 +7,7 @@ import {
   loadAutoUpdateSettings,
   saveAutoUpdateSettings,
 } from '@/lib/updates/auto-update';
+import type { LocalAutoUpdateTarget } from '@/types/updates';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,16 +19,17 @@ const PatchZ = z.object({
   timezone: z.string().min(1).refine(isValidTimezone, 'Invalid timezone'),
 });
 
-export async function GET() {
+export async function GET(request?: Request) {
   try {
     const session = await getSession();
     if (!session) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const settings = await loadAutoUpdateSettings();
+    const target = getAutoUpdateTarget(request);
+    const settings = await loadAutoUpdateSettings(target);
     const schedule = getAutoUpdateScheduleState(settings);
-    return NextResponse.json({ settings, schedule });
+    return NextResponse.json({ settings, schedule, type: target });
   } catch (error) {
     log.error('Failed to fetch local auto-update settings', error);
     return NextResponse.json(
@@ -44,10 +46,11 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    const target = getAutoUpdateTarget(request);
     const parsed = PatchZ.parse(await request.json());
-    const settings = await saveAutoUpdateSettings(parsed);
+    const settings = await saveAutoUpdateSettings(parsed, target);
     const schedule = getAutoUpdateScheduleState(settings);
-    return NextResponse.json({ settings, schedule });
+    return NextResponse.json({ settings, schedule, type: target });
   } catch (error) {
     if (error instanceof ZodError) {
       return NextResponse.json({ error: 'Invalid input', details: error.issues }, { status: 400 });
@@ -58,6 +61,12 @@ export async function PATCH(request: Request) {
       { status: 500 }
     );
   }
+}
+
+function getAutoUpdateTarget(request?: Request): LocalAutoUpdateTarget {
+  if (!request) return 'servermon';
+  const type = new URL(request.url).searchParams.get('type');
+  return type === 'agent' ? 'agent' : 'servermon';
 }
 
 function isValidTimezone(value: string): boolean {

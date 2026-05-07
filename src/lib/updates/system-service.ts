@@ -5,7 +5,12 @@ import { existsSync, openSync, closeSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { readdir, readFile, stat, unlink, writeFile, mkdir } from 'node:fs/promises';
-import type { ServermonAgentStatus, UpdateRunStatus } from '@/types/updates';
+import type {
+  ServermonAgentStatus,
+  UpdateRunStatus,
+  UpdateRunTrigger,
+  UpdateRunType,
+} from '@/types/updates';
 import { buildAgentUpdateShell } from '@/lib/fleet/agentUpdateCommand';
 
 const execFileAsync = promisify(execFile);
@@ -177,6 +182,8 @@ class SystemUpdateService {
         runMap.set(r.runId, {
           runId: r.runId,
           timestamp: r.timestamp,
+          type: r.type,
+          trigger: r.trigger,
           status: r.status,
           pid: r.pid,
           exitCode: r.exitCode,
@@ -254,6 +261,8 @@ class SystemUpdateService {
             {
               runId: run.runId,
               timestamp: run.timestamp,
+              type: run.type,
+              trigger: run.trigger,
               status: run.status,
               pid: run.pid,
               exitCode: run.exitCode,
@@ -287,7 +296,8 @@ class SystemUpdateService {
   private async spawnTrackedRun(
     cmd: string,
     args: string[],
-    env?: Record<string, string>
+    env?: Record<string, string>,
+    metadata: { type?: UpdateRunType; trigger?: UpdateRunTrigger } = {}
   ): Promise<{ success: boolean; pid?: number; message: string; runId?: string }> {
     const logDir = await this.ensureLogDir();
     const runIdBase = String(Date.now());
@@ -312,6 +322,8 @@ class SystemUpdateService {
         const run: UpdateRunStatus & { logFile: string; metadataFile: string } = {
           runId: runIdBase,
           timestamp,
+          type: metadata.type,
+          trigger: metadata.trigger,
           status: 'running',
           pid: child.pid,
           exitCode: null,
@@ -328,6 +340,8 @@ class SystemUpdateService {
                 {
                   runId: run.runId,
                   timestamp: run.timestamp,
+                  type: run.type,
+                  trigger: run.trigger,
                   status: run.status,
                   pid: run.pid,
                   exitCode: run.exitCode,
@@ -377,7 +391,7 @@ class SystemUpdateService {
     }
   }
 
-  public async triggerUpdate(): Promise<{
+  public async triggerUpdate(options: { trigger?: UpdateRunTrigger } = {}): Promise<{
     success: boolean;
     pid?: number;
     message: string;
@@ -396,7 +410,10 @@ class SystemUpdateService {
       ? ['--scope', '--quiet', '--', 'sudo', updateScript]
       : [updateScript];
 
-    return this.spawnTrackedRun(spawnCmd, spawnArgs);
+    return this.spawnTrackedRun(spawnCmd, spawnArgs, undefined, {
+      type: 'servermon',
+      trigger: options.trigger ?? 'manual',
+    });
   }
 
   private parseSystemctlShow(output: string): Record<string, string> {
@@ -506,7 +523,7 @@ class SystemUpdateService {
     }
   }
 
-  public async triggerAgentUpdate(): Promise<{
+  public async triggerAgentUpdate(options: { trigger?: UpdateRunTrigger } = {}): Promise<{
     success: boolean;
     pid?: number;
     message: string;
@@ -532,10 +549,17 @@ class SystemUpdateService {
       ? ['--scope', '--quiet', '--', 'sudo', 'bash', '-lc', updateScript]
       : ['bash', '-lc', updateScript];
 
-    return this.spawnTrackedRun(spawnCmd, spawnArgs);
+    return this.spawnTrackedRun(spawnCmd, spawnArgs, undefined, {
+      type: 'agent',
+      trigger: options.trigger ?? 'manual',
+    });
   }
 
-  public async recordSkippedUpdateRun(message: string): Promise<UpdateRunStatus> {
+  public async recordSkippedUpdateRun(
+    message: string,
+    type: UpdateRunType = 'unknown',
+    trigger: UpdateRunTrigger = 'manual'
+  ): Promise<UpdateRunStatus> {
     const logDir = await this.ensureLogDir();
     const runIdBase = String(Date.now());
     const runId = `${this.LOG_PREFIX}${runIdBase}`;
@@ -545,6 +569,8 @@ class SystemUpdateService {
     const run: UpdateRunStatus = {
       runId: runIdBase,
       timestamp,
+      type,
+      trigger,
       status: 'skipped',
       pid: 0,
       exitCode: 0,
@@ -560,6 +586,8 @@ class SystemUpdateService {
         {
           runId: run.runId,
           timestamp: run.timestamp,
+          type: run.type,
+          trigger: run.trigger,
           status: run.status,
           pid: run.pid,
           exitCode: run.exitCode,
@@ -585,7 +613,11 @@ class SystemUpdateService {
     runId?: string;
   }> {
     if (!plan.servermonNeedsUpdate && !plan.agentNeedsUpdate) {
-      const run = await this.recordSkippedUpdateRun('No upstream changes detected');
+      const run = await this.recordSkippedUpdateRun(
+        'No upstream changes detected',
+        'combined',
+        'scheduled'
+      );
       return {
         success: true,
         message: 'No upstream changes detected',
@@ -600,7 +632,15 @@ class SystemUpdateService {
       ? ['--scope', '--quiet', '--', 'sudo', 'bash', '-lc', script]
       : ['bash', '-lc', script];
 
-    return this.spawnTrackedRun(spawnCmd, spawnArgs);
+    return this.spawnTrackedRun(spawnCmd, spawnArgs, undefined, {
+      type:
+        plan.servermonNeedsUpdate && plan.agentNeedsUpdate
+          ? 'combined'
+          : plan.agentNeedsUpdate
+            ? 'agent'
+            : 'servermon',
+      trigger: 'scheduled',
+    });
   }
 
   private buildLocalAutoUpdateScript(plan: {
@@ -666,7 +706,12 @@ class SystemUpdateService {
       ? ['--scope', '--quiet', '--', 'sudo', 'bash', '-c', upgradeScript]
       : ['bash', '-c', upgradeScript];
 
-    return this.spawnTrackedRun(spawnCmd, spawnArgs, { DEBIAN_FRONTEND: 'noninteractive' });
+    return this.spawnTrackedRun(
+      spawnCmd,
+      spawnArgs,
+      { DEBIAN_FRONTEND: 'noninteractive' },
+      { type: 'packages', trigger: 'manual' }
+    );
   }
 }
 

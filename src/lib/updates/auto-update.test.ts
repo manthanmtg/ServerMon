@@ -8,6 +8,8 @@ import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 const mockGetUpdateRunDetails = vi.fn();
 const mockGetServermonAgentStatus = vi.fn();
 const mockTriggerLocalAutoUpdateRun = vi.fn();
+const mockTriggerUpdate = vi.fn();
+const mockTriggerAgentUpdate = vi.fn();
 const mockRecordSkippedUpdateRun = vi.fn();
 
 vi.mock('node:child_process', () => ({
@@ -19,6 +21,8 @@ vi.mock('./system-service', () => ({
     getUpdateRunDetails: mockGetUpdateRunDetails,
     getServermonAgentStatus: mockGetServermonAgentStatus,
     triggerLocalAutoUpdateRun: mockTriggerLocalAutoUpdateRun,
+    triggerUpdate: mockTriggerUpdate,
+    triggerAgentUpdate: mockTriggerAgentUpdate,
     recordSkippedUpdateRun: mockRecordSkippedUpdateRun,
   },
 }));
@@ -26,13 +30,16 @@ vi.mock('./system-service', () => ({
 describe('local auto-update service', () => {
   let tempDir: string;
   let configPath: string;
+  let agentConfigPath: string;
 
   beforeEach(async () => {
     vi.resetModules();
     vi.clearAllMocks();
     tempDir = await mkdtemp(join(tmpdir(), 'servermon-auto-update-'));
     configPath = join(tempDir, 'auto-update.json');
+    agentConfigPath = join(tempDir, 'agent-auto-update.json');
     vi.stubEnv('SERVERMON_AUTO_UPDATE_CONFIG', configPath);
+    vi.stubEnv('SERVERMON_AGENT_AUTO_UPDATE_CONFIG', agentConfigPath);
     vi.stubEnv('SERVERMON_REPO_DIR', '/opt/servermon/repo');
     mockGetUpdateRunDetails.mockResolvedValue(null);
     mockGetServermonAgentStatus.mockResolvedValue({
@@ -41,6 +48,16 @@ describe('local auto-update service', () => {
       updateSupported: false,
     });
     mockTriggerLocalAutoUpdateRun.mockResolvedValue({
+      success: true,
+      runId: 'launched-1',
+      message: 'started',
+    });
+    mockTriggerUpdate.mockResolvedValue({
+      success: true,
+      runId: 'launched-1',
+      message: 'started',
+    });
+    mockTriggerAgentUpdate.mockResolvedValue({
       success: true,
       runId: 'launched-1',
       message: 'started',
@@ -255,14 +272,16 @@ describe('local auto-update service', () => {
 
     expect(result).toMatchObject({ launched: false, reason: 'no-updates' });
     expect(mockRecordSkippedUpdateRun).toHaveBeenCalledWith(
-      'Local auto-update skipped: no upstream changes detected'
+      'ServerMon app auto-update skipped: no upstream changes detected',
+      'servermon',
+      'scheduled'
     );
     expect(mockTriggerLocalAutoUpdateRun).not.toHaveBeenCalled();
     const stored = JSON.parse(await readFile(configPath, 'utf8')) as { lastSkippedDate?: string };
     expect(stored.lastSkippedDate).toBe('2026-04-26');
   });
 
-  it('launches one detached run when ServerMon changed and includes changed running agent', async () => {
+  it('launches a scheduled ServerMon app update when ServerMon changed', async () => {
     const { saveAutoUpdateSettings, runLocalAutoUpdateOnce } = await import('./auto-update');
     await saveAutoUpdateSettings({
       enabled: true,
@@ -290,11 +309,8 @@ describe('local auto-update service', () => {
     const result = await runLocalAutoUpdateOnce(new Date('2026-04-25T21:30:00.000Z'));
 
     expect(result).toMatchObject({ launched: true, runId: 'launched-1' });
-    expect(mockTriggerLocalAutoUpdateRun).toHaveBeenCalledWith({
-      servermonNeedsUpdate: true,
-      agentNeedsUpdate: true,
-      agentRepoDir: '/opt/servermon-agent/source',
-    });
+    expect(mockTriggerUpdate).toHaveBeenCalledWith({ trigger: 'scheduled' });
+    expect(mockTriggerAgentUpdate).not.toHaveBeenCalled();
     const stored = JSON.parse(await readFile(configPath, 'utf8')) as {
       activeRunId?: string;
       lastScheduledDateLaunched?: string;
@@ -331,14 +347,20 @@ describe('local auto-update service', () => {
       return cb(new Error(`unexpected ${String(cmd)}`), { stdout: '', stderr: '' });
     });
 
-    const result = await runLocalAutoUpdateOnce(new Date('2026-04-25T21:30:00.000Z'));
+    await saveAutoUpdateSettings(
+      {
+        enabled: true,
+        time: '03:00',
+        timezone: 'Asia/Kolkata',
+      },
+      'agent'
+    );
+
+    const result = await runLocalAutoUpdateOnce('agent', new Date('2026-04-25T21:30:00.000Z'));
 
     expect(result).toMatchObject({ launched: true, runId: 'launched-1' });
-    expect(mockTriggerLocalAutoUpdateRun).toHaveBeenCalledWith({
-      servermonNeedsUpdate: false,
-      agentNeedsUpdate: true,
-      agentRepoDir: '/opt/servermon-agent/source',
-    });
+    expect(mockTriggerAgentUpdate).toHaveBeenCalledWith({ trigger: 'scheduled' });
+    expect(mockTriggerLocalAutoUpdateRun).not.toHaveBeenCalled();
   });
 });
 

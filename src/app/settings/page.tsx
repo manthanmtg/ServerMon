@@ -25,6 +25,7 @@ import UpdateHistoryModal from '@/components/settings/UpdateHistoryModal';
 import QuickAccessSettings from '@/components/settings/QuickAccessSettings';
 import ServerMonServicesCard from '@/components/settings/ServerMonServicesCard';
 import ServerMonUptimeCard from '@/components/settings/ServerMonUptimeCard';
+import type { LocalAutoUpdateTarget } from '@/types/updates';
 
 interface ModuleInfo {
   id: string;
@@ -32,12 +33,14 @@ interface ModuleInfo {
   description?: string;
 }
 
+type UpdateHistoryScope = LocalAutoUpdateTarget | 'all';
+
 export default function SettingsPage() {
   const { theme, setTheme, availableThemes } = useTheme();
   const { settings: brandSettings, updateSettings: updateBrandSettings } = useBrand();
   const { toast } = useToast();
   const [modules, setModules] = useState<ModuleInfo[]>([]);
-  const [showHistory, setShowHistory] = useState(false);
+  const [historyType, setHistoryType] = useState<UpdateHistoryScope | null>(null);
 
   // Branding state
   const [pageTitle, setPageTitle] = useState(brandSettings.pageTitle);
@@ -330,7 +333,7 @@ export default function SettingsPage() {
 
             <ServerMonUptimeCard />
 
-            <ServerMonServicesCard onOpenHistory={() => setShowHistory(true)} />
+            <ServerMonServicesCard onOpenHistory={setHistoryType} />
 
             <Card>
               <CardHeader>
@@ -338,7 +341,7 @@ export default function SettingsPage() {
                   <CardTitle className="text-base">About</CardTitle>
                   <button
                     type="button"
-                    onClick={() => setShowHistory(true)}
+                    onClick={() => setHistoryType('all')}
                     className="flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-background text-foreground transition-all hover:bg-accent"
                     title="View update history"
                   >
@@ -367,7 +370,12 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      {showHistory && <UpdateHistoryModal onClose={() => setShowHistory(false)} />}
+      {historyType && (
+        <UpdateHistoryModal
+          type={historyType === 'all' ? undefined : historyType}
+          onClose={() => setHistoryType(null)}
+        />
+      )}
     </ProShell>
   );
 }

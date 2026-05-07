@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useState, useRef } from 'react';
+import React, { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import {
   X,
   Clock,
@@ -16,14 +16,15 @@ import {
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { UpdateRunStatus } from '@/types/updates';
+import type { UpdateRunStatus, UpdateRunType } from '@/types/updates';
 import { cn, formatDuration } from '@/lib/utils';
 
 interface UpdateHistoryModalProps {
   onClose: () => void;
+  type?: Extract<UpdateRunType, 'servermon' | 'agent'>;
 }
 
-export default function UpdateHistoryModal({ onClose }: UpdateHistoryModalProps) {
+export default function UpdateHistoryModal({ onClose, type }: UpdateHistoryModalProps) {
   const [runs, setRuns] = useState<UpdateRunStatus[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedRun, setSelectedRun] = useState<UpdateRunStatus | null>(null);
@@ -42,18 +43,25 @@ export default function UpdateHistoryModal({ onClose }: UpdateHistoryModalProps)
     return () => clearInterval(interval);
   }, [shouldTrackElapsedTime]);
 
-  async function loadRuns(isSilent = false) {
-    if (!isSilent) setLoading(true);
-    try {
-      const res = await fetch('/api/system/update/history');
-      if (res.ok) {
-        const data = await res.json();
-        setRuns(data);
+  const loadRuns = useCallback(
+    async (isSilent = false) => {
+      if (!isSilent) setLoading(true);
+      try {
+        const res = await fetch(
+          type
+            ? `/api/system/update/history?type=${encodeURIComponent(type)}`
+            : '/api/system/update/history'
+        );
+        if (res.ok) {
+          const data = await res.json();
+          setRuns(data);
+        }
+      } finally {
+        if (!isSilent) setLoading(false);
       }
-    } finally {
-      if (!isSilent) setLoading(false);
-    }
-  }
+    },
+    [type]
+  );
 
   async function loadDetails(runId: string, isSilent = false) {
     if (!isSilent) setDetailsLoading(true);
@@ -81,7 +89,7 @@ export default function UpdateHistoryModal({ onClose }: UpdateHistoryModalProps)
       if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
       clearInterval(listPolling);
     };
-  }, [hasRunningRun]);
+  }, [hasRunningRun, loadRuns]);
 
   useEffect(() => {
     if (selectedRun?.status === 'running') {
@@ -143,10 +151,10 @@ export default function UpdateHistoryModal({ onClose }: UpdateHistoryModalProps)
             </div>
             <div>
               <h2 className="text-xl font-bold text-foreground tracking-tight sm:text-2xl">
-                {selectedRun ? 'Update Log' : 'Update History'}
+                {selectedRun ? 'Update Log' : getHistoryTitle(type)}
               </h2>
               <p className="text-[10px] text-muted-foreground uppercase tracking-[0.25em] font-black opacity-50">
-                {selectedRun ? `RUN ID: ${selectedRun.runId}` : 'System Maintenance'}
+                {selectedRun ? `RUN ID: ${selectedRun.runId}` : getHistorySubtitle(type)}
               </p>
             </div>
           </div>
@@ -305,7 +313,7 @@ export default function UpdateHistoryModal({ onClose }: UpdateHistoryModalProps)
                         <div className="text-left">
                           <div className="flex items-center gap-4">
                             <span className="text-lg font-bold text-foreground tracking-tight">
-                              System Update
+                              {getRunTitle(run)}
                             </span>
                             <Badge
                               variant="outline"
@@ -380,4 +388,24 @@ export default function UpdateHistoryModal({ onClose }: UpdateHistoryModalProps)
       </div>
     </div>
   );
+}
+
+function getHistoryTitle(type?: Extract<UpdateRunType, 'servermon' | 'agent'>): string {
+  if (type === 'servermon') return 'App Update History';
+  if (type === 'agent') return 'Agent Update History';
+  return 'Update History';
+}
+
+function getHistorySubtitle(type?: Extract<UpdateRunType, 'servermon' | 'agent'>): string {
+  if (type === 'servermon') return 'ServerMon App Maintenance';
+  if (type === 'agent') return 'ServerMon Agent Maintenance';
+  return 'System Maintenance';
+}
+
+function getRunTitle(run: UpdateRunStatus): string {
+  if (run.type === 'servermon') return 'ServerMon App Update';
+  if (run.type === 'agent') return 'ServerMon Agent Update';
+  if (run.type === 'packages') return 'System Package Update';
+  if (run.type === 'combined') return 'Combined Maintenance';
+  return 'System Update';
 }

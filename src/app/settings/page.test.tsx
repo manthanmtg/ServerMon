@@ -389,7 +389,16 @@ describe('SettingsPage', () => {
 
   it('renders ServerMon service controls in settings', async () => {
     (global.fetch as ReturnType<typeof vi.fn>).mockImplementation((url: string) => {
-      if (url === '/api/system/update/auto') {
+      if (url === '/api/system/update/auto?type=servermon') {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            settings: { enabled: true, time: '03:00', timezone: 'Asia/Kolkata' },
+            schedule: { nextRunAt: '2026-04-26T21:30:00.000Z' },
+          }),
+        });
+      }
+      if (url === '/api/system/update/auto?type=agent') {
         return Promise.resolve({
           ok: true,
           json: async () => ({
@@ -422,22 +431,29 @@ describe('SettingsPage', () => {
 
     await act(async () => render(<SettingsPage />));
 
-    expect(screen.getByText('ServerMon Services')).toBeDefined();
-    await waitFor(() => expect(screen.getByText('Scheduled updater')).toBeDefined());
-    expect(screen.getByText('Enabled at 03:00 AM')).toBeDefined();
-    expect(screen.getByText('IST')).toBeDefined();
-    expect(screen.queryByText('Check app')).toBeNull();
-    expect(screen.queryByText('Update app')).toBeNull();
-    expect(screen.queryByText('Check agent')).toBeNull();
-    expect(screen.queryByText('Update agent')).toBeNull();
-    expect(screen.queryByText(/Checks upstream changes first/i)).toBeNull();
+    expect(screen.getByText('ServerMon Updates')).toBeDefined();
+    await waitFor(() => expect(screen.getByText('ServerMon App')).toBeDefined());
+    expect(screen.getByText('Agent Updates')).toBeDefined();
+    expect(screen.getAllByText('Enabled at 03:00 AM').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('IST').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText('App History')).toBeDefined();
+    expect(screen.getByText('Agent History')).toBeDefined();
     await waitFor(() => expect(screen.getByText('Agent Installed')).toBeDefined());
     expect(screen.getByText('/opt/servermon-agent/source')).toBeDefined();
   });
 
   it('anchors the disabled auto-update switch thumb on the left', async () => {
     (global.fetch as ReturnType<typeof vi.fn>).mockImplementation((url: string) => {
-      if (url === '/api/system/update/auto') {
+      if (url === '/api/system/update/auto?type=servermon') {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            settings: { enabled: false, time: '03:00', timezone: 'UTC' },
+            schedule: { nextRunAt: null },
+          }),
+        });
+      }
+      if (url === '/api/system/update/auto?type=agent') {
         return Promise.resolve({
           ok: true,
           json: async () => ({
@@ -462,7 +478,7 @@ describe('SettingsPage', () => {
     await act(async () => render(<SettingsPage />));
 
     const switchButton = await screen.findByRole('switch', {
-      name: 'Toggle local auto-update',
+      name: 'Toggle ServerMon app auto-update',
     });
     expect(switchButton).toHaveAttribute('aria-checked', 'false');
     expect(switchButton.firstElementChild).toHaveClass('left-0', 'translate-x-1');
@@ -471,7 +487,7 @@ describe('SettingsPage', () => {
   it('opens and saves the local auto-update schedule modal with time and timezone dropdowns', async () => {
     (global.fetch as ReturnType<typeof vi.fn>).mockImplementation(
       (url: string, opts?: RequestInit) => {
-        if (url === '/api/system/update/auto' && opts?.method === 'PATCH') {
+        if (url === '/api/system/update/auto?type=servermon' && opts?.method === 'PATCH') {
           return Promise.resolve({
             ok: true,
             json: async () => ({
@@ -480,12 +496,21 @@ describe('SettingsPage', () => {
             }),
           });
         }
-        if (url === '/api/system/update/auto') {
+        if (url === '/api/system/update/auto?type=servermon') {
           return Promise.resolve({
             ok: true,
             json: async () => ({
               settings: { enabled: true, time: '03:00', timezone: 'Asia/Kolkata' },
               schedule: { nextRunAt: '2026-04-26T21:30:00.000Z' },
+            }),
+          });
+        }
+        if (url === '/api/system/update/auto?type=agent') {
+          return Promise.resolve({
+            ok: true,
+            json: async () => ({
+              settings: { enabled: false, time: '03:00', timezone: 'Asia/Kolkata' },
+              schedule: { nextRunAt: null },
             }),
           });
         }
@@ -504,11 +529,13 @@ describe('SettingsPage', () => {
 
     await act(async () => render(<SettingsPage />));
 
-    await waitFor(() => expect(screen.getByText('Configure Schedule')).toBeDefined());
-    fireEvent.click(screen.getByText('Configure Schedule'));
+    await waitFor(() => expect(screen.getByText('Configure App Schedule')).toBeDefined());
+    fireEvent.click(screen.getByText('Configure App Schedule'));
 
-    await waitFor(() => expect(screen.getByText('Local Auto-Update Schedule')).toBeDefined());
-    fireEvent.click(screen.getByLabelText('Enable local auto-update'));
+    await waitFor(() =>
+      expect(screen.getByText('ServerMon App Auto-Update Schedule')).toBeDefined()
+    );
+    fireEvent.click(screen.getByLabelText('Enable ServerMon app auto-update'));
     const hourSelect = screen.getByRole('combobox', { name: 'Daily hour' });
     const minuteSelect = screen.getByRole('combobox', { name: 'Daily minute' });
     const periodSelect = screen.getByRole('combobox', { name: 'Daily period' });
@@ -533,7 +560,7 @@ describe('SettingsPage', () => {
     });
 
     expect(global.fetch).toHaveBeenCalledWith(
-      '/api/system/update/auto',
+      '/api/system/update/auto?type=servermon',
       expect.objectContaining({
         method: 'PATCH',
         body: JSON.stringify({ enabled: false, time: '04:30', timezone: 'Asia/Kolkata' }),
@@ -550,7 +577,7 @@ describe('SettingsPage', () => {
     await act(async () => render(<SettingsPage />));
 
     await act(async () => {
-      fireEvent.click(screen.getByText('History & Logs'));
+      fireEvent.click(screen.getByText('App History'));
     });
 
     expect(screen.getByTestId('update-history-modal')).toBeDefined();

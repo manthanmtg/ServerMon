@@ -25,6 +25,9 @@ function mockFetchRuns(runs: UpdateRunStatus[]) {
     if (url === '/api/system/update/history') {
       return { ok: true, json: async () => runs };
     }
+    if (url === '/api/system/update/history?type=agent') {
+      return { ok: true, json: async () => runs.filter((run) => run.type === 'agent') };
+    }
     const run = runs.find((r) => url.includes(r.runId));
     if (run) {
       return { ok: true, json: async () => run };
@@ -63,15 +66,32 @@ describe('UpdateHistoryModal', () => {
 
   it('renders a list of update runs', async () => {
     const runs = [
-      makeRun({ runId: 'run-aabbccdd1234', status: 'completed' }),
-      makeRun({ runId: 'run-eeff00112233', status: 'failed' }),
+      makeRun({ runId: 'run-aabbccdd1234', status: 'completed', type: 'servermon' }),
+      makeRun({ runId: 'run-eeff00112233', status: 'failed', type: 'agent' }),
     ];
     mockFetchRuns(runs);
 
     render(<UpdateHistoryModal onClose={vi.fn()} />);
     await waitFor(() => {
-      const items = screen.getAllByText('System Update');
-      expect(items.length).toBe(2);
+      expect(screen.getByText('ServerMon App Update')).toBeDefined();
+      expect(screen.getByText('ServerMon Agent Update')).toBeDefined();
+    });
+  });
+
+  it('requests only agent history when scoped to the agent', async () => {
+    const runs = [
+      makeRun({ runId: 'run-app', status: 'completed', type: 'servermon' }),
+      makeRun({ runId: 'run-agent', status: 'completed', type: 'agent' }),
+    ];
+    mockFetchRuns(runs);
+
+    render(<UpdateHistoryModal type="agent" onClose={vi.fn()} />);
+
+    await waitFor(() => {
+      expect(mockFetch).toHaveBeenCalledWith('/api/system/update/history?type=agent');
+      expect(screen.getByText('Agent Update History')).toBeDefined();
+      expect(screen.getByText('ServerMon Agent Update')).toBeDefined();
+      expect(screen.queryByText('ServerMon App Update')).toBeNull();
     });
   });
 

@@ -1,7 +1,15 @@
 'use client';
 
 import React, { useCallback, useEffect, useState } from 'react';
-import { CalendarClock, Download, History, RefreshCcw, ServerCog, Settings2 } from 'lucide-react';
+import {
+  CalendarClock,
+  Download,
+  History,
+  RefreshCcw,
+  Server,
+  ServerCog,
+  Settings2,
+} from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -11,6 +19,7 @@ import { cn } from '@/lib/utils';
 import type {
   LocalAutoUpdateScheduleState,
   LocalAutoUpdateSettings,
+  LocalAutoUpdateTarget,
   ServermonAgentStatus,
 } from '@/types/updates';
 import { AutoUpdateScheduleModal } from './AutoUpdateScheduleModal';
@@ -39,19 +48,26 @@ const UPDATE_COPY: Record<
 };
 
 interface ServerMonServicesCardProps {
-  onOpenHistory: () => void;
+  onOpenHistory: (type: LocalAutoUpdateTarget) => void;
+}
+
+interface AutoUpdateState {
+  settings: LocalAutoUpdateSettings | null;
+  schedule: LocalAutoUpdateScheduleState | null;
+  loading: boolean;
 }
 
 export default function ServerMonServicesCard({ onOpenHistory }: ServerMonServicesCardProps) {
   const { toast } = useToast();
   const [agentStatus, setAgentStatus] = useState<ServermonAgentStatus | null>(null);
-  const [autoSettings, setAutoSettings] = useState<LocalAutoUpdateSettings | null>(null);
-  const [autoSchedule, setAutoSchedule] = useState<LocalAutoUpdateScheduleState | null>(null);
+  const [autoUpdates, setAutoUpdates] = useState<Record<LocalAutoUpdateTarget, AutoUpdateState>>({
+    servermon: { settings: null, schedule: null, loading: true },
+    agent: { settings: null, schedule: null, loading: true },
+  });
   const [agentLoading, setAgentLoading] = useState(true);
-  const [autoLoading, setAutoLoading] = useState(true);
   const [updating, setUpdating] = useState<ServiceUpdateType | null>(null);
   const [confirmType, setConfirmType] = useState<ServiceUpdateType | null>(null);
-  const [scheduleOpen, setScheduleOpen] = useState(false);
+  const [scheduleTarget, setScheduleTarget] = useState<LocalAutoUpdateTarget | null>(null);
   const [scheduleSaving, setScheduleSaving] = useState(false);
   const [scheduleForm, setScheduleForm] = useState({
     enabled: false,
@@ -73,36 +89,54 @@ export default function ServerMonServicesCard({ onOpenHistory }: ServerMonServic
     }
   }, []);
 
-  const loadAutoSettings = useCallback(async () => {
-    setAutoLoading(true);
+  const loadAutoSettings = useCallback(async (target: LocalAutoUpdateTarget) => {
+    setAutoUpdates((state) => ({
+      ...state,
+      [target]: { ...state[target], loading: true },
+    }));
     try {
-      const res = await fetch('/api/system/update/auto');
+      const res = await fetch(`/api/system/update/auto?type=${target}`);
       if (!res.ok) return;
       const data = (await res.json()) as {
         settings?: LocalAutoUpdateSettings;
         schedule?: LocalAutoUpdateScheduleState;
       };
-      if (data.settings) {
-        setAutoSettings(data.settings);
-        setScheduleForm({
-          enabled: data.settings.enabled,
-          time: data.settings.time,
-          timezone: data.settings.timezone,
-        });
-      }
-      setAutoSchedule(data.schedule ?? null);
+      setAutoUpdates((state) => ({
+        ...state,
+        [target]: {
+          settings: data.settings ?? null,
+          schedule: data.schedule ?? null,
+          loading: false,
+        },
+      }));
     } catch {
-      setAutoSettings(null);
-      setAutoSchedule(null);
+      setAutoUpdates((state) => ({
+        ...state,
+        [target]: { settings: null, schedule: null, loading: false },
+      }));
     } finally {
-      setAutoLoading(false);
+      setAutoUpdates((state) => ({
+        ...state,
+        [target]: { ...state[target], loading: false },
+      }));
     }
   }, []);
 
   useEffect(() => {
     void loadAgentStatus();
-    void loadAutoSettings();
+    void loadAutoSettings('servermon');
+    void loadAutoSettings('agent');
   }, [loadAgentStatus, loadAutoSettings]);
+
+  const openSchedule = (target: LocalAutoUpdateTarget, enabled?: boolean) => {
+    const current = autoUpdates[target].settings;
+    setScheduleForm({
+      enabled: enabled ?? current?.enabled ?? false,
+      time: current?.time ?? '03:00',
+      timezone: current?.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone ?? 'UTC',
+    });
+    setScheduleTarget(target);
+  };
 
   const handleConfirmUpdate = async () => {
     if (!confirmType) return;
@@ -146,7 +180,8 @@ export default function ServerMonServicesCard({ onOpenHistory }: ServerMonServic
   const saveSchedule = async () => {
     setScheduleSaving(true);
     try {
-      const res = await fetch('/api/system/update/auto', {
+      if (!scheduleTarget) return;
+      const res = await fetch(`/api/system/update/auto?type=${scheduleTarget}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(scheduleForm),
@@ -155,16 +190,22 @@ export default function ServerMonServicesCard({ onOpenHistory }: ServerMonServic
       if (!res.ok) {
         throw new Error(data.error || 'Failed to save auto-update schedule');
       }
-      setAutoSettings(data.settings ?? null);
-      setAutoSchedule(data.schedule ?? null);
-      setScheduleOpen(false);
+      setAutoUpdates((state) => ({
+        ...state,
+        [scheduleTarget]: {
+          settings: data.settings ?? null,
+          schedule: data.schedule ?? null,
+          loading: false,
+        },
+      }));
+      setScheduleTarget(null);
       toast({
         title: 'Auto-update schedule saved',
         description: scheduleForm.enabled
-          ? `ServerMon will check daily at ${scheduleForm.time} ${getTimezoneLabel(
+          ? `${getTargetName(scheduleTarget)} will check daily at ${scheduleForm.time} ${getTimezoneLabel(
               scheduleForm.timezone
             )}.`
-          : 'Local auto-update is disabled.',
+          : `${getTargetName(scheduleTarget)} auto-update is disabled.`,
         variant: 'success',
       });
     } catch (error) {
@@ -188,100 +229,33 @@ export default function ServerMonServicesCard({ onOpenHistory }: ServerMonServic
           <div className="space-y-4">
             <div className="flex min-w-0 items-start gap-3">
               <div className="shrink-0 rounded-lg bg-primary/10 p-2">
-                <ServerCog className="w-4 h-4 text-primary" />
+                <Server className="w-4 h-4 text-primary" />
               </div>
               <div className="min-w-0 space-y-1">
-                <CardTitle className="text-base leading-tight">ServerMon Services</CardTitle>
+                <CardTitle className="text-base leading-tight">ServerMon Updates</CardTitle>
                 <CardDescription className="leading-relaxed">
-                  Update this ServerMon app and its colocated Fleet agent from one local maintenance
-                  flow.
+                  Update the ServerMon app on its own schedule and keep its history separate.
                 </CardDescription>
               </div>
             </div>
-            <div className="overflow-hidden rounded-xl border border-border bg-background/70">
-              <div className="flex items-center justify-between gap-3 border-b border-border bg-accent/20 px-3 py-3">
-                <div className="flex min-w-0 items-center gap-3">
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                    <CalendarClock className="w-4 h-4" />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
-                      Scheduled updater
-                    </p>
-                    <p className="text-sm font-bold text-foreground">
-                      {autoLoading
-                        ? 'Loading schedule'
-                        : autoSettings?.enabled
-                          ? `Enabled at ${formatScheduleTime(autoSettings.time)}`
-                          : 'Disabled'}
-                    </p>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={autoSettings?.enabled ?? false}
-                  aria-label="Toggle local auto-update"
-                  disabled={autoLoading}
-                  onClick={() => {
-                    const next = !(autoSettings?.enabled ?? false);
-                    setScheduleForm((form) => ({ ...form, enabled: next }));
-                    setAutoSettings((settings) =>
-                      settings ? { ...settings, enabled: next } : settings
-                    );
-                    setScheduleOpen(true);
-                  }}
-                  className={cn(
-                    'relative h-8 w-14 shrink-0 rounded-full border transition-colors disabled:cursor-not-allowed disabled:opacity-60',
-                    autoSettings?.enabled
-                      ? 'border-primary/35 bg-primary shadow-sm shadow-primary/20'
-                      : 'border-border bg-muted/70'
-                  )}
-                >
-                  <span
-                    className={cn(
-                      'absolute left-0 top-1 h-6 w-6 rounded-full bg-background shadow-sm ring-1 ring-border/50 transition-transform',
-                      autoSettings?.enabled ? 'translate-x-7' : 'translate-x-1'
-                    )}
-                  />
-                </button>
-              </div>
-
-              <div className="grid grid-cols-2 gap-2 p-3">
-                <ScheduleStat
-                  label="Time"
-                  value={formatScheduleTime(autoSettings?.time ?? '03:00')}
-                  mono
-                />
-                <ScheduleStat
-                  label="Timezone"
-                  value={getTimezoneLabel(autoSettings?.timezone ?? 'UTC')}
-                />
-                <ScheduleStat label="Next run" value={formatNextRun(autoSchedule?.nextRunAt)} />
-                <ScheduleStat label="Retry" value="2h, once" />
-              </div>
-
-              <div className="border-t border-border p-3">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-9 w-full gap-2 rounded-lg px-3"
-                  onClick={() => setScheduleOpen(true)}
-                >
-                  <Settings2 className="w-3.5 h-3.5" />
-                  Configure Schedule
-                </Button>
-              </div>
-            </div>
+            <UpdateSchedulePanel
+              title="ServerMon App"
+              target="servermon"
+              state={autoUpdates.servermon}
+              onToggle={() =>
+                openSchedule('servermon', !(autoUpdates.servermon.settings?.enabled ?? false))
+              }
+              onConfigure={() => openSchedule('servermon')}
+            />
             <div className="grid grid-cols-1 gap-2">
               <Button
                 variant="ghost"
                 size="sm"
                 className="h-9 w-full gap-2 rounded-lg px-3"
-                onClick={onOpenHistory}
+                onClick={() => onOpenHistory('servermon')}
               >
                 <History className="w-3.5 h-3.5" />
-                History & Logs
+                App History
               </Button>
               <Button
                 variant="outline"
@@ -296,6 +270,34 @@ export default function ServerMonServicesCard({ onOpenHistory }: ServerMonServic
                 Update ServerMon
               </Button>
             </div>
+          </div>
+        </CardHeader>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <div className="space-y-4">
+            <div className="flex min-w-0 items-start gap-3">
+              <div className="shrink-0 rounded-lg bg-primary/10 p-2">
+                <ServerCog className="w-4 h-4 text-primary" />
+              </div>
+              <div className="min-w-0 space-y-1">
+                <CardTitle className="text-base leading-tight">Agent Updates</CardTitle>
+                <CardDescription className="leading-relaxed">
+                  Manage the colocated Fleet agent separately from the ServerMon app.
+                </CardDescription>
+              </div>
+            </div>
+
+            <UpdateSchedulePanel
+              title="ServerMon Agent"
+              target="agent"
+              state={autoUpdates.agent}
+              onToggle={() =>
+                openSchedule('agent', !(autoUpdates.agent.settings?.enabled ?? false))
+              }
+              onConfigure={() => openSchedule('agent')}
+            />
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -351,6 +353,15 @@ export default function ServerMonServicesCard({ onOpenHistory }: ServerMonServic
               variant="ghost"
               size="sm"
               className="h-9 w-full gap-2 rounded-lg px-3"
+              onClick={() => onOpenHistory('agent')}
+            >
+              <History className="w-3.5 h-3.5" />
+              Agent History
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-9 w-full gap-2 rounded-lg px-3"
               onClick={loadAgentStatus}
               disabled={agentLoading || isUpdating}
             >
@@ -380,18 +391,109 @@ export default function ServerMonServicesCard({ onOpenHistory }: ServerMonServic
         cancelLabel="Cancel"
         variant="warning"
       />
-      {scheduleOpen && (
+      {scheduleTarget && (
         <AutoUpdateScheduleModal
           scheduleForm={scheduleForm}
           setScheduleForm={setScheduleForm}
-          autoSettingsTimezone={autoSettings?.timezone}
-          onClose={() => setScheduleOpen(false)}
+          autoSettingsTimezone={autoUpdates[scheduleTarget].settings?.timezone}
+          title={`${getTargetName(scheduleTarget)} Auto-Update Schedule`}
+          enableLabel={`Enable ${scheduleTarget === 'servermon' ? 'ServerMon app' : 'ServerMon agent'} auto-update`}
+          onClose={() => setScheduleTarget(null)}
           onSave={saveSchedule}
           isSaving={scheduleSaving}
         />
       )}
     </>
   );
+}
+
+function UpdateSchedulePanel({
+  title,
+  target,
+  state,
+  onToggle,
+  onConfigure,
+}: {
+  title: string;
+  target: LocalAutoUpdateTarget;
+  state: AutoUpdateState;
+  onToggle: () => void;
+  onConfigure: () => void;
+}) {
+  const settings = state.settings;
+  const isEnabled = settings?.enabled ?? false;
+  const toggleLabel =
+    target === 'servermon'
+      ? 'Toggle ServerMon app auto-update'
+      : 'Toggle ServerMon agent auto-update';
+
+  return (
+    <div className="overflow-hidden rounded-xl border border-border bg-background/70">
+      <div className="flex items-center justify-between gap-3 border-b border-border bg-accent/20 px-3 py-3">
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <CalendarClock className="w-4 h-4" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+              {title}
+            </p>
+            <p className="text-sm font-bold text-foreground">
+              {state.loading
+                ? 'Loading schedule'
+                : isEnabled
+                  ? `Enabled at ${formatScheduleTime(settings?.time ?? '03:00')}`
+                  : 'Disabled'}
+            </p>
+          </div>
+        </div>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={isEnabled}
+          aria-label={toggleLabel}
+          disabled={state.loading}
+          onClick={onToggle}
+          className={cn(
+            'relative h-8 w-14 shrink-0 rounded-full border transition-colors disabled:cursor-not-allowed disabled:opacity-60',
+            isEnabled
+              ? 'border-primary/35 bg-primary shadow-sm shadow-primary/20'
+              : 'border-border bg-muted/70'
+          )}
+        >
+          <span
+            className={cn(
+              'absolute left-0 top-1 h-6 w-6 rounded-full bg-background shadow-sm ring-1 ring-border/50 transition-transform',
+              isEnabled ? 'translate-x-7' : 'translate-x-1'
+            )}
+          />
+        </button>
+      </div>
+
+      <div className="grid grid-cols-2 gap-2 p-3">
+        <ScheduleStat label="Time" value={formatScheduleTime(settings?.time ?? '03:00')} mono />
+        <ScheduleStat label="Timezone" value={getTimezoneLabel(settings?.timezone ?? 'UTC')} />
+        <ScheduleStat label="Next run" value={formatNextRun(state.schedule?.nextRunAt)} />
+        <ScheduleStat label="Retry" value="2h, once" />
+      </div>
+
+      <div className="border-t border-border p-3">
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-9 w-full gap-2 rounded-lg px-3"
+          onClick={onConfigure}
+        >
+          <Settings2 className="w-3.5 h-3.5" />
+          {target === 'servermon' ? 'Configure App Schedule' : 'Configure Agent Schedule'}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function getTargetName(target: LocalAutoUpdateTarget): string {
+  return target === 'servermon' ? 'ServerMon App' : 'ServerMon Agent';
 }
 
 function ScheduleStat({

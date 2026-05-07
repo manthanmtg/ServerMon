@@ -63,7 +63,11 @@ describe('SystemUpdateService', () => {
       message: string;
       runId?: string;
     }>;
-    recordSkippedUpdateRun: (message: string) => Promise<UpdateRunStatus>;
+    recordSkippedUpdateRun: (
+      message: string,
+      type?: UpdateRunStatus['type'],
+      trigger?: UpdateRunStatus['trigger']
+    ) => Promise<UpdateRunStatus>;
     getServermonAgentStatus: () => Promise<unknown>;
     listUpdateRuns: () => Promise<unknown[]>;
     getUpdateRunDetails: (id: string) => Promise<unknown>;
@@ -397,10 +401,16 @@ describe('SystemUpdateService', () => {
   });
 
   describe('recordSkippedUpdateRun', () => {
-    it('writes a skipped update run with log content', async () => {
-      const run = await systemUpdateService.recordSkippedUpdateRun('No upstream changes');
+    it('writes a skipped update run with type metadata and log content', async () => {
+      const run = await systemUpdateService.recordSkippedUpdateRun(
+        'No upstream changes',
+        'agent',
+        'scheduled'
+      );
 
       expect(run.status).toBe('skipped');
+      expect(run.type).toBe('agent');
+      expect(run.trigger).toBe('scheduled');
       expect(run.exitCode).toBe(0);
       expect(writeFile).toHaveBeenCalledWith(
         expect.stringContaining('.log'),
@@ -408,7 +418,7 @@ describe('SystemUpdateService', () => {
       );
       expect(writeFile).toHaveBeenCalledWith(
         expect.stringContaining('.json'),
-        expect.stringContaining('"status": "skipped"')
+        expect.stringContaining('"type": "agent"')
       );
     });
   });
@@ -420,6 +430,7 @@ describe('SystemUpdateService', () => {
         JSON.stringify({
           runId: '123',
           timestamp: new Date().toISOString(),
+          type: 'servermon',
           status: 'completed',
           pid: 0,
           startedAt: new Date().toISOString(),
@@ -429,6 +440,7 @@ describe('SystemUpdateService', () => {
       const runs = await systemUpdateService.listUpdateRuns();
       expect(runs).toHaveLength(1);
       expect((runs[0] as { runId: string }).runId).toBe('123');
+      expect((runs[0] as UpdateRunStatus).type).toBe('servermon');
     });
 
     it('should update status to completed and infer finishedAt from log mtime if process is stale', async () => {

@@ -22,6 +22,8 @@ interface AutoUpdateScheduleModalProps {
     }>
   >;
   autoSettingsTimezone?: string | null;
+  title?: string;
+  enableLabel?: string;
   onClose: () => void;
   onSave: () => void;
   isSaving: boolean;
@@ -31,6 +33,8 @@ export function AutoUpdateScheduleModal({
   scheduleForm,
   setScheduleForm,
   autoSettingsTimezone,
+  title = 'Local Auto-Update Schedule',
+  enableLabel = 'Enable local auto-update',
   onClose,
   onSave,
   isSaving,
@@ -59,10 +63,11 @@ export function AutoUpdateScheduleModal({
         <div className="flex items-start justify-between gap-4 border-b border-border p-6">
           <div>
             <h3 id="local-auto-update-title" className="text-lg font-bold text-foreground">
-              Local Auto-Update Schedule
+              {title}
             </h3>
             <p className="mt-1 text-sm text-muted-foreground">
-              ServerMon owns the schedule; update work runs detached through systemd.
+              This schedule checks upstream first, then launches update work detached through
+              systemd.
             </p>
           </div>
           <button
@@ -77,9 +82,9 @@ export function AutoUpdateScheduleModal({
 
         <div className="space-y-4 p-6">
           <label className="flex min-h-[44px] items-center justify-between gap-3 rounded-xl border border-border bg-muted/20 px-3 text-sm font-semibold text-foreground">
-            <span>Enable local auto-update</span>
+            <span>{enableLabel}</span>
             <input
-              aria-label="Enable local auto-update"
+              aria-label={enableLabel}
               type="checkbox"
               checked={scheduleForm.enabled}
               onChange={(event) =>

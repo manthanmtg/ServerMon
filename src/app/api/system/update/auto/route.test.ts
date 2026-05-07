@@ -94,11 +94,14 @@ describe('/api/system/update/auto', () => {
     const res = await PATCH(request({ enabled: false, time: '04:30', timezone: 'UTC' }));
 
     expect(res.status).toBe(200);
-    expect(mockSaveAutoUpdateSettings).toHaveBeenCalledWith({
-      enabled: false,
-      time: '04:30',
-      timezone: 'UTC',
-    });
+    expect(mockSaveAutoUpdateSettings).toHaveBeenCalledWith(
+      {
+        enabled: false,
+        time: '04:30',
+        timezone: 'UTC',
+      },
+      'servermon'
+    );
     const json = await res.json();
     expect(json.settings).toMatchObject({ enabled: false, time: '04:30', timezone: 'UTC' });
   });
