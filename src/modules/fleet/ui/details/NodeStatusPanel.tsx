@@ -329,7 +329,7 @@ export function NodeStatusPanel({ nodeId }: { nodeId: string }) {
             <CardTitle>Controls</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <Button
                 variant="outline"
                 disabled={busy}
@@ -392,9 +392,9 @@ export function NodeStatusPanel({ nodeId }: { nodeId: string }) {
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="flex justify-between gap-2">
-      <span className="text-muted-foreground">{label}</span>
-      <span className="text-right">{children}</span>
+    <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 py-0.5">
+      <span className="text-muted-foreground text-xs sm:text-sm whitespace-nowrap">{label}</span>
+      <span className="text-right text-xs sm:text-sm font-medium break-all">{children}</span>
     </div>
   );
 }

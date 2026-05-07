@@ -337,7 +337,7 @@ export function NodeServerMonPanel({ nodeId }: { nodeId: string }) {
               <Server className="h-4 w-4" aria-hidden="true" />
               ServerMon on this node
             </CardTitle>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <Button variant="outline" size="sm" disabled={busy} onClick={queueRecheck}>
                 <RefreshCcw className="h-3.5 w-3.5" aria-hidden="true" />
                 Recheck
