@@ -16,7 +16,7 @@ describe('FilesystemsTable', () => {
     },
   ];
 
-  const mockSettings = { unitSystem: 'si' as const };
+  const mockSettings = { unitSystem: 'decimal' as const };
 
   it('renders table headers', () => {
     render(<FilesystemsTable disks={mockDisks} settings={mockSettings} />);
@@ -29,7 +29,7 @@ describe('FilesystemsTable', () => {
     render(<FilesystemsTable disks={mockDisks} settings={mockSettings} />);
     expect(screen.getByText('/')).toBeDefined();
     expect(screen.getByText('apfs')).toBeDefined();
-    // formatBytes(200000000, 'si') -> "200 MB" (not 200.0 MB)
+    // formatBytes(200000000, 'decimal') -> "200 MB" (not 200.0 MB)
     expect(screen.getByText(/200.*MB/)).toBeDefined();
     expect(screen.getByText(/20.*free/)).toBeDefined();
   });

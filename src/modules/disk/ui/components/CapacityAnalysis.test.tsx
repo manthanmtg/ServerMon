@@ -7,7 +7,9 @@ vi.mock('recharts', async () => {
   return {
     ...actual,
     ResponsiveContainer: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-    BarChart: ({ children }: { children: React.ReactNode }) => <div data-testid="bar-chart">{children}</div>,
+    BarChart: ({ children }: { children: React.ReactNode }) => (
+      <div data-testid="bar-chart">{children}</div>
+    ),
     Bar: () => <div data-testid="bar" />,
     Cell: () => null,
     XAxis: () => null,
@@ -23,7 +25,7 @@ describe('CapacityAnalysis', () => {
     { name: 'var', path: '/var', size: 2000000, sizeStr: '2MB' },
   ];
 
-  const mockSettings = { unitSystem: 'si' as const };
+  const mockSettings = { unitSystem: 'decimal' as const };
 
   it('renders ready state when no results', () => {
     render(
