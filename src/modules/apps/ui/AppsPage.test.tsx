@@ -212,6 +212,9 @@ describe('AppsPage', () => {
     render(<AppsPage />);
     await screen.findByText('Inventory Portal');
 
+    expect(screen.queryByText('NEXT_PUBLIC_APP_URL')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Expand Inventory Portal' }));
+
     expect(screen.getByText('NEXT_PUBLIC_APP_URL')).toBeTruthy();
     expect(screen.getByText('OPENAI_API_KEY')).toBeTruthy();
     expect(screen.queryByText('sk-secret')).toBeNull();
@@ -277,6 +280,10 @@ describe('AppsPage', () => {
 
     expect(screen.getByText('Git')).toBeTruthy();
     expect(screen.getAllByText('https://github.com/acme/git-portal.git').length).toBeGreaterThan(0);
+    expect(screen.queryByText('main')).toBeNull();
+    expect(screen.queryByText('abcdef1')).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Expand Git Portal' }));
     expect(screen.getByText('main')).toBeTruthy();
     expect(screen.getByText('abcdef1')).toBeTruthy();
     expect(screen.getByRole('button', { name: /update/i })).toBeTruthy();
