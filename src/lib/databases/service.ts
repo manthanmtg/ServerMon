@@ -273,6 +273,10 @@ function getExplorerInternalPort(templateId: DatabaseTemplateId): number {
   return templateId === 'mysql' ? 80 : 8081;
 }
 
+function getExplorerUpstreamBasePath(id: string, kind: DatabaseExplorerKind): string | undefined {
+  return kind === 'mongo-express' || kind === 'pgweb' ? buildExplorerProxyPath(id) : undefined;
+}
+
 function encodeCredential(value: string): string {
   return encodeURIComponent(value);
 }
@@ -602,6 +606,7 @@ export async function waitForExplorerHttpReady(
   options: {
     attempts?: number;
     intervalMs?: number;
+    path?: string;
     fetcher?: ExplorerReadyFetcher;
     sleeper?: ExplorerReadySleeper;
   } = {}
@@ -610,7 +615,8 @@ export async function waitForExplorerHttpReady(
   const intervalMs = options.intervalMs ?? 1000;
   const fetcher = options.fetcher ?? fetch;
   const sleeper = options.sleeper ?? sleep;
-  const url = `http://127.0.0.1:${port}/`;
+  const path = options.path?.startsWith('/') ? options.path : `/${options.path ?? ''}`;
+  const url = new URL(path, `http://127.0.0.1:${port}`).toString();
   let lastError = 'no response';
 
   for (let attempt = 0; attempt < attempts; attempt += 1) {
@@ -701,7 +707,9 @@ export async function startManagedDatabaseExplorer(
 
   const dbId = db._id.toString();
   const existingContainerName = db.explorerContainerName || getExplorerContainerName(db.slug);
+  const explorerKind = getExplorerKind(db.templateId);
   const explorerImage = getExplorerImage(db.templateId);
+  const upstreamBasePath = getExplorerUpstreamBasePath(dbId, explorerKind);
   const logs = [...(db.explorerLogs ?? [])];
   if (
     db.explorerStatus === 'running' &&
@@ -709,7 +717,7 @@ export async function startManagedDatabaseExplorer(
     (await isContainerRunning(existingContainerName, runner))
   ) {
     try {
-      await waitForExplorerHttpReady(db.explorerPort);
+      await waitForExplorerHttpReady(db.explorerPort, { path: upstreamBasePath });
       return mapManagedDatabaseToDTO(db).explorer;
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Explorer readiness check failed';
@@ -718,7 +726,7 @@ export async function startManagedDatabaseExplorer(
   }
 
   db.explorerStatus = 'starting';
-  db.explorerKind = getExplorerKind(db.templateId);
+  db.explorerKind = explorerKind;
   db.explorerImage = explorerImage;
   db.explorerContainerName = existingContainerName;
   db.explorerLogs = [
@@ -771,7 +779,7 @@ export async function startManagedDatabaseExplorer(
       `Waiting for ${db.explorerKind} to accept HTTP connections`,
       'starting'
     );
-    await waitForExplorerHttpReady(hostPort);
+    await waitForExplorerHttpReady(hostPort, { path: upstreamBasePath });
     db.explorerStatus = 'running';
     db.explorerStartedAt = new Date();
     db.explorerLogs = [
@@ -808,14 +816,20 @@ export async function stopManagedDatabaseExplorer(
   return mapManagedDatabaseToDTO(db).explorer;
 }
 
-export async function getManagedDatabaseExplorerTarget(id: string): Promise<{ port: number }> {
+export async function getManagedDatabaseExplorerTarget(
+  id: string
+): Promise<{ port: number; upstreamBasePath?: string }> {
   await connectDB();
   const db = await ManagedDatabase.findById(id);
   if (!db) throw new Error('Database not found');
   if (db.explorerStatus !== 'running' || !db.explorerPort) {
     throw new Error('Database explorer is not running');
   }
-  return { port: db.explorerPort };
+  const explorerKind = db.explorerKind ?? getExplorerKind(db.templateId);
+  return {
+    port: db.explorerPort,
+    upstreamBasePath: getExplorerUpstreamBasePath(db._id.toString(), explorerKind),
+  };
 }
 
 export async function deployManagedDatabase(

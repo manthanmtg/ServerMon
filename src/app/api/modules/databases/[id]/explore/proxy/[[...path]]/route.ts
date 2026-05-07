@@ -44,6 +44,14 @@ function responseHeaders(upstream: Response): Headers {
   return headers;
 }
 
+function buildUpstreamPath(basePath: string | undefined, path: string[]): string {
+  const normalizedBase = basePath ? `/${basePath.replace(/^\/+|\/+$/g, '')}` : '';
+  const nestedPath = path.map(encodeURIComponent).join('/');
+  if (normalizedBase && nestedPath) return `${normalizedBase}/${nestedPath}`;
+  if (normalizedBase) return `${normalizedBase}/`;
+  return `/${nestedPath}`;
+}
+
 async function proxyExplorerRequest(
   request: Request,
   { params }: { params: Promise<{ id: string; path?: string[] }> }
@@ -56,8 +64,10 @@ async function proxyExplorerRequest(
     const { id, path = [] } = await params;
     const target = await getManagedDatabaseExplorerTarget(id);
     const requestUrl = new URL(request.url);
-    const upstreamPath = path.map(encodeURIComponent).join('/');
-    const upstreamUrl = new URL(`http://127.0.0.1:${target.port}/${upstreamPath}`);
+    const upstreamUrl = new URL(
+      buildUpstreamPath(target.upstreamBasePath, path),
+      `http://127.0.0.1:${target.port}`
+    );
     upstreamUrl.search = requestUrl.search;
 
     const body =

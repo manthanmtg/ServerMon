@@ -182,15 +182,33 @@ describe('database service helpers', () => {
     await waitForExplorerHttpReady(49152, {
       attempts: 3,
       intervalMs: 10,
+      path: '/api/modules/databases/db-1/explore/proxy/',
       fetcher,
       sleeper,
     });
 
     expect(fetcher).toHaveBeenCalledTimes(3);
+    expect(fetcher).toHaveBeenCalledWith(
+      'http://127.0.0.1:49152/api/modules/databases/db-1/explore/proxy/',
+      {
+        method: 'GET',
+        redirect: 'manual',
+      }
+    );
+    expect(sleeper).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps explorer readiness pointed at root when no upstream path is provided', async () => {
+    const fetcher = vi.fn().mockResolvedValueOnce(new Response('ok', { status: 200 }));
+
+    await waitForExplorerHttpReady(49152, {
+      attempts: 1,
+      fetcher,
+    });
+
     expect(fetcher).toHaveBeenCalledWith('http://127.0.0.1:49152/', {
       method: 'GET',
       redirect: 'manual',
     });
-    expect(sleeper).toHaveBeenCalledTimes(2);
   });
 });
