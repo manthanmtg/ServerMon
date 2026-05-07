@@ -8,7 +8,7 @@ import type {
   ManagedAppDTO,
   ManagedAppStatus,
 } from '@/modules/apps/types';
-import { buildDnsInstructions, maskEnvVars, sanitizeAppSlug } from './rendering';
+import { buildDnsInstructions, sanitizeAppSlug } from './rendering';
 import { deployNextJsApp } from './deploy';
 
 const DOMAIN_PATTERN = /^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$/;
@@ -129,7 +129,7 @@ export function mapManagedAppToDTO(app: ManagedAppDTORecord, publicIp?: string):
     domain: app.domain,
     port: app.port,
     commands: app.commands,
-    envVars: maskEnvVars(mapEnv(app.envVars)),
+    envVars: mapEnv(app.envVars),
     healthCheckPath: app.healthCheckPath,
     tlsEnabled: Boolean(app.tlsEnabled),
     status: app.status,

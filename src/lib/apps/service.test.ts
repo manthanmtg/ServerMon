@@ -71,7 +71,7 @@ describe('apps service helpers', () => {
     expect(getAppTemplate('nextjs')?.todos).toContain('Auto-detect package manager and commands');
   });
 
-  it('maps persisted app records to API-safe DTOs with masked env vars and DNS instructions', () => {
+  it('maps persisted app records to DTOs with raw env vars for authenticated UI reveal', () => {
     const dto = mapManagedAppToDTO(
       {
         _id: { toString: () => 'app-id' },
@@ -107,7 +107,7 @@ describe('apps service helpers', () => {
 
     expect(dto.envVars).toEqual({
       NEXT_PUBLIC_APP_URL: 'https://app.example.com',
-      OPENAI_API_KEY: '***',
+      OPENAI_API_KEY: 'sk-secret',
     });
     expect(dto.tlsEnabled).toBe(true);
     expect(dto.dns?.summary).toBe('Create A record: app.example.com -> 203.0.113.10');

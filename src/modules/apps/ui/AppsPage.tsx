@@ -4,13 +4,18 @@ import { FormEvent, type ReactNode, useCallback, useEffect, useMemo, useState } 
 import {
   Boxes,
   CheckCircle2,
+  Copy,
+  Eye,
+  EyeOff,
   ExternalLink,
   Globe2,
   LoaderCircle,
   Lock,
   Play,
+  Plus,
   Rocket,
   Server,
+  Trash2,
   XCircle,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
@@ -29,7 +34,13 @@ interface FormState {
   start: string;
   healthCheckPath: string;
   tlsEnabled: boolean;
-  envText: string;
+  envVars: EnvVarRow[];
+}
+
+interface EnvVarRow {
+  id: string;
+  key: string;
+  value: string;
 }
 
 const initialForm: FormState = {
@@ -43,7 +54,7 @@ const initialForm: FormState = {
   start: 'pnpm start',
   healthCheckPath: '/',
   tlsEnabled: false,
-  envText: '',
+  envVars: [],
 };
 
 const templates: Array<{ id: AppTemplateId; label: string; description: string }> = [
@@ -54,17 +65,17 @@ const templates: Array<{ id: AppTemplateId; label: string; description: string }
   },
 ];
 
-function parseEnvText(value: string): Record<string, string> {
+function createEnvVarRow(): EnvVarRow {
+  return {
+    id: `env-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    key: '',
+    value: '',
+  };
+}
+
+function buildEnvVars(rows: EnvVarRow[]): Record<string, string> {
   return Object.fromEntries(
-    value
-      .split('\n')
-      .map((line) => line.trim())
-      .filter((line) => line && !line.startsWith('#'))
-      .map((line) => {
-        const index = line.indexOf('=');
-        if (index === -1) return [line, ''];
-        return [line.slice(0, index).trim(), line.slice(index + 1).trim()];
-      })
+    rows.map((row) => [row.key.trim(), row.value] as const).filter(([key]) => key.length > 0)
   );
 }
 
@@ -117,6 +128,8 @@ function Field({
 export default function AppsPage() {
   const [apps, setApps] = useState<ManagedAppDTO[]>([]);
   const [form, setForm] = useState<FormState>(initialForm);
+  const [revealedEnvVars, setRevealedEnvVars] = useState<Set<string>>(() => new Set());
+  const [copiedTarget, setCopiedTarget] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [deployingId, setDeployingId] = useState<string | null>(null);
@@ -152,6 +165,42 @@ export default function AppsPage() {
     setForm((current) => ({ ...current, [key]: value }));
   };
 
+  const updateEnvRow = (id: string, key: keyof Omit<EnvVarRow, 'id'>, value: string) => {
+    setForm((current) => ({
+      ...current,
+      envVars: current.envVars.map((row) => (row.id === id ? { ...row, [key]: value } : row)),
+    }));
+  };
+
+  const addEnvRow = () => {
+    setForm((current) => ({ ...current, envVars: [...current.envVars, createEnvVarRow()] }));
+  };
+
+  const removeEnvRow = (id: string) => {
+    setForm((current) => ({
+      ...current,
+      envVars: current.envVars.filter((row) => row.id !== id),
+    }));
+  };
+
+  const toggleEnvValue = (appId: string, key: string) => {
+    const token = `${appId}:${key}`;
+    setRevealedEnvVars((current) => {
+      const next = new Set(current);
+      if (next.has(token)) next.delete(token);
+      else next.add(token);
+      return next;
+    });
+  };
+
+  const copyToClipboard = async (value: string, token: string) => {
+    await navigator.clipboard?.writeText(value);
+    setCopiedTarget(token);
+    window.setTimeout(() => {
+      setCopiedTarget((current) => (current === token ? null : current));
+    }, 1200);
+  };
+
   const createApp = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setSubmitting(true);
@@ -173,7 +222,7 @@ export default function AppsPage() {
           },
           healthCheckPath: form.healthCheckPath || '/',
           tlsEnabled: form.tlsEnabled,
-          envVars: parseEnvText(form.envText),
+          envVars: buildEnvVars(form.envVars),
         }),
       });
       const data = await response.json();
@@ -405,21 +454,58 @@ export default function AppsPage() {
                 </span>
               </label>
 
-              <Field
-                id="environment-variables"
-                label="Environment variables"
-                hint="One KEY=value pair per line. Secret-looking values are masked after saving."
-              >
-                <textarea
-                  id="environment-variables"
-                  className={`${fieldClassName()} min-h-[132px] resize-y`}
-                  placeholder={
-                    'NEXT_PUBLIC_APP_URL=https://app.example.com\nAPI_BASE_URL=https://api.example.com'
-                  }
-                  value={form.envText}
-                  onChange={(event) => updateForm('envText', event.target.value)}
-                />
-              </Field>
+              <div className="space-y-2 rounded-lg border border-border bg-muted/10 p-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <div className="text-sm font-medium text-foreground">Environment variables</div>
+                    <div className="mt-1 text-xs leading-5 text-muted-foreground">
+                      Add one variable per row. Values are hidden by default after saving.
+                    </div>
+                  </div>
+                  <Button type="button" size="sm" variant="outline" onClick={addEnvRow}>
+                    <Plus className="h-3.5 w-3.5" />
+                    Add
+                  </Button>
+                </div>
+
+                {form.envVars.length > 0 && (
+                  <div className="space-y-2">
+                    {form.envVars.map((row, index) => (
+                      <div key={row.id} className="grid gap-2 sm:grid-cols-[1fr_1fr_44px]">
+                        <input
+                          className={fieldClassName()}
+                          aria-label={`Environment variable ${index + 1} key`}
+                          placeholder="NEXT_PUBLIC_APP_URL"
+                          value={row.key}
+                          onChange={(event) => updateEnvRow(row.id, 'key', event.target.value)}
+                        />
+                        <input
+                          className={fieldClassName()}
+                          aria-label={`Environment variable ${index + 1} value`}
+                          placeholder="https://app.example.com"
+                          value={row.value}
+                          onChange={(event) => updateEnvRow(row.id, 'value', event.target.value)}
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          aria-label={`Remove environment variable ${index + 1}`}
+                          onClick={() => removeEnvRow(row.id)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {form.envVars.length === 0 && (
+                  <div className="rounded-md border border-dashed border-border px-3 py-4 text-center text-xs text-muted-foreground">
+                    No environment variables added.
+                  </div>
+                )}
+              </div>
 
               <Button type="submit" className="w-full" loading={submitting}>
                 <Rocket className="h-4 w-4" />
@@ -496,6 +582,79 @@ export default function AppsPage() {
                     {app.dns?.summary ||
                       `Create A record for ${app.domain} pointing at this server public IP.`}
                   </code>
+                </div>
+
+                <div className="rounded-lg border border-border p-3">
+                  <div className="mb-2 text-xs font-medium text-muted-foreground">
+                    Environment variables
+                  </div>
+                  {Object.entries(app.envVars).length > 0 ? (
+                    <div className="space-y-2">
+                      {Object.entries(app.envVars).map(([key, value]) => {
+                        const token = `${app.id}:${key}`;
+                        const keyCopyToken = `${token}:key`;
+                        const valueCopyToken = `${token}:value`;
+                        const isRevealed = revealedEnvVars.has(token);
+
+                        return (
+                          <div
+                            key={key}
+                            className="grid gap-2 rounded-md bg-muted/30 p-2 text-xs sm:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)_36px]"
+                          >
+                            <button
+                              type="button"
+                              className="flex min-h-9 items-center gap-2 rounded px-2 text-left font-medium text-foreground transition-colors hover:bg-background focus:outline-none focus:ring-2 focus:ring-ring/20"
+                              title="Copy key"
+                              onClick={() => void copyToClipboard(key, keyCopyToken)}
+                            >
+                              <Copy className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                              <span className="truncate">{key}</span>
+                              {copiedTarget === keyCopyToken && (
+                                <span className="ml-auto text-[10px] text-success">Copied</span>
+                              )}
+                            </button>
+                            {isRevealed ? (
+                              <button
+                                type="button"
+                                className="flex min-h-9 items-center gap-2 rounded px-2 text-left font-mono text-foreground transition-colors hover:bg-background focus:outline-none focus:ring-2 focus:ring-ring/20"
+                                title="Copy value"
+                                onClick={() => void copyToClipboard(value, valueCopyToken)}
+                              >
+                                <Copy className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                                <span className="truncate">{value || '(empty)'}</span>
+                                {copiedTarget === valueCopyToken && (
+                                  <span className="ml-auto font-sans text-[10px] text-success">
+                                    Copied
+                                  </span>
+                                )}
+                              </button>
+                            ) : (
+                              <div className="flex min-h-9 items-center rounded px-2 font-mono text-muted-foreground">
+                                <span className="truncate">••••••••••••</span>
+                              </div>
+                            )}
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              aria-label={`${isRevealed ? 'Hide' : 'Show'} ${key}`}
+                              onClick={() => toggleEnvValue(app.id, key)}
+                            >
+                              {isRevealed ? (
+                                <EyeOff className="h-4 w-4" />
+                              ) : (
+                                <Eye className="h-4 w-4" />
+                              )}
+                            </Button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="rounded-md border border-dashed border-border px-3 py-4 text-center text-xs text-muted-foreground">
+                      No environment variables configured.
+                    </div>
+                  )}
                 </div>
 
                 <div className="grid gap-3 lg:grid-cols-2">

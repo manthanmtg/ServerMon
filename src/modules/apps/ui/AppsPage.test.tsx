@@ -1,10 +1,16 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import AppsPage from './AppsPage';
 
 describe('AppsPage', () => {
+  const writeText = vi.fn();
+
   beforeEach(() => {
     vi.clearAllMocks();
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    });
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,
       json: async () => ({ apps: [] }),
@@ -25,7 +31,7 @@ describe('AppsPage', () => {
     expect(screen.getByLabelText('Start command')).toBeTruthy();
     expect(screen.getByLabelText('Health check path')).toBeTruthy();
     expect(screen.getByLabelText('Enable SSL')).toBeTruthy();
-    expect(screen.getByLabelText('Environment variables')).toBeTruthy();
+    expect(screen.getByText('Environment variables')).toBeTruthy();
     expect(screen.getByPlaceholderText('/srv/apps/inventory-portal')).toBeTruthy();
     expect(screen.getByPlaceholderText('app.example.com')).toBeTruthy();
   });
@@ -63,8 +69,12 @@ describe('AppsPage', () => {
     fireEvent.change(screen.getByLabelText('Domain'), {
       target: { value: 'inventory.example.com' },
     });
-    fireEvent.change(screen.getByLabelText('Environment variables'), {
-      target: { value: 'NEXT_PUBLIC_APP_URL=https://inventory.example.com' },
+    fireEvent.click(screen.getByRole('button', { name: 'Add' }));
+    fireEvent.change(screen.getByLabelText('Environment variable 1 key'), {
+      target: { value: 'NEXT_PUBLIC_APP_URL' },
+    });
+    fireEvent.change(screen.getByLabelText('Environment variable 1 value'), {
+      target: { value: 'https://inventory.example.com' },
     });
     fireEvent.click(screen.getByLabelText('Enable SSL'));
     fireEvent.click(screen.getByRole('button', { name: /create app/i }));
@@ -94,5 +104,60 @@ describe('AppsPage', () => {
         }),
       })
     );
+  });
+
+  it('shows registered app env vars hidden by default and copies key and revealed value', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        apps: [
+          {
+            id: 'app-1',
+            name: 'Inventory Portal',
+            slug: 'inventory-portal',
+            templateId: 'nextjs',
+            sourcePath: '/srv/apps/inventory-portal',
+            domain: 'inventory.example.com',
+            port: 3010,
+            commands: {
+              install: 'pnpm install --frozen-lockfile',
+              build: 'pnpm build',
+              start: 'pnpm start',
+            },
+            envVars: {
+              NEXT_PUBLIC_APP_URL: 'https://inventory.example.com',
+              OPENAI_API_KEY: 'sk-secret',
+            },
+            healthCheckPath: '/',
+            tlsEnabled: true,
+            status: 'running',
+            releases: [],
+          },
+        ],
+      }),
+    } as Response);
+
+    render(<AppsPage />);
+    await screen.findByText('Inventory Portal');
+
+    expect(screen.getByText('NEXT_PUBLIC_APP_URL')).toBeTruthy();
+    expect(screen.getByText('OPENAI_API_KEY')).toBeTruthy();
+    expect(screen.queryByText('sk-secret')).toBeNull();
+
+    await act(async () => {
+      fireEvent.click(screen.getByText('OPENAI_API_KEY'));
+    });
+    expect(writeText).toHaveBeenCalledWith('OPENAI_API_KEY');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Show OPENAI_API_KEY' }));
+    expect(screen.getByText('sk-secret')).toBeTruthy();
+
+    await act(async () => {
+      fireEvent.click(screen.getByText('sk-secret'));
+    });
+    expect(writeText).toHaveBeenCalledWith('sk-secret');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Hide OPENAI_API_KEY' }));
+    expect(screen.queryByText('sk-secret')).toBeNull();
   });
 });
