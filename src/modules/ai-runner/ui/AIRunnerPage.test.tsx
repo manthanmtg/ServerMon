@@ -20,7 +20,7 @@ vi.mock('next/navigation', () => ({
   useSearchParams: () => mockSearchParams(),
 }));
 
-import AIRunnerPage from './AIRunnerPage';
+import AIRunnerPage, { getScheduleVisualizationScope } from './AIRunnerPage';
 import type {
   AIRunnerDirectoriesResponse,
   AIRunnerAutoflowDTO,
@@ -219,6 +219,55 @@ describe('AIRunnerPage', () => {
       }
       return Promise.resolve({ ok: true, json: async () => ({}) });
     });
+  });
+
+  it('derives schedule visualization scope without copying unscoped schedules', () => {
+    const schedules = [
+      {
+        _id: 'schedule-1',
+        name: 'Nightly Codex',
+        promptId: 'prompt-1',
+        agentProfileId: 'profile-1',
+        workingDirectory: '/root/repos/ServerMon',
+        timeout: 30,
+        retries: 1,
+        cronExpression: '0 2 * * *',
+        enabled: true,
+        createdAt: '2026-04-21T00:00:00.000Z',
+        updatedAt: '2026-04-21T00:00:00.000Z',
+      },
+      {
+        _id: 'schedule-2',
+        name: 'Nightly Gemini',
+        promptId: 'prompt-1',
+        agentProfileId: 'profile-2',
+        workingDirectory: '/root/repos/ServerMon',
+        timeout: 30,
+        retries: 1,
+        cronExpression: '0 3 * * *',
+        enabled: true,
+        createdAt: '2026-04-21T00:00:00.000Z',
+        updatedAt: '2026-04-21T00:00:00.000Z',
+      },
+    ] satisfies AIRunnerScheduleDTO[];
+
+    const unscoped = getScheduleVisualizationScope({
+      profileId: null,
+      profileMap: { 'profile-1': mockProfiles[0] },
+      schedules,
+    });
+
+    expect(unscoped.profile).toBeNull();
+    expect(unscoped.schedules).toBe(schedules);
+
+    const scoped = getScheduleVisualizationScope({
+      profileId: 'profile-1',
+      profileMap: { 'profile-1': mockProfiles[0] },
+      schedules,
+    });
+
+    expect(scoped.profile).toBe(mockProfiles[0]);
+    expect(scoped.schedules).toEqual([schedules[0]]);
   });
 
   afterEach(() => {
