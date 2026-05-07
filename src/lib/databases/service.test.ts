@@ -1,5 +1,5 @@
 /** @vitest-environment node */
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
@@ -175,6 +175,7 @@ describe('database service helpers', () => {
   it('automates Mongo TLS certificate asset generation', async () => {
     const root = await mkdtemp(path.join(tmpdir(), 'servermon-mongo-tls-'));
     const tlsPaths = buildMongoTlsPaths(root);
+    await mkdir(tlsPaths.dir, { recursive: true });
     const commands: Array<{ file: string; args: string[] }> = [];
     const runner = vi.fn(async (file: string, args: string[]) => {
       commands.push({ file, args });
@@ -217,6 +218,87 @@ describe('database service helpers', () => {
         tlsPaths.opensslConfigPath,
       ]),
     });
+  });
+
+  it('rotates the Mongo TLS server certificate when host names change', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'servermon-mongo-tls-'));
+    const tlsPaths = buildMongoTlsPaths(root);
+    await mkdir(tlsPaths.dir, { recursive: true });
+    await writeFile(tlsPaths.caKeyPath, 'existing-ca-key');
+    await writeFile(tlsPaths.caCertPath, 'existing-ca-cert');
+    await writeFile(tlsPaths.serverKeyPath, 'existing-server-key');
+    await writeFile(tlsPaths.serverCertPath, 'existing-server-cert');
+    await writeFile(tlsPaths.serverPemPath, 'existing-server-pem');
+    await writeFile(tlsPaths.opensslConfigPath, 'old-config');
+
+    const commands: Array<{ file: string; args: string[] }> = [];
+    const runner = vi.fn(async (file: string, args: string[]) => {
+      commands.push({ file, args });
+      const outputIndex = args.indexOf('-out');
+      if (outputIndex >= 0 && args[outputIndex + 1]) {
+        await writeFile(args[outputIndex + 1], 'generated');
+      }
+      const keyOutputIndex = args.indexOf('-keyout');
+      if (keyOutputIndex >= 0 && args[keyOutputIndex + 1]) {
+        await writeFile(args[keyOutputIndex + 1], 'generated-key');
+      }
+      return { stdout: '', stderr: '' };
+    });
+
+    try {
+      await ensureMongoTlsAssets(tlsPaths, ['db.example.com'], runner);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+
+    expect(runner).toHaveBeenCalledTimes(2);
+    expect(commands[0]).toMatchObject({
+      file: 'openssl',
+      args: expect.arrayContaining(['req', '-new', '-nodes', '-newkey', 'rsa:4096']),
+    });
+    expect(commands[1]).toMatchObject({
+      file: 'openssl',
+      args: expect.arrayContaining(['x509', '-req', '-in', tlsPaths.serverCsrPath]),
+    });
+  });
+
+  it('rotates the Mongo TLS server certificate before expiry', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'servermon-mongo-tls-'));
+    const tlsPaths = buildMongoTlsPaths(root);
+    await mkdir(tlsPaths.dir, { recursive: true });
+    await writeFile(tlsPaths.caKeyPath, 'existing-ca-key');
+    await writeFile(tlsPaths.caCertPath, 'existing-ca-cert');
+    await writeFile(tlsPaths.serverKeyPath, 'existing-server-key');
+    await writeFile(tlsPaths.serverCertPath, 'existing-server-cert');
+    await writeFile(tlsPaths.serverPemPath, 'existing-server-pem');
+
+    const runner = vi.fn(async (file: string, args: string[]) => {
+      if (args.includes('-checkend')) throw new Error('certificate expires within renewal window');
+      const outputIndex = args.indexOf('-out');
+      if (outputIndex >= 0 && args[outputIndex + 1]) {
+        await writeFile(args[outputIndex + 1], 'generated');
+      }
+      const keyOutputIndex = args.indexOf('-keyout');
+      if (keyOutputIndex >= 0 && args[keyOutputIndex + 1]) {
+        await writeFile(args[keyOutputIndex + 1], 'generated-key');
+      }
+      return { stdout: '', stderr: '' };
+    });
+
+    try {
+      await ensureMongoTlsAssets(tlsPaths, ['127.0.0.1', 'localhost'], runner);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+
+    expect(runner).toHaveBeenCalledWith(
+      'openssl',
+      expect.arrayContaining(['x509', '-checkend', String(30 * 24 * 60 * 60)])
+    );
+    expect(runner).toHaveBeenCalledWith(
+      'openssl',
+      expect.arrayContaining(['x509', '-req', '-in', tlsPaths.serverCsrPath])
+    );
   });
 
   it('maps persisted records to DTOs with masked connection strings and fleet warning text', () => {

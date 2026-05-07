@@ -125,6 +125,8 @@ export const defaultDockerRunner: DockerRunner = {
 
 const defaultHostCommandRunner: HostCommandRunner = async (file, args) => execFileAsync(file, args);
 const MONGO_TLS_CONTAINER_DIR = '/etc/servermon-db-tls';
+const MONGO_TLS_SERVER_CERT_DAYS = 397;
+const MONGO_TLS_SERVER_CERT_RENEWAL_WINDOW_SECONDS = 30 * 24 * 60 * 60;
 
 function fileExists(filePath: string): Promise<boolean> {
   return access(filePath)
@@ -168,6 +170,27 @@ function buildMongoTlsOpenSslConfig(hosts: string[]): string {
   ].join('\n');
 }
 
+async function readTextFileIfExists(filePath: string): Promise<string | null> {
+  try {
+    return await readFile(filePath, 'utf8');
+  } catch {
+    return null;
+  }
+}
+
+async function certificateExpiresWithin(
+  certPath: string,
+  seconds: number,
+  runner: HostCommandRunner
+): Promise<boolean> {
+  try {
+    await runner('openssl', ['x509', '-checkend', String(seconds), '-noout', '-in', certPath]);
+    return false;
+  } catch {
+    return true;
+  }
+}
+
 export function buildMongoTlsPaths(instanceRoot: string): MongoTlsPaths {
   const dir = path.join(instanceRoot, 'tls');
   return {
@@ -189,16 +212,28 @@ export async function ensureMongoTlsAssets(
   runner: HostCommandRunner = defaultHostCommandRunner
 ): Promise<void> {
   await mkdir(tlsPaths.dir, { recursive: true, mode: 0o700 });
-  await writeFile(tlsPaths.opensslConfigPath, buildMongoTlsOpenSslConfig(hosts), { mode: 0o600 });
+  const opensslConfig = buildMongoTlsOpenSslConfig(hosts);
+  const existingOpenSslConfig = await readTextFileIfExists(tlsPaths.opensslConfigPath);
+  await writeFile(tlsPaths.opensslConfigPath, opensslConfig, { mode: 0o600 });
 
-  const hasCompleteBundle =
-    (await fileExists(tlsPaths.caKeyPath)) &&
-    (await fileExists(tlsPaths.caCertPath)) &&
+  const hasCaBundle =
+    (await fileExists(tlsPaths.caKeyPath)) && (await fileExists(tlsPaths.caCertPath));
+  const hasServerBundle =
     (await fileExists(tlsPaths.serverKeyPath)) &&
     (await fileExists(tlsPaths.serverCertPath)) &&
     (await fileExists(tlsPaths.serverPemPath));
+  const serverConfigChanged =
+    existingOpenSslConfig !== null && existingOpenSslConfig !== opensslConfig;
+  const serverCertificateNearExpiry =
+    hasServerBundle &&
+    !serverConfigChanged &&
+    (await certificateExpiresWithin(
+      tlsPaths.serverCertPath,
+      MONGO_TLS_SERVER_CERT_RENEWAL_WINDOW_SECONDS,
+      runner
+    ));
 
-  if (!hasCompleteBundle) {
+  if (!hasCaBundle) {
     await runner('openssl', ['genrsa', '-out', tlsPaths.caKeyPath, '4096']);
     await runner('openssl', [
       'req',
@@ -215,6 +250,9 @@ export async function ensureMongoTlsAssets(
       '-out',
       tlsPaths.caCertPath,
     ]);
+  }
+
+  if (!hasServerBundle || serverConfigChanged || serverCertificateNearExpiry) {
     await runner('openssl', [
       'req',
       '-new',
@@ -241,7 +279,7 @@ export async function ensureMongoTlsAssets(
       '-out',
       tlsPaths.serverCertPath,
       '-days',
-      '825',
+      String(MONGO_TLS_SERVER_CERT_DAYS),
       '-sha256',
       '-extfile',
       tlsPaths.opensslConfigPath,
