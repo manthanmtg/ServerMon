@@ -1130,35 +1130,52 @@ export default function AIRunnerPage() {
       }),
     [profileMap, scheduleVisualizationProfileId, schedules]
   );
-  const profileScheduleSummaryMap = useMemo(
-    () =>
-      Object.fromEntries(
-        profiles.map((profile) => {
-          const profileSchedules = schedules.filter(
-            (schedule) => schedule.agentProfileId === profile._id
-          );
-          const visualization = buildScheduleVisualizationModel(profileSchedules);
-          const nextLaunch = profileSchedules
-            .filter((schedule) => schedule.enabled && schedule.nextRunTime)
-            .sort((left, right) => {
-              return new Date(left.nextRunTime!).getTime() - new Date(right.nextRunTime!).getTime();
-            })[0]?.nextRunTime;
+  const profileScheduleSummaryMap = useMemo(() => {
+    const schedulesByProfile = new Map<string, AIRunnerScheduleDTO[]>();
 
-          return [
-            profile._id,
-            {
-              totalSchedules: profileSchedules.length,
-              enabledSchedules: profileSchedules.filter((schedule) => schedule.enabled).length,
-              runsPerDayLabel: formatRunsPerDayLabel(summarizeRunsPerDay(profileSchedules)),
-              workspaceCount: visualization.workspaceCount,
-              highRiskWorkspaceCount: visualization.highRiskWorkspaceCount,
-              nextLaunch,
-            },
-          ];
-        })
-      ),
-    [profiles, schedules]
-  );
+    for (const schedule of schedules) {
+      const profileSchedules = schedulesByProfile.get(schedule.agentProfileId);
+      if (profileSchedules) {
+        profileSchedules.push(schedule);
+      } else {
+        schedulesByProfile.set(schedule.agentProfileId, [schedule]);
+      }
+    }
+
+    return Object.fromEntries(
+      profiles.map((profile) => {
+        const profileSchedules = schedulesByProfile.get(profile._id) ?? [];
+        const visualization = buildScheduleVisualizationModel(profileSchedules);
+        let enabledSchedules = 0;
+        let nextLaunch: string | undefined;
+        let nextLaunchTime = Infinity;
+
+        for (const schedule of profileSchedules) {
+          if (!schedule.enabled) continue;
+          enabledSchedules += 1;
+          if (!schedule.nextRunTime) continue;
+
+          const scheduleTime = new Date(schedule.nextRunTime).getTime();
+          if (scheduleTime < nextLaunchTime) {
+            nextLaunch = schedule.nextRunTime;
+            nextLaunchTime = scheduleTime;
+          }
+        }
+
+        return [
+          profile._id,
+          {
+            totalSchedules: profileSchedules.length,
+            enabledSchedules,
+            runsPerDayLabel: formatRunsPerDayLabel(summarizeRunsPerDay(profileSchedules)),
+            workspaceCount: visualization.workspaceCount,
+            highRiskWorkspaceCount: visualization.highRiskWorkspaceCount,
+            nextLaunch,
+          },
+        ];
+      })
+    );
+  }, [profiles, schedules]);
 
   const hasAutoflowDraftPrompt = Boolean(autoflowDraft.promptContent?.trim());
 
