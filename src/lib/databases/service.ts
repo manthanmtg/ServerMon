@@ -590,6 +590,46 @@ async function findAvailableLocalPort(): Promise<number> {
   });
 }
 
+type ExplorerReadyFetcher = (url: string, init: RequestInit) => Promise<Response>;
+type ExplorerReadySleeper = (ms: number) => Promise<void>;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+export async function waitForExplorerHttpReady(
+  port: number,
+  options: {
+    attempts?: number;
+    intervalMs?: number;
+    fetcher?: ExplorerReadyFetcher;
+    sleeper?: ExplorerReadySleeper;
+  } = {}
+): Promise<void> {
+  const attempts = options.attempts ?? 45;
+  const intervalMs = options.intervalMs ?? 1000;
+  const fetcher = options.fetcher ?? fetch;
+  const sleeper = options.sleeper ?? sleep;
+  const url = `http://127.0.0.1:${port}/`;
+  let lastError = 'no response';
+
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    try {
+      const response = await fetcher(url, { method: 'GET', redirect: 'manual' });
+      if (response.status < 500) return;
+      lastError = `HTTP ${response.status}`;
+    } catch (error: unknown) {
+      lastError = error instanceof Error ? error.message : 'fetch failed';
+    }
+
+    if (attempt < attempts - 1) {
+      await sleeper(intervalMs);
+    }
+  }
+
+  throw new Error(`Explorer did not become ready on ${url}: ${lastError}`);
+}
+
 interface DockerInspectNetwork {
   IPAddress?: string;
 }
@@ -662,15 +702,21 @@ export async function startManagedDatabaseExplorer(
   const dbId = db._id.toString();
   const existingContainerName = db.explorerContainerName || getExplorerContainerName(db.slug);
   const explorerImage = getExplorerImage(db.templateId);
+  const logs = [...(db.explorerLogs ?? [])];
   if (
     db.explorerStatus === 'running' &&
     db.explorerPort &&
     (await isContainerRunning(existingContainerName, runner))
   ) {
-    return mapManagedDatabaseToDTO(db).explorer;
+    try {
+      await waitForExplorerHttpReady(db.explorerPort);
+      return mapManagedDatabaseToDTO(db).explorer;
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Explorer readiness check failed';
+      logs.push(timestampedLog(`Existing explorer was not ready; recreating it. ${message}`));
+    }
   }
 
-  const logs = [...(db.explorerLogs ?? [])];
   db.explorerStatus = 'starting';
   db.explorerKind = getExplorerKind(db.templateId);
   db.explorerImage = explorerImage;
@@ -719,6 +765,13 @@ export async function startManagedDatabaseExplorer(
       'starting'
     );
     await runOrThrow(runner, request.args, nextLogs, 60_000);
+    await saveExplorerLog(
+      db,
+      nextLogs,
+      `Waiting for ${db.explorerKind} to accept HTTP connections`,
+      'starting'
+    );
+    await waitForExplorerHttpReady(hostPort);
     db.explorerStatus = 'running';
     db.explorerStartedAt = new Date();
     db.explorerLogs = [

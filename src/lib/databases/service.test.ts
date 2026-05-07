@@ -1,11 +1,12 @@
 /** @vitest-environment node */
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   CreateManagedDatabaseSchema,
   buildDatabaseExplorerRunRequest,
   buildDockerRunRequest,
   mapManagedDatabaseToDTO,
   normalizeCreateManagedDatabaseInput,
+  waitForExplorerHttpReady,
 } from './service';
 
 describe('database service helpers', () => {
@@ -168,5 +169,28 @@ describe('database service helpers', () => {
     expect(request.args).toContain(
       'ME_CONFIG_SITE_BASEURL=/api/modules/databases/db-1/explore/proxy/'
     );
+  });
+
+  it('waits for the explorer HTTP listener before marking it ready', async () => {
+    const fetcher = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('connect ECONNREFUSED 127.0.0.1:49152'))
+      .mockRejectedValueOnce(new Error('connect ECONNREFUSED 127.0.0.1:49152'))
+      .mockResolvedValueOnce(new Response('ok', { status: 200 }));
+    const sleeper = vi.fn().mockResolvedValue(undefined);
+
+    await waitForExplorerHttpReady(49152, {
+      attempts: 3,
+      intervalMs: 10,
+      fetcher,
+      sleeper,
+    });
+
+    expect(fetcher).toHaveBeenCalledTimes(3);
+    expect(fetcher).toHaveBeenCalledWith('http://127.0.0.1:49152/', {
+      method: 'GET',
+      redirect: 'manual',
+    });
+    expect(sleeper).toHaveBeenCalledTimes(2);
   });
 });
