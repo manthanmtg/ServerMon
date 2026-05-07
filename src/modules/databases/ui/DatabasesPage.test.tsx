@@ -128,8 +128,14 @@ describe('DatabasesPage', () => {
     expect(
       screen.getByRole('button', { name: 'Copy connection string for Main Postgres' })
     ).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Expand Main Postgres' })).toBeTruthy();
+    expect(screen.queryByText('Activity')).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Expand Main Postgres' }));
+
     expect(screen.getByText('Activity')).toBeTruthy();
-    expect(screen.getByText('No deployment activity yet.')).toBeTruthy();
+    expect(screen.getAllByText('No deployment activity yet.').length).toBeGreaterThan(0);
+    expect(screen.getByRole('button', { name: 'Collapse Main Postgres' })).toBeTruthy();
   });
 
   it('shows a one-click explore action beside database runtime controls', async () => {

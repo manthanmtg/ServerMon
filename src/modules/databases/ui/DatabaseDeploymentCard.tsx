@@ -1,4 +1,6 @@
 import {
+  ChevronDown,
+  ChevronUp,
   Copy,
   Globe2,
   HardDrive,
@@ -25,11 +27,13 @@ const smallButtonLinkClassName =
 interface DatabaseDeploymentCardProps {
   database: ManagedDatabaseDTO;
   isWorking: boolean;
+  isExpanded: boolean;
   copiedConnectionId: string | null;
   operationLogs: string[];
   onDeploy: (database: ManagedDatabaseDTO) => void;
   onAction: (database: ManagedDatabaseDTO, nextAction: DatabaseAction) => void;
   onCopyConnection: (value: string, databaseId?: string) => void;
+  onToggleExpanded: (databaseId: string) => void;
 }
 
 function StatusBadge({ status }: { status: ManagedDatabaseDTO['status'] }) {
@@ -48,13 +52,16 @@ function StatusBadge({ status }: { status: ManagedDatabaseDTO['status'] }) {
 export function DatabaseDeploymentCard({
   database,
   isWorking,
+  isExpanded,
   copiedConnectionId,
   operationLogs,
   onDeploy,
   onAction,
   onCopyConnection,
+  onToggleExpanded,
 }: DatabaseDeploymentCardProps) {
   const activityLines = [...(database.logs ?? []), ...operationLogs];
+  const latestActivity = activityLines.at(-1) ?? 'No deployment activity yet.';
 
   return (
     <Card>
@@ -129,77 +136,144 @@ export function DatabaseDeploymentCard({
                 Start
               </Button>
             )}
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              aria-expanded={isExpanded}
+              aria-label={`${isExpanded ? 'Collapse' : 'Expand'} ${database.name}`}
+              onClick={() => onToggleExpanded(database.id)}
+            >
+              {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+              {isExpanded ? 'Less' : 'More'}
+            </Button>
           </div>
         </div>
       </CardHeader>
-      <CardContent className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
-        <div className="space-y-3">
-          <div className="rounded-lg border border-border bg-muted/25 p-3">
-            <div className="mb-1 flex items-center gap-2 text-xs font-medium text-muted-foreground">
+      <CardContent className="space-y-4">
+        <div className="grid gap-3 text-sm md:grid-cols-3">
+          <div className="rounded-lg bg-muted/40 p-3">
+            <div className="text-xs text-muted-foreground">Listen address</div>
+            <div className="mt-1 truncate font-medium">
+              {database.bindAddress}:{database.port}
+            </div>
+            <div className="mt-1 text-xs text-muted-foreground">
+              Container {database.internalPort}
+            </div>
+          </div>
+          <div className="rounded-lg bg-muted/40 p-3">
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
               <HardDrive className="h-3.5 w-3.5" />
               Data path
             </div>
-            <code className="break-all text-xs text-foreground">{database.dataPath}</code>
+            <code className="mt-1 block truncate text-xs text-foreground">{database.dataPath}</code>
           </div>
-          <div className="rounded-lg border border-border bg-muted/25 p-3">
-            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-              <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
-                <Copy className="h-3.5 w-3.5" />
-                Connection string
+          <div className="rounded-lg bg-muted/40 p-3">
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <Copy className="h-3.5 w-3.5" />
+                  Connection
+                </div>
+                <code className="mt-1 block truncate text-xs text-foreground">
+                  {database.connection.maskedUri}
+                </code>
               </div>
               <Button
                 type="button"
                 variant="outline"
-                size="sm"
+                size="icon"
+                className="h-8 w-8 shrink-0"
                 aria-label={`Copy connection string for ${database.name}`}
                 onClick={() => onCopyConnection(database.connection.maskedUri, database.id)}
               >
                 <Copy className="h-3.5 w-3.5" />
-                {copiedConnectionId === database.id ? 'Copied' : 'Copy'}
               </Button>
             </div>
-            <code className="break-all text-xs text-foreground">
-              {database.connection.maskedUri}
-            </code>
+            {copiedConnectionId === database.id && (
+              <div className="mt-1 text-xs font-medium text-success">Copied</div>
+            )}
           </div>
         </div>
-        <div className="space-y-2 rounded-lg border border-border bg-background p-3">
-          <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
-            <ShieldAlert className="h-3.5 w-3.5" />
-            Security notes
-          </div>
-          <ul className="space-y-1.5 text-xs leading-5 text-muted-foreground">
-            {database.securityNotes.map((note) => (
-              <li key={note}>{note}</li>
-            ))}
-          </ul>
-        </div>
-        <div className="space-y-2 rounded-lg border border-border bg-background p-3 lg:col-span-2">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
-              <Logs className="h-3.5 w-3.5" />
-              Activity
+
+        {isExpanded && (
+          <div className="grid gap-4 border-t border-border pt-4 lg:grid-cols-[1.2fr_0.8fr]">
+            <div className="space-y-3">
+              <div className="rounded-lg border border-border bg-muted/25 p-3">
+                <div className="mb-1 flex items-center gap-2 text-xs font-medium text-muted-foreground">
+                  <HardDrive className="h-3.5 w-3.5" />
+                  Full data path
+                </div>
+                <code className="break-all text-xs text-foreground">{database.dataPath}</code>
+              </div>
+              <div className="rounded-lg border border-border bg-muted/25 p-3">
+                <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+                    <Copy className="h-3.5 w-3.5" />
+                    Connection string
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    aria-label={`Copy full connection string for ${database.name}`}
+                    onClick={() => onCopyConnection(database.connection.maskedUri, database.id)}
+                  >
+                    <Copy className="h-3.5 w-3.5" />
+                    {copiedConnectionId === database.id ? 'Copied' : 'Copy'}
+                  </Button>
+                </div>
+                <code className="break-all text-xs text-foreground">
+                  {database.connection.maskedUri}
+                </code>
+              </div>
+              <div className="rounded-lg border border-border bg-muted/25 p-3">
+                <div className="mb-1 flex items-center gap-2 text-xs font-medium text-muted-foreground">
+                  <Logs className="h-3.5 w-3.5" />
+                  Latest activity
+                </div>
+                <code className="break-all text-xs text-foreground">{latestActivity}</code>
+              </div>
             </div>
-            {isWorking && (
-              <Badge variant="warning">
-                <LoaderCircle className="h-3 w-3 animate-spin" />
-                Deploying
-              </Badge>
-            )}
+            <div className="space-y-2 rounded-lg border border-border bg-background p-3">
+              <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+                <ShieldAlert className="h-3.5 w-3.5" />
+                Security notes
+              </div>
+              <ul className="space-y-1.5 text-xs leading-5 text-muted-foreground">
+                {database.securityNotes.map((note) => (
+                  <li key={note}>{note}</li>
+                ))}
+              </ul>
+            </div>
+            <div className="space-y-2 rounded-lg border border-border bg-background p-3 lg:col-span-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+                  <Logs className="h-3.5 w-3.5" />
+                  Activity
+                </div>
+                {isWorking && (
+                  <Badge variant="warning">
+                    <LoaderCircle className="h-3 w-3 animate-spin" />
+                    Deploying
+                  </Badge>
+                )}
+              </div>
+              <div
+                aria-label={`${database.name} activity log`}
+                className="max-h-40 overflow-auto rounded-md bg-muted/25 p-3 font-mono text-[11px] leading-5 text-muted-foreground"
+              >
+                {activityLines.length > 0 ? (
+                  activityLines
+                    .slice(-16)
+                    .map((line, index) => <div key={`${line}-${index}`}>{line}</div>)
+                ) : (
+                  <div>No deployment activity yet.</div>
+                )}
+              </div>
+            </div>
           </div>
-          <div
-            aria-label={`${database.name} activity log`}
-            className="max-h-40 overflow-auto rounded-md bg-muted/25 p-3 font-mono text-[11px] leading-5 text-muted-foreground"
-          >
-            {activityLines.length > 0 ? (
-              activityLines
-                .slice(-16)
-                .map((line, index) => <div key={`${line}-${index}`}>{line}</div>)
-            ) : (
-              <div>No deployment activity yet.</div>
-            )}
-          </div>
-        </div>
+        )}
       </CardContent>
     </Card>
   );

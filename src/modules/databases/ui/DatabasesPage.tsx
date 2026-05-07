@@ -151,6 +151,7 @@ export default function DatabasesPage() {
   const [submitting, setSubmitting] = useState(false);
   const [workingId, setWorkingId] = useState<string | null>(null);
   const [operationLogs, setOperationLogs] = useState<Record<string, string[]>>({});
+  const [expandedDatabaseIds, setExpandedDatabaseIds] = useState<Set<string>>(() => new Set());
   const [copiedConnectionId, setCopiedConnectionId] = useState<string | null>(null);
   const [revealedPassword, setRevealedPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -215,6 +216,18 @@ export default function DatabasesPage() {
     }));
   };
 
+  const toggleDatabaseExpanded = (databaseId: string) => {
+    setExpandedDatabaseIds((current) => {
+      const next = new Set(current);
+      if (next.has(databaseId)) {
+        next.delete(databaseId);
+      } else {
+        next.add(databaseId);
+      }
+      return next;
+    });
+  };
+
   const pollDatabaseUntilDone = async (databaseId: string) => {
     let sawDeploying = false;
     for (let attempt = 0; attempt < 60; attempt += 1) {
@@ -264,6 +277,7 @@ export default function DatabasesPage() {
 
   const deploy = async (database: ManagedDatabaseDTO) => {
     setWorkingId(database.id);
+    setExpandedDatabaseIds((current) => new Set(current).add(database.id));
     setError(null);
     setDatabases((current) =>
       current.map((item) =>
@@ -362,11 +376,13 @@ export default function DatabasesPage() {
               key={database.id}
               database={database}
               isWorking={workingId === database.id}
+              isExpanded={expandedDatabaseIds.has(database.id)}
               copiedConnectionId={copiedConnectionId}
               operationLogs={operationLogs[database.id] ?? []}
               onDeploy={deploy}
               onAction={action}
               onCopyConnection={copyText}
+              onToggleExpanded={toggleDatabaseExpanded}
             />
           ))
         )}
