@@ -80,9 +80,24 @@ const EXCLUDED_SOURCE_NAMES = new Set([
   '.cache',
 ]);
 
+const INTERNAL_NEXT_ENV_KEYS = [
+  'TURBOPACK',
+  'NEXT_PRIVATE_TURBOPACK',
+  'NEXT_PRIVATE_BUILD_WORKER',
+  'NEXT_PRIVATE_DEBUG_CACHE',
+];
+
+function appCommandEnv(): NodeJS.ProcessEnv {
+  const env = { ...process.env };
+  for (const key of INTERNAL_NEXT_ENV_KEYS) {
+    delete env[key];
+  }
+  return env;
+}
+
 export const defaultCommandRunner: CommandRunner = ({ command, cwd }) =>
   new Promise((resolve) => {
-    const child = spawn('/bin/sh', ['-lc', command], { cwd });
+    const child = spawn('/bin/sh', ['-lc', command], { cwd, env: appCommandEnv() });
     const output: string[] = [];
 
     child.stdout.on('data', (chunk: Buffer) => output.push(chunk.toString()));

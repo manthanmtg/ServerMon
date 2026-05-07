@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, readFile, readlink, rm, symlink, writeFile } from 'node
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { deployNextJsApp } from './deploy';
+import { defaultCommandRunner, deployNextJsApp } from './deploy';
 
 const tempDirs: string[] = [];
 
@@ -34,6 +34,28 @@ afterEach(async () => {
 });
 
 describe('deployNextJsApp', () => {
+  it('does not leak ServerMon Next.js runtime flags into app build commands', async () => {
+    const previousTurbopack = process.env.TURBOPACK;
+    const previousNextPrivateTurbopack = process.env.NEXT_PRIVATE_TURBOPACK;
+    process.env.TURBOPACK = '1';
+    process.env.NEXT_PRIVATE_TURBOPACK = '1';
+
+    try {
+      const result = await defaultCommandRunner({
+        command:
+          'node -e "process.stdout.write(JSON.stringify({ turbopack: process.env.TURBOPACK, nextPrivateTurbopack: process.env.NEXT_PRIVATE_TURBOPACK }))"',
+      });
+
+      expect(result.code).toBe(0);
+      expect(JSON.parse(result.output)).toEqual({});
+    } finally {
+      if (previousTurbopack === undefined) delete process.env.TURBOPACK;
+      else process.env.TURBOPACK = previousTurbopack;
+      if (previousNextPrivateTurbopack === undefined) delete process.env.NEXT_PRIVATE_TURBOPACK;
+      else process.env.NEXT_PRIVATE_TURBOPACK = previousNextPrivateTurbopack;
+    }
+  });
+
   it('builds a managed release and runs deployment commands in order', async () => {
     const sourcePath = await createSourceRepo();
     const dirs = await createDeployDirs();
