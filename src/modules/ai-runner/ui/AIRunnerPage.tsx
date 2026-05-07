@@ -265,6 +265,25 @@ function getActiveScheduleRunLabel(run?: AIRunnerRunDTO | null): string | null {
   return null;
 }
 
+export function getScheduleVisualizationScope({
+  profileId,
+  profileMap,
+  schedules,
+}: {
+  profileId: string | null;
+  profileMap: Record<string, AIRunnerProfileDTO>;
+  schedules: AIRunnerScheduleDTO[];
+}): { profile: AIRunnerProfileDTO | null; schedules: AIRunnerScheduleDTO[] } {
+  if (!profileId) {
+    return { profile: null, schedules };
+  }
+
+  return {
+    profile: profileMap[profileId] ?? null,
+    schedules: schedules.filter((schedule) => schedule.agentProfileId === profileId),
+  };
+}
+
 function getSchedulerReliabilityWarning(
   diagnostics: AIRunnerRuntimeDiagnostics | null
 ): { title: string; body: string } | null {
@@ -1102,12 +1121,15 @@ export default function AIRunnerPage() {
   }, [activeScheduleRuns]);
   const nextScheduleActiveRun = nextSchedule ? activeScheduleRunMap[nextSchedule._id] : undefined;
   const nextScheduleStatusLabel = getActiveScheduleRunLabel(nextScheduleActiveRun);
-  const scheduleVisualizationProfile = scheduleVisualizationProfileId
-    ? (profileMap[scheduleVisualizationProfileId] ?? null)
-    : null;
-  const visualizationSchedules = scheduleVisualizationProfileId
-    ? schedules.filter((schedule) => schedule.agentProfileId === scheduleVisualizationProfileId)
-    : schedules;
+  const { profile: scheduleVisualizationProfile, schedules: visualizationSchedules } = useMemo(
+    () =>
+      getScheduleVisualizationScope({
+        profileId: scheduleVisualizationProfileId,
+        profileMap,
+        schedules,
+      }),
+    [profileMap, scheduleVisualizationProfileId, schedules]
+  );
   const profileScheduleSummaryMap = useMemo(
     () =>
       Object.fromEntries(
