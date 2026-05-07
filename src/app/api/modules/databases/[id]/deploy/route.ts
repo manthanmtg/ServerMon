@@ -19,8 +19,11 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
     }
 
     const { id } = await params;
-    const database = await deployManagedDatabase(id);
-    return NextResponse.json({ database }, { status: database.status === 'running' ? 200 : 500 });
+    void deployManagedDatabase(id).catch((error: unknown) => {
+      const message = error instanceof Error ? error.message : 'Failed to deploy database';
+      log.error('Background database deploy failed', { error: message, id });
+    });
+    return NextResponse.json({ accepted: true, id }, { status: 202 });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Failed to deploy database';
     log.error('Failed to deploy database', { error: message });

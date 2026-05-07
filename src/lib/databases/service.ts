@@ -93,6 +93,25 @@ export const defaultDockerRunner: DockerRunner = {
   },
 };
 
+function redactDockerArgs(args: string[]): string[] {
+  const redacted: string[] = [];
+  for (let index = 0; index < args.length; index += 1) {
+    const current = args[index];
+    const previous = args[index - 1];
+    if (previous === '-e' && /PASSWORD|SECRET|TOKEN|KEY/i.test(current)) {
+      const [key] = current.split('=');
+      redacted.push(`${key}=********`);
+    } else {
+      redacted.push(current);
+    }
+  }
+  return redacted;
+}
+
+function timestampedLog(message: string, date = new Date()): string {
+  return `[${date.toISOString()}] ${message}`;
+}
+
 export function sanitizeDatabaseSlug(value: string): string {
   if (value.includes('/') || value.includes('\\') || value.includes('..')) {
     throw new Error('Database slug must not contain path traversal');
@@ -374,15 +393,27 @@ export async function updateManagedDatabase(
   return mapManagedDatabaseToDTO(db);
 }
 
+async function saveOperationLog(
+  db: IManagedDatabase,
+  logs: string[],
+  message: string,
+  status?: ManagedDatabaseStatus
+) {
+  logs.push(timestampedLog(message));
+  db.logs = logs.slice(-200);
+  if (status) db.status = status;
+  await db.save();
+}
+
 async function runOrThrow(
   runner: DockerRunner,
   args: string[],
   logs: string[],
   timeoutMs?: number
 ) {
-  logs.push(`$ docker ${args.join(' ')}`);
+  logs.push(timestampedLog(`$ docker ${redactDockerArgs(args).join(' ')}`));
   const result = await runner.run(args, timeoutMs);
-  if (result.output) logs.push(result.output);
+  if (result.output) logs.push(timestampedLog(result.output));
   if (result.code !== 0) throw new Error(result.output || `docker ${args[0]} failed`);
   return result.output;
 }
@@ -397,9 +428,12 @@ export async function deployManagedDatabase(
 
   const logs = [...(db.logs ?? [])];
   db.status = 'deploying';
+  logs.push(timestampedLog(`Deploy requested for ${db.name}`));
+  db.logs = logs.slice(-200);
   await db.save();
 
   try {
+    await saveOperationLog(db, logs, `Preparing data directory ${db.dataPath}`, 'deploying');
     await mkdir(db.dataPath, { recursive: true });
     const request = buildDockerRunRequest({
       slug: db.slug,
@@ -416,17 +450,28 @@ export async function deployManagedDatabase(
       restartPolicy: db.restartPolicy,
       extraEnv: toObjectEnv(db.extraEnv),
     });
+    db.containerName = request.containerName;
+    await saveOperationLog(
+      db,
+      logs,
+      `Removing any existing container named ${request.containerName}`,
+      'deploying'
+    );
     await runner.run(['rm', '-f', request.containerName]);
+    await saveOperationLog(db, logs, `Pulling Docker image ${db.image}`, 'deploying');
     await runOrThrow(runner, ['pull', db.image], logs, 180_000);
+    await saveOperationLog(db, logs, `Starting container ${request.containerName}`, 'deploying');
     const containerId = await runOrThrow(runner, request.args, logs, 60_000);
     db.containerName = request.containerName;
     db.containerId = containerId.trim();
     db.status = 'running';
     db.lastDeployedAt = new Date();
-    db.logs = logs.slice(-200);
+    db.logs = [...logs, timestampedLog(`Database is running as ${request.containerName}`)].slice(
+      -200
+    );
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Database deployment failed';
-    logs.push(`ERROR: ${message}`);
+    logs.push(timestampedLog(`ERROR: ${message}`));
     db.status = 'failed';
     db.logs = logs.slice(-200);
   }
@@ -447,7 +492,9 @@ export async function performManagedDatabaseAction(
   const logs = [...(db.logs ?? [])];
   await runOrThrow(runner, [action, containerName], logs);
   db.status = action === 'stop' ? 'stopped' : 'running';
-  db.logs = logs.slice(-200);
+  db.logs = [...logs, timestampedLog(`Action ${action} completed for ${containerName}`)].slice(
+    -200
+  );
   await db.save();
   return mapManagedDatabaseToDTO(db);
 }

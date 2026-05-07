@@ -125,5 +125,54 @@ describe('DatabasesPage', () => {
       screen.getByText('postgresql://servermon:********@127.0.0.1:5432/servermon')
     ).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Deploy Main Postgres' })).toBeTruthy();
+    expect(screen.getByText('Activity')).toBeTruthy();
+    expect(screen.getByText('No deployment activity yet.')).toBeTruthy();
+  });
+
+  it('shows deployment activity immediately after deploy is clicked', async () => {
+    global.fetch = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          databases: [
+            {
+              id: 'db-1',
+              name: 'Main Mongo',
+              slug: 'main-mongo',
+              templateId: 'mongo',
+              version: '8',
+              image: 'mongo:8',
+              host: '127.0.0.1',
+              port: 27017,
+              internalPort: 27017,
+              username: 'root',
+              databaseName: 'defaultdb',
+              dataPath: '/var/lib/servermon/databases/main-mongo/data',
+              publicRoute: false,
+              bindAddress: '127.0.0.1',
+              sslMode: 'disable',
+              restartPolicy: 'unless-stopped',
+              status: 'draft',
+              connection: {
+                maskedUri: 'mongodb://root:********@127.0.0.1:27017/defaultdb?authSource=admin',
+                cli: 'mongodb://root:********@127.0.0.1:27017/defaultdb?authSource=admin',
+              },
+              securityNotes: [],
+              logs: [],
+            },
+          ],
+        }),
+      } as Response)
+      .mockImplementationOnce(() => new Promise(() => undefined));
+
+    render(<DatabasesPage />);
+    await screen.findByText('Main Mongo');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Deploy Main Mongo' }));
+
+    expect(await screen.findByText(/Deploy request sent to ServerMon/i)).toBeTruthy();
+    expect(screen.getByText(/Pulling the Docker image/i)).toBeTruthy();
+    expect(screen.getByText('Deploying')).toBeTruthy();
   });
 });

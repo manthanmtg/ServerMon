@@ -11,6 +11,7 @@ import {
   HardDrive,
   LoaderCircle,
   Lock,
+  Logs,
   Play,
   Plus,
   Power,
@@ -101,6 +102,14 @@ const initialForm: FormState = {
   confirmedPublicExposure: false,
 };
 
+const DEPLOY_PROGRESS_MESSAGES = [
+  'Deploy request sent to ServerMon.',
+  'Preparing host data directory.',
+  'Removing any existing container with the same managed name.',
+  'Pulling the Docker image. First pulls can take a few minutes.',
+  'Starting the database container and waiting for Docker to return.',
+];
+
 function fieldClassName() {
   return 'min-h-[44px] w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-ring focus:ring-2 focus:ring-ring/20';
 }
@@ -160,6 +169,10 @@ function formToPayload(form: FormState) {
   };
 }
 
+function sleep(ms: number) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
 export default function DatabasesPage() {
   const [databases, setDatabases] = useState<ManagedDatabaseDTO[]>([]);
   const [form, setForm] = useState<FormState>(initialForm);
@@ -167,6 +180,7 @@ export default function DatabasesPage() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [workingId, setWorkingId] = useState<string | null>(null);
+  const [operationLogs, setOperationLogs] = useState<Record<string, string[]>>({});
   const [revealedPassword, setRevealedPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -217,6 +231,33 @@ export default function DatabasesPage() {
     await navigator.clipboard?.writeText(value);
   };
 
+  const appendOperationLog = (databaseId: string, message: string) => {
+    setOperationLogs((current) => ({
+      ...current,
+      [databaseId]: [...(current[databaseId] ?? []), `[UI] ${message}`].slice(-12),
+    }));
+  };
+
+  const pollDatabaseUntilDone = async (databaseId: string) => {
+    let sawDeploying = false;
+    for (let attempt = 0; attempt < 60; attempt += 1) {
+      await sleep(1500);
+      const response = await fetch('/api/modules/databases', { cache: 'no-store' });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Failed to refresh databases');
+
+      const nextDatabases = data.databases || [];
+      setDatabases(nextDatabases);
+      const target = nextDatabases.find(
+        (database: ManagedDatabaseDTO) => database.id === databaseId
+      );
+      if (!target) return;
+      if (target.status === 'deploying') sawDeploying = true;
+      if (target.status === 'running' || target.status === 'failed') return;
+      if (sawDeploying && target.status !== 'deploying') return;
+    }
+  };
+
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     if (form.publicRoute && !form.confirmedPublicExposure) {
@@ -247,13 +288,28 @@ export default function DatabasesPage() {
   const deploy = async (database: ManagedDatabaseDTO) => {
     setWorkingId(database.id);
     setError(null);
+    setDatabases((current) =>
+      current.map((item) =>
+        item.id === database.id
+          ? {
+              ...item,
+              status: 'deploying',
+            }
+          : item
+      )
+    );
+    setOperationLogs((current) => ({
+      ...current,
+      [database.id]: DEPLOY_PROGRESS_MESSAGES.map((message) => `[UI] ${message}`),
+    }));
     try {
       const response = await fetch(`/api/modules/databases/${database.id}/deploy`, {
         method: 'POST',
       });
       const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Failed to deploy database');
-      await load();
+      if (!response.ok) throw new Error(data.error || 'Failed to queue database deploy');
+      appendOperationLog(database.id, 'Deployment accepted. Watching backend status and logs.');
+      await pollDatabaseUntilDone(database.id);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to deploy database');
     } finally {
@@ -435,6 +491,33 @@ export default function DatabasesPage() {
                       <li key={note}>{note}</li>
                     ))}
                   </ul>
+                </div>
+                <div className="space-y-2 rounded-lg border border-border bg-background p-3 lg:col-span-2">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+                      <Logs className="h-3.5 w-3.5" />
+                      Activity
+                    </div>
+                    {workingId === database.id && (
+                      <Badge variant="warning">
+                        <LoaderCircle className="h-3 w-3 animate-spin" />
+                        Deploying
+                      </Badge>
+                    )}
+                  </div>
+                  <div
+                    aria-label={`${database.name} activity log`}
+                    className="max-h-40 overflow-auto rounded-md bg-muted/25 p-3 font-mono text-[11px] leading-5 text-muted-foreground"
+                  >
+                    {[...(database.logs ?? []), ...(operationLogs[database.id] ?? [])].length >
+                    0 ? (
+                      [...(database.logs ?? []), ...(operationLogs[database.id] ?? [])]
+                        .slice(-16)
+                        .map((line, index) => <div key={`${line}-${index}`}>{line}</div>)
+                    ) : (
+                      <div>No deployment activity yet.</div>
+                    )}
+                  </div>
                 </div>
               </CardContent>
             </Card>
