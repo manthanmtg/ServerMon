@@ -4,6 +4,8 @@ import { EventEmitter } from 'node:events';
 import { AgentClient } from './agentClient';
 import type { AgentPtyBridge } from './agentPtyBridge';
 import type { FrpHandle } from './frpProcess';
+import type { ServerMonStatus } from './servermonStatus';
+import type { ServerMonBridgeSnapshot } from './servermonBridge';
 
 interface FakeBridge {
   start: ReturnType<typeof vi.fn>;
@@ -320,6 +322,107 @@ describe('AgentClient', () => {
     expect(body.nodeId).toBe('node-1');
     expect(body.tunnel).toBeDefined();
     expect(body.capabilities).toBeDefined();
+    await client.stop();
+  });
+
+  it('heartbeat includes ServerMon bridge capabilities when the local app publishes them', async () => {
+    const heartbeatCalls: Array<{ url: string; init?: RequestInit }> = [];
+    const fetchImpl = vi.fn(
+      async (url: string | URL | Request, init?: RequestInit): Promise<Response> => {
+        const u = typeof url === 'string' ? url : url.toString();
+        if (u.endsWith('/pair')) {
+          return mkOkResponse({
+            hub: {
+              serverAddr: 'hub.example.com',
+              serverPort: 7000,
+              authToken: 'hub-token',
+              subdomainHost: 'hub.example.com',
+            },
+          });
+        }
+        if (u.endsWith('/api/fleet/nodes/node-1')) {
+          return mkOkResponse(defaultNodeConfig());
+        }
+        if (u.endsWith('/heartbeat')) {
+          heartbeatCalls.push({ url: u, init });
+          return mkOkResponse({ ok: true });
+        }
+        throw new Error(`Unexpected URL ${u}`);
+      }
+    );
+
+    let intervalCb: (() => void) | null = null;
+    const client = new AgentClient({
+      hubUrl: 'https://hub.example.com',
+      pairingToken: 'pair-token',
+      nodeId: 'node-1',
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+      ensureBinaryImpl: vi.fn(async () => ({
+        frps: '/tmp/cache/frps',
+        frpc: '/tmp/cache/frpc',
+      })),
+      startFrpcImpl: vi.fn(() => makeFakeFrpHandle()),
+      writeFile: vi.fn(),
+      mkdir: vi.fn(),
+      ptyBridgeFactory: () => makeFakeBridge() as unknown as AgentPtyBridge,
+      setIntervalImpl: vi.fn((cb: () => void) => {
+        intervalCb = cb;
+        return 42 as unknown as ReturnType<typeof setInterval>;
+      }) as unknown as typeof setInterval,
+      clearIntervalImpl: vi.fn() as unknown as typeof clearInterval,
+      collectServerMonStatusImpl: vi.fn(
+        async (): Promise<ServerMonStatus> => ({
+          installed: true,
+          serviceName: 'servermon.service',
+          serviceState: 'running',
+          serviceEnabled: true,
+          port: 8912,
+          healthUrl: 'http://127.0.0.1:8912/api/health',
+          healthStatus: 'healthy',
+          lastCheckedAt: '2026-05-07T11:30:00.000Z',
+        })
+      ),
+      collectServerMonBridgeImpl: vi.fn(
+        async (): Promise<ServerMonBridgeSnapshot> => ({
+          schemaVersion: 1,
+          collectedAt: '2026-05-07T11:30:00.000Z',
+          app: { running: true, port: 8912 },
+          modules: { databases: { running: true, total: 1, runningCount: 1 } },
+          routeCandidates: [
+            {
+              id: 'database:db-1',
+              kind: 'database',
+              module: 'databases',
+              name: 'Main Mongo',
+              status: 'running',
+              target: { localIp: '127.0.0.1', localPort: 27017, protocol: 'tcp' },
+              route: {
+                eligible: true,
+                templateSlug: 'generic-tcp',
+                proxyRuleName: 'main-mongo',
+                accessMode: 'public',
+                tlsEnabled: false,
+                websocketEnabled: false,
+                compression: false,
+                timeoutSeconds: 60,
+                maxBodyMb: 32,
+              },
+              securityNotes: [],
+            },
+          ],
+        })
+      ),
+    });
+
+    await client.start();
+    await intervalCb!();
+
+    expect(heartbeatCalls.length).toBeGreaterThanOrEqual(1);
+    const body = JSON.parse(String(heartbeatCalls[0].init?.body));
+    expect(body.servermonBridge.routeCandidates[0]).toMatchObject({
+      id: 'database:db-1',
+      target: { localIp: '127.0.0.1', localPort: 27017, protocol: 'tcp' },
+    });
     await client.stop();
   });
 

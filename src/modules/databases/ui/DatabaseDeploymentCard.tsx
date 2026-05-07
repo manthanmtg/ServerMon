@@ -49,6 +49,11 @@ function StatusBadge({ status }: { status: ManagedDatabaseDTO['status'] }) {
   return <Badge variant={variants[status]}>{status}</Badge>;
 }
 
+function formatDateTime(value: string | undefined): string {
+  if (!value) return 'Not used yet';
+  return new Date(value).toLocaleString();
+}
+
 export function DatabaseDeploymentCard({
   database,
   isWorking,
@@ -62,6 +67,7 @@ export function DatabaseDeploymentCard({
 }: DatabaseDeploymentCardProps) {
   const activityLines = [...(database.logs ?? []), ...operationLogs];
   const latestActivity = activityLines.at(-1) ?? 'No deployment activity yet.';
+  const explorerIdleTimeoutMinutes = database.explorer?.idleTimeoutMinutes ?? 30;
 
   return (
     <Card>
@@ -233,6 +239,21 @@ export function DatabaseDeploymentCard({
                   Latest activity
                 </div>
                 <code className="break-all text-xs text-foreground">{latestActivity}</code>
+              </div>
+              <div className="rounded-lg border border-border bg-muted/25 p-3">
+                <div className="mb-1 flex items-center gap-2 text-xs font-medium text-muted-foreground">
+                  <Power className="h-3.5 w-3.5" />
+                  Explorer auto-stop
+                </div>
+                <div className="space-y-1 text-xs text-muted-foreground">
+                  <div>
+                    Stops after {explorerIdleTimeoutMinutes} minutes without explorer activity.
+                  </div>
+                  <div>Last used {formatDateTime(database.explorer?.lastAccessedAt)}</div>
+                  {database.explorer?.status === 'running' && database.explorer.idleExpiresAt && (
+                    <div>Stops at {formatDateTime(database.explorer?.idleExpiresAt)}</div>
+                  )}
+                </div>
               </div>
             </div>
             <div className="space-y-2 rounded-lg border border-border bg-background p-3">

@@ -9,6 +9,10 @@ import {
   SERVICE_STATES,
 } from '@/lib/fleet/enums';
 import { ServerMonStatusZodSchema, type ServerMonStatus } from '@/lib/fleet/servermonStatus';
+import {
+  ServerMonBridgeSnapshotZodSchema,
+  type ServerMonBridgeSnapshot,
+} from '@/lib/fleet/servermonBridge';
 
 const ProxyRuleZ = z.object({
   name: z
@@ -107,6 +111,7 @@ export const NodeZodSchema = z.object({
       updates: true,
     }),
   servermon: ServerMonStatusZodSchema.optional(),
+  servermonBridge: ServerMonBridgeSnapshotZodSchema.optional(),
 });
 
 export type INodeDTO = z.infer<typeof NodeZodSchema>;
@@ -131,6 +136,7 @@ export interface INode extends Document, INodeDTO {
    */
   ptyBridge?: { port: number; authToken: string };
   servermon?: ServerMonStatus;
+  servermonBridge?: ServerMonBridgeSnapshot;
   pendingCommands?: Array<{ id: string; command: string; args?: unknown; issuedAt?: Date }>;
   createdBy?: string;
   updatedBy?: string;
@@ -232,6 +238,7 @@ const NodeSchema = new Schema(
       lastCheckedAt: { type: String },
       lastError: { type: String },
     },
+    servermonBridge: { type: Schema.Types.Mixed },
     pendingCommands: [
       {
         id: { type: String, required: true },

@@ -196,6 +196,92 @@ describe('POST /api/fleet/nodes/[id]/heartbeat', () => {
     );
   });
 
+  it('persists reported ServerMon bridge capabilities on heartbeat', async () => {
+    mockFindById.mockResolvedValue({
+      pairingTokenHash: 'h',
+      bootId: 'boot-xyz',
+      tunnelStatus: 'connected',
+      proxyRules: [],
+      capabilities: {},
+    });
+    mockVerifyPairingToken.mockResolvedValue(true);
+
+    const servermonBridge = {
+      schemaVersion: 1,
+      collectedAt: new Date('2026-05-07T11:30:00.000Z').toISOString(),
+      app: { running: true, port: 8912 },
+      modules: { databases: { running: true, total: 1, runningCount: 1 } },
+      routeCandidates: [
+        {
+          id: 'database:db-1',
+          kind: 'database',
+          module: 'databases',
+          name: 'Main Mongo',
+          status: 'running',
+          target: { localIp: '127.0.0.1', localPort: 27017, protocol: 'tcp' },
+          route: {
+            eligible: true,
+            templateSlug: 'generic-tcp',
+            proxyRuleName: 'main-mongo',
+            accessMode: 'public',
+            tlsEnabled: false,
+            websocketEnabled: false,
+            compression: false,
+            timeoutSeconds: 60,
+            maxBodyMb: 32,
+          },
+          securityNotes: ['Expose only when remote database access is intended.'],
+        },
+      ],
+    };
+
+    const res = await POST(
+      makeReq({ ...validHeartbeat, servermonBridge }, { Authorization: 'Bearer tok' }),
+      makeContext('node-1')
+    );
+
+    expect(res.status).toBe(200);
+    expect(mockFindByIdAndUpdate).toHaveBeenCalledWith(
+      'node-1',
+      expect.objectContaining({
+        $set: expect.objectContaining({ servermonBridge }),
+      }),
+      { returnDocument: 'after' }
+    );
+  });
+
+  it('clears stale ServerMon bridge capabilities when heartbeat omits them', async () => {
+    mockFindById.mockResolvedValue({
+      pairingTokenHash: 'h',
+      bootId: 'boot-xyz',
+      tunnelStatus: 'connected',
+      proxyRules: [],
+      capabilities: {},
+      servermonBridge: {
+        schemaVersion: 1,
+        collectedAt: '2026-05-07T11:00:00.000Z',
+        app: { running: true, port: 8912 },
+        modules: { databases: { running: true, total: 1, runningCount: 1 } },
+        routeCandidates: [],
+      },
+    });
+    mockVerifyPairingToken.mockResolvedValue(true);
+
+    const res = await POST(
+      makeReq(validHeartbeat, { Authorization: 'Bearer tok' }),
+      makeContext('node-1')
+    );
+
+    expect(res.status).toBe(200);
+    expect(mockFindByIdAndUpdate).toHaveBeenCalledWith(
+      'node-1',
+      expect.objectContaining({
+        $unset: expect.objectContaining({ servermonBridge: '' }),
+      }),
+      { returnDocument: 'after' }
+    );
+  });
+
   it('emits node.reboot_detected on boot id change', async () => {
     const saveFn = vi.fn().mockResolvedValue(undefined);
     const nodeDoc = {

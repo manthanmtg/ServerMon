@@ -11,6 +11,10 @@ import { AgentPtyBridge } from './agentPtyBridge';
 import { executeScript, type ScriptExecutionConfig } from '../endpoints/script-executor';
 import type { ExecutionInput } from '../endpoints/types';
 import { collectServerMonStatus, type ServerMonStatus } from './servermonStatus';
+import {
+  collectServerMonBridgeCapabilities,
+  type ServerMonBridgeSnapshot,
+} from './servermonBridge';
 import { buildInstallServerMonCommand, redactServerMonInstallText } from './servermonAgentCommands';
 import { buildAgentUpdateShell, parseAgentUpdateShellOptions } from './agentUpdateCommand';
 
@@ -37,6 +41,8 @@ export interface AgentClientOpts {
   mkdir?: (p: string, opts?: { recursive: boolean }) => Promise<void>;
   ensureBinaryImpl?: typeof ensureBinary;
   startFrpcImpl?: typeof startFrpc;
+  collectServerMonStatusImpl?: typeof collectServerMonStatus;
+  collectServerMonBridgeImpl?: typeof collectServerMonBridgeCapabilities;
   ptyBridgeFactory?: (port: number, token: string) => AgentPtyBridge;
   setIntervalImpl?: typeof setInterval;
   clearIntervalImpl?: typeof clearInterval;
@@ -445,14 +451,29 @@ export class AgentClient {
     }
 
     let servermon: ServerMonStatus | undefined;
+    let servermonBridge: ServerMonBridgeSnapshot | undefined;
     try {
-      servermon = await collectServerMonStatus({
+      const collectStatus = this.opts.collectServerMonStatusImpl ?? collectServerMonStatus;
+      servermon = await collectStatus({
         spawnImpl: this.opts.spawnImpl ?? realSpawn,
         fetchImpl,
         now: this.opts.now,
       });
+      if (
+        servermon.installed &&
+        servermon.serviceState === 'running' &&
+        servermon.healthStatus === 'healthy'
+      ) {
+        const collectBridge =
+          this.opts.collectServerMonBridgeImpl ?? collectServerMonBridgeCapabilities;
+        servermonBridge = await collectBridge({
+          port: servermon.port,
+          fetchImpl,
+        });
+      }
     } catch {
       servermon = undefined;
+      servermonBridge = undefined;
     }
 
     const body = {
@@ -497,6 +518,7 @@ export class AgentClient {
         authToken: this.ptyToken,
       },
       servermon,
+      servermonBridge,
     };
 
     try {

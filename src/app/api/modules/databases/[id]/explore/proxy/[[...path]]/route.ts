@@ -1,7 +1,11 @@
 import { NextResponse } from 'next/server';
 import { createLogger } from '@/lib/logger';
 import { getSession } from '@/lib/session';
-import { buildExplorerProxyPath, getManagedDatabaseExplorerTarget } from '@/lib/databases/service';
+import {
+  buildExplorerProxyPath,
+  getManagedDatabaseExplorerTarget,
+  touchManagedDatabaseExplorerActivity,
+} from '@/lib/databases/service';
 
 export const dynamic = 'force-dynamic';
 
@@ -121,6 +125,7 @@ async function proxyExplorerRequest(
       body,
       redirect: 'manual',
     });
+    await touchManagedDatabaseExplorerActivity(id);
 
     return new Response(upstream.body, {
       status: upstream.status,

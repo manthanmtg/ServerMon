@@ -109,6 +109,90 @@ describe('PublicRouteTable', () => {
     expect(screen.getByText('Expose service')).toBeDefined();
   });
 
+  it('shows detected route suggestions and opens the wizard prefilled from a suggestion', async () => {
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url === '/api/fleet/nodes/n1/route-suggestions') {
+        return {
+          ok: true,
+          json: async () => ({
+            suggestions: [
+              {
+                id: 'database:db-1',
+                title: 'MongoDB database detected',
+                description: 'Main Mongo is running on this fleet machine.',
+                badge: 'mongo',
+                targetLabel: '127.0.0.1:27017 · tcp',
+                sourceLabel: 'ServerMon app · 2026-05-07T11:30:00.000Z',
+                warning: 'Expose only when remote database access is intended.',
+                form: {
+                  name: 'Main Mongo',
+                  slug: 'orion-main-mongo',
+                  domain: 'orion-main-mongo.apps.example.com',
+                  domainMode: 'hub_subdomain',
+                  templateSlug: 'generic-tcp',
+                  nodeId: 'n1',
+                  proxyRuleName: 'main-mongo',
+                  createNewProxyRule: true,
+                  target: { localIp: '127.0.0.1', localPort: 27017, protocol: 'tcp' },
+                  accessMode: 'public',
+                  tlsEnabled: false,
+                  websocketEnabled: false,
+                  timeoutSeconds: 60,
+                  maxBodyMb: 32,
+                  compression: false,
+                  headers: {},
+                },
+              },
+            ],
+          }),
+        };
+      }
+      if (url === '/api/fleet/templates') {
+        return { ok: true, json: async () => ({ templates: [] }) };
+      }
+      if (url === '/api/fleet/server') {
+        return {
+          ok: true,
+          json: async () => ({ state: { subdomainHost: 'apps.example.com' }, envDefaults: {} }),
+        };
+      }
+      if (url === '/api/fleet/nodes?limit=200') {
+        return {
+          ok: true,
+          json: async () => ({
+            nodes: [{ _id: 'n1', name: 'Orion', slug: 'orion', proxyRules: [] }],
+          }),
+        };
+      }
+      return {
+        ok: true,
+        json: async () => ({ routes: [], total: 0 }),
+      };
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await act(async () => {
+      render(<PublicRouteTable nodeId="n1" />);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText('Detected services')).toBeDefined();
+    });
+    expect(screen.getByText('MongoDB database detected')).toBeDefined();
+    expect(screen.getByText('127.0.0.1:27017 · tcp')).toBeDefined();
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Configure route for Main Mongo' }));
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole('dialog')).toBeDefined();
+    });
+    expect(screen.getByDisplayValue('Main Mongo')).toBeDefined();
+    expect(screen.getByDisplayValue('orion-main-mongo')).toBeDefined();
+    expect(screen.getByDisplayValue('orion-main-mongo.apps.example.com')).toBeDefined();
+  });
+
   it('delete calls DELETE endpoint and removes row', async () => {
     const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
       if (init?.method === 'DELETE') {

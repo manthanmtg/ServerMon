@@ -1,9 +1,10 @@
 /** @vitest-environment node */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { mockGetSession, mockGetExplorerTarget } = vi.hoisted(() => ({
+const { mockGetSession, mockGetExplorerTarget, mockTouchExplorerActivity } = vi.hoisted(() => ({
   mockGetSession: vi.fn(),
   mockGetExplorerTarget: vi.fn(),
+  mockTouchExplorerActivity: vi.fn(),
 }));
 
 vi.mock('@/lib/session', () => ({ getSession: mockGetSession }));
@@ -11,6 +12,7 @@ vi.mock('@/lib/databases/service', () => ({
   buildExplorerProxyPath: (id: string) =>
     `/api/modules/databases/${encodeURIComponent(id)}/explore/proxy/`,
   getManagedDatabaseExplorerTarget: mockGetExplorerTarget,
+  touchManagedDatabaseExplorerActivity: mockTouchExplorerActivity,
 }));
 vi.mock('@/lib/logger', () => ({
   createLogger: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }),
@@ -41,6 +43,7 @@ describe('/api/modules/databases/[id]/explore/proxy', () => {
       new URL('http://127.0.0.1:49152/api/modules/databases/db-1/explore/proxy/'),
       expect.objectContaining({ method: 'GET' })
     );
+    expect(mockTouchExplorerActivity).toHaveBeenCalledWith('db-1');
   });
 
   it('appends nested explorer paths after the upstream base path', async () => {

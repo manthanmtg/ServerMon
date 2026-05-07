@@ -38,6 +38,8 @@ export interface IManagedDatabase extends Document {
   explorerContainerName?: string;
   explorerLogs: string[];
   explorerStartedAt?: Date;
+  explorerLastAccessedAt?: Date;
+  explorerIdleTimeoutMinutes: number;
   lastDeployedAt?: Date;
   createdAt?: Date;
   updatedAt?: Date;
@@ -94,6 +96,8 @@ const ManagedDatabaseSchema = new Schema<IManagedDatabase>(
     explorerContainerName: { type: String },
     explorerLogs: { type: [String], default: [] },
     explorerStartedAt: { type: Date },
+    explorerLastAccessedAt: { type: Date },
+    explorerIdleTimeoutMinutes: { type: Number, required: true, default: 30, min: 1, max: 1440 },
     lastDeployedAt: { type: Date },
   },
   { timestamps: true }

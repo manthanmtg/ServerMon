@@ -30,6 +30,8 @@ const MONGO_EXPRESS_IMAGE =
   process.env.SERVERMON_MONGO_EXPRESS_IMAGE || 'mongo-express:1.0.2-20-alpine3.19';
 const PGWEB_IMAGE = process.env.SERVERMON_PGWEB_IMAGE || 'sosedoff/pgweb:0.16.2';
 const PHPMYADMIN_IMAGE = process.env.SERVERMON_PHPMYADMIN_IMAGE || 'phpmyadmin:5.2.2-apache';
+export const DATABASE_EXPLORER_IDLE_TIMEOUT_MINUTES = 30;
+export const DATABASE_EXPLORER_IDLE_TIMEOUT_MS = DATABASE_EXPLORER_IDLE_TIMEOUT_MINUTES * 60 * 1000;
 
 export const CreateManagedDatabaseSchema = z
   .object({
@@ -176,6 +178,7 @@ export function normalizeCreateManagedDatabaseInput(
     explorerStatus: 'stopped' as DatabaseExplorerStatus,
     explorerKind: getExplorerKind(input.templateId),
     explorerLogs: [] as string[],
+    explorerIdleTimeoutMinutes: DATABASE_EXPLORER_IDLE_TIMEOUT_MINUTES,
   };
 }
 
@@ -412,9 +415,55 @@ interface ManagedDatabaseDTORecord {
   explorerContainerName?: string;
   explorerLogs?: string[];
   explorerStartedAt?: Date | string;
+  explorerLastAccessedAt?: Date | string;
+  explorerIdleTimeoutMinutes?: number;
   createdAt?: Date | string;
   updatedAt?: Date | string;
   lastDeployedAt?: Date | string;
+}
+
+function toDate(value: Date | string | undefined): Date | undefined {
+  if (!value) return undefined;
+  return value instanceof Date ? value : new Date(value);
+}
+
+function getExplorerIdleTimeoutMinutes(
+  db: Pick<ManagedDatabaseDTORecord, 'explorerIdleTimeoutMinutes'>
+): number {
+  return db.explorerIdleTimeoutMinutes ?? DATABASE_EXPLORER_IDLE_TIMEOUT_MINUTES;
+}
+
+function getExplorerLastActivityDate(
+  db: Pick<ManagedDatabaseDTORecord, 'explorerLastAccessedAt' | 'explorerStartedAt'>
+): Date | undefined {
+  return toDate(db.explorerLastAccessedAt) ?? toDate(db.explorerStartedAt);
+}
+
+export function getExplorerIdleExpiresAt(
+  db: Pick<
+    ManagedDatabaseDTORecord,
+    'explorerLastAccessedAt' | 'explorerStartedAt' | 'explorerIdleTimeoutMinutes'
+  >
+): Date | undefined {
+  const lastActivity = getExplorerLastActivityDate(db);
+  if (!lastActivity) return undefined;
+  return new Date(lastActivity.getTime() + getExplorerIdleTimeoutMinutes(db) * 60 * 1000);
+}
+
+export function isExplorerIdleExpired(
+  db: Pick<
+    ManagedDatabaseDTORecord,
+    | 'explorerStatus'
+    | 'explorerPort'
+    | 'explorerLastAccessedAt'
+    | 'explorerStartedAt'
+    | 'explorerIdleTimeoutMinutes'
+  >,
+  now = new Date()
+): boolean {
+  if (db.explorerStatus !== 'running' || !db.explorerPort) return false;
+  const idleExpiresAt = getExplorerIdleExpiresAt(db);
+  return Boolean(idleExpiresAt && idleExpiresAt.getTime() <= now.getTime());
 }
 
 export function buildSecurityNotes(
@@ -480,6 +529,9 @@ export function mapManagedDatabaseToDTO(db: ManagedDatabaseDTORecord): ManagedDa
           : undefined,
       logs: db.explorerLogs ?? [],
       startedAt: toIsoDate(db.explorerStartedAt),
+      lastAccessedAt: toIsoDate(db.explorerLastAccessedAt),
+      idleTimeoutMinutes: getExplorerIdleTimeoutMinutes(db),
+      idleExpiresAt: toIsoDate(getExplorerIdleExpiresAt(db)),
     },
     securityNotes: buildSecurityNotes(db),
     logs: db.logs ?? [],
@@ -540,6 +592,8 @@ export async function updateManagedDatabase(
   db.explorerContainerName = undefined;
   db.explorerLogs = [];
   db.explorerStartedAt = undefined;
+  db.explorerLastAccessedAt = undefined;
+  db.explorerIdleTimeoutMinutes = DATABASE_EXPLORER_IDLE_TIMEOUT_MINUTES;
   await db.save();
   return mapManagedDatabaseToDTO(db);
 }
@@ -694,6 +748,46 @@ async function saveExplorerLog(
   await db.save();
 }
 
+async function stopExplorerContainerForIdle(
+  db: IManagedDatabase,
+  runner: DockerRunner,
+  now = new Date()
+) {
+  const containerName = db.explorerContainerName || getExplorerContainerName(db.slug);
+  const logs = [...(db.explorerLogs ?? [])];
+  await runner.run(['rm', '-f', containerName]);
+  db.explorerStatus = 'stopped';
+  db.explorerPort = undefined;
+  db.explorerLogs = [
+    ...logs,
+    timestampedLog(
+      `Stopped explorer container ${containerName} after ${getExplorerIdleTimeoutMinutes(
+        db
+      )} minutes without activity`,
+      now
+    ),
+  ].slice(-200);
+  await db.save();
+}
+
+export async function cleanupIdleManagedDatabaseExplorers(
+  runner: DockerRunner = defaultDockerRunner,
+  now = new Date()
+): Promise<number> {
+  await connectDB();
+  const databases = await ManagedDatabase.find({ explorerStatus: 'running' });
+  let stopped = 0;
+
+  for (const db of databases) {
+    if (isExplorerIdleExpired(db, now)) {
+      await stopExplorerContainerForIdle(db, runner, now);
+      stopped += 1;
+    }
+  }
+
+  return stopped;
+}
+
 export async function startManagedDatabaseExplorer(
   id: string,
   runner: DockerRunner = defaultDockerRunner
@@ -711,6 +805,10 @@ export async function startManagedDatabaseExplorer(
   const explorerImage = getExplorerImage(db.templateId);
   const upstreamBasePath = getExplorerUpstreamBasePath(dbId, explorerKind);
   const logs = [...(db.explorerLogs ?? [])];
+  if (isExplorerIdleExpired(db)) {
+    await stopExplorerContainerForIdle(db, runner);
+    logs.push(...(db.explorerLogs ?? []).slice(logs.length));
+  }
   if (
     db.explorerStatus === 'running' &&
     db.explorerPort &&
@@ -718,6 +816,8 @@ export async function startManagedDatabaseExplorer(
   ) {
     try {
       await waitForExplorerHttpReady(db.explorerPort, { path: upstreamBasePath });
+      db.explorerLastAccessedAt = new Date();
+      await db.save();
       return mapManagedDatabaseToDTO(db).explorer;
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Explorer readiness check failed';
@@ -782,6 +882,9 @@ export async function startManagedDatabaseExplorer(
     await waitForExplorerHttpReady(hostPort, { path: upstreamBasePath });
     db.explorerStatus = 'running';
     db.explorerStartedAt = new Date();
+    db.explorerLastAccessedAt = db.explorerStartedAt;
+    db.explorerIdleTimeoutMinutes =
+      db.explorerIdleTimeoutMinutes || DATABASE_EXPLORER_IDLE_TIMEOUT_MINUTES;
     db.explorerLogs = [
       ...nextLogs,
       timestampedLog(`Explorer is available through ${proxyPath}`),
@@ -809,6 +912,7 @@ export async function stopManagedDatabaseExplorer(
   await runner.run(['rm', '-f', containerName]);
   db.explorerStatus = 'stopped';
   db.explorerPort = undefined;
+  db.explorerLastAccessedAt = undefined;
   db.explorerLogs = [...logs, timestampedLog(`Stopped explorer container ${containerName}`)].slice(
     -200
   );
@@ -817,11 +921,18 @@ export async function stopManagedDatabaseExplorer(
 }
 
 export async function getManagedDatabaseExplorerTarget(
-  id: string
+  id: string,
+  runner: DockerRunner = defaultDockerRunner
 ): Promise<{ port: number; upstreamBasePath?: string }> {
   await connectDB();
   const db = await ManagedDatabase.findById(id);
   if (!db) throw new Error('Database not found');
+  if (isExplorerIdleExpired(db)) {
+    await stopExplorerContainerForIdle(db, runner);
+    throw new Error(
+      'Database explorer stopped after 30 minutes without activity. Reopen Explorer.'
+    );
+  }
   if (db.explorerStatus !== 'running' || !db.explorerPort) {
     throw new Error('Database explorer is not running');
   }
@@ -830,6 +941,14 @@ export async function getManagedDatabaseExplorerTarget(
     port: db.explorerPort,
     upstreamBasePath: getExplorerUpstreamBasePath(db._id.toString(), explorerKind),
   };
+}
+
+export async function touchManagedDatabaseExplorerActivity(id: string, now = new Date()) {
+  await connectDB();
+  await ManagedDatabase.updateOne(
+    { _id: id, explorerStatus: 'running' },
+    { $set: { explorerLastAccessedAt: now } }
+  );
 }
 
 export async function deployManagedDatabase(
@@ -906,6 +1025,12 @@ export async function performManagedDatabaseAction(
   const logs = [...(db.logs ?? [])];
   await runOrThrow(runner, [action, containerName], logs);
   db.status = action === 'stop' ? 'stopped' : 'running';
+  if (action === 'stop') {
+    await runner.run(['rm', '-f', db.explorerContainerName || getExplorerContainerName(db.slug)]);
+    db.explorerStatus = 'stopped';
+    db.explorerPort = undefined;
+    db.explorerLastAccessedAt = undefined;
+  }
   db.logs = [...logs, timestampedLog(`Action ${action} completed for ${containerName}`)].slice(
     -200
   );
@@ -922,7 +1047,9 @@ export async function deleteManagedDatabase(
   if (!db) throw new Error('Database not found');
   const logs = [...(db.logs ?? [])];
   const containerName = db.containerName || `servermon-db-${db.slug}`;
+  const explorerContainerName = db.explorerContainerName || getExplorerContainerName(db.slug);
   await runner.run(['rm', '-f', containerName]);
+  await runner.run(['rm', '-f', explorerContainerName]);
   await rm(db.dataPath, { recursive: true, force: true });
   logs.push('Removed managed database container and data directory');
   await db.deleteOne();

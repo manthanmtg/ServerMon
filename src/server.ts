@@ -17,6 +17,7 @@ import { handleRequestWithDiagnostics } from './lib/server-request-diagnostics';
 import { startLocalAutoUpdateScheduler } from './lib/updates/auto-update-scheduler';
 import { startNetworkSpeedtestScheduler } from './lib/network/speedtest-scheduler';
 import { startGitAppAutoUpdateScheduler } from './lib/apps/auto-update-scheduler';
+import { startDatabaseExplorerCleanupScheduler } from './lib/databases/explorer-scheduler';
 import type { HubWsAdapter } from './lib/fleet/hubTtyBridge';
 import type { AgentStatus } from './lib/fleet/agentClient';
 
@@ -181,6 +182,7 @@ if (process.env.FLEET_AGENT_MODE === 'true') {
       startLocalAutoUpdateScheduler();
       startGitAppAutoUpdateScheduler();
       startNetworkSpeedtestScheduler();
+      startDatabaseExplorerCleanupScheduler();
     }
     const server = createServer((req, res) => {
       const parsedUrl = parse(req.url!, true);

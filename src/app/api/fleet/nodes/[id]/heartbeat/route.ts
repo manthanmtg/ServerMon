@@ -90,6 +90,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if (hb.tunnel.connectedSince) updateData.$set.connectedSince = hb.tunnel.connectedSince;
     if (previousBootId !== hb.bootId) updateData.$set.lastBootAt = hb.bootAt;
     if (hb.servermon) updateData.$set.servermon = hb.servermon;
+    if (hb.servermonBridge) updateData.$set.servermonBridge = hb.servermonBridge;
+    else {
+      updateData.$unset = { ...(updateData.$unset ?? {}), servermonBridge: '' };
+    }
 
     if (
       hb.tunnel.status === 'connected' &&

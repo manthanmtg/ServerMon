@@ -2,8 +2,11 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   CreateManagedDatabaseSchema,
+  DATABASE_EXPLORER_IDLE_TIMEOUT_MINUTES,
   buildDatabaseExplorerRunRequest,
   buildDockerRunRequest,
+  getExplorerIdleExpiresAt,
+  isExplorerIdleExpired,
   mapManagedDatabaseToDTO,
   normalizeCreateManagedDatabaseInput,
   waitForExplorerHttpReady,
@@ -41,6 +44,7 @@ describe('database service helpers', () => {
       sslMode: 'disable',
       status: 'draft',
       logs: [],
+      explorerIdleTimeoutMinutes: DATABASE_EXPLORER_IDLE_TIMEOUT_MINUTES,
     });
   });
 
@@ -143,6 +147,21 @@ describe('database service helpers', () => {
     expect(dto.securityNotes).toContain(
       'If this machine is part of ServerMon Fleet with no public IP, do not use public route here.'
     );
+    expect(dto.explorer.idleTimeoutMinutes).toBe(DATABASE_EXPLORER_IDLE_TIMEOUT_MINUTES);
+  });
+
+  it('calculates database explorer idle expiration from the last access time', () => {
+    const record = {
+      explorerStatus: 'running' as const,
+      explorerPort: 49152,
+      explorerStartedAt: new Date('2026-05-07T10:00:00.000Z'),
+      explorerLastAccessedAt: new Date('2026-05-07T10:10:00.000Z'),
+      explorerIdleTimeoutMinutes: 30,
+    };
+
+    expect(getExplorerIdleExpiresAt(record)?.toISOString()).toBe('2026-05-07T10:40:00.000Z');
+    expect(isExplorerIdleExpired(record, new Date('2026-05-07T10:39:59.000Z'))).toBe(false);
+    expect(isExplorerIdleExpired(record, new Date('2026-05-07T10:40:00.000Z'))).toBe(true);
   });
 
   it('builds a local-only mongo-express sidecar for managed Mongo exploration', () => {

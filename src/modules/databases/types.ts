@@ -65,6 +65,9 @@ export interface ManagedDatabaseDTO {
     proxyPath?: string;
     logs: string[];
     startedAt?: string;
+    lastAccessedAt?: string;
+    idleTimeoutMinutes: number;
+    idleExpiresAt?: string;
   };
   securityNotes: string[];
   logs: string[];
