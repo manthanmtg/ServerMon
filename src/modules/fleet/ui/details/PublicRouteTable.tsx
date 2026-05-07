@@ -157,11 +157,16 @@ export function PublicRouteTable({ nodeId }: { nodeId: string }) {
             </div>
           )}
           {suggestions.length > 0 && (
-            <div className="space-y-2 rounded-lg border border-primary/20 bg-primary/5 p-3">
+            <section
+              aria-labelledby="detected-services-title"
+              className="space-y-2 rounded-lg border border-primary/20 bg-primary/5 p-3"
+            >
               <div className="flex items-center gap-2">
                 <RadioTower className="h-4 w-4 text-primary" aria-hidden="true" />
                 <div>
-                  <div className="text-sm font-medium">Detected services</div>
+                  <h3 id="detected-services-title" className="text-sm font-medium">
+                    Detected services
+                  </h3>
                   <div className="text-xs text-muted-foreground">
                     ServerMon app and module details reported by the local agent bridge.
                   </div>
@@ -206,7 +211,7 @@ export function PublicRouteTable({ nodeId }: { nodeId: string }) {
                   </div>
                 ))}
               </div>
-            </div>
+            </section>
           )}
           {!routes && (
             <div className="flex justify-center py-12">
@@ -219,14 +224,27 @@ export function PublicRouteTable({ nodeId }: { nodeId: string }) {
           {routes && routes.length > 0 && (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
+                <caption className="sr-only">List of public routes for the node</caption>
                 <thead>
                   <tr className="border-b border-border text-left text-muted-foreground">
-                    <th className="py-2 pr-2 font-medium">Name</th>
-                    <th className="py-2 pr-2 font-medium">Domain</th>
-                    <th className="py-2 pr-2 font-medium">Status</th>
-                    <th className="py-2 pr-2 font-medium">Access</th>
-                    <th className="py-2 pr-2 font-medium">TLS</th>
-                    <th className="py-2 pr-2 font-medium"></th>
+                    <th scope="col" className="py-2 pr-2 font-medium">
+                      Name
+                    </th>
+                    <th scope="col" className="py-2 pr-2 font-medium">
+                      Domain
+                    </th>
+                    <th scope="col" className="py-2 pr-2 font-medium">
+                      Status
+                    </th>
+                    <th scope="col" className="py-2 pr-2 font-medium">
+                      Access
+                    </th>
+                    <th scope="col" className="py-2 pr-2 font-medium">
+                      TLS
+                    </th>
+                    <th scope="col" className="py-2 pr-2 font-medium">
+                      <span className="sr-only">Actions</span>
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
