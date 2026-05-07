@@ -24,7 +24,7 @@ vi.mock('./git', async () => {
   };
 });
 
-import { updateManagedGitApp } from './service';
+import { deployManagedApp, updateManagedGitApp } from './service';
 
 describe('updateManagedGitApp', () => {
   beforeEach(() => {
@@ -110,5 +110,84 @@ describe('updateManagedGitApp', () => {
       lastError: 'Command failed: pnpm build',
     });
     expect(savedStatuses).not.toContain('deploying');
+  });
+});
+
+describe('deployManagedApp', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('updates git app checkouts to the configured remote branch before manual deploys', async () => {
+    const save = vi.fn(() => Promise.resolve());
+    const app = {
+      _id: 'app-1',
+      id: 'app-1',
+      name: 'Git Portal',
+      slug: 'git-portal',
+      templateId: 'nextjs',
+      sourceType: 'git',
+      sourcePath: undefined,
+      gitUrl: 'https://github.com/acme/git-portal.git',
+      gitBranch: 'main',
+      gitCurrentSha: 'old-sha',
+      autoUpdate: {
+        enabled: true,
+        intervalMinutes: 60,
+      },
+      domain: 'git.example.com',
+      port: 3010,
+      commands: {
+        install: 'pnpm install --frozen-lockfile',
+        build: 'pnpm build',
+        start: 'pnpm start',
+      },
+      envVars: new Map(),
+      healthCheckPath: '/',
+      tlsEnabled: false,
+      status: 'running',
+      currentReleaseId: 'old-release',
+      releases: [
+        {
+          id: 'old-release',
+          status: 'active',
+          createdAt: new Date('2026-05-07T00:00:00.000Z'),
+          activatedAt: new Date('2026-05-07T00:01:00.000Z'),
+          logs: ['old release ok'],
+        },
+      ],
+      save,
+    };
+    mockFindById.mockResolvedValue(app);
+    mockPrepareGitSourceForDeploy.mockResolvedValue({
+      sourcePath: '/srv/servermon/apps/git-portal/repository',
+      previousSha: 'old-sha',
+      remoteSha: 'new-sha',
+      currentSha: 'new-sha',
+      changed: true,
+      cloned: false,
+      logs: ['$ git fetch origin main', '$ git reset --hard origin/main'],
+    });
+    mockDeployNextJsApp.mockResolvedValue({
+      releaseId: 'new-release',
+      status: 'active',
+      logs: ['deployed'],
+    });
+
+    const result = await deployManagedApp('app-1');
+
+    expect(result.status).toBe('active');
+    expect(mockPrepareGitSourceForDeploy).toHaveBeenCalledWith(
+      expect.objectContaining({ updateToRemote: true })
+    );
+    expect(mockDeployNextJsApp).toHaveBeenCalledWith(
+      expect.objectContaining({
+        app: expect.objectContaining({
+          sourcePath: '/srv/servermon/apps/git-portal/repository',
+        }),
+      })
+    );
+    expect(app.gitCurrentSha).toBe('new-sha');
+    expect(app.currentReleaseId).toBe('new-release');
   });
 });

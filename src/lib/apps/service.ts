@@ -484,7 +484,7 @@ export async function deployManagedApp(appId: string) {
 
   let source: Awaited<ReturnType<typeof prepareSource>>;
   try {
-    source = await prepareSource(app, false);
+    source = await prepareSource(app, (app.sourceType ?? 'local') === 'git');
   } catch (error) {
     app.status = 'failed';
     await app.save();
