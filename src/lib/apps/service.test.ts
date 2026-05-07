@@ -23,6 +23,7 @@ describe('apps service helpers', () => {
         NEXT_PUBLIC_APP_URL: 'https://app.example.com',
         OPENAI_API_KEY: 'sk-test',
       },
+      tlsEnabled: true,
     });
 
     expect(normalizeCreateManagedAppInput(parsed)).toEqual({
@@ -42,6 +43,7 @@ describe('apps service helpers', () => {
         OPENAI_API_KEY: 'sk-test',
       },
       healthCheckPath: '/',
+      tlsEnabled: true,
       status: 'draft',
       releases: [],
     });
@@ -85,6 +87,7 @@ describe('apps service helpers', () => {
           ['OPENAI_API_KEY', 'sk-secret'],
         ]),
         healthCheckPath: '/',
+        tlsEnabled: true,
         status: 'running',
         currentReleaseId: '20260506-123456-789',
         releases: [
@@ -106,6 +109,7 @@ describe('apps service helpers', () => {
       NEXT_PUBLIC_APP_URL: 'https://app.example.com',
       OPENAI_API_KEY: '***',
     });
+    expect(dto.tlsEnabled).toBe(true);
     expect(dto.dns?.summary).toBe('Create A record: app.example.com -> 203.0.113.10');
     expect(dto.releases[0]?.createdAt).toBe('2026-05-06T12:34:56.789Z');
   });

@@ -7,6 +7,7 @@ import {
   ExternalLink,
   Globe2,
   LoaderCircle,
+  Lock,
   Play,
   Rocket,
   Server,
@@ -27,6 +28,7 @@ interface FormState {
   build: string;
   start: string;
   healthCheckPath: string;
+  tlsEnabled: boolean;
   envText: string;
 }
 
@@ -40,6 +42,7 @@ const initialForm: FormState = {
   build: 'pnpm build',
   start: 'pnpm start',
   healthCheckPath: '/',
+  tlsEnabled: false,
   envText: '',
 };
 
@@ -145,7 +148,7 @@ export default function AppsPage() {
     [apps]
   );
 
-  const updateForm = (key: keyof FormState, value: string) => {
+  const updateForm = <K extends keyof FormState>(key: K, value: FormState[K]) => {
     setForm((current) => ({ ...current, [key]: value }));
   };
 
@@ -169,6 +172,7 @@ export default function AppsPage() {
             start: form.start,
           },
           healthCheckPath: form.healthCheckPath || '/',
+          tlsEnabled: form.tlsEnabled,
           envVars: parseEnvText(form.envText),
         }),
       });
@@ -377,6 +381,30 @@ export default function AppsPage() {
                 </Field>
               </div>
 
+              <label
+                htmlFor="enable-ssl"
+                className="flex min-h-[44px] items-start gap-3 rounded-lg border border-border bg-muted/20 px-3 py-3 text-sm"
+              >
+                <input
+                  id="enable-ssl"
+                  type="checkbox"
+                  aria-label="Enable SSL"
+                  className="mt-0.5 h-4 w-4 rounded border-input accent-primary"
+                  checked={form.tlsEnabled}
+                  onChange={(event) => updateForm('tlsEnabled', event.target.checked)}
+                />
+                <span className="space-y-1">
+                  <span className="flex items-center gap-2 font-medium text-foreground">
+                    <Lock className="h-4 w-4 text-primary" />
+                    Enable SSL
+                  </span>
+                  <span className="block text-xs leading-5 text-muted-foreground">
+                    Uses Certbot to issue a Let&apos;s Encrypt certificate and redirect HTTP to
+                    HTTPS during deployment.
+                  </span>
+                </span>
+              </label>
+
               <Field
                 id="environment-variables"
                 label="Environment variables"
@@ -451,6 +479,15 @@ export default function AppsPage() {
                       {app.currentReleaseId || 'Not deployed'}
                     </div>
                   </div>
+                </div>
+
+                <div className="rounded-lg border border-border bg-muted/20 p-3 text-xs">
+                  <div className="mb-2 font-medium">TLS</div>
+                  <code>
+                    {app.tlsEnabled
+                      ? `Certbot-managed HTTPS requested for ${app.domain}.`
+                      : 'HTTP only. Enable SSL before deploying to request HTTPS.'}
+                  </code>
                 </div>
 
                 <div className="rounded-lg border border-border bg-muted/20 p-3 text-xs">

@@ -2,7 +2,7 @@ import path from 'node:path';
 import { sanitizeAppSlug } from './rendering';
 
 export function getAppsRoot(): string {
-  return process.env.SERVERMON_APPS_ROOT || '/opt/servermon/apps';
+  return process.env.SERVERMON_APPS_ROOT || '/var/lib/servermon/apps';
 }
 
 export function getAppRoot(appSlug: string, appsRoot = getAppsRoot()): string {

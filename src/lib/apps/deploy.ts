@@ -49,6 +49,8 @@ export interface DeployNextJsAppOptions {
   nginxEnabledDir?: string;
   releaseId?: string;
   runAsUser?: string;
+  healthCheckAttempts?: number;
+  healthCheckIntervalMs?: number;
   commandRunner?: CommandRunner;
   healthCheck?: HealthCheck;
 }
@@ -146,9 +148,58 @@ async function runOrThrow(
   }
 }
 
+function buildCertbotCommand(domain: string): string {
+  return [
+    'certbot',
+    '--nginx',
+    `-d ${domain}`,
+    '--non-interactive',
+    '--agree-tos',
+    '--redirect',
+    '--register-unsafely-without-email',
+  ].join(' ');
+}
+
 function healthUrl(port: number, healthCheckPath?: string): string {
   const normalizedPath = healthCheckPath?.startsWith('/') ? healthCheckPath : '/';
   return `http://127.0.0.1:${port}${normalizedPath}`;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function waitForHealthy({
+  url,
+  healthCheck,
+  logs,
+  attempts,
+  intervalMs,
+}: {
+  url: string;
+  healthCheck: HealthCheck;
+  logs: string[];
+  attempts: number;
+  intervalMs: number;
+}): Promise<void> {
+  let lastFailure = 'Health check failed';
+
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    const checked = await healthCheck(url);
+    if (checked.ok) {
+      logs.push('Health check passed');
+      return;
+    }
+
+    lastFailure =
+      checked.error || `Health check failed${checked.status ? ` with ${checked.status}` : ''}`;
+    if (attempt < attempts) {
+      logs.push(`Health check attempt ${attempt}/${attempts} failed: ${lastFailure}`);
+      await sleep(intervalMs);
+    }
+  }
+
+  throw new Error(lastFailure);
 }
 
 export async function deployNextJsApp({
@@ -159,6 +210,8 @@ export async function deployNextJsApp({
   nginxEnabledDir = DEFAULT_NGINX_ENABLED_DIR,
   releaseId = createReleaseId(),
   runAsUser,
+  healthCheckAttempts = 12,
+  healthCheckIntervalMs = 2_000,
   commandRunner = defaultCommandRunner,
   healthCheck = defaultHealthCheck,
 }: DeployNextJsAppOptions): Promise<DeployNextJsAppResult> {
@@ -225,13 +278,13 @@ export async function deployNextJsApp({
     await runOrThrow(commandRunner, `systemctl restart ${serviceName}`, logs);
     serviceRestarted = true;
 
-    const checked = await healthCheck(healthUrl(app.port, app.healthCheckPath));
-    if (!checked.ok) {
-      throw new Error(
-        checked.error || `Health check failed${checked.status ? ` with ${checked.status}` : ''}`
-      );
-    }
-    logs.push('Health check passed');
+    await waitForHealthy({
+      url: healthUrl(app.port, app.healthCheckPath),
+      healthCheck,
+      logs,
+      attempts: healthCheckAttempts,
+      intervalMs: healthCheckIntervalMs,
+    });
 
     const nginxAvailablePath = path.join(nginxAvailableDir, app.domain);
     const nginxEnabledPath = path.join(nginxEnabledDir, app.domain);
@@ -243,6 +296,12 @@ export async function deployNextJsApp({
     await ensureNginxEnabled(nginxAvailablePath, nginxEnabledPath);
     await runOrThrow(commandRunner, 'nginx -t', logs);
     await runOrThrow(commandRunner, 'nginx -s reload', logs);
+
+    if (app.tlsEnabled) {
+      await runOrThrow(commandRunner, buildCertbotCommand(app.domain), logs);
+      await runOrThrow(commandRunner, 'nginx -t', logs);
+      await runOrThrow(commandRunner, 'nginx -s reload', logs);
+    }
 
     return { releaseId, status: 'active', logs };
   } catch (error: unknown) {

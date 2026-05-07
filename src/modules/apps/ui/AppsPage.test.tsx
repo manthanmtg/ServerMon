@@ -24,6 +24,7 @@ describe('AppsPage', () => {
     expect(screen.getByLabelText('Build command')).toBeTruthy();
     expect(screen.getByLabelText('Start command')).toBeTruthy();
     expect(screen.getByLabelText('Health check path')).toBeTruthy();
+    expect(screen.getByLabelText('Enable SSL')).toBeTruthy();
     expect(screen.getByLabelText('Environment variables')).toBeTruthy();
     expect(screen.getByPlaceholderText('/srv/apps/inventory-portal')).toBeTruthy();
     expect(screen.getByPlaceholderText('app.example.com')).toBeTruthy();
@@ -65,6 +66,7 @@ describe('AppsPage', () => {
     fireEvent.change(screen.getByLabelText('Environment variables'), {
       target: { value: 'NEXT_PUBLIC_APP_URL=https://inventory.example.com' },
     });
+    fireEvent.click(screen.getByLabelText('Enable SSL'));
     fireEvent.click(screen.getByRole('button', { name: /create app/i }));
 
     await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(3));
@@ -85,6 +87,7 @@ describe('AppsPage', () => {
             start: 'pnpm start',
           },
           healthCheckPath: '/',
+          tlsEnabled: true,
           envVars: {
             NEXT_PUBLIC_APP_URL: 'https://inventory.example.com',
           },

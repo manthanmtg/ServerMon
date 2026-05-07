@@ -17,6 +17,7 @@ export interface IManagedApp extends Document {
   commands: AppCommands;
   envVars: Map<string, string>;
   healthCheckPath: string;
+  tlsEnabled: boolean;
   status: ManagedAppStatus;
   currentReleaseId?: string;
   releases: Array<
@@ -61,6 +62,7 @@ const ManagedAppSchema = new Schema<IManagedApp>(
     },
     envVars: { type: Map, of: String, default: {} },
     healthCheckPath: { type: String, required: true, default: '/' },
+    tlsEnabled: { type: Boolean, required: true, default: false },
     status: {
       type: String,
       enum: ['draft', 'deploying', 'running', 'failed', 'stopped', 'unknown'],

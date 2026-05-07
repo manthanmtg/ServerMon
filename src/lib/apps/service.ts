@@ -46,6 +46,7 @@ export const CreateManagedAppSchema = z.object({
     .trim()
     .regex(/^\/[^\s]*$/, 'Health check path must start with /')
     .default('/'),
+  tlsEnabled: z.boolean().default(false),
   templateId: z.enum(['nextjs']).default('nextjs'),
 });
 
@@ -75,6 +76,7 @@ export function normalizeCreateManagedAppInput(input: CreateManagedAppData) {
     commands: input.commands,
     envVars: input.envVars,
     healthCheckPath: input.healthCheckPath,
+    tlsEnabled: input.tlsEnabled,
     status: 'draft' as ManagedAppStatus,
     releases: [],
   };
@@ -101,6 +103,7 @@ interface ManagedAppDTORecord {
   commands: IManagedApp['commands'];
   envVars: Map<string, string> | Record<string, string>;
   healthCheckPath: string;
+  tlsEnabled?: boolean;
   status: IManagedApp['status'];
   currentReleaseId?: string;
   releases: Array<{
@@ -128,6 +131,7 @@ export function mapManagedAppToDTO(app: ManagedAppDTORecord, publicIp?: string):
     commands: app.commands,
     envVars: maskEnvVars(mapEnv(app.envVars)),
     healthCheckPath: app.healthCheckPath,
+    tlsEnabled: Boolean(app.tlsEnabled),
     status: app.status,
     currentReleaseId: app.currentReleaseId,
     releases: app.releases.map((release) => ({
@@ -180,6 +184,7 @@ export async function deployManagedApp(appId: string) {
       commands: app.commands,
       envVars: mapEnv(app.envVars),
       healthCheckPath: app.healthCheckPath,
+      tlsEnabled: app.tlsEnabled,
       status: app.status,
       currentReleaseId: app.currentReleaseId,
     },

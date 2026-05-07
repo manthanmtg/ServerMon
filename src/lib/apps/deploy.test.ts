@@ -96,6 +96,56 @@ describe('deployNextJsApp', () => {
     );
   });
 
+  it('requests and enables a certbot certificate when TLS is enabled', async () => {
+    const sourcePath = await createSourceRepo();
+    const dirs = await createDeployDirs();
+    const commands: string[] = [];
+
+    const result = await deployNextJsApp({
+      app: {
+        name: 'LifeOS',
+        slug: 'lifeos',
+        templateId: 'nextjs',
+        sourcePath,
+        domain: 'app.example.com',
+        port: 3010,
+        commands: {
+          install: 'pnpm install',
+          build: 'pnpm build',
+          start: 'pnpm start',
+        },
+        envVars: {},
+        healthCheckPath: '/',
+        tlsEnabled: true,
+        status: 'draft',
+      },
+      appsRoot: dirs.root,
+      systemdDir: dirs.systemdDir,
+      nginxAvailableDir: dirs.nginxAvailableDir,
+      nginxEnabledDir: dirs.nginxEnabledDir,
+      releaseId: 'tls-release',
+      commandRunner: async ({ command }) => {
+        commands.push(command);
+        return { code: 0, output: `${command} ok` };
+      },
+      healthCheck: async () => ({ ok: true }),
+    });
+
+    expect(result.status).toBe('active');
+    expect(commands).toEqual([
+      'pnpm install',
+      'pnpm build',
+      'systemctl daemon-reload',
+      'systemctl enable servermon-app-lifeos.service',
+      'systemctl restart servermon-app-lifeos.service',
+      'nginx -t',
+      'nginx -s reload',
+      'certbot --nginx -d app.example.com --non-interactive --agree-tos --redirect --register-unsafely-without-email',
+      'nginx -t',
+      'nginx -s reload',
+    ]);
+  });
+
   it('does not change current release when build fails before cutover', async () => {
     const sourcePath = await createSourceRepo();
     const dirs = await createDeployDirs();
@@ -182,6 +232,7 @@ describe('deployNextJsApp', () => {
         commands.push(command);
         return { code: 0, output: 'ok' };
       },
+      healthCheckAttempts: 1,
       healthCheck: async () => ({ ok: false, status: 500 }),
     });
 
@@ -197,6 +248,49 @@ describe('deployNextJsApp', () => {
     ]);
     await expect(readlink(path.join(dirs.root, 'lifeos', 'current'))).resolves.toBe(
       previousRelease
+    );
+  });
+
+  it('waits for a restarted app to become healthy before failing the release', async () => {
+    const sourcePath = await createSourceRepo();
+    const dirs = await createDeployDirs();
+    let healthChecks = 0;
+
+    const result = await deployNextJsApp({
+      app: {
+        name: 'LifeOS',
+        slug: 'lifeos',
+        templateId: 'nextjs',
+        sourcePath,
+        domain: 'app.example.com',
+        port: 3010,
+        commands: {
+          install: 'pnpm install',
+          build: 'pnpm build',
+          start: 'pnpm start',
+        },
+        envVars: {},
+        healthCheckPath: '/',
+        status: 'draft',
+      },
+      appsRoot: dirs.root,
+      systemdDir: dirs.systemdDir,
+      nginxAvailableDir: dirs.nginxAvailableDir,
+      nginxEnabledDir: dirs.nginxEnabledDir,
+      releaseId: 'slow-start-release',
+      commandRunner: async () => ({ code: 0, output: 'ok' }),
+      healthCheckIntervalMs: 0,
+      healthCheck: async () => {
+        healthChecks += 1;
+        return { ok: healthChecks >= 3, error: 'fetch failed' };
+      },
+    });
+
+    expect(result.status).toBe('active');
+    expect(healthChecks).toBe(3);
+    expect(result.logs).toContain('Health check passed');
+    await expect(readlink(path.join(dirs.root, 'lifeos', 'current'))).resolves.toBe(
+      path.join(dirs.root, 'lifeos', 'releases', 'slow-start-release')
     );
   });
 });

@@ -28,6 +28,7 @@ export interface ManagedAppDTO {
   commands: AppCommands;
   envVars: Record<string, string>;
   healthCheckPath: string;
+  tlsEnabled: boolean;
   status: ManagedAppStatus;
   currentReleaseId?: string;
   releases: AppRelease[];
@@ -61,5 +62,6 @@ export interface CreateManagedAppInput {
   commands: AppCommands;
   envVars?: Record<string, string>;
   healthCheckPath?: string;
+  tlsEnabled?: boolean;
   templateId?: AppTemplateId;
 }

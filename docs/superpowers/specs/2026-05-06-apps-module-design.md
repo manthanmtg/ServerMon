@@ -7,7 +7,7 @@ Apps adds a local deployment control plane to ServerMon. Version 1 deploys pure 
 ## Key Decisions
 
 - Next.js is the only v1 template because it keeps the first release small while proving the deployment lifecycle.
-- Deployments use managed release copies under `SERVERMON_APPS_ROOT` or `/opt/servermon/apps`, so production does not run from a developer working tree.
+- Deployments use managed release copies under `SERVERMON_APPS_ROOT` or `/var/lib/servermon/apps`, so production does not run from a developer working tree or a ServerMon release directory.
 - Apps run under the same OS user as ServerMon in v1. Per-app Linux users are deferred.
 - ServerMon is the control plane only. systemd, Nginx, and the deployed app continue running if ServerMon is down or updating.
 - Users provide install, build, and start commands in v1. Auto-detection is a documented future enhancement.
