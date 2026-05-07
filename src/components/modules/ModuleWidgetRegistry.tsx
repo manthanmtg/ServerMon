@@ -99,6 +99,10 @@ const AppsWidget = dynamic(() => import('@/modules/apps/ui/AppsWidget'), {
   loading: WidgetLoader,
 });
 
+const DatabasesWidget = dynamic(() => import('@/modules/databases/ui/DatabasesWidget'), {
+  loading: WidgetLoader,
+});
+
 const FleetWidget = dynamic(() => import('@/modules/fleet/ui/FleetWidget'), {
   loading: WidgetLoader,
 });
@@ -133,6 +137,7 @@ const widgetMap: Record<
   EndpointsWidget: { component: EndpointsWidget, name: 'Custom Endpoints' },
   SelfServiceWidget: { component: SelfServiceWidget, name: 'Self Service' },
   AppsWidget: { component: AppsWidget, name: 'Apps' },
+  DatabasesWidget: { component: DatabasesWidget, name: 'Databases' },
   FleetWidget: { component: FleetWidget, name: 'Fleet Overview' },
   EnvVarsWidget: { component: EnvVarsWidget, name: 'EnvVars' },
 };

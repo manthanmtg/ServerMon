@@ -69,8 +69,12 @@ describe('coreModules registry', () => {
     expect(coreModules.some((m) => m.id === 'apps')).toBe(true);
   });
 
-  it('includes exactly 27 modules', () => {
-    expect(coreModules).toHaveLength(27);
+  it('includes the databases module', () => {
+    expect(coreModules.some((m) => m.id === 'databases')).toBe(true);
+  });
+
+  it('includes exactly 28 modules', () => {
+    expect(coreModules).toHaveLength(28);
   });
 
   it('every module with widgets has valid widget objects', () => {

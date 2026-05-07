@@ -142,6 +142,7 @@ Required at runtime (set in `.env.local` or `/etc/servermon/env`):
 | `SERVERMON_REPO_DIR`           | No       | Path to ServerMon repo (default: /opt/servermon/repo) |
 | `SERVERMON_NETWORK_MOCK`       | No       | Set to `1` to mock network speedtests                 |
 | `SERVERMON_DOCKER_MOCK`        | No       | Set to `1` to mock Docker operations                  |
+| `SERVERMON_DATABASES_ROOT`     | No       | Host data root for Databases module instances         |
 | `SERVERMON_UPDATES_MOCK`       | No       | Set to `1` to mock system updates                     |
 | `SERVERMON_AUTO_UPDATE_CONFIG` | No       | Path to auto-update config JSON                       |
 | `FLEET_HUB_PUBLIC_URL`         | No       | Public URL for the Fleet Hub                          |
@@ -214,6 +215,7 @@ Concise map of major directories, commands, and key files. Update this section w
 - `src/models/CustomEndpoint.ts`, `src/models/EndpointExecutionLog.ts` — persisted endpoint configuration and execution history
 - `src/lib/env-vars/` — stateless host environment variable helpers for OS target detection, shell env parsing, user-scope add/delete, and system-scope instructions
 - `src/lib/apps/` — managed app deployment helpers for persistent release paths, systemd/Nginx rendering, health checks, and Apps service DTOs
+- `src/lib/databases/` — Docker-only database templates, managed data path helpers, connection string generation, and runtime actions for MongoDB, PostgreSQL, and MySQL
 - `src/lib/network/speedtest.ts`, `src/lib/network/speedtest-scheduler.ts` — speedtest CLI normalization, history persistence, fixed-interval scheduling, and startup scheduler
 - `src/server.ts` — custom Next.js server entry (Socket.IO bridge)
 - `src/proxy.ts`, `src/proxy.test.ts` — reverse proxy helper + tests
@@ -261,6 +263,14 @@ Concise map of major directories, commands, and key files. Update this section w
 - `src/models/ManagedApp.ts` — persisted app metadata, commands, masked env source values, status, current release, and deployment history
 - `src/app/api/modules/apps/` — Apps API routes for authenticated app list/create and deploy actions
 - `src/app/apps/` — Apps module page route wrapped in `ProShell`
+
+### Databases
+
+- `src/modules/databases/` — Docker-only database deployment module for MongoDB, PostgreSQL, and MySQL with UI/widget registration, local/public exposure controls, and masked connection details
+- `src/lib/databases/` — Databases templates, persistent host data path helpers, Docker command construction, CRUD/deploy/action services, and connection string builders
+- `src/models/ManagedDatabase.ts` — persisted database metadata, credentials, data path, exposure mode, container state, and operation logs
+- `src/app/api/modules/databases/` — Databases API routes for authenticated list/create/update/delete, deploy, and runtime actions
+- `src/app/databases/` — Databases module page route wrapped in `ProShell`
 
 ### AI & Automation
 
