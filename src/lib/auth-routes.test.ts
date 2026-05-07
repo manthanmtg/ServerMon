@@ -42,6 +42,7 @@ describe('auth-routes', () => {
       expect(isPublicApiRoute('/api/setup')).toBe(true);
       expect(isPublicApiRoute('/api/settings/branding')).toBe(true);
       expect(isPublicApiRoute('/api/endpoints')).toBe(true);
+      expect(isPublicApiRoute('/api/health/ping')).toBe(true);
     });
 
     it('should return true for sub-paths of public API routes', () => {
@@ -54,6 +55,7 @@ describe('auth-routes', () => {
       expect(isPublicApiRoute('/api/users')).toBe(false);
       expect(isPublicApiRoute('/api/settings/general')).toBe(false);
       expect(isPublicApiRoute('/api/stats')).toBe(false);
+      expect(isPublicApiRoute('/api/health')).toBe(false);
     });
 
     it('should return false for routes that do not start with public prefixes', () => {

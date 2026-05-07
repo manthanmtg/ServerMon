@@ -175,7 +175,7 @@ export async function collectServerMonStatus(
     envRaw = '';
   }
   const { port } = parseServerMonEnv(envRaw);
-  const healthUrl = `http://127.0.0.1:${port}/api/health`;
+  const healthUrl = `http://127.0.0.1:${port}/api/health/ping`;
   let healthStatus: ServerMonHealthStatus = service.installed ? 'unhealthy' : 'unknown';
   let lastError = show.stderr.trim() || undefined;
 

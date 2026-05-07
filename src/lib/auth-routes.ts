@@ -8,6 +8,7 @@ const PUBLIC_API_ROUTE_PREFIXES = [
   '/api/setup',
   '/api/settings/branding',
   '/api/endpoints',
+  '/api/health/ping',
   '/api/fleet/public',
   '/api/fleet/nodes',
 ] as const;

@@ -74,7 +74,7 @@ describe('servermonStatus', () => {
       serviceEnabled: true,
       port: 9002,
       installDir: '/opt/servermon',
-      healthUrl: 'http://127.0.0.1:9002/api/health',
+      healthUrl: 'http://127.0.0.1:9002/api/health/ping',
       healthStatus: 'healthy',
       lastCheckedAt: '2026-04-29T00:00:00.000Z',
     });
