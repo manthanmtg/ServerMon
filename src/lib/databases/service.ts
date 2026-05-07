@@ -1,4 +1,6 @@
 import { execFile } from 'node:child_process';
+import { createServer } from 'node:net';
+import type { AddressInfo } from 'node:net';
 import { mkdir, rm } from 'node:fs/promises';
 import { promisify } from 'node:util';
 import { z } from 'zod';
@@ -6,6 +8,8 @@ import connectDB from '@/lib/db';
 import ManagedDatabase, { type IManagedDatabase } from '@/models/ManagedDatabase';
 import type {
   CreateManagedDatabaseInput,
+  DatabaseExplorerKind,
+  DatabaseExplorerStatus,
   DatabaseRestartPolicy,
   DatabaseRuntimeAction,
   DatabaseTemplateId,
@@ -22,6 +26,10 @@ import {
 const execFileAsync = promisify(execFile);
 const NAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9 _.-]{0,79}$/;
 const IDENTIFIER_PATTERN = /^[A-Za-z_][A-Za-z0-9_]{0,62}$/;
+const MONGO_EXPRESS_IMAGE =
+  process.env.SERVERMON_MONGO_EXPRESS_IMAGE || 'mongo-express:1.0.2-20-alpine3.19';
+const PGWEB_IMAGE = process.env.SERVERMON_PGWEB_IMAGE || 'sosedoff/pgweb:0.16.2';
+const PHPMYADMIN_IMAGE = process.env.SERVERMON_PHPMYADMIN_IMAGE || 'phpmyadmin:5.2.2-apache';
 
 export const CreateManagedDatabaseSchema = z
   .object({
@@ -69,6 +77,7 @@ export type UpdateManagedDatabaseData = z.infer<typeof UpdateManagedDatabaseSche
 export interface DockerRunRequest {
   containerName: string;
   args: string[];
+  internalPort?: number;
 }
 
 export interface DockerRunner {
@@ -164,6 +173,9 @@ export function normalizeCreateManagedDatabaseInput(
     extraEnv: input.extraEnv,
     status: 'draft' as ManagedDatabaseStatus,
     logs: [] as string[],
+    explorerStatus: 'stopped' as DatabaseExplorerStatus,
+    explorerKind: getExplorerKind(input.templateId),
+    explorerLogs: [] as string[],
   };
 }
 
@@ -245,6 +257,114 @@ export function buildDockerRunRequest(input: {
   return { containerName, args };
 }
 
+function getExplorerKind(templateId: DatabaseTemplateId): DatabaseExplorerKind {
+  if (templateId === 'mongo') return 'mongo-express';
+  if (templateId === 'postgres') return 'pgweb';
+  return 'phpmyadmin';
+}
+
+function getExplorerImage(templateId: DatabaseTemplateId): string {
+  if (templateId === 'mongo') return MONGO_EXPRESS_IMAGE;
+  if (templateId === 'postgres') return PGWEB_IMAGE;
+  return PHPMYADMIN_IMAGE;
+}
+
+function getExplorerInternalPort(templateId: DatabaseTemplateId): number {
+  return templateId === 'mysql' ? 80 : 8081;
+}
+
+function encodeCredential(value: string): string {
+  return encodeURIComponent(value);
+}
+
+function buildPostgresExplorerUrl(input: {
+  username: string;
+  password: string;
+  targetHost: string;
+  targetPort: number;
+  databaseName: string;
+}): string {
+  return `postgres://${encodeCredential(input.username)}:${encodeCredential(input.password)}@${
+    input.targetHost
+  }:${input.targetPort}/${encodeCredential(input.databaseName)}?sslmode=disable`;
+}
+
+export function buildExplorerProxyPath(id: string): string {
+  return `/api/modules/databases/${encodeURIComponent(id)}/explore/proxy/`;
+}
+
+export function buildDatabaseExplorerRunRequest(input: {
+  id: string;
+  slug: string;
+  templateId: DatabaseTemplateId;
+  targetHost: string;
+  targetPort: number;
+  hostPort: number;
+  username: string;
+  password: string;
+  databaseName: string;
+  proxyPath: string;
+  networkName?: string;
+}): DockerRunRequest {
+  const containerName = `servermon-db-explorer-${sanitizeDatabaseSlug(input.slug)}`;
+  const internalPort = getExplorerInternalPort(input.templateId);
+  const image = getExplorerImage(input.templateId);
+  const args = [
+    'run',
+    '-d',
+    '--name',
+    containerName,
+    '--restart',
+    'unless-stopped',
+    '-p',
+    `127.0.0.1:${input.hostPort}:${internalPort}`,
+  ];
+
+  if (input.networkName) {
+    args.push('--network', input.networkName);
+  }
+
+  const env: Record<string, string> =
+    input.templateId === 'mongo'
+      ? {
+          ME_CONFIG_MONGODB_SERVER: input.targetHost,
+          ME_CONFIG_MONGODB_PORT: String(input.targetPort),
+          ME_CONFIG_MONGODB_ADMINUSERNAME: input.username,
+          ME_CONFIG_MONGODB_ADMINPASSWORD: input.password,
+          ME_CONFIG_MONGODB_AUTH_DATABASE: 'admin',
+          ME_CONFIG_MONGODB_ENABLE_ADMIN: 'true',
+          ME_CONFIG_BASICAUTH: 'false',
+          ME_CONFIG_SITE_BASEURL: input.proxyPath,
+        }
+      : input.templateId === 'postgres'
+        ? {
+            DATABASE_URL: buildPostgresExplorerUrl(input),
+          }
+        : {
+            PMA_HOST: input.targetHost,
+            PMA_PORT: String(input.targetPort),
+            PMA_USER: input.username,
+            PMA_PASSWORD: input.password,
+            PMA_ABSOLUTE_URI: input.proxyPath,
+          };
+
+  for (const [key, value] of Object.entries(env)) {
+    args.push('-e', `${key}=${value}`);
+  }
+
+  args.push(image);
+
+  if (input.templateId === 'postgres') {
+    args.push(
+      '--bind=0.0.0.0',
+      `--listen=${internalPort}`,
+      `--prefix=${input.proxyPath.replace(/\/$/, '')}`
+    );
+  }
+
+  return { containerName, args, internalPort };
+}
+
 function toObjectEnv(
   value: Map<string, string> | Record<string, string> | undefined
 ): Record<string, string> {
@@ -281,6 +401,13 @@ interface ManagedDatabaseDTORecord {
   containerId?: string;
   containerName?: string;
   logs: string[];
+  explorerStatus?: DatabaseExplorerStatus;
+  explorerKind?: DatabaseExplorerKind;
+  explorerImage?: string;
+  explorerPort?: number;
+  explorerContainerName?: string;
+  explorerLogs?: string[];
+  explorerStartedAt?: Date | string;
   createdAt?: Date | string;
   updatedAt?: Date | string;
   lastDeployedAt?: Date | string;
@@ -337,6 +464,19 @@ export function mapManagedDatabaseToDTO(db: ManagedDatabaseDTORecord): ManagedDa
       sslMode: db.sslMode,
       includeSecret: false,
     }),
+    explorer: {
+      status: db.explorerStatus ?? 'stopped',
+      kind: db.explorerKind ?? getExplorerKind(db.templateId),
+      image: db.explorerImage,
+      containerName: db.explorerContainerName,
+      port: db.explorerPort,
+      proxyPath:
+        db.explorerStatus === 'running' || db.explorerStatus === 'starting'
+          ? buildExplorerProxyPath(db._id.toString())
+          : undefined,
+      logs: db.explorerLogs ?? [],
+      startedAt: toIsoDate(db.explorerStartedAt),
+    },
     securityNotes: buildSecurityNotes(db),
     logs: db.logs ?? [],
     createdAt: toIsoDate(db.createdAt),
@@ -389,6 +529,13 @@ export async function updateManagedDatabase(
   db.sslMode = next.sslMode;
   db.restartPolicy = next.restartPolicy;
   db.extraEnv = new Map(Object.entries(next.extraEnv)) as IManagedDatabase['extraEnv'];
+  db.explorerStatus = 'stopped';
+  db.explorerKind = getExplorerKind(next.templateId);
+  db.explorerImage = undefined;
+  db.explorerPort = undefined;
+  db.explorerContainerName = undefined;
+  db.explorerLogs = [];
+  db.explorerStartedAt = undefined;
   await db.save();
   return mapManagedDatabaseToDTO(db);
 }
@@ -416,6 +563,206 @@ async function runOrThrow(
   if (result.output) logs.push(timestampedLog(result.output));
   if (result.code !== 0) throw new Error(result.output || `docker ${args[0]} failed`);
   return result.output;
+}
+
+function getExplorerContainerName(slug: string): string {
+  return `servermon-db-explorer-${sanitizeDatabaseSlug(slug)}`;
+}
+
+async function findAvailableLocalPort(): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const server = createServer();
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', () => {
+      const address = server.address() as AddressInfo | null;
+      server.close((error) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+        if (!address?.port) {
+          reject(new Error('Unable to allocate local explorer port'));
+          return;
+        }
+        resolve(address.port);
+      });
+    });
+  });
+}
+
+interface DockerInspectNetwork {
+  IPAddress?: string;
+}
+
+interface DockerInspectResult {
+  NetworkSettings?: {
+    Networks?: Record<string, DockerInspectNetwork>;
+  };
+}
+
+function parseDockerInspect(output: string): DockerInspectResult {
+  const parsed = JSON.parse(output) as unknown;
+  if (!Array.isArray(parsed) || typeof parsed[0] !== 'object' || parsed[0] === null) {
+    throw new Error('Docker inspect returned an unexpected response');
+  }
+  return parsed[0] as DockerInspectResult;
+}
+
+async function resolveDatabaseContainerTarget(db: IManagedDatabase, runner: DockerRunner) {
+  const containerName = db.containerName || `servermon-db-${db.slug}`;
+  const result = await runner.run(['inspect', containerName]);
+  if (result.code !== 0) {
+    throw new Error(result.output || `Unable to inspect database container ${containerName}`);
+  }
+  const inspect = parseDockerInspect(result.output);
+  const networks = inspect.NetworkSettings?.Networks ?? {};
+  const networkEntry = Object.entries(networks).find(([, network]) => Boolean(network.IPAddress));
+  if (!networkEntry) {
+    throw new Error(`Unable to find a Docker network address for ${containerName}`);
+  }
+  const [networkName, network] = networkEntry;
+  const targetHost = network.IPAddress;
+  if (!targetHost) {
+    throw new Error(`Unable to find a Docker network address for ${containerName}`);
+  }
+  return {
+    targetHost,
+    networkName,
+  };
+}
+
+async function isContainerRunning(containerName: string, runner: DockerRunner): Promise<boolean> {
+  const result = await runner.run(['inspect', '-f', '{{.State.Running}}', containerName]);
+  return result.code === 0 && result.output.trim() === 'true';
+}
+
+async function saveExplorerLog(
+  db: IManagedDatabase,
+  logs: string[],
+  message: string,
+  status?: DatabaseExplorerStatus
+) {
+  logs.push(timestampedLog(message));
+  db.explorerLogs = logs.slice(-200);
+  if (status) db.explorerStatus = status;
+  await db.save();
+}
+
+export async function startManagedDatabaseExplorer(
+  id: string,
+  runner: DockerRunner = defaultDockerRunner
+): Promise<ManagedDatabaseDTO['explorer']> {
+  await connectDB();
+  const db = await ManagedDatabase.findById(id);
+  if (!db) throw new Error('Database not found');
+  if (db.status !== 'running') {
+    throw new Error('Start the database before opening Explorer');
+  }
+
+  const dbId = db._id.toString();
+  const existingContainerName = db.explorerContainerName || getExplorerContainerName(db.slug);
+  const explorerImage = getExplorerImage(db.templateId);
+  if (
+    db.explorerStatus === 'running' &&
+    db.explorerPort &&
+    (await isContainerRunning(existingContainerName, runner))
+  ) {
+    return mapManagedDatabaseToDTO(db).explorer;
+  }
+
+  const logs = [...(db.explorerLogs ?? [])];
+  db.explorerStatus = 'starting';
+  db.explorerKind = getExplorerKind(db.templateId);
+  db.explorerImage = explorerImage;
+  db.explorerContainerName = existingContainerName;
+  db.explorerLogs = [
+    ...logs,
+    timestampedLog(`Explorer requested for ${db.name}`),
+    timestampedLog('Resolving database container network address'),
+  ].slice(-200);
+  await db.save();
+
+  try {
+    const nextLogs = [...db.explorerLogs];
+    const target = await resolveDatabaseContainerTarget(db, runner);
+    const hostPort = await findAvailableLocalPort();
+    const proxyPath = buildExplorerProxyPath(dbId);
+    const request = buildDatabaseExplorerRunRequest({
+      id: dbId,
+      slug: db.slug,
+      templateId: db.templateId,
+      targetHost: target.targetHost,
+      targetPort: db.internalPort,
+      hostPort,
+      username: db.username,
+      password: db.password,
+      databaseName: db.databaseName,
+      proxyPath,
+      networkName: target.networkName,
+    });
+
+    db.explorerContainerName = request.containerName;
+    db.explorerPort = hostPort;
+    await saveExplorerLog(
+      db,
+      nextLogs,
+      `Removing any existing explorer container named ${request.containerName}`,
+      'starting'
+    );
+    await runner.run(['rm', '-f', request.containerName]);
+    await saveExplorerLog(db, nextLogs, `Pulling explorer image ${explorerImage}`, 'starting');
+    await runOrThrow(runner, ['pull', explorerImage], nextLogs, 180_000);
+    await saveExplorerLog(
+      db,
+      nextLogs,
+      `Starting ${db.explorerKind} on local port ${hostPort}`,
+      'starting'
+    );
+    await runOrThrow(runner, request.args, nextLogs, 60_000);
+    db.explorerStatus = 'running';
+    db.explorerStartedAt = new Date();
+    db.explorerLogs = [
+      ...nextLogs,
+      timestampedLog(`Explorer is available through ${proxyPath}`),
+    ].slice(-200);
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Database explorer failed to start';
+    logs.push(...(db.explorerLogs ?? []).slice(logs.length), timestampedLog(`ERROR: ${message}`));
+    db.explorerStatus = 'failed';
+    db.explorerLogs = logs.slice(-200);
+  }
+
+  await db.save();
+  return mapManagedDatabaseToDTO(db).explorer;
+}
+
+export async function stopManagedDatabaseExplorer(
+  id: string,
+  runner: DockerRunner = defaultDockerRunner
+): Promise<ManagedDatabaseDTO['explorer']> {
+  await connectDB();
+  const db = await ManagedDatabase.findById(id);
+  if (!db) throw new Error('Database not found');
+  const containerName = db.explorerContainerName || getExplorerContainerName(db.slug);
+  const logs = [...(db.explorerLogs ?? [])];
+  await runner.run(['rm', '-f', containerName]);
+  db.explorerStatus = 'stopped';
+  db.explorerPort = undefined;
+  db.explorerLogs = [...logs, timestampedLog(`Stopped explorer container ${containerName}`)].slice(
+    -200
+  );
+  await db.save();
+  return mapManagedDatabaseToDTO(db).explorer;
+}
+
+export async function getManagedDatabaseExplorerTarget(id: string): Promise<{ port: number }> {
+  await connectDB();
+  const db = await ManagedDatabase.findById(id);
+  if (!db) throw new Error('Database not found');
+  if (db.explorerStatus !== 'running' || !db.explorerPort) {
+    throw new Error('Database explorer is not running');
+  }
+  return { port: db.explorerPort };
 }
 
 export async function deployManagedDatabase(

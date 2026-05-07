@@ -8,6 +8,7 @@ import {
   Play,
   Power,
   RefreshCw,
+  Search,
   ShieldAlert,
   Square,
 } from 'lucide-react';
@@ -17,6 +18,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import type { ManagedDatabaseDTO } from '../types';
 
 export type DatabaseAction = 'start' | 'stop' | 'restart';
+
+const smallButtonLinkClassName =
+  'inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border bg-transparent px-3 text-xs font-medium transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background';
 
 interface DatabaseDeploymentCardProps {
   database: ManagedDatabaseDTO;
@@ -94,6 +98,21 @@ export function DatabaseDeploymentCard({
               <RefreshCw className="h-4 w-4" />
               Restart
             </Button>
+            {database.status === 'running' ? (
+              <a
+                className={smallButtonLinkClassName}
+                href={`/databases/explore/${database.id}`}
+                aria-label={`Explore ${database.name}`}
+              >
+                <Search className="h-4 w-4" />
+                Explore
+              </a>
+            ) : (
+              <Button variant="outline" size="sm" disabled>
+                <Search className="h-4 w-4" />
+                Explore
+              </Button>
+            )}
             {database.status === 'running' ? (
               <Button variant="outline" size="sm" onClick={() => onAction(database, 'stop')}>
                 <Square className="h-4 w-4" />

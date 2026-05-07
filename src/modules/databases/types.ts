@@ -9,6 +9,8 @@ export type ManagedDatabaseStatus =
 export type DatabaseSslMode = 'disable' | 'prefer' | 'require';
 export type DatabaseRestartPolicy = 'unless-stopped' | 'always' | 'on-failure' | 'no';
 export type DatabaseRuntimeAction = 'start' | 'stop' | 'restart';
+export type DatabaseExplorerStatus = 'stopped' | 'starting' | 'running' | 'failed';
+export type DatabaseExplorerKind = 'mongo-express' | 'pgweb' | 'phpmyadmin';
 
 export interface DatabaseTemplate {
   id: DatabaseTemplateId;
@@ -54,6 +56,16 @@ export interface ManagedDatabaseDTO {
   containerId?: string;
   containerName?: string;
   connection: DatabaseConnectionDetails;
+  explorer: {
+    status: DatabaseExplorerStatus;
+    kind: DatabaseExplorerKind;
+    image?: string;
+    containerName?: string;
+    port?: number;
+    proxyPath?: string;
+    logs: string[];
+    startedAt?: string;
+  };
   securityNotes: string[];
   logs: string[];
   createdAt?: string;

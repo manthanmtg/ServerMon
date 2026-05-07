@@ -132,6 +132,48 @@ describe('DatabasesPage', () => {
     expect(screen.getByText('No deployment activity yet.')).toBeTruthy();
   });
 
+  it('shows a one-click explore action beside database runtime controls', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        databases: [
+          {
+            id: 'db-1',
+            name: 'Main Mongo',
+            slug: 'main-mongo',
+            templateId: 'mongo',
+            version: '8',
+            image: 'mongo:8',
+            host: '127.0.0.1',
+            port: 27017,
+            internalPort: 27017,
+            username: 'root',
+            databaseName: 'appdb',
+            dataPath: '/var/lib/servermon/databases/main-mongo/data',
+            publicRoute: false,
+            bindAddress: '127.0.0.1',
+            sslMode: 'disable',
+            restartPolicy: 'unless-stopped',
+            status: 'running',
+            connection: {
+              maskedUri: 'mongodb://root:********@127.0.0.1:27017/appdb?authSource=admin',
+              cli: 'mongodb://root:********@127.0.0.1:27017/appdb?authSource=admin',
+            },
+            explorer: { status: 'stopped', kind: 'mongo-express' },
+            securityNotes: [],
+            logs: [],
+          },
+        ],
+      }),
+    } as Response);
+
+    render(<DatabasesPage />);
+    await screen.findByText('Main Mongo');
+
+    const explore = screen.getByRole('link', { name: 'Explore Main Mongo' });
+    expect(explore).toHaveAttribute('href', '/databases/explore/db-1');
+  });
+
   it('copies the masked connection string from an explicit copy action', async () => {
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,

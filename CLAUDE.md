@@ -215,7 +215,7 @@ Concise map of major directories, commands, and key files. Update this section w
 - `src/models/CustomEndpoint.ts`, `src/models/EndpointExecutionLog.ts` — persisted endpoint configuration and execution history
 - `src/lib/env-vars/` — stateless host environment variable helpers for OS target detection, shell env parsing, user-scope add/delete, and system-scope instructions
 - `src/lib/apps/` — managed app deployment helpers for persistent release paths, systemd/Nginx rendering, health checks, and Apps service DTOs
-- `src/lib/databases/` — Docker-only database templates, managed data path helpers, connection string generation, and runtime actions for MongoDB, PostgreSQL, and MySQL
+- `src/lib/databases/` — Docker-only database templates, managed data path helpers, connection string generation, runtime actions, and explorer sidecar orchestration for MongoDB, PostgreSQL, and MySQL
 - `src/lib/network/speedtest.ts`, `src/lib/network/speedtest-scheduler.ts` — speedtest CLI normalization, history persistence, fixed-interval scheduling, and startup scheduler
 - `src/server.ts` — custom Next.js server entry (Socket.IO bridge)
 - `src/proxy.ts`, `src/proxy.test.ts` — reverse proxy helper + tests
@@ -266,11 +266,11 @@ Concise map of major directories, commands, and key files. Update this section w
 
 ### Databases
 
-- `src/modules/databases/` — Docker-only database deployment module for MongoDB, PostgreSQL, and MySQL with UI/widget registration, local/public exposure controls, and masked connection details
-- `src/lib/databases/` — Databases templates, persistent host data path helpers, Docker command construction, CRUD/deploy/action services, and connection string builders
-- `src/models/ManagedDatabase.ts` — persisted database metadata, credentials, data path, exposure mode, container state, and operation logs
-- `src/app/api/modules/databases/` — Databases API routes for authenticated list/create/update/delete, deploy, and runtime actions
-- `src/app/databases/` — Databases module page route wrapped in `ProShell`
+- `src/modules/databases/` — Docker-only database deployment module for MongoDB, PostgreSQL, and MySQL with UI/widget registration, local/public exposure controls, masked connection details, and explorer UI
+- `src/lib/databases/` — Databases templates, persistent host data path helpers, Docker command construction, CRUD/deploy/action services, connection string builders, and local-only explorer sidecar orchestration
+- `src/models/ManagedDatabase.ts` — persisted database metadata, credentials, data path, exposure mode, container state, operation logs, and explorer sidecar state
+- `src/app/api/modules/databases/` — Databases API routes for authenticated list/create/update/delete, deploy, runtime actions, explorer start/stop, and explorer proxying
+- `src/app/databases/` — Databases module page route and explorer route wrapped in `ProShell`
 
 ### AI & Automation
 

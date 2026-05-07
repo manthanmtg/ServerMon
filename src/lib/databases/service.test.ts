@@ -2,6 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   CreateManagedDatabaseSchema,
+  buildDatabaseExplorerRunRequest,
   buildDockerRunRequest,
   mapManagedDatabaseToDTO,
   normalizeCreateManagedDatabaseInput,
@@ -140,6 +141,32 @@ describe('database service helpers', () => {
     expect(dto.connection.uri).toBeUndefined();
     expect(dto.securityNotes).toContain(
       'If this machine is part of ServerMon Fleet with no public IP, do not use public route here.'
+    );
+  });
+
+  it('builds a local-only mongo-express sidecar for managed Mongo exploration', () => {
+    const request = buildDatabaseExplorerRunRequest({
+      id: 'db-1',
+      slug: 'main-mongo',
+      templateId: 'mongo',
+      targetHost: '172.17.0.2',
+      targetPort: 27017,
+      hostPort: 49152,
+      username: 'root',
+      password: 'mongo-pass',
+      databaseName: 'appdb',
+      proxyPath: '/api/modules/databases/db-1/explore/proxy/',
+      networkName: 'bridge',
+    });
+
+    expect(request.containerName).toBe('servermon-db-explorer-main-mongo');
+    expect(request.args).toContain('127.0.0.1:49152:8081');
+    expect(request.args).toContain('mongo-express:1.0.2-20-alpine3.19');
+    expect(request.args).toContain('ME_CONFIG_MONGODB_SERVER=172.17.0.2');
+    expect(request.args).toContain('ME_CONFIG_MONGODB_ADMINUSERNAME=root');
+    expect(request.args).toContain('ME_CONFIG_MONGODB_ADMINPASSWORD=mongo-pass');
+    expect(request.args).toContain(
+      'ME_CONFIG_SITE_BASEURL=/api/modules/databases/db-1/explore/proxy/'
     );
   });
 });

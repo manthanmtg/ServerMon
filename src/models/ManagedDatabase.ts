@@ -1,6 +1,8 @@
 import mongoose, { Document, Model, Schema } from 'mongoose';
 import type {
   DatabaseRestartPolicy,
+  DatabaseExplorerKind,
+  DatabaseExplorerStatus,
   DatabaseSslMode,
   DatabaseTemplateId,
   ManagedDatabaseStatus,
@@ -29,6 +31,13 @@ export interface IManagedDatabase extends Document {
   containerId?: string;
   containerName?: string;
   logs: string[];
+  explorerStatus: DatabaseExplorerStatus;
+  explorerKind?: DatabaseExplorerKind;
+  explorerImage?: string;
+  explorerPort?: number;
+  explorerContainerName?: string;
+  explorerLogs: string[];
+  explorerStartedAt?: Date;
   lastDeployedAt?: Date;
   createdAt?: Date;
   updatedAt?: Date;
@@ -73,6 +82,18 @@ const ManagedDatabaseSchema = new Schema<IManagedDatabase>(
     containerId: { type: String },
     containerName: { type: String },
     logs: { type: [String], default: [] },
+    explorerStatus: {
+      type: String,
+      enum: ['stopped', 'starting', 'running', 'failed'],
+      required: true,
+      default: 'stopped',
+    },
+    explorerKind: { type: String, enum: ['mongo-express', 'pgweb', 'phpmyadmin'] },
+    explorerImage: { type: String },
+    explorerPort: { type: Number, min: 1, max: 65535 },
+    explorerContainerName: { type: String },
+    explorerLogs: { type: [String], default: [] },
+    explorerStartedAt: { type: Date },
     lastDeployedAt: { type: Date },
   },
   { timestamps: true }
