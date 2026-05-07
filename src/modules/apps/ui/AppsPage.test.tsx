@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import AppsPage from './AppsPage';
 
@@ -272,6 +272,67 @@ describe('AppsPage', () => {
     expect(screen.getByText('main')).toBeTruthy();
     expect(screen.getByText('abcdef1')).toBeTruthy();
     expect(screen.getByRole('button', { name: /update/i })).toBeTruthy();
+  });
+
+  it('opens a clean deployment history modal with passed and failed releases', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        apps: [
+          {
+            id: 'app-1',
+            name: 'Inventory Portal',
+            slug: 'inventory-portal',
+            templateId: 'nextjs',
+            sourceType: 'local',
+            sourcePath: '/srv/apps/inventory-portal',
+            domain: 'inventory.example.com',
+            port: 3010,
+            commands: {
+              install: 'pnpm install --frozen-lockfile',
+              build: 'pnpm build',
+              start: 'pnpm start',
+            },
+            envVars: {},
+            healthCheckPath: '/',
+            tlsEnabled: false,
+            status: 'running',
+            currentReleaseId: 'release-ok',
+            releases: [
+              {
+                id: 'release-ok',
+                status: 'active',
+                createdAt: '2026-05-07T00:00:00.000Z',
+                activatedAt: '2026-05-07T00:01:00.000Z',
+                logs: ['Health check passed'],
+              },
+              {
+                id: 'release-failed',
+                status: 'failed',
+                createdAt: '2026-05-07T01:00:00.000Z',
+                error: 'Command failed: pnpm build',
+                logs: ['build failed'],
+              },
+            ],
+          },
+        ],
+      }),
+    } as Response);
+
+    render(<AppsPage />);
+    await screen.findByText('Inventory Portal');
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Deployment history for Inventory Portal' })
+    );
+
+    const dialog = screen.getByRole('dialog', { name: 'Deployment history' });
+    expect(within(dialog).getByText('release-ok')).toBeTruthy();
+    expect(within(dialog).getByText('Passed')).toBeTruthy();
+    expect(within(dialog).getByText('release-failed')).toBeTruthy();
+    expect(within(dialog).getByText('Failed')).toBeTruthy();
+    expect(within(dialog).getByText('Command failed: pnpm build')).toBeTruthy();
+    expect(within(dialog).getByText('build failed')).toBeTruthy();
   });
 
   it('requires confirmation before deleting an app', async () => {

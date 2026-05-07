@@ -1,5 +1,5 @@
 /** @vitest-environment node */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 const { mockConnectDB, mockFindById, mockFindOneAndUpdate, mockGetSession } = vi.hoisted(() => ({
   mockConnectDB: vi.fn().mockResolvedValue(undefined),
@@ -41,6 +41,11 @@ function makeRawRequest(body: string): Request {
 describe('GET /api/settings/branding', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    delete process.env.SERVERMON_BRANDING_MOCK;
+  });
+
+  afterEach(() => {
+    delete process.env.SERVERMON_BRANDING_MOCK;
   });
 
   it('returns existing settings', async () => {
@@ -68,11 +73,26 @@ describe('GET /api/settings/branding', () => {
     const json = await res.json();
     expect(json.error).toBe('Failed to fetch settings');
   });
+
+  it('returns default settings without DB access when branding mock is enabled', async () => {
+    process.env.SERVERMON_BRANDING_MOCK = '1';
+
+    const res = await GET();
+
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toEqual({ pageTitle: 'ServerMon', logoBase64: '' });
+    expect(mockConnectDB).not.toHaveBeenCalled();
+  });
 });
 
 describe('POST /api/settings/branding', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    delete process.env.SERVERMON_BRANDING_MOCK;
+  });
+
+  afterEach(() => {
+    delete process.env.SERVERMON_BRANDING_MOCK;
   });
 
   it('returns 401 when not authenticated', async () => {

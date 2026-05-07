@@ -26,6 +26,7 @@ const dev = process.env.NODE_ENV !== 'production';
 const app = next({ dev });
 const handle = app.getRequestHandler();
 const port = parseInt(process.env.PORT || '8912', 10);
+const skipStartupJobs = process.env.SERVERMON_SKIP_STARTUP_JOBS === '1';
 
 function parsePort(value: string | undefined, fallback: number): number {
   const parsed = Number.parseInt(value ?? '', 10);
@@ -159,7 +160,11 @@ if (process.env.FLEET_AGENT_MODE === 'true') {
 } else {
   app.prepare().then(async () => {
     const aiRunnerLogPath = await resetAIRunnerLogSession();
-    await cleanupStaleSessions();
+    if (skipStartupJobs) {
+      log.info('Skipping startup jobs because SERVERMON_SKIP_STARTUP_JOBS=1');
+    } else {
+      await cleanupStaleSessions();
+    }
     await writeAIRunnerLogEntry({
       level: 'info',
       component: 'server',
@@ -170,11 +175,13 @@ if (process.env.FLEET_AGENT_MODE === 'true') {
         aiRunnerLogPath,
       },
     });
-    ensureAIRunnerSupervisor();
-    startAIRunnerSupervisorWatchdog();
-    startLocalAutoUpdateScheduler();
-    startGitAppAutoUpdateScheduler();
-    startNetworkSpeedtestScheduler();
+    if (!skipStartupJobs) {
+      ensureAIRunnerSupervisor();
+      startAIRunnerSupervisorWatchdog();
+      startLocalAutoUpdateScheduler();
+      startGitAppAutoUpdateScheduler();
+      startNetworkSpeedtestScheduler();
+    }
     const server = createServer((req, res) => {
       const parsedUrl = parse(req.url!, true);
       void handleRequestWithDiagnostics({

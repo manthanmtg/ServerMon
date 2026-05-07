@@ -43,6 +43,10 @@ function toArrayBuffer(buffer: Buffer): ArrayBuffer {
 }
 
 export async function GET(request: Request) {
+  if (process.env.SERVERMON_BRANDING_MOCK === '1') {
+    return NextResponse.redirect(new URL(DEFAULT_ICON_PATH, request.url), 307);
+  }
+
   try {
     await connectDB();
     const settings = (await BrandSettings.findById(

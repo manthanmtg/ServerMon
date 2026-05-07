@@ -147,6 +147,7 @@ Required at runtime (set in `.env.local` or `/etc/servermon/env`):
 | `FLEET_HUB_PUBLIC_URL`         | No       | Public URL for the Fleet Hub                          |
 | `AI_RUNNER_MAX_WORKERS`        | No       | Max concurrent AI Runner workers                      |
 | `SERVERMON_INSTALL_MODE`       | No       | `hub` or `agent` installation mode                    |
+| `SERVERMON_BRANDING_MOCK`      | No       | Set to `1` to return default branding without MongoDB |
 
 ---
 

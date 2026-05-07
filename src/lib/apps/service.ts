@@ -506,8 +506,12 @@ export async function updateManagedGitApp(appId: string) {
     };
   }
 
-  app.status = 'deploying';
-  await app.save();
+  const previousStatus = app.status;
+  const previousReleaseId = app.currentReleaseId;
+  if (!previousReleaseId) {
+    app.status = 'deploying';
+    await app.save();
+  }
 
   const result = await deployPreparedApp(app, source.sourcePath);
   result.logs.unshift(...source.logs);
@@ -539,7 +543,7 @@ export async function updateManagedGitApp(appId: string) {
         : undefined,
     };
   } else {
-    app.status = 'failed';
+    app.status = previousReleaseId ? previousStatus : 'failed';
     app.releases.push({
       id: result.releaseId,
       status: 'failed',
