@@ -125,8 +125,58 @@ describe('DatabasesPage', () => {
       screen.getByText('postgresql://servermon:********@127.0.0.1:5432/servermon')
     ).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Deploy Main Postgres' })).toBeTruthy();
+    expect(
+      screen.getByRole('button', { name: 'Copy connection string for Main Postgres' })
+    ).toBeTruthy();
     expect(screen.getByText('Activity')).toBeTruthy();
     expect(screen.getByText('No deployment activity yet.')).toBeTruthy();
+  });
+
+  it('copies the masked connection string from an explicit copy action', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        databases: [
+          {
+            id: 'db-1',
+            name: 'Main Postgres',
+            slug: 'main-postgres',
+            templateId: 'postgres',
+            version: '17',
+            image: 'postgres:17',
+            host: '127.0.0.1',
+            port: 5432,
+            internalPort: 5432,
+            username: 'servermon',
+            databaseName: 'servermon',
+            dataPath: '/var/lib/servermon/databases/main-postgres/data',
+            publicRoute: false,
+            bindAddress: '127.0.0.1',
+            sslMode: 'disable',
+            restartPolicy: 'unless-stopped',
+            status: 'running',
+            connection: {
+              maskedUri: 'postgresql://servermon:********@127.0.0.1:5432/servermon',
+              cli: 'psql "postgresql://servermon:********@127.0.0.1:5432/servermon"',
+            },
+            securityNotes: [],
+            logs: [],
+          },
+        ],
+      }),
+    } as Response);
+
+    render(<DatabasesPage />);
+    await screen.findByText('Main Postgres');
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Copy connection string for Main Postgres' })
+    );
+
+    expect(writeText).toHaveBeenCalledWith(
+      'postgresql://servermon:********@127.0.0.1:5432/servermon'
+    );
+    expect(await screen.findByText('Copied')).toBeTruthy();
   });
 
   it('shows deployment activity immediately after deploy is clicked', async () => {

@@ -181,6 +181,7 @@ export default function DatabasesPage() {
   const [submitting, setSubmitting] = useState(false);
   const [workingId, setWorkingId] = useState<string | null>(null);
   const [operationLogs, setOperationLogs] = useState<Record<string, string[]>>({});
+  const [copiedConnectionId, setCopiedConnectionId] = useState<string | null>(null);
   const [revealedPassword, setRevealedPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -227,8 +228,14 @@ export default function DatabasesPage() {
     }));
   };
 
-  const copyText = async (value: string) => {
+  const copyText = async (value: string, databaseId?: string) => {
     await navigator.clipboard?.writeText(value);
+    if (databaseId) {
+      setCopiedConnectionId(databaseId);
+      window.setTimeout(() => {
+        setCopiedConnectionId((current) => (current === databaseId ? null : current));
+      }, 2000);
+    }
   };
 
   const appendOperationLog = (databaseId: string, message: string) => {
@@ -467,19 +474,27 @@ export default function DatabasesPage() {
                     </div>
                     <code className="break-all text-xs text-foreground">{database.dataPath}</code>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => copyText(database.connection.maskedUri)}
-                    className="w-full rounded-lg border border-border bg-muted/25 p-3 text-left transition-colors hover:bg-muted/40"
-                  >
-                    <div className="mb-1 flex items-center gap-2 text-xs font-medium text-muted-foreground">
-                      <Copy className="h-3.5 w-3.5" />
-                      Connection string
+                  <div className="rounded-lg border border-border bg-muted/25 p-3">
+                    <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+                        <Copy className="h-3.5 w-3.5" />
+                        Connection string
+                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        aria-label={`Copy connection string for ${database.name}`}
+                        onClick={() => copyText(database.connection.maskedUri, database.id)}
+                      >
+                        <Copy className="h-3.5 w-3.5" />
+                        {copiedConnectionId === database.id ? 'Copied' : 'Copy'}
+                      </Button>
                     </div>
                     <code className="break-all text-xs text-foreground">
                       {database.connection.maskedUri}
                     </code>
-                  </button>
+                  </div>
                 </div>
                 <div className="space-y-2 rounded-lg border border-border bg-background p-3">
                   <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
