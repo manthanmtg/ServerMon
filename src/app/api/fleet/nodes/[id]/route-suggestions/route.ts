@@ -11,9 +11,26 @@ import { buildFleetRouteSuggestions } from '@/lib/fleet/routeSuggestions';
 export const dynamic = 'force-dynamic';
 
 const log = createLogger('api:fleet:nodes:route-suggestions');
+const MONGO_OBJECT_ID_RE = /^[a-f\d]{24}$/i;
 
 interface SessionUser {
   user: { id?: string; username: string; role: string };
+}
+
+function objectIdToString(value: unknown): string {
+  if (typeof value === 'string') return value;
+  if (value && typeof value === 'object' && 'toString' in value) {
+    return String((value as { toString: () => string }).toString());
+  }
+  return String(value);
+}
+
+async function findNodeByIdOrSlug(idOrSlug: string) {
+  if (MONGO_OBJECT_ID_RE.test(idOrSlug)) {
+    const node = await Node.findById(idOrSlug).lean();
+    if (node) return node;
+  }
+  return Node.findOne({ slug: idOrSlug }).lean();
 }
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -24,15 +41,17 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 
     await connectDB();
     const { id } = await params;
-    const [node, existingRoutes, frpServer] = await Promise.all([
-      Node.findById(id).lean(),
-      PublicRoute.find({ nodeId: id }).lean(),
-      FrpServerState.findOne({ key: 'global' }).lean(),
-    ]);
+    const node = await findNodeByIdOrSlug(id);
 
     if (!node) {
       return NextResponse.json({ error: 'Node not found' }, { status: 404 });
     }
+
+    const nodeId = objectIdToString(node._id);
+    const [existingRoutes, frpServer] = await Promise.all([
+      PublicRoute.find({ nodeId }).lean(),
+      FrpServerState.findOne({ key: 'global' }).lean(),
+    ]);
 
     const suggestions = buildFleetRouteSuggestions({
       node,

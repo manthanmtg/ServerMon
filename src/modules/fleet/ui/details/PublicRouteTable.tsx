@@ -80,6 +80,7 @@ function routeToForm(route: PublicRouteRow): ExposeForm {
 export function PublicRouteTable({ nodeId }: { nodeId: string }) {
   const [routes, setRoutes] = useState<PublicRouteRow[] | null>(null);
   const [suggestions, setSuggestions] = useState<RouteSuggestion[]>([]);
+  const [suggestionError, setSuggestionError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showWizard, setShowWizard] = useState(false);
   const [editingRoute, setEditingRoute] = useState<PublicRouteRow | null>(null);
@@ -96,17 +97,27 @@ export function PublicRouteTable({ nodeId }: { nodeId: string }) {
         ]);
         if (!routesRes.ok) throw new Error(`HTTP ${routesRes.status}`);
         const data = await routesRes.json();
-        const suggestionData = suggestionsRes.ok
-          ? ((await suggestionsRes.json().catch(() => ({}))) as {
-              suggestions?: RouteSuggestion[];
-            })
-          : {};
+        let nextSuggestions: RouteSuggestion[] = [];
+        let nextSuggestionError: string | null = null;
+        if (suggestionsRes.ok) {
+          const suggestionData = (await suggestionsRes.json().catch(() => ({}))) as {
+            suggestions?: RouteSuggestion[];
+          };
+          nextSuggestions = suggestionData.suggestions ?? [];
+        } else {
+          const body = (await suggestionsRes.json().catch(() => ({}))) as { error?: string };
+          nextSuggestionError = body.error ?? `HTTP ${suggestionsRes.status}`;
+        }
         if (cancelled) return;
         setRoutes(data.routes ?? []);
-        setSuggestions(suggestionData.suggestions ?? []);
+        setSuggestions(nextSuggestions);
+        setSuggestionError(nextSuggestionError);
         setError(null);
       } catch (e) {
-        if (!cancelled) setError((e as Error).message);
+        if (!cancelled) {
+          setError((e as Error).message);
+          setSuggestionError(null);
+        }
       }
     };
     load();
@@ -154,6 +165,15 @@ export function PublicRouteTable({ nodeId }: { nodeId: string }) {
               className="rounded border border-destructive/30 bg-destructive/5 p-2 text-sm text-destructive"
             >
               {error}
+            </div>
+          )}
+          {suggestionError && (
+            <div
+              role="status"
+              aria-live="polite"
+              className="rounded-lg border border-warning/30 bg-warning/5 p-3 text-sm text-warning"
+            >
+              Service detection unavailable: {suggestionError}
             </div>
           )}
           {suggestions.length > 0 && (

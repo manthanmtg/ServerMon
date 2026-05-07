@@ -193,6 +193,34 @@ describe('PublicRouteTable', () => {
     expect(screen.getByDisplayValue('orion-main-mongo.apps.example.com')).toBeDefined();
   });
 
+  it('shows a non-blocking warning when route suggestions fail to load', async () => {
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url === '/api/fleet/nodes/n1/route-suggestions') {
+        return {
+          ok: false,
+          status: 500,
+          json: async () => ({ error: 'Failed to build route suggestions' }),
+        };
+      }
+      return {
+        ok: true,
+        json: async () => ({ routes: mockRoutes, total: 1 }),
+      };
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await act(async () => {
+      render(<PublicRouteTable nodeId="n1" />);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText('My App')).toBeDefined();
+    });
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'Service detection unavailable: Failed to build route suggestions'
+    );
+  });
+
   it('delete calls DELETE endpoint and removes row', async () => {
     const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
       if (init?.method === 'DELETE') {
