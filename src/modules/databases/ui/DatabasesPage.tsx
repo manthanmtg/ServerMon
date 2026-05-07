@@ -1,29 +1,11 @@
 'use client';
 
 import { FormEvent, type ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
-import {
-  CheckCircle2,
-  Copy,
-  Database,
-  Eye,
-  EyeOff,
-  Globe2,
-  HardDrive,
-  LoaderCircle,
-  Lock,
-  Logs,
-  Play,
-  Plus,
-  Power,
-  RefreshCw,
-  ShieldAlert,
-  Square,
-  X,
-  XCircle,
-} from 'lucide-react';
-import { Badge, type BadgeVariant } from '@/components/ui/badge';
+import { Database, Eye, EyeOff, LoaderCircle, Plus, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
+import { DatabaseDeploymentCard, type DatabaseAction } from './DatabaseDeploymentCard';
+import { DatabaseSummaryCards } from './DatabaseSummaryCards';
 import type { DatabaseTemplateId, ManagedDatabaseDTO } from '../types';
 
 interface TemplateOption {
@@ -134,18 +116,6 @@ function Field({
       {hint && <span className="block text-xs leading-5 text-muted-foreground">{hint}</span>}
     </div>
   );
-}
-
-function statusBadge(status: ManagedDatabaseDTO['status']) {
-  const variants: Record<ManagedDatabaseDTO['status'], BadgeVariant> = {
-    draft: 'secondary',
-    deploying: 'warning',
-    running: 'success',
-    stopped: 'outline',
-    failed: 'destructive',
-    unknown: 'secondary',
-  };
-  return <Badge variant={variants[status]}>{status}</Badge>;
 }
 
 function randomPassword() {
@@ -324,7 +294,7 @@ export default function DatabasesPage() {
     }
   };
 
-  const action = async (database: ManagedDatabaseDTO, nextAction: 'start' | 'stop' | 'restart') => {
+  const action = async (database: ManagedDatabaseDTO, nextAction: DatabaseAction) => {
     setWorkingId(database.id);
     setError(null);
     try {
@@ -365,24 +335,7 @@ export default function DatabasesPage() {
         </div>
       )}
 
-      <div className="grid gap-3 md:grid-cols-4">
-        {[
-          { label: 'Instances', value: summary.total, icon: Database },
-          { label: 'Running', value: summary.running, icon: CheckCircle2 },
-          { label: 'Public routes', value: summary.publicCount, icon: Globe2 },
-          { label: 'Failed', value: summary.failed, icon: XCircle },
-        ].map(({ label, value, icon: Icon }) => (
-          <Card key={label}>
-            <CardContent className="flex items-center justify-between pt-5">
-              <div>
-                <p className="text-xs text-muted-foreground">{label}</p>
-                <p className="mt-1 text-2xl font-semibold">{value}</p>
-              </div>
-              <Icon className="h-5 w-5 text-primary" />
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+      <DatabaseSummaryCards summary={summary} />
 
       <div className="space-y-3">
         {loading ? (
@@ -405,137 +358,16 @@ export default function DatabasesPage() {
           </Card>
         ) : (
           databases.map((database) => (
-            <Card key={database.id}>
-              <CardHeader className="pb-3">
-                <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <CardTitle className="text-base">{database.name}</CardTitle>
-                      {statusBadge(database.status)}
-                      <Badge variant="outline">{database.image}</Badge>
-                      <Badge variant={database.publicRoute ? 'warning' : 'secondary'}>
-                        {database.publicRoute ? (
-                          <Globe2 className="h-3 w-3" />
-                        ) : (
-                          <Lock className="h-3 w-3" />
-                        )}
-                        {database.publicRoute ? 'Public' : 'Local only'}
-                      </Badge>
-                    </div>
-                    <CardDescription className="mt-2">
-                      {database.bindAddress}:{database.port} to container {database.internalPort}
-                    </CardDescription>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      onClick={() => deploy(database)}
-                      loading={workingId === database.id}
-                      aria-label={`Deploy ${database.name}`}
-                    >
-                      <Play className="h-4 w-4" />
-                      Deploy
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => action(database, 'restart')}
-                      disabled={database.status === 'draft'}
-                    >
-                      <RefreshCw className="h-4 w-4" />
-                      Restart
-                    </Button>
-                    {database.status === 'running' ? (
-                      <Button variant="outline" size="sm" onClick={() => action(database, 'stop')}>
-                        <Square className="h-4 w-4" />
-                        Stop
-                      </Button>
-                    ) : (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => action(database, 'start')}
-                        disabled={database.status === 'draft'}
-                      >
-                        <Power className="h-4 w-4" />
-                        Start
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
-                <div className="space-y-3">
-                  <div className="rounded-lg border border-border bg-muted/25 p-3">
-                    <div className="mb-1 flex items-center gap-2 text-xs font-medium text-muted-foreground">
-                      <HardDrive className="h-3.5 w-3.5" />
-                      Data path
-                    </div>
-                    <code className="break-all text-xs text-foreground">{database.dataPath}</code>
-                  </div>
-                  <div className="rounded-lg border border-border bg-muted/25 p-3">
-                    <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                      <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
-                        <Copy className="h-3.5 w-3.5" />
-                        Connection string
-                      </div>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        aria-label={`Copy connection string for ${database.name}`}
-                        onClick={() => copyText(database.connection.maskedUri, database.id)}
-                      >
-                        <Copy className="h-3.5 w-3.5" />
-                        {copiedConnectionId === database.id ? 'Copied' : 'Copy'}
-                      </Button>
-                    </div>
-                    <code className="break-all text-xs text-foreground">
-                      {database.connection.maskedUri}
-                    </code>
-                  </div>
-                </div>
-                <div className="space-y-2 rounded-lg border border-border bg-background p-3">
-                  <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
-                    <ShieldAlert className="h-3.5 w-3.5" />
-                    Security notes
-                  </div>
-                  <ul className="space-y-1.5 text-xs leading-5 text-muted-foreground">
-                    {database.securityNotes.map((note) => (
-                      <li key={note}>{note}</li>
-                    ))}
-                  </ul>
-                </div>
-                <div className="space-y-2 rounded-lg border border-border bg-background p-3 lg:col-span-2">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
-                      <Logs className="h-3.5 w-3.5" />
-                      Activity
-                    </div>
-                    {workingId === database.id && (
-                      <Badge variant="warning">
-                        <LoaderCircle className="h-3 w-3 animate-spin" />
-                        Deploying
-                      </Badge>
-                    )}
-                  </div>
-                  <div
-                    aria-label={`${database.name} activity log`}
-                    className="max-h-40 overflow-auto rounded-md bg-muted/25 p-3 font-mono text-[11px] leading-5 text-muted-foreground"
-                  >
-                    {[...(database.logs ?? []), ...(operationLogs[database.id] ?? [])].length >
-                    0 ? (
-                      [...(database.logs ?? []), ...(operationLogs[database.id] ?? [])]
-                        .slice(-16)
-                        .map((line, index) => <div key={`${line}-${index}`}>{line}</div>)
-                    ) : (
-                      <div>No deployment activity yet.</div>
-                    )}
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+            <DatabaseDeploymentCard
+              key={database.id}
+              database={database}
+              isWorking={workingId === database.id}
+              copiedConnectionId={copiedConnectionId}
+              operationLogs={operationLogs[database.id] ?? []}
+              onDeploy={deploy}
+              onAction={action}
+              onCopyConnection={copyText}
+            />
           ))
         )}
       </div>
