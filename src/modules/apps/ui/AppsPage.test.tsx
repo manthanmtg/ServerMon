@@ -273,4 +273,58 @@ describe('AppsPage', () => {
     expect(screen.getByText('abcdef1')).toBeTruthy();
     expect(screen.getByRole('button', { name: /update/i })).toBeTruthy();
   });
+
+  it('requires confirmation before deleting an app', async () => {
+    global.fetch = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          apps: [
+            {
+              id: 'app-1',
+              name: 'Inventory Portal',
+              slug: 'inventory-portal',
+              templateId: 'nextjs',
+              sourceType: 'local',
+              sourcePath: '/srv/apps/inventory-portal',
+              domain: 'inventory.example.com',
+              port: 3010,
+              commands: {
+                install: 'pnpm install --frozen-lockfile',
+                build: 'pnpm build',
+                start: 'pnpm start',
+              },
+              envVars: {},
+              healthCheckPath: '/',
+              tlsEnabled: false,
+              status: 'running',
+              releases: [],
+            },
+          ],
+        }),
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ deletion: { id: 'app-1', logs: ['deleted'] } }),
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ apps: [] }),
+      } as Response);
+
+    render(<AppsPage />);
+    await screen.findByText('Inventory Portal');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete Inventory Portal' }));
+    expect(screen.getByText('Delete Inventory Portal?')).toBeTruthy();
+    expect(screen.getByText(/cannot be undone/i)).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete permanently' }));
+
+    await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(3));
+    expect(global.fetch).toHaveBeenNthCalledWith(2, '/api/modules/apps/app-1', {
+      method: 'DELETE',
+    });
+  });
 });

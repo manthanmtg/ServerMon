@@ -1,11 +1,21 @@
 /** @vitest-environment node */
-import { describe, expect, it } from 'vitest';
+import { mkdtemp, mkdir, readFile, rm, symlink, writeFile } from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+import { afterEach, describe, expect, it } from 'vitest';
 import {
   CreateManagedAppSchema,
+  deleteManagedAppResources,
   getAppTemplate,
   mapManagedAppToDTO,
   normalizeCreateManagedAppInput,
 } from './service';
+
+const tempDirs: string[] = [];
+
+afterEach(async () => {
+  await Promise.all(tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })));
+});
 
 describe('apps service helpers', () => {
   it('normalizes create input into a nextjs managed app config', () => {
@@ -195,5 +205,58 @@ describe('apps service helpers', () => {
     expect(dto.tlsEnabled).toBe(true);
     expect(dto.dns?.summary).toBe('Create A record: app.example.com -> 203.0.113.10');
     expect(dto.releases[0]?.createdAt).toBe('2026-05-06T12:34:56.789Z');
+  });
+
+  it('deletes all managed host resources for an app', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'servermon-delete-app-'));
+    tempDirs.push(root);
+    const appsRoot = path.join(root, 'apps');
+    const systemdDir = path.join(root, 'systemd');
+    const nginxAvailableDir = path.join(root, 'nginx-available');
+    const nginxEnabledDir = path.join(root, 'nginx-enabled');
+    const appRoot = path.join(appsRoot, 'lifeos');
+
+    await mkdir(appRoot, { recursive: true });
+    await mkdir(systemdDir, { recursive: true });
+    await mkdir(nginxAvailableDir, { recursive: true });
+    await mkdir(nginxEnabledDir, { recursive: true });
+    await writeFile(path.join(appRoot, 'trace.txt'), 'release data', 'utf8');
+    await writeFile(path.join(systemdDir, 'servermon-app-lifeos.service'), 'unit', 'utf8');
+    await writeFile(path.join(nginxAvailableDir, 'app.example.com'), 'nginx', 'utf8');
+    await symlink(
+      path.join(nginxAvailableDir, 'app.example.com'),
+      path.join(nginxEnabledDir, 'app.example.com')
+    );
+
+    const commands: string[] = [];
+    const result = await deleteManagedAppResources({
+      app: { slug: 'lifeos', domain: 'app.example.com', tlsEnabled: true },
+      appsRoot,
+      systemdDir,
+      nginxAvailableDir,
+      nginxEnabledDir,
+      commandRunner: async ({ command }) => {
+        commands.push(command);
+        return { code: 0, output: `${command} ok` };
+      },
+    });
+
+    expect(commands).toEqual([
+      'systemctl stop servermon-app-lifeos.service',
+      'systemctl disable servermon-app-lifeos.service',
+      'certbot delete --cert-name app.example.com --non-interactive',
+      'systemctl daemon-reload',
+      'nginx -t',
+      'nginx -s reload',
+    ]);
+    expect(result.logs).toContain('Removed managed app root');
+    await expect(readFile(path.join(appRoot, 'trace.txt'), 'utf8')).rejects.toThrow();
+    await expect(
+      readFile(path.join(systemdDir, 'servermon-app-lifeos.service'), 'utf8')
+    ).rejects.toThrow();
+    await expect(
+      readFile(path.join(nginxAvailableDir, 'app.example.com'), 'utf8')
+    ).rejects.toThrow();
+    await expect(readFile(path.join(nginxEnabledDir, 'app.example.com'), 'utf8')).rejects.toThrow();
   });
 });

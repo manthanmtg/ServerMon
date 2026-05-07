@@ -1,5 +1,7 @@
 import { z } from 'zod';
 import { isIP } from 'node:net';
+import { rm } from 'node:fs/promises';
+import path from 'node:path';
 import connectDB from '@/lib/db';
 import ManagedApp, { type IManagedApp } from '@/models/ManagedApp';
 import type {
@@ -9,12 +11,20 @@ import type {
   ManagedAppDTO,
   ManagedAppStatus,
 } from '@/modules/apps/types';
-import { buildDnsInstructions, sanitizeAppSlug } from './rendering';
-import { defaultCommandRunner, deployNextJsApp, type DeployNextJsAppResult } from './deploy';
-import { getAppRepositoryRoot } from './paths';
+import { buildDnsInstructions, sanitizeAppSlug, toSystemdServiceName } from './rendering';
+import {
+  defaultCommandRunner,
+  deployNextJsApp,
+  type CommandRunner,
+  type DeployNextJsAppResult,
+} from './deploy';
+import { getAppRepositoryRoot, getAppRoot } from './paths';
 import { isHttpsGitUrl, prepareGitSourceForDeploy } from './git';
 
 const DOMAIN_PATTERN = /^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$/;
+const DEFAULT_SYSTEMD_DIR = '/etc/systemd/system';
+const DEFAULT_NGINX_AVAILABLE_DIR = '/etc/nginx/sites-available';
+const DEFAULT_NGINX_ENABLED_DIR = '/etc/nginx/sites-enabled';
 
 export const NextJsAppTemplate: AppTemplate = {
   id: 'nextjs',
@@ -316,6 +326,82 @@ export async function createManagedApp(
   await connectDB();
   const app = await ManagedApp.create(normalizeCreateManagedAppInput(parsed));
   return mapManagedAppToDTO(app, publicIp);
+}
+
+export interface DeleteManagedAppResourcesOptions {
+  app: {
+    slug: string;
+    domain: string;
+    tlsEnabled?: boolean;
+  };
+  appsRoot?: string;
+  systemdDir?: string;
+  nginxAvailableDir?: string;
+  nginxEnabledDir?: string;
+  commandRunner?: CommandRunner;
+}
+
+export async function deleteManagedAppResources({
+  app,
+  appsRoot,
+  systemdDir = DEFAULT_SYSTEMD_DIR,
+  nginxAvailableDir = DEFAULT_NGINX_AVAILABLE_DIR,
+  nginxEnabledDir = DEFAULT_NGINX_ENABLED_DIR,
+  commandRunner = defaultCommandRunner,
+}: DeleteManagedAppResourcesOptions): Promise<{ logs: string[] }> {
+  const logs: string[] = [];
+  const serviceName = toSystemdServiceName(app.slug);
+  const appRoot = getAppRoot(app.slug, appsRoot);
+
+  const runBestEffort = async (command: string) => {
+    logs.push(`$ ${command}`);
+    const result = await commandRunner({ command });
+    if (result.output.trim()) logs.push(result.output.trim());
+    if (result.code !== 0) logs.push(`Command exited with code ${result.code}`);
+  };
+
+  await runBestEffort(`systemctl stop ${serviceName}`);
+  await runBestEffort(`systemctl disable ${serviceName}`);
+
+  await rm(appRoot, { recursive: true, force: true });
+  logs.push('Removed managed app root');
+
+  await rm(path.join(systemdDir, serviceName), { force: true });
+  logs.push('Removed systemd unit');
+
+  await rm(path.join(nginxEnabledDir, app.domain), { force: true });
+  await rm(path.join(nginxAvailableDir, app.domain), { force: true });
+  logs.push('Removed Nginx site configuration');
+
+  if (app.tlsEnabled) {
+    await runBestEffort(`certbot delete --cert-name ${app.domain} --non-interactive`);
+  }
+
+  await runBestEffort('systemctl daemon-reload');
+  await runBestEffort('nginx -t');
+  await runBestEffort('nginx -s reload');
+
+  return { logs };
+}
+
+export async function deleteManagedApp(appId: string) {
+  await connectDB();
+  const app = await ManagedApp.findById(appId);
+  if (!app) throw new Error('App not found');
+
+  const result = await deleteManagedAppResources({
+    app: {
+      slug: app.slug,
+      domain: app.domain,
+      tlsEnabled: app.tlsEnabled,
+    },
+  });
+  await app.deleteOne();
+
+  return {
+    id: appId,
+    logs: result.logs,
+  };
 }
 
 export async function deployManagedApp(appId: string) {

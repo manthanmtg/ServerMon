@@ -24,6 +24,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import ConfirmationModal from '@/components/ui/ConfirmationModal';
 import type { AppSourceType, AppTemplateId, ManagedAppDTO } from '../types';
 
 interface FormState {
@@ -154,6 +155,8 @@ export default function AppsPage() {
   const [submitting, setSubmitting] = useState(false);
   const [deployingId, setDeployingId] = useState<string | null>(null);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleteCandidate, setDeleteCandidate] = useState<ManagedAppDTO | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -298,6 +301,26 @@ export default function AppsPage() {
       await load();
     } finally {
       setUpdatingId(null);
+    }
+  };
+
+  const deleteApp = async () => {
+    if (!deleteCandidate) return;
+    setDeletingId(deleteCandidate.id);
+    setError(null);
+    try {
+      const response = await fetch(`/api/modules/apps/${deleteCandidate.id}`, {
+        method: 'DELETE',
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Delete failed');
+      setDeleteCandidate(null);
+      await load();
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Delete failed');
+      await load();
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -714,6 +737,17 @@ export default function AppsPage() {
                       <Play className="h-3.5 w-3.5" />
                       Deploy
                     </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="destructive"
+                      aria-label={`Delete ${app.name}`}
+                      onClick={() => setDeleteCandidate(app)}
+                      loading={deletingId === app.id}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                      Delete
+                    </Button>
                   </div>
                 </div>
               </CardHeader>
@@ -887,6 +921,23 @@ export default function AppsPage() {
           )}
         </div>
       </div>
+
+      <ConfirmationModal
+        isOpen={Boolean(deleteCandidate)}
+        title={deleteCandidate ? `Delete ${deleteCandidate.name}?` : 'Delete app?'}
+        message={
+          deleteCandidate
+            ? `This will permanently remove ${deleteCandidate.name}, stop and disable its service, delete its Nginx config, remove all managed releases and repository data, and delete the app record. This cannot be undone.`
+            : 'This cannot be undone.'
+        }
+        description={deleteCandidate?.domain}
+        confirmLabel="Delete permanently"
+        cancelLabel="Keep app"
+        variant="danger"
+        isLoading={Boolean(deleteCandidate && deletingId === deleteCandidate.id)}
+        onConfirm={() => void deleteApp()}
+        onCancel={() => setDeleteCandidate(null)}
+      />
     </div>
   );
 }
