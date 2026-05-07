@@ -44,6 +44,7 @@ describe('healthModule definition', () => {
     });
 
     afterEach(() => {
+      healthModule.stop!(ctx);
       vi.useRealTimers();
     });
 
@@ -77,6 +78,15 @@ describe('healthModule definition', () => {
     it('stop() logs stop message', () => {
       healthModule.stop!(ctx);
       expect(ctx.logger.info).toHaveBeenCalledWith(expect.stringContaining('Stopped'));
+    });
+
+    it('stop() clears the periodic health interval', () => {
+      healthModule.start!(ctx);
+      healthModule.stop!(ctx);
+
+      vi.advanceTimersByTime(10000);
+
+      expect(ctx.events.emit).not.toHaveBeenCalled();
     });
   });
 });
