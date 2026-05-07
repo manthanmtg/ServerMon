@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import DatabasesWidget from './DatabasesWidget';
+import DatabasesWidget, { deriveDatabaseWidgetSummary } from './DatabasesWidget';
 
 describe('DatabasesWidget', () => {
   beforeEach(() => {
@@ -24,5 +24,19 @@ describe('DatabasesWidget', () => {
     expect(screen.getByText('1 public')).toBeTruthy();
     expect(screen.getByText('Main Postgres')).toBeTruthy();
     expect(screen.getByRole('link', { name: /view all/i })).toHaveAttribute('href', '/databases');
+  });
+
+  it('derives widget summary counts in one reusable pass', () => {
+    const summary = deriveDatabaseWidgetSummary([
+      { status: 'running', publicRoute: false },
+      { status: 'failed', publicRoute: true },
+      { status: 'running', publicRoute: true },
+    ]);
+
+    expect(summary).toEqual({
+      running: 2,
+      failed: 1,
+      publicCount: 2,
+    });
   });
 });

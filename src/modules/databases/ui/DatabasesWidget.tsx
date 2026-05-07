@@ -7,6 +7,28 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { WidgetCardSkeleton } from '@/components/ui/skeleton';
 import type { ManagedDatabaseDTO } from '../types';
 
+type DatabaseWidgetSummary = {
+  running: number;
+  failed: number;
+  publicCount: number;
+};
+
+type DatabaseWidgetSummaryInput = Pick<ManagedDatabaseDTO, 'status' | 'publicRoute'>;
+
+export function deriveDatabaseWidgetSummary(
+  databases: DatabaseWidgetSummaryInput[]
+): DatabaseWidgetSummary {
+  return databases.reduce<DatabaseWidgetSummary>(
+    (summary, database) => {
+      if (database.status === 'running') summary.running += 1;
+      if (database.status === 'failed') summary.failed += 1;
+      if (database.publicRoute) summary.publicCount += 1;
+      return summary;
+    },
+    { running: 0, failed: 0, publicCount: 0 }
+  );
+}
+
 export default function DatabasesWidget() {
   const [databases, setDatabases] = useState<ManagedDatabaseDTO[]>([]);
   const [loading, setLoading] = useState(true);
@@ -31,14 +53,8 @@ export default function DatabasesWidget() {
     return () => window.clearInterval(interval);
   }, [load]);
 
-  const summary = useMemo(
-    () => ({
-      running: databases.filter((database) => database.status === 'running').length,
-      failed: databases.filter((database) => database.status === 'failed').length,
-      publicCount: databases.filter((database) => database.publicRoute).length,
-    }),
-    [databases]
-  );
+  const summary = useMemo(() => deriveDatabaseWidgetSummary(databases), [databases]);
+  const visibleDatabases = useMemo(() => databases.slice(0, 3), [databases]);
 
   if (loading) return <WidgetCardSkeleton />;
 
@@ -77,7 +93,7 @@ export default function DatabasesWidget() {
 
         <div className="mt-3 space-y-1.5">
           <div className="text-[11px] text-muted-foreground">{summary.publicCount} public</div>
-          {databases.slice(0, 3).map((database) => (
+          {visibleDatabases.map((database) => (
             <div
               key={database.id}
               className="flex items-center gap-2 rounded-md px-2 py-1.5 text-xs"
