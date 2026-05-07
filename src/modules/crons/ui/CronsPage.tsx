@@ -195,10 +195,10 @@ export default function CronsPage() {
     }
   }
 
-  function SortIcon({ field }: { field: SortField }) {
+  const renderSortIcon = (field: SortField) => {
     if (sortField !== field) return <ArrowUpDown className="w-3 h-3 text-muted-foreground/50" />;
     return sortDir === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />;
-  }
+  };
 
   async function toggleJob(job: CronJob) {
     setConfirmToggle(null);
@@ -514,7 +514,7 @@ export default function CronsPage() {
                     onClick={() => toggleSort('expression')}
                   >
                     <span className="inline-flex items-center gap-1">
-                      Schedule <SortIcon field="expression" />
+                      Schedule {renderSortIcon('expression')}
                     </span>
                   </th>
                   <th
@@ -522,7 +522,7 @@ export default function CronsPage() {
                     onClick={() => toggleSort('command')}
                   >
                     <span className="inline-flex items-center gap-1">
-                      Command <SortIcon field="command" />
+                      Command {renderSortIcon('command')}
                     </span>
                   </th>
                   <th
@@ -530,7 +530,7 @@ export default function CronsPage() {
                     onClick={() => toggleSort('user')}
                   >
                     <span className="inline-flex items-center gap-1">
-                      User <SortIcon field="user" />
+                      User {renderSortIcon('user')}
                     </span>
                   </th>
                   <th
@@ -538,7 +538,7 @@ export default function CronsPage() {
                     onClick={() => toggleSort('source')}
                   >
                     <span className="inline-flex items-center gap-1">
-                      Source <SortIcon field="source" />
+                      Source {renderSortIcon('source')}
                     </span>
                   </th>
                   <th
@@ -546,7 +546,7 @@ export default function CronsPage() {
                     onClick={() => toggleSort('nextRun')}
                   >
                     <span className="inline-flex items-center gap-1">
-                      Next Run <SortIcon field="nextRun" />
+                      Next Run {renderSortIcon('nextRun')}
                     </span>
                   </th>
                   <th className="py-3 px-4">Actions</th>
