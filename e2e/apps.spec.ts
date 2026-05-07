@@ -95,13 +95,20 @@ test.beforeEach(async ({ context, page }) => {
 test('renders the Apps module and opens deployment history', async ({ page }) => {
   await page.goto('/apps');
 
-  await expect(page.getByRole('heading', { name: 'Apps' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'New App' })).toBeVisible();
-  await expect(page.getByLabel('Template')).toHaveValue('nextjs');
-  await expect(page.getByLabel('App name')).toBeVisible();
-  await expect(page.getByLabel('Source path')).toBeVisible();
-  await expect(page.getByLabel('Domain')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Apps', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Registered Apps' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'New App' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Inventory Portal' })).toBeVisible();
+
+  await page.getByRole('button', { name: 'New App' }).click();
+  const appDialog = page.getByRole('dialog', { name: 'New App' });
+  await expect(appDialog).toBeVisible();
+  await expect(appDialog.getByLabel('Template')).toHaveValue('nextjs');
+  await expect(appDialog.getByLabel('App name')).toBeVisible();
+  await expect(appDialog.getByLabel('Source path')).toBeVisible();
+  await expect(appDialog.getByLabel('Domain')).toBeVisible();
+  await appDialog.getByRole('button', { name: 'Close app form' }).click();
+  await expect(appDialog).toBeHidden();
 
   await page.getByRole('button', { name: 'Deployment history for Inventory Portal' }).click();
 

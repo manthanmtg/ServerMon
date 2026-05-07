@@ -5,6 +5,11 @@ import AppsPage from './AppsPage';
 describe('AppsPage', () => {
   const writeText = vi.fn();
 
+  const openNewAppDialog = async () => {
+    fireEvent.click(await screen.findByRole('button', { name: 'New App' }));
+    return screen.getByRole('dialog', { name: 'New App' });
+  };
+
   beforeEach(() => {
     vi.clearAllMocks();
     Object.defineProperty(navigator, 'clipboard', {
@@ -17,25 +22,28 @@ describe('AppsPage', () => {
     } as Response);
   });
 
-  it('renders a labelled generic app creation form with a template selector', async () => {
+  it('opens a labelled generic app creation modal from the top-right action', async () => {
     render(<AppsPage />);
 
-    expect(await screen.findByText('New App')).toBeTruthy();
-    expect(screen.getByLabelText('Template')).toHaveValue('nextjs');
-    expect(screen.getByLabelText('Local folder')).toBeChecked();
-    expect(screen.getByLabelText('Git repository')).toBeTruthy();
-    expect(screen.getByLabelText('App name')).toBeTruthy();
-    expect(screen.getByLabelText('Source path')).toBeTruthy();
-    expect(screen.getByLabelText('Domain')).toBeTruthy();
-    expect(screen.getByLabelText('Local port')).toBeTruthy();
-    expect(screen.getByLabelText('Install command')).toBeTruthy();
-    expect(screen.getByLabelText('Build command')).toBeTruthy();
-    expect(screen.getByLabelText('Start command')).toBeTruthy();
-    expect(screen.getByLabelText('Health check path')).toBeTruthy();
-    expect(screen.getByLabelText('Enable SSL')).toBeTruthy();
-    expect(screen.getByText('Environment variables')).toBeTruthy();
-    expect(screen.getByPlaceholderText('/srv/apps/inventory-portal')).toBeTruthy();
-    expect(screen.getByPlaceholderText('app.example.com')).toBeTruthy();
+    expect(await screen.findByRole('button', { name: 'New App' })).toBeTruthy();
+    expect(screen.queryByLabelText('Template')).toBeNull();
+
+    const dialog = await openNewAppDialog();
+    expect(within(dialog).getByLabelText('Template')).toHaveValue('nextjs');
+    expect(within(dialog).getByLabelText('Local folder')).toBeChecked();
+    expect(within(dialog).getByLabelText('Git repository')).toBeTruthy();
+    expect(within(dialog).getByLabelText('App name')).toBeTruthy();
+    expect(within(dialog).getByLabelText('Source path')).toBeTruthy();
+    expect(within(dialog).getByLabelText('Domain')).toBeTruthy();
+    expect(within(dialog).getByLabelText('Local port')).toBeTruthy();
+    expect(within(dialog).getByLabelText('Install command')).toBeTruthy();
+    expect(within(dialog).getByLabelText('Build command')).toBeTruthy();
+    expect(within(dialog).getByLabelText('Start command')).toBeTruthy();
+    expect(within(dialog).getByLabelText('Health check path')).toBeTruthy();
+    expect(within(dialog).getByLabelText('Enable SSL')).toBeTruthy();
+    expect(within(dialog).getByText('Environment variables')).toBeTruthy();
+    expect(within(dialog).getByPlaceholderText('/srv/apps/inventory-portal')).toBeTruthy();
+    expect(within(dialog).getByPlaceholderText('app.example.com')).toBeTruthy();
   });
 
   it('submits git source settings with auto update enabled', async () => {
@@ -55,26 +63,26 @@ describe('AppsPage', () => {
       } as Response);
 
     render(<AppsPage />);
-    await screen.findByText('New App');
+    const dialog = await openNewAppDialog();
 
-    fireEvent.click(screen.getByLabelText('Git repository'));
-    fireEvent.change(screen.getByLabelText('App name'), {
+    fireEvent.click(within(dialog).getByLabelText('Git repository'));
+    fireEvent.change(within(dialog).getByLabelText('App name'), {
       target: { value: 'Git Portal' },
     });
-    fireEvent.change(screen.getByLabelText('Git HTTPS URL'), {
+    fireEvent.change(within(dialog).getByLabelText('Git HTTPS URL'), {
       target: { value: 'https://github.com/acme/git-portal.git' },
     });
-    fireEvent.change(screen.getByLabelText('Git branch'), {
+    fireEvent.change(within(dialog).getByLabelText('Git branch'), {
       target: { value: 'production' },
     });
-    fireEvent.change(screen.getByLabelText('Domain'), {
+    fireEvent.change(within(dialog).getByLabelText('Domain'), {
       target: { value: 'git.example.com' },
     });
-    fireEvent.click(screen.getByLabelText('Auto update'));
-    fireEvent.change(screen.getByLabelText('Auto update interval'), {
+    fireEvent.click(within(dialog).getByLabelText('Auto update'));
+    fireEvent.change(within(dialog).getByLabelText('Auto update interval'), {
       target: { value: '30' },
     });
-    fireEvent.click(screen.getByRole('button', { name: /create app/i }));
+    fireEvent.click(within(dialog).getByRole('button', { name: /create app/i }));
 
     await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(3));
     expect(global.fetch).toHaveBeenNthCalledWith(
@@ -120,26 +128,26 @@ describe('AppsPage', () => {
       } as Response);
 
     render(<AppsPage />);
-    await screen.findByText('New App');
+    const dialog = await openNewAppDialog();
 
-    fireEvent.change(screen.getByLabelText('App name'), {
+    fireEvent.change(within(dialog).getByLabelText('App name'), {
       target: { value: 'Inventory Portal' },
     });
-    fireEvent.change(screen.getByLabelText('Source path'), {
+    fireEvent.change(within(dialog).getByLabelText('Source path'), {
       target: { value: '/srv/apps/inventory-portal' },
     });
-    fireEvent.change(screen.getByLabelText('Domain'), {
+    fireEvent.change(within(dialog).getByLabelText('Domain'), {
       target: { value: 'inventory.example.com' },
     });
-    fireEvent.click(screen.getByRole('button', { name: 'Add' }));
-    fireEvent.change(screen.getByLabelText('Environment variable 1 key'), {
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Add' }));
+    fireEvent.change(within(dialog).getByLabelText('Environment variable 1 key'), {
       target: { value: 'NEXT_PUBLIC_APP_URL' },
     });
-    fireEvent.change(screen.getByLabelText('Environment variable 1 value'), {
+    fireEvent.change(within(dialog).getByLabelText('Environment variable 1 value'), {
       target: { value: 'https://inventory.example.com' },
     });
-    fireEvent.click(screen.getByLabelText('Enable SSL'));
-    fireEvent.click(screen.getByRole('button', { name: /create app/i }));
+    fireEvent.click(within(dialog).getByLabelText('Enable SSL'));
+    fireEvent.click(within(dialog).getByRole('button', { name: /create app/i }));
 
     await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(3));
     expect(global.fetch).toHaveBeenNthCalledWith(
@@ -380,16 +388,18 @@ describe('AppsPage', () => {
     await screen.findByText('Inventory Portal');
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit Inventory Portal' }));
-    expect(screen.getByRole('heading', { name: 'Edit App' })).toBeTruthy();
-    expect(screen.getByLabelText('Install command')).toHaveValue('pnpm install --frozen-lockfile');
+    const dialog = screen.getByRole('dialog', { name: 'Edit App' });
+    expect(within(dialog).getByLabelText('Install command')).toHaveValue(
+      'pnpm install --frozen-lockfile'
+    );
 
-    fireEvent.change(screen.getByLabelText('Install command'), {
+    fireEvent.change(within(dialog).getByLabelText('Install command'), {
       target: { value: 'pnpm install --prod=false' },
     });
-    fireEvent.change(screen.getByLabelText('Build command'), {
+    fireEvent.change(within(dialog).getByLabelText('Build command'), {
       target: { value: 'pnpm build:prod' },
     });
-    fireEvent.click(screen.getByRole('button', { name: 'Save Changes' }));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Save Changes' }));
 
     await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(3));
     expect(global.fetch).toHaveBeenNthCalledWith(

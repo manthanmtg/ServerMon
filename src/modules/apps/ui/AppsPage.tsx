@@ -215,6 +215,7 @@ function Field({
 export default function AppsPage() {
   const [apps, setApps] = useState<ManagedAppDTO[]>([]);
   const [form, setForm] = useState<FormState>(initialForm);
+  const [formMode, setFormMode] = useState<'create' | 'edit' | null>(null);
   const [revealedEnvVars, setRevealedEnvVars] = useState<Set<string>>(() => new Set());
   const [copiedTarget, setCopiedTarget] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -309,6 +310,7 @@ export default function AppsPage() {
       const data = await response.json();
       if (!response.ok)
         throw new Error(data.error || `Failed to ${editingApp ? 'update' : 'create'} app`);
+      setFormMode(null);
       setForm(initialForm);
       setEditingApp(null);
       await load();
@@ -321,13 +323,22 @@ export default function AppsPage() {
     }
   };
 
-  const startEditing = (app: ManagedAppDTO) => {
-    setEditingApp(app);
-    setForm(appToForm(app));
+  const openCreateForm = () => {
+    setForm(initialForm);
+    setEditingApp(null);
+    setFormMode('create');
     setError(null);
   };
 
-  const cancelEditing = () => {
+  const startEditing = (app: ManagedAppDTO) => {
+    setEditingApp(app);
+    setForm(appToForm(app));
+    setFormMode('edit');
+    setError(null);
+  };
+
+  const closeForm = () => {
+    setFormMode(null);
     setEditingApp(null);
     setForm(initialForm);
   };
@@ -433,591 +444,620 @@ export default function AppsPage() {
         </Card>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[420px_1fr]">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              {editingApp ? (
-                <Pencil className="h-4 w-4 text-primary" />
-              ) : (
-                <Rocket className="h-4 w-4 text-primary" />
-              )}
-              {editingApp ? 'Edit App' : 'New App'}
-            </CardTitle>
-            <CardDescription>
-              {editingApp
-                ? `Update ${editingApp.name}. Saved changes apply on the next deploy or update.`
-                : 'Pick a template, point ServerMon at the source repo, and configure how it should run.'}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={submitAppForm} className="space-y-4">
-              <Field
-                id="app-template"
-                label="Template"
-                hint={templates.find((template) => template.id === form.templateId)?.description}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 className="text-lg font-semibold text-foreground">Registered Apps</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Deploy, update, inspect history, and tune runtime settings for managed apps.
+          </p>
+        </div>
+        <Button type="button" className="w-full sm:w-auto" onClick={openCreateForm}>
+          <Plus className="h-4 w-4" />
+          New App
+        </Button>
+      </div>
+
+      {formMode && (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-background/80 p-4 backdrop-blur-sm">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="app-form-title"
+            className="w-full max-w-4xl overflow-hidden rounded-lg border border-border bg-card shadow-xl"
+          >
+            <div className="flex items-start justify-between gap-3 border-b border-border p-5">
+              <div>
+                <h2 id="app-form-title" className="flex items-center gap-2 text-lg font-semibold">
+                  {editingApp ? (
+                    <Pencil className="h-4 w-4 text-primary" />
+                  ) : (
+                    <Rocket className="h-4 w-4 text-primary" />
+                  )}
+                  {editingApp ? 'Edit App' : 'New App'}
+                </h2>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {editingApp
+                    ? `Update ${editingApp.name}. Saved changes apply on the next deploy or update.`
+                    : 'Pick a template, point ServerMon at the source repo, and configure how it should run.'}
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                aria-label="Close app form"
+                onClick={closeForm}
               >
-                <select
+                <XCircle className="h-4 w-4" />
+              </Button>
+            </div>
+            <div className="max-h-[78vh] overflow-auto p-5">
+              <form onSubmit={submitAppForm} className="space-y-4">
+                <Field
                   id="app-template"
-                  className={fieldClassName()}
-                  value={form.templateId}
-                  onChange={(event) =>
-                    updateForm('templateId', event.target.value as AppTemplateId)
-                  }
-                  required
+                  label="Template"
+                  hint={templates.find((template) => template.id === form.templateId)?.description}
                 >
-                  {templates.map((template) => (
-                    <option key={template.id} value={template.id}>
-                      {template.label}
-                    </option>
-                  ))}
-                </select>
-              </Field>
-
-              <div className="space-y-2">
-                <div className="text-sm font-medium text-foreground">Source</div>
-                <div className="grid gap-2 sm:grid-cols-2">
-                  <label
-                    htmlFor="source-local"
-                    className={`flex min-h-[44px] cursor-pointer items-center gap-3 rounded-lg border px-3 py-2 text-sm transition-colors ${
-                      form.sourceType === 'local'
-                        ? 'border-primary bg-primary/5 text-foreground'
-                        : 'border-border bg-muted/10 text-muted-foreground'
-                    }`}
-                  >
-                    <input
-                      id="source-local"
-                      type="radio"
-                      name="source-type"
-                      aria-label="Local folder"
-                      checked={form.sourceType === 'local'}
-                      onChange={() => updateForm('sourceType', 'local')}
-                    />
-                    <FolderOpen className="h-4 w-4" />
-                    Local folder
-                  </label>
-                  <label
-                    htmlFor="source-git"
-                    className={`flex min-h-[44px] cursor-pointer items-center gap-3 rounded-lg border px-3 py-2 text-sm transition-colors ${
-                      form.sourceType === 'git'
-                        ? 'border-primary bg-primary/5 text-foreground'
-                        : 'border-border bg-muted/10 text-muted-foreground'
-                    }`}
-                  >
-                    <input
-                      id="source-git"
-                      type="radio"
-                      name="source-type"
-                      aria-label="Git repository"
-                      checked={form.sourceType === 'git'}
-                      onChange={() => updateForm('sourceType', 'git')}
-                    />
-                    <GitBranch className="h-4 w-4" />
-                    Git repository
-                  </label>
-                </div>
-              </div>
-
-              <div className="grid gap-3 sm:grid-cols-2">
-                <Field id="app-name" label="App name">
-                  <input
-                    id="app-name"
+                  <select
+                    id="app-template"
                     className={fieldClassName()}
-                    placeholder="Inventory Portal"
-                    value={form.name}
-                    onChange={(event) => updateForm('name', event.target.value)}
+                    value={form.templateId}
+                    onChange={(event) =>
+                      updateForm('templateId', event.target.value as AppTemplateId)
+                    }
                     required
-                  />
+                  >
+                    {templates.map((template) => (
+                      <option key={template.id} value={template.id}>
+                        {template.label}
+                      </option>
+                    ))}
+                  </select>
                 </Field>
-                {form.sourceType === 'local' ? (
-                  <Field id="source-path" label="Source path">
-                    <input
-                      id="source-path"
-                      className={fieldClassName()}
-                      placeholder="/srv/apps/inventory-portal"
-                      value={form.sourcePath}
-                      onChange={(event) => updateForm('sourcePath', event.target.value)}
-                      required
-                    />
-                  </Field>
-                ) : (
-                  <Field id="git-url" label="Git HTTPS URL">
-                    <input
-                      id="git-url"
-                      className={fieldClassName()}
-                      placeholder="https://github.com/acme/app.git"
-                      value={form.gitUrl}
-                      onChange={(event) => updateForm('gitUrl', event.target.value)}
-                      required
-                    />
-                  </Field>
-                )}
-              </div>
 
-              {form.sourceType === 'git' && (
-                <div className="space-y-3 rounded-lg border border-border bg-muted/10 p-3">
-                  <div className="grid gap-3 sm:grid-cols-[1fr_150px]">
-                    <Field id="git-branch" label="Git branch">
+                <div className="space-y-2">
+                  <div className="text-sm font-medium text-foreground">Source</div>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <label
+                      htmlFor="source-local"
+                      className={`flex min-h-[44px] cursor-pointer items-center gap-3 rounded-lg border px-3 py-2 text-sm transition-colors ${
+                        form.sourceType === 'local'
+                          ? 'border-primary bg-primary/5 text-foreground'
+                          : 'border-border bg-muted/10 text-muted-foreground'
+                      }`}
+                    >
                       <input
-                        id="git-branch"
+                        id="source-local"
+                        type="radio"
+                        name="source-type"
+                        aria-label="Local folder"
+                        checked={form.sourceType === 'local'}
+                        onChange={() => updateForm('sourceType', 'local')}
+                      />
+                      <FolderOpen className="h-4 w-4" />
+                      Local folder
+                    </label>
+                    <label
+                      htmlFor="source-git"
+                      className={`flex min-h-[44px] cursor-pointer items-center gap-3 rounded-lg border px-3 py-2 text-sm transition-colors ${
+                        form.sourceType === 'git'
+                          ? 'border-primary bg-primary/5 text-foreground'
+                          : 'border-border bg-muted/10 text-muted-foreground'
+                      }`}
+                    >
+                      <input
+                        id="source-git"
+                        type="radio"
+                        name="source-type"
+                        aria-label="Git repository"
+                        checked={form.sourceType === 'git'}
+                        onChange={() => updateForm('sourceType', 'git')}
+                      />
+                      <GitBranch className="h-4 w-4" />
+                      Git repository
+                    </label>
+                  </div>
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <Field id="app-name" label="App name">
+                    <input
+                      id="app-name"
+                      className={fieldClassName()}
+                      placeholder="Inventory Portal"
+                      value={form.name}
+                      onChange={(event) => updateForm('name', event.target.value)}
+                      required
+                    />
+                  </Field>
+                  {form.sourceType === 'local' ? (
+                    <Field id="source-path" label="Source path">
+                      <input
+                        id="source-path"
                         className={fieldClassName()}
-                        placeholder="main"
-                        value={form.gitBranch}
-                        onChange={(event) => updateForm('gitBranch', event.target.value)}
+                        placeholder="/srv/apps/inventory-portal"
+                        value={form.sourcePath}
+                        onChange={(event) => updateForm('sourcePath', event.target.value)}
                         required
                       />
                     </Field>
-                    <Field id="auto-update-interval" label="Auto update interval">
-                      <select
-                        id="auto-update-interval"
-                        className={fieldClassName()}
-                        value={form.autoUpdateInterval}
-                        onChange={(event) => updateForm('autoUpdateInterval', event.target.value)}
-                        disabled={!form.autoUpdateEnabled}
-                      >
-                        {autoUpdateIntervals.map((interval) => (
-                          <option key={interval.value} value={interval.value}>
-                            {interval.label}
-                          </option>
-                        ))}
-                      </select>
-                    </Field>
-                  </div>
-                  <label
-                    htmlFor="auto-update"
-                    className="flex min-h-[44px] items-start gap-3 rounded-lg border border-border bg-background px-3 py-3 text-sm"
-                  >
-                    <input
-                      id="auto-update"
-                      type="checkbox"
-                      aria-label="Auto update"
-                      className="mt-0.5 h-4 w-4 rounded border-input accent-primary"
-                      checked={form.autoUpdateEnabled}
-                      onChange={(event) => updateForm('autoUpdateEnabled', event.target.checked)}
-                    />
-                    <span className="space-y-1">
-                      <span className="flex items-center gap-2 font-medium text-foreground">
-                        <RefreshCw className="h-4 w-4 text-primary" />
-                        Auto update from upstream
-                      </span>
-                      <span className="block text-xs leading-5 text-muted-foreground">
-                        ServerMon checks the git branch on schedule and deploys only when upstream
-                        changes are available.
-                      </span>
-                    </span>
-                  </label>
-                </div>
-              )}
-
-              <div className="grid gap-3 sm:grid-cols-[1fr_120px]">
-                <Field id="app-domain" label="Domain">
-                  <input
-                    id="app-domain"
-                    className={fieldClassName()}
-                    placeholder="app.example.com"
-                    value={form.domain}
-                    onChange={(event) => updateForm('domain', event.target.value)}
-                    required
-                  />
-                </Field>
-                <Field id="local-port" label="Local port">
-                  <input
-                    id="local-port"
-                    className={fieldClassName()}
-                    placeholder="3010"
-                    type="number"
-                    min="1"
-                    max="65535"
-                    value={form.port}
-                    onChange={(event) => updateForm('port', event.target.value)}
-                    required
-                  />
-                </Field>
-              </div>
-
-              <div className="grid gap-3 sm:grid-cols-2">
-                <Field id="install-command" label="Install command">
-                  <input
-                    id="install-command"
-                    className={fieldClassName()}
-                    placeholder="pnpm install --frozen-lockfile"
-                    value={form.install}
-                    onChange={(event) => updateForm('install', event.target.value)}
-                    required
-                  />
-                </Field>
-                <Field id="build-command" label="Build command">
-                  <input
-                    id="build-command"
-                    className={fieldClassName()}
-                    placeholder="pnpm build"
-                    value={form.build}
-                    onChange={(event) => updateForm('build', event.target.value)}
-                    required
-                  />
-                </Field>
-              </div>
-
-              <div className="grid gap-3 sm:grid-cols-2">
-                <Field id="start-command" label="Start command">
-                  <input
-                    id="start-command"
-                    className={fieldClassName()}
-                    placeholder="pnpm start"
-                    value={form.start}
-                    onChange={(event) => updateForm('start', event.target.value)}
-                    required
-                  />
-                </Field>
-                <Field id="health-check-path" label="Health check path">
-                  <input
-                    id="health-check-path"
-                    className={fieldClassName()}
-                    placeholder="/"
-                    value={form.healthCheckPath}
-                    onChange={(event) => updateForm('healthCheckPath', event.target.value)}
-                  />
-                </Field>
-              </div>
-
-              <label
-                htmlFor="enable-ssl"
-                className="flex min-h-[44px] items-start gap-3 rounded-lg border border-border bg-muted/20 px-3 py-3 text-sm"
-              >
-                <input
-                  id="enable-ssl"
-                  type="checkbox"
-                  aria-label="Enable SSL"
-                  className="mt-0.5 h-4 w-4 rounded border-input accent-primary"
-                  checked={form.tlsEnabled}
-                  onChange={(event) => updateForm('tlsEnabled', event.target.checked)}
-                />
-                <span className="space-y-1">
-                  <span className="flex items-center gap-2 font-medium text-foreground">
-                    <Lock className="h-4 w-4 text-primary" />
-                    Enable SSL
-                  </span>
-                  <span className="block text-xs leading-5 text-muted-foreground">
-                    Uses Certbot to issue a Let&apos;s Encrypt certificate and redirect HTTP to
-                    HTTPS during deployment.
-                  </span>
-                </span>
-              </label>
-
-              <div className="space-y-2 rounded-lg border border-border bg-muted/10 p-3">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <div className="text-sm font-medium text-foreground">Environment variables</div>
-                    <div className="mt-1 text-xs leading-5 text-muted-foreground">
-                      Add one variable per row. Values are hidden by default after saving.
-                    </div>
-                  </div>
-                  <Button type="button" size="sm" variant="outline" onClick={addEnvRow}>
-                    <Plus className="h-3.5 w-3.5" />
-                    Add
-                  </Button>
-                </div>
-
-                {form.envVars.length > 0 && (
-                  <div className="space-y-2">
-                    {form.envVars.map((row, index) => (
-                      <div key={row.id} className="grid gap-2 sm:grid-cols-[1fr_1fr_44px]">
-                        <input
-                          className={fieldClassName()}
-                          aria-label={`Environment variable ${index + 1} key`}
-                          placeholder="NEXT_PUBLIC_APP_URL"
-                          value={row.key}
-                          onChange={(event) => updateEnvRow(row.id, 'key', event.target.value)}
-                        />
-                        <input
-                          className={fieldClassName()}
-                          aria-label={`Environment variable ${index + 1} value`}
-                          placeholder="https://app.example.com"
-                          value={row.value}
-                          onChange={(event) => updateEnvRow(row.id, 'value', event.target.value)}
-                        />
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          aria-label={`Remove environment variable ${index + 1}`}
-                          onClick={() => removeEnvRow(row.id)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {form.envVars.length === 0 && (
-                  <div className="rounded-md border border-dashed border-border px-3 py-4 text-center text-xs text-muted-foreground">
-                    No environment variables added.
-                  </div>
-                )}
-              </div>
-
-              <div className="flex flex-col gap-2 sm:flex-row">
-                {editingApp && (
-                  <Button
-                    type="button"
-                    className="w-full sm:w-auto"
-                    variant="outline"
-                    onClick={cancelEditing}
-                  >
-                    Cancel
-                  </Button>
-                )}
-                <Button type="submit" className="w-full" loading={submitting}>
-                  {editingApp ? <Pencil className="h-4 w-4" /> : <Rocket className="h-4 w-4" />}
-                  {editingApp ? 'Save Changes' : 'Create App'}
-                </Button>
-              </div>
-            </form>
-          </CardContent>
-        </Card>
-
-        <div className="space-y-3">
-          {apps.map((app) => (
-            <Card key={app.id}>
-              <CardHeader>
-                <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                  <div>
-                    <CardTitle className="flex items-center gap-2">
-                      <Globe2 className="h-4 w-4 text-primary" />
-                      {app.name}
-                    </CardTitle>
-                    <CardDescription className="mt-1">
-                      {app.sourceType === 'git' ? app.git?.url : app.sourcePath}
-                    </CardDescription>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    {statusBadge(app)}
-                    <Badge variant="outline">{app.sourceType === 'git' ? 'Git' : 'Local'}</Badge>
-                    {app.sourceType === 'git' && (
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        onClick={() => updateApp(app.id)}
-                        loading={updatingId === app.id}
-                      >
-                        <RefreshCw className="h-3.5 w-3.5" />
-                        Update
-                      </Button>
-                    )}
-                    <Button
-                      type="button"
-                      size="sm"
-                      onClick={() => deployApp(app.id)}
-                      loading={deployingId === app.id}
-                    >
-                      <Play className="h-3.5 w-3.5" />
-                      Deploy
-                    </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      aria-label={`Edit ${app.name}`}
-                      onClick={() => startEditing(app)}
-                    >
-                      <Pencil className="h-3.5 w-3.5" />
-                      Edit
-                    </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      aria-label={`Deployment history for ${app.name}`}
-                      onClick={() => setHistoryApp(app)}
-                    >
-                      <History className="h-3.5 w-3.5" />
-                      History
-                    </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="destructive"
-                      aria-label={`Delete ${app.name}`}
-                      onClick={() => setDeleteCandidate(app)}
-                      loading={deletingId === app.id}
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                      Delete
-                    </Button>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid gap-3 text-sm md:grid-cols-3">
-                  <div className="rounded-lg bg-muted/40 p-3">
-                    <div className="text-xs text-muted-foreground">Public URL</div>
-                    <a
-                      href={`https://${app.domain}`}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="mt-1 flex items-center gap-1 font-medium text-primary"
-                    >
-                      {app.domain}
-                      <ExternalLink className="h-3 w-3" />
-                    </a>
-                  </div>
-                  <div className="rounded-lg bg-muted/40 p-3">
-                    <div className="text-xs text-muted-foreground">Local port</div>
-                    <div className="mt-1 font-medium">127.0.0.1:{app.port}</div>
-                  </div>
-                  <div className="rounded-lg bg-muted/40 p-3">
-                    <div className="text-xs text-muted-foreground">Current release</div>
-                    <div className="mt-1 truncate font-medium">
-                      {app.currentReleaseId || 'Not deployed'}
-                    </div>
-                  </div>
-                </div>
-
-                {app.sourceType === 'git' && app.git && (
-                  <div className="grid gap-3 text-sm md:grid-cols-4">
-                    <div className="rounded-lg border border-border p-3">
-                      <div className="text-xs text-muted-foreground">Repository</div>
-                      <div className="mt-1 truncate font-medium">{app.git.url}</div>
-                    </div>
-                    <div className="rounded-lg border border-border p-3">
-                      <div className="text-xs text-muted-foreground">Branch</div>
-                      <div className="mt-1 font-medium">{app.git.branch}</div>
-                    </div>
-                    <div className="rounded-lg border border-border p-3">
-                      <div className="text-xs text-muted-foreground">Commit</div>
-                      <div className="mt-1 font-mono font-medium">
-                        {app.git.currentSha?.slice(0, 7) || 'Not fetched'}
-                      </div>
-                    </div>
-                    <div className="rounded-lg border border-border p-3">
-                      <div className="text-xs text-muted-foreground">Auto update</div>
-                      <div className="mt-1 font-medium">
-                        {app.git.autoUpdate.enabled
-                          ? `${app.git.autoUpdate.intervalMinutes} min`
-                          : 'Off'}
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                <div className="rounded-lg border border-border bg-muted/20 p-3 text-xs">
-                  <div className="mb-2 font-medium">TLS</div>
-                  <code>
-                    {app.tlsEnabled
-                      ? `Certbot-managed HTTPS requested for ${app.domain}.`
-                      : 'HTTP only. Enable SSL before deploying to request HTTPS.'}
-                  </code>
-                </div>
-
-                <div className="rounded-lg border border-border bg-muted/20 p-3 text-xs">
-                  <div className="mb-2 font-medium">DNS</div>
-                  <code>
-                    {app.dns?.summary ||
-                      `Create A record for ${app.domain} pointing at this server public IP.`}
-                  </code>
-                </div>
-
-                <div className="rounded-lg border border-border p-3">
-                  <div className="mb-2 text-xs font-medium text-muted-foreground">
-                    Environment variables
-                  </div>
-                  {Object.entries(app.envVars).length > 0 ? (
-                    <div className="space-y-2">
-                      {Object.entries(app.envVars).map(([key, value]) => {
-                        const token = `${app.id}:${key}`;
-                        const keyCopyToken = `${token}:key`;
-                        const valueCopyToken = `${token}:value`;
-                        const isRevealed = revealedEnvVars.has(token);
-
-                        return (
-                          <div
-                            key={key}
-                            className="grid gap-2 rounded-md bg-muted/30 p-2 text-xs sm:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)_36px]"
-                          >
-                            <button
-                              type="button"
-                              className="flex min-h-9 items-center gap-2 rounded px-2 text-left font-medium text-foreground transition-colors hover:bg-background focus:outline-none focus:ring-2 focus:ring-ring/20"
-                              title="Copy key"
-                              onClick={() => void copyToClipboard(key, keyCopyToken)}
-                            >
-                              <Copy className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                              <span className="truncate">{key}</span>
-                              {copiedTarget === keyCopyToken && (
-                                <span className="ml-auto text-[10px] text-success">Copied</span>
-                              )}
-                            </button>
-                            {isRevealed ? (
-                              <button
-                                type="button"
-                                className="flex min-h-9 items-center gap-2 rounded px-2 text-left font-mono text-foreground transition-colors hover:bg-background focus:outline-none focus:ring-2 focus:ring-ring/20"
-                                title="Copy value"
-                                onClick={() => void copyToClipboard(value, valueCopyToken)}
-                              >
-                                <Copy className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                                <span className="truncate">{value || '(empty)'}</span>
-                                {copiedTarget === valueCopyToken && (
-                                  <span className="ml-auto font-sans text-[10px] text-success">
-                                    Copied
-                                  </span>
-                                )}
-                              </button>
-                            ) : (
-                              <div className="flex min-h-9 items-center rounded px-2 font-mono text-muted-foreground">
-                                <span className="truncate">••••••••••••</span>
-                              </div>
-                            )}
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              aria-label={`${isRevealed ? 'Hide' : 'Show'} ${key}`}
-                              onClick={() => toggleEnvValue(app.id, key)}
-                            >
-                              {isRevealed ? (
-                                <EyeOff className="h-4 w-4" />
-                              ) : (
-                                <Eye className="h-4 w-4" />
-                              )}
-                            </Button>
-                          </div>
-                        );
-                      })}
-                    </div>
                   ) : (
+                    <Field id="git-url" label="Git HTTPS URL">
+                      <input
+                        id="git-url"
+                        className={fieldClassName()}
+                        placeholder="https://github.com/acme/app.git"
+                        value={form.gitUrl}
+                        onChange={(event) => updateForm('gitUrl', event.target.value)}
+                        required
+                      />
+                    </Field>
+                  )}
+                </div>
+
+                {form.sourceType === 'git' && (
+                  <div className="space-y-3 rounded-lg border border-border bg-muted/10 p-3">
+                    <div className="grid gap-3 sm:grid-cols-[1fr_150px]">
+                      <Field id="git-branch" label="Git branch">
+                        <input
+                          id="git-branch"
+                          className={fieldClassName()}
+                          placeholder="main"
+                          value={form.gitBranch}
+                          onChange={(event) => updateForm('gitBranch', event.target.value)}
+                          required
+                        />
+                      </Field>
+                      <Field id="auto-update-interval" label="Auto update interval">
+                        <select
+                          id="auto-update-interval"
+                          className={fieldClassName()}
+                          value={form.autoUpdateInterval}
+                          onChange={(event) => updateForm('autoUpdateInterval', event.target.value)}
+                          disabled={!form.autoUpdateEnabled}
+                        >
+                          {autoUpdateIntervals.map((interval) => (
+                            <option key={interval.value} value={interval.value}>
+                              {interval.label}
+                            </option>
+                          ))}
+                        </select>
+                      </Field>
+                    </div>
+                    <label
+                      htmlFor="auto-update"
+                      className="flex min-h-[44px] items-start gap-3 rounded-lg border border-border bg-background px-3 py-3 text-sm"
+                    >
+                      <input
+                        id="auto-update"
+                        type="checkbox"
+                        aria-label="Auto update"
+                        className="mt-0.5 h-4 w-4 rounded border-input accent-primary"
+                        checked={form.autoUpdateEnabled}
+                        onChange={(event) => updateForm('autoUpdateEnabled', event.target.checked)}
+                      />
+                      <span className="space-y-1">
+                        <span className="flex items-center gap-2 font-medium text-foreground">
+                          <RefreshCw className="h-4 w-4 text-primary" />
+                          Auto update from upstream
+                        </span>
+                        <span className="block text-xs leading-5 text-muted-foreground">
+                          ServerMon checks the git branch on schedule and deploys only when upstream
+                          changes are available.
+                        </span>
+                      </span>
+                    </label>
+                  </div>
+                )}
+
+                <div className="grid gap-3 sm:grid-cols-[1fr_120px]">
+                  <Field id="app-domain" label="Domain">
+                    <input
+                      id="app-domain"
+                      className={fieldClassName()}
+                      placeholder="app.example.com"
+                      value={form.domain}
+                      onChange={(event) => updateForm('domain', event.target.value)}
+                      required
+                    />
+                  </Field>
+                  <Field id="local-port" label="Local port">
+                    <input
+                      id="local-port"
+                      className={fieldClassName()}
+                      placeholder="3010"
+                      type="number"
+                      min="1"
+                      max="65535"
+                      value={form.port}
+                      onChange={(event) => updateForm('port', event.target.value)}
+                      required
+                    />
+                  </Field>
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <Field id="install-command" label="Install command">
+                    <input
+                      id="install-command"
+                      className={fieldClassName()}
+                      placeholder="pnpm install --frozen-lockfile"
+                      value={form.install}
+                      onChange={(event) => updateForm('install', event.target.value)}
+                      required
+                    />
+                  </Field>
+                  <Field id="build-command" label="Build command">
+                    <input
+                      id="build-command"
+                      className={fieldClassName()}
+                      placeholder="pnpm build"
+                      value={form.build}
+                      onChange={(event) => updateForm('build', event.target.value)}
+                      required
+                    />
+                  </Field>
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <Field id="start-command" label="Start command">
+                    <input
+                      id="start-command"
+                      className={fieldClassName()}
+                      placeholder="pnpm start"
+                      value={form.start}
+                      onChange={(event) => updateForm('start', event.target.value)}
+                      required
+                    />
+                  </Field>
+                  <Field id="health-check-path" label="Health check path">
+                    <input
+                      id="health-check-path"
+                      className={fieldClassName()}
+                      placeholder="/"
+                      value={form.healthCheckPath}
+                      onChange={(event) => updateForm('healthCheckPath', event.target.value)}
+                    />
+                  </Field>
+                </div>
+
+                <label
+                  htmlFor="enable-ssl"
+                  className="flex min-h-[44px] items-start gap-3 rounded-lg border border-border bg-muted/20 px-3 py-3 text-sm"
+                >
+                  <input
+                    id="enable-ssl"
+                    type="checkbox"
+                    aria-label="Enable SSL"
+                    className="mt-0.5 h-4 w-4 rounded border-input accent-primary"
+                    checked={form.tlsEnabled}
+                    onChange={(event) => updateForm('tlsEnabled', event.target.checked)}
+                  />
+                  <span className="space-y-1">
+                    <span className="flex items-center gap-2 font-medium text-foreground">
+                      <Lock className="h-4 w-4 text-primary" />
+                      Enable SSL
+                    </span>
+                    <span className="block text-xs leading-5 text-muted-foreground">
+                      Uses Certbot to issue a Let&apos;s Encrypt certificate and redirect HTTP to
+                      HTTPS during deployment.
+                    </span>
+                  </span>
+                </label>
+
+                <div className="space-y-2 rounded-lg border border-border bg-muted/10 p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="text-sm font-medium text-foreground">
+                        Environment variables
+                      </div>
+                      <div className="mt-1 text-xs leading-5 text-muted-foreground">
+                        Add one variable per row. Values are hidden by default after saving.
+                      </div>
+                    </div>
+                    <Button type="button" size="sm" variant="outline" onClick={addEnvRow}>
+                      <Plus className="h-3.5 w-3.5" />
+                      Add
+                    </Button>
+                  </div>
+
+                  {form.envVars.length > 0 && (
+                    <div className="space-y-2">
+                      {form.envVars.map((row, index) => (
+                        <div key={row.id} className="grid gap-2 sm:grid-cols-[1fr_1fr_44px]">
+                          <input
+                            className={fieldClassName()}
+                            aria-label={`Environment variable ${index + 1} key`}
+                            placeholder="NEXT_PUBLIC_APP_URL"
+                            value={row.key}
+                            onChange={(event) => updateEnvRow(row.id, 'key', event.target.value)}
+                          />
+                          <input
+                            className={fieldClassName()}
+                            aria-label={`Environment variable ${index + 1} value`}
+                            placeholder="https://app.example.com"
+                            value={row.value}
+                            onChange={(event) => updateEnvRow(row.id, 'value', event.target.value)}
+                          />
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            aria-label={`Remove environment variable ${index + 1}`}
+                            onClick={() => removeEnvRow(row.id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {form.envVars.length === 0 && (
                     <div className="rounded-md border border-dashed border-border px-3 py-4 text-center text-xs text-muted-foreground">
-                      No environment variables configured.
+                      No environment variables added.
                     </div>
                   )}
                 </div>
 
-                <div className="grid gap-3 lg:grid-cols-2">
-                  <div className="rounded-lg border border-border p-3">
-                    <div className="mb-2 text-xs font-medium text-muted-foreground">Commands</div>
-                    <pre className="whitespace-pre-wrap text-xs">{`${app.commands.install}\n${app.commands.build}\n${app.commands.start}`}</pre>
-                  </div>
-                  <div className="rounded-lg border border-border p-3">
-                    <div className="mb-2 text-xs font-medium text-muted-foreground">
-                      Latest logs
-                    </div>
-                    <pre className="max-h-40 overflow-auto whitespace-pre-wrap text-xs">
-                      {app.releases.at(-1)?.logs.join('\n') || 'No deployments yet.'}
-                    </pre>
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <Button
+                    type="button"
+                    className="w-full sm:w-auto"
+                    variant="outline"
+                    onClick={closeForm}
+                  >
+                    Cancel
+                  </Button>
+                  <Button type="submit" className="w-full sm:w-auto" loading={submitting}>
+                    {editingApp ? <Pencil className="h-4 w-4" /> : <Rocket className="h-4 w-4" />}
+                    {editingApp ? 'Save Changes' : 'Create App'}
+                  </Button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="space-y-3">
+        {apps.map((app) => (
+          <Card key={app.id}>
+            <CardHeader>
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <Globe2 className="h-4 w-4 text-primary" />
+                    {app.name}
+                  </CardTitle>
+                  <CardDescription className="mt-1">
+                    {app.sourceType === 'git' ? app.git?.url : app.sourcePath}
+                  </CardDescription>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  {statusBadge(app)}
+                  <Badge variant="outline">{app.sourceType === 'git' ? 'Git' : 'Local'}</Badge>
+                  {app.sourceType === 'git' && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => updateApp(app.id)}
+                      loading={updatingId === app.id}
+                    >
+                      <RefreshCw className="h-3.5 w-3.5" />
+                      Update
+                    </Button>
+                  )}
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={() => deployApp(app.id)}
+                    loading={deployingId === app.id}
+                  >
+                    <Play className="h-3.5 w-3.5" />
+                    Deploy
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    aria-label={`Edit ${app.name}`}
+                    onClick={() => startEditing(app)}
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                    Edit
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    aria-label={`Deployment history for ${app.name}`}
+                    onClick={() => setHistoryApp(app)}
+                  >
+                    <History className="h-3.5 w-3.5" />
+                    History
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="destructive"
+                    aria-label={`Delete ${app.name}`}
+                    onClick={() => setDeleteCandidate(app)}
+                    loading={deletingId === app.id}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    Delete
+                  </Button>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid gap-3 text-sm md:grid-cols-3">
+                <div className="rounded-lg bg-muted/40 p-3">
+                  <div className="text-xs text-muted-foreground">Public URL</div>
+                  <a
+                    href={`https://${app.domain}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="mt-1 flex items-center gap-1 font-medium text-primary"
+                  >
+                    {app.domain}
+                    <ExternalLink className="h-3 w-3" />
+                  </a>
+                </div>
+                <div className="rounded-lg bg-muted/40 p-3">
+                  <div className="text-xs text-muted-foreground">Local port</div>
+                  <div className="mt-1 font-medium">127.0.0.1:{app.port}</div>
+                </div>
+                <div className="rounded-lg bg-muted/40 p-3">
+                  <div className="text-xs text-muted-foreground">Current release</div>
+                  <div className="mt-1 truncate font-medium">
+                    {app.currentReleaseId || 'Not deployed'}
                   </div>
                 </div>
-              </CardContent>
-            </Card>
-          ))}
+              </div>
 
-          {apps.length === 0 && (
-            <Card>
-              <CardContent className="py-12 text-center text-sm text-muted-foreground">
-                Create your first app to start managing deployments from ServerMon.
-              </CardContent>
-            </Card>
-          )}
-        </div>
+              {app.sourceType === 'git' && app.git && (
+                <div className="grid gap-3 text-sm md:grid-cols-4">
+                  <div className="rounded-lg border border-border p-3">
+                    <div className="text-xs text-muted-foreground">Repository</div>
+                    <div className="mt-1 truncate font-medium">{app.git.url}</div>
+                  </div>
+                  <div className="rounded-lg border border-border p-3">
+                    <div className="text-xs text-muted-foreground">Branch</div>
+                    <div className="mt-1 font-medium">{app.git.branch}</div>
+                  </div>
+                  <div className="rounded-lg border border-border p-3">
+                    <div className="text-xs text-muted-foreground">Commit</div>
+                    <div className="mt-1 font-mono font-medium">
+                      {app.git.currentSha?.slice(0, 7) || 'Not fetched'}
+                    </div>
+                  </div>
+                  <div className="rounded-lg border border-border p-3">
+                    <div className="text-xs text-muted-foreground">Auto update</div>
+                    <div className="mt-1 font-medium">
+                      {app.git.autoUpdate.enabled
+                        ? `${app.git.autoUpdate.intervalMinutes} min`
+                        : 'Off'}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className="rounded-lg border border-border bg-muted/20 p-3 text-xs">
+                <div className="mb-2 font-medium">TLS</div>
+                <code>
+                  {app.tlsEnabled
+                    ? `Certbot-managed HTTPS requested for ${app.domain}.`
+                    : 'HTTP only. Enable SSL before deploying to request HTTPS.'}
+                </code>
+              </div>
+
+              <div className="rounded-lg border border-border bg-muted/20 p-3 text-xs">
+                <div className="mb-2 font-medium">DNS</div>
+                <code>
+                  {app.dns?.summary ||
+                    `Create A record for ${app.domain} pointing at this server public IP.`}
+                </code>
+              </div>
+
+              <div className="rounded-lg border border-border p-3">
+                <div className="mb-2 text-xs font-medium text-muted-foreground">
+                  Environment variables
+                </div>
+                {Object.entries(app.envVars).length > 0 ? (
+                  <div className="space-y-2">
+                    {Object.entries(app.envVars).map(([key, value]) => {
+                      const token = `${app.id}:${key}`;
+                      const keyCopyToken = `${token}:key`;
+                      const valueCopyToken = `${token}:value`;
+                      const isRevealed = revealedEnvVars.has(token);
+
+                      return (
+                        <div
+                          key={key}
+                          className="grid gap-2 rounded-md bg-muted/30 p-2 text-xs sm:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)_36px]"
+                        >
+                          <button
+                            type="button"
+                            className="flex min-h-9 items-center gap-2 rounded px-2 text-left font-medium text-foreground transition-colors hover:bg-background focus:outline-none focus:ring-2 focus:ring-ring/20"
+                            title="Copy key"
+                            onClick={() => void copyToClipboard(key, keyCopyToken)}
+                          >
+                            <Copy className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                            <span className="truncate">{key}</span>
+                            {copiedTarget === keyCopyToken && (
+                              <span className="ml-auto text-[10px] text-success">Copied</span>
+                            )}
+                          </button>
+                          {isRevealed ? (
+                            <button
+                              type="button"
+                              className="flex min-h-9 items-center gap-2 rounded px-2 text-left font-mono text-foreground transition-colors hover:bg-background focus:outline-none focus:ring-2 focus:ring-ring/20"
+                              title="Copy value"
+                              onClick={() => void copyToClipboard(value, valueCopyToken)}
+                            >
+                              <Copy className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                              <span className="truncate">{value || '(empty)'}</span>
+                              {copiedTarget === valueCopyToken && (
+                                <span className="ml-auto font-sans text-[10px] text-success">
+                                  Copied
+                                </span>
+                              )}
+                            </button>
+                          ) : (
+                            <div className="flex min-h-9 items-center rounded px-2 font-mono text-muted-foreground">
+                              <span className="truncate">••••••••••••</span>
+                            </div>
+                          )}
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            aria-label={`${isRevealed ? 'Hide' : 'Show'} ${key}`}
+                            onClick={() => toggleEnvValue(app.id, key)}
+                          >
+                            {isRevealed ? (
+                              <EyeOff className="h-4 w-4" />
+                            ) : (
+                              <Eye className="h-4 w-4" />
+                            )}
+                          </Button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="rounded-md border border-dashed border-border px-3 py-4 text-center text-xs text-muted-foreground">
+                    No environment variables configured.
+                  </div>
+                )}
+              </div>
+
+              <div className="grid gap-3 lg:grid-cols-2">
+                <div className="rounded-lg border border-border p-3">
+                  <div className="mb-2 text-xs font-medium text-muted-foreground">Commands</div>
+                  <pre className="whitespace-pre-wrap text-xs">{`${app.commands.install}\n${app.commands.build}\n${app.commands.start}`}</pre>
+                </div>
+                <div className="rounded-lg border border-border p-3">
+                  <div className="mb-2 text-xs font-medium text-muted-foreground">Latest logs</div>
+                  <pre className="max-h-40 overflow-auto whitespace-pre-wrap text-xs">
+                    {app.releases.at(-1)?.logs.join('\n') || 'No deployments yet.'}
+                  </pre>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+
+        {apps.length === 0 && (
+          <Card>
+            <CardContent className="py-12 text-center text-sm text-muted-foreground">
+              Create your first app to start managing deployments from ServerMon.
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       <ConfirmationModal
