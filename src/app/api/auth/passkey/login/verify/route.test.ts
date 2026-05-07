@@ -2,17 +2,18 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { NextRequest } from 'next/server';
 
-const { mockFindOne, mockVerifyPasskeyLogin, mockLogin } = vi.hoisted(() => ({
+const { mockFindOne, mockVerifyPasskeyLogin, mockLogin, mockLogger } = vi.hoisted(() => ({
   mockFindOne: vi.fn(),
   mockVerifyPasskeyLogin: vi.fn(),
   mockLogin: vi.fn(),
+  mockLogger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }));
 
 vi.mock('@/lib/db', () => ({
   default: vi.fn().mockResolvedValue({ connection: { name: 'testdb' } }),
 }));
 vi.mock('@/lib/logger', () => ({
-  createLogger: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }),
+  createLogger: () => mockLogger,
 }));
 vi.mock('@/models/User', () => ({
   default: { findOne: mockFindOne },
@@ -101,6 +102,19 @@ describe('POST /api/auth/passkey/login/verify', () => {
     expect(res.status).toBe(404);
     const json = await res.json();
     expect(json.error).toBe('User not found');
+  });
+
+  it('does not log raw credential IDs during lookup failures', async () => {
+    mockFindOne.mockResolvedValue(null);
+    const req = makeRequest(loginBody, 'challenge-xyz');
+
+    await POST(req);
+
+    const logOutput = [...mockLogger.info.mock.calls, ...mockLogger.warn.mock.calls]
+      .flat()
+      .join('\n');
+    expect(logOutput).not.toContain('cred-1');
+    expect(logOutput).toContain('credential prefix: cred...');
   });
 
   it('returns 400 when passkey not on user', async () => {
