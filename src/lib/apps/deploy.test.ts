@@ -45,14 +45,14 @@ describe('deployNextJsApp', () => {
         slug: 'lifeos',
         templateId: 'nextjs',
         sourcePath,
-        domain: 'life.manthanby.cv',
+        domain: 'app.example.com',
         port: 3010,
         commands: {
           install: 'pnpm install --frozen-lockfile',
           build: 'pnpm build',
           start: 'pnpm start',
         },
-        envVars: { NEXT_PUBLIC_APP_URL: 'https://life.manthanby.cv' },
+        envVars: { NEXT_PUBLIC_APP_URL: 'https://app.example.com' },
         healthCheckPath: '/',
         status: 'draft',
       },
@@ -80,7 +80,7 @@ describe('deployNextJsApp', () => {
       'nginx -s reload',
     ]);
     await expect(readFile(path.join(dirs.root, 'lifeos', 'current', 'env'), 'utf8')).resolves.toBe(
-      "NEXT_PUBLIC_APP_URL='https://life.manthanby.cv'\nPORT='3010'\n"
+      "NEXT_PUBLIC_APP_URL='https://app.example.com'\nPORT='3010'\n"
     );
     await expect(
       readFile(
@@ -91,8 +91,8 @@ describe('deployNextJsApp', () => {
     await expect(
       readFile(path.join(dirs.systemdDir, 'servermon-app-lifeos.service'), 'utf8')
     ).resolves.toContain('WorkingDirectory=' + path.join(dirs.root, 'lifeos', 'current', 'source'));
-    await expect(readlink(path.join(dirs.nginxEnabledDir, 'life.manthanby.cv'))).resolves.toBe(
-      path.join(dirs.nginxAvailableDir, 'life.manthanby.cv')
+    await expect(readlink(path.join(dirs.nginxEnabledDir, 'app.example.com'))).resolves.toBe(
+      path.join(dirs.nginxAvailableDir, 'app.example.com')
     );
   });
 
@@ -112,7 +112,7 @@ describe('deployNextJsApp', () => {
         slug: 'lifeos',
         templateId: 'nextjs',
         sourcePath,
-        domain: 'life.manthanby.cv',
+        domain: 'app.example.com',
         port: 3010,
         commands: {
           install: 'pnpm install',
@@ -161,7 +161,7 @@ describe('deployNextJsApp', () => {
         slug: 'lifeos',
         templateId: 'nextjs',
         sourcePath,
-        domain: 'life.manthanby.cv',
+        domain: 'app.example.com',
         port: 3010,
         commands: {
           install: 'pnpm install',

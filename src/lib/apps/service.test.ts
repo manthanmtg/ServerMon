@@ -11,8 +11,8 @@ describe('apps service helpers', () => {
   it('normalizes create input into a nextjs managed app config', () => {
     const parsed = CreateManagedAppSchema.parse({
       name: 'LifeOS',
-      sourcePath: '/Users/manthanby/mby_repos/LifeOS',
-      domain: 'life.manthanby.cv',
+      sourcePath: '/srv/apps/inventory-portal',
+      domain: 'app.example.com',
       port: 3010,
       commands: {
         install: 'pnpm install --frozen-lockfile',
@@ -20,7 +20,7 @@ describe('apps service helpers', () => {
         start: 'pnpm start',
       },
       envVars: {
-        NEXT_PUBLIC_APP_URL: 'https://life.manthanby.cv',
+        NEXT_PUBLIC_APP_URL: 'https://app.example.com',
         OPENAI_API_KEY: 'sk-test',
       },
     });
@@ -29,8 +29,8 @@ describe('apps service helpers', () => {
       name: 'LifeOS',
       slug: 'lifeos',
       templateId: 'nextjs',
-      sourcePath: '/Users/manthanby/mby_repos/LifeOS',
-      domain: 'life.manthanby.cv',
+      sourcePath: '/srv/apps/inventory-portal',
+      domain: 'app.example.com',
       port: 3010,
       commands: {
         install: 'pnpm install --frozen-lockfile',
@@ -38,7 +38,7 @@ describe('apps service helpers', () => {
         start: 'pnpm start',
       },
       envVars: {
-        NEXT_PUBLIC_APP_URL: 'https://life.manthanby.cv',
+        NEXT_PUBLIC_APP_URL: 'https://app.example.com',
         OPENAI_API_KEY: 'sk-test',
       },
       healthCheckPath: '/',
@@ -77,11 +77,11 @@ describe('apps service helpers', () => {
         slug: 'lifeos',
         templateId: 'nextjs',
         sourcePath: '/srv/lifeos',
-        domain: 'life.manthanby.cv',
+        domain: 'app.example.com',
         port: 3010,
         commands: { install: 'pnpm install', build: 'pnpm build', start: 'pnpm start' },
         envVars: new Map([
-          ['NEXT_PUBLIC_APP_URL', 'https://life.manthanby.cv'],
+          ['NEXT_PUBLIC_APP_URL', 'https://app.example.com'],
           ['OPENAI_API_KEY', 'sk-secret'],
         ]),
         healthCheckPath: '/',
@@ -103,10 +103,10 @@ describe('apps service helpers', () => {
     );
 
     expect(dto.envVars).toEqual({
-      NEXT_PUBLIC_APP_URL: 'https://life.manthanby.cv',
+      NEXT_PUBLIC_APP_URL: 'https://app.example.com',
       OPENAI_API_KEY: '***',
     });
-    expect(dto.dns?.summary).toBe('Create A record: life.manthanby.cv -> 203.0.113.10');
+    expect(dto.dns?.summary).toBe('Create A record: app.example.com -> 203.0.113.10');
     expect(dto.releases[0]?.createdAt).toBe('2026-05-06T12:34:56.789Z');
   });
 });

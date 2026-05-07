@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import { FormEvent, type ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Boxes,
   CheckCircle2,
@@ -15,9 +15,10 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import type { ManagedAppDTO } from '../types';
+import type { AppTemplateId, ManagedAppDTO } from '../types';
 
 interface FormState {
+  templateId: AppTemplateId;
   name: string;
   sourcePath: string;
   domain: string;
@@ -30,6 +31,7 @@ interface FormState {
 }
 
 const initialForm: FormState = {
+  templateId: 'nextjs',
   name: '',
   sourcePath: '',
   domain: '',
@@ -40,6 +42,14 @@ const initialForm: FormState = {
   healthCheckPath: '/',
   envText: '',
 };
+
+const templates: Array<{ id: AppTemplateId; label: string; description: string }> = [
+  {
+    id: 'nextjs',
+    label: 'Next.js App',
+    description: 'Pure Next.js app deployed with managed releases, systemd, and Nginx.',
+  },
+];
 
 function parseEnvText(value: string): Record<string, string> {
   return Object.fromEntries(
@@ -76,7 +86,29 @@ function statusBadge(app: ManagedAppDTO) {
 }
 
 function fieldClassName() {
-  return 'min-h-[44px] rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-ring focus:ring-2 focus:ring-ring/20';
+  return 'min-h-[44px] w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-ring focus:ring-2 focus:ring-ring/20';
+}
+
+function Field({
+  id,
+  label,
+  hint,
+  children,
+}: {
+  id: string;
+  label: string;
+  hint?: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="space-y-1.5">
+      <label htmlFor={id} className="block text-sm font-medium text-foreground">
+        {label}
+      </label>
+      {children}
+      {hint && <span className="block text-xs leading-5 text-muted-foreground">{hint}</span>}
+    </div>
+  );
 }
 
 export default function AppsPage() {
@@ -126,6 +158,7 @@ export default function AppsPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          templateId: form.templateId,
           name: form.name,
           sourcePath: form.sourcePath,
           domain: form.domain,
@@ -220,82 +253,146 @@ export default function AppsPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Rocket className="h-4 w-4 text-primary" />
-              New Next.js App
+              New App
             </CardTitle>
             <CardDescription>
-              Linux-first deployment using managed releases, systemd, and Nginx.
+              Pick a template, point ServerMon at the source repo, and configure how it should run.
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <form onSubmit={createApp} className="space-y-3">
-              <input
-                className={fieldClassName()}
-                placeholder="App name, e.g. LifeOS"
-                value={form.name}
-                onChange={(event) => updateForm('name', event.target.value)}
-                required
-              />
-              <input
-                className={fieldClassName()}
-                placeholder="/Users/manthanby/mby_repos/LifeOS"
-                value={form.sourcePath}
-                onChange={(event) => updateForm('sourcePath', event.target.value)}
-                required
-              />
-              <div className="grid gap-3 sm:grid-cols-[1fr_110px]">
-                <input
+            <form onSubmit={createApp} className="space-y-4">
+              <Field
+                id="app-template"
+                label="Template"
+                hint={templates.find((template) => template.id === form.templateId)?.description}
+              >
+                <select
+                  id="app-template"
                   className={fieldClassName()}
-                  placeholder="life.manthanby.cv"
-                  value={form.domain}
-                  onChange={(event) => updateForm('domain', event.target.value)}
+                  value={form.templateId}
+                  onChange={(event) =>
+                    updateForm('templateId', event.target.value as AppTemplateId)
+                  }
                   required
-                />
-                <input
-                  className={fieldClassName()}
-                  placeholder="3010"
-                  type="number"
-                  min="1"
-                  max="65535"
-                  value={form.port}
-                  onChange={(event) => updateForm('port', event.target.value)}
-                  required
-                />
+                >
+                  {templates.map((template) => (
+                    <option key={template.id} value={template.id}>
+                      {template.label}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Field id="app-name" label="App name">
+                  <input
+                    id="app-name"
+                    className={fieldClassName()}
+                    placeholder="Inventory Portal"
+                    value={form.name}
+                    onChange={(event) => updateForm('name', event.target.value)}
+                    required
+                  />
+                </Field>
+                <Field id="source-path" label="Source path">
+                  <input
+                    id="source-path"
+                    className={fieldClassName()}
+                    placeholder="/srv/apps/inventory-portal"
+                    value={form.sourcePath}
+                    onChange={(event) => updateForm('sourcePath', event.target.value)}
+                    required
+                  />
+                </Field>
               </div>
-              <input
-                className={fieldClassName()}
-                placeholder="Install command"
-                value={form.install}
-                onChange={(event) => updateForm('install', event.target.value)}
-                required
-              />
-              <input
-                className={fieldClassName()}
-                placeholder="Build command"
-                value={form.build}
-                onChange={(event) => updateForm('build', event.target.value)}
-                required
-              />
-              <input
-                className={fieldClassName()}
-                placeholder="Start command"
-                value={form.start}
-                onChange={(event) => updateForm('start', event.target.value)}
-                required
-              />
-              <input
-                className={fieldClassName()}
-                placeholder="/ health check path"
-                value={form.healthCheckPath}
-                onChange={(event) => updateForm('healthCheckPath', event.target.value)}
-              />
-              <textarea
-                className={`${fieldClassName()} min-h-[120px] w-full resize-y`}
-                placeholder={
-                  'Environment variables, one per line\nNEXT_PUBLIC_APP_URL=https://life.manthanby.cv'
-                }
-                value={form.envText}
-                onChange={(event) => updateForm('envText', event.target.value)}
-              />
+
+              <div className="grid gap-3 sm:grid-cols-[1fr_120px]">
+                <Field id="app-domain" label="Domain">
+                  <input
+                    id="app-domain"
+                    className={fieldClassName()}
+                    placeholder="app.example.com"
+                    value={form.domain}
+                    onChange={(event) => updateForm('domain', event.target.value)}
+                    required
+                  />
+                </Field>
+                <Field id="local-port" label="Local port">
+                  <input
+                    id="local-port"
+                    className={fieldClassName()}
+                    placeholder="3010"
+                    type="number"
+                    min="1"
+                    max="65535"
+                    value={form.port}
+                    onChange={(event) => updateForm('port', event.target.value)}
+                    required
+                  />
+                </Field>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Field id="install-command" label="Install command">
+                  <input
+                    id="install-command"
+                    className={fieldClassName()}
+                    placeholder="pnpm install --frozen-lockfile"
+                    value={form.install}
+                    onChange={(event) => updateForm('install', event.target.value)}
+                    required
+                  />
+                </Field>
+                <Field id="build-command" label="Build command">
+                  <input
+                    id="build-command"
+                    className={fieldClassName()}
+                    placeholder="pnpm build"
+                    value={form.build}
+                    onChange={(event) => updateForm('build', event.target.value)}
+                    required
+                  />
+                </Field>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Field id="start-command" label="Start command">
+                  <input
+                    id="start-command"
+                    className={fieldClassName()}
+                    placeholder="pnpm start"
+                    value={form.start}
+                    onChange={(event) => updateForm('start', event.target.value)}
+                    required
+                  />
+                </Field>
+                <Field id="health-check-path" label="Health check path">
+                  <input
+                    id="health-check-path"
+                    className={fieldClassName()}
+                    placeholder="/"
+                    value={form.healthCheckPath}
+                    onChange={(event) => updateForm('healthCheckPath', event.target.value)}
+                  />
+                </Field>
+              </div>
+
+              <Field
+                id="environment-variables"
+                label="Environment variables"
+                hint="One KEY=value pair per line. Secret-looking values are masked after saving."
+              >
+                <textarea
+                  id="environment-variables"
+                  className={`${fieldClassName()} min-h-[132px] resize-y`}
+                  placeholder={
+                    'NEXT_PUBLIC_APP_URL=https://app.example.com\nAPI_BASE_URL=https://api.example.com'
+                  }
+                  value={form.envText}
+                  onChange={(event) => updateForm('envText', event.target.value)}
+                />
+              </Field>
+
               <Button type="submit" className="w-full" loading={submitting}>
                 <Rocket className="h-4 w-4" />
                 Create App
@@ -385,7 +482,7 @@ export default function AppsPage() {
           {apps.length === 0 && (
             <Card>
               <CardContent className="py-12 text-center text-sm text-muted-foreground">
-                Create your first Next.js app to start managing deployments from ServerMon.
+                Create your first app to start managing deployments from ServerMon.
               </CardContent>
             </Card>
           )}

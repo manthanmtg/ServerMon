@@ -71,7 +71,7 @@ describe('/api/modules/apps', () => {
       makeRequest({
         name: 'LifeOS',
         sourcePath: '/srv/lifeos',
-        domain: 'life.manthanby.cv',
+        domain: 'app.example.com',
         port: 3010,
         commands: {
           install: 'pnpm install',
