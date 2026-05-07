@@ -477,6 +477,21 @@ function buildPostgresExplorerUrl(input: {
   }:${input.targetPort}/${encodeCredential(input.databaseName)}?sslmode=disable`;
 }
 
+function buildMongoExplorerUrl(input: {
+  username: string;
+  password: string;
+  targetHost: string;
+  targetPort: number;
+  databaseName: string;
+  sslMode?: DatabaseSslMode;
+}): string {
+  const query = new URLSearchParams({ authSource: 'admin' });
+  if (input.sslMode === 'require') query.set('tls', 'true');
+  return `mongodb://${encodeCredential(input.username)}:${encodeCredential(input.password)}@${
+    input.targetHost
+  }:${input.targetPort}/${encodeCredential(input.databaseName)}?${query.toString()}`;
+}
+
 export function buildExplorerProxyPath(id: string): string {
   return `/api/modules/databases/${encodeURIComponent(id)}/explore/proxy/`;
 }
@@ -493,6 +508,8 @@ export function buildDatabaseExplorerRunRequest(input: {
   databaseName: string;
   proxyPath: string;
   networkName?: string;
+  sslMode?: DatabaseSslMode;
+  tlsPaths?: MongoTlsPaths;
 }): DockerRunRequest {
   const containerName = `servermon-db-explorer-${sanitizeDatabaseSlug(input.slug)}`;
   const internalPort = getExplorerInternalPort(input.templateId);
@@ -512,9 +529,17 @@ export function buildDatabaseExplorerRunRequest(input: {
     args.push('--network', input.networkName);
   }
 
+  if (input.templateId === 'mongo' && input.sslMode === 'require') {
+    if (!input.tlsPaths) {
+      throw new Error('Mongo TLS paths are required for TLS-required Explorer sidecars');
+    }
+    args.push('-v', `${input.tlsPaths.dir}:${MONGO_TLS_CONTAINER_DIR}:ro`);
+  }
+
   const env: Record<string, string> =
     input.templateId === 'mongo'
       ? {
+          ME_CONFIG_MONGODB_URL: buildMongoExplorerUrl(input),
           ME_CONFIG_MONGODB_SERVER: input.targetHost,
           ME_CONFIG_MONGODB_PORT: String(input.targetPort),
           ME_CONFIG_MONGODB_ADMINUSERNAME: input.username,
@@ -523,6 +548,13 @@ export function buildDatabaseExplorerRunRequest(input: {
           ME_CONFIG_MONGODB_ENABLE_ADMIN: 'true',
           ME_CONFIG_BASICAUTH: 'false',
           ME_CONFIG_SITE_BASEURL: input.proxyPath,
+          ...(input.sslMode === 'require'
+            ? {
+                ME_CONFIG_MONGODB_TLS: 'true',
+                ME_CONFIG_MONGODB_TLS_ALLOW_CERTS: 'false',
+                ME_CONFIG_MONGODB_TLS_CA_FILE: `${MONGO_TLS_CONTAINER_DIR}/ca.crt`,
+              }
+            : {}),
         }
       : input.templateId === 'postgres'
         ? {
@@ -1022,6 +1054,10 @@ export async function startManagedDatabaseExplorer(
     const target = await resolveDatabaseContainerTarget(db, runner);
     const hostPort = await findAvailableLocalPort();
     const proxyPath = buildExplorerProxyPath(dbId);
+    const tlsPaths =
+      db.templateId === 'mongo' && db.sslMode === 'require'
+        ? buildMongoTlsPaths(getDatabaseInstanceRoot(db.dataPath))
+        : undefined;
     const request = buildDatabaseExplorerRunRequest({
       id: dbId,
       slug: db.slug,
@@ -1034,6 +1070,8 @@ export async function startManagedDatabaseExplorer(
       databaseName: db.databaseName,
       proxyPath,
       networkName: target.networkName,
+      sslMode: db.sslMode,
+      tlsPaths,
     });
 
     db.explorerContainerName = request.containerName;

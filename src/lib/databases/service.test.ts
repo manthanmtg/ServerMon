@@ -294,6 +294,35 @@ describe('database service helpers', () => {
     );
   });
 
+  it('builds mongo-express sidecars with TLS settings for TLS-required Mongo databases', () => {
+    const tlsPaths = buildMongoTlsPaths('/var/lib/servermon/databases/main-mongo');
+    const request = buildDatabaseExplorerRunRequest({
+      id: 'db-1',
+      slug: 'main-mongo',
+      templateId: 'mongo',
+      targetHost: '172.17.0.2',
+      targetPort: 27017,
+      hostPort: 49152,
+      username: 'root',
+      password: 'mongo-pass',
+      databaseName: 'appdb',
+      proxyPath: '/api/modules/databases/db-1/explore/proxy/',
+      networkName: 'bridge',
+      sslMode: 'require',
+      tlsPaths,
+    });
+
+    expect(request.args).toContain(
+      '/var/lib/servermon/databases/main-mongo/tls:/etc/servermon-db-tls:ro'
+    );
+    expect(request.args).toContain(
+      'ME_CONFIG_MONGODB_URL=mongodb://root:mongo-pass@172.17.0.2:27017/appdb?authSource=admin&tls=true'
+    );
+    expect(request.args).toContain('ME_CONFIG_MONGODB_TLS=true');
+    expect(request.args).toContain('ME_CONFIG_MONGODB_TLS_ALLOW_CERTS=false');
+    expect(request.args).toContain('ME_CONFIG_MONGODB_TLS_CA_FILE=/etc/servermon-db-tls/ca.crt');
+  });
+
   it('waits for the explorer HTTP listener before marking it ready', async () => {
     const fetcher = vi
       .fn()
