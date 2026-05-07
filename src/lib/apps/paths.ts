@@ -9,6 +9,10 @@ export function getAppRoot(appSlug: string, appsRoot = getAppsRoot()): string {
   return path.join(appsRoot, sanitizeAppSlug(appSlug));
 }
 
+export function getAppRepositoryRoot(appSlug: string, appsRoot = getAppsRoot()): string {
+  return path.join(getAppRoot(appSlug, appsRoot), 'repository');
+}
+
 export function getReleaseRoot(
   appSlug: string,
   releaseId: string,

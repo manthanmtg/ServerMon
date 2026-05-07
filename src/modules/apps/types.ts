@@ -1,6 +1,8 @@
 export type AppTemplateId = 'nextjs';
 
 export type ManagedAppStatus = 'draft' | 'deploying' | 'running' | 'failed' | 'stopped' | 'unknown';
+export type AppSourceType = 'local' | 'git';
+export type AppAutoUpdateStatus = 'idle' | 'updated' | 'unchanged' | 'failed';
 
 export interface AppCommands {
   install: string;
@@ -22,7 +24,16 @@ export interface ManagedAppDTO {
   name: string;
   slug: string;
   templateId: AppTemplateId;
-  sourcePath: string;
+  sourceType: AppSourceType;
+  sourcePath?: string;
+  git?: {
+    url: string;
+    branch: string;
+    currentSha?: string;
+    lastCheckedAt?: string;
+    lastUpdatedAt?: string;
+    autoUpdate: AppAutoUpdate;
+  };
   domain: string;
   port: number;
   commands: AppCommands;
@@ -36,6 +47,15 @@ export interface ManagedAppDTO {
   createdAt?: string;
   updatedAt?: string;
   lastDeployedAt?: string;
+}
+
+export interface AppAutoUpdate {
+  enabled: boolean;
+  intervalMinutes: number;
+  nextRunAt?: string;
+  lastRunAt?: string;
+  lastStatus?: AppAutoUpdateStatus;
+  lastError?: string;
 }
 
 export interface AppTemplate {
@@ -56,7 +76,14 @@ export interface DnsInstructions {
 
 export interface CreateManagedAppInput {
   name: string;
-  sourcePath: string;
+  sourceType?: AppSourceType;
+  sourcePath?: string;
+  gitUrl?: string;
+  gitBranch?: string;
+  autoUpdate?: {
+    enabled?: boolean;
+    intervalMinutes?: number;
+  };
   domain: string;
   port: number;
   commands: AppCommands;

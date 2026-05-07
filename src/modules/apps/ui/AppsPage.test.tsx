@@ -22,6 +22,8 @@ describe('AppsPage', () => {
 
     expect(await screen.findByText('New App')).toBeTruthy();
     expect(screen.getByLabelText('Template')).toHaveValue('nextjs');
+    expect(screen.getByLabelText('Local folder')).toBeChecked();
+    expect(screen.getByLabelText('Git repository')).toBeTruthy();
     expect(screen.getByLabelText('App name')).toBeTruthy();
     expect(screen.getByLabelText('Source path')).toBeTruthy();
     expect(screen.getByLabelText('Domain')).toBeTruthy();
@@ -34,6 +36,66 @@ describe('AppsPage', () => {
     expect(screen.getByText('Environment variables')).toBeTruthy();
     expect(screen.getByPlaceholderText('/srv/apps/inventory-portal')).toBeTruthy();
     expect(screen.getByPlaceholderText('app.example.com')).toBeTruthy();
+  });
+
+  it('submits git source settings with auto update enabled', async () => {
+    global.fetch = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ apps: [] }),
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ app: { id: 'app-1', name: 'Git Portal' } }),
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ apps: [] }),
+      } as Response);
+
+    render(<AppsPage />);
+    await screen.findByText('New App');
+
+    fireEvent.click(screen.getByLabelText('Git repository'));
+    fireEvent.change(screen.getByLabelText('App name'), {
+      target: { value: 'Git Portal' },
+    });
+    fireEvent.change(screen.getByLabelText('Git HTTPS URL'), {
+      target: { value: 'https://github.com/acme/git-portal.git' },
+    });
+    fireEvent.change(screen.getByLabelText('Git branch'), {
+      target: { value: 'production' },
+    });
+    fireEvent.change(screen.getByLabelText('Domain'), {
+      target: { value: 'git.example.com' },
+    });
+    fireEvent.click(screen.getByLabelText('Auto update'));
+    fireEvent.change(screen.getByLabelText('Auto update interval'), {
+      target: { value: '30' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /create app/i }));
+
+    await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(3));
+    expect(global.fetch).toHaveBeenNthCalledWith(
+      2,
+      '/api/modules/apps',
+      expect.objectContaining({
+        method: 'POST',
+        body: expect.stringContaining('"sourceType":"git"'),
+      })
+    );
+    const body = JSON.parse((global.fetch as ReturnType<typeof vi.fn>).mock.calls[1][1].body);
+    expect(body).toMatchObject({
+      sourceType: 'git',
+      gitUrl: 'https://github.com/acme/git-portal.git',
+      gitBranch: 'production',
+      autoUpdate: {
+        enabled: true,
+        intervalMinutes: 30,
+      },
+    });
+    expect(body.sourcePath).toBeUndefined();
   });
 
   it('submits the selected template with the app definition', async () => {
@@ -87,6 +149,7 @@ describe('AppsPage', () => {
         method: 'POST',
         body: JSON.stringify({
           templateId: 'nextjs',
+          sourceType: 'local',
           name: 'Inventory Portal',
           sourcePath: '/srv/apps/inventory-portal',
           domain: 'inventory.example.com',
@@ -116,6 +179,7 @@ describe('AppsPage', () => {
             name: 'Inventory Portal',
             slug: 'inventory-portal',
             templateId: 'nextjs',
+            sourceType: 'local',
             sourcePath: '/srv/apps/inventory-portal',
             domain: 'inventory.example.com',
             port: 3010,
@@ -159,5 +223,54 @@ describe('AppsPage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Hide OPENAI_API_KEY' }));
     expect(screen.queryByText('sk-secret')).toBeNull();
+  });
+
+  it('shows update controls for git-backed apps', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        apps: [
+          {
+            id: 'app-1',
+            name: 'Git Portal',
+            slug: 'git-portal',
+            templateId: 'nextjs',
+            sourceType: 'git',
+            git: {
+              url: 'https://github.com/acme/git-portal.git',
+              branch: 'main',
+              currentSha: 'abcdef123456',
+              lastCheckedAt: '2026-05-07T00:00:00.000Z',
+              autoUpdate: {
+                enabled: true,
+                intervalMinutes: 60,
+                lastStatus: 'updated',
+              },
+            },
+            domain: 'git.example.com',
+            port: 3010,
+            commands: {
+              install: 'pnpm install --frozen-lockfile',
+              build: 'pnpm build',
+              start: 'pnpm start',
+            },
+            envVars: {},
+            healthCheckPath: '/',
+            tlsEnabled: false,
+            status: 'running',
+            releases: [],
+          },
+        ],
+      }),
+    } as Response);
+
+    render(<AppsPage />);
+    await screen.findByText('Git Portal');
+
+    expect(screen.getByText('Git')).toBeTruthy();
+    expect(screen.getAllByText('https://github.com/acme/git-portal.git').length).toBeGreaterThan(0);
+    expect(screen.getByText('main')).toBeTruthy();
+    expect(screen.getByText('abcdef1')).toBeTruthy();
+    expect(screen.getByRole('button', { name: /update/i })).toBeTruthy();
   });
 });

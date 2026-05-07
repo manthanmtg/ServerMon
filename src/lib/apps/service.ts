@@ -3,13 +3,16 @@ import { isIP } from 'node:net';
 import connectDB from '@/lib/db';
 import ManagedApp, { type IManagedApp } from '@/models/ManagedApp';
 import type {
+  AppAutoUpdate,
   AppTemplate,
   CreateManagedAppInput,
   ManagedAppDTO,
   ManagedAppStatus,
 } from '@/modules/apps/types';
 import { buildDnsInstructions, sanitizeAppSlug } from './rendering';
-import { deployNextJsApp } from './deploy';
+import { defaultCommandRunner, deployNextJsApp, type DeployNextJsAppResult } from './deploy';
+import { getAppRepositoryRoot } from './paths';
+import { isHttpsGitUrl, prepareGitSourceForDeploy } from './git';
 
 const DOMAIN_PATTERN = /^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$/;
 
@@ -30,25 +33,64 @@ const templates: Record<string, AppTemplate> = {
   [NextJsAppTemplate.id]: NextJsAppTemplate,
 };
 
-export const CreateManagedAppSchema = z.object({
-  name: z.string().trim().min(1).max(80),
-  sourcePath: z.string().trim().min(1),
-  domain: z.string().trim().toLowerCase().regex(DOMAIN_PATTERN, 'Invalid domain'),
-  port: z.number().int().min(1).max(65535),
-  commands: z.object({
-    install: z.string().trim().min(1),
-    build: z.string().trim().min(1),
-    start: z.string().trim().min(1),
-  }),
-  envVars: z.record(z.string().regex(/^[A-Za-z_][A-Za-z0-9_]*$/), z.string()).default({}),
-  healthCheckPath: z
-    .string()
-    .trim()
-    .regex(/^\/[^\s]*$/, 'Health check path must start with /')
-    .default('/'),
-  tlsEnabled: z.boolean().default(false),
-  templateId: z.enum(['nextjs']).default('nextjs'),
-});
+export const CreateManagedAppSchema = z
+  .object({
+    name: z.string().trim().min(1).max(80),
+    sourceType: z.enum(['local', 'git']).default('local'),
+    sourcePath: z.string().trim().min(1).optional(),
+    gitUrl: z.string().trim().optional(),
+    gitBranch: z
+      .string()
+      .trim()
+      .regex(/^[A-Za-z0-9._/-]+$/, 'Invalid git branch')
+      .default('main'),
+    autoUpdate: z
+      .object({
+        enabled: z.boolean().default(false),
+        intervalMinutes: z.number().int().min(5).max(10080).default(60),
+      })
+      .default({ enabled: false, intervalMinutes: 60 }),
+    domain: z.string().trim().toLowerCase().regex(DOMAIN_PATTERN, 'Invalid domain'),
+    port: z.number().int().min(1).max(65535),
+    commands: z.object({
+      install: z.string().trim().min(1),
+      build: z.string().trim().min(1),
+      start: z.string().trim().min(1),
+    }),
+    envVars: z.record(z.string().regex(/^[A-Za-z_][A-Za-z0-9_]*$/), z.string()).default({}),
+    healthCheckPath: z
+      .string()
+      .trim()
+      .regex(/^\/[^\s]*$/, 'Health check path must start with /')
+      .default('/'),
+    tlsEnabled: z.boolean().default(false),
+    templateId: z.enum(['nextjs']).default('nextjs'),
+  })
+  .superRefine((value, ctx) => {
+    if (value.sourceType === 'local' && !value.sourcePath) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['sourcePath'],
+        message: 'Source path is required for local apps',
+      });
+    }
+    if (value.sourceType === 'git') {
+      if (!value.gitUrl || !isHttpsGitUrl(value.gitUrl)) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['gitUrl'],
+          message: 'Git URL must be an HTTPS URL',
+        });
+      }
+    }
+    if (value.sourceType !== 'git' && value.autoUpdate.enabled) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['autoUpdate', 'enabled'],
+        message: 'Auto update is only available for git apps',
+      });
+    }
+  });
 
 export type CreateManagedAppData = z.infer<typeof CreateManagedAppSchema>;
 
@@ -70,7 +112,10 @@ export function normalizeCreateManagedAppInput(input: CreateManagedAppData) {
     name: input.name,
     slug: sanitizeAppSlug(input.name),
     templateId: input.templateId,
-    sourcePath: input.sourcePath,
+    sourceType: input.sourceType,
+    sourcePath: input.sourceType === 'local' ? input.sourcePath : undefined,
+    gitUrl: input.sourceType === 'git' ? input.gitUrl : undefined,
+    gitBranch: input.sourceType === 'git' ? input.gitBranch : undefined,
     domain: input.domain,
     port: input.port,
     commands: input.commands,
@@ -79,6 +124,13 @@ export function normalizeCreateManagedAppInput(input: CreateManagedAppData) {
     tlsEnabled: input.tlsEnabled,
     status: 'draft' as ManagedAppStatus,
     releases: [],
+    autoUpdate: {
+      enabled: input.sourceType === 'git' ? input.autoUpdate.enabled : false,
+      intervalMinutes: input.autoUpdate.intervalMinutes,
+      ...(input.sourceType === 'git' && input.autoUpdate.enabled
+        ? { nextRunAt: nextAutoUpdateRun(input.autoUpdate.intervalMinutes) }
+        : {}),
+    },
   };
 }
 
@@ -97,7 +149,21 @@ interface ManagedAppDTORecord {
   name: string;
   slug: string;
   templateId: 'nextjs';
-  sourcePath: string;
+  sourceType?: 'local' | 'git';
+  sourcePath?: string;
+  gitUrl?: string;
+  gitBranch?: string;
+  gitCurrentSha?: string;
+  gitLastCheckedAt?: Date | string;
+  gitLastUpdatedAt?: Date | string;
+  autoUpdate?: {
+    enabled: boolean;
+    intervalMinutes: number;
+    nextRunAt?: Date | string;
+    lastRunAt?: Date | string;
+    lastStatus?: 'idle' | 'updated' | 'unchanged' | 'failed';
+    lastError?: string;
+  };
   domain: string;
   port: number;
   commands: IManagedApp['commands'];
@@ -119,13 +185,37 @@ interface ManagedAppDTORecord {
   lastDeployedAt?: Date | string;
 }
 
+function mapAutoUpdate(value: ManagedAppDTORecord['autoUpdate']): AppAutoUpdate {
+  return {
+    enabled: Boolean(value?.enabled),
+    intervalMinutes: value?.intervalMinutes ?? 60,
+    nextRunAt: toIsoDate(value?.nextRunAt),
+    lastRunAt: toIsoDate(value?.lastRunAt),
+    lastStatus: value?.lastStatus,
+    lastError: value?.lastError,
+  };
+}
+
 export function mapManagedAppToDTO(app: ManagedAppDTORecord, publicIp?: string): ManagedAppDTO {
+  const sourceType = app.sourceType ?? 'local';
   return {
     id: app._id.toString(),
     name: app.name,
     slug: app.slug,
     templateId: app.templateId,
+    sourceType,
     sourcePath: app.sourcePath,
+    git:
+      sourceType === 'git' && app.gitUrl
+        ? {
+            url: app.gitUrl,
+            branch: app.gitBranch ?? 'main',
+            currentSha: app.gitCurrentSha,
+            lastCheckedAt: toIsoDate(app.gitLastCheckedAt),
+            lastUpdatedAt: toIsoDate(app.gitLastUpdatedAt),
+            autoUpdate: mapAutoUpdate(app.autoUpdate),
+          }
+        : undefined,
     domain: app.domain,
     port: app.port,
     commands: app.commands,
@@ -147,6 +237,69 @@ export function mapManagedAppToDTO(app: ManagedAppDTORecord, publicIp?: string):
     updatedAt: toIsoDate(app.updatedAt),
     lastDeployedAt: toIsoDate(app.lastDeployedAt),
   };
+}
+
+function nextAutoUpdateRun(intervalMinutes: number, from = new Date()): Date {
+  return new Date(from.getTime() + intervalMinutes * 60_000);
+}
+
+function resolveDeploySourcePath(app: IManagedApp): string {
+  if ((app.sourceType ?? 'local') === 'local') {
+    if (!app.sourcePath) throw new Error('Local source path is missing');
+    return app.sourcePath;
+  }
+  return getAppRepositoryRoot(app.slug);
+}
+
+async function prepareSource(app: IManagedApp, updateToRemote: boolean) {
+  if ((app.sourceType ?? 'local') === 'local') {
+    return {
+      sourcePath: resolveDeploySourcePath(app),
+      logs: [] as string[],
+      currentSha: undefined,
+      remoteSha: undefined,
+      changed: false,
+    };
+  }
+
+  if (!app.gitUrl) throw new Error('Git URL is missing');
+  const prepared = await prepareGitSourceForDeploy({
+    repoUrl: app.gitUrl,
+    branch: app.gitBranch ?? 'main',
+    repositoryPath: getAppRepositoryRoot(app.slug),
+    updateToRemote,
+    commandRunner: defaultCommandRunner,
+  });
+  return prepared;
+}
+
+async function deployPreparedApp(
+  app: IManagedApp,
+  sourcePath: string
+): Promise<DeployNextJsAppResult> {
+  return deployNextJsApp({
+    app: {
+      name: app.name,
+      slug: app.slug,
+      templateId: app.templateId,
+      sourceType: app.sourceType,
+      sourcePath,
+      gitUrl: app.gitUrl,
+      gitBranch: app.gitBranch,
+      autoUpdate: {
+        enabled: app.autoUpdate?.enabled,
+        intervalMinutes: app.autoUpdate?.intervalMinutes,
+      },
+      domain: app.domain,
+      port: app.port,
+      commands: app.commands,
+      envVars: mapEnv(app.envVars),
+      healthCheckPath: app.healthCheckPath,
+      tlsEnabled: app.tlsEnabled,
+      status: app.status,
+      currentReleaseId: app.currentReleaseId,
+    },
+  });
 }
 
 export async function listManagedApps(publicIp?: string): Promise<ManagedAppDTO[]> {
@@ -173,24 +326,22 @@ export async function deployManagedApp(appId: string) {
   app.status = 'deploying';
   await app.save();
 
-  const result = await deployNextJsApp({
-    app: {
-      name: app.name,
-      slug: app.slug,
-      templateId: app.templateId,
-      sourcePath: app.sourcePath,
-      domain: app.domain,
-      port: app.port,
-      commands: app.commands,
-      envVars: mapEnv(app.envVars),
-      healthCheckPath: app.healthCheckPath,
-      tlsEnabled: app.tlsEnabled,
-      status: app.status,
-      currentReleaseId: app.currentReleaseId,
-    },
-  });
+  let source: Awaited<ReturnType<typeof prepareSource>>;
+  try {
+    source = await prepareSource(app, false);
+  } catch (error) {
+    app.status = 'failed';
+    await app.save();
+    throw error;
+  }
+  const result = await deployPreparedApp(app, source.sourcePath);
+  result.logs.unshift(...source.logs);
 
   const now = new Date();
+  if ((app.sourceType ?? 'local') === 'git') {
+    app.gitCurrentSha = source.currentSha;
+    app.gitLastCheckedAt = now;
+  }
   if (result.status === 'active') {
     app.releases = app.releases.map((release) =>
       release.status === 'active' ? { ...release, status: 'superseded' } : release
@@ -214,6 +365,111 @@ export async function deployManagedApp(appId: string) {
       error: result.error,
       logs: result.logs,
     });
+  }
+
+  await app.save();
+  return {
+    ...result,
+    app: mapManagedAppToDTO(app),
+  };
+}
+
+export async function updateManagedGitApp(appId: string) {
+  await connectDB();
+  const app = await ManagedApp.findById(appId);
+  if (!app) throw new Error('App not found');
+  if ((app.sourceType ?? 'local') !== 'git') throw new Error('Only git apps can be updated');
+
+  const now = new Date();
+  let source: Awaited<ReturnType<typeof prepareSource>>;
+  try {
+    source = await prepareSource(app, true);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Git update failed';
+    app.autoUpdate = {
+      ...app.autoUpdate,
+      lastRunAt: now,
+      lastStatus: 'failed',
+      lastError: message,
+      nextRunAt: app.autoUpdate?.enabled
+        ? nextAutoUpdateRun(app.autoUpdate.intervalMinutes, now)
+        : undefined,
+    };
+    await app.save();
+    throw error;
+  }
+  app.gitCurrentSha = source.currentSha;
+  app.gitLastCheckedAt = now;
+
+  if (!source.changed && app.currentReleaseId) {
+    app.autoUpdate = {
+      ...app.autoUpdate,
+      lastRunAt: now,
+      lastStatus: 'unchanged',
+      lastError: undefined,
+      nextRunAt: app.autoUpdate?.enabled
+        ? nextAutoUpdateRun(app.autoUpdate.intervalMinutes, now)
+        : undefined,
+    };
+    await app.save();
+    return {
+      releaseId: app.currentReleaseId,
+      status: 'unchanged' as const,
+      logs: [...source.logs, 'No upstream changes found.'],
+      app: mapManagedAppToDTO(app),
+    };
+  }
+
+  app.status = 'deploying';
+  await app.save();
+
+  const result = await deployPreparedApp(app, source.sourcePath);
+  result.logs.unshift(...source.logs);
+  const completedAt = new Date();
+  app.gitCurrentSha = source.currentSha;
+  app.gitLastUpdatedAt = completedAt;
+
+  if (result.status === 'active') {
+    app.releases = app.releases.map((release) =>
+      release.status === 'active' ? { ...release, status: 'superseded' } : release
+    );
+    app.currentReleaseId = result.releaseId;
+    app.status = 'running';
+    app.lastDeployedAt = completedAt;
+    app.releases.push({
+      id: result.releaseId,
+      status: 'active',
+      createdAt: completedAt,
+      activatedAt: completedAt,
+      logs: result.logs,
+    });
+    app.autoUpdate = {
+      ...app.autoUpdate,
+      lastRunAt: completedAt,
+      lastStatus: 'updated',
+      lastError: undefined,
+      nextRunAt: app.autoUpdate?.enabled
+        ? nextAutoUpdateRun(app.autoUpdate.intervalMinutes, completedAt)
+        : undefined,
+    };
+  } else {
+    app.status = 'failed';
+    app.releases.push({
+      id: result.releaseId,
+      status: 'failed',
+      createdAt: completedAt,
+      error: result.error,
+      logs: result.logs,
+    });
+    app.autoUpdate = {
+      ...app.autoUpdate,
+      lastRunAt: completedAt,
+      lastStatus: 'failed',
+      lastError: result.error,
+      nextRunAt: app.autoUpdate?.enabled
+        ? nextAutoUpdateRun(app.autoUpdate.intervalMinutes, completedAt)
+        : undefined,
+    };
   }
 
   await app.save();

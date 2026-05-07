@@ -38,7 +38,8 @@ export type HealthCheck = (
 ) => Promise<{ ok: boolean; status?: number; error?: string }>;
 
 export interface DeployNextJsAppOptions {
-  app: CreateManagedAppInput & {
+  app: Omit<CreateManagedAppInput, 'sourcePath'> & {
+    sourcePath: string;
     slug: string;
     status?: string;
     currentReleaseId?: string;

@@ -1,6 +1,6 @@
 /** @vitest-environment node */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { getAppRoot, getAppsRoot } from './paths';
+import { getAppRepositoryRoot, getAppRoot, getAppsRoot } from './paths';
 
 describe('apps path helpers', () => {
   afterEach(() => {
@@ -19,5 +19,11 @@ describe('apps path helpers', () => {
 
     expect(getAppsRoot()).toBe('/srv/servermon-apps');
     expect(getAppRoot('LifeOS')).toBe('/srv/servermon-apps/lifeos');
+  });
+
+  it('keeps git repository checkouts outside release directories', () => {
+    vi.stubEnv('SERVERMON_APPS_ROOT', '/srv/servermon-apps');
+
+    expect(getAppRepositoryRoot('LifeOS')).toBe('/srv/servermon-apps/lifeos/repository');
   });
 });

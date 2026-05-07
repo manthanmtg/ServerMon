@@ -1,7 +1,9 @@
 import mongoose, { Document, Model, Schema } from 'mongoose';
 import type {
+  AppAutoUpdateStatus,
   AppCommands,
   AppRelease,
+  AppSourceType,
   AppTemplateId,
   ManagedAppStatus,
 } from '@/modules/apps/types';
@@ -11,7 +13,21 @@ export interface IManagedApp extends Document {
   name: string;
   slug: string;
   templateId: AppTemplateId;
-  sourcePath: string;
+  sourceType: AppSourceType;
+  sourcePath?: string;
+  gitUrl?: string;
+  gitBranch?: string;
+  gitCurrentSha?: string;
+  gitLastCheckedAt?: Date;
+  gitLastUpdatedAt?: Date;
+  autoUpdate: {
+    enabled: boolean;
+    intervalMinutes: number;
+    nextRunAt?: Date;
+    lastRunAt?: Date;
+    lastStatus?: AppAutoUpdateStatus;
+    lastError?: string;
+  };
   domain: string;
   port: number;
   commands: AppCommands;
@@ -47,12 +63,37 @@ const ReleaseSchema = new Schema(
   { _id: false }
 );
 
+const AutoUpdateSchema = new Schema(
+  {
+    enabled: { type: Boolean, required: true, default: false },
+    intervalMinutes: { type: Number, required: true, min: 5, max: 10080, default: 60 },
+    nextRunAt: { type: Date },
+    lastRunAt: { type: Date },
+    lastStatus: {
+      type: String,
+      enum: ['idle', 'updated', 'unchanged', 'failed'],
+    },
+    lastError: { type: String },
+  },
+  { _id: false }
+);
+
 const ManagedAppSchema = new Schema<IManagedApp>(
   {
     name: { type: String, required: true, trim: true },
     slug: { type: String, required: true, unique: true, index: true, trim: true },
     templateId: { type: String, enum: ['nextjs'], required: true, default: 'nextjs' },
-    sourcePath: { type: String, required: true },
+    sourceType: { type: String, enum: ['local', 'git'], required: true, default: 'local' },
+    sourcePath: { type: String, trim: true },
+    gitUrl: { type: String, trim: true },
+    gitBranch: { type: String, trim: true },
+    gitCurrentSha: { type: String, trim: true },
+    gitLastCheckedAt: { type: Date },
+    gitLastUpdatedAt: { type: Date },
+    autoUpdate: {
+      type: AutoUpdateSchema,
+      default: () => ({ enabled: false, intervalMinutes: 60 }),
+    },
     domain: { type: String, required: true, unique: true, index: true, trim: true },
     port: { type: Number, required: true, min: 1, max: 65535 },
     commands: {

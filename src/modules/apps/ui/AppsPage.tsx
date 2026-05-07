@@ -8,11 +8,14 @@ import {
   Eye,
   EyeOff,
   ExternalLink,
+  FolderOpen,
+  GitBranch,
   Globe2,
   LoaderCircle,
   Lock,
   Play,
   Plus,
+  RefreshCw,
   Rocket,
   Server,
   Trash2,
@@ -21,12 +24,17 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import type { AppTemplateId, ManagedAppDTO } from '../types';
+import type { AppSourceType, AppTemplateId, ManagedAppDTO } from '../types';
 
 interface FormState {
   templateId: AppTemplateId;
+  sourceType: AppSourceType;
   name: string;
   sourcePath: string;
+  gitUrl: string;
+  gitBranch: string;
+  autoUpdateEnabled: boolean;
+  autoUpdateInterval: string;
   domain: string;
   port: string;
   install: string;
@@ -45,8 +53,13 @@ interface EnvVarRow {
 
 const initialForm: FormState = {
   templateId: 'nextjs',
+  sourceType: 'local',
   name: '',
   sourcePath: '',
+  gitUrl: '',
+  gitBranch: 'main',
+  autoUpdateEnabled: false,
+  autoUpdateInterval: '60',
   domain: '',
   port: '3010',
   install: 'pnpm install --frozen-lockfile',
@@ -63,6 +76,13 @@ const templates: Array<{ id: AppTemplateId; label: string; description: string }
     label: 'Next.js App',
     description: 'Pure Next.js app deployed with managed releases, systemd, and Nginx.',
   },
+];
+
+const autoUpdateIntervals = [
+  { value: '15', label: 'Every 15 minutes' },
+  { value: '30', label: 'Every 30 minutes' },
+  { value: '60', label: 'Hourly' },
+  { value: '1440', label: 'Daily' },
 ];
 
 function createEnvVarRow(): EnvVarRow {
@@ -133,6 +153,7 @@ export default function AppsPage() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [deployingId, setDeployingId] = useState<string | null>(null);
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -206,24 +227,36 @@ export default function AppsPage() {
     setSubmitting(true);
     setError(null);
     try {
+      const payload = {
+        templateId: form.templateId,
+        sourceType: form.sourceType,
+        name: form.name,
+        sourcePath: form.sourceType === 'local' ? form.sourcePath : undefined,
+        gitUrl: form.sourceType === 'git' ? form.gitUrl : undefined,
+        gitBranch: form.sourceType === 'git' ? form.gitBranch || 'main' : undefined,
+        autoUpdate:
+          form.sourceType === 'git'
+            ? {
+                enabled: form.autoUpdateEnabled,
+                intervalMinutes: Number(form.autoUpdateInterval),
+              }
+            : undefined,
+        domain: form.domain,
+        port: Number(form.port),
+        commands: {
+          install: form.install,
+          build: form.build,
+          start: form.start,
+        },
+        healthCheckPath: form.healthCheckPath || '/',
+        tlsEnabled: form.tlsEnabled,
+        envVars: buildEnvVars(form.envVars),
+      };
+
       const response = await fetch('/api/modules/apps', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          templateId: form.templateId,
-          name: form.name,
-          sourcePath: form.sourcePath,
-          domain: form.domain,
-          port: Number(form.port),
-          commands: {
-            install: form.install,
-            build: form.build,
-            start: form.start,
-          },
-          healthCheckPath: form.healthCheckPath || '/',
-          tlsEnabled: form.tlsEnabled,
-          envVars: buildEnvVars(form.envVars),
-        }),
+        body: JSON.stringify(payload),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Failed to create app');
@@ -249,6 +282,22 @@ export default function AppsPage() {
       await load();
     } finally {
       setDeployingId(null);
+    }
+  };
+
+  const updateApp = async (appId: string) => {
+    setUpdatingId(appId);
+    setError(null);
+    try {
+      const response = await fetch(`/api/modules/apps/${appId}/update`, { method: 'POST' });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || data.update?.error || 'Update failed');
+      await load();
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Update failed');
+      await load();
+    } finally {
+      setUpdatingId(null);
     }
   };
 
@@ -336,6 +385,50 @@ export default function AppsPage() {
                 </select>
               </Field>
 
+              <div className="space-y-2">
+                <div className="text-sm font-medium text-foreground">Source</div>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <label
+                    htmlFor="source-local"
+                    className={`flex min-h-[44px] cursor-pointer items-center gap-3 rounded-lg border px-3 py-2 text-sm transition-colors ${
+                      form.sourceType === 'local'
+                        ? 'border-primary bg-primary/5 text-foreground'
+                        : 'border-border bg-muted/10 text-muted-foreground'
+                    }`}
+                  >
+                    <input
+                      id="source-local"
+                      type="radio"
+                      name="source-type"
+                      aria-label="Local folder"
+                      checked={form.sourceType === 'local'}
+                      onChange={() => updateForm('sourceType', 'local')}
+                    />
+                    <FolderOpen className="h-4 w-4" />
+                    Local folder
+                  </label>
+                  <label
+                    htmlFor="source-git"
+                    className={`flex min-h-[44px] cursor-pointer items-center gap-3 rounded-lg border px-3 py-2 text-sm transition-colors ${
+                      form.sourceType === 'git'
+                        ? 'border-primary bg-primary/5 text-foreground'
+                        : 'border-border bg-muted/10 text-muted-foreground'
+                    }`}
+                  >
+                    <input
+                      id="source-git"
+                      type="radio"
+                      name="source-type"
+                      aria-label="Git repository"
+                      checked={form.sourceType === 'git'}
+                      onChange={() => updateForm('sourceType', 'git')}
+                    />
+                    <GitBranch className="h-4 w-4" />
+                    Git repository
+                  </label>
+                </div>
+              </div>
+
               <div className="grid gap-3 sm:grid-cols-2">
                 <Field id="app-name" label="App name">
                   <input
@@ -347,17 +440,85 @@ export default function AppsPage() {
                     required
                   />
                 </Field>
-                <Field id="source-path" label="Source path">
-                  <input
-                    id="source-path"
-                    className={fieldClassName()}
-                    placeholder="/srv/apps/inventory-portal"
-                    value={form.sourcePath}
-                    onChange={(event) => updateForm('sourcePath', event.target.value)}
-                    required
-                  />
-                </Field>
+                {form.sourceType === 'local' ? (
+                  <Field id="source-path" label="Source path">
+                    <input
+                      id="source-path"
+                      className={fieldClassName()}
+                      placeholder="/srv/apps/inventory-portal"
+                      value={form.sourcePath}
+                      onChange={(event) => updateForm('sourcePath', event.target.value)}
+                      required
+                    />
+                  </Field>
+                ) : (
+                  <Field id="git-url" label="Git HTTPS URL">
+                    <input
+                      id="git-url"
+                      className={fieldClassName()}
+                      placeholder="https://github.com/acme/app.git"
+                      value={form.gitUrl}
+                      onChange={(event) => updateForm('gitUrl', event.target.value)}
+                      required
+                    />
+                  </Field>
+                )}
               </div>
+
+              {form.sourceType === 'git' && (
+                <div className="space-y-3 rounded-lg border border-border bg-muted/10 p-3">
+                  <div className="grid gap-3 sm:grid-cols-[1fr_150px]">
+                    <Field id="git-branch" label="Git branch">
+                      <input
+                        id="git-branch"
+                        className={fieldClassName()}
+                        placeholder="main"
+                        value={form.gitBranch}
+                        onChange={(event) => updateForm('gitBranch', event.target.value)}
+                        required
+                      />
+                    </Field>
+                    <Field id="auto-update-interval" label="Auto update interval">
+                      <select
+                        id="auto-update-interval"
+                        className={fieldClassName()}
+                        value={form.autoUpdateInterval}
+                        onChange={(event) => updateForm('autoUpdateInterval', event.target.value)}
+                        disabled={!form.autoUpdateEnabled}
+                      >
+                        {autoUpdateIntervals.map((interval) => (
+                          <option key={interval.value} value={interval.value}>
+                            {interval.label}
+                          </option>
+                        ))}
+                      </select>
+                    </Field>
+                  </div>
+                  <label
+                    htmlFor="auto-update"
+                    className="flex min-h-[44px] items-start gap-3 rounded-lg border border-border bg-background px-3 py-3 text-sm"
+                  >
+                    <input
+                      id="auto-update"
+                      type="checkbox"
+                      aria-label="Auto update"
+                      className="mt-0.5 h-4 w-4 rounded border-input accent-primary"
+                      checked={form.autoUpdateEnabled}
+                      onChange={(event) => updateForm('autoUpdateEnabled', event.target.checked)}
+                    />
+                    <span className="space-y-1">
+                      <span className="flex items-center gap-2 font-medium text-foreground">
+                        <RefreshCw className="h-4 w-4 text-primary" />
+                        Auto update from upstream
+                      </span>
+                      <span className="block text-xs leading-5 text-muted-foreground">
+                        ServerMon checks the git branch on schedule and deploys only when upstream
+                        changes are available.
+                      </span>
+                    </span>
+                  </label>
+                </div>
+              )}
 
               <div className="grid gap-3 sm:grid-cols-[1fr_120px]">
                 <Field id="app-domain" label="Domain">
@@ -525,10 +686,25 @@ export default function AppsPage() {
                       <Globe2 className="h-4 w-4 text-primary" />
                       {app.name}
                     </CardTitle>
-                    <CardDescription className="mt-1">{app.sourcePath}</CardDescription>
+                    <CardDescription className="mt-1">
+                      {app.sourceType === 'git' ? app.git?.url : app.sourcePath}
+                    </CardDescription>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
                     {statusBadge(app)}
+                    <Badge variant="outline">{app.sourceType === 'git' ? 'Git' : 'Local'}</Badge>
+                    {app.sourceType === 'git' && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => updateApp(app.id)}
+                        loading={updatingId === app.id}
+                      >
+                        <RefreshCw className="h-3.5 w-3.5" />
+                        Update
+                      </Button>
+                    )}
                     <Button
                       type="button"
                       size="sm"
@@ -566,6 +742,33 @@ export default function AppsPage() {
                     </div>
                   </div>
                 </div>
+
+                {app.sourceType === 'git' && app.git && (
+                  <div className="grid gap-3 text-sm md:grid-cols-4">
+                    <div className="rounded-lg border border-border p-3">
+                      <div className="text-xs text-muted-foreground">Repository</div>
+                      <div className="mt-1 truncate font-medium">{app.git.url}</div>
+                    </div>
+                    <div className="rounded-lg border border-border p-3">
+                      <div className="text-xs text-muted-foreground">Branch</div>
+                      <div className="mt-1 font-medium">{app.git.branch}</div>
+                    </div>
+                    <div className="rounded-lg border border-border p-3">
+                      <div className="text-xs text-muted-foreground">Commit</div>
+                      <div className="mt-1 font-mono font-medium">
+                        {app.git.currentSha?.slice(0, 7) || 'Not fetched'}
+                      </div>
+                    </div>
+                    <div className="rounded-lg border border-border p-3">
+                      <div className="text-xs text-muted-foreground">Auto update</div>
+                      <div className="mt-1 font-medium">
+                        {app.git.autoUpdate.enabled
+                          ? `${app.git.autoUpdate.intervalMinutes} min`
+                          : 'Off'}
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 <div className="rounded-lg border border-border bg-muted/20 p-3 text-xs">
                   <div className="mb-2 font-medium">TLS</div>
