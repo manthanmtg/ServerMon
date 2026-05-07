@@ -267,7 +267,7 @@ Concise map of major directories, commands, and key files. Update this section w
 ### Databases
 
 - `src/modules/databases/` — Docker-only database deployment module for MongoDB, PostgreSQL, and MySQL with UI/widget registration, local/public exposure controls, masked connection details, and explorer UI
-- `src/lib/databases/` — Databases templates, persistent host data path helpers, Docker command construction, CRUD/deploy/action services, connection string builders, and local-only explorer sidecar orchestration
+- `src/lib/databases/` — Databases templates, persistent host data path helpers, Docker command construction, CRUD/deploy/action services, connection string builders, TLS certificate generation/rotation, and local-only explorer sidecar orchestration
 - `src/models/ManagedDatabase.ts` — persisted database metadata, credentials, data path, exposure mode, container state, operation logs, and explorer sidecar state
 - `src/app/api/modules/databases/` — Databases API routes for authenticated list/create/update/delete, deploy, runtime actions, explorer start/stop, and explorer proxying
 - `src/app/databases/` — Databases module page route and explorer route wrapped in `ProShell`
@@ -301,4 +301,6 @@ Concise map of major directories, commands, and key files. Update this section w
 - `src/modules/users/` — Users & Permissions module definition and UI for managing system users, SSH access, sudo privileges, and ServerMon web access controls
 - `src/app/api/modules/users/`, `src/app/api/modules/updates/`, `src/app/api/settings/` — API routes for users, system updates, and global settings (branding, quick-access)
 - `src/lib/passkey-utils.ts`, `src/lib/auth-utils.ts` — Utility functions for WebAuthn passkey registration/authentication and general JWT/session auth logic
+- `src/lib/analytics.ts` — Internal analytics event tracking and persistence logic
+  al JWT/session auth logic
 - `src/lib/analytics.ts` — Internal analytics event tracking and persistence logic
