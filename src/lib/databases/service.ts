@@ -1,7 +1,8 @@
 import { execFile } from 'node:child_process';
-import { createServer } from 'node:net';
+import { createServer, isIP } from 'node:net';
 import type { AddressInfo } from 'node:net';
-import { mkdir, rm } from 'node:fs/promises';
+import path from 'node:path';
+import { access, chmod, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { promisify } from 'node:util';
 import { z } from 'zod';
 import connectDB from '@/lib/db';
@@ -12,6 +13,7 @@ import type {
   DatabaseExplorerStatus,
   DatabaseRestartPolicy,
   DatabaseRuntimeAction,
+  DatabaseSslMode,
   DatabaseTemplateId,
   ManagedDatabaseDTO,
   ManagedDatabaseStatus,
@@ -86,6 +88,23 @@ export interface DockerRunner {
   run(args: string[], timeoutMs?: number): Promise<{ code: number; output: string }>;
 }
 
+export interface MongoTlsPaths {
+  dir: string;
+  caKeyPath: string;
+  caCertPath: string;
+  caSerialPath: string;
+  serverKeyPath: string;
+  serverCsrPath: string;
+  serverCertPath: string;
+  serverPemPath: string;
+  opensslConfigPath: string;
+}
+
+type HostCommandRunner = (
+  file: string,
+  args: string[]
+) => Promise<{ stdout: string; stderr: string }>;
+
 export const defaultDockerRunner: DockerRunner = {
   async run(args, timeoutMs = 60_000) {
     try {
@@ -103,6 +122,146 @@ export const defaultDockerRunner: DockerRunner = {
     }
   },
 };
+
+const defaultHostCommandRunner: HostCommandRunner = async (file, args) => execFileAsync(file, args);
+const MONGO_TLS_CONTAINER_DIR = '/etc/servermon-db-tls';
+
+function fileExists(filePath: string): Promise<boolean> {
+  return access(filePath)
+    .then(() => true)
+    .catch(() => false);
+}
+
+function getDatabaseInstanceRoot(dataPath: string): string {
+  return path.dirname(dataPath);
+}
+
+function uniqueValues(values: string[]): string[] {
+  return Array.from(new Set(values.filter(Boolean)));
+}
+
+function buildMongoTlsOpenSslConfig(hosts: string[]): string {
+  const names = uniqueValues(hosts.length > 0 ? hosts : ['localhost']);
+  const altNames = names.map((host, index) => {
+    const key = isIP(host) ? `IP.${index + 1}` : `DNS.${index + 1}`;
+    return `${key} = ${host}`;
+  });
+
+  return [
+    '[req]',
+    'distinguished_name = req_distinguished_name',
+    'req_extensions = v3_req',
+    'prompt = no',
+    '',
+    '[req_distinguished_name]',
+    'CN = ServerMon Managed MongoDB',
+    '',
+    '[v3_req]',
+    'basicConstraints = CA:FALSE',
+    'keyUsage = digitalSignature, keyEncipherment',
+    'extendedKeyUsage = serverAuth',
+    'subjectAltName = @alt_names',
+    '',
+    '[alt_names]',
+    ...altNames,
+    '',
+  ].join('\n');
+}
+
+export function buildMongoTlsPaths(instanceRoot: string): MongoTlsPaths {
+  const dir = path.join(instanceRoot, 'tls');
+  return {
+    dir,
+    caKeyPath: path.join(dir, 'ca.key'),
+    caCertPath: path.join(dir, 'ca.crt'),
+    caSerialPath: path.join(dir, 'ca.srl'),
+    serverKeyPath: path.join(dir, 'server.key'),
+    serverCsrPath: path.join(dir, 'server.csr'),
+    serverCertPath: path.join(dir, 'server.crt'),
+    serverPemPath: path.join(dir, 'server.pem'),
+    opensslConfigPath: path.join(dir, 'openssl.cnf'),
+  };
+}
+
+export async function ensureMongoTlsAssets(
+  tlsPaths: MongoTlsPaths,
+  hosts: string[],
+  runner: HostCommandRunner = defaultHostCommandRunner
+): Promise<void> {
+  await mkdir(tlsPaths.dir, { recursive: true, mode: 0o700 });
+  await writeFile(tlsPaths.opensslConfigPath, buildMongoTlsOpenSslConfig(hosts), { mode: 0o600 });
+
+  const hasCompleteBundle =
+    (await fileExists(tlsPaths.caKeyPath)) &&
+    (await fileExists(tlsPaths.caCertPath)) &&
+    (await fileExists(tlsPaths.serverKeyPath)) &&
+    (await fileExists(tlsPaths.serverCertPath)) &&
+    (await fileExists(tlsPaths.serverPemPath));
+
+  if (!hasCompleteBundle) {
+    await runner('openssl', ['genrsa', '-out', tlsPaths.caKeyPath, '4096']);
+    await runner('openssl', [
+      'req',
+      '-x509',
+      '-new',
+      '-nodes',
+      '-key',
+      tlsPaths.caKeyPath,
+      '-sha256',
+      '-days',
+      '3650',
+      '-subj',
+      '/CN=ServerMon Managed MongoDB CA',
+      '-out',
+      tlsPaths.caCertPath,
+    ]);
+    await runner('openssl', [
+      'req',
+      '-new',
+      '-nodes',
+      '-newkey',
+      'rsa:4096',
+      '-keyout',
+      tlsPaths.serverKeyPath,
+      '-out',
+      tlsPaths.serverCsrPath,
+      '-config',
+      tlsPaths.opensslConfigPath,
+    ]);
+    await runner('openssl', [
+      'x509',
+      '-req',
+      '-in',
+      tlsPaths.serverCsrPath,
+      '-CA',
+      tlsPaths.caCertPath,
+      '-CAkey',
+      tlsPaths.caKeyPath,
+      '-CAcreateserial',
+      '-out',
+      tlsPaths.serverCertPath,
+      '-days',
+      '825',
+      '-sha256',
+      '-extfile',
+      tlsPaths.opensslConfigPath,
+      '-extensions',
+      'v3_req',
+    ]);
+  }
+
+  const serverKey = await readFile(tlsPaths.serverKeyPath, 'utf8');
+  const serverCert = await readFile(tlsPaths.serverCertPath, 'utf8');
+  await writeFile(tlsPaths.serverPemPath, `${serverKey.trim()}\n${serverCert.trim()}\n`, {
+    mode: 0o600,
+  });
+  await chmod(tlsPaths.dir, 0o700);
+  await chmod(tlsPaths.caKeyPath, 0o600);
+  await chmod(tlsPaths.caCertPath, 0o644);
+  await chmod(tlsPaths.serverKeyPath, 0o600);
+  await chmod(tlsPaths.serverCertPath, 0o644);
+  await chmod(tlsPaths.serverPemPath, 0o600);
+}
 
 function redactDockerArgs(args: string[]): string[] {
   const redacted: string[] = [];
@@ -226,6 +385,8 @@ export function buildDockerRunRequest(input: {
   databaseName: string;
   dataPath: string;
   bindAddress: '127.0.0.1' | '0.0.0.0';
+  sslMode?: DatabaseSslMode;
+  tlsPaths?: MongoTlsPaths;
   restartPolicy: DatabaseRestartPolicy;
   extraEnv?: Record<string, string>;
 }): DockerRunRequest {
@@ -244,6 +405,13 @@ export function buildDockerRunRequest(input: {
     `${input.dataPath}:${template.dataMountPath}`,
   ];
 
+  if (input.templateId === 'mongo' && input.sslMode === 'require') {
+    if (!input.tlsPaths) {
+      throw new Error('Mongo TLS paths are required when SSL mode is require');
+    }
+    args.push('-v', `${input.tlsPaths.dir}:${MONGO_TLS_CONTAINER_DIR}:ro`);
+  }
+
   for (const [key, value] of Object.entries(
     envForDatabase({
       templateId: input.templateId,
@@ -257,6 +425,19 @@ export function buildDockerRunRequest(input: {
   }
 
   args.push(input.image);
+  if (input.templateId === 'mongo' && input.sslMode === 'require') {
+    args.push(
+      'mongod',
+      '--auth',
+      '--bind_ip_all',
+      '--tlsMode',
+      'requireTLS',
+      '--tlsCertificateKeyFile',
+      `${MONGO_TLS_CONTAINER_DIR}/server.pem`,
+      '--tlsCAFile',
+      `${MONGO_TLS_CONTAINER_DIR}/ca.crt`
+    );
+  }
   return { containerName, args };
 }
 
@@ -968,6 +1149,14 @@ export async function deployManagedDatabase(
   try {
     await saveOperationLog(db, logs, `Preparing data directory ${db.dataPath}`, 'deploying');
     await mkdir(db.dataPath, { recursive: true });
+    const tlsPaths =
+      db.templateId === 'mongo' && db.sslMode === 'require'
+        ? buildMongoTlsPaths(getDatabaseInstanceRoot(db.dataPath))
+        : undefined;
+    if (tlsPaths) {
+      await saveOperationLog(db, logs, 'Preparing MongoDB TLS certificate bundle', 'deploying');
+      await ensureMongoTlsAssets(tlsPaths, uniqueValues([db.host, '127.0.0.1', 'localhost']));
+    }
     const request = buildDockerRunRequest({
       slug: db.slug,
       templateId: db.templateId,
@@ -980,6 +1169,8 @@ export async function deployManagedDatabase(
       databaseName: db.databaseName,
       dataPath: db.dataPath,
       bindAddress: db.bindAddress,
+      sslMode: db.sslMode,
+      tlsPaths,
       restartPolicy: db.restartPolicy,
       extraEnv: toObjectEnv(db.extraEnv),
     });

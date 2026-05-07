@@ -1,10 +1,15 @@
 /** @vitest-environment node */
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import {
   CreateManagedDatabaseSchema,
   DATABASE_EXPLORER_IDLE_TIMEOUT_MINUTES,
   buildDatabaseExplorerRunRequest,
   buildDockerRunRequest,
+  buildMongoTlsPaths,
+  ensureMongoTlsAssets,
   getExplorerIdleExpiresAt,
   isExplorerIdleExpired,
   mapManagedDatabaseToDTO,
@@ -113,6 +118,105 @@ describe('database service helpers', () => {
     expect(request.args).toContain('MYSQL_USER=app');
     expect(request.args).toContain('MYSQL_PASSWORD=mysql-pass');
     expect(request.args).toContain('MYSQL_ROOT_PASSWORD=mysql-pass');
+  });
+
+  it('builds Mongo Docker run requests with server TLS when SSL is required', () => {
+    const tlsPaths = buildMongoTlsPaths('/var/lib/servermon/databases/main-mongo');
+    const request = buildDockerRunRequest({
+      slug: 'main-mongo',
+      templateId: 'mongo',
+      version: '8',
+      image: 'mongo:8',
+      port: 27017,
+      internalPort: 27017,
+      username: 'root',
+      password: 'mongo-pass',
+      databaseName: 'appdb',
+      dataPath: '/var/lib/servermon/databases/main-mongo/data',
+      bindAddress: '127.0.0.1',
+      restartPolicy: 'unless-stopped',
+      sslMode: 'require',
+      tlsPaths,
+      extraEnv: {},
+    });
+
+    expect(request.args).toEqual([
+      'run',
+      '-d',
+      '--name',
+      'servermon-db-main-mongo',
+      '--restart',
+      'unless-stopped',
+      '-p',
+      '127.0.0.1:27017:27017',
+      '-v',
+      '/var/lib/servermon/databases/main-mongo/data:/data/db',
+      '-v',
+      '/var/lib/servermon/databases/main-mongo/tls:/etc/servermon-db-tls:ro',
+      '-e',
+      'MONGO_INITDB_ROOT_USERNAME=root',
+      '-e',
+      'MONGO_INITDB_ROOT_PASSWORD=mongo-pass',
+      '-e',
+      'MONGO_INITDB_DATABASE=appdb',
+      'mongo:8',
+      'mongod',
+      '--auth',
+      '--bind_ip_all',
+      '--tlsMode',
+      'requireTLS',
+      '--tlsCertificateKeyFile',
+      '/etc/servermon-db-tls/server.pem',
+      '--tlsCAFile',
+      '/etc/servermon-db-tls/ca.crt',
+    ]);
+  });
+
+  it('automates Mongo TLS certificate asset generation', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'servermon-mongo-tls-'));
+    const tlsPaths = buildMongoTlsPaths(root);
+    const commands: Array<{ file: string; args: string[] }> = [];
+    const runner = vi.fn(async (file: string, args: string[]) => {
+      commands.push({ file, args });
+      const outputIndex = args.indexOf('-out');
+      if (outputIndex >= 0 && args[outputIndex + 1]) {
+        await writeFile(args[outputIndex + 1], 'generated');
+      }
+      const keyOutputIndex = args.indexOf('-keyout');
+      if (keyOutputIndex >= 0 && args[keyOutputIndex + 1]) {
+        await writeFile(args[keyOutputIndex + 1], 'generated-key');
+      }
+      return { stdout: '', stderr: '' };
+    });
+
+    try {
+      await ensureMongoTlsAssets(tlsPaths, ['127.0.0.1', 'localhost'], runner);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+
+    expect(runner).toHaveBeenCalledTimes(4);
+    expect(commands[0]).toMatchObject({
+      file: 'openssl',
+      args: expect.arrayContaining(['genrsa', '-out', tlsPaths.caKeyPath, '4096']),
+    });
+    expect(commands[3]).toMatchObject({
+      file: 'openssl',
+      args: expect.arrayContaining([
+        'x509',
+        '-req',
+        '-in',
+        tlsPaths.serverCsrPath,
+        '-CA',
+        tlsPaths.caCertPath,
+        '-CAkey',
+        tlsPaths.caKeyPath,
+        '-out',
+        tlsPaths.serverCertPath,
+        '-extfile',
+        tlsPaths.opensslConfigPath,
+      ]),
+    });
   });
 
   it('maps persisted records to DTOs with masked connection strings and fleet warning text', () => {
