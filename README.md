@@ -83,7 +83,10 @@ The interactive installer walks you through everything. See [DEPLOY.md](DEPLOY.m
 
 ```bash
 pnpm install
-cp .env.example .env.local
+cat > .env.local <<'EOF'
+MONGO_URI=mongodb://localhost:27017/servermon
+JWT_SECRET=change-this-development-secret
+EOF
 sudo ./scripts/install-launchd.sh
 ```
 
