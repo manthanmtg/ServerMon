@@ -112,4 +112,33 @@ describe('/api/modules/databases/[id]/explore/proxy', () => {
       'http://localhost/api/modules/databases/db-1/explore/proxy/login?next=%2F'
     );
   });
+
+  it('injects a base href into html responses so relative pgweb assets stay under the proxy', async () => {
+    mockGetSession.mockResolvedValue({ user: { role: 'admin' } });
+    mockGetExplorerTarget.mockResolvedValue({
+      port: 49152,
+      upstreamBasePath: '/api/modules/databases/db-1/explore/proxy/',
+    });
+    global.fetch = vi.fn().mockResolvedValue(
+      new Response(
+        '<!doctype html><html><head><title>pgweb</title><link rel="stylesheet" href="static/css/app.css"></head><body></body></html>',
+        {
+          status: 200,
+          headers: { 'content-type': 'text/html; charset=utf-8', 'content-length': '123' },
+        }
+      )
+    );
+
+    const res = await GET(
+      new Request('http://localhost/api/modules/databases/db-1/explore/proxy'),
+      {
+        params: Promise.resolve({ id: 'db-1' }),
+      }
+    );
+
+    await expect(res.text()).resolves.toContain(
+      '<base href="/api/modules/databases/db-1/explore/proxy/">'
+    );
+    expect(res.headers.get('content-length')).toBeNull();
+  });
 });

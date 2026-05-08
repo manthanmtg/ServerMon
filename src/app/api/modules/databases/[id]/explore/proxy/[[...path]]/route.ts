@@ -88,6 +88,29 @@ function responseHeaders(input: {
   return headers;
 }
 
+function htmlAttribute(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+function shouldRewriteHtml(upstream: Response): boolean {
+  return upstream.headers.get('content-type')?.toLowerCase().includes('text/html') ?? false;
+}
+
+function injectProxyBaseHref(html: string, proxyBasePath: string): string {
+  if (/<base\s/i.test(html)) return html;
+
+  const baseHref = `${normalizePath(proxyBasePath)}/`;
+  const baseTag = `<base href="${htmlAttribute(baseHref)}">`;
+  if (/<head\b[^>]*>/i.test(html)) {
+    return html.replace(/<head\b[^>]*>/i, (head) => `${head}${baseTag}`);
+  }
+  return `${baseTag}${html}`;
+}
+
 function buildUpstreamPath(basePath: string | undefined, path: string[]): string {
   const normalizedBase = basePath ? `/${basePath.replace(/^\/+|\/+$/g, '')}` : '';
   const nestedPath = path.map(encodeURIComponent).join('/');
@@ -127,16 +150,26 @@ async function proxyExplorerRequest(
     });
     await touchManagedDatabaseExplorerActivity(id);
 
+    const headers = responseHeaders({
+      upstream,
+      requestUrl,
+      upstreamUrl,
+      upstreamBasePath: target.upstreamBasePath,
+      proxyBasePath,
+    });
+
+    if (request.method !== 'HEAD' && shouldRewriteHtml(upstream)) {
+      return new Response(injectProxyBaseHref(await upstream.text(), proxyBasePath), {
+        status: upstream.status,
+        statusText: upstream.statusText,
+        headers,
+      });
+    }
+
     return new Response(upstream.body, {
       status: upstream.status,
       statusText: upstream.statusText,
-      headers: responseHeaders({
-        upstream,
-        requestUrl,
-        upstreamUrl,
-        upstreamBasePath: target.upstreamBasePath,
-        proxyBasePath,
-      }),
+      headers,
     });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Failed to proxy database explorer';
