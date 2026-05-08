@@ -73,6 +73,16 @@ describe('utils', () => {
     it('should format small byte values', () => {
       expect(formatBytes(512)).toBe('512 B');
     });
+
+    it('should round byte values to one decimal place', () => {
+      expect(formatBytes(1537)).toBe('1.5 KiB');
+      expect(formatBytes(1500, 'decimal')).toBe('1.5 KB');
+    });
+
+    it('should promote values that round up at unit boundaries', () => {
+      expect(formatBytes(1023.95)).toBe('1024 B');
+      expect(formatBytes(999.95, 'decimal')).toBe('1000 B');
+    });
   });
 
   describe('formatDuration', () => {
@@ -115,6 +125,16 @@ describe('utils', () => {
     it('should handle mixed singular and plural forms', () => {
       expect(formatDuration(3600 + 60 + 1)).toBe('1 hour 1 min 1 sec');
       expect(formatDuration(7200 + 120 + 2)).toBe('2 hours 2 mins 2 secs');
+    });
+
+    it('should floor fractional seconds before formatting', () => {
+      expect(formatDuration(59.9)).toBe('59 secs');
+      expect(formatDuration(60.9)).toBe('1 min');
+    });
+
+    it('should include seconds after whole hours when no minutes are present', () => {
+      expect(formatDuration(3601)).toBe('1 hour 1 sec');
+      expect(formatDuration(7202)).toBe('2 hours 2 secs');
     });
   });
 
@@ -168,6 +188,21 @@ describe('utils', () => {
       const longAgo = new Date('2023-01-01T12:00:00Z');
       expect(relativeTime(longAgo)).toBe('365d ago');
     });
+
+    it('should accept ISO strings and timestamps', () => {
+      expect(relativeTime('2024-01-01T11:30:00Z')).toBe('30m ago');
+      expect(relativeTime(new Date('2024-01-01T09:00:00Z').getTime())).toBe('3h ago');
+    });
+
+    it('should round to the nearest minute before choosing units', () => {
+      expect(relativeTime('2024-01-01T11:59:31Z')).toBe('just now');
+      expect(relativeTime('2024-01-01T11:59:29Z')).toBe('1m ago');
+    });
+
+    it('should round hours and days from rounded minutes', () => {
+      expect(relativeTime('2024-01-01T10:31:00Z')).toBe('1h ago');
+      expect(relativeTime('2023-12-31T00:30:00Z')).toBe('2d ago');
+    });
   });
 
   describe('slugify', () => {
@@ -204,6 +239,14 @@ describe('utils', () => {
 
     it('should handle numbers', () => {
       expect(slugify('Version 1.2.3')).toBe('version-123');
+    });
+
+    it('should trim hyphens introduced after stripping punctuation', () => {
+      expect(slugify('---Hello World!!---')).toBe('hello-world');
+    });
+
+    it('should collapse mixed whitespace characters into a single hyphen', () => {
+      expect(slugify('hello\tworld\nagain')).toBe('hello-world-again');
     });
   });
 });
