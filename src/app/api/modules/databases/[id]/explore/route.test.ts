@@ -52,6 +52,28 @@ describe('/api/modules/databases/[id]/explore', () => {
     expect(json.explorer.proxyPath).toBe('/api/modules/databases/db-1/explore/proxy/');
   });
 
+  it('returns 500 with explorer details when startup fails', async () => {
+    mockGetSession.mockResolvedValue({ user: { role: 'admin' } });
+    mockStartExplorer.mockResolvedValue({
+      status: 'failed',
+      kind: 'pgweb',
+      logs: [
+        '[2026-05-08T07:00:00.000Z] Explorer requested for Main Postgres',
+        '[2026-05-08T07:00:01.000Z] ERROR: Explorer did not become ready',
+      ],
+    });
+
+    const res = await POST(new Request('http://localhost'), {
+      params: Promise.resolve({ id: 'db-1' }),
+    });
+    const json = await res.json();
+
+    expect(res.status).toBe(500);
+    expect(json.error).toContain('Explorer did not become ready');
+    expect(json.explorer.status).toBe('failed');
+    expect(json.explorer.kind).toBe('pgweb');
+  });
+
   it('stops the managed explorer', async () => {
     mockGetSession.mockResolvedValue({ user: { role: 'admin' } });
     mockStopExplorer.mockResolvedValue({ status: 'stopped' });
