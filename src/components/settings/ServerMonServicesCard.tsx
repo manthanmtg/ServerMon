@@ -221,6 +221,7 @@ export default function ServerMonServicesCard({ onOpenHistory }: ServerMonServic
 
   const copy = confirmType ? UPDATE_COPY[confirmType] : UPDATE_COPY.servermon;
   const isUpdating = updating !== null;
+  const isAgentInstalled = agentStatus?.installed === true;
 
   return (
     <>
@@ -289,15 +290,17 @@ export default function ServerMonServicesCard({ onOpenHistory }: ServerMonServic
               </div>
             </div>
 
-            <UpdateSchedulePanel
-              title="ServerMon Agent"
-              target="agent"
-              state={autoUpdates.agent}
-              onToggle={() =>
-                openSchedule('agent', !(autoUpdates.agent.settings?.enabled ?? false))
-              }
-              onConfigure={() => openSchedule('agent')}
-            />
+            {isAgentInstalled && (
+              <UpdateSchedulePanel
+                title="ServerMon Agent"
+                target="agent"
+                state={autoUpdates.agent}
+                onToggle={() =>
+                  openSchedule('agent', !(autoUpdates.agent.settings?.enabled ?? false))
+                }
+                onConfigure={() => openSchedule('agent')}
+              />
+            )}
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -312,7 +315,7 @@ export default function ServerMonServicesCard({ onOpenHistory }: ServerMonServic
                   ? 'Agent Installed'
                   : 'Agent Not Installed'}
             </Badge>
-            {agentStatus?.installed && (
+            {isAgentInstalled && (
               <>
                 <Badge
                   variant={agentStatus.active ? 'success' : 'warning'}
@@ -330,34 +333,42 @@ export default function ServerMonServicesCard({ onOpenHistory }: ServerMonServic
             )}
           </div>
 
-          <div className="space-y-2 text-sm">
-            <div className="min-w-0">
-              <span className="text-muted-foreground">Service: </span>
-              <span className="font-mono break-all">
-                {agentStatus?.serviceName ?? 'servermon-agent.service'}
-              </span>
-            </div>
-            {agentStatus?.repoDir && (
+          {isAgentInstalled ? (
+            <div className="space-y-2 text-sm">
               <div className="min-w-0">
-                <span className="text-muted-foreground">Repo: </span>
-                <span className="font-mono break-all">{agentStatus.repoDir}</span>
+                <span className="text-muted-foreground">Service: </span>
+                <span className="font-mono break-all">
+                  {agentStatus.serviceName ?? 'servermon-agent.service'}
+                </span>
               </div>
-            )}
-            {agentStatus?.message && (
-              <p className="text-xs text-muted-foreground">{agentStatus.message}</p>
-            )}
-          </div>
+              {agentStatus.repoDir && (
+                <div className="min-w-0">
+                  <span className="text-muted-foreground">Repo: </span>
+                  <span className="font-mono break-all">{agentStatus.repoDir}</span>
+                </div>
+              )}
+              {agentStatus.message && (
+                <p className="text-xs text-muted-foreground">{agentStatus.message}</p>
+              )}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              Install the colocated Fleet agent to enable agent schedules and agent updates.
+            </p>
+          )}
 
           <div className="grid grid-cols-1 gap-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-9 w-full gap-2 rounded-lg px-3"
-              onClick={() => onOpenHistory('agent')}
-            >
-              <History className="w-3.5 h-3.5" />
-              Agent History
-            </Button>
+            {isAgentInstalled && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-9 w-full gap-2 rounded-lg px-3"
+                onClick={() => onOpenHistory('agent')}
+              >
+                <History className="w-3.5 h-3.5" />
+                Agent History
+              </Button>
+            )}
             <Button
               variant="ghost"
               size="sm"
@@ -368,15 +379,17 @@ export default function ServerMonServicesCard({ onOpenHistory }: ServerMonServic
               <RefreshCcw className={cn('w-3.5 h-3.5', agentLoading && 'animate-spin')} />
               Refresh Agent
             </Button>
-            <Button
-              size="sm"
-              className="h-9 w-full gap-2 rounded-lg px-3"
-              onClick={() => setConfirmType('agent')}
-              disabled={isUpdating || agentLoading || !agentStatus?.updateSupported}
-            >
-              <Download className={cn('w-3.5 h-3.5', updating === 'agent' && 'animate-pulse')} />
-              Update Agent
-            </Button>
+            {isAgentInstalled && (
+              <Button
+                size="sm"
+                className="h-9 w-full gap-2 rounded-lg px-3"
+                onClick={() => setConfirmType('agent')}
+                disabled={isUpdating || agentLoading || !agentStatus.updateSupported}
+              >
+                <Download className={cn('w-3.5 h-3.5', updating === 'agent' && 'animate-pulse')} />
+                Update Agent
+              </Button>
+            )}
           </div>
         </CardContent>
       </Card>

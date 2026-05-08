@@ -442,6 +442,50 @@ describe('SettingsPage', () => {
     expect(screen.getByText('/opt/servermon-agent/source')).toBeDefined();
   });
 
+  it('keeps the agent updates card compact when the agent is not installed', async () => {
+    (global.fetch as ReturnType<typeof vi.fn>).mockImplementation((url: string) => {
+      if (url === '/api/system/update/auto?type=servermon') {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            settings: { enabled: true, time: '03:00', timezone: 'Asia/Kolkata' },
+            schedule: { nextRunAt: '2026-04-26T21:30:00.000Z' },
+          }),
+        });
+      }
+      if (url === '/api/system/update/auto?type=agent') {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            settings: { enabled: false, time: '03:00', timezone: 'UTC' },
+            schedule: { nextRunAt: null },
+          }),
+        });
+      }
+      if (url === '/api/modules/updates/agent') {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({ agent: null }),
+        });
+      }
+
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({ modules: [] }),
+      });
+    });
+
+    await act(async () => render(<SettingsPage />));
+
+    await waitFor(() => expect(screen.getByText('Agent Not Installed')).toBeDefined());
+    expect(screen.queryByText('ServerMon Agent')).toBeNull();
+    expect(screen.queryByText('Configure Agent Schedule')).toBeNull();
+    expect(screen.queryByText('Agent History')).toBeNull();
+    expect(screen.queryByText('Update Agent')).toBeNull();
+    expect(screen.queryByText('Service:')).toBeNull();
+    expect(screen.getByText('Refresh Agent')).toBeDefined();
+  });
+
   it('anchors the disabled auto-update switch thumb on the left', async () => {
     (global.fetch as ReturnType<typeof vi.fn>).mockImplementation((url: string) => {
       if (url === '/api/system/update/auto?type=servermon') {
