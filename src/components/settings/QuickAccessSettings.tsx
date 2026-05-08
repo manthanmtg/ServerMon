@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { GripVertical, Zap, Settings, type LucideIcon } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/components/ui/toast';
+import { resilientFetch } from '@/lib/fetch-utils';
 import { type QuickAccessItem } from '@/components/layout/QuickAccessBar';
 import { navGroups } from '@/components/layout/navigation';
 
@@ -75,7 +76,7 @@ export default function QuickAccessSettings() {
   const dragIndex = useRef<number | null>(null);
 
   useEffect(() => {
-    fetch('/api/settings/quick-access')
+    resilientFetch('/api/settings/quick-access', { timeout: 5000 })
       .then((r) => r.json())
       .then((data: { items?: QuickAccessItem[] }) => {
         setEnabledIds((data.items ?? []).map((i) => i.id));
@@ -134,10 +135,11 @@ export default function QuickAccessSettings() {
         })
         .filter((x): x is QuickAccessItem => x !== null);
 
-      const res = await fetch('/api/settings/quick-access', {
+      const res = await resilientFetch('/api/settings/quick-access', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ items }),
+        timeout: 5000,
       });
 
       if (!res.ok) {

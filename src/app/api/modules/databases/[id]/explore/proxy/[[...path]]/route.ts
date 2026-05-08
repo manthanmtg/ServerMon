@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createLogger } from '@/lib/logger';
 import { getSession } from '@/lib/session';
+import { resilientFetch } from '@/lib/fetch-utils';
 import {
   buildExplorerProxyPath,
   getManagedDatabaseExplorerTarget,
@@ -142,11 +143,12 @@ async function proxyExplorerRequest(
       request.method === 'GET' || request.method === 'HEAD'
         ? undefined
         : await request.arrayBuffer();
-    const upstream = await fetch(upstreamUrl, {
+    const upstream = await resilientFetch(upstreamUrl, {
       method: request.method,
       headers: proxyHeaders(request),
       body,
       redirect: 'manual',
+      timeout: 15_000,
     });
     await touchManagedDatabaseExplorerActivity(id);
 
