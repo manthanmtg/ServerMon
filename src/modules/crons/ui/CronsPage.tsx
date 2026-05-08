@@ -1,27 +1,17 @@
 'use client';
 
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowDown,
   ArrowUp,
   ArrowUpDown,
-  Check,
-  ChevronDown,
-  ChevronRight,
   Clock,
-  Copy,
-  Edit3,
   FolderOpen,
   LoaderCircle,
-  Pause,
-  Play,
   Plus,
   RefreshCcw,
   Search,
   Terminal,
-  Trash2,
-  X,
-  Zap,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -33,9 +23,12 @@ import type { CronJob, CronRunStatus, CronsSnapshot } from '../types';
 import { CronSummaryCards } from './components/CronSummaryCards';
 import { NextScheduledRunCard } from './components/NextScheduledRunCard';
 import { CronFormModal } from './components/CronFormModal';
-import { NextRunsPanel } from './components/NextRunsPanel';
 import { PastRunsPanel } from './components/PastRunsPanel';
-import { formatCountdown, formatPastTime, useRealtimeNow } from './time';
+import { CronJobRow } from './components/CronJobRow';
+import { SystemDirsPanel } from './components/SystemDirsPanel';
+import { SystemLogsPanel } from './components/SystemLogsPanel';
+import { RunOutputModal } from './components/RunOutputModal';
+import { useRealtimeNow } from './time';
 
 type FilterSource = 'all' | 'user' | 'system';
 type FilterStatus = 'all' | 'active' | 'disabled';
@@ -560,226 +553,23 @@ export default function CronsPage() {
                     </td>
                   </tr>
                 ) : (
-                  filteredJobs.map((job) => {
-                    const isExpanded = expandedJob === job.id;
-                    return (
-                      <Fragment key={job.id}>
-                        <tr
-                          data-testid="cron-job-row"
-                          className={cn(
-                            'border-t border-border/60 transition-colors hover:bg-muted/10',
-                            isExpanded && 'bg-muted/10'
-                          )}
-                        >
-                          <td className="py-3 px-4">
-                            <button
-                              type="button"
-                              aria-expanded={isExpanded}
-                              aria-label={`${isExpanded ? 'Hide' : 'Show'} next runs for ${job.command}`}
-                              onClick={() => setExpandedJob(isExpanded ? null : job.id)}
-                              className="p-1 rounded hover:bg-accent transition-colors"
-                            >
-                              {isExpanded ? (
-                                <ChevronDown className="w-4 h-4 text-muted-foreground" />
-                              ) : (
-                                <ChevronRight className="w-4 h-4 text-muted-foreground" />
-                              )}
-                            </button>
-                          </td>
-                          <td className="py-3 px-4">
-                            <Badge variant={job.enabled ? 'success' : 'secondary'}>
-                              {job.enabled ? 'active' : 'disabled'}
-                            </Badge>
-                          </td>
-                          <td className="py-3 px-4">
-                            <div className="flex items-center gap-2">
-                              <code className="text-xs font-mono bg-muted/50 px-1.5 py-0.5 rounded">
-                                {job.expression}
-                              </code>
-                              <button
-                                type="button"
-                                onClick={() => copyExpression(job.expression, job.id)}
-                                className="p-0.5 rounded hover:bg-accent transition-colors"
-                                title="Copy expression"
-                              >
-                                {copiedId === job.id ? (
-                                  <Check className="w-3 h-3 text-success" />
-                                ) : (
-                                  <Copy className="w-3 h-3 text-muted-foreground" />
-                                )}
-                              </button>
-                            </div>
-                            {job.description && (
-                              <p className="text-[10px] text-muted-foreground mt-0.5">
-                                {job.description}
-                              </p>
-                            )}
-                          </td>
-                          <td className="py-3 px-4">
-                            <span
-                              className="font-mono text-xs max-w-[280px] truncate block"
-                              title={job.command}
-                            >
-                              {job.command}
-                            </span>
-                            {job.comment && (
-                              <p className="text-[10px] text-muted-foreground mt-0.5 truncate max-w-[280px]">
-                                {job.comment}
-                              </p>
-                            )}
-                          </td>
-                          <td className="py-3 px-4 text-xs">{job.user}</td>
-                          <td className="py-3 px-4">
-                            <Badge variant="outline" className="text-[10px]">
-                              {job.source}
-                            </Badge>
-                          </td>
-                          <td className="py-3 px-4 text-xs">
-                            {job.nextRuns[0] ? (
-                              <span
-                                className="text-foreground font-mono whitespace-nowrap cursor-help underline decoration-dashed decoration-border/50 underline-offset-4"
-                                title={new Date(job.nextRuns[0]).toLocaleString(undefined, {
-                                  weekday: 'short',
-                                  month: 'short',
-                                  day: 'numeric',
-                                  hour: '2-digit',
-                                  minute: '2-digit',
-                                  second: '2-digit',
-                                  timeZoneName: 'short',
-                                })}
-                              >
-                                {formatCountdown(job.nextRuns[0], now)}
-                              </span>
-                            ) : (
-                              <span className="text-muted-foreground">-</span>
-                            )}
-                          </td>
-                          <td className="py-3 px-4">
-                            <div className="flex items-center gap-1">
-                              {job.source === 'user' && (
-                                <>
-                                  <button
-                                    type="button"
-                                    title={job.enabled ? 'Disable' : 'Enable'}
-                                    disabled={pendingAction === `${job.id}:toggle`}
-                                    onClick={() => setConfirmToggle(job)}
-                                    className="p-1.5 rounded-lg hover:bg-accent transition-colors min-h-[32px] min-w-[32px] flex items-center justify-center"
-                                  >
-                                    {pendingAction === `${job.id}:toggle` ? (
-                                      <LoaderCircle className="w-3.5 h-3.5 animate-spin" />
-                                    ) : job.enabled ? (
-                                      <Pause className="w-3.5 h-3.5 text-warning" />
-                                    ) : (
-                                      <Play className="w-3.5 h-3.5 text-success" />
-                                    )}
-                                  </button>
-                                  <button
-                                    type="button"
-                                    title="Edit"
-                                    onClick={() => setModal({ mode: 'edit', job })}
-                                    className="p-1.5 rounded-lg hover:bg-accent transition-colors min-h-[32px] min-w-[32px] flex items-center justify-center"
-                                  >
-                                    <Edit3 className="w-3.5 h-3.5 text-muted-foreground" />
-                                  </button>
-                                  <button
-                                    type="button"
-                                    title="Run Now"
-                                    disabled={pendingAction === `${job.id}:run`}
-                                    onClick={() => setConfirmRun(job)}
-                                    className="p-1.5 rounded-lg hover:bg-primary/10 transition-colors min-h-[32px] min-w-[32px] flex items-center justify-center"
-                                  >
-                                    {pendingAction === `${job.id}:run` ? (
-                                      <LoaderCircle className="w-3.5 h-3.5 animate-spin" />
-                                    ) : (
-                                      <Zap className="w-3.5 h-3.5 text-primary" />
-                                    )}
-                                  </button>
-                                  <button
-                                    type="button"
-                                    title="Delete"
-                                    disabled={pendingAction === `${job.id}:delete`}
-                                    onClick={() => setConfirmDelete(job)}
-                                    className="p-1.5 rounded-lg hover:bg-destructive/10 transition-colors min-h-[32px] min-w-[32px] flex items-center justify-center"
-                                  >
-                                    {pendingAction === `${job.id}:delete` ? (
-                                      <LoaderCircle className="w-3.5 h-3.5 animate-spin" />
-                                    ) : (
-                                      <Trash2 className="w-3.5 h-3.5 text-destructive" />
-                                    )}
-                                  </button>
-                                </>
-                              )}
-                              {job.source !== 'user' && (
-                                <span className="text-[10px] text-muted-foreground">read-only</span>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                        {isExpanded && (
-                          <tr className="border-t border-border/40">
-                            <td colSpan={8} className="p-4 bg-muted/5">
-                              <div className="grid gap-4 lg:grid-cols-2">
-                                <div>
-                                  <NextRunsPanel job={job} />
-                                </div>
-                                <div className="space-y-2">
-                                  <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
-                                    Details
-                                  </p>
-                                  <div className="text-xs space-y-1">
-                                    <div className="flex gap-2">
-                                      <span className="text-muted-foreground w-20 shrink-0">
-                                        Full command:
-                                      </span>
-                                      <code className="font-mono text-foreground break-all">
-                                        {job.command}
-                                      </code>
-                                    </div>
-                                    <div className="flex gap-2">
-                                      <span className="text-muted-foreground w-20 shrink-0">
-                                        Expression:
-                                      </span>
-                                      <code className="font-mono text-foreground">
-                                        {job.expression}
-                                      </code>
-                                    </div>
-                                    <div className="flex gap-2">
-                                      <span className="text-muted-foreground w-20 shrink-0">
-                                        User:
-                                      </span>
-                                      <span className="text-foreground">{job.user}</span>
-                                    </div>
-                                    <div className="flex gap-2">
-                                      <span className="text-muted-foreground w-20 shrink-0">
-                                        Source:
-                                      </span>
-                                      <span className="text-foreground">
-                                        {job.source}
-                                        {job.sourceFile ? ` (${job.sourceFile})` : ''}
-                                      </span>
-                                    </div>
-                                    {job.comment && (
-                                      <div className="flex gap-2">
-                                        <span className="text-muted-foreground w-20 shrink-0">
-                                          Comment:
-                                        </span>
-                                        <span className="text-foreground">{job.comment}</span>
-                                      </div>
-                                    )}
-                                  </div>
-                                </div>
-                                {job.source === 'user' && (
-                                  <div className="pt-2">
-                                    <PastRunsPanel jobId={job.id} onShowOutput={showRunOutput} />
-                                  </div>
-                                )}
-                              </div>
-                            </td>
-                          </tr>
-                        )}
-                      </Fragment>
-                    );
-                  })
+                  filteredJobs.map((job) => (
+                    <CronJobRow
+                      key={job.id}
+                      job={job}
+                      isExpanded={expandedJob === job.id}
+                      onToggleExpand={() => setExpandedJob(expandedJob === job.id ? null : job.id)}
+                      onToggle={setConfirmToggle}
+                      onEdit={(j) => setModal({ mode: 'edit', job: j })}
+                      onRun={setConfirmRun}
+                      onDelete={setConfirmDelete}
+                      onCopy={copyExpression}
+                      copiedId={copiedId}
+                      pendingAction={pendingAction}
+                      now={now}
+                      onShowOutput={showRunOutput}
+                    />
+                  ))
                 )}
               </tbody>
             </table>
@@ -788,99 +578,10 @@ export default function CronsPage() {
       )}
 
       {/* System cron directories tab */}
-      {viewTab === 'system' && (
-        <div
-          id="cron-view-panel-system"
-          role="tabpanel"
-          aria-labelledby="cron-view-tab-system"
-          className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3"
-        >
-          {(snapshot?.systemDirs || []).map((dir) => (
-            <Card key={dir.name} className="border-border/60">
-              <CardHeader className="pb-2">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="flex items-center gap-2">
-                    <FolderOpen className="w-4 h-4 text-primary" />
-                    {dir.name}
-                  </CardTitle>
-                  <Badge variant="outline">{dir.count} scripts</Badge>
-                </div>
-                <p className="text-xs text-muted-foreground font-mono">{dir.path}</p>
-              </CardHeader>
-              <CardContent>
-                {dir.scripts.length === 0 ? (
-                  <p className="text-xs text-muted-foreground">No scripts in this directory.</p>
-                ) : (
-                  <div className="space-y-1">
-                    {dir.scripts.map((script) => (
-                      <div
-                        key={script}
-                        className="flex items-center gap-2 text-xs py-1 px-2 rounded hover:bg-muted/30"
-                      >
-                        <Terminal className="w-3 h-3 text-muted-foreground shrink-0" />
-                        <span className="font-mono text-foreground">{script}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          ))}
-          {(snapshot?.systemDirs || []).length === 0 && (
-            <Card className="border-border/60 sm:col-span-2 lg:col-span-3">
-              <CardContent className="py-12 text-center text-muted-foreground">
-                No system cron directories found.
-              </CardContent>
-            </Card>
-          )}
-        </div>
-      )}
+      {viewTab === 'system' && <SystemDirsPanel systemDirs={snapshot?.systemDirs || []} />}
 
       {/* Execution logs tab */}
-      {viewTab === 'logs' && (
-        <Card
-          id="cron-view-panel-logs"
-          role="tabpanel"
-          aria-labelledby="cron-view-tab-logs"
-          className="border-border/60"
-        >
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle>Recent System Cron Logs</CardTitle>
-                <p className="text-sm text-muted-foreground">
-                  Parsed from system journal or syslog.
-                </p>
-              </div>
-              <Badge variant="outline">{snapshot?.recentLogs.length || 0} entries</Badge>
-            </div>
-          </CardHeader>
-          <CardContent>
-            {(snapshot?.recentLogs || []).length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-8">
-                No recent cron logs found.
-              </p>
-            ) : (
-              <div className="max-h-[500px] overflow-y-auto space-y-1 font-mono text-xs">
-                {(snapshot?.recentLogs || []).map((entry, i) => (
-                  <div
-                    key={i}
-                    className="flex items-start gap-3 py-1.5 px-2 rounded hover:bg-muted/20"
-                  >
-                    <span className="text-muted-foreground shrink-0 w-[80px]">
-                      {formatPastTime(entry.timestamp, now)}
-                    </span>
-                    <Badge variant="secondary" className="text-[10px] shrink-0">
-                      PID {entry.pid}
-                    </Badge>
-                    <span className="text-foreground break-all">{entry.message}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
+      {viewTab === 'logs' && <SystemLogsPanel recentLogs={snapshot?.recentLogs || []} now={now} />}
 
       {/* Global Manual Run History tab */}
       {viewTab === 'manual' && (
@@ -908,122 +609,13 @@ export default function CronsPage() {
 
       {/* Run Output modal */}
       {activeRun && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div
-            className="absolute inset-0 bg-background/80 backdrop-blur-sm"
-            onClick={() => {
-              if (activeRun.status !== 'running') setActiveRun(null);
-            }}
-          />
-          <div className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl border border-border bg-card shadow-xl mx-4">
-            <div className="flex items-center justify-between p-5 border-b border-border">
-              <div className="flex items-center gap-3">
-                <h2 className="text-lg font-semibold">Run Output</h2>
-                <Badge
-                  variant={
-                    activeRun.status === 'running'
-                      ? 'warning'
-                      : activeRun.status === 'completed'
-                        ? 'success'
-                        : 'destructive'
-                  }
-                >
-                  {activeRun.status === 'running' && (
-                    <LoaderCircle className="w-3 h-3 mr-1 animate-spin" />
-                  )}
-                  {activeRun.status}
-                </Badge>
-              </div>
-              <button
-                type="button"
-                onClick={() => setActiveRun(null)}
-                className="p-2 rounded-lg hover:bg-accent transition-colors"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-            <div className="p-5 space-y-4">
-              <div className="text-xs space-y-1">
-                <div className="flex gap-2">
-                  <span className="text-muted-foreground w-20 shrink-0">Command:</span>
-                  <code className="font-mono text-foreground break-all">{activeRun.command}</code>
-                </div>
-                <div className="flex gap-2">
-                  <span className="text-muted-foreground w-20 shrink-0">PID:</span>
-                  <span className="font-mono text-foreground">{activeRun.pid}</span>
-                </div>
-                <div className="flex gap-2">
-                  <span className="text-muted-foreground w-20 shrink-0">Started:</span>
-                  <span className="text-foreground">
-                    {new Date(activeRun.startedAt).toLocaleString()}
-                  </span>
-                </div>
-                {activeRun.finishedAt && (
-                  <div className="flex gap-2">
-                    <span className="text-muted-foreground w-20 shrink-0">Finished:</span>
-                    <span className="text-foreground">
-                      {new Date(activeRun.finishedAt).toLocaleString()}
-                    </span>
-                  </div>
-                )}
-                {activeRun.exitCode !== null && (
-                  <div className="flex gap-2">
-                    <span className="text-muted-foreground w-20 shrink-0">Exit code:</span>
-                    <span
-                      className={cn(
-                        'font-mono',
-                        activeRun.exitCode === 0 ? 'text-success' : 'text-destructive'
-                      )}
-                    >
-                      {activeRun.exitCode}
-                    </span>
-                  </div>
-                )}
-              </div>
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
-                    Run Output
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => setAutoScroll((prev) => !prev)}
-                    className="text-[10px] font-medium text-muted-foreground border border-border rounded px-2 py-1 flex items-center gap-1 hover:bg-accent transition-colors"
-                  >
-                    <RefreshCcw className={cn('w-3 h-3', autoScroll && 'text-primary')} />
-                    Autoscroll: {autoScroll ? 'On' : 'Off'}
-                  </button>
-                </div>
-                <div className="relative">
-                  <pre
-                    ref={stdoutRef}
-                    className={cn(
-                      'max-h-[400px] overflow-auto rounded-xl bg-muted/30 border border-border p-4 text-xs font-mono text-foreground whitespace-pre-wrap break-all',
-                      !activeRun.stdout &&
-                        activeRun.status !== 'running' &&
-                        'flex items-center justify-center text-muted-foreground italic min-h-[100px]'
-                    )}
-                  >
-                    {activeRun.stdout ||
-                      (activeRun.status === 'running'
-                        ? 'Waiting for output...'
-                        : 'No output produced by this run.')}
-                  </pre>
-                </div>
-              </div>
-              <div className="flex justify-end pt-2">
-                <Button
-                  variant="outline"
-                  size="lg"
-                  onClick={() => setActiveRun(null)}
-                  className="min-h-[44px]"
-                >
-                  {activeRun.status === 'running' ? 'Run in Background' : 'Close'}
-                </Button>
-              </div>
-            </div>
-          </div>
-        </div>
+        <RunOutputModal
+          activeRun={activeRun}
+          onClose={() => setActiveRun(null)}
+          autoScroll={autoScroll}
+          onToggleAutoScroll={() => setAutoScroll((prev) => !prev)}
+          stdoutRef={stdoutRef}
+        />
       )}
 
       {/* Create/Edit modal */}
