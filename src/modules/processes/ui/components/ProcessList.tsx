@@ -204,7 +204,7 @@ const ProcessCard = React.memo(
                 <Button
                   variant="outline"
                   size="default"
-                  className="flex-1 text-xs h-10"
+                  className="min-h-11 flex-1 text-xs"
                   onClick={() => onKill(p.pid, 'SIGTERM')}
                   loading={isKilling}
                   aria-label={`Send SIGTERM to process ${p.name} (${p.pid})`}
@@ -214,7 +214,7 @@ const ProcessCard = React.memo(
                 <Button
                   variant="destructive"
                   size="default"
-                  className="flex-1 text-xs h-10"
+                  className="min-h-11 flex-1 text-xs"
                   onClick={() => onKill(p.pid, 'SIGKILL')}
                   loading={isKilling}
                   aria-label={`Send SIGKILL to process ${p.name} (${p.pid})`}
