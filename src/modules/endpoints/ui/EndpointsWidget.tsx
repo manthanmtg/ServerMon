@@ -24,13 +24,33 @@ function isEndpointListResponse(value: unknown): value is EndpointsListResponse 
 }
 
 export function deriveEndpointWidgetSummary(endpoints: CustomEndpointDTO[]) {
+  let active = 0;
+  let errored = 0;
+  let totalHits = 0;
+  const topEndpoints: CustomEndpointDTO[] = [];
+
+  for (const endpoint of endpoints) {
+    if (endpoint.enabled) active += 1;
+    if (endpoint.lastStatus && endpoint.lastStatus >= 400) errored += 1;
+    totalHits += endpoint.executionCount;
+
+    const insertAt = topEndpoints.findIndex(
+      (candidate) => endpoint.executionCount > candidate.executionCount
+    );
+    if (insertAt === -1) {
+      if (topEndpoints.length < 3) topEndpoints.push(endpoint);
+    } else {
+      topEndpoints.splice(insertAt, 0, endpoint);
+      topEndpoints.length = Math.min(topEndpoints.length, 3);
+    }
+  }
+
   return {
     total: endpoints.length,
-    active: endpoints.filter((endpoint) => endpoint.enabled).length,
-    errored: endpoints.filter((endpoint) => endpoint.lastStatus && endpoint.lastStatus >= 400)
-      .length,
-    totalHits: endpoints.reduce((acc, endpoint) => acc + endpoint.executionCount, 0),
-    topEndpoints: [...endpoints].sort((a, b) => b.executionCount - a.executionCount).slice(0, 3),
+    active,
+    errored,
+    totalHits,
+    topEndpoints,
   };
 }
 
