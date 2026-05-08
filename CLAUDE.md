@@ -202,6 +202,8 @@ Concise map of major directories, commands, and key files. Update this section w
 - `src/lib/runtime-diagnostics.ts`, `src/lib/server-request-diagnostics.ts` — system health snapshots and Next.js request instrumentation
 - `src/lib/runtime-launch-context.ts` — platform and environment detection during server startup
 - `src/lib/fetch-utils.ts` — resilient server/client fetch helpers for request timeouts, retries, and safe JSON parsing
+- `src/lib/session.ts`, `src/lib/session-core.ts` — JWT session management, cookie handling, and auth guard logic
+- `src/lib/themes.ts` — System-wide theme definitions and color palette logic
 - `src/lib/crons/service.ts` — internal job scheduling and management
 - `src/lib/ai-agents/` — agent adapters (Claude Code, Codex, Gemini CLI) and session monitoring
 - `src/lib/ai-runner/` — automated task supervisor, watchdog, and worker orchestration
@@ -260,6 +262,7 @@ Concise map of major directories, commands, and key files. Update this section w
 
 - `src/modules/apps/` — Linux-first managed app deployment module; v1 supports explicit-command Next.js deployments with managed release copies, systemd service generation, Nginx routing, DNS guidance, and Apps UI/widget registration
 - `src/lib/apps/` — Apps deployment helpers for release paths, env masking, systemd/Nginx rendering, and the injectable deployment runner used by API routes
+- `src/lib/apps/auto-update.ts`, `src/lib/apps/auto-update-scheduler.ts` — Git-based auto-update logic and background polling scheduler for managed apps
 - `src/models/ManagedApp.ts` — persisted app metadata, commands, masked env source values, status, current release, and deployment history
 - `src/app/api/modules/apps/` — Apps API routes for authenticated app list/create and deploy actions
 - `src/app/apps/` — Apps module page route wrapped in `ProShell`
@@ -301,6 +304,4 @@ Concise map of major directories, commands, and key files. Update this section w
 - `src/modules/users/` — Users & Permissions module definition and UI for managing system users, SSH access, sudo privileges, and ServerMon web access controls
 - `src/app/api/modules/users/`, `src/app/api/modules/updates/`, `src/app/api/settings/` — API routes for users, system updates, and global settings (branding, quick-access)
 - `src/lib/passkey-utils.ts`, `src/lib/auth-utils.ts` — Utility functions for WebAuthn passkey registration/authentication and general JWT/session auth logic
-- `src/lib/analytics.ts` — Internal analytics event tracking and persistence logic
-  al JWT/session auth logic
 - `src/lib/analytics.ts` — Internal analytics event tracking and persistence logic
