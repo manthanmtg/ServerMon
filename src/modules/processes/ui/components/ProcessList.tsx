@@ -227,7 +227,32 @@ const ProcessCard = React.memo(
         )}
       </AnimatePresence>
     </motion.div>
-  )
+  ),
+  (prev, next) => {
+    if (prev.isExpanded !== next.isExpanded || prev.isKilling !== next.isKilling) return false;
+    if (prev.onToggleExpand !== next.onToggleExpand || prev.onKill !== next.onKill) return false;
+
+    const p = prev.process;
+    const n = next.process;
+
+    // Visible fields in card
+    if (p.pid !== n.pid || p.state !== n.state || p.name !== n.name || p.user !== n.user)
+      return false;
+    if (p.cpu !== n.cpu || p.mem !== n.mem || p.started !== n.started) return false;
+
+    // If expanded, check detail fields
+    if (next.isExpanded) {
+      if (
+        p.command !== n.command ||
+        p.memRss !== n.memRss ||
+        p.parentPid !== n.parentPid ||
+        p.priority !== n.priority
+      )
+        return false;
+    }
+
+    return true;
+  }
 );
 
 ProcessCard.displayName = 'ProcessCard';
@@ -375,7 +400,33 @@ const ProcessRow = React.memo(
         )}
       </AnimatePresence>
     </React.Fragment>
-  )
+  ),
+  (prev, next) => {
+    if (prev.isExpanded !== next.isExpanded || prev.isKilling !== next.isKilling) return false;
+    if (prev.onToggleExpand !== next.onToggleExpand || prev.onKill !== next.onKill) return false;
+
+    const p = prev.process;
+    const n = next.process;
+
+    // Table columns visible fields
+    if (p.pid !== n.pid || p.name !== n.name || p.user !== n.user || p.state !== n.state)
+      return false;
+    if (p.cpu !== n.cpu || p.mem !== n.mem || p.started !== n.started) return false;
+
+    // If expanded, check detail fields
+    if (next.isExpanded) {
+      if (
+        p.command !== n.command ||
+        p.path !== n.path ||
+        p.memRss !== n.memRss ||
+        p.parentPid !== n.parentPid ||
+        p.priority !== n.priority
+      )
+        return false;
+    }
+
+    return true;
+  }
 );
 
 ProcessRow.displayName = 'ProcessRow';
