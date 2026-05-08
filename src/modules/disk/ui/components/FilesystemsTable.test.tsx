@@ -19,10 +19,11 @@ describe('FilesystemsTable', () => {
   const mockSettings = { unitSystem: 'decimal' as const };
 
   it('renders table headers', () => {
-    render(<FilesystemsTable disks={mockDisks} settings={mockSettings} />);
+    const { container } = render(<FilesystemsTable disks={mockDisks} settings={mockSettings} />);
     expect(screen.getByText('Mount')).toBeDefined();
     expect(screen.getByText('Type')).toBeDefined();
     expect(screen.getByText('Free')).toBeDefined();
+    expect(container.querySelector('table')?.className).toContain('min-w-[420px]');
   });
 
   it('renders disk information', () => {
