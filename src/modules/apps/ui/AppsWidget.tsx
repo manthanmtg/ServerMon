@@ -7,6 +7,26 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { WidgetCardSkeleton } from '@/components/ui/skeleton';
 import type { ManagedAppDTO } from '../types';
 
+type AppsWidgetSummary = {
+  running: number;
+  failed: number;
+  deploying: number;
+};
+
+type AppsWidgetSummaryInput = Pick<ManagedAppDTO, 'status'>;
+
+export function deriveAppsWidgetSummary(apps: AppsWidgetSummaryInput[]): AppsWidgetSummary {
+  return apps.reduce<AppsWidgetSummary>(
+    (summary, app) => {
+      if (app.status === 'running') summary.running += 1;
+      if (app.status === 'failed') summary.failed += 1;
+      if (app.status === 'deploying') summary.deploying += 1;
+      return summary;
+    },
+    { running: 0, failed: 0, deploying: 0 }
+  );
+}
+
 export default function AppsWidget() {
   const [apps, setApps] = useState<ManagedAppDTO[]>([]);
   const [loading, setLoading] = useState(true);
@@ -31,14 +51,8 @@ export default function AppsWidget() {
     return () => window.clearInterval(interval);
   }, [load]);
 
-  const summary = useMemo(
-    () => ({
-      running: apps.filter((app) => app.status === 'running').length,
-      failed: apps.filter((app) => app.status === 'failed').length,
-      deploying: apps.filter((app) => app.status === 'deploying').length,
-    }),
-    [apps]
-  );
+  const summary = useMemo(() => deriveAppsWidgetSummary(apps), [apps]);
+  const visibleApps = useMemo(() => apps.slice(0, 3), [apps]);
 
   if (loading) return <WidgetCardSkeleton />;
 
@@ -78,7 +92,7 @@ export default function AppsWidget() {
         </div>
 
         <div className="mt-3 space-y-1.5">
-          {apps.slice(0, 3).map((app) => (
+          {visibleApps.map((app) => (
             <div key={app.id} className="flex items-center gap-2 rounded-md px-2 py-1.5 text-xs">
               {app.status === 'running' ? (
                 <CheckCircle2 className="h-3 w-3 shrink-0 text-success" />
