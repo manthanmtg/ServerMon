@@ -156,8 +156,8 @@ export default function UsersPage() {
             </button>
           </div>
 
-          <div className="flex items-center gap-3">
-            <div className="relative group min-w-[200px]">
+          <div className="flex flex-col xs:flex-row items-stretch xs:items-center gap-3">
+            <div className="relative group flex-1 xs:min-w-[200px]">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
               <input
                 type="text"
@@ -169,17 +169,155 @@ export default function UsersPage() {
             </div>
             <button
               onClick={() => setIsAddModalOpen(true)}
-              className="px-4 py-2.5 bg-primary text-primary-foreground rounded-xl text-sm font-bold shadow-lg shadow-primary/20 hover:shadow-primary/30 transition-all flex items-center gap-2"
+              className="px-4 py-2.5 bg-primary text-primary-foreground rounded-xl text-sm font-bold shadow-lg shadow-primary/20 hover:shadow-primary/30 transition-all flex items-center justify-center gap-2 shrink-0"
             >
               <UserPlus className="w-4 h-4" />
-              Add User
+              <span className="xs:hidden sm:inline">Add User</span>
+              <span className="hidden xs:inline sm:hidden">Add</span>
             </button>
           </div>
         </div>
 
-        {/* Users Table */}
+        {/* Users List Container */}
         <div className="bg-card border border-border rounded-3xl shadow-md overflow-hidden">
-          <div className="overflow-x-auto">
+          {/* Mobile Card View */}
+          <div className="sm:hidden divide-y divide-border/30">
+            {isLoading ? (
+              <div className="px-6 py-12 text-center text-sm text-muted-foreground animate-pulse">
+                Scanning identity records...
+              </div>
+            ) : filteredUsers.length === 0 ? (
+              <div className="px-6 py-12 text-center text-sm text-muted-foreground">
+                No users found matching &quot;{searchQuery}&quot;
+              </div>
+            ) : (
+              filteredUsers.map((user) => (
+                <div key={'id' in user ? user.id : user.username} className="p-4 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div
+                        className={cn(
+                          'w-10 h-10 rounded-xl flex items-center justify-center font-bold text-sm',
+                          activeTab === 'web'
+                            ? 'bg-indigo-500/10 text-indigo-500'
+                            : 'bg-primary/10 text-primary'
+                        )}
+                      >
+                        {(user.username[0] || 'U').toUpperCase()}
+                      </div>
+                      <div>
+                        <div className="text-sm font-bold">{user.username}</div>
+                        <div className="text-[10px] text-muted-foreground font-mono">
+                          {'id' in user ? user.id.slice(-8) : `UID: ${user.uid}`}
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() =>
+                        handleDeleteUser(activeTab, 'id' in user ? user.id : user.username)
+                      }
+                      className="p-2 rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-all"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                        {activeTab === 'web' ? 'Role' : 'Home'}
+                      </div>
+                      {activeTab === 'web' ? (
+                        <button
+                          onClick={() =>
+                            handleUpdateRole((user as WebUser).id, (user as WebUser).role)
+                          }
+                          className={cn(
+                            'px-2 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-widest border transition-all',
+                            (user as WebUser).role === 'admin'
+                              ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20'
+                              : 'bg-accent/40 text-muted-foreground border-border/50'
+                          )}
+                        >
+                          {(user as WebUser).role}
+                        </button>
+                      ) : (
+                        <div className="text-xs font-medium truncate">{(user as OSUser).home}</div>
+                      )}
+                    </div>
+
+                    <div className="space-y-1 text-right">
+                      <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                        {activeTab === 'web' ? 'Status' : 'Privileges'}
+                      </div>
+                      {activeTab === 'web' ? (
+                        <div className="flex items-center justify-end gap-2">
+                          <div
+                            className={cn(
+                              'w-2 h-2 rounded-full',
+                              (user as WebUser).isActive ? 'bg-emerald-500' : 'bg-muted'
+                            )}
+                          />
+                          <span className="text-xs">
+                            {(user as WebUser).isActive ? 'Active' : 'Disabled'}
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="flex justify-end">
+                          <button
+                            onClick={() =>
+                              handleToggleSudo((user as OSUser).username, (user as OSUser).hasSudo)
+                            }
+                            className={cn(
+                              'flex items-center gap-1.5 px-2 py-1 rounded-lg border transition-all',
+                              (user as OSUser).hasSudo
+                                ? 'bg-amber-500/10 text-amber-500 border-amber-500/20'
+                                : 'bg-accent/20 text-muted-foreground border-border/30 grayscale opacity-60'
+                            )}
+                          >
+                            <ShieldAlert className="w-3.5 h-3.5" />
+                            <span className="text-[10px] font-bold uppercase">Sudo</span>
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="space-y-1">
+                      <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                        {activeTab === 'web' ? 'Last Login' : 'SSH Keys'}
+                      </div>
+                      {activeTab === 'web' ? (
+                        <div className="text-xs text-muted-foreground">
+                          {(user as WebUser).lastLoginAt
+                            ? new Date((user as WebUser).lastLoginAt!).toLocaleDateString()
+                            : 'Never'}
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-1.5">
+                          <Key className="w-3.5 h-3.5 text-primary/60" />
+                          <span className="text-xs font-bold">{(user as OSUser).sshKeysCount}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {activeTab === 'os' && (
+                      <div className="space-y-1 text-right">
+                        <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                          Shell
+                        </div>
+                        <div className="text-[10px] text-muted-foreground font-mono">
+                          {(user as OSUser).shell}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
+          {/* Desktop Table View */}
+          <div className="hidden sm:block overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="border-b border-border/50 bg-accent/10">
