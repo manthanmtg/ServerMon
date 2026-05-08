@@ -256,4 +256,33 @@ describe('deriveEndpointWidgetSummary', () => {
     });
     expect(endpoints.map((endpoint) => endpoint._id)).toEqual(['ep-1', 'ep-2', 'ep-3', 'ep-4']);
   });
+
+  it('finds top endpoints without sorting the full endpoint list', () => {
+    const endpoints = [
+      { ...mockEndpoints[0], executionCount: 5 },
+      { ...mockEndpoints[1], executionCount: 25 },
+      { ...mockEndpoints[2], executionCount: 15 },
+      {
+        ...mockEndpoints[0],
+        _id: 'ep-4',
+        name: 'Ping',
+        slug: 'ping',
+        executionCount: 35,
+      },
+    ];
+    const sortSpy = vi.spyOn(Array.prototype, 'sort');
+
+    try {
+      const summary = deriveEndpointWidgetSummary(endpoints);
+
+      expect(summary.topEndpoints.map((endpoint) => endpoint._id)).toEqual([
+        'ep-4',
+        'ep-2',
+        'ep-3',
+      ]);
+      expect(sortSpy).not.toHaveBeenCalled();
+    } finally {
+      sortSpy.mockRestore();
+    }
+  });
 });
