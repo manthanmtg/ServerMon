@@ -252,6 +252,11 @@ Concise map of major directories, commands, and key files. Update this section w
 - `src/app/api/modules/processes/`, `src/app/api/modules/terminal/`, `src/app/api/modules/docker/` — API handlers for OS processes, host terminal sessions, and Docker container management
 - `src/modules/processes/`, `src/modules/terminal/`, `src/modules/docker/` — UI modules for process monitoring, web terminal, and Docker management; uses extracted component pattern (e.g., `ProcessList.tsx`, `ContainerTable.tsx`)
 
+### File Browser Module
+
+- `src/app/api/modules/file-browser/` — API routes for directory listings, file reading/writing, uploads, git operations, and settings
+- `src/modules/file-browser/` — File Browser module definition, shared library logic (`lib/file-browser.ts`), and UI components (including CodeMirror editor integration and entry actions)
+
 ### Self-Service & Custom Endpoints
 
 - `src/modules/self-service/` — Browse and install services/tools with fully managed provisioning (Nginx, SSL, systemd); logic in `engine/`, definitions in `templates/`
