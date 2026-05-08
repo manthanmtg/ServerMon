@@ -1,6 +1,7 @@
 'use client';
 
 import { Fragment } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   Check,
   ChevronDown,
@@ -59,19 +60,21 @@ export function CronJobRow({
         )}
       >
         <td className="py-3 px-4">
-          <button
+          <motion.button
             type="button"
             aria-expanded={isExpanded}
             aria-label={`${isExpanded ? 'Hide' : 'Show'} next runs for ${job.command}`}
             onClick={onToggleExpand}
-            className="p-1 rounded hover:bg-accent transition-colors"
+            whileHover={{ scale: 1.1 }}
+            whileTap={{ scale: 0.9 }}
+            className="p-1 rounded hover:bg-accent transition-colors flex items-center justify-center"
           >
             {isExpanded ? (
               <ChevronDown className="w-4 h-4 text-muted-foreground" />
             ) : (
               <ChevronRight className="w-4 h-4 text-muted-foreground" />
             )}
-          </button>
+          </motion.button>
         </td>
         <td className="py-3 px-4">
           <Badge variant={job.enabled ? 'success' : 'secondary'}>
@@ -83,10 +86,12 @@ export function CronJobRow({
             <code className="text-xs font-mono bg-muted/50 px-1.5 py-0.5 rounded">
               {job.expression}
             </code>
-            <button
+            <motion.button
               type="button"
               onClick={() => onCopy(job.expression, job.id)}
-              className="p-0.5 rounded hover:bg-accent transition-colors"
+              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.9 }}
+              className="p-0.5 rounded hover:bg-accent transition-colors flex items-center justify-center"
               title="Copy expression"
             >
               {copiedId === job.id ? (
@@ -94,7 +99,7 @@ export function CronJobRow({
               ) : (
                 <Copy className="w-3 h-3 text-muted-foreground" />
               )}
-            </button>
+            </motion.button>
           </div>
           {job.description && (
             <p className="text-[10px] text-muted-foreground mt-0.5">
@@ -145,11 +150,13 @@ export function CronJobRow({
           <div className="flex items-center gap-1">
             {job.source === 'user' && (
               <>
-                <button
+                <motion.button
                   type="button"
                   title={job.enabled ? 'Disable' : 'Enable'}
                   disabled={pendingAction === `${job.id}:toggle`}
                   onClick={() => onToggle(job)}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
                   className="p-1.5 rounded-lg hover:bg-accent transition-colors min-h-[32px] min-w-[32px] flex items-center justify-center"
                 >
                   {pendingAction === `${job.id}:toggle` ? (
@@ -159,20 +166,24 @@ export function CronJobRow({
                   ) : (
                     <Play className="w-3.5 h-3.5 text-success" />
                   )}
-                </button>
-                <button
+                </motion.button>
+                <motion.button
                   type="button"
                   title="Edit"
                   onClick={() => onEdit(job)}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
                   className="p-1.5 rounded-lg hover:bg-accent transition-colors min-h-[32px] min-w-[32px] flex items-center justify-center"
                 >
                   <Edit3 className="w-3.5 h-3.5 text-muted-foreground" />
-                </button>
-                <button
+                </motion.button>
+                <motion.button
                   type="button"
                   title="Run Now"
                   disabled={pendingAction === `${job.id}:run`}
                   onClick={() => onRun(job)}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
                   className="p-1.5 rounded-lg hover:bg-primary/10 transition-colors min-h-[32px] min-w-[32px] flex items-center justify-center"
                 >
                   {pendingAction === `${job.id}:run` ? (
@@ -180,12 +191,14 @@ export function CronJobRow({
                   ) : (
                     <Zap className="w-3.5 h-3.5 text-primary" />
                   )}
-                </button>
-                <button
+                </motion.button>
+                <motion.button
                   type="button"
                   title="Delete"
                   disabled={pendingAction === `${job.id}:delete`}
                   onClick={() => onDelete(job)}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
                   className="p-1.5 rounded-lg hover:bg-destructive/10 transition-colors min-h-[32px] min-w-[32px] flex items-center justify-center"
                 >
                   {pendingAction === `${job.id}:delete` ? (
@@ -193,7 +206,7 @@ export function CronJobRow({
                   ) : (
                     <Trash2 className="w-3.5 h-3.5 text-destructive" />
                   )}
-                </button>
+                </motion.button>
               </>
             )}
             {job.source !== 'user' && (
@@ -202,68 +215,78 @@ export function CronJobRow({
           </div>
         </td>
       </tr>
-      {isExpanded && (
-        <tr className="border-t border-border/40">
-          <td colSpan={8} className="p-4 bg-muted/5">
-            <div className="grid gap-4 lg:grid-cols-2">
-              <div>
-                <NextRunsPanel job={job} />
-              </div>
-              <div className="space-y-2">
-                <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
-                  Details
-                </p>
-                <div className="text-xs space-y-1">
-                  <div className="flex gap-2">
-                    <span className="text-muted-foreground w-20 shrink-0">
-                      Full command:
-                    </span>
-                    <code className="font-mono text-foreground break-all">
-                      {job.command}
-                    </code>
+      <AnimatePresence initial={false}>
+        {isExpanded && (
+          <tr className="border-t border-border/40 overflow-hidden">
+            <td colSpan={8} className="p-0 bg-muted/5">
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.2, ease: 'easeInOut' }}
+                className="overflow-hidden"
+              >
+                <div className="p-4 grid gap-4 lg:grid-cols-2">
+                  <div>
+                    <NextRunsPanel job={job} />
                   </div>
-                  <div className="flex gap-2">
-                    <span className="text-muted-foreground w-20 shrink-0">
-                      Expression:
-                    </span>
-                    <code className="font-mono text-foreground">
-                      {job.expression}
-                    </code>
+                  <div className="space-y-2">
+                    <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
+                      Details
+                    </p>
+                    <div className="text-xs space-y-1">
+                      <div className="flex gap-2">
+                        <span className="text-muted-foreground w-20 shrink-0">
+                          Full command:
+                        </span>
+                        <code className="font-mono text-foreground break-all">
+                          {job.command}
+                        </code>
+                      </div>
+                      <div className="flex gap-2">
+                        <span className="text-muted-foreground w-20 shrink-0">
+                          Expression:
+                        </span>
+                        <code className="font-mono text-foreground">
+                          {job.expression}
+                        </code>
+                      </div>
+                      <div className="flex gap-2">
+                        <span className="text-muted-foreground w-20 shrink-0">
+                          User:
+                        </span>
+                        <span className="text-foreground">{job.user}</span>
+                      </div>
+                      <div className="flex gap-2">
+                        <span className="text-muted-foreground w-20 shrink-0">
+                          Source:
+                        </span>
+                        <span className="text-foreground">
+                          {job.source}
+                          {job.sourceFile ? ` (${job.sourceFile})` : ''}
+                        </span>
+                      </div>
+                      {job.comment && (
+                        <div className="flex gap-2">
+                          <span className="text-muted-foreground w-20 shrink-0">
+                            Comment:
+                          </span>
+                          <span className="text-foreground">{job.comment}</span>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex gap-2">
-                    <span className="text-muted-foreground w-20 shrink-0">
-                      User:
-                    </span>
-                    <span className="text-foreground">{job.user}</span>
-                  </div>
-                  <div className="flex gap-2">
-                    <span className="text-muted-foreground w-20 shrink-0">
-                      Source:
-                    </span>
-                    <span className="text-foreground">
-                      {job.source}
-                      {job.sourceFile ? ` (${job.sourceFile})` : ''}
-                    </span>
-                  </div>
-                  {job.comment && (
-                    <div className="flex gap-2">
-                      <span className="text-muted-foreground w-20 shrink-0">
-                        Comment:
-                      </span>
-                      <span className="text-foreground">{job.comment}</span>
+                  {job.source === 'user' && (
+                    <div className="pt-2">
+                      <PastRunsPanel jobId={job.id} onShowOutput={onShowOutput} />
                     </div>
                   )}
                 </div>
-              </div>
-              {job.source === 'user' && (
-                <div className="pt-2">
-                  <PastRunsPanel jobId={job.id} onShowOutput={onShowOutput} />
-                </div>
-              )}
-            </div>
-          </td>
-        </tr>
-      )}
+              </motion.div>
+            </td>
+          </tr>
+        )}
+      </AnimatePresence>
     </Fragment>
   );
 }
