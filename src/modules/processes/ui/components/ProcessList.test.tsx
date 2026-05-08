@@ -1,5 +1,6 @@
 import { render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
+import { ProcessListEmptyState, ProcessListFooter } from './ProcessListChrome';
 import { ProcessList } from './ProcessList';
 import type { ProcessInfo } from '../types';
 
@@ -35,6 +36,19 @@ describe('ProcessList', () => {
 
     expect(screen.getByText('No processes found')).toBeInTheDocument();
     expect(screen.getByText('Try a different search or refresh the list.')).toBeInTheDocument();
+  });
+
+  it('renders list chrome separately from row rendering', () => {
+    render(
+      <>
+        <ProcessListEmptyState />
+        <ProcessListFooter processCount={7} sortField="mem" />
+      </>
+    );
+
+    expect(screen.getByText('No processes found')).toBeInTheDocument();
+    expect(screen.getByText('7 processes · sorted by mem')).toBeInTheDocument();
+    expect(screen.getByText('Auto-refreshes every 5s')).toBeInTheDocument();
   });
 
   it('keeps expanded mobile process actions touch-friendly', () => {

@@ -1,18 +1,10 @@
 import React from 'react';
-import {
-  ArrowUpDown,
-  ChevronRight,
-  Clock,
-  Cpu,
-  MemoryStick,
-  SearchX,
-  Skull,
-  User,
-} from 'lucide-react';
+import { ArrowUpDown, ChevronRight, Clock, Cpu, MemoryStick, Skull, User } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { ProcessListEmptyState, ProcessListFooter } from './ProcessListChrome';
 import type { ProcessInfo, ProcessSortField } from '../types';
 
 function formatBytes(bytes: number): string {
@@ -450,25 +442,12 @@ export const ProcessList = React.memo(function ProcessList({
   onToggleExpanded,
   onKillProcess,
 }: ProcessListProps) {
-  const footer = (
-    <div className="px-4 py-2.5 border-t border-border bg-secondary/30 flex flex-col items-start gap-1 sm:flex-row sm:items-center sm:justify-between">
-      <span className="text-xs text-muted-foreground">
-        {processes.length} processes · sorted by {sortField}
-      </span>
-      <span className="text-xs text-muted-foreground">Auto-refreshes every 5s</span>
-    </div>
-  );
+  const footer = <ProcessListFooter processCount={processes.length} sortField={sortField} />;
 
   if (processes.length === 0) {
     return (
       <div className="rounded-xl border border-border bg-card overflow-hidden">
-        <div className="flex min-h-48 flex-col items-center justify-center gap-2 px-4 py-10 text-center">
-          <SearchX className="h-8 w-8 text-muted-foreground" aria-hidden="true" />
-          <p className="text-sm font-medium text-foreground">No processes found</p>
-          <p className="max-w-sm text-xs text-muted-foreground">
-            Try a different search or refresh the list.
-          </p>
-        </div>
+        <ProcessListEmptyState />
         {footer}
       </div>
     );
