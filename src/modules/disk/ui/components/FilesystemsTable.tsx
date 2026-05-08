@@ -20,7 +20,7 @@ export function FilesystemsTable({ disks, settings }: FilesystemsTableProps) {
       </CardHeader>
       <CardContent className="px-0">
         <div className="overflow-x-auto">
-          <table className="w-full text-left">
+          <table className="min-w-[420px] w-full text-left">
             <thead className="border-b border-border/50">
               <tr className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/50">
                 <th className="px-4 py-2 font-medium">Mount</th>
