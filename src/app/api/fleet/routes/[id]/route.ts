@@ -154,7 +154,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
               capabilities: node.capabilities,
             },
           });
-          const frpcRevision = await saveRevision(ConfigRevision as unknown as Model<unknown>, {
+          const frpcRevision = await saveRevision(ConfigRevision, {
             kind: 'frpc',
             targetId: String(node._id),
             structured: {
@@ -187,7 +187,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       { frpsVhostPort }
     );
 
-    const revision = await saveRevision(ConfigRevision as unknown as Model<unknown>, {
+    const revision = await saveRevision(ConfigRevision, {
       kind: 'nginx',
       targetId: id,
       structured: updated.toObject(),
@@ -225,14 +225,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       const deps = {
         frp,
         nginx,
-        ConfigRevision: ConfigRevision as unknown as Parameters<
-          typeof applyRevision
-        >[1]['ConfigRevision'],
-        FrpServerState: FrpServerState as unknown as Parameters<
-          typeof applyRevision
-        >[1]['FrpServerState'],
-        PublicRoute: PublicRoute as unknown as Parameters<typeof applyRevision>[1]['PublicRoute'],
-        Node: Node as unknown as Parameters<typeof applyRevision>[1]['Node'],
+        ConfigRevision,
+        FrpServerState,
+        PublicRoute,
+        Node,
       };
 
       if (frpcRevisionId) {
