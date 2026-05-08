@@ -7,8 +7,6 @@ import { Button } from '@/components/ui/button';
 import {
   renderNodeDoc,
   renderRouteDoc,
-  type DocsNode,
-  type DocsRoute,
   type DocsRevisionBrief,
 } from '@/lib/fleet/docsMarkdown';
 
@@ -33,9 +31,35 @@ interface NodeDoc {
   tags?: string[];
   status: string;
   tunnelStatus: string;
-  proxyRules?: Array<{ name: string; type: string }>;
+  proxyRules?: Array<{
+    name: string;
+    type: string;
+    localPort: number;
+    remotePort?: number;
+    subdomain?: string;
+    enabled: boolean;
+    status: string;
+  }>;
   generatedToml?: { hash?: string; version?: number; renderedAt?: string };
   agentVersion?: string;
+  frpcVersion?: string;
+  lastSeen?: string | Date;
+  lastBootAt?: string | Date;
+  hardware?: {
+    cpuCount?: number;
+    totalRam?: number;
+    diskSize?: number;
+    osDistro?: string;
+    arch?: string;
+  };
+  frpcConfig?: {
+    protocol: string;
+    tlsEnabled: boolean;
+    heartbeatInterval: number;
+    heartbeatTimeout: number;
+  };
+  capabilities?: Record<string, boolean>;
+  maintenance?: { enabled: boolean; reason?: string };
 }
 
 interface RouteDoc {
@@ -43,7 +67,9 @@ interface RouteDoc {
   name: string;
   slug: string;
   domain: string;
+  path: string;
   nodeId: string;
+  proxyRuleName: string;
   createdBy?: string;
   target: { localIp: string; localPort: number; protocol: string };
   accessMode: string;
@@ -52,6 +78,14 @@ interface RouteDoc {
   healthStatus?: string;
   dnsStatus?: string;
   nginxConfigRevisionId?: string;
+  status: string;
+  websocketEnabled: boolean;
+  http2Enabled: boolean;
+  maxBodyMb: number;
+  timeoutSeconds: number;
+  compression: boolean;
+  lastCheckedAt?: string | Date;
+  lastError?: string;
 }
 
 interface LogItem {
@@ -178,7 +212,7 @@ export function GeneratedDocsView(props: Props) {
       );
     }
     const handleDownloadNode = () => {
-      const md = renderNodeDoc(node as unknown as DocsNode, [], revisionToBrief(latestRevision));
+      const md = renderNodeDoc(node, [], revisionToBrief(latestRevision));
       triggerDownload(`${node.slug}.md`, md);
     };
     return (
@@ -309,7 +343,7 @@ export function GeneratedDocsView(props: Props) {
     );
   }
   const handleDownloadRoute = () => {
-    const md = renderRouteDoc(route as unknown as DocsRoute, revisionToBrief(latestRevision));
+    const md = renderRouteDoc(route, revisionToBrief(latestRevision));
     triggerDownload(`${route.slug}.md`, md);
   };
   return (
