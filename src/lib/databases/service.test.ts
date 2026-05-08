@@ -405,6 +405,31 @@ describe('database service helpers', () => {
     expect(request.args).toContain('ME_CONFIG_MONGODB_TLS_CA_FILE=/etc/servermon-db-tls/ca.crt');
   });
 
+  it('builds pgweb with a slashless prefix so proxied iframe roots do not 404', () => {
+    const request = buildDatabaseExplorerRunRequest({
+      id: 'db-1',
+      slug: 'main-postgres',
+      templateId: 'postgres',
+      targetHost: '172.17.0.3',
+      targetPort: 5432,
+      hostPort: 49153,
+      username: 'servermon',
+      password: 'pg-pass',
+      databaseName: 'servermon',
+      proxyPath: '/api/modules/databases/db-1/explore/proxy/',
+      networkName: 'bridge',
+    });
+
+    expect(request.containerName).toBe('servermon-db-explorer-main-postgres');
+    expect(request.args).toContain('127.0.0.1:49153:8081');
+    expect(request.args).toContain('sosedoff/pgweb:0.16.2');
+    expect(request.args).toContain(
+      'PGWEB_DATABASE_URL=postgres://servermon:pg-pass@172.17.0.3:5432/servermon?sslmode=disable'
+    );
+    expect(request.args).toContain('--prefix=api/modules/databases/db-1/explore/proxy');
+    expect(request.args).not.toContain('--prefix=/api/modules/databases/db-1/explore/proxy');
+  });
+
   it('waits for the explorer HTTP listener before marking it ready', async () => {
     const fetcher = vi
       .fn()

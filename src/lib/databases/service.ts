@@ -596,7 +596,7 @@ export function buildDatabaseExplorerRunRequest(input: {
         }
       : input.templateId === 'postgres'
         ? {
-            DATABASE_URL: buildPostgresExplorerUrl(input),
+            PGWEB_DATABASE_URL: buildPostgresExplorerUrl(input),
           }
         : {
             PMA_HOST: input.targetHost,
@@ -616,7 +616,7 @@ export function buildDatabaseExplorerRunRequest(input: {
     args.push(
       '--bind=0.0.0.0',
       `--listen=${internalPort}`,
-      `--prefix=${input.proxyPath.replace(/\/$/, '')}`
+      `--prefix=${input.proxyPath.replace(/^\/+|\/+$/g, '')}`
     );
   }
 
