@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { CheckCircle, Globe, LoaderCircle, Lock, Server } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { resilientFetch } from '@/lib/fetch-utils';
 import type { NginxSnapshot } from '../types';
 
 export default function NginxWidget() {
@@ -12,7 +13,10 @@ export default function NginxWidget() {
 
   const load = useCallback(async () => {
     try {
-      const res = await fetch('/api/modules/nginx', { cache: 'no-store' });
+      const res = await resilientFetch('/api/modules/nginx', {
+        cache: 'no-store',
+        timeout: 5000,
+      });
       if (res.ok) {
         const data = await res.json();
         setSnapshot(data);
