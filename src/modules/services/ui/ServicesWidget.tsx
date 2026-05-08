@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { WidgetCardSkeleton } from '@/components/ui/skeleton';
+import { resilientFetch } from '@/lib/fetch-utils';
 import { cn } from '@/lib/utils';
 import type { ServicesSnapshot } from '../types';
 
@@ -46,7 +47,12 @@ export default function ServicesWidget() {
 
   const load = useCallback(async () => {
     try {
-      const res = await fetch('/api/modules/services', { cache: 'no-store' });
+      const res = await resilientFetch('/api/modules/services', {
+        cache: 'no-store',
+        timeout: 5000,
+        retries: 2,
+        retryDelay: 500,
+      });
       if (res.ok) {
         const data = await res.json();
         setSnapshot(data);
