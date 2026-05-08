@@ -4,11 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Spinner } from '@/components/ui/spinner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import {
-  renderNodeDoc,
-  renderRouteDoc,
-  type DocsRevisionBrief,
-} from '@/lib/fleet/docsMarkdown';
+import { renderNodeDoc, renderRouteDoc, type DocsRevisionBrief } from '@/lib/fleet/docsMarkdown';
 
 interface DocsNodeView {
   kind: 'node';
