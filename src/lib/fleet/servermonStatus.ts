@@ -1,4 +1,4 @@
-import { spawn as realSpawn } from 'node:child_process';
+import { spawn as realSpawn, type ChildProcess } from 'node:child_process';
 import { readFile as realReadFile } from 'node:fs/promises';
 import { z } from 'zod';
 
@@ -32,12 +32,6 @@ export const ServerMonStatusZodSchema = z.object({
   lastCheckedAt: z.string(),
   lastError: z.string().optional(),
 });
-
-interface SpawnLike {
-  stdout?: { on: (event: 'data', cb: (chunk: Buffer | string) => void) => unknown };
-  stderr?: { on: (event: 'data', cb: (chunk: Buffer | string) => void) => unknown };
-  on: (event: 'close' | 'error', cb: (...args: never[]) => void) => unknown;
-}
 
 type SpawnImpl = typeof realSpawn;
 
@@ -79,11 +73,11 @@ function commandOutput(
   timeoutMs: number
 ): Promise<{ stdout: string; stderr: string; code: number | null }> {
   return new Promise((resolve) => {
-    let child: SpawnLike;
+    let child: ChildProcess;
     try {
       child = spawnImpl(command, args, {
         stdio: ['ignore', 'pipe', 'pipe'],
-      }) as unknown as SpawnLike;
+      });
     } catch (err) {
       resolve({
         stdout: '',

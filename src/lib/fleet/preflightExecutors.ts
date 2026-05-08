@@ -55,11 +55,7 @@ function defaultFsImpl(): DefaultExecutorsFs {
       return { size: Number(s.size) };
     },
   };
-  const maybeStatfs = (
-    nodeFsPromises as unknown as {
-      statfs?: (p: string) => Promise<{ bavail: bigint | number; bsize: bigint | number }>;
-    }
-  ).statfs;
+  const maybeStatfs = nodeFsPromises.statfs;
   if (typeof maybeStatfs === 'function') {
     impl.statfs = async (p) => {
       const r = await maybeStatfs(p);

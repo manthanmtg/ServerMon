@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import mongoose from 'mongoose';
 import connectDB from '@/lib/db';
 import { createLogger } from '@/lib/logger';
 import AIRunnerAutoflow from '@/models/AIRunnerAutoflow';
@@ -231,7 +232,7 @@ export class AIRunnerSupervisor {
             }
           );
           item.status = run.status === 'skipped' ? 'skipped' : 'queued';
-          item.runId = run._id as unknown as typeof item.runId;
+          item.runId = new mongoose.Types.ObjectId(run._id);
           item.lastError = run.status === 'skipped' ? run.lastError : undefined;
           item.finishedAt = run.status === 'skipped' ? new Date() : undefined;
           changed = true;
