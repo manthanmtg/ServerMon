@@ -140,12 +140,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
           scope: 'node',
           scopeId: id,
           currentCounter: async () => nextLen,
-          ResourcePolicy: ResourcePolicy as unknown as Parameters<
-            typeof enforceResourceGuard
-          >[0]['ResourcePolicy'],
-          FleetLogEvent: FleetLogEvent as unknown as Parameters<
-            typeof enforceResourceGuard
-          >[0]['FleetLogEvent'],
+          ResourcePolicy,
+          FleetLogEvent,
           actorUserId: actorUsername,
         });
         if (!guard.allowed) {
@@ -174,14 +170,11 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         updates.proxyRules.map((rule) => rule.name).filter((name): name is string => Boolean(name))
       );
       const removedProxyNames = [...previousProxyNames].filter((name) => !nextProxyNames.has(name));
-      const routeQuery = PublicRoute.find({
+      const publicRoutes = (await PublicRoute.find({
         nodeId: id,
         enabled: true,
         target: { $exists: true },
-      }) as unknown as {
-        lean: () => Promise<PublicRouteProxySource[]> | PublicRouteProxySource[];
-      };
-      const publicRoutes = await routeQuery.lean();
+      }).lean()) as unknown as PublicRouteProxySource[];
       const proxyRules = updates.proxyRules as PublicRouteProxyRule[];
       for (const route of publicRoutes) {
         if (removedProxyNames.includes(route.proxyRuleName)) continue;
@@ -238,7 +231,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       },
     });
 
-    const revision = await saveRevision(ConfigRevision as ConfigRevisionModelLike, {
+    const revision = await saveRevision(ConfigRevision, {
       kind: 'frpc',
       targetId: id,
       structured: updated.toObject(),
@@ -263,17 +256,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       const { getFrpOrchestrator, getNginxOrchestrator } =
         await import('@/lib/fleet/orchestrators');
       const { applyRevision } = await import('@/lib/fleet/applyEngine');
-      await applyRevision(revision.id, {
+      applyRevision(revision.id, {
         frp: getFrpOrchestrator(),
         nginx: getNginxOrchestrator(),
-        ConfigRevision: ConfigRevision as unknown as Parameters<
-          typeof applyRevision
-        >[1]['ConfigRevision'],
-        FrpServerState: FrpServerState as unknown as Parameters<
-          typeof applyRevision
-        >[1]['FrpServerState'],
-        PublicRoute: PublicRoute as unknown as Parameters<typeof applyRevision>[1]['PublicRoute'],
-        Node: Node as unknown as Parameters<typeof applyRevision>[1]['Node'],
+        ConfigRevision,
+        FrpServerState,
+        PublicRoute,
+        Node,
       }).catch((err) => log.warn('applyRevision failed post-save', err));
     }
 

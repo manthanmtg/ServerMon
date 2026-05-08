@@ -107,12 +107,8 @@ export async function POST(req: NextRequest) {
           eventType: 'endpoint.dispatched',
           createdAt: { $gte: startOfHour },
         }),
-      ResourcePolicy: ResourcePolicy as unknown as Parameters<
-        typeof enforceResourceGuard
-      >[0]['ResourcePolicy'],
-      FleetLogEvent: FleetLogEvent as unknown as Parameters<
-        typeof enforceResourceGuard
-      >[0]['FleetLogEvent'],
+      ResourcePolicy,
+      FleetLogEvent,
       actorUserId: session.user.username,
     });
     if (!guard.allowed) {

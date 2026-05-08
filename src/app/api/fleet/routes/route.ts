@@ -139,12 +139,8 @@ export async function POST(req: NextRequest) {
       key: 'maxPublicRoutes',
       scope: 'global',
       currentCounter: () => PublicRoute.countDocuments(),
-      ResourcePolicy: ResourcePolicy as unknown as Parameters<
-        typeof enforceResourceGuard
-      >[0]['ResourcePolicy'],
-      FleetLogEvent: FleetLogEvent as unknown as Parameters<
-        typeof enforceResourceGuard
-      >[0]['FleetLogEvent'],
+      ResourcePolicy,
+      FleetLogEvent,
       actorUserId: session.user.username,
     });
     if (!guard.allowed) {
@@ -199,7 +195,7 @@ export async function POST(req: NextRequest) {
           capabilities: node.capabilities,
         },
       });
-      const frpcRevision = await saveRevision(ConfigRevision as unknown as Model<unknown>, {
+      const frpcRevision = await saveRevision(ConfigRevision, {
         kind: 'frpc',
         targetId: String(node._id),
         structured: {
@@ -254,7 +250,7 @@ export async function POST(req: NextRequest) {
       { frpsVhostPort }
     );
 
-    const revision = await saveRevision(ConfigRevision as unknown as Model<unknown>, {
+    const revision = await saveRevision(ConfigRevision, {
       kind: 'nginx',
       targetId: routeId,
       structured: created.toObject(),
@@ -282,14 +278,10 @@ export async function POST(req: NextRequest) {
       const deps = {
         frp,
         nginx,
-        ConfigRevision: ConfigRevision as unknown as Parameters<
-          typeof applyRevision
-        >[1]['ConfigRevision'],
-        FrpServerState: FrpServerState as unknown as Parameters<
-          typeof applyRevision
-        >[1]['FrpServerState'],
-        PublicRoute: PublicRoute as unknown as Parameters<typeof applyRevision>[1]['PublicRoute'],
-        Node: Node as unknown as Parameters<typeof applyRevision>[1]['Node'],
+        ConfigRevision,
+        FrpServerState,
+        PublicRoute,
+        Node,
       };
 
       if (frpcRevisionId) {
