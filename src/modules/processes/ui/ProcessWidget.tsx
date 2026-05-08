@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { SkeletonCard, SkeletonTable } from '@/components/ui/skeleton';
 import { useToast } from '@/components/ui/toast';
 import { cn } from '@/lib/utils';
+import { resilientFetch } from '@/lib/fetch-utils';
 import { ProcessList } from './components/ProcessList';
 import { ProcessSummaryGrid } from './components/ProcessSummaryGrid';
 import type { ProcessInfo, ProcessSortField, ProcessSummary } from './types';
@@ -33,10 +34,11 @@ export default function ProcessWidget() {
     async (isManual = false) => {
       if (isManual) setRefreshing(true);
       try {
-        const res = await fetch(
+        const res = await resilientFetch(
           `/api/modules/processes?limit=50&sort=${sortField}&search=${encodeURIComponent(
             debouncedSearch
-          )}`
+          )}`,
+          { timeout: 8000 }
         );
         const data = await res.json();
         setProcesses(data.processes || []);
@@ -61,10 +63,11 @@ export default function ProcessWidget() {
     async (pid: number, signal: string) => {
       setKillingPid(pid);
       try {
-        const res = await fetch('/api/modules/processes', {
+        const res = await resilientFetch('/api/modules/processes', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ pid, signal }),
+          timeout: 5000,
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error);

@@ -119,7 +119,10 @@ describe('ProcessWidget', () => {
 
     // Should trigger fetch with search
     await waitFor(() => {
-      expect(global.fetch).toHaveBeenCalledWith(expect.stringContaining('search=python'));
+      expect(global.fetch).toHaveBeenCalledWith(
+        expect.stringContaining('search=python'),
+        expect.any(Object)
+      );
     });
   });
 
@@ -131,7 +134,10 @@ describe('ProcessWidget', () => {
 
     // Should trigger fetch with sort=mem
     await waitFor(() => {
-      expect(global.fetch).toHaveBeenCalledWith(expect.stringContaining('sort=mem'));
+      expect(global.fetch).toHaveBeenCalledWith(
+        expect.stringContaining('sort=mem'),
+        expect.any(Object)
+      );
     });
   });
 
