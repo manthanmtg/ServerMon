@@ -127,12 +127,7 @@ export function RunOutputModal({
             </div>
           </div>
           <div className="flex justify-end pt-2">
-            <Button
-              variant="outline"
-              size="lg"
-              onClick={onClose}
-              className="min-h-[44px]"
-            >
+            <Button variant="outline" size="lg" onClick={onClose} className="min-h-[44px]">
               {activeRun.status === 'running' ? 'Run in Background' : 'Close'}
             </Button>
           </div>

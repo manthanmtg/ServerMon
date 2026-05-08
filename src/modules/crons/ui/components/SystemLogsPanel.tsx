@@ -22,9 +22,7 @@ export function SystemLogsPanel({ recentLogs, now }: SystemLogsPanelProps) {
         <div className="flex items-center justify-between">
           <div>
             <CardTitle>Recent System Cron Logs</CardTitle>
-            <p className="text-sm text-muted-foreground">
-              Parsed from system journal or syslog.
-            </p>
+            <p className="text-sm text-muted-foreground">Parsed from system journal or syslog.</p>
           </div>
           <Badge variant="outline">{recentLogs.length} entries</Badge>
         </div>
@@ -37,10 +35,7 @@ export function SystemLogsPanel({ recentLogs, now }: SystemLogsPanelProps) {
         ) : (
           <div className="max-h-[500px] overflow-y-auto space-y-1 font-mono text-xs">
             {recentLogs.map((entry, i) => (
-              <div
-                key={i}
-                className="flex items-start gap-3 py-1.5 px-2 rounded hover:bg-muted/20"
-              >
+              <div key={i} className="flex items-start gap-3 py-1.5 px-2 rounded hover:bg-muted/20">
                 <span className="text-muted-foreground shrink-0 w-[80px]">
                   {formatPastTime(entry.timestamp, now)}
                 </span>

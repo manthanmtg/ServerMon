@@ -102,16 +102,11 @@ export function CronJobRow({
             </motion.button>
           </div>
           {job.description && (
-            <p className="text-[10px] text-muted-foreground mt-0.5">
-              {job.description}
-            </p>
+            <p className="text-[10px] text-muted-foreground mt-0.5">{job.description}</p>
           )}
         </td>
         <td className="py-3 px-4">
-          <span
-            className="font-mono text-xs max-w-[280px] truncate block"
-            title={job.command}
-          >
+          <span className="font-mono text-xs max-w-[280px] truncate block" title={job.command}>
             {job.command}
           </span>
           {job.comment && (
@@ -236,31 +231,19 @@ export function CronJobRow({
                     </p>
                     <div className="text-xs space-y-1">
                       <div className="flex gap-2">
-                        <span className="text-muted-foreground w-20 shrink-0">
-                          Full command:
-                        </span>
-                        <code className="font-mono text-foreground break-all">
-                          {job.command}
-                        </code>
+                        <span className="text-muted-foreground w-20 shrink-0">Full command:</span>
+                        <code className="font-mono text-foreground break-all">{job.command}</code>
                       </div>
                       <div className="flex gap-2">
-                        <span className="text-muted-foreground w-20 shrink-0">
-                          Expression:
-                        </span>
-                        <code className="font-mono text-foreground">
-                          {job.expression}
-                        </code>
+                        <span className="text-muted-foreground w-20 shrink-0">Expression:</span>
+                        <code className="font-mono text-foreground">{job.expression}</code>
                       </div>
                       <div className="flex gap-2">
-                        <span className="text-muted-foreground w-20 shrink-0">
-                          User:
-                        </span>
+                        <span className="text-muted-foreground w-20 shrink-0">User:</span>
                         <span className="text-foreground">{job.user}</span>
                       </div>
                       <div className="flex gap-2">
-                        <span className="text-muted-foreground w-20 shrink-0">
-                          Source:
-                        </span>
+                        <span className="text-muted-foreground w-20 shrink-0">Source:</span>
                         <span className="text-foreground">
                           {job.source}
                           {job.sourceFile ? ` (${job.sourceFile})` : ''}
@@ -268,9 +251,7 @@ export function CronJobRow({
                       </div>
                       {job.comment && (
                         <div className="flex gap-2">
-                          <span className="text-muted-foreground w-20 shrink-0">
-                            Comment:
-                          </span>
+                          <span className="text-muted-foreground w-20 shrink-0">Comment:</span>
                           <span className="text-foreground">{job.comment}</span>
                         </div>
                       )}
