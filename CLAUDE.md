@@ -257,7 +257,7 @@ Concise map of major directories, commands, and key files. Update this section w
 
 - `src/models/` — Terminal & Processes models: TerminalHistory, TerminalSession, TerminalSettings, SavedCommand, DockerAlert, DockerStatAggregate
 - `src/app/api/modules/processes/`, `src/app/api/terminal/`, `src/app/api/modules/docker/` — API handlers for OS processes, host terminal sessions, and Docker container management
-- `src/modules/processes/`, `src/modules/terminal/`, `src/modules/docker/` — UI modules for process monitoring, web terminal, and Docker management; uses extracted component pattern (e.g., `ProcessList.tsx`, `ContainerTable.tsx`)
+- `src/modules/processes/`, `src/modules/terminal/`, `src/modules/docker/` — UI modules for process monitoring, web terminal, and Docker management; uses extracted component pattern (e.g., `ProcessList.tsx`, `ProcessListChrome.tsx`, `ContainerTable.tsx`)
 
 ### File Browser Module
 
