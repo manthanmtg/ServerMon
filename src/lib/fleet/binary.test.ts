@@ -1,12 +1,7 @@
 /** @vitest-environment node */
 import { describe, it, expect, vi } from 'vitest';
 import { EventEmitter } from 'node:events';
-import {
-  platformTriple,
-  frpDownloadUrl,
-  ensureBinary,
-  resolveVersion,
-} from './binary';
+import { platformTriple, frpDownloadUrl, ensureBinary, resolveVersion } from './binary';
 
 describe('platformTriple', () => {
   it('maps darwin/x64 to darwin_amd64', () => {
