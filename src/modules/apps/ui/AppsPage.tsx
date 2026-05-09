@@ -56,6 +56,26 @@ interface EnvVarRow {
   value: string;
 }
 
+type AppsPageSummary = {
+  total: number;
+  running: number;
+  failed: number;
+};
+
+type AppsPageSummaryInput = Pick<ManagedAppDTO, 'status'>;
+
+export function deriveAppsPageSummary(apps: AppsPageSummaryInput[]): AppsPageSummary {
+  return apps.reduce<AppsPageSummary>(
+    (summary, app) => {
+      summary.total += 1;
+      if (app.status === 'running') summary.running += 1;
+      if (app.status === 'failed') summary.failed += 1;
+      return summary;
+    },
+    { total: 0, running: 0, failed: 0 }
+  );
+}
+
 const initialForm: FormState = {
   templateId: 'nextjs',
   sourceType: 'local',
@@ -248,14 +268,7 @@ export default function AppsPage() {
     load();
   }, [load]);
 
-  const summary = useMemo(
-    () => ({
-      total: apps.length,
-      running: apps.filter((app) => app.status === 'running').length,
-      failed: apps.filter((app) => app.status === 'failed').length,
-    }),
-    [apps]
-  );
+  const summary = useMemo(() => deriveAppsPageSummary(apps), [apps]);
 
   const updateForm = <K extends keyof FormState>(key: K, value: FormState[K]) => {
     setForm((current) => ({ ...current, [key]: value }));
