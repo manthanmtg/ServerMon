@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import AppsPage from './AppsPage';
+import AppsPage, { deriveAppsPageSummary } from './AppsPage';
 
 describe('AppsPage', () => {
   const writeText = vi.fn();
@@ -20,6 +20,21 @@ describe('AppsPage', () => {
       ok: true,
       json: async () => ({ apps: [] }),
     } as Response);
+  });
+
+  it('derives app summary counts in one pass', () => {
+    const summary = deriveAppsPageSummary([
+      { status: 'running' },
+      { status: 'failed' },
+      { status: 'deploying' },
+      { status: 'running' },
+    ]);
+
+    expect(summary).toEqual({
+      total: 4,
+      running: 2,
+      failed: 1,
+    });
   });
 
   it('opens a labelled generic app creation modal from the top-right action', async () => {
