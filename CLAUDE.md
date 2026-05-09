@@ -195,14 +195,21 @@ Concise map of major directories, commands, and key files. Update this section w
 ## `src/` Layout
 
 - `src/app/` — Next.js App Router pages + `api/` route handlers (dashboard, settings, fleet, ai-runner, crons, self-service, endpoints, security, certificates, ports, memory, guide, etc.)
-- `src/app/api/modules/` — feature-specific API routes (ai-runner, disk, nginx, users, services, processes, terminal, security, etc.)
+- `src/app/api/modules/` — feature-specific API routes (ai-runner, ai-agents, disk, nginx, users, services, processes, security, etc.)
+- `src/app/api/auth/` — authentication handlers (login, logout, me, verify, passkey registration/auth)
 - `src/app/api/analytics/` — internal usage analytics and recent event history
+- `src/app/api/system/` — system-level actions (diagnostics, reboot, update history)
+- `src/app/api/setup/` — initial platform setup and completion handlers
+- `src/app/api/metrics/` — real-time system metrics SSE streams
+- `src/app/api/terminal/` — host terminal session and command management
 - `src/components/` — shared UI (including `layout/`, `ui/`, `modules/`)
 - `src/lib/` — utilities, domain logic, fleet libraries, AI orchestration, and core context providers (`ThemeContext.tsx`, `BrandContext.tsx`, `MetricsContext.tsx`)
+- `src/lib/db.ts` — MongoDB connection management and lifecycle hooks
+- `src/lib/logger.ts` — structured logging utility with environment-aware levels
 - `src/lib/runtime-diagnostics.ts`, `src/lib/server-request-diagnostics.ts` — system health snapshots and Next.js request instrumentation
 - `src/lib/runtime-launch-context.ts` — platform and environment detection during server startup
 - `src/lib/fetch-utils.ts` — resilient server/client fetch helpers for request timeouts, retries, and safe JSON parsing
-- `src/lib/session.ts`, `src/lib/session-core.ts` — JWT session management, cookie handling, and auth guard logic
+- `src/lib/session.ts`, `src/lib/session-core.ts`, `src/lib/auth-routes.ts` — JWT session management, cookie handling, and auth guard logic
 - `src/lib/themes.ts` — System-wide theme definitions and color palette logic
 - `src/lib/crons/service.ts` — internal job scheduling and management
 - `src/lib/ai-agents/` — agent adapters (Claude Code, Codex, Gemini CLI) and session monitoring
@@ -249,7 +256,7 @@ Concise map of major directories, commands, and key files. Update this section w
 ### Terminal & Processes
 
 - `src/models/` — Terminal & Processes models: TerminalHistory, TerminalSession, TerminalSettings, SavedCommand, DockerAlert, DockerStatAggregate
-- `src/app/api/modules/processes/`, `src/app/api/modules/terminal/`, `src/app/api/modules/docker/` — API handlers for OS processes, host terminal sessions, and Docker container management
+- `src/app/api/modules/processes/`, `src/app/api/terminal/`, `src/app/api/modules/docker/` — API handlers for OS processes, host terminal sessions, and Docker container management
 - `src/modules/processes/`, `src/modules/terminal/`, `src/modules/docker/` — UI modules for process monitoring, web terminal, and Docker management; uses extracted component pattern (e.g., `ProcessList.tsx`, `ContainerTable.tsx`)
 
 ### File Browser Module
@@ -285,6 +292,7 @@ Concise map of major directories, commands, and key files. Update this section w
 - `src/modules/ai-agents/` — AI agent monitoring; `ui/AIAgentsPage.tsx` displays active sessions, tool catalog, and conversation history across multiple adapters (Claude Code, Codex, Gemini CLI, etc.)
 - `src/modules/ai-runner/` — automated task orchestration; `ui/AIRunnerPage.tsx` and `ui/components/` (`AutoFlowView`, `HistoryView`, etc.) manage prompts, profiles (with run-as user support), workspaces, schedules, AutoFlows, logs, prompt templates, worker concurrency, import/export, and schedule visualization; uses supervisor/worker pattern for background execution
 - `src/models/AIRunnerPrompt.ts`, `src/models/AIRunnerPromptTemplate.ts`, `src/models/AIRunnerProfile.ts`, `src/models/AIRunnerWorkspace.ts`, `src/models/AIRunnerSchedule.ts`, `src/models/AIRunnerAutoflow.ts`, `src/models/AIRunnerJob.ts`, `src/models/AIRunnerRun.ts`, `src/models/AIRunnerSupervisorLease.ts`, `src/models/AIRunnerSettings.ts` — persisted AI Runner prompt library, templates, profiles (including `runAsUser` and `runAsUserAuthMode`), reusable workspaces, schedules, AutoFlows, durable job queue, run history, supervisor lease, and global settings
+- `src/app/api/modules/ai-agents/` — AI Agent session monitoring, kill signals, and tool execution history
 - `src/app/api/modules/ai-runner/` — AI Runner routes for prompts, prompt templates, prompt attachments, profiles (including validation), workspaces, schedules (including bulk update), AutoFlows, runs, logs/stream, settings, bundle import/export, directories, and direct run dispatch
 - `src/modules/env-vars/` — EnvVars module definition and UI for managing host-level environment variables (stateless, bypassing MongoDB)
 - `docs/ai-runner-module.md` — technical architecture for automation runner
