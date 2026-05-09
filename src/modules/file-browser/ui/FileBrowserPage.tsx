@@ -34,6 +34,10 @@ import { FileBrowserBreadcrumbs } from './components/FileBrowserBreadcrumbs';
 import { FileBrowserGitBar } from './components/FileBrowserGitBar';
 import { FileBrowserEntryList, FileEntry, FileKind } from './components/FileBrowserEntryList';
 import { FileBrowserPreview } from './components/FileBrowserPreview';
+import {
+  FileBrowserSummaryBar,
+  FileBrowserUploadProgressBar,
+} from './components/FileBrowserStatusBars';
 import dynamic from 'next/dynamic';
 
 const CodeEditorModal = dynamic(() => import('./components/CodeEditorModal'), { ssr: false });
@@ -101,18 +105,6 @@ const DEFAULT_SETTINGS: FileBrowserSettings = {
   editorMaxBytes: 1024 * 1024,
   previewMaxBytes: 512 * 1024,
 };
-
-function formatBytesCompact(bytes: number) {
-  if (bytes < 1024) return `${bytes} B`;
-  const units = ['KB', 'MB', 'GB', 'TB'];
-  let value = bytes;
-  let unitIndex = -1;
-  while (value >= 1024 && unitIndex < units.length - 1) {
-    value /= 1024;
-    unitIndex += 1;
-  }
-  return `${value.toFixed(value >= 10 || unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`;
-}
 
 function matchesFilter(name: string, filter: string) {
   if (!filter.trim()) return true;
@@ -1193,40 +1185,9 @@ export default function FileBrowserPage() {
           </div>
 
           {/* Summary bar */}
-          {listing?.summary && !loading && (
-            <div className="flex items-center gap-3 px-3 py-2 md:px-6 md:py-2.5 border-t border-border/40 bg-secondary/5 text-[10px] md:text-[11px] font-medium text-muted-foreground shrink-0">
-              <span>
-                {listing.summary.directories} folder{listing.summary.directories !== 1 ? 's' : ''}
-              </span>
-              <span className="opacity-30">·</span>
-              <span>
-                {listing.summary.files} file{listing.summary.files !== 1 ? 's' : ''}
-              </span>
-              {listing.summary.totalSize > 0 && (
-                <>
-                  <span className="opacity-30">·</span>
-                  <span>{formatBytesCompact(listing.summary.totalSize)}</span>
-                </>
-              )}
-            </div>
-          )}
+          {listing?.summary && !loading && <FileBrowserSummaryBar summary={listing.summary} />}
 
-          {uploadProgress > 0 && (
-            <div className="absolute inset-x-0 bottom-0 p-4 bg-background/80 backdrop-blur border-t border-border">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  Uploading files...
-                </span>
-                <span className="text-xs font-mono font-bold text-primary">{uploadProgress}%</span>
-              </div>
-              <div className="h-1.5 w-full bg-secondary/50 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-primary transition-all duration-300"
-                  style={{ width: `${uploadProgress}%` }}
-                />
-              </div>
-            </div>
-          )}
+          {uploadProgress > 0 && <FileBrowserUploadProgressBar progress={uploadProgress} />}
         </div>
 
         {/* Preview Panel — full-screen overlay on mobile, inline on desktop */}
