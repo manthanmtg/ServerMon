@@ -26,7 +26,7 @@ const DEFAULT_SYSTEMD_DIR = '/etc/systemd/system';
 const DEFAULT_NGINX_AVAILABLE_DIR = '/etc/nginx/sites-available';
 const DEFAULT_NGINX_ENABLED_DIR = '/etc/nginx/sites-enabled';
 
-export const NextJsAppTemplate: AppTemplate = {
+const NextJsAppTemplate: AppTemplate = {
   id: 'nextjs',
   name: 'Next.js App',
   description: 'Deploy a pure Next.js application from a managed release copy.',
@@ -108,10 +108,6 @@ export type UpdateManagedAppData = z.infer<typeof UpdateManagedAppSchema>;
 
 export function getAppTemplate(id: string): AppTemplate | undefined {
   return templates[id];
-}
-
-export function getAppTemplates(): AppTemplate[] {
-  return Object.values(templates);
 }
 
 export function getConfiguredPublicIp(): string | undefined {
