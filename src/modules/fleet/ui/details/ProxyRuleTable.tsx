@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -180,14 +180,17 @@ export function ProxyRuleTable({ nodeId }: { nodeId: string }) {
     await persist(next);
   };
 
+  const proxySuggestions = useMemo(
+    () => (nodeDetail && rules ? buildProxySuggestions(nodeDetail, rules) : []),
+    [nodeDetail, rules]
+  );
+
   if (!rules)
     return (
       <div className="flex justify-center py-12">
         <Spinner />
       </div>
     );
-
-  const proxySuggestions = nodeDetail ? buildProxySuggestions(nodeDetail, rules) : [];
 
   return (
     <Card>
