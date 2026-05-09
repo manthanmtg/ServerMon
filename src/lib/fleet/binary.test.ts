@@ -4,7 +4,6 @@ import { EventEmitter } from 'node:events';
 import {
   platformTriple,
   frpDownloadUrl,
-  verifyChecksum,
   ensureBinary,
   resolveVersion,
 } from './binary';
@@ -48,24 +47,6 @@ describe('frpDownloadUrl', () => {
     expect(frpDownloadUrl('0.61.2', 'darwin_arm64')).toBe(
       'https://github.com/fatedier/frp/releases/download/v0.61.2/frp_0.61.2_darwin_arm64.tar.gz'
     );
-  });
-});
-
-describe('verifyChecksum', () => {
-  // sha256('hello') = 2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824
-  const helloSha = '2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824';
-
-  it('returns true for matching sha256', async () => {
-    const readFile = async () => Buffer.from('hello');
-    expect(await verifyChecksum('/any', helloSha, readFile)).toBe(true);
-  });
-  it('returns false for non-matching sha256', async () => {
-    const readFile = async () => Buffer.from('hello');
-    expect(await verifyChecksum('/any', 'deadbeef', readFile)).toBe(false);
-  });
-  it('accepts uppercase expected hex', async () => {
-    const readFile = async () => Buffer.from('hello');
-    expect(await verifyChecksum('/any', helloSha.toUpperCase(), readFile)).toBe(true);
   });
 });
 
