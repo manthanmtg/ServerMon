@@ -18,6 +18,40 @@ function logPriorityVariant(priority: string): 'destructive' | 'warning' | 'defa
   return 'secondary';
 }
 
+const serviceLogPriorities = new Set<ServiceLogEntry['priority']>([
+  'emerg',
+  'alert',
+  'crit',
+  'err',
+  'warning',
+  'notice',
+  'info',
+  'debug',
+]);
+
+function isServiceLogEntry(entry: unknown): entry is ServiceLogEntry {
+  if (!entry || typeof entry !== 'object') return false;
+
+  const candidate = entry as Record<string, unknown>;
+
+  return (
+    typeof candidate.timestamp === 'string' &&
+    !Number.isNaN(Date.parse(candidate.timestamp)) &&
+    typeof candidate.priority === 'string' &&
+    serviceLogPriorities.has(candidate.priority as ServiceLogEntry['priority']) &&
+    typeof candidate.message === 'string' &&
+    typeof candidate.unit === 'string'
+  );
+}
+
+function parseServiceLogEntries(data: unknown): ServiceLogEntry[] {
+  if (!data || typeof data !== 'object') return [];
+
+  const logs = (data as { logs?: unknown }).logs;
+
+  return Array.isArray(logs) ? logs.filter(isServiceLogEntry) : [];
+}
+
 export function ServiceLogPanel({ serviceName }: ServiceLogPanelProps) {
   const [logs, setLogs] = useState<ServiceLogEntry[] | null>(null);
   const [autoScroll, setAutoScroll] = useState(true);
@@ -38,10 +72,7 @@ export function ServiceLogPanel({ serviceName }: ServiceLogPanelProps) {
       })
         .then((r) => r.json())
         .then((data: unknown) => {
-          const nextLogs =
-            data && typeof data === 'object' && Array.isArray((data as { logs?: unknown }).logs)
-              ? (data as { logs: ServiceLogEntry[] }).logs
-              : [];
+          const nextLogs = parseServiceLogEntries(data);
           if (active) setLogs(nextLogs);
         })
         .catch((error: unknown) => {

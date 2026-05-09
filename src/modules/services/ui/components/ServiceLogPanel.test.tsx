@@ -44,4 +44,34 @@ describe('ServiceLogPanel', () => {
 
     await waitFor(() => expect(screen.getByText('No logs available.')).toBeDefined());
   });
+
+  it('ignores malformed entries in otherwise valid log payloads', async () => {
+    vi.mocked(global.fetch).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        logs: [
+          { timestamp: 'not-a-date', priority: 'info', message: 'Malformed timestamp' },
+          {
+            timestamp: '2026-04-27T11:00:00.000Z',
+            priority: 'warning',
+            message: 'Restarted nginx',
+            unit: 'nginx.service',
+          },
+          {
+            timestamp: '2026-04-27T11:01:00.000Z',
+            priority: 'verbose',
+            message: 'Malformed priority',
+            unit: 'nginx.service',
+          },
+        ],
+      }),
+    } as Response);
+
+    render(<ServiceLogPanel serviceName="nginx.service" />);
+
+    await waitFor(() => expect(screen.getByText('Restarted nginx')).toBeDefined());
+
+    expect(screen.queryByText('Malformed timestamp')).toBeNull();
+    expect(screen.queryByText('Malformed priority')).toBeNull();
+  });
 });
