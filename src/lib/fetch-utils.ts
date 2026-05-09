@@ -2,7 +2,10 @@ export interface ResilientFetchOptions extends RequestInit {
   timeout?: number;
   retries?: number;
   retryDelay?: number;
+  retryOnStatuses?: number[];
 }
+
+const SAFE_RETRY_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 
 export function isAbortError(err: unknown): boolean {
   return (
@@ -23,7 +26,18 @@ export async function resilientFetch(
   url: string | URL | Request,
   options: ResilientFetchOptions = {}
 ): Promise<Response> {
-  const { timeout = 10000, retries = 0, retryDelay = 1000, signal, ...fetchOptions } = options;
+  const {
+    timeout = 10000,
+    retries = 0,
+    retryDelay = 1000,
+    retryOnStatuses = [],
+    signal,
+    ...fetchOptions
+  } = options;
+  const method = (
+    fetchOptions.method ?? (url instanceof Request ? url.method : 'GET')
+  ).toUpperCase();
+  const canRetryStatus = SAFE_RETRY_METHODS.has(method);
 
   let lastError: unknown = null;
   for (let i = 0; i <= retries; i++) {
@@ -48,6 +62,29 @@ export async function resilientFetch(
       });
       clearTimeout(timeoutId);
       signal?.removeEventListener('abort', abortFromCaller);
+
+      if (
+        i < retries &&
+        canRetryStatus &&
+        retryOnStatuses.includes(response.status) &&
+        !signal?.aborted
+      ) {
+        await new Promise((resolve, reject) => {
+          const timer = setTimeout(() => {
+            signal?.removeEventListener('abort', onAbort);
+            resolve(undefined);
+          }, retryDelay);
+
+          const onAbort = () => {
+            clearTimeout(timer);
+            reject(signal?.reason || new DOMException('Aborted', 'AbortError'));
+          };
+
+          signal?.addEventListener('abort', onAbort, { once: true });
+        });
+        continue;
+      }
+
       return response;
     } catch (err: unknown) {
       clearTimeout(timeoutId);
