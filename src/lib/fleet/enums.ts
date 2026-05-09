@@ -90,9 +90,3 @@ export const FLEET_LOG_SERVICES = [
   'update',
 ] as const;
 export type FleetLogService = (typeof FLEET_LOG_SERVICES)[number];
-
-export function isTerminalNodeStatus(s: NodeStatus): boolean {
-  return (
-    s === 'online' || s === 'offline' || s === 'error' || s === 'disabled' || s === 'maintenance'
-  );
-}

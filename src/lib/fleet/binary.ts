@@ -36,16 +36,6 @@ export function frpDownloadUrl(version: string, triple: PlatformTriple): string 
   return `https://github.com/fatedier/frp/releases/download/v${version}/frp_${version}_${triple}.tar.gz`;
 }
 
-export async function verifyChecksum(
-  filePath: string,
-  expectedSha256: string,
-  readFile: (p: string) => Promise<Buffer> = async (p) => fs.promises.readFile(p)
-): Promise<boolean> {
-  const buf = await readFile(filePath);
-  const digest = crypto.createHash('sha256').update(buf).digest('hex');
-  return digest === expectedSha256.toLowerCase();
-}
-
 export interface EnsureBinaryOpts {
   cacheDir: string;
   version: string;

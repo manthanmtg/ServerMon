@@ -7,7 +7,7 @@ import type { PromptFormState, ScheduleBuilderMode, ScheduleFormState } from './
 
 export { relativeTime as formatRelative, slugify as slugifyValue, formatBytes as formatMemory };
 
-export const PROMPT_TEMPLATE_PLACEHOLDER = '<YOUR_PROMPT>';
+const PROMPT_TEMPLATE_PLACEHOLDER = '<YOUR_PROMPT>';
 
 export function applyPromptTemplate(template: string, current: string): string {
   if (!current.trim()) return template;
