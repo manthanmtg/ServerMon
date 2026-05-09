@@ -356,6 +356,35 @@ describe('fetch-utils', () => {
       expect(fetch).toHaveBeenCalledTimes(1);
     });
 
+    it('retries transient server responses for safe requests', async () => {
+      vi.mocked(fetch)
+        .mockResolvedValueOnce(new Response('Unavailable', { status: 503 }))
+        .mockResolvedValueOnce(new Response('ok'));
+
+      const res = await resilientFetch('/api/test', {
+        retries: 1,
+        retryDelay: 1,
+        retryOnStatuses: [503],
+      });
+
+      expect(res.ok).toBe(true);
+      expect(fetch).toHaveBeenCalledTimes(2);
+    });
+
+    it('does not retry transient server responses for mutation requests', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(new Response('Unavailable', { status: 503 }));
+
+      const res = await resilientFetch('/api/test', {
+        method: 'POST',
+        retries: 1,
+        retryDelay: 1,
+        retryOnStatuses: [503],
+      });
+
+      expect(res.status).toBe(503);
+      expect(fetch).toHaveBeenCalledTimes(1);
+    });
+
     it('retries immediately if retryDelay is 0', async () => {
       vi.useFakeTimers();
       vi.mocked(fetch)
