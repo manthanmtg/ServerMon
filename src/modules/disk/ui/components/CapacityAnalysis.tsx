@@ -44,17 +44,19 @@ export function CapacityAnalysis({
   settings,
 }: CapacityAnalysisProps) {
   return (
-    <Card className="border-border/50 bg-card/50 shadow-sm">
-      <CardHeader className="flex flex-row items-center justify-between pb-2">
-        <div>
+    <Card className="border-border/50 bg-card/50 shadow-sm transition-all duration-300 hover:border-primary/20 hover:bg-card/70 hover:shadow-[0_12px_32px_-24px_hsl(var(--primary)/0.45)]">
+      <CardHeader className="flex flex-col gap-3 pb-2 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
           <CardTitle className="text-sm font-semibold">Capacity Analysis</CardTitle>
-          <p className="text-xs text-muted-foreground">Identify large directories in {scanPath}</p>
+          <p className="truncate text-xs text-muted-foreground">
+            Identify large directories in {scanPath}
+          </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex w-full items-center gap-2 sm:w-auto">
           <Input
             value={scanPath}
             onChange={(e) => setScanPath(e.target.value)}
-            className="h-8 w-24 text-xs bg-secondary/20"
+            className="h-11 min-w-0 flex-1 bg-secondary/20 text-xs focus-visible:ring-primary/30 sm:w-28 sm:flex-none"
             placeholder="/path"
           />
           <Button
@@ -62,7 +64,7 @@ export function CapacityAnalysis({
             size="sm"
             onClick={runScan}
             disabled={scanning}
-            className="h-8 gap-2 text-[10px] font-bold uppercase tracking-widest bg-primary/10 text-primary border-primary/20 hover:bg-primary/20"
+            className="h-11 min-w-[86px] gap-2 border-primary/20 bg-primary/10 text-[10px] font-bold uppercase tracking-widest text-primary transition-all hover:bg-primary/20 hover:shadow-sm hover:shadow-primary/20 active:scale-[0.98] focus-visible:ring-primary/30"
           >
             {scanning ? <Spinner className="w-3 h-3" /> : <Search className="w-3 h-3" />}
             Scan
@@ -110,12 +112,14 @@ export function CapacityAnalysis({
             </BarChart>
           </ResponsiveContainer>
         ) : (
-          <div className="flex-1 flex flex-col items-center justify-center text-center p-6 space-y-4 opacity-50">
-            <div className="w-12 h-12 rounded-full bg-secondary flex items-center justify-center">
-              <Search className="w-6 h-6 text-muted-foreground/30" />
+          <div className="flex flex-1 flex-col items-center justify-center space-y-4 rounded-xl border border-dashed border-border/60 bg-secondary/10 p-6 text-center">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full border border-border/50 bg-secondary/60 shadow-inner">
+              <Search className="h-6 w-6 text-muted-foreground/60" />
             </div>
             <div className="max-w-[180px]">
-              <p className="text-xs font-bold uppercase tracking-wide">Ready for Analysis</p>
+              <p className="text-xs font-bold uppercase tracking-wide text-foreground">
+                Ready for Analysis
+              </p>
               <p className="text-[10px] text-muted-foreground mt-1">
                 Select a path and run scan to find space-hogging folders.
               </p>
