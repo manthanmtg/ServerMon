@@ -12,15 +12,22 @@ export function PastRunsPanel({
 }) {
   const [runs, setRuns] = useState<CronRunStatus[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const loadRuns = useCallback(async () => {
+    setLoading(true);
+    setError(null);
     try {
       const url = jobId ? `/api/modules/crons/${jobId}/run` : '/api/modules/crons/all/run'; // Use a generic ID for global
       const res = await fetch(url);
-      if (res.ok) {
-        const data = await res.json();
-        setRuns(data);
+      if (!res.ok) {
+        throw new Error('Unable to load run history.');
       }
+
+      const data = (await res.json()) as CronRunStatus[];
+      setRuns(data);
+    } catch {
+      setError('Unable to load run history.');
     } finally {
       setLoading(false);
     }
@@ -38,6 +45,24 @@ export function PastRunsPanel({
         className="text-xs text-muted-foreground animate-pulse py-4"
       >
         Loading runs...
+      </div>
+    );
+  if (error)
+    return (
+      <div
+        role="alert"
+        className="flex flex-col gap-3 rounded-xl border border-destructive/30 bg-destructive/5 p-3 text-xs text-destructive sm:flex-row sm:items-center sm:justify-between"
+      >
+        <span>{error}</span>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => void loadRuns()}
+          className="min-h-[44px] w-full sm:w-auto"
+        >
+          Retry
+        </Button>
       </div>
     );
   if (runs.length === 0)
