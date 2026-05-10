@@ -23,7 +23,8 @@ describe('AppsWidget', () => {
     await waitFor(() => expect(screen.getByRole('heading', { name: 'Apps' })).toBeTruthy());
     expect(screen.getByText('3')).toBeTruthy();
     expect(screen.getByText('Running')).toBeTruthy();
-    expect(screen.getByText('Deploying')).toBeTruthy();
+    expect(screen.getByText('Attention')).toBeTruthy();
+    expect(screen.getByText('2')).toBeTruthy();
     expect(screen.getByText('Portal')).toBeTruthy();
     expect(screen.getByRole('link', { name: /view all/i })).toHaveAttribute('href', '/apps');
   });

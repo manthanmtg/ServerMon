@@ -56,6 +56,7 @@ export default function AppsWidget() {
   }, [load]);
 
   const summary = useMemo(() => deriveAppsWidgetSummary(apps), [apps]);
+  const attentionCount = summary.deploying + summary.failed;
   const visibleApps = useMemo(() => apps.slice(0, 3), [apps]);
 
   if (loading) return <WidgetCardSkeleton />;
@@ -88,10 +89,8 @@ export default function AppsWidget() {
             <div className="text-[10px] text-muted-foreground">Running</div>
           </div>
           <div className="rounded-lg bg-muted/50 p-2 text-center">
-            <div className="text-lg font-bold">{summary.deploying || summary.failed}</div>
-            <div className="text-[10px] text-muted-foreground">
-              {summary.deploying ? 'Deploying' : 'Failed'}
-            </div>
+            <div className="text-lg font-bold">{attentionCount}</div>
+            <div className="text-[10px] text-muted-foreground">Attention</div>
           </div>
         </div>
 
