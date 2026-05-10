@@ -25,6 +25,7 @@ import {
   Trash2,
   XCircle,
 } from 'lucide-react';
+import { resilientFetch } from '@/lib/fetch-utils';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -253,7 +254,10 @@ export default function AppsPage() {
 
   const load = useCallback(async () => {
     try {
-      const response = await fetch('/api/modules/apps', { cache: 'no-store' });
+      const response = await resilientFetch('/api/modules/apps', {
+        cache: 'no-store',
+        timeout: 10000,
+      });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Failed to load apps');
       setApps(data.apps || []);
@@ -327,10 +331,11 @@ export default function AppsPage() {
       const payload = formToPayload(form);
       const url = editingApp ? `/api/modules/apps/${editingApp.id}` : '/api/modules/apps';
 
-      const response = await fetch(url, {
+      const response = await resilientFetch(url, {
         method: editingApp ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
+        timeout: 15000,
       });
       const data = await response.json();
       if (!response.ok)
@@ -372,7 +377,10 @@ export default function AppsPage() {
     setDeployingId(appId);
     setError(null);
     try {
-      const response = await fetch(`/api/modules/apps/${appId}/deploy`, { method: 'POST' });
+      const response = await resilientFetch(`/api/modules/apps/${appId}/deploy`, {
+        method: 'POST',
+        timeout: 60000,
+      });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || data.deployment?.error || 'Deploy failed');
       await load();
@@ -388,7 +396,10 @@ export default function AppsPage() {
     setUpdatingId(appId);
     setError(null);
     try {
-      const response = await fetch(`/api/modules/apps/${appId}/update`, { method: 'POST' });
+      const response = await resilientFetch(`/api/modules/apps/${appId}/update`, {
+        method: 'POST',
+        timeout: 60000,
+      });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || data.update?.error || 'Update failed');
       await load();
@@ -405,8 +416,9 @@ export default function AppsPage() {
     setDeletingId(deleteCandidate.id);
     setError(null);
     try {
-      const response = await fetch(`/api/modules/apps/${deleteCandidate.id}`, {
+      const response = await resilientFetch(`/api/modules/apps/${deleteCandidate.id}`, {
         method: 'DELETE',
+        timeout: 10000,
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Delete failed');

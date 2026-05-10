@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ArrowRight, Boxes, CheckCircle2, Clock, XCircle } from 'lucide-react';
+import { resilientFetch } from '@/lib/fetch-utils';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { WidgetCardSkeleton } from '@/components/ui/skeleton';
@@ -33,7 +34,10 @@ export default function AppsWidget() {
 
   const load = useCallback(async () => {
     try {
-      const response = await fetch('/api/modules/apps', { cache: 'no-store' });
+      const response = await resilientFetch('/api/modules/apps', {
+        cache: 'no-store',
+        timeout: 8000,
+      });
       if (response.ok) {
         const data = await response.json();
         setApps(data.apps || []);

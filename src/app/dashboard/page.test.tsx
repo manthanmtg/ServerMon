@@ -176,7 +176,7 @@ describe('DashboardPage', () => {
 
   it('performs ping and updates state', async () => {
     await renderPage();
-    await waitFor(() => expect(global.fetch).toHaveBeenCalledWith('/api/health/ping'));
+    await waitFor(() => expect(global.fetch).toHaveBeenCalledWith('/api/health/ping', expect.any(Object)));
   });
 
   it('handles ping failure', async () => {
