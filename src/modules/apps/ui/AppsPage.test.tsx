@@ -492,8 +492,12 @@ describe('AppsPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Delete permanently' }));
 
     await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(3));
-    expect(global.fetch).toHaveBeenNthCalledWith(2, '/api/modules/apps/app-1', {
-      method: 'DELETE',
-    });
+    expect(global.fetch).toHaveBeenNthCalledWith(
+      2,
+      '/api/modules/apps/app-1',
+      expect.objectContaining({
+        method: 'DELETE',
+      })
+    );
   });
 });

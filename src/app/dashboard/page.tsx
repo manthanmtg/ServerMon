@@ -10,6 +10,7 @@ import { Spinner } from '@/components/ui/spinner';
 import { Skeleton, SkeletonChart, SkeletonTable } from '@/components/ui/skeleton';
 import { renderWidget } from '@/components/modules/ModuleWidgetRegistry';
 import { MetricsProvider, useMetrics } from '@/lib/MetricsContext';
+import { resilientFetch } from '@/lib/fetch-utils';
 
 const MotionCard = motion.create(Card);
 
@@ -172,7 +173,7 @@ function DashboardContent() {
     const performPing = async () => {
       const start = Date.now();
       try {
-        await fetch('/api/health/ping');
+        await resilientFetch('/api/health/ping', { timeout: 5000 });
         const end = Date.now();
         const diff = end - start;
         setPingLatency(diff);
