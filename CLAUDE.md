@@ -143,6 +143,7 @@ Required at runtime (set in `.env.local` or `/etc/servermon/env`):
 | `SERVERMON_NETWORK_MOCK`       | No       | Set to `1` to mock network speedtests                 |
 | `SERVERMON_DOCKER_MOCK`        | No       | Set to `1` to mock Docker operations                  |
 | `SERVERMON_DATABASES_ROOT`     | No       | Host data root for Databases module instances         |
+| `SERVERMON_APPS_ROOT`          | No       | Host data root for Apps module releases               |
 | `SERVERMON_UPDATES_MOCK`       | No       | Set to `1` to mock system updates                     |
 | `SERVERMON_AUTO_UPDATE_CONFIG` | No       | Path to auto-update config JSON                       |
 | `FLEET_HUB_PUBLIC_URL`         | No       | Public URL for the Fleet Hub                          |
@@ -185,10 +186,9 @@ Concise map of major directories, commands, and key files. Update this section w
 - `e2e/` — Playwright end-to-end specs
 - `scripts/` — CLI helper scripts (installers, updates, macOS launchd, releases)
 - `public/` — static assets
-- `docs/` — plans and reference docs (superpowers plans live under `docs/superpowers/plans/`)
+- `docs/` — plans and reference docs (superpowers plans/specs live under `docs/superpowers/`)
 - `module_ideas/` — product specs per module (e.g. `fleet_management.md`)
 - `prompts/`, `manual_prompts/`, `issues_to_look/` — autonomous run prompts, prompt observability metadata (`prompts/prompts_metadata.json`), manual prompts, and investigation notes
-- `.env.example` — required runtime env vars (do NOT commit real `.env`)
 - `CLAUDE.md`, `README.md`, `PRD.md`, `DEPLOY.md`, `AGENTS.md`, `GO_LIVE.md` — project docs
 - `Release Artifacts` — prebuilt hub and agent tarballs (see `DEPLOY.md`)
 
