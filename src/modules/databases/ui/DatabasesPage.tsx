@@ -5,7 +5,7 @@ import { Database, Eye, EyeOff, LoaderCircle, Plus, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { DatabaseDeploymentCard, type DatabaseAction } from './DatabaseDeploymentCard';
-import { DatabaseSummaryCards } from './DatabaseSummaryCards';
+import { DatabaseSummaryCards, deriveDatabaseSummary } from './DatabaseSummaryCards';
 import type { DatabaseTemplateId, ManagedDatabaseDTO } from '../types';
 
 interface TemplateOption {
@@ -173,15 +173,7 @@ export default function DatabasesPage() {
     load();
   }, [load]);
 
-  const summary = useMemo(
-    () => ({
-      total: databases.length,
-      running: databases.filter((database) => database.status === 'running').length,
-      failed: databases.filter((database) => database.status === 'failed').length,
-      publicCount: databases.filter((database) => database.publicRoute).length,
-    }),
-    [databases]
-  );
+  const summary = useMemo(() => deriveDatabaseSummary(databases), [databases]);
 
   const updateForm = <K extends keyof FormState>(key: K, value: FormState[K]) => {
     setForm((current) => ({ ...current, [key]: value }));

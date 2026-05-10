@@ -1,11 +1,27 @@
 import { CheckCircle2, Database, Globe2, XCircle } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
+import type { ManagedDatabaseDTO } from '../types';
 
 export interface DatabaseSummary {
   total: number;
   running: number;
   failed: number;
   publicCount: number;
+}
+
+type DatabaseSummaryInput = Pick<ManagedDatabaseDTO, 'status' | 'publicRoute'>;
+
+export function deriveDatabaseSummary(databases: DatabaseSummaryInput[]): DatabaseSummary {
+  return databases.reduce<DatabaseSummary>(
+    (summary, database) => {
+      summary.total += 1;
+      if (database.status === 'running') summary.running += 1;
+      if (database.status === 'failed') summary.failed += 1;
+      if (database.publicRoute) summary.publicCount += 1;
+      return summary;
+    },
+    { total: 0, running: 0, failed: 0, publicCount: 0 }
+  );
 }
 
 interface DatabaseSummaryCardsProps {
