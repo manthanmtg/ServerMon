@@ -48,4 +48,17 @@ describe('PastRunsPanel', () => {
 
     await waitFor(() => expect(global.fetch).toHaveBeenCalledWith('/api/modules/crons/all/run'));
   });
+
+  it('shows an error with retry when run history cannot be loaded', async () => {
+    global.fetch = vi.fn(() =>
+      Promise.resolve({
+        ok: false,
+      } as Response)
+    ) as unknown as typeof fetch;
+
+    render(<PastRunsPanel onShowOutput={vi.fn()} />);
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Unable to load run history.');
+    expect(screen.getByRole('button', { name: 'Retry' })).toBeDefined();
+  });
 });
