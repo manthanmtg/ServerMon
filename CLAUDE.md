@@ -219,7 +219,7 @@ Concise map of major directories, commands, and key files. Update this section w
 - `src/lib/endpoints/` — executors for custom API logic (scripts, webhooks, logic handlers)
 - `src/lib/certificates/`, `src/lib/ports/`, `src/lib/memory/`, `src/lib/security/` — service-layer logic for certificates, ports, memory monitoring, and security management
 - `src/models/` — Mongoose schemas
-- `src/modules/` — feature modules (terminal, processes, logs, metrics, fleet, ai-agents, ai-runner, apps, disk, nginx, self-service, endpoints, users, services, security, certificates, ports, memory, guide, etc.)
+- `src/modules/` — feature modules (terminal, processes, logs, metrics, fleet, ai-agents, ai-runner, apps, disk, nginx, network, hardware, self-service, endpoints, users, services, security, certificates, ports, memory, guide, etc.)
 - `src/models/NetworkSpeedtestResult.ts`, `src/models/NetworkSpeedtestSettings.ts`, `src/models/NetworkAlert.ts`, `src/models/NetworkStatAggregate.ts` — persisted Network module data
 - `src/models/CustomEndpoint.ts`, `src/models/EndpointExecutionLog.ts` — persisted endpoint configuration and execution history
 - `src/lib/env-vars/` — stateless host environment variable helpers for OS target detection, shell env parsing, user-scope add/delete, and system-scope instructions
@@ -247,11 +247,24 @@ Concise map of major directories, commands, and key files. Update this section w
 - `src/modules/disk/` — disk module definition, page, widget, settings modal, hardware health panel, and focused UI components (`DiskSummaryCards`, `IoThroughputChart`) with colocated Vitest coverage
 - `src/app/disk/` — Disk module page route and route-level tests
 
+### Hardware Module
+
+- `src/app/api/modules/hardware/` — hardware health snapshots and system specification routes
+- `src/lib/hardware/` — Hardware detection service with OS-specific fallbacks and mock support
+- `src/modules/hardware/` — Hardware module definition, types, widget UI, and detailed system specification views
+
 ### Nginx Module
 
 - `src/app/api/modules/nginx/` — Nginx routes for service status, config test/reload, DNS checks, and virtual host list/detail/create/update/delete flows
 - `src/lib/nginx/` — Nginx service helpers, virtual host discovery, parser, DNS checks, and managed-config renderer with colocated Vitest coverage
 - `src/modules/nginx/` — Nginx module definition, shared types, dashboard/widget UI, and host creation wizard with colocated UI tests
+
+### Network Module
+
+- `src/app/api/modules/network/` — API routes for speedtest results, settings, and historical metrics
+- `src/lib/network/` — speedtest CLI normalization, history persistence, fixed-interval scheduling, and startup scheduler
+- `src/models/NetworkSpeedtestResult.ts`, `src/models/NetworkSpeedtestSettings.ts`, `src/models/NetworkAlert.ts`, `src/models/NetworkStatAggregate.ts` — persisted Network module data
+- `src/modules/network/` — Network module definition, dashboard widget, page route, and history charts with Vitest coverage
 
 ### Terminal & Processes
 
