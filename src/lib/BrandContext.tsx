@@ -1,6 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import { resilientFetch, safeJson } from './fetch-utils';
 
 interface BrandSettings {
   pageTitle: string;
@@ -21,18 +22,34 @@ const BRAND_ICON_PATH = '/api/settings/branding/icon';
 
 const BrandContext = createContext<BrandContextType | undefined>(undefined);
 
+function normalizeBrandSettings(payload: unknown): BrandSettings {
+  if (!payload || typeof payload !== 'object') {
+    return defaultSettings;
+  }
+
+  const record = payload as Record<string, unknown>;
+  return {
+    pageTitle:
+      typeof record.pageTitle === 'string' && record.pageTitle.length > 0
+        ? record.pageTitle
+        : defaultSettings.pageTitle,
+    logoBase64:
+      typeof record.logoBase64 === 'string' ? record.logoBase64 : defaultSettings.logoBase64,
+  };
+}
+
 export function BrandProvider({ children }: { children: React.ReactNode }) {
   const [settings, setSettings] = useState<BrandSettings>(defaultSettings);
 
   const fetchSettings = useCallback(async () => {
     try {
-      const res = await fetch('/api/settings/branding');
+      const res = await resilientFetch('/api/settings/branding', {
+        cache: 'no-store',
+        timeout: 8000,
+      });
       if (res.ok) {
-        const data = await res.json();
-        setSettings({
-          pageTitle: data.pageTitle || 'ServerMon',
-          logoBase64: data.logoBase64 || '',
-        });
+        const data = await safeJson<unknown>(res);
+        setSettings(normalizeBrandSettings(data));
       }
     } catch (err) {
       console.error('Failed to fetch branding settings', err);

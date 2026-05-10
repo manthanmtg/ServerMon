@@ -73,6 +73,45 @@ describe('BrandContext', () => {
     expect(screen.getByTestId('logo').textContent).toBe('data:img');
   });
 
+  it('fetches settings with a timeout-capable request', async () => {
+    global.fetch = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ pageTitle: 'Fetched Title', logoBase64: 'data:img' }),
+    });
+
+    await act(async () => {
+      render(
+        <BrandProvider>
+          <BrandDisplay />
+        </BrandProvider>
+      );
+    });
+
+    await waitFor(() => expect(screen.getByTestId('page-title').textContent).toBe('Fetched Title'));
+    expect(global.fetch).toHaveBeenCalledWith(
+      '/api/settings/branding',
+      expect.objectContaining({ signal: expect.any(AbortSignal) })
+    );
+  });
+
+  it('ignores malformed fetched settings fields', async () => {
+    global.fetch = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ pageTitle: 123, logoBase64: { raw: 'bad' } }),
+    });
+
+    await act(async () => {
+      render(
+        <BrandProvider>
+          <BrandDisplay />
+        </BrandProvider>
+      );
+    });
+
+    await waitFor(() => expect(screen.getByTestId('page-title').textContent).toBe('ServerMon'));
+    expect(screen.getByTestId('logo').textContent).toBe('');
+  });
+
   it('keeps defaults when fetch returns non-ok status', async () => {
     global.fetch = vi.fn().mockResolvedValueOnce({
       ok: false,
