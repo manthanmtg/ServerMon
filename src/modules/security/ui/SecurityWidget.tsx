@@ -62,7 +62,7 @@ export default function SecurityWidget() {
 
   if (initialLoad && !snapshot) {
     return (
-      <Card className="border-border/60">
+      <Card className="border-border/60 shadow-sm">
         <CardContent className="flex items-center justify-center py-12">
           <LoaderCircle className="h-5 w-5 animate-spin text-primary" />
         </CardContent>
@@ -73,11 +73,13 @@ export default function SecurityWidget() {
   const s = snapshot?.summary;
 
   return (
-    <Card className="border-border/60">
-      <CardHeader className="pb-2">
+    <Card className="group overflow-hidden border-border/60 shadow-sm transition-all duration-300 hover:border-primary/20 hover:shadow-[0_12px_32px_-24px_var(--primary)]">
+      <CardHeader className="border-b border-border/40 bg-muted/20 pb-3">
         <div className="flex items-center justify-between">
           <CardTitle className="flex items-center gap-2">
-            <Shield className="w-4 h-4 text-primary" />
+            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary transition-transform duration-300 group-hover:scale-105">
+              <Shield className="h-4 w-4" />
+            </span>
             Security
           </CardTitle>
           <Badge
@@ -88,16 +90,16 @@ export default function SecurityWidget() {
           </Badge>
         </div>
       </CardHeader>
-      <CardContent>
+      <CardContent className="pt-4">
         <div className="flex items-center gap-4">
           <ScoreGauge score={snapshot?.score ?? 0} />
           <div className="flex-1 grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
-            <div className="flex items-center gap-1.5">
+            <div className="flex min-h-7 items-center gap-1.5 rounded-md px-2 transition-colors hover:bg-accent/30">
               <ShieldCheck className="w-3 h-3 text-success" />
               <span className="text-muted-foreground">Passed</span>
               <span className="ml-auto font-semibold">{s?.passed ?? 0}</span>
             </div>
-            <div className="flex items-center gap-1.5">
+            <div className="flex min-h-7 items-center gap-1.5 rounded-md px-2 transition-colors hover:bg-accent/30">
               <ShieldAlert className="w-3 h-3 text-destructive" />
               <span className="text-muted-foreground">Failed</span>
               <span
@@ -106,7 +108,7 @@ export default function SecurityWidget() {
                 {s?.failed ?? 0}
               </span>
             </div>
-            <div className="flex items-center gap-1.5">
+            <div className="flex min-h-7 items-center gap-1.5 rounded-md px-2 transition-colors hover:bg-accent/30">
               <AlertTriangle className="w-3 h-3 text-warning" />
               <span className="text-muted-foreground">Warnings</span>
               <span
@@ -115,7 +117,7 @@ export default function SecurityWidget() {
                 {s?.warnings ?? 0}
               </span>
             </div>
-            <div className="flex items-center gap-1.5">
+            <div className="flex min-h-7 items-center gap-1.5 rounded-md px-2 transition-colors hover:bg-accent/30">
               <Ban className="w-3 h-3 text-muted-foreground" />
               <span className="text-muted-foreground">Banned</span>
               <span className="ml-auto font-semibold">{s?.bannedIps ?? 0}</span>
