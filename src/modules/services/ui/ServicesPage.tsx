@@ -195,42 +195,59 @@ export default function ServicesPage() {
     });
   }, [snapshot]);
 
-  function toggleSort(field: ServicesSortField) {
-    if (sortField === field) {
-      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
-    } else {
-      setSortField(field);
-      setSortDir(field === 'name' ? 'asc' : 'desc');
-    }
-  }
-
-  async function runAction(serviceName: string, action: ServiceAction) {
-    setPendingAction(`${serviceName}:${action}`);
-    try {
-      const response = await fetch(
-        `/api/modules/services/${encodeURIComponent(serviceName)}/action`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action }),
-        }
-      );
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to execute action');
+  const toggleSort = useCallback(
+    (field: ServicesSortField) => {
+      if (sortField === field) {
+        setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+      } else {
+        setSortField(field);
+        setSortDir(field === 'name' ? 'asc' : 'desc');
       }
-      toast({ title: `${action} ${serviceName}`, description: data.message, variant: 'success' });
-      await loadSnapshot();
-    } catch (error: unknown) {
-      toast({
-        title: `${action} failed`,
-        description: error instanceof Error ? error.message : 'Unknown error',
-        variant: 'destructive',
-      });
-    } finally {
-      setPendingAction(null);
-    }
-  }
+    },
+    [sortField]
+  );
+
+  const runAction = useCallback(
+    async (serviceName: string, action: ServiceAction) => {
+      setPendingAction(`${serviceName}:${action}`);
+      try {
+        const response = await fetch(
+          `/api/modules/services/${encodeURIComponent(serviceName)}/action`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action }),
+          }
+        );
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.error || 'Failed to execute action');
+        }
+        toast({ title: `${action} ${serviceName}`, description: data.message, variant: 'success' });
+        await loadSnapshot();
+      } catch (error: unknown) {
+        toast({
+          title: `${action} failed`,
+          description: error instanceof Error ? error.message : 'Unknown error',
+          variant: 'destructive',
+        });
+      } finally {
+        setPendingAction(null);
+      }
+    },
+    [loadSnapshot, toast]
+  );
+
+  const toggleExpandedService = useCallback((serviceName: string | null) => {
+    setExpandedService(serviceName);
+  }, []);
+
+  const handleRunAction = useCallback(
+    (serviceName: string, action: ServiceAction) => {
+      void runAction(serviceName, action);
+    },
+    [runAction]
+  );
 
   if (loading) {
     return <PageSkeleton statCards={3} />;
@@ -513,11 +530,9 @@ export default function ServicesPage() {
           pendingAction={pendingAction}
           sortField={sortField}
           sortDir={sortDir}
-          onToggleExpanded={setExpandedService}
+          onToggleExpanded={toggleExpandedService}
           onToggleSort={toggleSort}
-          onRunAction={(serviceName, action) => {
-            void runAction(serviceName, action);
-          }}
+          onRunAction={handleRunAction}
         />
       )}
 

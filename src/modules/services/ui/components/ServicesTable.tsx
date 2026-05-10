@@ -1,4 +1,4 @@
-import { Fragment } from 'react';
+import { Fragment, memo } from 'react';
 import {
   ArrowDown,
   ArrowUp,
@@ -77,7 +77,7 @@ function sortIcon(
 
 const serviceActionButtonClass = 'min-h-11 min-w-11 sm:h-8 sm:min-h-8 sm:w-8 sm:min-w-8 p-0';
 
-export function ServicesTable({
+function ServicesTableBase({
   services,
   totalServices,
   expandedService,
@@ -368,3 +368,5 @@ export function ServicesTable({
     </Card>
   );
 }
+
+export const ServicesTable = memo(ServicesTableBase);
