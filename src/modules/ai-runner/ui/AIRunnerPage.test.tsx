@@ -20,7 +20,10 @@ vi.mock('next/navigation', () => ({
   useSearchParams: () => mockSearchParams(),
 }));
 
-import AIRunnerPage, { getScheduleVisualizationScope } from './AIRunnerPage';
+import AIRunnerPage, {
+  deriveLinkedScheduleCounts,
+  getScheduleVisualizationScope,
+} from './AIRunnerPage';
 import type {
   AIRunnerDirectoriesResponse,
   AIRunnerAutoflowDTO,
@@ -268,6 +271,61 @@ describe('AIRunnerPage', () => {
 
     expect(scoped.profile).toBe(mockProfiles[0]);
     expect(scoped.schedules).toEqual([schedules[0]]);
+  });
+
+  it('derives linked schedule counts in one pass', () => {
+    const schedules = [
+      {
+        _id: 'schedule-1',
+        name: 'Nightly Codex',
+        promptId: 'prompt-1',
+        agentProfileId: 'profile-1',
+        workspaceId: 'workspace-1',
+        workingDirectory: '/root/repos/ServerMon',
+        timeout: 30,
+        retries: 1,
+        cronExpression: '0 2 * * *',
+        enabled: true,
+        createdAt: '2026-04-21T00:00:00.000Z',
+        updatedAt: '2026-04-21T00:00:00.000Z',
+      },
+      {
+        _id: 'schedule-2',
+        name: 'Nightly Gemini',
+        promptId: 'prompt-1',
+        agentProfileId: 'profile-2',
+        workspaceId: 'workspace-1',
+        workingDirectory: '/root/repos/ServerMon',
+        timeout: 30,
+        retries: 1,
+        cronExpression: '0 3 * * *',
+        enabled: true,
+        createdAt: '2026-04-21T00:00:00.000Z',
+        updatedAt: '2026-04-21T00:00:00.000Z',
+      },
+      {
+        _id: 'schedule-3',
+        name: 'Manual Workspace',
+        promptId: 'prompt-2',
+        agentProfileId: 'profile-1',
+        workingDirectory: '/root/repos/ServerMon',
+        timeout: 30,
+        retries: 1,
+        cronExpression: '0 4 * * *',
+        enabled: true,
+        createdAt: '2026-04-21T00:00:00.000Z',
+        updatedAt: '2026-04-21T00:00:00.000Z',
+      },
+    ] satisfies AIRunnerScheduleDTO[];
+
+    const counts = deriveLinkedScheduleCounts(schedules);
+
+    expect(counts.prompt['prompt-1']).toBe(2);
+    expect(counts.prompt['prompt-2']).toBe(1);
+    expect(counts.profile['profile-1']).toBe(2);
+    expect(counts.profile['profile-2']).toBe(1);
+    expect(counts.workspace['workspace-1']).toBe(2);
+    expect(counts.workspace['missing']).toBeUndefined();
   });
 
   afterEach(() => {

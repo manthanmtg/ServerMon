@@ -284,6 +284,26 @@ export function getScheduleVisualizationScope({
   };
 }
 
+type LinkedScheduleCounts = Record<LinkedDeleteTarget['kind'], Record<string, number>>;
+
+export function deriveLinkedScheduleCounts(schedules: AIRunnerScheduleDTO[]): LinkedScheduleCounts {
+  const counts: LinkedScheduleCounts = {
+    profile: {},
+    prompt: {},
+    workspace: {},
+  };
+
+  for (const schedule of schedules) {
+    counts.prompt[schedule.promptId] = (counts.prompt[schedule.promptId] ?? 0) + 1;
+    counts.profile[schedule.agentProfileId] = (counts.profile[schedule.agentProfileId] ?? 0) + 1;
+    if (schedule.workspaceId) {
+      counts.workspace[schedule.workspaceId] = (counts.workspace[schedule.workspaceId] ?? 0) + 1;
+    }
+  }
+
+  return counts;
+}
+
 function getSchedulerReliabilityWarning(
   diagnostics: AIRunnerRuntimeDiagnostics | null
 ): { title: string; body: string } | null {
@@ -999,17 +1019,10 @@ export default function AIRunnerPage() {
     },
     [autoflowMap]
   );
+  const linkedScheduleCounts = useMemo(() => deriveLinkedScheduleCounts(schedules), [schedules]);
   const getLinkedScheduleCount = useCallback(
-    (kind: LinkedDeleteTarget['kind'], id: string): number => {
-      if (kind === 'prompt') {
-        return schedules.filter((schedule) => schedule.promptId === id).length;
-      }
-      if (kind === 'profile') {
-        return schedules.filter((schedule) => schedule.agentProfileId === id).length;
-      }
-      return schedules.filter((schedule) => schedule.workspaceId === id).length;
-    },
-    [schedules]
+    (kind: LinkedDeleteTarget['kind'], id: string): number => linkedScheduleCounts[kind][id] ?? 0,
+    [linkedScheduleCounts]
   );
   const getScheduleMissingReferences = useCallback(
     (schedule: AIRunnerScheduleDTO): string[] => {
