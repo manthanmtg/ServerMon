@@ -1,5 +1,11 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
+import type { ComponentProps } from 'react';
 import { render, screen, waitFor, act, fireEvent } from '@testing-library/react';
+
+type MockAutoscrollButtonProps = Omit<ComponentProps<'button'>, 'onToggle'> & {
+  enabled: boolean;
+  onToggle: (enabled: boolean) => void;
+};
 
 const { mockUseFleetStream } = vi.hoisted(() => ({
   mockUseFleetStream: vi.fn((_opts: unknown) => ({
@@ -9,8 +15,29 @@ const { mockUseFleetStream } = vi.hoisted(() => ({
   })),
 }));
 
+const { autoscrollButtonRenderCount } = vi.hoisted(() => ({
+  autoscrollButtonRenderCount: {
+    value: 0,
+  },
+}));
+
 vi.mock('../lib/useFleetStream', () => ({
   useFleetStream: mockUseFleetStream,
+}));
+
+vi.mock('@/components/ui/AutoscrollButton', () => ({
+  AutoscrollButton: ({ enabled, onToggle, className, ...props }: MockAutoscrollButtonProps) => {
+    autoscrollButtonRenderCount.value += 1;
+    return (
+      <button
+        type="button"
+        aria-pressed={Boolean(enabled)}
+        className={className}
+        onClick={() => onToggle?.(!enabled)}
+        {...props}
+      />
+    );
+  },
 }));
 
 import { NodeStatusPanel } from './NodeStatusPanel';
@@ -40,6 +67,7 @@ const baseNode = {
 
 describe('NodeStatusPanel', () => {
   afterEach(() => {
+    autoscrollButtonRenderCount.value = 0;
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
     vi.useRealTimers();
@@ -213,6 +241,76 @@ describe('NodeStatusPanel', () => {
       )
     ).toBe(true);
     expect(screen.getByLabelText('Agent update log autoscroll')).toBeDefined();
+  });
+
+  it('keeps the update log controls stable during unrelated node refreshes', async () => {
+    mockUseFleetStream.mockClear();
+    const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+      if (url === '/api/fleet/nodes/n1/updates' && init?.method === 'POST') {
+        return { ok: true, json: async () => ({ ok: true, queued: true, commandId: 'cmd-1' }) };
+      }
+      if (url.startsWith('/api/fleet/logs?')) {
+        return {
+          ok: true,
+          json: async () => ({
+            events: [
+              {
+                _id: 'log-1',
+                createdAt: new Date('2026-04-29T16:55:01.000Z').toISOString(),
+                service: 'agent',
+                level: 'info',
+                eventType: 'agent.update.succeeded',
+                message: 'Agent update finished',
+                metadata: { commandId: 'cmd-1' },
+              },
+            ],
+          }),
+        };
+      }
+      return {
+        ok: true,
+        json: async () => ({
+          node: {
+            ...baseNode,
+            lastSeen: new Date(Date.now()).toISOString(),
+          },
+          computedStatus: 'online',
+        }),
+      };
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await act(async () => {
+      render(<NodeStatusPanel nodeId="n1" />);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText('Update Agent')).toBeDefined();
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByText('Update Agent'));
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText('Agent update finished')).toBeDefined();
+    });
+
+    const renderCountAfterLogs = autoscrollButtonRenderCount.value;
+    const streamOptions = mockUseFleetStream.mock.calls[0][0] as {
+      onEvent?: (event: { kind: string; at: string; data: Record<string, unknown> }) => void;
+    };
+
+    await act(async () => {
+      streamOptions.onEvent?.({
+        kind: 'node.heartbeat',
+        at: new Date().toISOString(),
+        data: {},
+      });
+    });
+
+    expect(fetchMock.mock.calls.filter(([url]) => url === '/api/fleet/nodes/n1').length).toBe(2);
+    expect(autoscrollButtonRenderCount.value).toBe(renderCountAfterLogs);
   });
 
   it('subscribes to the fleet event stream scoped to the nodeId', async () => {
