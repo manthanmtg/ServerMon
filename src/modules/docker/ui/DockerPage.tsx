@@ -5,16 +5,26 @@ import { Database } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { PageSkeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/components/ui/toast';
+import dynamic from 'next/dynamic';
 
 import type { DockerSnapshot } from '../types';
 import { DockerHeader } from './components/DockerHeader';
 import { DockerStats } from './components/DockerStats';
-import { ResourceCharts } from './components/ResourceCharts';
-import { IOCharts } from './components/IOCharts';
 import { ContainerTable } from './components/ContainerTable';
 import { AssetManager } from './components/AssetManager';
-import { DockerTerminal } from './components/DockerTerminal';
 import { DockerSidebar } from './components/DockerSidebar';
+
+const ResourceCharts = dynamic(
+  () => import('./components/ResourceCharts').then((m) => m.ResourceCharts),
+  { ssr: false }
+);
+const IOCharts = dynamic(() => import('./components/IOCharts').then((m) => m.IOCharts), {
+  ssr: false,
+});
+const DockerTerminal = dynamic(
+  () => import('./components/DockerTerminal').then((m) => m.DockerTerminal),
+  { ssr: false }
+);
 
 const DOCKER_SNAPSHOT_TIMEOUT_MS = 8000;
 
