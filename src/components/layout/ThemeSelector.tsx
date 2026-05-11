@@ -38,6 +38,9 @@ export default function ThemeSelector() {
         variant="ghost"
         size="sm"
         onClick={() => setIsOpen(!isOpen)}
+        aria-label="Select theme"
+        aria-expanded={isOpen}
+        aria-haspopup="listbox"
         className={cn(
           'flex items-center gap-2 px-3 h-11 rounded-xl transition-all duration-300 sm:h-9',
           isOpen
@@ -56,7 +59,10 @@ export default function ThemeSelector() {
       </Button>
 
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-56 p-1.5 z-50 rounded-2xl border border-white/5 bg-popover/80 backdrop-blur-xl shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+        <div
+          role="listbox"
+          className="absolute right-0 mt-2 w-56 p-1.5 z-50 rounded-2xl border border-white/5 bg-popover/80 backdrop-blur-xl shadow-2xl animate-in fade-in zoom-in-95 duration-200"
+        >
           <div className="px-2.5 py-2 mb-1 border-b border-border/30">
             <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/50">
               Interface Theme
@@ -68,6 +74,8 @@ export default function ThemeSelector() {
             return (
               <button
                 key={t.id}
+                role="option"
+                aria-selected={isActive}
                 onClick={() => {
                   setTheme(t.id);
                   setIsOpen(false);

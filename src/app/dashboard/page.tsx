@@ -376,7 +376,13 @@ const StatCard = React.memo(function StatCard({
                 : 'text-muted-foreground/60 group-hover:text-primary transition-colors'
             }
           >
-            {status === 'loading' ? <Spinner size="sm" /> : <div aria-hidden="true">{icon}</div>}
+            {status === 'loading' ? (
+              <Spinner size="sm" />
+            ) : (
+              <div aria-hidden="true" className="flex items-center">
+                {icon}
+              </div>
+            )}
           </motion.span>
         </div>
 
@@ -387,6 +393,9 @@ const StatCard = React.memo(function StatCard({
             }`}
           >
             {value}
+            {status === 'warning' && (
+              <span className="sr-only"> (Warning: high usage)</span>
+            )}
           </p>
           {subLabel && (
             <span className="text-[10px] sm:text-xs text-muted-foreground truncate opacity-70 group-hover:opacity-100 transition-opacity">

@@ -294,6 +294,7 @@ export default function ProShell({ children, title, subtitle, headerContent }: P
                 'active:scale-95 disabled:opacity-50 disabled:grayscale disabled:pointer-events-none'
               )}
               title="Reboot System"
+              aria-label="Reboot System"
             >
               {isRebooting ? (
                 <LoaderCircle className="w-4 h-4 animate-spin" />
