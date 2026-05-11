@@ -3,6 +3,7 @@ import { z } from 'zod';
 import connectDB from '@/lib/db';
 import { createLogger } from '@/lib/logger';
 import DiskSettings from '@/models/DiskSettings';
+import { getSession } from '@/lib/session';
 
 export const dynamic = 'force-dynamic';
 
@@ -28,6 +29,11 @@ async function ensureSettings() {
 
 export async function GET() {
   try {
+    const session = (await getSession()) as { user: { role: string } } | null;
+    if (!session || session.user.role !== 'admin') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const settings = await ensureSettings();
     return NextResponse.json({ settings });
   } catch (error) {
@@ -38,6 +44,11 @@ export async function GET() {
 
 export async function PUT(request: NextRequest) {
   try {
+    const session = (await getSession()) as { user: { role: string } } | null;
+    if (!session || session.user.role !== 'admin') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     await ensureSettings();
     const body = updateSchema.parse(await request.json());
 
