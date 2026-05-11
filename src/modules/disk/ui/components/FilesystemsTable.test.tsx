@@ -33,7 +33,7 @@ describe('FilesystemsTable', () => {
     expect(screen.getByText('80.0%')).toBeDefined();
     expect(screen.getByRole('progressbar')).toBeDefined();
     expect(screen.getByRole('progressbar').getAttribute('aria-valuenow')).toBe('80');
-    
+
     // formatBytes(200000000, 'decimal') -> "200 MB"
     expect(screen.getByText(/200.*MB/)).toBeDefined();
     expect(screen.getByText(/20.*free/)).toBeDefined();

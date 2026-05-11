@@ -35,14 +35,14 @@ export function FilesystemsTable({ disks, settings }: FilesystemsTableProps) {
               {disks.map((disk, idx) => (
                 <tr key={idx} className="group hover:bg-muted/30 transition-colors">
                   <td className="px-4 py-3">
-                    <p 
-                      className="text-xs font-semibold truncate max-w-[120px] md:max-w-[180px]" 
+                    <p
+                      className="text-xs font-semibold truncate max-w-[120px] md:max-w-[180px]"
                       title={disk.mount}
                     >
                       {disk.mount}
                     </p>
-                    <p 
-                      className="text-[10px] text-muted-foreground truncate max-w-[120px] md:max-w-[180px]" 
+                    <p
+                      className="text-[10px] text-muted-foreground truncate max-w-[120px] md:max-w-[180px]"
                       title={disk.fs}
                     >
                       {disk.fs}
@@ -54,7 +54,7 @@ export function FilesystemsTable({ disks, settings }: FilesystemsTableProps) {
                     </span>
                   </td>
                   <td className="px-4 py-3 min-w-[100px]">
-                    <div 
+                    <div
                       className="h-1 w-full bg-secondary rounded-full overflow-hidden"
                       role="progressbar"
                       aria-valuenow={disk.use}
@@ -63,7 +63,11 @@ export function FilesystemsTable({ disks, settings }: FilesystemsTableProps) {
                     >
                       <div
                         className={`h-full transition-all duration-1000 ${
-                          disk.use > 90 ? 'bg-destructive' : disk.use > 75 ? 'bg-orange-500' : 'bg-primary'
+                          disk.use > 90
+                            ? 'bg-destructive'
+                            : disk.use > 75
+                              ? 'bg-orange-500'
+                              : 'bg-primary'
                         }`}
                         style={{ width: `${disk.use}%` }}
                       />
@@ -84,7 +88,10 @@ export function FilesystemsTable({ disks, settings }: FilesystemsTableProps) {
               ))}
               {disks.length === 0 && (
                 <tr>
-                  <td colSpan={4} className="px-4 py-8 text-center text-xs text-muted-foreground italic">
+                  <td
+                    colSpan={4}
+                    className="px-4 py-8 text-center text-xs text-muted-foreground italic"
+                  >
                     No active filesystems detected
                   </td>
                 </tr>
