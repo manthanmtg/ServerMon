@@ -249,6 +249,7 @@ export default function PortsPage() {
           <div className="flex items-center gap-3">
             <input
               type="number"
+              aria-label="Port number"
               min={1}
               max={65535}
               placeholder="Enter port number (1-65535)"
@@ -307,6 +308,7 @@ export default function PortsPage() {
                 <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
                 <input
                   type="text"
+                  aria-label="Search listening ports"
                   placeholder="Search ports..."
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
