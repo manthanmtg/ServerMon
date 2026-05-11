@@ -275,6 +275,8 @@ Concise map of major directories, commands, and key files. Update this section w
 ### File Browser Module
 
 - `src/app/api/modules/file-browser/` — API routes for directory listings, file reading/writing, uploads, git operations, and settings
+- `src/app/file-browser/` — File Browser module page route wrapped in `ProShell`
+- `src/models/FileBrowserSettings.ts` — persisted shortcuts, default path, and editor/preview size limits for the File Browser module
 - `src/modules/file-browser/` — File Browser module definition, shared library logic (`lib/file-browser.ts`), and UI components (including CodeMirror editor integration and entry actions)
 
 ### Self-Service & Custom Endpoints
