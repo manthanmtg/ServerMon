@@ -19,19 +19,28 @@ describe('FilesystemsTable', () => {
   const mockSettings = { unitSystem: 'decimal' as const };
 
   it('renders table headers', () => {
-    const { container } = render(<FilesystemsTable disks={mockDisks} settings={mockSettings} />);
+    render(<FilesystemsTable disks={mockDisks} settings={mockSettings} />);
     expect(screen.getByText('Mount')).toBeDefined();
     expect(screen.getByText('Type')).toBeDefined();
+    expect(screen.getByText('Usage')).toBeDefined();
     expect(screen.getByText('Free')).toBeDefined();
-    expect(container.querySelector('table')?.className).toContain('min-w-[420px]');
   });
 
-  it('renders disk information', () => {
+  it('renders disk information and progress bar', () => {
     render(<FilesystemsTable disks={mockDisks} settings={mockSettings} />);
     expect(screen.getByText('/')).toBeDefined();
     expect(screen.getByText('apfs')).toBeDefined();
-    // formatBytes(200000000, 'decimal') -> "200 MB" (not 200.0 MB)
+    expect(screen.getByText('80.0%')).toBeDefined();
+    expect(screen.getByRole('progressbar')).toBeDefined();
+    expect(screen.getByRole('progressbar').getAttribute('aria-valuenow')).toBe('80');
+    
+    // formatBytes(200000000, 'decimal') -> "200 MB"
     expect(screen.getByText(/200.*MB/)).toBeDefined();
     expect(screen.getByText(/20.*free/)).toBeDefined();
+  });
+
+  it('renders empty state', () => {
+    render(<FilesystemsTable disks={[]} settings={mockSettings} />);
+    expect(screen.getByText(/No active filesystems detected/i)).toBeDefined();
   });
 });
