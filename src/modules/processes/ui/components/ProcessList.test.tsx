@@ -74,4 +74,12 @@ describe('ProcessList', () => {
       expect(button.className).toContain('min-h-11');
     }
   });
+
+  it('names the desktop table and mobile process list for assistive technology', () => {
+    render(<ProcessList {...baseProps} processes={processes} />);
+
+    expect(screen.getByRole('table', { name: 'Processes' })).toBeInTheDocument();
+    expect(screen.getByRole('list', { name: 'Processes' })).toBeInTheDocument();
+    expect(screen.getByRole('listitem', { name: /node process summary/i })).toBeInTheDocument();
+  });
 });

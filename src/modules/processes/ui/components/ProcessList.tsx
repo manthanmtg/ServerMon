@@ -66,7 +66,7 @@ export const ProcessList = React.memo(function ProcessList({
 
   return (
     <div className="rounded-xl border border-border bg-card overflow-hidden">
-      <div className="sm:hidden divide-y divide-border">
+      <div className="sm:hidden divide-y divide-border" role="list" aria-label="Processes">
         {processes.map((process) => (
           <ProcessCard
             key={process.pid}
@@ -80,7 +80,8 @@ export const ProcessList = React.memo(function ProcessList({
       </div>
 
       <div className="hidden sm:block overflow-x-auto">
-        <table className="w-full text-left min-w-[800px]">
+        <table className="w-full text-left min-w-[800px]" aria-label="Processes">
+          <caption className="sr-only">Processes</caption>
           <thead>
             <tr className="border-b border-border bg-secondary/50">
               <th className="w-8 px-2" />

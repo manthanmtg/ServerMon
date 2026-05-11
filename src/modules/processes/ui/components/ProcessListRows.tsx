@@ -76,7 +76,7 @@ export interface ProcessItemProps {
 
 export const ProcessCard = React.memo(
   ({ process: p, isExpanded, isKilling, onToggleExpand, onKill }: ProcessItemProps) => (
-    <motion.div layout className="p-3">
+    <motion.div layout className="p-3" role="listitem" aria-label={`${p.name} process summary`}>
       <div
         className="flex items-start justify-between mb-2 cursor-pointer group/card-header select-none"
         onClick={() => onToggleExpand(p.pid)}
