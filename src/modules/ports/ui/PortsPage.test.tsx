@@ -170,6 +170,13 @@ describe('PortsPage', () => {
     });
   });
 
+  it('provides accessible names for port filter inputs', async () => {
+    await renderPage();
+
+    expect(screen.getByRole('spinbutton', { name: /port number/i })).toBeTruthy();
+    expect(screen.getByRole('textbox', { name: /search listening ports/i })).toBeTruthy();
+  });
+
   it('renders firewall rules', async () => {
     await renderPage();
     await waitFor(() => {
