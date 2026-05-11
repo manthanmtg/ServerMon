@@ -1,5 +1,5 @@
 'use client';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge, type BadgeVariant } from '@/components/ui/badge';
 import { Spinner } from '@/components/ui/spinner';
@@ -399,7 +399,7 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
   );
 }
 
-function AgentUpdateLogsPanel({
+const AgentUpdateLogsPanel = memo(function AgentUpdateLogsPanel({
   logs,
   error,
   polling,
@@ -466,4 +466,4 @@ function AgentUpdateLogsPanel({
       </div>
     </div>
   );
-}
+});
