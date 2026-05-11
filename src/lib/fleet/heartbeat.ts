@@ -80,5 +80,3 @@ export const HeartbeatZodSchema = z.object({
     .optional(),
   correlationId: z.string().optional(),
 });
-
-export type Heartbeat = z.infer<typeof HeartbeatZodSchema>;

@@ -36,8 +36,6 @@ export const ServerMonInstallRequestZ = z.object({
   routeDomain: z.string().min(1).max(253).optional(),
 });
 
-export type ServerMonInstallRequest = z.infer<typeof ServerMonInstallRequestZ>;
-
 export function buildDefaultServerMonRouteIntent(input: {
   nodeId: string;
   nodeName: string;

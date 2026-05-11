@@ -10,8 +10,6 @@ export const TTY_MSG = {
   READY: 'tty:ready',
 } as const;
 
-export type TtyMsgType = (typeof TTY_MSG)[keyof typeof TTY_MSG];
-
 export const TtyOpenSchema = z.object({
   nodeId: z.string().min(1),
   sessionId: z.string().min(1).max(80),

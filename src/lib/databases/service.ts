@@ -76,7 +76,6 @@ export const CreateManagedDatabaseSchema = z
 export type CreateManagedDatabaseData = z.infer<typeof CreateManagedDatabaseSchema>;
 
 export const UpdateManagedDatabaseSchema = CreateManagedDatabaseSchema;
-export type UpdateManagedDatabaseData = z.infer<typeof UpdateManagedDatabaseSchema>;
 
 export interface DockerRunRequest {
   containerName: string;
