@@ -246,11 +246,11 @@ Static core section located in the **left navigation pane**.
 
 Capabilities:
 
-- Change Basic Auth credentials
-- Configure TOTP
-- **Appearance: Extensible Theme System (Supports wide variety of presets like Light, Dark, Solarized, Monokai, Synthwave, etc., mimicking VS Code's variety)**
-- Manage modules
-- View system status
+- Manage appearance themes and instance branding
+- Configure quick access navigation shortcuts
+- Manage local ServerMon app and agent update controls
+- Manage WebAuthn passkeys and security settings
+- View system status and service health
 
 ---
 
