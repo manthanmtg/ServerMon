@@ -393,9 +393,7 @@ const StatCard = React.memo(function StatCard({
             }`}
           >
             {value}
-            {status === 'warning' && (
-              <span className="sr-only"> (Warning: high usage)</span>
-            )}
+            {status === 'warning' && <span className="sr-only"> (Warning: high usage)</span>}
           </p>
           {subLabel && (
             <span className="text-[10px] sm:text-xs text-muted-foreground truncate opacity-70 group-hover:opacity-100 transition-opacity">
