@@ -38,9 +38,3 @@ export function startLocalAutoUpdateScheduler(options: SchedulerOptions = {}): v
     void tick();
   }, intervalMs);
 }
-
-export function stopLocalAutoUpdateScheduler(): void {
-  if (!schedulerInterval) return;
-  clearInterval(schedulerInterval);
-  schedulerInterval = null;
-}

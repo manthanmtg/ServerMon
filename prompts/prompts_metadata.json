@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-05-11T12:05:00.000Z",
+  "updatedAt": "2026-05-11T05:51:47.680Z",
   "description": "Prompt-suite observability metadata. Keep static identity here aligned with prompt frontmatter and update counters during random_selector runs.",
   "outcomeDefinitions": {
     "selected": "The prompt has been selected and the run has not recorded a terminal outcome yet.",
@@ -76,13 +76,13 @@
       "category": "code-quality",
       "enabled": true,
       "autonomousSafe": true,
-      "totalSelected": 13,
-      "totalCompleted": 12,
+      "totalSelected": 14,
+      "totalCompleted": 13,
       "totalNoop": 0,
       "totalFailed": 0,
-      "lastSelectedAt": "2026-05-11T01:15:55.476Z",
+      "lastSelectedAt": "2026-05-11T05:45:58.770Z",
       "lastOutcome": "completed",
-      "lastCompletedAt": "2026-05-11T01:23:11.687Z"
+      "lastCompletedAt": "2026-05-11T05:51:47.680Z"
     },
     "documentation_ghostwriter_prompt.md": {
       "id": "documentation-ghostwriter-prompt",
