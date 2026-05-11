@@ -33,7 +33,6 @@ const MONGO_EXPRESS_IMAGE =
 const PGWEB_IMAGE = process.env.SERVERMON_PGWEB_IMAGE || 'sosedoff/pgweb:0.16.2';
 const PHPMYADMIN_IMAGE = process.env.SERVERMON_PHPMYADMIN_IMAGE || 'phpmyadmin:5.2.2-apache';
 export const DATABASE_EXPLORER_IDLE_TIMEOUT_MINUTES = 30;
-export const DATABASE_EXPLORER_IDLE_TIMEOUT_MS = DATABASE_EXPLORER_IDLE_TIMEOUT_MINUTES * 60 * 1000;
 
 export const CreateManagedDatabaseSchema = z
   .object({
