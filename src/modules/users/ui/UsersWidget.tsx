@@ -35,6 +35,10 @@ export default function UsersWidget() {
 
   return (
     <div className="flex flex-col h-full gap-4">
+      {isLoading ? (
+        <div role="status" aria-label="Loading user statistics" className="sr-only" />
+      ) : null}
+
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-indigo-500/10 flex items-center justify-center text-indigo-500">

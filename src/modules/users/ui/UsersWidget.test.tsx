@@ -56,6 +56,14 @@ describe('UsersWidget', () => {
     expect(adminCount).toBeDefined();
   });
 
+  it('announces that user statistics are loading', async () => {
+    global.fetch = vi.fn((): Promise<Response> => new Promise(() => {}));
+
+    render(<UsersWidget />);
+
+    expect(screen.getByRole('status', { name: 'Loading user statistics' })).toBeDefined();
+  });
+
   it('handles fetch failure gracefully', async () => {
     const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     global.fetch = vi.fn().mockRejectedValue(new Error('Network error'));
