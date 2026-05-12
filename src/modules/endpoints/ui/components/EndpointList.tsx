@@ -76,7 +76,8 @@ export function EndpointList({
         <div className="relative flex-1 min-w-[200px]">
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/60" />
           <input
-            type="text"
+            type="search"
+            aria-label="Search endpoints"
             value={search}
             onChange={(e) => onSearch(e.target.value)}
             placeholder="Search endpoints..."
@@ -89,6 +90,7 @@ export function EndpointList({
             size="sm"
             onClick={onRefresh}
             disabled={refreshing}
+            aria-label="Refresh endpoints"
             className="h-11 w-11 p-0 rounded-2xl border-border/40 hover:bg-accent/50 shrink-0"
           >
             <RefreshCcw

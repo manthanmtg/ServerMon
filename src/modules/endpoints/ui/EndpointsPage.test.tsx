@@ -184,6 +184,14 @@ describe('EndpointsPage', () => {
     });
   });
 
+  it('labels endpoint list search and refresh controls for assistive tech', async () => {
+    await renderPage();
+    await waitFor(() => screen.getByText('Test Endpoint'));
+
+    expect(screen.getByRole('searchbox', { name: 'Search endpoints' })).toBeDefined();
+    expect(screen.getByRole('button', { name: 'Refresh endpoints' })).toBeDefined();
+  });
+
   it('filters endpoints by method', async () => {
     await renderPage();
     // Use method filter buttons in the sidebar
