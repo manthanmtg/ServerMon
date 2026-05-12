@@ -927,6 +927,8 @@ The following modules are currently implemented in the core system:
 - **Services**: Monitor and manage systemd services
 - **Cron Jobs**: View and manage cron schedules and execution history
 - **Updates**: Track available system and package updates
+- **Apps**: Deploy and operate local Next.js applications from managed release copies
+- **Databases**: Deploy and operate Docker-based MongoDB, PostgreSQL, and MySQL databases
 - **Fleet**: Centralized administration of remote nodes, public routes, and reverse proxies
 - **AI Agents**: Passive observability of AI coding agent sessions running on the server
 - **AI Runner**: Configure AI automation profiles, workspaces, prompts, schedules, and run history
