@@ -371,6 +371,38 @@ describe('fetch-utils', () => {
       expect(fetch).toHaveBeenCalledTimes(2);
     });
 
+    it('retries transient server responses for HEAD requests', async () => {
+      vi.mocked(fetch)
+        .mockResolvedValueOnce(new Response(null, { status: 503 }))
+        .mockResolvedValueOnce(new Response(null, { status: 204 }));
+
+      const res = await resilientFetch('/api/test', {
+        method: 'HEAD',
+        retries: 1,
+        retryDelay: 1,
+        retryOnStatuses: [503],
+      });
+
+      expect(res.status).toBe(204);
+      expect(fetch).toHaveBeenCalledTimes(2);
+    });
+
+    it('retries transient server responses for OPTIONS requests', async () => {
+      vi.mocked(fetch)
+        .mockResolvedValueOnce(new Response('Unavailable', { status: 503 }))
+        .mockResolvedValueOnce(new Response('ok'));
+
+      const res = await resilientFetch('/api/test', {
+        method: 'OPTIONS',
+        retries: 1,
+        retryDelay: 1,
+        retryOnStatuses: [503],
+      });
+
+      expect(res.ok).toBe(true);
+      expect(fetch).toHaveBeenCalledTimes(2);
+    });
+
     it('does not retry transient server responses for mutation requests', async () => {
       vi.mocked(fetch).mockResolvedValueOnce(new Response('Unavailable', { status: 503 }));
 
@@ -382,6 +414,64 @@ describe('fetch-utils', () => {
       });
 
       expect(res.status).toBe(503);
+      expect(fetch).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not retry transient server responses for mutation Request objects', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(new Response('Unavailable', { status: 503 }));
+      const req = new Request('https://example.com/api/test', { method: 'DELETE' });
+
+      const res = await resilientFetch(req, {
+        retries: 1,
+        retryDelay: 1,
+        retryOnStatuses: [503],
+      });
+
+      expect(res.status).toBe(503);
+      expect(fetch).toHaveBeenCalledTimes(1);
+    });
+
+    it('uses the configured delay before retrying status responses', async () => {
+      vi.useFakeTimers();
+      vi.mocked(fetch)
+        .mockResolvedValueOnce(new Response('Unavailable', { status: 503 }))
+        .mockResolvedValueOnce(new Response('ok'));
+
+      const request = resilientFetch('/api/test', {
+        retries: 1,
+        retryDelay: 250,
+        retryOnStatuses: [503],
+      });
+      await vi.waitFor(() => expect(fetch).toHaveBeenCalledTimes(1));
+
+      await vi.advanceTimersByTimeAsync(249);
+      expect(fetch).toHaveBeenCalledTimes(1);
+
+      await vi.advanceTimersByTimeAsync(1);
+      const res = await request;
+
+      expect(res.ok).toBe(true);
+      expect(fetch).toHaveBeenCalledTimes(2);
+    });
+
+    it('aborts during the status retry delay wait if caller signal is aborted', async () => {
+      vi.useFakeTimers();
+      const controller = new AbortController();
+      vi.mocked(fetch).mockResolvedValueOnce(new Response('Unavailable', { status: 503 }));
+
+      const request = resilientFetch('/api/test', {
+        retries: 1,
+        retryDelay: 1000,
+        retryOnStatuses: [503],
+        signal: controller.signal,
+      });
+
+      await vi.waitFor(() => expect(fetch).toHaveBeenCalledTimes(1));
+
+      await vi.advanceTimersByTimeAsync(500);
+      controller.abort('cancel');
+
+      await expect(request).rejects.toThrow('cancel');
       expect(fetch).toHaveBeenCalledTimes(1);
     });
 
