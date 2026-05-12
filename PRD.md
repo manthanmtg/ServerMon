@@ -929,7 +929,7 @@ The following modules are currently implemented in the core system:
 - **Updates**: Track available system and package updates
 - **Apps**: Deploy and operate local Next.js applications from managed release copies
 - **Databases**: Deploy and operate Docker-based MongoDB, PostgreSQL, and MySQL databases
-- **Fleet**: Centralized administration of remote nodes, public routes, and reverse proxies
+- **Fleet**: Multi-node management with centralized administration, public routes, reverse proxies, RBAC policies, backup orchestration, and multi-channel alerting
 - **AI Agents**: Passive observability of AI coding agent sessions running on the server
 - **AI Runner**: Configure AI automation profiles, workspaces, prompts, schedules, and run history
 - **Self Service**: Browse and install managed apps, CLI tools, and services
@@ -986,12 +986,7 @@ Example permissions:
 - module.install
 - settings.modify
 
-User roles initially supported:
-
-- admin
-- user
-
-Future versions may introduce full **RBAC**.
+The **Fleet module** implements a full **RBAC (Role-Based Access Control) system** with defined roles (viewer, operator, admin) and a capability matrix.
 
 ---
 
@@ -1129,17 +1124,11 @@ Extensibility
 
 Possible roadmap items:
 
-- RBAC user roles
-- multi server monitoring
-- alerting system
-- notification integrations
-- Remote configuration sync
-
-Examples:
-
-- Slack
-- Email
-- Webhooks
+- Global system-wide RBAC (currently implemented per-module in Fleet)
+- alerting system (implemented in Fleet)
+- notification integrations (partial in Fleet)
+- Remote configuration sync (implemented in Fleet)
+- multi server monitoring (implemented in Fleet)
 
 ---
 
