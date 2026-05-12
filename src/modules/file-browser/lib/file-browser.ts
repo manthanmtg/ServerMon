@@ -140,6 +140,7 @@ export interface GitInfo {
 export interface GitCommitInfo {
   hash: string;
   author: string;
+  authorEmail: string;
   date: string;
   subject: string;
   body: string;
@@ -759,15 +760,6 @@ export async function gitCommit(root: string, message: string): Promise<string> 
 export async function gitPull(root: string): Promise<string> {
   const { stdout, stderr } = await execFileAsync('git', ['-C', root, 'pull']);
   return (stdout + stderr).trim();
-}
-
-export interface GitCommitInfo {
-  hash: string;
-  author: string;
-  authorEmail: string;
-  date: string;
-  subject: string;
-  body: string;
 }
 
 export async function gitLog(root: string, limit = 50, since?: string): Promise<GitCommitInfo[]> {
