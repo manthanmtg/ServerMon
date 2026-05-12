@@ -12,6 +12,7 @@ import { verifyTokenBySlug } from '@/lib/endpoints/token-service';
 export const dynamic = 'force-dynamic';
 
 const log = createLogger('api:endpoints:execute');
+const SENSITIVE_EXECUTION_HEADERS = new Set(['authorization', 'cookie']);
 
 async function handleRequest(req: NextRequest, { params }: { params: Promise<{ slug: string }> }) {
   try {
@@ -68,7 +69,9 @@ async function handleRequest(req: NextRequest, { params }: { params: Promise<{ s
 
     const headers: Record<string, string> = {};
     req.headers.forEach((value, key) => {
-      headers[key] = value;
+      if (!SENSITIVE_EXECUTION_HEADERS.has(key.toLowerCase())) {
+        headers[key] = value;
+      }
     });
 
     const query: Record<string, string> = {};
