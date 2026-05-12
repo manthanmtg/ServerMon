@@ -93,7 +93,10 @@ describe('/api/modules/databases/[id]', () => {
       expect(res.status).toBe(200);
       const json = await res.json();
       expect(json).toEqual({ database: { id: 'db-1', name: 'New Name' } });
-      expect(mockUpdateDatabase).toHaveBeenCalledWith('db-1', expect.objectContaining(validPayload));
+      expect(mockUpdateDatabase).toHaveBeenCalledWith(
+        'db-1',
+        expect.objectContaining(validPayload)
+      );
     });
   });
 

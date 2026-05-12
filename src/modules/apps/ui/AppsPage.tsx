@@ -954,7 +954,7 @@ export default function AppsPage() {
                     <a
                       href={`https://${app.domain}`}
                       target="_blank"
-                      rel="noreferrer"
+                      rel="noopener noreferrer"
                       className="mt-1 flex min-w-0 items-center gap-1 font-medium text-primary"
                     >
                       <span className="truncate">{app.domain}</span>
