@@ -36,7 +36,7 @@ Pick one module from `src/modules/` and improve existing behavior — cleaner co
 ### 4. Verify
 
 - Run `pnpm format:check`, then `pnpm check` to cover the release contract, lint, types, build, and tests.
-- Add Vitest unit tests if the module lacks coverage for core logic.
+- Add or update focused Vitest tests only when the selected slice changes core logic or behavior. Leave broader coverage gaps for `test_coverage_adder.md` or an `issues_to_look/` note.
 
 ## Scope Guardrail
 
