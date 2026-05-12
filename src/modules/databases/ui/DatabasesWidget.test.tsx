@@ -21,7 +21,7 @@ describe('DatabasesWidget', () => {
 
     await waitFor(() => expect(screen.getByText('Databases')).toBeTruthy());
     expect(screen.getByText('2')).toBeTruthy();
-    expect(screen.getByText('1 public')).toBeTruthy();
+    expect(screen.getByText('public')).toBeTruthy();
     expect(screen.getByText('Main Postgres')).toBeTruthy();
     expect(screen.getByRole('link', { name: /view all/i })).toHaveAttribute('href', '/databases');
   });

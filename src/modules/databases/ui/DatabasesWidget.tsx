@@ -92,7 +92,6 @@ export default function DatabasesWidget() {
         </div>
 
         <div className="mt-3 space-y-1.5">
-          <div className="text-[11px] text-muted-foreground">{summary.publicCount} public</div>
           {visibleDatabases.map((database) => (
             <div
               key={database.id}
