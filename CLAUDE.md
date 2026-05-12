@@ -200,6 +200,7 @@ Concise map of major directories, commands, and key files. Update this section w
 - `src/app/api/analytics/` — internal usage analytics and recent event history
 - `src/app/api/system/` — system-level actions (diagnostics, reboot, update history)
 - `src/app/api/setup/` — initial platform setup and completion handlers
+- `src/app/api/health/` — core health and lightweight ping endpoints
 - `src/app/api/metrics/` — real-time system metrics SSE streams
 - `src/app/api/terminal/` — host terminal session and command management
 - `src/components/` — shared UI (including `layout/`, `ui/`, `modules/`)
@@ -320,6 +321,7 @@ Concise map of major directories, commands, and key files. Update this section w
 
 ### Security & System Health
 
+- `src/modules/health/` — Health Monitor module definition and dashboard widget for core CPU, memory, and disk utilization
 - `src/modules/security/`, `src/lib/security/` — WebAuthn passkey management, security settings, and auth audit logs
 - `src/modules/certificates/`, `src/lib/certificates/` — SSL/TLS certificate monitoring, expiry alerts, and PEM parsing
 - `src/modules/ports/`, `src/lib/ports/` — Host port scanning, service detection, and open port monitoring
