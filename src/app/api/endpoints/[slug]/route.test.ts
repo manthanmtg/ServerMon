@@ -115,6 +115,39 @@ describe('GET /api/endpoints/[slug]', () => {
     expect(res.status).toBe(200);
   });
 
+  it('omits sensitive inbound headers from endpoint execution input', async () => {
+    mockQuery.lean.mockResolvedValue(mockEndpoint);
+    mockExecuteEndpoint.mockResolvedValue(mockResult);
+    const req = new NextRequest('http://localhost/api/endpoints/my-endpoint', {
+      headers: {
+        authorization: 'Bearer secret-token',
+        cookie: 'session=secret-session',
+        'content-type': 'application/json',
+      },
+    });
+
+    const res = await GET(req, makeContext('my-endpoint'));
+
+    expect(res.status).toBe(200);
+    expect(mockExecuteEndpoint).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        headers: expect.not.objectContaining({
+          authorization: 'Bearer secret-token',
+          cookie: 'session=secret-session',
+        }),
+      })
+    );
+    expect(mockExecuteEndpoint).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          'content-type': 'application/json',
+        }),
+      })
+    );
+  });
+
   it('sets custom response headers from endpoint config', async () => {
     mockQuery.lean.mockResolvedValue({
       ...mockEndpoint,
