@@ -1,5 +1,5 @@
 /** @vitest-environment node */
-import { describe, it, expect, vi, afterAll } from 'vitest';
+import { describe, it, expect, vi, afterAll, beforeEach, afterEach } from 'vitest';
 
 // Mock systeminformation before the module is imported so the singleton
 // constructor does not make real system calls.
@@ -21,11 +21,165 @@ vi.mock('systeminformation', () => ({
 }));
 
 import { metricsService } from './metrics';
+import si from 'systeminformation';
+
+function resetMetricsService() {
+  const service = metricsService as unknown as {
+    pollTimer: ReturnType<typeof setInterval> | null;
+    initialized: boolean;
+    history: unknown[];
+    latest: unknown | null;
+    activeConnections: number;
+    removeAllListeners: (event: string) => void;
+  };
+  if (service.pollTimer) {
+    clearInterval(service.pollTimer);
+    service.pollTimer = null;
+  }
+  service.initialized = false;
+  service.history = [];
+  service.latest = null;
+  service.activeConnections = 0;
+  service.removeAllListeners('metric');
+}
 
 describe('MetricsService', () => {
   afterAll(() => {
     // Clean up the polling timer so the test process can exit cleanly.
     metricsService.shutdown();
+  });
+
+  // ── Polling and Event Emission ────────────────────────────────────────────
+
+  describe('Polling and Event Emission', () => {
+    const flushPromises = async () => {
+      // Flush microtask queue enough times for the async poll to complete
+      for (let i = 0; i < 5; i++) {
+        await Promise.resolve();
+      }
+    };
+
+    beforeEach(() => {
+      vi.useFakeTimers();
+      resetMetricsService();
+      vi.clearAllMocks();
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+      resetMetricsService();
+      vi.mocked(si.fsStats).mockResolvedValue(null as unknown as NonNullable<Awaited<ReturnType<typeof si.fsStats>>>);
+    });
+
+    it('initializes cpuCores and memTotal on first registerConnection', async () => {
+      metricsService.registerConnection();
+      await flushPromises();
+
+      const current = metricsService.getCurrent();
+      expect(current?.cpuCores).toBe(4);
+      expect(current?.memTotal).toBe(8 * 1024 * 1024 * 1024);
+    });
+
+    it('emits metric event and updates current/history on successful poll', async () => {
+      const listener = vi.fn();
+      metricsService.on('metric', listener);
+
+      metricsService.registerConnection();
+      await flushPromises();
+
+      expect(listener).toHaveBeenCalled();
+      const current = metricsService.getCurrent();
+      expect(current).not.toBeNull();
+      expect(current?.cpu).toBe(20.0);
+      expect(metricsService.getHistory().length).toBeGreaterThan(0);
+    });
+
+    it('maintains a maximum history of 120 items', async () => {
+      metricsService.registerConnection();
+      await flushPromises();
+
+      // Fast forward many poll intervals (125 times)
+      for (let i = 0; i < 125; i++) {
+        await vi.advanceTimersByTimeAsync(2000);
+        await flushPromises();
+      }
+
+      const history = metricsService.getHistory();
+      expect(history.length).toBeLessThanOrEqual(120);
+      expect(history.length).toBeGreaterThan(0);
+    });
+
+    it('handles null fsStats gracefully', async () => {
+      vi.mocked(si.fsStats).mockResolvedValue(null as unknown as NonNullable<Awaited<ReturnType<typeof si.fsStats>>>);
+      metricsService.registerConnection();
+      await flushPromises();
+
+      const current = metricsService.getCurrent();
+      expect(current?.io).toBeNull();
+    });
+
+    it('maps fsStats when present', async () => {
+      vi.mocked(si.fsStats).mockResolvedValue({ rx_sec: 100, wx_sec: 50 } as unknown as NonNullable<
+        Awaited<ReturnType<typeof si.fsStats>>
+      >);
+      metricsService.registerConnection();
+      await flushPromises();
+
+      const current = metricsService.getCurrent();
+      expect(current?.io).toEqual({
+        r_sec: 100,
+        w_sec: 50,
+        t_sec: 150,
+        r_wait: 0,
+        w_wait: 0,
+      });
+    });
+
+    it('does not map negative fsStats', async () => {
+      vi.mocked(si.fsStats).mockResolvedValue({
+        rx_sec: -10,
+        wx_sec: -20,
+      } as unknown as NonNullable<Awaited<ReturnType<typeof si.fsStats>>>);
+      metricsService.registerConnection();
+      await flushPromises();
+
+      const current = metricsService.getCurrent();
+      expect(current?.io).toEqual({
+        r_sec: 0,
+        w_sec: 0,
+        t_sec: 0,
+        r_wait: 0,
+        w_wait: 0,
+      });
+    });
+
+    it('does not crash if systeminformation throws during initialization', async () => {
+      vi.mocked(si.cpu).mockRejectedValueOnce(new Error('init error'));
+      metricsService.registerConnection();
+      await flushPromises();
+
+      const current = metricsService.getCurrent();
+      expect(current).toBeDefined(); // Should still start polling and get a result
+    });
+
+    it('does not crash if systeminformation throws during polling loop', async () => {
+      const listener = vi.fn();
+      metricsService.on('metric', listener);
+
+      vi.mocked(si.currentLoad).mockRejectedValueOnce(new Error('poll error'));
+      metricsService.registerConnection();
+      await flushPromises(); // first poll fails
+
+      expect(listener).not.toHaveBeenCalled();
+      expect(metricsService.getCurrent()).toBeNull();
+
+      // Next interval should work
+      await vi.advanceTimersByTimeAsync(2000);
+      await flushPromises();
+
+      expect(listener).toHaveBeenCalled();
+      expect(metricsService.getCurrent()).not.toBeNull();
+    });
   });
 
   // ── Connection management ─────────────────────────────────────────────────
