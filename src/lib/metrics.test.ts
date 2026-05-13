@@ -68,7 +68,9 @@ describe('MetricsService', () => {
     afterEach(() => {
       vi.useRealTimers();
       resetMetricsService();
-      vi.mocked(si.fsStats).mockResolvedValue(null as unknown as NonNullable<Awaited<ReturnType<typeof si.fsStats>>>);
+      vi.mocked(si.fsStats).mockResolvedValue(
+        null as unknown as NonNullable<Awaited<ReturnType<typeof si.fsStats>>>
+      );
     });
 
     it('initializes cpuCores and memTotal on first registerConnection', async () => {
@@ -110,7 +112,9 @@ describe('MetricsService', () => {
     });
 
     it('handles null fsStats gracefully', async () => {
-      vi.mocked(si.fsStats).mockResolvedValue(null as unknown as NonNullable<Awaited<ReturnType<typeof si.fsStats>>>);
+      vi.mocked(si.fsStats).mockResolvedValue(
+        null as unknown as NonNullable<Awaited<ReturnType<typeof si.fsStats>>>
+      );
       metricsService.registerConnection();
       await flushPromises();
 
