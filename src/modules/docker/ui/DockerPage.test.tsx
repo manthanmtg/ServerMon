@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, act, within } from '@testing-library/react';
-import DockerPage from './DockerPage';
+import DockerPage, { selectDockerContainer } from './DockerPage';
 import { ToastProvider } from '@/components/ui/toast';
 
 // Mock TerminalUI to avoid complex terminal dependencies in unit tests
@@ -172,6 +172,12 @@ describe('DockerPage', () => {
     });
     return result!;
   };
+
+  it('selects the requested container or falls back to the first container', () => {
+    expect(selectDockerContainer(mockSnapshot.containers, 'container-2')?.name).toBe('db-server');
+    expect(selectDockerContainer(mockSnapshot.containers, 'missing')?.name).toBe('web-server');
+    expect(selectDockerContainer([], 'missing')).toBeNull();
+  });
 
   it('renders loading state initially', async () => {
     let resolveFetch: (value: Response) => void;

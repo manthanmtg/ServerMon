@@ -28,6 +28,15 @@ const DockerTerminal = dynamic(
 
 const DOCKER_SNAPSHOT_TIMEOUT_MS = 8000;
 
+export function selectDockerContainer(
+  containers: DockerSnapshot['containers'],
+  selectedContainerId: string | null
+) {
+  return (
+    containers.find((container) => container.id === selectedContainerId) || containers[0] || null
+  );
+}
+
 export default function DockerPage() {
   const { toast } = useToast();
   const [snapshot, setSnapshot] = useState<DockerSnapshot | null>(null);
@@ -98,10 +107,10 @@ export default function DockerPage() {
     [snapshot]
   );
 
-  const selectedContainer =
-    snapshot?.containers.find((container) => container.id === selectedContainerId) ||
-    snapshot?.containers[0] ||
-    null;
+  const selectedContainer = useMemo(
+    () => selectDockerContainer(snapshot?.containers ?? [], selectedContainerId),
+    [selectedContainerId, snapshot?.containers]
+  );
 
   const ioHistory = useMemo(() => {
     if (!snapshot || !selectedContainer) return [];
