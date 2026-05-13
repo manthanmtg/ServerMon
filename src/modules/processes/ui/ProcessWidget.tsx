@@ -5,7 +5,6 @@ import { RefreshCw, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { SkeletonCard, SkeletonTable } from '@/components/ui/skeleton';
 import { useToast } from '@/components/ui/toast';
-import { cn } from '@/lib/utils';
 import { resilientFetch } from '@/lib/fetch-utils';
 import { ProcessList } from './components/ProcessList';
 import { ProcessSummaryGrid } from './components/ProcessSummaryGrid';
@@ -127,8 +126,14 @@ export default function ProcessWidget() {
             className="w-full h-9 pl-9 pr-3 rounded-lg border border-input bg-background text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/40 focus:border-ring transition-colors"
           />
         </div>
-        <Button variant="outline" size="sm" onClick={() => fetchProcs(true)} className="gap-1.5">
-          <RefreshCw className={cn('w-3.5 h-3.5', refreshing && 'animate-spin')} />
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => fetchProcs(true)}
+          className="gap-1.5"
+          loading={refreshing}
+        >
+          {!refreshing && <RefreshCw className="w-3.5 h-3.5" aria-hidden="true" />}
           Refresh
         </Button>
       </div>

@@ -52,7 +52,14 @@ function cpuColor(cpu: number): string {
 
 function CpuBarBase({ value }: { value: number }) {
   return (
-    <div className="w-16 h-1.5 bg-secondary rounded-full overflow-hidden">
+    <div
+      className="w-16 h-1.5 bg-secondary rounded-full overflow-hidden"
+      role="progressbar"
+      aria-valuenow={value}
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-label="CPU Usage"
+    >
       <div
         className={cn(
           'h-full rounded-full transition-all',
@@ -181,7 +188,7 @@ export const ProcessCard = React.memo(
                   loading={isKilling}
                   aria-label={`Send SIGKILL to process ${p.name} (${p.pid})`}
                 >
-                  <Skull className="w-3.5 h-3.5 mr-1" /> SIGKILL
+                  <Skull className="w-3.5 h-3.5 mr-1" aria-hidden="true" /> SIGKILL
                 </Button>
               </div>
             </div>
@@ -350,7 +357,7 @@ export const ProcessRow = React.memo(
                       loading={isKilling}
                       aria-label={`Send SIGKILL to process ${p.name} (${p.pid})`}
                     >
-                      <Skull className="w-3 h-3" /> Force Kill
+                      <Skull className="w-3 h-3" aria-hidden="true" /> Force Kill
                     </Button>
                   </div>
                 </div>
