@@ -9,6 +9,7 @@ import { startAuthentication } from '@simplewebauthn/browser';
 import { createLogger } from '@/lib/logger';
 import { useBrand } from '@/lib/BrandContext';
 import { useEffect } from 'react';
+import { resilientFetch } from '@/lib/fetch-utils';
 
 const logger = createLogger('auth:login');
 
@@ -33,7 +34,7 @@ export default function LoginPage() {
     setError('');
 
     try {
-      const res = await fetch('/api/auth/verify', {
+      const res = await resilientFetch('/api/auth/verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password }),
@@ -54,7 +55,7 @@ export default function LoginPage() {
     setError('');
 
     try {
-      const res = await fetch('/api/auth/login', {
+      const res = await resilientFetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password, totpToken }),
@@ -77,7 +78,7 @@ export default function LoginPage() {
 
     try {
       // 1. Get options from server
-      const optionsRes = await fetch('/api/auth/passkey/login/options', {
+      const optionsRes = await resilientFetch('/api/auth/passkey/login/options', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username }),
@@ -89,7 +90,7 @@ export default function LoginPage() {
       const asseResp = await startAuthentication({ optionsJSON: options });
 
       // 3. Verify with server
-      const verifyRes = await fetch('/api/auth/passkey/login/verify', {
+      const verifyRes = await resilientFetch('/api/auth/passkey/login/verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(asseResp),
