@@ -37,6 +37,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/components/ui/toast';
+import { resilientFetch, safeJson } from '@/lib/fetch-utils';
 import { cn, formatBytes, relativeTime } from '@/lib/utils';
 import type {
   NetworkSnapshot,
@@ -90,6 +91,14 @@ const scheduleOptions: Array<{ value: NetworkSpeedtestScheduleInterval; label: s
   { value: '24h', label: 'Every day' },
 ];
 
+const NETWORK_REQUEST_TIMEOUT_MS = 5000;
+const SPEEDTEST_OVERVIEW_TIMEOUT_MS = 8000;
+const TRANSIENT_RETRY_STATUSES = [502, 503, 504];
+
+type ApiErrorPayload = {
+  error?: string;
+};
+
 export default function NetworkPage() {
   const { toast } = useToast();
   const [snapshot, setSnapshot] = useState<NetworkSnapshot | null>(null);
@@ -105,20 +114,37 @@ export default function NetworkPage() {
   const [showSpeedtestHistory, setShowSpeedtestHistory] = useState(false);
 
   const loadSnapshot = useCallback(async () => {
-    try {
-      const response = await fetch('/api/modules/network', { cache: 'no-store' });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Failed to fetch network data');
-      setSnapshot(data);
-    } catch (error) {
-      console.error(error);
+    const response = await resilientFetch('/api/modules/network', {
+      cache: 'no-store',
+      timeout: NETWORK_REQUEST_TIMEOUT_MS,
+      retries: 1,
+      retryDelay: 300,
+      retryOnStatuses: TRANSIENT_RETRY_STATUSES,
+    });
+    const data = await safeJson<(NetworkSnapshot & ApiErrorPayload) | ApiErrorPayload>(response);
+    if (!response.ok) {
+      throw new Error(data?.error || 'Failed to fetch network data');
     }
+    if (!data || !('interfaces' in data))
+      throw new Error('Network API returned an invalid response');
+    setSnapshot(data);
   }, []);
 
   const loadSpeedtestOverview = useCallback(async () => {
-    const response = await fetch('/api/modules/network/speedtest', { cache: 'no-store' });
-    const data = await response.json();
-    if (!response.ok) throw new Error(data.error || 'Failed to fetch speedtest history');
+    const response = await resilientFetch('/api/modules/network/speedtest', {
+      cache: 'no-store',
+      timeout: SPEEDTEST_OVERVIEW_TIMEOUT_MS,
+      retries: 1,
+      retryDelay: 300,
+      retryOnStatuses: TRANSIENT_RETRY_STATUSES,
+    });
+    const data = await safeJson<(NetworkSpeedtestOverview & ApiErrorPayload) | ApiErrorPayload>(
+      response
+    );
+    if (!response.ok) throw new Error(data?.error || 'Failed to fetch speedtest history');
+    if (!data || !('settings' in data)) {
+      throw new Error('Speedtest API returned an invalid response');
+    }
     setSpeedtestOverview(data);
     setSpeedtestRunning(Boolean(data.running));
   }, []);
