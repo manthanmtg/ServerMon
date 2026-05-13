@@ -26,7 +26,7 @@ interface SessionUser {
   user: { id?: string; username: string; role: string };
 }
 
-const SCOPE_MODELS: Record<string, Model<any>> = { // eslint-disable-line @typescript-eslint/no-explicit-any -- Generic model collection for bulk backups
+const SCOPE_MODELS: Record<string, Model<unknown>> = {
   nodes: Node,
   publicRoutes: PublicRoute,
   configs: ConfigRevision,
