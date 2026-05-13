@@ -14,10 +14,35 @@ import connectDB from '@/lib/db';
 import { platformTriple, resolveVersion } from './binary';
 import type { PreflightExecutors } from './preflight';
 
-type NetModule = typeof nodeNet;
-type DnsModule = typeof nodeDns;
-type OsModule = typeof nodeOs;
-type SpawnFn = typeof realSpawn;
+interface PreflightServer extends NodeJS.EventEmitter {
+  listen(port: number, host?: string): unknown;
+  close(cb?: () => void): unknown;
+}
+
+interface PreflightSocket extends NodeJS.EventEmitter {
+  destroy(): unknown;
+}
+
+interface PreflightChildProcess extends NodeJS.EventEmitter {
+  stdout?: NodeJS.ReadableStream | null;
+  stderr?: NodeJS.ReadableStream | null;
+  kill(signal?: NodeJS.Signals | number): unknown;
+}
+
+export interface DefaultExecutorsNet {
+  createServer?: () => PreflightServer;
+  createConnection?: (options: nodeNet.NetConnectOpts) => PreflightSocket;
+}
+
+export interface DefaultExecutorsDns {
+  resolve4(host: string): Promise<string[]>;
+}
+
+export interface DefaultExecutorsOs {
+  platform(): NodeJS.Platform;
+}
+
+type SpawnFn = (command: string, args: string[]) => PreflightChildProcess;
 
 export interface DefaultExecutorsFs {
   access(p: string, mode?: number): Promise<void>;
@@ -26,10 +51,10 @@ export interface DefaultExecutorsFs {
 }
 
 export interface DefaultExecutorsOpts {
-  netImpl?: NetModule;
-  dnsImpl?: DnsModule;
+  netImpl?: DefaultExecutorsNet;
+  dnsImpl?: DefaultExecutorsDns;
   fsImpl?: DefaultExecutorsFs;
-  osImpl?: OsModule;
+  osImpl?: DefaultExecutorsOs;
   spawnImpl?: SpawnFn;
   connectDB?: () => Promise<unknown>;
   fetchImpl?: typeof fetch;
@@ -66,10 +91,13 @@ function defaultFsImpl(): DefaultExecutorsFs {
 }
 
 export function createDefaultExecutors(opts: DefaultExecutorsOpts = {}): PreflightExecutors {
-  const netImpl: NetModule = opts.netImpl ?? nodeNet;
-  const dnsImpl: DnsModule = opts.dnsImpl ?? nodeDns;
+  const netImpl: Required<DefaultExecutorsNet> = {
+    createServer: opts.netImpl?.createServer ?? nodeNet.createServer,
+    createConnection: opts.netImpl?.createConnection ?? nodeNet.createConnection,
+  };
+  const dnsImpl: DefaultExecutorsDns = opts.dnsImpl ?? nodeDns;
   const fsImpl: DefaultExecutorsFs = opts.fsImpl ?? defaultFsImpl();
-  const osImpl: OsModule = opts.osImpl ?? nodeOs;
+  const osImpl: DefaultExecutorsOs = opts.osImpl ?? nodeOs;
   const spawnImpl: SpawnFn = opts.spawnImpl ?? realSpawn;
   const connect = opts.connectDB ?? (connectDB as () => Promise<unknown>);
   const tlsDir = opts.tlsDir ?? '/etc/letsencrypt/live';
@@ -84,7 +112,7 @@ export function createDefaultExecutors(opts: DefaultExecutorsOpts = {}): Preflig
         settled = true;
         resolve(v);
       };
-      let server: nodeNet.Server | null = null;
+      let server: PreflightServer;
       try {
         server = netImpl.createServer();
       } catch (err) {
@@ -93,7 +121,7 @@ export function createDefaultExecutors(opts: DefaultExecutorsOpts = {}): Preflig
       }
       const timer = setTimeout(() => {
         try {
-          server?.close();
+          server.close();
         } catch {
           // ignore
         }
@@ -110,7 +138,7 @@ export function createDefaultExecutors(opts: DefaultExecutorsOpts = {}): Preflig
       });
       server.once('listening', () => {
         clearTimeout(timer);
-        server?.close(() => done({ available: true }));
+        server.close(() => done({ available: true }));
       });
 
       try {
@@ -133,7 +161,7 @@ export function createDefaultExecutors(opts: DefaultExecutorsOpts = {}): Preflig
         settled = true;
         resolve(v);
       };
-      let sock: nodeNet.Socket | null = null;
+      let sock: PreflightSocket;
       try {
         sock = netImpl.createConnection({ host, port });
       } catch (err) {
@@ -142,7 +170,7 @@ export function createDefaultExecutors(opts: DefaultExecutorsOpts = {}): Preflig
       }
       const timer = setTimeout(() => {
         try {
-          sock?.destroy();
+          sock.destroy();
         } catch {
           // ignore
         }
@@ -152,7 +180,7 @@ export function createDefaultExecutors(opts: DefaultExecutorsOpts = {}): Preflig
       sock.once('connect', () => {
         clearTimeout(timer);
         try {
-          sock?.destroy();
+          sock.destroy();
         } catch {
           // ignore
         }
