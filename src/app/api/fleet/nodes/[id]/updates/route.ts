@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 import connectDB from '@/lib/db';
 import Node from '@/models/Node';
 import { getSession } from '@/lib/session';
@@ -6,7 +7,6 @@ import { createLogger } from '@/lib/logger';
 import { enforceRbac } from '@/lib/fleet/rbac';
 import FleetLogEvent from '@/models/FleetLogEvent';
 import crypto from 'node:crypto';
-import type { AgentUpdateMode } from '@/lib/fleet/agentUpdateCommand';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,30 +16,36 @@ interface SessionUser {
   user: { id?: string; username: string; role: string };
 }
 
-function parseString(value: unknown): string | undefined {
-  return typeof value === 'string' && value.trim() ? value.trim() : undefined;
-}
-
-function parseMode(value: unknown): AgentUpdateMode | undefined {
-  return value === 'auto' || value === 'release' || value === 'source' ? value : undefined;
-}
+const UpdateArgsSchema = z.object({
+  mode: z.enum(['auto', 'release', 'source']).optional(),
+  updateMode: z.enum(['auto', 'release', 'source']).optional(),
+  installMode: z.enum(['auto', 'release', 'source']).optional(),
+  versionTarget: z.string().trim().min(1).optional(),
+  version: z.string().trim().min(1).optional(),
+  releaseBaseUrl: z.string().trim().min(1).optional(),
+  sourceRef: z.string().trim().min(1).optional(),
+});
 
 async function parseUpdateArgs(req: NextRequest): Promise<Record<string, string> | undefined> {
   const contentType = req.headers.get('content-type') ?? '';
   if (!contentType.includes('application/json')) return undefined;
-  const body = (await req.json().catch(() => null)) as Record<string, unknown> | null;
+  const body = await req.json().catch(() => null);
   if (!body || typeof body !== 'object') return undefined;
 
+  const result = UpdateArgsSchema.safeParse(body);
+  if (!result.success) return undefined;
+
+  const data = result.data;
   const args: Record<string, string> = {};
-  const mode = parseMode(body.mode ?? body.updateMode ?? body.installMode);
-  const versionTarget = parseString(body.versionTarget ?? body.version);
-  const releaseBaseUrl = parseString(body.releaseBaseUrl);
-  const sourceRef = parseString(body.sourceRef);
+
+  const mode = data.mode ?? data.updateMode ?? data.installMode;
+  const versionTarget = data.versionTarget ?? data.version;
 
   if (mode) args.mode = mode;
   if (versionTarget) args.versionTarget = versionTarget;
-  if (releaseBaseUrl) args.releaseBaseUrl = releaseBaseUrl;
-  if (sourceRef) args.sourceRef = sourceRef;
+  if (data.releaseBaseUrl) args.releaseBaseUrl = data.releaseBaseUrl;
+  if (data.sourceRef) args.sourceRef = data.sourceRef;
+
   return Object.keys(args).length ? args : undefined;
 }
 

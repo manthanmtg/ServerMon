@@ -26,16 +26,15 @@ interface SessionUser {
   user: { id?: string; username: string; role: string };
 }
 
-const SCOPE_MODELS: Record<string, Model<unknown>> = {
-  nodes: Node as unknown as Model<unknown>,
-  publicRoutes: PublicRoute as unknown as Model<unknown>,
-  configs: ConfigRevision as unknown as Model<unknown>,
-  nginx: NginxState as unknown as Model<unknown>,
-  policies: AccessPolicy as unknown as Model<unknown>,
-  retention: ResourcePolicy as unknown as Model<unknown>,
-  audit: FleetLogEvent,
-  templates: RouteTemplate as unknown as Model<unknown>,
-  imported: ImportedConfig as unknown as Model<unknown>,
+const SCOPE_MODELS: Record<string, Model<any>> = { // eslint-disable-line @typescript-eslint/no-explicit-any -- Generic model collection for bulk backups
+  nodes: Node,
+  publicRoutes: PublicRoute,
+  configs: ConfigRevision,
+  nginx: NginxState,
+  policies: AccessPolicy,
+  retention: ResourcePolicy,
+  templates: RouteTemplate,
+  imported: ImportedConfig,
 };
 
 export async function GET(req: NextRequest) {
