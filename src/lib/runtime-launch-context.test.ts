@@ -18,6 +18,24 @@ describe('detectRuntimeLaunchContext', () => {
     });
   });
 
+  it('recognizes alternate systemd environment markers', () => {
+    for (const marker of ['NOTIFY_SOCKET', 'MAINPID', 'MANAGERPID']) {
+      expect(
+        detectRuntimeLaunchContext({
+          platform: 'linux',
+          env: { [marker]: '1', NODE_ENV: 'test' } as NodeJS.ProcessEnv,
+          stdinIsTTY: false,
+          stdoutIsTTY: false,
+          stderrIsTTY: false,
+        })
+      ).toMatchObject({
+        kind: 'systemd',
+        serviceManager: 'systemd',
+        scheduleReliability: 'reboot-safe',
+      });
+    }
+  });
+
   it('prefers systemd markers over tty state on linux', () => {
     expect(
       detectRuntimeLaunchContext({
@@ -48,6 +66,28 @@ describe('detectRuntimeLaunchContext', () => {
       serviceManager: null,
       scheduleReliability: 'unknown',
     });
+  });
+
+  it('treats any tty-backed stream as interactive', () => {
+    const ttyStates = [
+      { stdinIsTTY: true, stdoutIsTTY: false, stderrIsTTY: false },
+      { stdinIsTTY: false, stdoutIsTTY: true, stderrIsTTY: false },
+      { stdinIsTTY: false, stdoutIsTTY: false, stderrIsTTY: true },
+    ];
+
+    for (const state of ttyStates) {
+      expect(
+        detectRuntimeLaunchContext({
+          platform: 'linux',
+          env: { NODE_ENV: 'test' } as NodeJS.ProcessEnv,
+          ...state,
+        })
+      ).toMatchObject({
+        kind: 'interactive',
+        serviceManager: null,
+        scheduleReliability: 'session-bound',
+      });
+    }
   });
 
   it('treats tty-backed launches as session-bound', () => {
@@ -131,6 +171,44 @@ describe('detectRuntimeLaunchContext', () => {
       serviceManager: null,
       scheduleReliability: 'unknown',
     });
+  });
+
+  it('describes systemd persistence in the summary', () => {
+    expect(
+      detectRuntimeLaunchContext({
+        platform: 'linux',
+        env: { INVOCATION_ID: 'abc123', NODE_ENV: 'test' } as NodeJS.ProcessEnv,
+        stdinIsTTY: false,
+        stdoutIsTTY: false,
+        stderrIsTTY: false,
+      }).summary
+    ).toBe('Managed by systemd and expected to resume scheduled runs after reboot.');
+  });
+
+  it('describes launchd persistence in the summary', () => {
+    expect(
+      detectRuntimeLaunchContext({
+        platform: 'darwin',
+        env: { LAUNCH_JOB_LABEL: 'com.servermon.servermon', NODE_ENV: 'test' } as NodeJS.ProcessEnv,
+        stdinIsTTY: false,
+        stdoutIsTTY: false,
+        stderrIsTTY: false,
+      }).summary
+    ).toBe('Managed by launchd and expected to resume scheduled runs after reboot.');
+  });
+
+  it('describes background launches as unconfirmed persistence', () => {
+    expect(
+      detectRuntimeLaunchContext({
+        platform: 'linux',
+        env: { NODE_ENV: 'test' } as NodeJS.ProcessEnv,
+        stdinIsTTY: false,
+        stdoutIsTTY: false,
+        stderrIsTTY: false,
+      }).summary
+    ).toBe(
+      'Running in the background without systemd or launchd markers, so reboot persistence is not confirmed.'
+    );
   });
 
   it('uses process defaults when no explicit input is provided', () => {
