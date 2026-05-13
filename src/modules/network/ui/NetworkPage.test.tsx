@@ -144,6 +144,25 @@ describe('NetworkPage', () => {
     await waitFor(() => expect(screen.getAllByText('UP').length).toBeGreaterThan(0));
   });
 
+  it('loads network data with timeout-capable requests', async () => {
+    await renderPage();
+    await waitFor(() => expect(screen.getByText('eth0')).toBeDefined());
+
+    const networkRequest = vi
+      .mocked(global.fetch)
+      .mock.calls.find(([input]) => String(input) === '/api/modules/network');
+    const speedtestRequest = vi
+      .mocked(global.fetch)
+      .mock.calls.find(([input]) => String(input) === '/api/modules/network/speedtest');
+
+    expect(networkRequest?.[1]).toEqual(
+      expect.objectContaining({ signal: expect.any(AbortSignal) })
+    );
+    expect(speedtestRequest?.[1]).toEqual(
+      expect.objectContaining({ signal: expect.any(AbortSignal) })
+    );
+  });
+
   it('renders connections', async () => {
     await renderPage();
     await waitFor(() => expect(screen.getAllByText('nginx').length).toBeGreaterThan(0));
