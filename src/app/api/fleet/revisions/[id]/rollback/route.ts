@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import type { Model } from 'mongoose';
 import { createLogger } from '@/lib/logger';
 import connectDB from '@/lib/db';
 import ConfigRevision from '@/models/ConfigRevision';
@@ -70,14 +69,10 @@ async function applyRollbackRevision(rollbackRevisionId: string): Promise<void> 
   await applyRevision(rollbackRevisionId, {
     frp: getFrpOrchestrator(),
     nginx: getNginxOrchestrator(),
-    ConfigRevision: ConfigRevision as unknown as Parameters<
-      typeof applyRevision
-    >[1]['ConfigRevision'],
-    FrpServerState: FrpServerState as unknown as Parameters<
-      typeof applyRevision
-    >[1]['FrpServerState'],
-    PublicRoute: PublicRoute as unknown as Parameters<typeof applyRevision>[1]['PublicRoute'],
-    Node: Node as unknown as Parameters<typeof applyRevision>[1]['Node'],
+    ConfigRevision,
+    FrpServerState,
+    PublicRoute,
+    Node,
   }).catch((err) => log.warn('applyRevision failed post-rollback', err));
 }
 
@@ -130,7 +125,7 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
         subdomainHost: state.subdomainHost ?? '',
       });
 
-      const rollbackRevision = await saveRevision(ConfigRevision as unknown as Model<unknown>, {
+      const rollbackRevision = await saveRevision(ConfigRevision, {
         kind: 'frps',
         targetId: null,
         structured: state.toObject(),
@@ -214,7 +209,7 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
         },
       });
 
-      const rollbackRevision = await saveRevision(ConfigRevision as unknown as Model<unknown>, {
+      const rollbackRevision = await saveRevision(ConfigRevision, {
         kind: 'frpc',
         targetId,
         structured: node.toObject(),
@@ -328,7 +323,7 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
         { frpsVhostPort }
       );
 
-      const rollbackRevision = await saveRevision(ConfigRevision as unknown as Model<unknown>, {
+      const rollbackRevision = await saveRevision(ConfigRevision, {
         kind: 'nginx',
         targetId,
         structured: route.toObject(),

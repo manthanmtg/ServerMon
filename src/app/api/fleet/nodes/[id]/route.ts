@@ -170,11 +170,11 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         updates.proxyRules.map((rule) => rule.name).filter((name): name is string => Boolean(name))
       );
       const removedProxyNames = [...previousProxyNames].filter((name) => !nextProxyNames.has(name));
-      const publicRoutes = (await PublicRoute.find({
+      const publicRoutes = await PublicRoute.find({
         nodeId: id,
         enabled: true,
         target: { $exists: true },
-      }).lean()) as unknown as PublicRouteProxySource[];
+      }).lean<PublicRouteProxySource[]>();
       const proxyRules = updates.proxyRules as PublicRouteProxyRule[];
       for (const route of publicRoutes) {
         if (removedProxyNames.includes(route.proxyRuleName)) continue;
