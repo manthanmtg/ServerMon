@@ -204,6 +204,23 @@ Runtime config lives in `/etc/servermon/env` (production) or `.env.local` (devel
 | `NODE_ENV`   | No       | `development` or `production`                      | `production`                          |
 | `LOG_LEVEL`  | No       | `debug`, `info`, `warn`, `error`                   | `info`                                |
 
+Common optional controls:
+
+| Variable                        | Description                                                     | Default                           |
+| ------------------------------- | --------------------------------------------------------------- | --------------------------------- |
+| `SERVERMON_SLOW_REQUEST_MS`     | Slow request logging threshold                                  | `2000`                            |
+| `SERVERMON_REPO_DIR`            | Source checkout used by self-update actions                     | `/opt/servermon/repo`             |
+| `SERVERMON_NETWORK_MOCK`        | Set to `1` to use mocked network speedtest data                 | unset                             |
+| `SERVERMON_DOCKER_MOCK`         | Set to `1` to use mocked Docker data                            | unset                             |
+| `SERVERMON_DATABASES_ROOT`      | Host data root for managed database containers                  | `/var/lib/servermon/databases`    |
+| `SERVERMON_APPS_ROOT`           | Host data root for managed app releases                         | `/var/lib/servermon/apps`         |
+| `SERVERMON_UPDATES_MOCK`        | Set to `1` to use mocked system update data                     | unset                             |
+| `SERVERMON_AUTO_UPDATE_CONFIG`  | Server auto-update schedule config path                         | `/etc/servermon/auto-update.json` |
+| `AI_RUNNER_MAX_CONCURRENT_RUNS` | Maximum concurrently executing AI Runner jobs                   | `3`                               |
+| `FLEET_HUB_PUBLIC_URL`          | Public hub URL used by fleet install scripts and pair callbacks | unset                             |
+
+See [DEPLOY.md](DEPLOY.md#fleet-management-deployment) for the full fleet hub and agent environment variables.
+
 ---
 
 ## Tech Stack
