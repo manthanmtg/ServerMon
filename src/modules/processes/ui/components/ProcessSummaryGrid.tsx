@@ -12,8 +12,14 @@ function StatBoxBase({
   icon: React.ReactNode;
 }) {
   return (
-    <div className="group flex items-center gap-2.5 px-3 py-2 rounded-lg bg-secondary/50 border border-border min-w-0 transition-all duration-300 hover:border-primary/20 hover:bg-secondary/80 hover:shadow-[0_4px_12px_-4px_color-mix(in_oklab,var(--primary)_15%,transparent)] cursor-default">
-      <span className="text-muted-foreground shrink-0 transition-colors duration-300 group-hover:text-primary">
+    <div
+      className="group flex items-center gap-2.5 px-3 py-2 rounded-lg bg-secondary/50 border border-border min-w-0 transition-all duration-300 hover:border-primary/20 hover:bg-secondary/80 hover:shadow-[0_4px_12px_-4px_color-mix(in_oklab,var(--primary)_15%,transparent)] cursor-default"
+      aria-label={`${label}: ${value}`}
+    >
+      <span
+        className="text-muted-foreground shrink-0 transition-colors duration-300 group-hover:text-primary"
+        aria-hidden="true"
+      >
         {icon}
       </span>
       <div className="min-w-0">
