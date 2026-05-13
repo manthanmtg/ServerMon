@@ -34,7 +34,11 @@ export default function PortsWidget() {
   if (initialLoad && !snapshot) {
     return (
       <Card className="border-border/60">
-        <CardContent className="flex items-center justify-center py-12">
+        <CardContent
+          role="status"
+          aria-label="Loading ports summary"
+          className="flex items-center justify-center py-12"
+        >
           <LoaderCircle className="h-5 w-5 animate-spin text-primary" />
         </CardContent>
       </Card>
