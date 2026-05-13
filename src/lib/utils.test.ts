@@ -83,6 +83,28 @@ describe('utils', () => {
       expect(formatBytes(1023.95)).toBe('1024 B');
       expect(formatBytes(999.95, 'decimal')).toBe('1000 B');
     });
+
+    it('should treat non-finite values as zero bytes', () => {
+      expect(formatBytes(Number.NaN)).toBe('0 B');
+      expect(formatBytes(Number.POSITIVE_INFINITY)).toBe('0 B');
+      expect(formatBytes(Number.NEGATIVE_INFINITY)).toBe('0 B');
+    });
+
+    it('should cap binary values above TiB at the TiB unit', () => {
+      expect(formatBytes(Math.pow(1024, 5))).toBe('1024 TiB');
+    });
+
+    it('should cap decimal values above TB at the TB unit', () => {
+      expect(formatBytes(Math.pow(1000, 5), 'decimal')).toBe('1000 TB');
+    });
+
+    it('should keep fractional precision when binary values exceed TiB', () => {
+      expect(formatBytes(1.5 * Math.pow(1024, 5))).toBe('1536 TiB');
+    });
+
+    it('should keep fractional precision when decimal values exceed TB', () => {
+      expect(formatBytes(1.5 * Math.pow(1000, 5), 'decimal')).toBe('1500 TB');
+    });
   });
 
   describe('formatDuration', () => {
