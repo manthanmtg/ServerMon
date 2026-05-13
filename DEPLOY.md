@@ -170,20 +170,21 @@ sudo ./scripts/install.sh \
 
 Step by step, the installer:
 
-| Step | What happens                                                             |
-| ---- | ------------------------------------------------------------------------ |
-| 1    | Installs base packages (`curl`, `git`, `build-essential`, `lsof`)        |
-| 2    | Installs Node.js 20 LTS and pnpm (skips if already present)              |
-| 3    | Installs MongoDB 7.0 and starts it (skipped with `--skip-mongo`)         |
-| 4    | Copies source to `/opt/servermon`, runs `pnpm install` and `pnpm build`  |
-| 5    | Generates `/etc/servermon/env` with JWT secret, creates systemd service  |
-| 6    | _(optional)_ Installs Nginx, generates reverse proxy config, sets up SSL |
+| Step | What happens                                                                                            |
+| ---- | ------------------------------------------------------------------------------------------------------- |
+| 1    | Installs base packages (`curl`, `git`, `build-essential`, `lsof`)                                       |
+| 2    | Installs Node.js 20 LTS and pnpm (skips if already present)                                             |
+| 3    | Installs MongoDB 7.0 and starts it (skipped with `--skip-mongo`)                                        |
+| 4    | Prepares a timestamped release in `/opt/servermon-releases/`, then runs `pnpm install` and `pnpm build` |
+| 5    | Generates `/etc/servermon/env` with JWT secret, creates systemd service, and links `/opt/servermon`     |
+| 6    | _(optional)_ Installs Nginx, generates reverse proxy config, sets up SSL                                |
 
 Files created:
 
 | Path                                    | Purpose                                         |
 | --------------------------------------- | ----------------------------------------------- |
-| `/opt/servermon/`                       | Application directory                           |
+| `/opt/servermon/`                       | Symlink to the active release                   |
+| `/opt/servermon-releases/`              | Timestamped application releases                |
 | `/etc/servermon/env`                    | Environment config (secrets, MongoDB URI, port) |
 | `/etc/systemd/system/servermon.service` | Systemd service unit                            |
 | `/etc/nginx/sites-available/servermon`  | Nginx config (if using Nginx)                   |
@@ -216,7 +217,8 @@ The upgrade:
 
 - Preserves your `/etc/servermon/env` (JWT secret, MongoDB URI)
 - Preserves your MongoDB data
-- Rebuilds the application from the latest source
+- Builds a new timestamped release and repoints `/opt/servermon`
+- Removes old release directories according to `--keep-last-n-release` (default `2`)
 - Restarts the service
 
 Your admin account, TOTP configuration, and all data remain intact.
