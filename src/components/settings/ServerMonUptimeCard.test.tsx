@@ -68,7 +68,16 @@ describe('ServerMonUptimeCard', () => {
     global.fetch = vi.fn().mockRejectedValue(new Error('offline'));
 
     render(<ServerMonUptimeCard />);
-    await flushRuntimeLoad();
+    
+    // resilientFetch retries once with a delay
+    // We need to advance timers and flush promises multiple times to get through the retry loop
+    for (let i = 0; i < 5; i++) {
+      await act(async () => {
+        vi.advanceTimersByTime(1000);
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+    }
 
     expect(screen.getAllByText('Unavailable')).toHaveLength(2);
     expect(screen.getByText('Uptime could not be loaded')).toBeDefined();
