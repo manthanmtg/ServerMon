@@ -194,7 +194,7 @@ Concise map of major directories, commands, and key files. Update this section w
 
 ## `src/` Layout
 
-- `src/app/` — Next.js App Router pages + `api/` route handlers (dashboard, settings, fleet, ai-runner, crons, self-service, endpoints, security, certificates, ports, memory, guide, etc.)
+- `src/app/` — Next.js App Router pages + `api/` route handlers (dashboard, settings, fleet, ai-agents, ai-runner, apps, databases, disk, docker, endpoints, env-vars, file-browser, hardware, logs, network, nginx, processes, self-service, services, terminal, updates, users, security/system health, etc.)
 - `src/app/api/modules/` — feature-specific API routes (ai-runner, ai-agents, disk, nginx, users, services, processes, security, etc.)
 - `src/app/api/auth/` — authentication handlers (login, logout, me, verify, passkey registration/auth)
 - `src/app/api/analytics/` — internal usage analytics and recent event history
