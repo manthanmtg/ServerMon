@@ -98,6 +98,7 @@ export function AssetManager({ images, volumes, networks, onDelete }: AssetManag
                       variant="ghost"
                       className="h-8 w-8 p-0 text-destructive hover:bg-destructive/10 transition-transform active:scale-90"
                       onClick={() => onDelete(image.id, 'images')}
+                      aria-label={`Delete image ${image.repository}`}
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
@@ -170,6 +171,7 @@ export function AssetManager({ images, volumes, networks, onDelete }: AssetManag
                       variant="ghost"
                       className="h-8 w-8 p-0 text-destructive hover:bg-destructive/10"
                       onClick={() => onDelete(network.id, 'networks')}
+                      aria-label={`Delete network ${network.name}`}
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>

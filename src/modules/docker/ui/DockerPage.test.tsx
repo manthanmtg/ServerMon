@@ -247,7 +247,7 @@ describe('DockerPage', () => {
     await waitFor(() => screen.getByText('Docker operations center'));
 
     const tableContainer = screen.getByTestId('docker-containers-table');
-    const expandButton = within(tableContainer).getByRole('button', { name: /web-server/i });
+    const expandButton = within(tableContainer).getByRole('button', { name: /Expand details for web-server/i });
     await act(async () => {
       fireEvent.click(expandButton);
     });
