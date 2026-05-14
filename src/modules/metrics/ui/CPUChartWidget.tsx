@@ -38,8 +38,15 @@ export default function CPUChartWidget({ externalData }: Props) {
 
   if (data.length === 0) {
     return (
-      <div className="w-full h-full flex items-center justify-center text-muted-foreground text-sm">
-        Waiting for data...
+      <div
+        role="status"
+        aria-live="polite"
+        className="flex h-full w-full items-center justify-center"
+      >
+        <div className="flex min-h-[44px] items-center gap-2 rounded-md border border-border/60 bg-muted/30 px-3 text-sm text-muted-foreground shadow-sm">
+          <span className="h-2 w-2 rounded-full bg-primary/70 animate-pulse" aria-hidden="true" />
+          <span>Waiting for data...</span>
+        </div>
       </div>
     );
   }
