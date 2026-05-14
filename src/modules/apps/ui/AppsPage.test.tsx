@@ -37,6 +37,19 @@ describe('AppsPage', () => {
     });
   });
 
+  it('treats malformed app payloads as an empty list', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ apps: { unexpected: true } }),
+    } as Response);
+
+    render(<AppsPage />);
+
+    expect(
+      await screen.findByText('Create your first app to start managing deployments from ServerMon.')
+    ).toBeTruthy();
+  });
+
   it('opens a labelled generic app creation modal from the top-right action', async () => {
     render(<AppsPage />);
 

@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { WidgetCardSkeleton } from '@/components/ui/skeleton';
 import type { ManagedAppDTO } from '../types';
+import { readManagedAppsList } from './appPayload';
 
 type AppsWidgetSummary = {
   running: number;
@@ -39,8 +40,8 @@ export default function AppsWidget() {
         timeout: 8000,
       });
       if (response.ok) {
-        const data = await response.json();
-        setApps(data.apps || []);
+        const data: unknown = await response.json();
+        setApps(readManagedAppsList(data));
       }
     } catch {
       // Keep dashboard widgets quiet when a module endpoint is unavailable.

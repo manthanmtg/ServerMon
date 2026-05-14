@@ -43,4 +43,15 @@ describe('AppsWidget', () => {
       deploying: 1,
     });
   });
+
+  it('treats malformed app payloads as an empty list', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ apps: { unexpected: true } }),
+    } as Response);
+
+    render(<AppsWidget />);
+
+    expect(await screen.findByText('No apps deployed yet')).toBeTruthy();
+  });
 });
