@@ -31,6 +31,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import ConfirmationModal from '@/components/ui/ConfirmationModal';
 import type { AppRelease, AppSourceType, AppTemplateId, ManagedAppDTO } from '../types';
+import { readManagedAppsList } from './appPayload';
 
 interface FormState {
   templateId: AppTemplateId;
@@ -258,9 +259,12 @@ export default function AppsPage() {
         cache: 'no-store',
         timeout: 10000,
       });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Failed to load apps');
-      setApps(data.apps || []);
+      const data: unknown = await response.json();
+      if (!response.ok) {
+        const error = data && typeof data === 'object' ? (data as { error?: unknown }).error : null;
+        throw new Error(typeof error === 'string' ? error : 'Failed to load apps');
+      }
+      setApps(readManagedAppsList(data));
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to load apps');
     } finally {
