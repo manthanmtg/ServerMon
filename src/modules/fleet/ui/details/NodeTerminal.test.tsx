@@ -192,11 +192,21 @@ describe('NodeTerminal', () => {
 
   it('creates an additional fleet terminal tab', () => {
     render(<NodeTerminal nodeId="node-xyz" />);
-    fireEvent.click(screen.getByTitle(/new tab/i));
+    fireEvent.click(screen.getByRole('button', { name: /new terminal tab/i }));
     expect(screen.getAllByText('Shell 2').length).toBeGreaterThan(0);
 
     const lastCall = mockUseTtySession.mock.calls[mockUseTtySession.mock.calls.length - 1];
     expect(lastCall?.[0]?.enabled).toBe(false);
+  });
+
+  it('exposes accessible names for terminal tab strip icon controls', () => {
+    render(<NodeTerminal nodeId="node-xyz" />);
+
+    expect(screen.getByRole('button', { name: /activate terminal tab shell 1/i })).toBeDefined();
+    expect(screen.getByRole('button', { name: /new terminal tab/i })).toBeDefined();
+    expect(screen.getByRole('button', { name: /copy terminal selection/i })).toBeDefined();
+    expect(screen.getByRole('button', { name: /paste from clipboard/i })).toBeDefined();
+    expect(screen.getByRole('button', { name: /clear terminal/i })).toBeDefined();
   });
 
   it('sends quick commands to the active session', async () => {
