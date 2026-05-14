@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Cpu, LoaderCircle, MemoryStick, Thermometer } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { resilientFetch, safeJson } from '@/lib/fetch-utils';
 import { formatBytes } from '@/lib/utils';
 import type { HardwareSnapshot } from '../types';
 
@@ -13,10 +14,16 @@ export default function HardwareWidget() {
 
   const load = useCallback(async () => {
     try {
-      const res = await fetch('/api/modules/hardware', { cache: 'no-store' });
+      const res = await resilientFetch('/api/modules/hardware', {
+        cache: 'no-store',
+        timeout: 8000,
+        retries: 1,
+        retryDelay: 500,
+        retryOnStatuses: [502, 503, 504],
+      });
       if (res.ok) {
-        const data = await res.json();
-        setSnapshot(data);
+        const data = await safeJson<HardwareSnapshot>(res);
+        if (data) setSnapshot(data);
       }
     } catch {
       // silently ignore for widget
