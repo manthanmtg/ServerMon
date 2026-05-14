@@ -10,7 +10,7 @@ autonomousSafe: true
 
 ## Objective
 
-Ensure the ServerMon project completes its required verification commands successfully. Fix any formatting errors, lint warnings, type errors, test failures, or build warnings that prevent clean `pnpm format:check` and `pnpm check` runs.
+Ensure the ServerMon project completes its required verification commands successfully. Fix formatting errors, lint failures, type errors, test failures, or build failures that make `pnpm format:check` or `pnpm check` exit non-zero.
 
 ## Philosophy
 
@@ -25,7 +25,7 @@ pnpm format:check
 pnpm check
 ```
 
-This checks formatting first, then runs lint, typecheck, build, and tests in sequence. If both commands exit successfully and do not report lint or build warnings, you're done — no-op.
+This checks formatting first, then runs lint, typecheck, build, and tests in sequence. If both commands exit successfully, you're done — no-op unless the output includes a narrowly scoped lint/build warning that can be fixed safely in this run.
 
 ### 2. Triage Failures
 
