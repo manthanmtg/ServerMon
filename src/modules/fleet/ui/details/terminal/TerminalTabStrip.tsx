@@ -55,6 +55,7 @@ export function TerminalTabStrip({
             key={tab.sessionId}
             role="button"
             tabIndex={0}
+            aria-label={`Activate terminal tab ${tab.label}`}
             onClick={() => onSetActiveTabId(tab.sessionId)}
             onKeyDown={(event) => {
               if (event.key === 'Enter' || event.key === ' ') {
@@ -97,8 +98,14 @@ export function TerminalTabStrip({
                   onBlur={() => commitRename(tab.sessionId)}
                   className="w-24 border-b border-current bg-transparent text-xs outline-none"
                   maxLength={28}
+                  aria-label={`Rename terminal tab ${tab.label}`}
                 />
-                <button type="submit" className="rounded p-0.5 hover:bg-white/10" title="Save name">
+                <button
+                  type="submit"
+                  className="rounded p-0.5 hover:bg-white/10"
+                  title="Save name"
+                  aria-label={`Save terminal tab name for ${tab.label}`}
+                >
                   <Check className="h-3 w-3" />
                 </button>
               </form>
@@ -130,6 +137,7 @@ export function TerminalTabStrip({
                   }
                 }}
                 title="Rename"
+                aria-label={`Rename terminal tab ${tab.label}`}
               >
                 <Pencil className="h-3 w-3" />
               </span>
@@ -150,6 +158,7 @@ export function TerminalTabStrip({
                 }
               }}
               title="Close"
+              aria-label={`Close terminal tab ${tab.label}`}
             >
               <X className="h-3 w-3" />
             </span>
@@ -161,6 +170,7 @@ export function TerminalTabStrip({
           className="h-9 w-9 shrink-0"
           onClick={onAddTab}
           title="New tab"
+          aria-label="New terminal tab"
         >
           <Plus className="h-4 w-4" />
         </Button>
@@ -173,6 +183,7 @@ export function TerminalTabStrip({
           onClick={() => onIssueAction('copy')}
           disabled={!activeTabStarted}
           title="Copy selection"
+          aria-label="Copy terminal selection"
         >
           <Copy className="h-4 w-4" />
         </Button>
@@ -182,6 +193,7 @@ export function TerminalTabStrip({
           onClick={onPasteClipboard}
           disabled={!activeTabId}
           title="Paste"
+          aria-label="Paste from clipboard"
         >
           <Clipboard className="h-4 w-4" />
         </Button>
@@ -191,6 +203,7 @@ export function TerminalTabStrip({
           onClick={() => onIssueAction('clear')}
           disabled={!activeTabStarted}
           title="Clear"
+          aria-label="Clear terminal"
           className="text-destructive hover:bg-destructive/10 hover:text-destructive"
         >
           <Zap className="h-4 w-4" />
