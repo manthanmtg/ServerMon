@@ -40,7 +40,7 @@ vi.mock('@/components/ui/AutoscrollButton', () => ({
   },
 }));
 
-import { NodeStatusPanel } from './NodeStatusPanel';
+import { NodeStatusPanel, shouldReplaceAgentUpdateLogs } from './NodeStatusPanel';
 
 const baseNode = {
   _id: 'n1',
@@ -71,6 +71,44 @@ describe('NodeStatusPanel', () => {
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
     vi.useRealTimers();
+  });
+
+  it('keeps agent update log state stable when polled logs are unchanged', () => {
+    const existingLogs = [
+      {
+        _id: 'log-1',
+        createdAt: '2026-04-29T16:55:01.000Z',
+        level: 'info',
+        eventType: 'agent.update.starting',
+        message: 'Executing remote update...',
+      },
+      {
+        _id: 'log-2',
+        createdAt: '2026-04-29T16:55:02.000Z',
+        level: 'info',
+        eventType: 'agent.update.log',
+        message: 'servermon-agent-update: downloaded release artifact',
+      },
+    ];
+
+    expect(
+      shouldReplaceAgentUpdateLogs(
+        existingLogs,
+        existingLogs.map((log) => ({ ...log }))
+      )
+    ).toBe(false);
+    expect(
+      shouldReplaceAgentUpdateLogs(existingLogs, [
+        ...existingLogs,
+        {
+          _id: 'log-3',
+          createdAt: '2026-04-29T16:55:03.000Z',
+          level: 'info',
+          eventType: 'agent.update.succeeded',
+          message: 'Update finished',
+        },
+      ])
+    ).toBe(true);
   });
 
   it('shows spinner then renders node status fields', async () => {

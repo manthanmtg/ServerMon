@@ -67,6 +67,23 @@ function logEventTime(event: AgentUpdateLogEvent): number {
   return Number.isFinite(time) ? time : 0;
 }
 
+export function shouldReplaceAgentUpdateLogs(
+  current: AgentUpdateLogEvent[],
+  next: AgentUpdateLogEvent[]
+): boolean {
+  if (current.length !== next.length) return true;
+  return current.some((event, index) => {
+    const nextEvent = next[index];
+    return (
+      event._id !== nextEvent._id ||
+      event.createdAt !== nextEvent.createdAt ||
+      event.level !== nextEvent.level ||
+      event.eventType !== nextEvent.eventType ||
+      event.message !== nextEvent.message
+    );
+  });
+}
+
 export function NodeStatusPanel({ nodeId }: { nodeId: string }) {
   const { toast } = useToast();
   const [node, setNode] = useState<Node | null>(null);
@@ -101,7 +118,9 @@ export function NodeStatusPanel({ nodeId }: { nodeId: string }) {
             return eventCommandId == null || String(eventCommandId) === commandId;
           })
           .sort((a, b) => logEventTime(a) - logEventTime(b));
-        setUpdateLogs(events);
+        setUpdateLogs((current) =>
+          shouldReplaceAgentUpdateLogs(current, events) ? events : current
+        );
         setUpdateLogsError(null);
         setUpdateLogPolling(!events.some(isTerminalAgentUpdateEvent));
       } catch (err) {
