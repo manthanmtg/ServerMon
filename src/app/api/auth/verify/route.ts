@@ -3,9 +3,12 @@ import { z } from 'zod';
 import connectDB from '@/lib/db';
 import User from '@/models/User';
 import { verifyPassword } from '@/lib/auth-utils';
+import { createLogger } from '@/lib/logger';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
+
+const logger = createLogger('api:auth:verify');
 
 const VerifySchema = z.object({
   username: z.string().min(1),
@@ -37,8 +40,9 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ success: true, requiresTOTP: user.totpEnabled });
   } catch (error: unknown) {
+    logger.error('Verify failed:', error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Unknown error' },
+      { error: 'Internal server error' },
       { status: 500 }
     );
   }
