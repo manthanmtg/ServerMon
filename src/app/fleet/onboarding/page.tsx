@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import ProShell from '@/components/layout/ProShell';
 import { OnboardingWizard } from '@/modules/fleet/ui/onboarding/OnboardingWizard';
 import { Spinner } from '@/components/ui/spinner';
+import { resilientFetch, safeJson } from '@/lib/fetch-utils';
 
 export default function Page() {
   const [hubUrl, setHubUrl] = useState<string | null>(null);
@@ -11,9 +12,10 @@ export default function Page() {
   useEffect(() => {
     async function load() {
       try {
-        const res = await fetch('/api/fleet/server');
+        const res = await resilientFetch('/api/fleet/server', { timeout: 8000, retries: 1 });
         if (res.ok) {
-          const data = await res.json();
+          const data = await safeJson<{ envDefaults?: { hubPublicUrl?: string } }>(res);
+          if (!data) throw new Error('Failed to parse hub config');
           // Use the public URL if set, otherwise fallback to current host
           const url =
             data.envDefaults?.hubPublicUrl ||
