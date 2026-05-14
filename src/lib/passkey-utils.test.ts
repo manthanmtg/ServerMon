@@ -103,6 +103,15 @@ describe('passkey-utils', () => {
       const req = makeRequest({ host: 'dev.example.com', 'x-forwarded-proto': 'http' });
       expect(getOrigin(req)).toBe('https://configured.example');
     });
+
+    it('should fall back to forwarded host if origin header is an invalid URL', () => {
+      const req = makeRequest({
+        origin: 'not-a-valid-url',
+        host: 'dev.example.com',
+        'x-forwarded-proto': 'http',
+      });
+      expect(getOrigin(req)).toBe('http://dev.example.com');
+    });
   });
 
   describe('getRPID', () => {
@@ -128,6 +137,28 @@ describe('passkey-utils', () => {
 
     it('should handle IP addresses without port', () => {
       expect(getRPID('192.168.1.1')).toBe('192.168.1.1');
+    });
+
+    it('should correctly parse IPv6 bracketed address with port', () => {
+      expect(getRPID('[2001:db8::1]:8080')).toBe('2001:db8::1');
+    });
+
+    it('should correctly parse IPv6 bracketed address without port', () => {
+      expect(getRPID('[2001:db8::1]')).toBe('2001:db8::1');
+    });
+
+    it('should handle unbracketed IPv6 addresses by not splitting on colon if multiple exist', () => {
+      expect(getRPID('2001:db8::1')).toBe('2001:db8::1');
+    });
+
+    it('should strip scheme prefix from host if provided', () => {
+      expect(getRPID('https://example.com:8443')).toBe('example.com');
+      expect(getRPID('http://192.168.1.1:80')).toBe('192.168.1.1');
+    });
+
+    it('should strip protocol via regex fallback if URL parsing fails on host', () => {
+      // URL parsing throws if IPv6 address is missing brackets in the authority
+      expect(getRPID('http://2001:db8::1')).toBe('2001:db8::1');
     });
 
     it('should use x-forwarded-host when a request is provided', () => {
