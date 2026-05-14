@@ -42,7 +42,7 @@ describe('POST /api/auth/logout', () => {
     const body = await response.json();
 
     expect(response.status).toBe(500);
-    expect(body.error).toBe('Cookie error');
+    expect(body.error).toBe('Internal server error');
   });
 });
 

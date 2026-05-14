@@ -162,7 +162,7 @@ describe('POST /api/auth/login', () => {
     const body = await response.json();
 
     expect(response.status).toBe(500);
-    expect(body.error).toBe('Connection lost');
+    expect(body.error).toBe('Internal server error');
   });
 });
 
