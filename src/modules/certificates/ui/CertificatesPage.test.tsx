@@ -115,6 +115,20 @@ describe('CertificatesPage', () => {
     });
   });
 
+  it('provides accessible names for certificate actions', async () => {
+    await renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Refresh certificates' })).toBeDefined();
+      expect(
+        screen.getByRole('button', { name: 'Renew certificate for example.com' })
+      ).toBeDefined();
+      expect(
+        screen.getByRole('button', { name: 'Renew certificate for expired.com' })
+      ).toBeDefined();
+    });
+  });
+
   it('handles certificate renewal', async () => {
     vi.mocked(global.fetch).mockImplementation((url, options) => {
       if (url === '/api/modules/certificates') {
