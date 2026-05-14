@@ -73,6 +73,18 @@ describe('HardwareWidget', () => {
     await waitFor(() => expect(screen.getByText('Hardware')).toBeDefined());
   });
 
+  it('loads hardware data with a timeout-capable request', async () => {
+    await act(async () => {
+      render(<HardwareWidget />);
+    });
+    await waitFor(() =>
+      expect(global.fetch).toHaveBeenCalledWith(
+        '/api/modules/hardware',
+        expect.objectContaining({ cache: 'no-store', signal: expect.any(AbortSignal) })
+      )
+    );
+  });
+
   it('shows live badge', async () => {
     await act(async () => {
       render(<HardwareWidget />);
