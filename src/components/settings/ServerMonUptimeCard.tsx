@@ -5,6 +5,7 @@ import { Activity, Clock3 } from 'lucide-react';
 import { Badge, type BadgeVariant } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
+import { resilientFetch, safeJson } from '@/lib/fetch-utils';
 
 type HealthStatus = 'online' | 'degraded' | 'unavailable';
 
@@ -48,8 +49,8 @@ export default function ServerMonUptimeCard() {
 
     async function loadRuntime() {
       try {
-        const response = await fetch('/api/health');
-        const payload = parseHealthResponse(await response.json().catch(() => null));
+        const response = await resilientFetch('/api/health', { timeout: 5000, retries: 1 });
+        const payload = parseHealthResponse(await safeJson<HealthResponse>(response));
         if (!active) return;
 
         const uptimeSeconds = payload?.uptime;
