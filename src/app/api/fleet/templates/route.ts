@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ZodError } from 'zod';
-import type { Model } from 'mongoose';
 import { createLogger } from '@/lib/logger';
 import connectDB from '@/lib/db';
 import RouteTemplate, { RouteTemplateZodSchema } from '@/models/RouteTemplate';
@@ -28,7 +27,7 @@ export async function GET(req: NextRequest) {
 
     const existingCount = await RouteTemplate.countDocuments({});
     if (existingCount === 0) {
-      await seedBuiltinTemplates(RouteTemplate as unknown as Model<unknown>);
+      await seedBuiltinTemplates(RouteTemplate);
     }
 
     const { searchParams } = new URL(req.url);
