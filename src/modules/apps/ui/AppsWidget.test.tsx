@@ -44,14 +44,21 @@ describe('AppsWidget', () => {
     });
   });
 
-  it('treats malformed app payloads as an empty list', async () => {
+  it('filters malformed app records before rendering', async () => {
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,
-      json: async () => ({ apps: { unexpected: true } }),
+      json: async () => ({
+        apps: [
+          null,
+          { id: 'missing-name', domain: 'broken.example.com' },
+          { id: 'app-2', name: 'Worker', domain: 'worker.example.com', status: 'nonsense' },
+        ],
+      }),
     } as Response);
 
     render(<AppsWidget />);
 
-    expect(await screen.findByText('No apps deployed yet')).toBeTruthy();
+    expect(await screen.findByText('Worker')).toBeTruthy();
+    expect(screen.queryByText('broken.example.com')).toBeNull();
   });
 });
