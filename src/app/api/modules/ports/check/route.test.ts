@@ -1,12 +1,16 @@
 /** @vitest-environment node */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-const { mockCheckPort } = vi.hoisted(() => ({
+const { mockCheckPort, mockGetSession } = vi.hoisted(() => ({
   mockCheckPort: vi.fn(),
+  mockGetSession: vi.fn(),
 }));
 
 vi.mock('@/lib/ports/service', () => ({
   portsService: { checkPort: mockCheckPort },
+}));
+vi.mock('@/lib/session', () => ({
+  getSession: mockGetSession,
 }));
 vi.mock('@/lib/logger', () => ({
   createLogger: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }),
@@ -25,6 +29,15 @@ function makeRequest(port?: string): NextRequest {
 describe('GET /api/modules/ports/check', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockGetSession.mockResolvedValue({ user: { username: 'admin', role: 'admin' } });
+  });
+
+  it('returns 401 when unauthenticated', async () => {
+    mockGetSession.mockResolvedValue(null);
+    const res = await GET(makeRequest('80'));
+    expect(res.status).toBe(401);
+    expect(await res.json()).toEqual({ error: 'Unauthorized' });
+    expect(mockCheckPort).not.toHaveBeenCalled();
   });
 
   it('returns 400 when port parameter is missing', async () => {
