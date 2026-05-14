@@ -68,7 +68,7 @@ describe('ServerMonUptimeCard', () => {
     global.fetch = vi.fn().mockRejectedValue(new Error('offline'));
 
     render(<ServerMonUptimeCard />);
-    
+
     // resilientFetch retries once with a delay
     // We need to advance timers and flush promises multiple times to get through the retry loop
     for (let i = 0; i < 5; i++) {

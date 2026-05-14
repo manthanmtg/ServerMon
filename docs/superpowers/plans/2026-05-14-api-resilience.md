@@ -5,6 +5,7 @@
 **Goal:** Improve API resilience by replacing standard `fetch` with `resilientFetch` in key UI components, adding timeouts and retries.
 
 **Architecture:**
+
 - Use `resilientFetch` from `src/lib/fetch-utils.ts` to handle timeouts and retries automatically.
 - Use `safeJson` to handle malformed JSON responses gracefully.
 - Apply these changes to `ServerMonUptimeCard.tsx` and `fleet/onboarding/page.tsx`.
@@ -16,6 +17,7 @@
 ### Task 1: Harden ServerMonUptimeCard
 
 **Files:**
+
 - Modify: `src/components/settings/ServerMonUptimeCard.tsx`
 
 - [ ] **Step 1: Replace fetch with resilientFetch**
@@ -64,6 +66,7 @@ git commit -m "fix(api): use resilientFetch with timeout for uptime card"
 ### Task 2: Harden Fleet Onboarding Page
 
 **Files:**
+
 - Modify: `src/app/fleet/onboarding/page.tsx`
 
 - [ ] **Step 1: Replace fetch with resilientFetch**

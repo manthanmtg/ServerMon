@@ -55,6 +55,7 @@ describe('CPUChartWidget', () => {
       render(<CPUChartWidget />);
     });
     expect(screen.getByText('Waiting for data...')).toBeDefined();
+    expect(screen.getByRole('status')).toHaveTextContent('Waiting for data...');
   });
 
   it('renders chart when externalData has entries', async () => {
