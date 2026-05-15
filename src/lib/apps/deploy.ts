@@ -106,7 +106,7 @@ export const defaultCommandRunner: CommandRunner = ({ command, cwd }) =>
     child.on('error', (error) => resolve({ code: 1, output: error.message }));
   });
 
-export const defaultHealthCheck: HealthCheck = async (url) => {
+const defaultHealthCheck: HealthCheck = async (url) => {
   try {
     const response = await fetch(url, { signal: AbortSignal.timeout(15_000) });
     return { ok: response.ok, status: response.status };

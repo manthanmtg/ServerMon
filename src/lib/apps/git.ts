@@ -38,7 +38,7 @@ export function isHttpsGitUrl(value: string): boolean {
   }
 }
 
-export function validateGitBranch(branch: string): string {
+function validateGitBranch(branch: string): string {
   const normalized = branch.trim();
   if (!normalized || !SAFE_BRANCH_PATTERN.test(normalized) || normalized.includes('..')) {
     throw new Error('Invalid git branch');

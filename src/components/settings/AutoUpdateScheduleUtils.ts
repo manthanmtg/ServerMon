@@ -55,7 +55,7 @@ export function deriveScheduleSelectState(
   };
 }
 
-export function getMinuteOptions(currentMinute: string): string[] {
+function getMinuteOptions(currentMinute: string): string[] {
   return MINUTE_OPTIONS.includes(currentMinute)
     ? MINUTE_OPTIONS
     : [...MINUTE_OPTIONS, currentMinute].sort();

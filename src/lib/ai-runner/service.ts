@@ -94,7 +94,7 @@ export interface AIRunnerBulkScheduleRowError {
   message: string;
 }
 
-export class AIRunnerBulkScheduleUpdateError extends Error {
+class AIRunnerBulkScheduleUpdateError extends Error {
   rowErrors: AIRunnerBulkScheduleRowError[];
 
   constructor(rowErrors: AIRunnerBulkScheduleRowError[]) {
