@@ -63,7 +63,7 @@ export default function UpdateHistoryModal({ onClose, type }: UpdateHistoryModal
     [type]
   );
 
-  async function loadDetails(runId: string, isSilent = false) {
+  const loadDetails = useCallback(async (runId: string, isSilent = false) => {
     if (!isSilent) setDetailsLoading(true);
     try {
       const res = await fetch(`/api/system/update/history/${runId}`);
@@ -74,7 +74,7 @@ export default function UpdateHistoryModal({ onClose, type }: UpdateHistoryModal
     } finally {
       if (!isSilent) setDetailsLoading(false);
     }
-  }
+  }, []);
 
   useEffect(() => {
     loadRuns();
@@ -104,26 +104,13 @@ export default function UpdateHistoryModal({ onClose, type }: UpdateHistoryModal
         pollingIntervalRef.current = null;
       }
     }
-  }, [selectedRun?.status, selectedRun?.runId]);
+  }, [loadDetails, selectedRun?.status, selectedRun?.runId]);
 
   useEffect(() => {
     if (autoScroll && logContainerRef.current) {
       logContainerRef.current.scrollTop = logContainerRef.current.scrollHeight;
     }
   }, [selectedRun?.logContent, autoScroll]);
-
-  const StatusIcon = ({ status }: { status: UpdateRunStatus['status'] }) => {
-    switch (status) {
-      case 'completed':
-        return <CheckCircle2 className="w-5 h-5 text-success" />;
-      case 'failed':
-        return <XCircle className="w-5 h-5 text-destructive" />;
-      case 'running':
-        return <LoaderCircle className="w-5 h-5 text-warning animate-spin" />;
-      default:
-        return <AlertCircle className="w-5 h-5 text-muted-foreground" />;
-    }
-  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 lg:p-8">
@@ -388,6 +375,19 @@ export default function UpdateHistoryModal({ onClose, type }: UpdateHistoryModal
       </div>
     </div>
   );
+}
+
+function StatusIcon({ status }: { status: UpdateRunStatus['status'] }) {
+  switch (status) {
+    case 'completed':
+      return <CheckCircle2 className="w-5 h-5 text-success" />;
+    case 'failed':
+      return <XCircle className="w-5 h-5 text-destructive" />;
+    case 'running':
+      return <LoaderCircle className="w-5 h-5 text-warning animate-spin" />;
+    default:
+      return <AlertCircle className="w-5 h-5 text-muted-foreground" />;
+  }
 }
 
 function getHistoryTitle(type?: Extract<UpdateRunType, 'servermon' | 'agent'>): string {
