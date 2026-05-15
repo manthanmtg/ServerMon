@@ -254,6 +254,13 @@ Concise map of major directories, commands, and key files. Update this section w
 - `src/lib/hardware/` — Hardware detection service with OS-specific fallbacks and mock support
 - `src/modules/hardware/` — Hardware module definition, types, widget UI, and detailed system specification views
 
+### File Browser Module
+
+- `src/app/api/modules/file-browser/` — file listing, file read/write, uploads, Git status/history, and settings routes with route-level tests
+- `src/app/file-browser/` — File Browser page route and route-level tests
+- `src/modules/file-browser/lib/` — host filesystem helpers, path safety, and File Browser data shaping with colocated Vitest coverage
+- `src/modules/file-browser/ui/` — File Browser page shell, settings modal, and focused UI components including breadcrumbs, entry list/actions, tree panel, preview, status bars, Git bar, and editor/history modals
+
 ### Nginx Module
 
 - `src/app/api/modules/nginx/` — Nginx routes for service status, config test/reload, DNS checks, and virtual host list/detail/create/update/delete flows
