@@ -26,6 +26,7 @@ You are an autonomous improvement agent for the ServerMon project. Your job is t
 - Select only prompts whose metadata has `enabled: true` and `autonomousSafe: true`. Keep the rare `prompts_optimizer.md` branch at about 1 in 25 runs.
 - Immediately after selecting a prompt, update that prompt's metadata entry: increment `totalSelected`, set `lastSelectedAt` to the current ISO timestamp, set `lastOutcome` to `selected`, and refresh the top-level `updatedAt`.
 - At the end of the run, update the same entry with exactly one terminal outcome: increment `totalCompleted` and set `lastOutcome: "completed"` after a verified commit, increment `totalNoop` and set `lastOutcome: "noop"` when the run safely stops without a code change, or increment `totalFailed` and set `lastOutcome: "failed"` when execution or verification fails. Set `lastCompletedAt` for every terminal outcome.
+- Keep each prompt's observability counters consistent: outside an active `selected` run, `totalCompleted + totalNoop + totalFailed` should equal `totalSelected`. Do not adjust unrelated prompt counters unless this run explicitly fixes prompt metadata.
 - Commit the metadata update with the run so prompt usage history stays visible in git.
 
 ### 1. Select a Prompt
