@@ -5,12 +5,8 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import {
   AlertTriangle,
   ChevronRight,
-  FileText,
-  Folder,
-  FolderOpen,
   FolderPlus,
   Heart,
-  LoaderCircle,
   PanelLeftClose,
   PanelLeftOpen,
   Pencil,
@@ -19,7 +15,6 @@ import {
   Search,
   Settings2,
   Upload,
-  X,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -38,6 +33,7 @@ import {
   FileBrowserSummaryBar,
   FileBrowserUploadProgressBar,
 } from './components/FileBrowserStatusBars';
+import { FileBrowserTreePanel, type FileBrowserTreeNode } from './components/FileBrowserTreePanel';
 import dynamic from 'next/dynamic';
 
 const CodeEditorModal = dynamic(() => import('./components/CodeEditorModal'), { ssr: false });
@@ -89,14 +85,6 @@ interface PreviewFile {
   encoding?: 'utf8' | 'base64';
   mimeType?: string;
   tailLines?: string[];
-}
-
-interface TreeNode {
-  name: string;
-  path: string;
-  hasChildren: boolean;
-  isDirectory: boolean;
-  children?: TreeNode[];
 }
 
 const DEFAULT_SETTINGS: FileBrowserSettings = {
@@ -363,97 +351,6 @@ export function FileBrowserHeaderShortcuts() {
   );
 }
 
-function TreeBranch({
-  node,
-  currentPath,
-  expanded,
-  loadingPaths,
-  onToggle,
-  onSelect,
-}: {
-  node: TreeNode;
-  currentPath: string;
-  expanded: Set<string>;
-  loadingPaths: Set<string>;
-  onToggle: (path: string, isExpanded: boolean) => void;
-  onSelect: (path: string) => void;
-}) {
-  const isExpanded = expanded.has(node.path);
-  const isActive = currentPath === node.path;
-  const isFolder = node.isDirectory;
-
-  return (
-    <div className="space-y-1">
-      <div className="flex items-center gap-0.5">
-        <button
-          className={cn(
-            'min-h-[28px] min-w-[28px] rounded-md text-muted-foreground/50 hover:bg-accent hover:text-foreground transition-colors flex items-center justify-center',
-            !isFolder && 'invisible'
-          )}
-          onClick={(e) => {
-            e.stopPropagation();
-            onToggle(node.path, isExpanded);
-          }}
-          disabled={!node.hasChildren && !node.children?.length}
-        >
-          <ChevronRight
-            className={cn(
-              'w-3.5 h-3.5 transition-transform duration-200',
-              isExpanded && 'rotate-90'
-            )}
-          />
-        </button>
-        <button
-          onClick={() => {
-            if (isFolder) {
-              if (!isExpanded) onToggle(node.path, false);
-              onSelect(node.path);
-            } else {
-              onSelect(node.path);
-            }
-          }}
-          className={cn(
-            'flex min-h-[32px] flex-1 items-center gap-2 rounded-lg px-2 text-left text-[13px] transition-all duration-200',
-            isActive
-              ? 'bg-primary/10 text-primary font-semibold shadow-sm border border-primary/20'
-              : 'text-muted-foreground/80 hover:bg-accent/50 hover:text-foreground border border-transparent'
-          )}
-          title={node.path}
-        >
-          {isFolder ? (
-            isExpanded ? (
-              <FolderOpen className="w-3.5 h-3.5 shrink-0 text-primary/70" />
-            ) : (
-              <Folder className="w-3.5 h-3.5 shrink-0 text-primary/70" />
-            )
-          ) : (
-            <FileText className="w-3.5 h-3.5 shrink-0 text-muted-foreground/40" />
-          )}
-          <span className="truncate">{node.name || node.path}</span>
-          {loadingPaths.has(node.path) && (
-            <LoaderCircle className="ml-auto h-3 w-3 animate-spin text-primary" />
-          )}
-        </button>
-      </div>
-      {isExpanded && node.children && (
-        <div className="ml-3.5 border-l border-border/40 pl-2 py-0.5">
-          {node.children.map((child) => (
-            <TreeBranch
-              key={child.path}
-              node={child}
-              currentPath={currentPath}
-              expanded={expanded}
-              loadingPaths={loadingPaths}
-              onToggle={onToggle}
-              onSelect={onSelect}
-            />
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
 export default function FileBrowserPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -463,7 +360,7 @@ export default function FileBrowserPage() {
   const [settings, setSettings] = useState<FileBrowserSettings>(DEFAULT_SETTINGS);
   const [loading, setLoading] = useState(true);
   const [listing, setListing] = useState<DirectoryListing | null>(null);
-  const [tree, setTree] = useState<TreeNode[]>([]);
+  const [tree, setTree] = useState<FileBrowserTreeNode[]>([]);
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set(['/']));
   const [loadingTreePaths, setLoadingTreePaths] = useState<Set<string>>(new Set());
   const [currentPath, setCurrentPath] = useState(initialPath);
@@ -566,7 +463,11 @@ export default function FileBrowserPage() {
   );
 
   const mergeTreeNode = useCallback(
-    (nodes: TreeNode[], pathToReplace: string, children: TreeNode[] | undefined): TreeNode[] =>
+    (
+      nodes: FileBrowserTreeNode[],
+      pathToReplace: string,
+      children: FileBrowserTreeNode[] | undefined
+    ): FileBrowserTreeNode[] =>
       nodes.map((node) => {
         if (node.path === pathToReplace) {
           return { ...node, children };
@@ -578,16 +479,19 @@ export default function FileBrowserPage() {
     []
   );
 
-  const findTreeNode = useCallback((nodes: TreeNode[], path: string): TreeNode | undefined => {
-    for (const node of nodes) {
-      if (node.path === path) return node;
-      if (node.children) {
-        const found = findTreeNode(node.children, path);
-        if (found) return found;
+  const findTreeNode = useCallback(
+    (nodes: FileBrowserTreeNode[], path: string): FileBrowserTreeNode | undefined => {
+      for (const node of nodes) {
+        if (node.path === path) return node;
+        if (node.children) {
+          const found = findTreeNode(node.children, path);
+          if (found) return found;
+        }
       }
-    }
-    return undefined;
-  }, []);
+      return undefined;
+    },
+    []
+  );
 
   const loadTreeRoot = useCallback(
     async (rootPath: string) => {
@@ -595,7 +499,7 @@ export default function FileBrowserPage() {
       if (tree.some((node) => node.path === rootPath)) return;
 
       try {
-        const data = await fetchJson<{ tree: TreeNode }>(
+        const data = await fetchJson<{ tree: FileBrowserTreeNode }>(
           `/api/modules/file-browser?mode=tree&depth=1&path=${encodeURIComponent(rootPath)}`
         );
         setTree((current) => {
@@ -618,7 +522,7 @@ export default function FileBrowserPage() {
     async (nodePath: string) => {
       setLoadingTreePaths((current) => new Set([...current, nodePath]));
       try {
-        const data = await fetchJson<{ tree: TreeNode }>(
+        const data = await fetchJson<{ tree: FileBrowserTreeNode }>(
           `/api/modules/file-browser?mode=tree&depth=1&path=${encodeURIComponent(nodePath)}`
         );
         setTree((current) => mergeTreeNode(current, nodePath, data.tree.children));
@@ -1028,97 +932,41 @@ export default function FileBrowserPage() {
       <div className="flex flex-1 min-h-0 overflow-hidden relative">
         {/* Sidebar Tree — overlay on mobile, inline on desktop */}
         {showTree && (
-          <>
-            <div
-              className="fixed inset-0 z-30 bg-black/40 md:hidden"
-              onClick={() => setShowTree(false)}
-            />
-            <div
-              className={cn(
-                'flex flex-col bg-background md:bg-secondary/5 overflow-hidden border-r border-border/50 z-30 shrink-0',
-                'fixed inset-y-0 left-0 w-[280px] shadow-2xl md:shadow-none',
-                'md:relative md:inset-auto md:w-auto'
-              )}
-              style={{ width: treeWidth }}
-            >
-              <div className="flex items-center justify-between px-4 py-3 md:px-5 md:py-4 border-b border-border/40">
-                <h3 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-                  Directory Tree
-                </h3>
-                <div className="flex items-center gap-1">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6 text-muted-foreground"
-                    onClick={() => setDialogState({ type: 'create', kind: 'directory' })}
-                  >
-                    <FolderPlus className="h-3.5 w-3.5" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6 text-muted-foreground md:hidden"
-                    onClick={() => setShowTree(false)}
-                  >
-                    <X className="h-3.5 w-3.5" />
-                  </Button>
-                </div>
-              </div>
-              <div className="flex-1 overflow-y-auto p-3 space-y-1 custom-scrollbar">
-                {tree.map((node) => (
-                  <TreeBranch
-                    key={node.path}
-                    node={node}
-                    currentPath={currentPath}
-                    expanded={expandedPaths}
-                    loadingPaths={loadingTreePaths}
-                    onToggle={async (path, isExpanded) => {
-                      if (isExpanded) {
-                        setExpandedPaths((prev) => {
-                          const next = new Set(prev);
-                          next.delete(path);
-                          return next;
-                        });
-                      } else {
-                        setExpandedPaths((prev) => new Set([...prev, path]));
-                        const node = findTreeNode(tree, path);
-                        if (node && !node.children) {
-                          await loadTreeChildren(path);
-                        }
-                      }
-                    }}
-                    onSelect={(path) => {
-                      const node = findTreeNode(tree, path);
-                      if (node?.isDirectory) {
-                        navigate(path);
-                      } else {
-                        const fileEntry = listing?.entries.find((e) => e.path === path);
-                        if (fileEntry) {
-                          loadPreview(fileEntry);
-                        } else {
-                          const parentPath = path.substring(0, path.lastIndexOf('/')) || '/';
-                          navigate(parentPath);
-                        }
-                      }
-                      // Auto-close sidebar on mobile after selection
-                      if (window.innerWidth < 768) setShowTree(false);
-                    }}
-                  />
-                ))}
-              </div>
-              <div className="hidden md:flex items-center justify-center py-2 border-t border-border/40 shrink-0">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 w-full mx-2 gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground"
-                  onClick={() => setShowTree(false)}
-                >
-                  <PanelLeftClose className="h-3.5 w-3.5" />
-                  Collapse
-                </Button>
-              </div>
-            </div>
-          </>
+          <FileBrowserTreePanel
+            tree={tree}
+            currentPath={currentPath}
+            expandedPaths={expandedPaths}
+            loadingPaths={loadingTreePaths}
+            width={treeWidth}
+            onTogglePath={async (path, isExpanded) => {
+              if (isExpanded) {
+                setExpandedPaths((prev) => {
+                  const next = new Set(prev);
+                  next.delete(path);
+                  return next;
+                });
+              } else {
+                setExpandedPaths((prev) => new Set([...prev, path]));
+                const node = findTreeNode(tree, path);
+                if (node && !node.children) {
+                  await loadTreeChildren(path);
+                }
+              }
+            }}
+            onSelectDirectory={navigate}
+            onSelectFile={(path) => {
+              const fileEntry = listing?.entries.find((entry) => entry.path === path);
+              if (fileEntry) {
+                loadPreview(fileEntry);
+                return;
+              }
+
+              const parentPath = path.substring(0, path.lastIndexOf('/')) || '/';
+              navigate(parentPath);
+            }}
+            onCreateDirectory={() => setDialogState({ type: 'create', kind: 'directory' })}
+            onClose={() => setShowTree(false)}
+          />
         )}
 
         {/* Expand sidebar button when tree is hidden (desktop) */}
