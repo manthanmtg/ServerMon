@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/components/ui/toast';
 import { cn } from '@/lib/utils';
+import { resilientFetch } from '@/lib/fetch-utils';
 import TerminalUI from './TerminalUI';
 import TerminalSettingsModal from './TerminalSettingsModal';
 import TerminalHistoryModal from './TerminalHistoryModal';
@@ -46,7 +47,7 @@ export default function TerminalPage() {
 
   const fetchSessions = useCallback(async () => {
     try {
-      const res = await fetch('/api/terminal/sessions');
+      const res = await resilientFetch('/api/terminal/sessions', { timeout: 8000, retries: 2 });
       const data = await res.json();
 
       setTabs((prevTabs) => {
@@ -59,10 +60,11 @@ export default function TerminalPage() {
         });
 
         if (sessions.length === 0) {
-          fetch('/api/terminal/sessions', {
+          resilientFetch('/api/terminal/sessions', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ label: 'Terminal 1' }),
+            timeout: 8000,
           })
             .then((res) => res.json())
             .then((created) => {
@@ -88,7 +90,7 @@ export default function TerminalPage() {
 
   const fetchSettings = useCallback(async () => {
     try {
-      const res = await fetch('/api/terminal/settings');
+      const res = await resilientFetch('/api/terminal/settings', { timeout: 5000, retries: 2 });
       const data = await res.json();
       if (data.settings) setSettings(data.settings);
     } catch {
@@ -98,7 +100,7 @@ export default function TerminalPage() {
 
   const fetchUser = useCallback(async () => {
     try {
-      const res = await fetch('/api/auth/me');
+      const res = await resilientFetch('/api/auth/me', { timeout: 5000, retries: 2 });
       const data = await res.json();
       if (data.user?.username) setCurrentUser(data.user.username);
     } catch {
@@ -118,10 +120,11 @@ export default function TerminalPage() {
       return;
     }
     try {
-      const res = await fetch('/api/terminal/sessions', {
+      const res = await resilientFetch('/api/terminal/sessions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ label: `Terminal ${tabs.length + 1}` }),
+        timeout: 8000,
       });
       const data = await res.json();
       if (!res.ok) {
@@ -139,7 +142,7 @@ export default function TerminalPage() {
   const closeTab = useCallback(
     async (sessionId: string) => {
       try {
-        await fetch(`/api/terminal/sessions?sessionId=${sessionId}`, { method: 'DELETE' });
+        await resilientFetch(`/api/terminal/sessions?sessionId=${sessionId}`, { method: 'DELETE', timeout: 5000 });
         setTabs((prev) => {
           const next = prev.filter((t) => t.sessionId !== sessionId);
           if (activeTabId === sessionId && next.length > 0) {
@@ -159,7 +162,7 @@ export default function TerminalPage() {
 
   const resetAll = useCallback(async () => {
     try {
-      const res = await fetch('/api/terminal/sessions?resetAll=true', { method: 'DELETE' });
+      const res = await resilientFetch('/api/terminal/sessions?resetAll=true', { method: 'DELETE', timeout: 10000 });
       const data = await res.json();
       if (data.sessions) {
         const resetTabs = data.sessions.map((s: SessionTab) => ({
@@ -190,10 +193,11 @@ export default function TerminalPage() {
         return;
       }
       try {
-        await fetch('/api/terminal/sessions', {
+        await resilientFetch('/api/terminal/sessions', {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ sessionId, label: trimmed }),
+          timeout: 5000,
         });
         setTabs((prev) =>
           prev.map((t) => (t.sessionId === sessionId ? { ...t, label: trimmed } : t))

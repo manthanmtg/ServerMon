@@ -31,12 +31,12 @@
       "category": "reliability",
       "enabled": true,
       "autonomousSafe": true,
-      "totalSelected": 23,
-      "totalCompleted": 22,
+      "totalSelected": 24,
+      "totalCompleted": 23,
       "totalNoop": 0,
       "totalFailed": 0,
-      "lastSelectedAt": "2026-05-14T13:16:08.798Z",
-      "lastCompletedAt": "2026-05-14T13:29:26.752Z",
+      "lastSelectedAt": "2026-05-15T21:00:50.665Z",
+      "lastCompletedAt": "2026-05-15T21:11:21.947Z",
       "lastOutcome": "completed"
     },
     "architecture_refactoring_agent.md": {
