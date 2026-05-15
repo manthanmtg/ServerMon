@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, act } from '@testing-library/react';
+import { render, act, screen } from '@testing-library/react';
 import React from 'react';
 import type { ITerminalOptions } from '@xterm/xterm';
 
@@ -185,6 +185,12 @@ describe('TerminalUI', () => {
   it('renders a div element as the root', () => {
     const { container } = render(<TerminalUI sessionId="sess-1" />);
     expect(container.querySelector('div')).toBeDefined();
+  });
+
+  it('exposes the terminal surface as a named region', () => {
+    render(<TerminalUI sessionId="sess-1" label="Production shell" />);
+
+    expect(screen.getByRole('region', { name: 'Production shell' })).toBeInTheDocument();
   });
 
   it('renders the terminal in a polished surface frame', () => {
