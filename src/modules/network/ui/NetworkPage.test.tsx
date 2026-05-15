@@ -168,6 +168,34 @@ describe('NetworkPage', () => {
     await waitFor(() => expect(screen.getAllByText('nginx').length).toBeGreaterThan(0));
   });
 
+  it('limits the active connections table to the first 50 sockets', async () => {
+    const manyConnections = Array.from({ length: 55 }, (_, index) => ({
+      protocol: 'tcp',
+      localAddress: '127.0.0.1',
+      localPort: 8000 + index,
+      peerAddress: '10.0.0.5',
+      peerPort: 9000 + index,
+      state: 'ESTABLISHED',
+      process: `process-${index}`,
+    }));
+    global.fetch = vi.fn().mockImplementation((input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes('/api/modules/network/speedtest')) {
+        return Promise.resolve({ ok: true, json: async () => mockSpeedtestOverview });
+      }
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({ ...mockNetworkSnapshot, connections: manyConnections }),
+      });
+    });
+
+    await renderPage();
+
+    await waitFor(() => expect(screen.getByText('process-49')).toBeDefined());
+    expect(screen.queryByText('process-50')).toBeNull();
+    expect(screen.getByText('Showing first 50 of 55 connections.')).toBeDefined();
+  });
+
   it('renders diagnostics', async () => {
     await renderPage();
     await waitFor(() => expect(screen.getByText('Network Diagnostics Terminal')).toBeDefined());

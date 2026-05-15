@@ -292,6 +292,8 @@ export default function NetworkPage() {
     return Object.entries(states).map(([name, value]) => ({ name, value }));
   }, [snapshot]);
 
+  const visibleConnections = useMemo(() => snapshot?.connections.slice(0, 50) ?? [], [snapshot]);
+
   const packetStats = useMemo(() => {
     if (!snapshot) return [];
     return snapshot.stats
@@ -724,7 +726,7 @@ export default function NetworkPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/40">
-                {snapshot?.connections.slice(0, 50).map((conn, idx) => (
+                {visibleConnections.map((conn, idx) => (
                   <tr
                     key={`${conn.localAddress}-${conn.localPort}-${idx}`}
                     className="hover:bg-muted/30 transition-colors"
