@@ -72,7 +72,7 @@ export const CreateManagedDatabaseSchema = z
     }
   });
 
-export type CreateManagedDatabaseData = z.infer<typeof CreateManagedDatabaseSchema>;
+type CreateManagedDatabaseData = z.infer<typeof CreateManagedDatabaseSchema>;
 
 export const UpdateManagedDatabaseSchema = CreateManagedDatabaseSchema;
 
@@ -333,7 +333,7 @@ export function sanitizeDatabaseSlug(value: string): string {
   return slug;
 }
 
-export function getConfiguredPublicHost(): string | undefined {
+function getConfiguredPublicHost(): string | undefined {
   return (
     process.env.SERVERMON_PUBLIC_HOST || process.env.SERVERMON_PUBLIC_IP || process.env.PUBLIC_IP
   );
@@ -715,7 +715,7 @@ export function isExplorerIdleExpired(
   return Boolean(idleExpiresAt && idleExpiresAt.getTime() <= now.getTime());
 }
 
-export function buildSecurityNotes(
+function buildSecurityNotes(
   db: Pick<ManagedDatabaseDTORecord, 'publicRoute' | 'port' | 'bindAddress'>
 ): string[] {
   const notes = ['Database data is stored on this machine in the managed data directory.'];
