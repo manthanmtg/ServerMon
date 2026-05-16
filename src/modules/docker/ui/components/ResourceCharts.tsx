@@ -13,6 +13,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
+import { motion } from 'framer-motion';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { formatBytes } from '@/lib/utils';
@@ -35,6 +36,7 @@ const chartColors = [
   'var(--warning)',
   'var(--destructive)',
 ];
+const MotionCard = motion.create(Card);
 
 function tooltipPercent(value: string | number | readonly (string | number)[] | undefined) {
   const rawValue = Array.isArray(value) ? value[0] : value;
@@ -58,8 +60,13 @@ export function ResourceCharts({ snapshot, topContainers }: ResourceChartsProps)
 
   return (
     <section className="grid gap-6 2xl:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
-      <Card
-        className="border-border/60 bg-card/50 backdrop-blur-md shadow-sm overflow-hidden"
+      <MotionCard
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.35, ease: 'easeOut' }}
+        whileHover={{ scale: 1.01, y: -2, transition: { duration: 0.2, ease: 'easeOut' } }}
+        whileTap={{ scale: 0.995, y: 0, transition: { duration: 0.12, ease: 'easeOut' } }}
+        className="overflow-hidden border-border/60 bg-card/50 backdrop-blur-md shadow-sm transition duration-300 hover:shadow-lg hover:border-primary/35"
         data-testid="docker-resource-chart"
       >
         <CardHeader>
@@ -129,10 +136,15 @@ export function ResourceCharts({ snapshot, topContainers }: ResourceChartsProps)
             </BarChart>
           </ResponsiveContainer>
         </CardContent>
-      </Card>
+      </MotionCard>
 
-      <Card
-        className="border-border/60 bg-card/50 backdrop-blur-md shadow-sm overflow-hidden"
+      <MotionCard
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.35, delay: 0.08, ease: 'easeOut' }}
+        whileHover={{ scale: 1.01, y: -2, transition: { duration: 0.2, ease: 'easeOut' } }}
+        whileTap={{ scale: 0.995, y: 0, transition: { duration: 0.12, ease: 'easeOut' } }}
+        className="overflow-hidden border-border/60 bg-card/50 backdrop-blur-md shadow-sm transition duration-300 hover:shadow-lg hover:border-primary/35"
         data-testid="docker-disk-chart"
       >
         <CardHeader>
@@ -175,7 +187,7 @@ export function ResourceCharts({ snapshot, topContainers }: ResourceChartsProps)
             </PieChart>
           </ResponsiveContainer>
         </CardContent>
-      </Card>
+      </MotionCard>
     </section>
   );
 }
