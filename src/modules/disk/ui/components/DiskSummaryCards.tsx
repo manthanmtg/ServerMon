@@ -112,9 +112,9 @@ export function DiskSummaryCards({
               </span>
             </div>
           </div>
-          <div className="mt-3 pt-2 border-t border-border/30 flex justify-between items-center whitespace-nowrap overflow-hidden">
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-x-2 gap-y-1 border-t border-border/30 pt-2">
             <span className="text-[10px] text-muted-foreground truncate">Total Activity:</span>
-            <span className="text-xs font-mono font-bold text-primary truncate ml-2">
+            <span className="min-w-0 text-xs font-mono font-bold text-primary">
               {formatBytes(totalIORead + totalIOWrite, settings.unitSystem)}/s
             </span>
           </div>
