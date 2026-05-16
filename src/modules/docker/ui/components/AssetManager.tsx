@@ -44,7 +44,12 @@ function DatasetTabs({
   );
 }
 
-export const AssetManager = memo(function AssetManager({ images, volumes, networks, onDelete }: AssetManagerProps) {
+export const AssetManager = memo(function AssetManager({
+  images,
+  volumes,
+  networks,
+  onDelete,
+}: AssetManagerProps) {
   const [activeTab, setActiveTab] = useState<DataTab>('images');
 
   return (

@@ -150,53 +150,59 @@ export default function DockerPage() {
     });
   }, [snapshot]);
 
-  const runAction = useCallback(async (containerId: string, action: 'start' | 'stop' | 'restart' | 'remove') => {
-    if (action === 'remove' && !window.confirm('Are you sure you want to remove this container?'))
-      return;
-    setPendingActionId(containerId);
-    try {
-      const response = await fetch(`/api/modules/docker/${containerId}/action`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action }),
-      });
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to execute action');
+  const runAction = useCallback(
+    async (containerId: string, action: 'start' | 'stop' | 'restart' | 'remove') => {
+      if (action === 'remove' && !window.confirm('Are you sure you want to remove this container?'))
+        return;
+      setPendingActionId(containerId);
+      try {
+        const response = await fetch(`/api/modules/docker/${containerId}/action`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action }),
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.error || 'Failed to execute action');
+        }
+        setTerminalCommand(`docker ${action} ${data.container?.name || containerId}\n`);
+        toast({ title: `${action} complete`, description: data.message, variant: 'success' });
+        await loadSnapshot();
+      } catch (error: unknown) {
+        toast({
+          title: `Docker ${action} failed`,
+          description: error instanceof Error ? error.message : 'Unknown error',
+          variant: 'destructive',
+        });
+      } finally {
+        setPendingActionId(null);
       }
-      setTerminalCommand(`docker ${action} ${data.container?.name || containerId}\n`);
-      toast({ title: `${action} complete`, description: data.message, variant: 'success' });
-      await loadSnapshot();
-    } catch (error: unknown) {
-      toast({
-        title: `Docker ${action} failed`,
-        description: error instanceof Error ? error.message : 'Unknown error',
-        variant: 'destructive',
-      });
-    } finally {
-      setPendingActionId(null);
-    }
-  }, [loadSnapshot, toast]);
+    },
+    [loadSnapshot, toast]
+  );
 
-  const deleteAsset = useCallback(async (id: string, type: 'images' | 'volumes' | 'networks') => {
-    if (!window.confirm(`Are you sure you want to remove this ${type.slice(0, -1)}?`)) return;
-    const url = `/api/modules/docker/${type}/${id}`;
-    try {
-      const response = await fetch(url, { method: 'DELETE' });
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.error || `Failed to remove ${type.slice(0, -1)}`);
+  const deleteAsset = useCallback(
+    async (id: string, type: 'images' | 'volumes' | 'networks') => {
+      if (!window.confirm(`Are you sure you want to remove this ${type.slice(0, -1)}?`)) return;
+      const url = `/api/modules/docker/${type}/${id}`;
+      try {
+        const response = await fetch(url, { method: 'DELETE' });
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.error || `Failed to remove ${type.slice(0, -1)}`);
+        }
+        toast({ title: 'Removal complete', description: data.message, variant: 'success' });
+        await loadSnapshot();
+      } catch (error: unknown) {
+        toast({
+          title: 'Removal failed',
+          description: error instanceof Error ? error.message : 'Unknown error',
+          variant: 'destructive',
+        });
       }
-      toast({ title: 'Removal complete', description: data.message, variant: 'success' });
-      await loadSnapshot();
-    } catch (error: unknown) {
-      toast({
-        title: 'Removal failed',
-        description: error instanceof Error ? error.message : 'Unknown error',
-        variant: 'destructive',
-      });
-    }
-  }, [loadSnapshot, toast]);
+    },
+    [loadSnapshot, toast]
+  );
 
   const handleLogs = useCallback((id: string, name: string) => {
     setSelectedContainerId(id);

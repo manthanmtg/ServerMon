@@ -6,6 +6,10 @@ import { ArrowDown, ArrowUp, Network } from 'lucide-react';
 import { formatBytes } from '@/lib/utils';
 import type { NetworkSnapshot } from '../types';
 
+function isLoopbackInterface(iface: string) {
+  return iface === 'lo' || iface === 'lo0' || iface.startsWith('lo:');
+}
+
 export default function NetworkWidget() {
   const [stats, setStats] = useState<{ rx: number; tx: number; iface: string } | null>(null);
 
@@ -25,7 +29,7 @@ export default function NetworkWidget() {
 
         if (mounted) {
           // Show stats for the first non-internal interface or first one
-          const primary = data.stats.find((s) => !s.iface.includes('lo')) || data.stats[0];
+          const primary = data.stats.find((s) => !isLoopbackInterface(s.iface)) || data.stats[0];
           setStats({ rx: primary.rx_sec, tx: primary.tx_sec, iface: primary.iface });
         }
       } catch {

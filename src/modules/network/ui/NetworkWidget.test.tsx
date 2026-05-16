@@ -92,6 +92,57 @@ describe('NetworkWidget', () => {
     await waitFor(() => expect(screen.getByText('eth0')).toBeDefined());
   });
 
+  it.each([
+    {
+      name: 'wireless interface containing lo',
+      stats: [
+        { iface: 'lo', rx_sec: 0, tx_sec: 0, rx_bytes: 0, tx_bytes: 0 },
+        { iface: 'wlo1', rx_sec: 4096, tx_sec: 2048, rx_bytes: 100000, tx_bytes: 50000 },
+      ],
+      expected: 'wlo1',
+    },
+    {
+      name: 'loopback alias before ethernet',
+      stats: [
+        { iface: 'lo:1', rx_sec: 0, tx_sec: 0, rx_bytes: 0, tx_bytes: 0 },
+        { iface: 'eth1', rx_sec: 4096, tx_sec: 2048, rx_bytes: 100000, tx_bytes: 50000 },
+      ],
+      expected: 'eth1',
+    },
+    {
+      name: 'macOS loopback before wireless',
+      stats: [
+        { iface: 'lo0', rx_sec: 0, tx_sec: 0, rx_bytes: 0, tx_bytes: 0 },
+        { iface: 'en0', rx_sec: 4096, tx_sec: 2048, rx_bytes: 100000, tx_bytes: 50000 },
+      ],
+      expected: 'en0',
+    },
+    {
+      name: 'loopback-only snapshot',
+      stats: [{ iface: 'lo', rx_sec: 512, tx_sec: 256, rx_bytes: 100000, tx_bytes: 50000 }],
+      expected: 'lo',
+    },
+    {
+      name: 'ordinary first interface',
+      stats: [
+        { iface: 'ens18', rx_sec: 4096, tx_sec: 2048, rx_bytes: 100000, tx_bytes: 50000 },
+        { iface: 'lo', rx_sec: 0, tx_sec: 0, rx_bytes: 0, tx_bytes: 0 },
+      ],
+      expected: 'ens18',
+    },
+  ])('selects the primary interface for $name', async ({ stats, expected }) => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ stats, connections: [], alerts: [], source: 'live' }),
+    });
+
+    await act(async () => {
+      render(<NetworkWidget />);
+    });
+
+    await waitFor(() => expect(screen.getByText(expected)).toBeDefined());
+  });
+
   it('shows Network label when no data available', async () => {
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,
