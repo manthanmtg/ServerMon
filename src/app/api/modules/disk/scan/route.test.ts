@@ -5,7 +5,12 @@ const { mockExec } = vi.hoisted(() => ({
   mockExec: vi.fn(),
 }));
 
+const { mockGetSession } = vi.hoisted(() => ({
+  mockGetSession: vi.fn(),
+}));
+
 vi.mock('child_process', () => ({ exec: mockExec }));
+vi.mock('@/lib/session', () => ({ getSession: mockGetSession }));
 vi.mock('@/lib/logger', () => ({
   createLogger: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }),
 }));
@@ -23,6 +28,7 @@ function makeRequest(body: unknown): Request {
 describe('POST /api/modules/disk/scan', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockGetSession.mockResolvedValue({ user: { id: 'user-1', role: 'admin' } });
     // Default: mock exec to call callback with stdout
     mockExec.mockImplementation(
       (
@@ -32,6 +38,17 @@ describe('POST /api/modules/disk/scan', () => {
         callback(null, { stdout: '1024\t/var/log\n512\t/var/cache\n', stderr: '' });
       }
     );
+  });
+
+  it('returns 401 when the request is unauthenticated', async () => {
+    mockGetSession.mockResolvedValue(null);
+
+    const res = await POST(makeRequest({ path: '/var' }));
+
+    expect(res.status).toBe(401);
+    const json = await res.json();
+    expect(json.error).toBe('Unauthorized');
+    expect(mockExec).not.toHaveBeenCalled();
   });
 
   it('returns 400 for path with semicolon', async () => {
