@@ -22,7 +22,9 @@ import type { ManagedDatabaseDTO } from '../types';
 export type DatabaseAction = 'start' | 'stop' | 'restart';
 
 const smallButtonLinkClassName =
-  'inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border bg-transparent px-3 text-xs font-medium transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background';
+  'inline-flex h-11 w-full items-center justify-center gap-1.5 rounded-md border border-border bg-transparent px-3 text-xs font-medium transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:h-8 sm:w-auto';
+
+const mobileFriendlyActionClassName = 'h-11 w-full sm:h-8 sm:w-auto';
 
 interface DatabaseDeploymentCardProps {
   database: ManagedDatabaseDTO;
@@ -95,6 +97,7 @@ export function DatabaseDeploymentCard({
             <Button
               variant="secondary"
               size="sm"
+              className={mobileFriendlyActionClassName}
               onClick={() => onDeploy(database)}
               loading={isWorking}
               aria-label={`Deploy ${database.name}`}
@@ -105,6 +108,7 @@ export function DatabaseDeploymentCard({
             <Button
               variant="outline"
               size="sm"
+              className={mobileFriendlyActionClassName}
               onClick={() => onAction(database, 'restart')}
               disabled={database.status === 'draft'}
             >
@@ -121,13 +125,23 @@ export function DatabaseDeploymentCard({
                 Explore
               </a>
             ) : (
-              <Button variant="outline" size="sm" disabled>
+              <Button
+                variant="outline"
+                size="sm"
+                className={mobileFriendlyActionClassName}
+                disabled
+              >
                 <Search className="h-4 w-4" />
                 Explore
               </Button>
             )}
             {database.status === 'running' ? (
-              <Button variant="outline" size="sm" onClick={() => onAction(database, 'stop')}>
+              <Button
+                variant="outline"
+                size="sm"
+                className={mobileFriendlyActionClassName}
+                onClick={() => onAction(database, 'stop')}
+              >
                 <Square className="h-4 w-4" />
                 Stop
               </Button>
@@ -135,6 +149,7 @@ export function DatabaseDeploymentCard({
               <Button
                 variant="outline"
                 size="sm"
+                className={mobileFriendlyActionClassName}
                 onClick={() => onAction(database, 'start')}
                 disabled={database.status === 'draft'}
               >
@@ -146,6 +161,7 @@ export function DatabaseDeploymentCard({
               type="button"
               variant="outline"
               size="sm"
+              className={mobileFriendlyActionClassName}
               aria-expanded={isExpanded}
               aria-label={`${isExpanded ? 'Collapse' : 'Expand'} ${database.name}`}
               onClick={() => onToggleExpanded(database.id)}
