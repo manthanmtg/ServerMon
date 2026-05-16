@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import { createLogger } from '@/lib/logger';
+import { getSession } from '@/lib/session';
 
 const execAsync = promisify(exec);
 const log = createLogger('api:disk:scan');
@@ -10,6 +11,11 @@ export const dynamic = 'force-dynamic';
 
 export async function POST(request: Request) {
   try {
+    const session = await getSession();
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const { path = '/' } = await request.json();
 
     // Basic sanitization
