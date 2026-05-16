@@ -98,7 +98,12 @@ export function CronSummaryCards({ summary }: CronSummaryCardsProps) {
                 </p>
               </div>
               <div className="rounded-xl border border-border/60 bg-muted/30 p-2.5 group-hover:border-primary/20 group-hover:bg-primary/5 transition-colors duration-300">
-                <Icon className={cn('h-5 w-5 transition-transform duration-300 group-hover:scale-110', color)} />
+                <Icon
+                  className={cn(
+                    'h-5 w-5 transition-transform duration-300 group-hover:scale-110',
+                    color
+                  )}
+                />
               </div>
             </CardContent>
           </Card>

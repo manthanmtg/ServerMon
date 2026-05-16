@@ -116,14 +116,20 @@ export function PortAvailabilityChecker() {
                 'relative h-10 px-4 rounded-lg text-sm font-medium transition-all disabled:opacity-50',
                 'inline-flex items-center justify-center min-w-20 text-primary-foreground',
                 'bg-primary hover:bg-primary/90',
-                checkPort && isValidPortValue(checkPort) ? 'shadow-sm shadow-primary/20' : 'bg-primary/60'
+                checkPort && isValidPortValue(checkPort)
+                  ? 'shadow-sm shadow-primary/20'
+                  : 'bg-primary/60'
               )}
             >
               {checking ? <LoaderCircle className="w-4 h-4 animate-spin" /> : 'Check'}
             </motion.button>
           </motion.div>
           {checkPort && !isValidPortValue(checkPort) && (
-            <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-xs text-destructive">
+            <motion.p
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="text-xs text-destructive"
+            >
               Port must be a number between 1 and 65535.
             </motion.p>
           )}

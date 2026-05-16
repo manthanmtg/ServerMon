@@ -142,7 +142,10 @@ export default function TerminalPage() {
   const closeTab = useCallback(
     async (sessionId: string) => {
       try {
-        await resilientFetch(`/api/terminal/sessions?sessionId=${sessionId}`, { method: 'DELETE', timeout: 5000 });
+        await resilientFetch(`/api/terminal/sessions?sessionId=${sessionId}`, {
+          method: 'DELETE',
+          timeout: 5000,
+        });
         setTabs((prev) => {
           const next = prev.filter((t) => t.sessionId !== sessionId);
           if (activeTabId === sessionId && next.length > 0) {
@@ -162,7 +165,10 @@ export default function TerminalPage() {
 
   const resetAll = useCallback(async () => {
     try {
-      const res = await resilientFetch('/api/terminal/sessions?resetAll=true', { method: 'DELETE', timeout: 10000 });
+      const res = await resilientFetch('/api/terminal/sessions?resetAll=true', {
+        method: 'DELETE',
+        timeout: 10000,
+      });
       const data = await res.json();
       if (data.sessions) {
         const resetTabs = data.sessions.map((s: SessionTab) => ({

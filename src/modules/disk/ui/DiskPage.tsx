@@ -120,7 +120,11 @@ export default function DiskPage() {
       </div>
 
       <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar">
-        <motion.div initial={sectionMotionClass.initial} animate={sectionMotionClass.animate} transition={{ duration: 0.32 }}>
+        <motion.div
+          initial={sectionMotionClass.initial}
+          animate={sectionMotionClass.animate}
+          transition={{ duration: 0.32 }}
+        >
           <DiskSummaryCards
             disks={disks}
             healthDriveCount={healthData?.layout?.length || 0}

@@ -87,7 +87,11 @@ export default function HealthWidget({ metric }: HealthWidgetProps) {
           layout
           initial={{ opacity: 0, x: -10 }}
           animate={{ opacity: 1, x: 0 }}
-          transition={{ delay: index * 0.1, duration: 0.4, layout: { type: 'spring', stiffness: 260, damping: 20 } }}
+          transition={{
+            delay: index * 0.1,
+            duration: 0.4,
+            layout: { type: 'spring', stiffness: 260, damping: 20 },
+          }}
           whileHover={{ x: 2, scale: 1.004 }}
           whileTap={{ scale: 0.996 }}
         >

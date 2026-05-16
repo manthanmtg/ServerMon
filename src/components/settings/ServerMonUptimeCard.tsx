@@ -143,9 +143,7 @@ export default function ServerMonUptimeCard() {
             <motion.span
               className={cn(
                 'h-1.5 w-1.5 shrink-0 rounded-full',
-                isOnline
-                  ? 'bg-success'
-                  : 'bg-muted-foreground/80'
+                isOnline ? 'bg-success' : 'bg-muted-foreground/80'
               )}
               animate={
                 isOnline
