@@ -11,6 +11,7 @@ import {
   ChevronDown,
   ChevronRight,
 } from 'lucide-react';
+import { AnimatePresence, motion } from 'framer-motion';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
@@ -25,19 +26,19 @@ const STATUS_CONFIG: Record<
   }
 > = {
   pending: { icon: Circle, color: 'text-muted-foreground', label: 'Pending' },
-  running: { icon: Loader2, color: 'text-blue-500', label: 'Running' },
-  success: { icon: CheckCircle2, color: 'text-emerald-500', label: 'Done' },
+  running: { icon: Loader2, color: 'text-primary', label: 'Running' },
+  success: { icon: CheckCircle2, color: 'text-success', label: 'Done' },
   failed: { icon: XCircle, color: 'text-destructive', label: 'Failed' },
   skipped: { icon: SkipForward, color: 'text-muted-foreground', label: 'Skipped' },
 };
 
 const JOB_STATUS_CONFIG: Record<string, { color: string; label: string }> = {
   pending: { color: 'bg-muted text-muted-foreground', label: 'Pending' },
-  running: { color: 'bg-blue-500/10 text-blue-500', label: 'Running' },
-  success: { color: 'bg-emerald-500/10 text-emerald-500', label: 'Completed' },
+  running: { color: 'bg-primary/10 text-primary', label: 'Running' },
+  success: { color: 'bg-success/10 text-success', label: 'Completed' },
   failed: { color: 'bg-destructive/10 text-destructive', label: 'Failed' },
   cancelled: { color: 'bg-muted text-muted-foreground', label: 'Cancelled' },
-  'rolling-back': { color: 'bg-amber-500/10 text-amber-500', label: 'Rolling Back' },
+  'rolling-back': { color: 'bg-warning/10 text-warning', label: 'Rolling Back' },
 };
 
 interface InstallProgressProps {
@@ -154,13 +155,22 @@ export function InstallProgress({ jobId, onDone, onRollback }: InstallProgressPr
               const hasLogs = step.logs.length > 0;
 
               return (
-                <div key={step.step} className="rounded-lg border overflow-hidden">
+                <motion.div
+                  key={step.step}
+                  layout
+                  initial={{ opacity: 0, y: 4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -4 }}
+                  transition={{ duration: 0.2, ease: 'easeOut' }}
+                  className="rounded-lg border overflow-hidden"
+                >
                   <button
                     onClick={() => hasLogs && toggleStep(step.step)}
                     className={cn(
                       'w-full flex items-center gap-2.5 px-3 py-2 text-left transition-colors',
                       hasLogs && 'hover:bg-accent/50 cursor-pointer',
-                      !hasLogs && 'cursor-default'
+                      !hasLogs && 'cursor-default',
+                      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background'
                     )}
                   >
                     <StepIcon
@@ -184,14 +194,24 @@ export function InstallProgress({ jobId, onDone, onRollback }: InstallProgressPr
                       ))}
                   </button>
 
-                  {isExpanded && hasLogs && (
-                    <div className="px-3 pb-2 max-h-48 overflow-y-auto bg-muted/30">
-                      <pre className="text-[10px] font-mono leading-relaxed text-muted-foreground whitespace-pre-wrap">
-                        {step.logs.join('\n')}
-                      </pre>
-                    </div>
-                  )}
-                </div>
+                  <AnimatePresence initial={false}>
+                    {isExpanded && hasLogs && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.2, ease: 'easeOut' }}
+                        className="overflow-hidden"
+                      >
+                        <div className="px-3 pb-2 max-h-48 overflow-y-auto bg-muted/30">
+                          <pre className="text-[10px] font-mono leading-relaxed text-muted-foreground whitespace-pre-wrap">
+                            {step.logs.join('\n')}
+                          </pre>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </motion.div>
               );
             })}
           </div>
@@ -202,30 +222,34 @@ export function InstallProgress({ jobId, onDone, onRollback }: InstallProgressPr
       {isTerminal && (
         <div className="flex items-center justify-between">
           {job.status === 'failed' && (
-            <button
+            <motion.button
               onClick={() => onRollback(job.id)}
-              className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-md border border-destructive/30 text-destructive hover:bg-destructive/5 transition-colors"
+              whileHover={{ y: -1 }}
+              whileTap={{ scale: 0.99 }}
+              className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-md border border-destructive/30 text-destructive hover:bg-destructive/5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
             >
               <RotateCcw className="w-3.5 h-3.5" />
               Rollback
-            </button>
+            </motion.button>
           )}
           <div className="ml-auto">
-            <button
+            <motion.button
               onClick={onDone}
-              className="px-4 py-2 text-sm font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+              whileHover={{ y: -1 }}
+              whileTap={{ scale: 0.99 }}
+              className="px-4 py-2 text-sm font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
             >
               {job.status === 'success' ? 'Done' : 'Back to Catalog'}
-            </button>
+            </motion.button>
           </div>
         </div>
       )}
 
       {job.status === 'success' && job.config.domain && (
-        <Card className="border-emerald-500/20 bg-emerald-500/5">
+        <Card className="border-success/20 bg-success/5">
           <CardContent className="py-4">
             <div className="flex items-center gap-2">
-              <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+              <CheckCircle2 className="w-5 h-5 text-success" />
               <div>
                 <p className="text-sm font-medium">Installation Complete!</p>
                 <p className="text-xs text-muted-foreground">
