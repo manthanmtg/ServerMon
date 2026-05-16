@@ -318,7 +318,7 @@ function timestampedLog(message: string, date = new Date()): string {
   return `[${date.toISOString()}] ${message}`;
 }
 
-export function sanitizeDatabaseSlug(value: string): string {
+function sanitizeDatabaseSlug(value: string): string {
   if (value.includes('/') || value.includes('\\') || value.includes('..')) {
     throw new Error('Database slug must not contain path traversal');
   }

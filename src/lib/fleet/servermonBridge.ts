@@ -113,7 +113,7 @@ export function deriveServerMonBridgeToken(secret: string): string {
   return crypto.createHmac('sha256', secret).update(BRIDGE_TOKEN_CONTEXT).digest('hex');
 }
 
-export function resolveServerMonBridgeTokenFromEnv(env: EnvLike = process.env): string | undefined {
+function resolveServerMonBridgeTokenFromEnv(env: EnvLike = process.env): string | undefined {
   const explicit = env.SERVERMON_AGENT_BRIDGE_TOKEN?.trim();
   if (explicit) return explicit;
 
