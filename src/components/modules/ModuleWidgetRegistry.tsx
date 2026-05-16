@@ -111,6 +111,10 @@ const EnvVarsWidget = dynamic(() => import('@/modules/env-vars/ui/EnvVarsWidget'
   loading: WidgetLoader,
 });
 
+const FirewallWidget = dynamic(() => import('@/modules/firewall/ui/FirewallWidget'), {
+  loading: WidgetLoader,
+});
+
 const widgetMap: Record<
   string,
   { component: React.ComponentType<Record<string, unknown>>; name: string }
@@ -140,6 +144,7 @@ const widgetMap: Record<
   DatabasesWidget: { component: DatabasesWidget, name: 'Databases' },
   FleetWidget: { component: FleetWidget, name: 'Fleet Overview' },
   EnvVarsWidget: { component: EnvVarsWidget, name: 'EnvVars' },
+  FirewallWidget: { component: FirewallWidget, name: 'Firewall' },
 };
 
 export function renderWidget(componentName: string, props: Record<string, unknown> = {}) {

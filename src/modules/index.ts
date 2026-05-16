@@ -27,6 +27,7 @@ import { appsModule } from './apps/module';
 import { databasesModule } from './databases/module';
 import { fleetModule } from './fleet/module';
 import { envVarsModule } from './env-vars/module';
+import { firewallModule } from './firewall/module';
 
 // For now, we will manually register modules here.
 // In the future, this could be a dynamic scan of the modules directory.
@@ -59,4 +60,5 @@ export const coreModules: Module[] = [
   databasesModule,
   fleetModule,
   envVarsModule,
+  firewallModule,
 ];
