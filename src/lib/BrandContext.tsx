@@ -94,10 +94,11 @@ export function BrandProvider({ children }: { children: React.ReactNode }) {
 
   const updateSettings = async (newSettings: BrandSettings) => {
     try {
-      const res = await fetch('/api/settings/branding', {
+      const res = await resilientFetch('/api/settings/branding', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newSettings),
+        timeout: 8000,
       });
       if (res.ok) {
         setSettings(newSettings);

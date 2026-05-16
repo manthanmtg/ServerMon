@@ -178,6 +178,36 @@ describe('BrandContext', () => {
     );
   });
 
+  it('updateSettings posts with a timeout-capable request', async () => {
+    global.fetch = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ pageTitle: 'ServerMon', logoBase64: '' }),
+      })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({}) });
+
+    await act(async () => {
+      render(
+        <BrandProvider>
+          <BrandDisplay />
+        </BrandProvider>
+      );
+    });
+
+    await act(async () => {
+      screen.getByText('Update').click();
+    });
+
+    expect(global.fetch).toHaveBeenLastCalledWith(
+      '/api/settings/branding',
+      expect.objectContaining({
+        method: 'POST',
+        signal: expect.any(AbortSignal),
+      })
+    );
+  });
+
   it('updateSettings throws when POST fails', async () => {
     // Initial GET succeeds, POST fails
     global.fetch = vi
