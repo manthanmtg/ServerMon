@@ -4,6 +4,7 @@ import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useMetrics } from '@/lib/MetricsContext';
 import { HardDrive, Settings2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { motion } from 'framer-motion';
 import DiskSettingsModal, { DiskSettings } from './DiskSettingsModal';
 import { DiskHardwareHealth } from './DiskHardwareHealth';
 import { DiskSummaryCards } from './components/DiskSummaryCards';
@@ -81,6 +82,11 @@ export default function DiskPage() {
   const totalIORead = latest?.io?.r_sec || 0;
   const totalIOWrite = latest?.io?.w_sec || 0;
 
+  const sectionMotionClass = {
+    initial: { opacity: 0, y: 10 },
+    animate: { opacity: 1, y: 0 },
+  };
+
   return (
     <div className="flex flex-col h-full bg-background overflow-hidden animate-in fade-in duration-500">
       {/* Header / Toolbar */}
@@ -94,37 +100,56 @@ export default function DiskPage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            aria-label="Disk settings"
-            onClick={() => setShowSettings(true)}
-            className="min-h-[44px] min-w-[44px] p-0 text-muted-foreground transition-colors hover:text-primary sm:h-8 sm:min-h-8 sm:w-8 sm:min-w-8"
+          <motion.div
+            whileHover={{ scale: 1.01 }}
+            whileTap={{ scale: 0.99 }}
+            transition={{ type: 'spring', stiffness: 280, damping: 22 }}
+            className="inline-flex"
           >
-            <Settings2 className="h-4 w-4" />
-          </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              aria-label="Disk settings"
+              onClick={() => setShowSettings(true)}
+              className="min-h-[44px] min-w-[44px] p-0 text-muted-foreground transition-all hover:scale-105 hover:text-primary focus-visible:ring-2 focus-visible:ring-primary sm:h-8 sm:min-h-8 sm:w-8 sm:min-w-8"
+            >
+              <Settings2 className="h-4 w-4" />
+            </Button>
+          </motion.div>
         </div>
       </div>
 
       <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar">
-        <DiskSummaryCards
-          disks={disks}
-          healthDriveCount={healthData?.layout?.length || 0}
-          primaryDisk={primaryDisk}
-          settings={settings}
-          totalIORead={totalIORead}
-          totalIOWrite={totalIOWrite}
-        />
+        <motion.div initial={sectionMotionClass.initial} animate={sectionMotionClass.animate} transition={{ duration: 0.32 }}>
+          <DiskSummaryCards
+            disks={disks}
+            healthDriveCount={healthData?.layout?.length || 0}
+            primaryDisk={primaryDisk}
+            settings={settings}
+            totalIORead={totalIORead}
+            totalIOWrite={totalIOWrite}
+          />
+        </motion.div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <motion.div
+          className="grid grid-cols-1 lg:grid-cols-3 gap-6"
+          initial={sectionMotionClass.initial}
+          animate={sectionMotionClass.animate}
+          transition={{ duration: 0.32, delay: 0.05 }}
+        >
           {/* I/O Throughput Chart */}
           <IoThroughputChart ioData={ioData} settings={settings} />
 
           {/* Disk Space Table */}
           <FilesystemsTable disks={latest?.disks || []} settings={settings} />
-        </div>
+        </motion.div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pb-6">
+        <motion.div
+          className="grid grid-cols-1 lg:grid-cols-2 gap-6 pb-6"
+          initial={sectionMotionClass.initial}
+          animate={sectionMotionClass.animate}
+          transition={{ duration: 0.32, delay: 0.1 }}
+        >
           {/* Capacity Analysis */}
           <CapacityAnalysis settings={settings} />
 
@@ -134,7 +159,7 @@ export default function DiskPage() {
             healthData={healthData}
             settings={settings}
           />
-        </div>
+        </motion.div>
       </div>
 
       {showSettings && (
