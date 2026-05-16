@@ -80,12 +80,13 @@ export default function ServicesWidget() {
     <MotionCard
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      whileHover={{ scale: 1.01, translateY: -2 }}
-      transition={{ duration: 0.3 }}
-      className="border-white/10 bg-zinc-900/50 backdrop-blur-md shadow-2xl"
+      whileHover={{ scale: 1.01, y: -2, transition: { duration: 0.2, ease: 'easeOut' } }}
+      whileTap={{ scale: 0.995, y: 0, transition: { duration: 0.1, ease: 'easeOut' } }}
+      tabIndex={0}
+      className="overflow-hidden border border-border/70 bg-card/85 shadow-sm shadow-black/10 backdrop-blur-sm transition duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 hover:shadow-sm hover:shadow-primary/25 hover:border-primary/40 active:scale-[0.998]"
     >
       <CardHeader className="pb-2">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-3">
           <CardTitle className="flex items-center gap-2">
             <Cog className="w-4 h-4 text-primary" />
             Services
