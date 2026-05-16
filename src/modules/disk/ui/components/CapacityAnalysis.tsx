@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Search } from 'lucide-react';
 import {
@@ -27,22 +27,31 @@ export interface ScanResult {
 }
 
 interface CapacityAnalysisProps {
-  scanPath: string;
-  setScanPath: (path: string) => void;
-  runScan: () => void;
-  scanning: boolean;
-  scanResults: ScanResult[];
   settings: DiskSettings;
 }
 
-export function CapacityAnalysis({
-  scanPath,
-  setScanPath,
-  runScan,
-  scanning,
-  scanResults,
-  settings,
-}: CapacityAnalysisProps) {
+export function CapacityAnalysis({ settings }: CapacityAnalysisProps) {
+  const [scanning, setScanning] = useState(false);
+  const [scanResults, setScanResults] = useState<ScanResult[]>([]);
+  const [scanPath, setScanPath] = useState('/');
+
+  async function runScan() {
+    setScanning(true);
+    try {
+      const res = await fetch('/api/modules/disk/scan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: scanPath }),
+      });
+      const data = await res.json();
+      if (data.results) setScanResults(data.results);
+    } catch (e) {
+      console.error('Failed to scan', e);
+    } finally {
+      setScanning(false);
+    }
+  }
+
   return (
     <Card className="border-border/50 bg-card/50 shadow-sm transition-all duration-300 hover:border-primary/20 hover:bg-card/70 hover:shadow-[0_12px_32px_-24px_hsl(var(--primary)/0.45)]">
       <CardHeader className="flex flex-col gap-3 pb-2 sm:flex-row sm:items-center sm:justify-between">

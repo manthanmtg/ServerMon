@@ -1,5 +1,5 @@
-import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { CapacityAnalysis } from './CapacityAnalysis';
 
 vi.mock('recharts', async () => {
@@ -27,46 +27,46 @@ describe('CapacityAnalysis', () => {
 
   const mockSettings = { unitSystem: 'decimal' as const };
 
-  it('renders ready state when no results', () => {
-    render(
-      <CapacityAnalysis
-        scanPath="/"
-        setScanPath={() => {}}
-        runScan={() => {}}
-        scanning={false}
-        scanResults={[]}
-        settings={mockSettings}
-      />
-    );
+  beforeEach(() => {
+    global.fetch = vi.fn();
+  });
+
+  it('renders ready state initially', () => {
+    render(<CapacityAnalysis settings={mockSettings} />);
     expect(screen.getByText('Ready for Analysis')).toBeDefined();
   });
 
-  it('renders chart container when results provided', () => {
-    render(
-      <CapacityAnalysis
-        scanPath="/"
-        setScanPath={() => {}}
-        runScan={() => {}}
-        scanning={false}
-        scanResults={mockResults}
-        settings={mockSettings}
-      />
-    );
-    expect(screen.getByTestId('bar-chart')).toBeDefined();
+  it('renders chart container after scanning', async () => {
+    (global.fetch as Mock).mockResolvedValueOnce({
+      json: async () => ({ results: mockResults }),
+    });
+
+    render(<CapacityAnalysis settings={mockSettings} />);
+    const button = screen.getByRole('button', { name: /scan/i });
+    fireEvent.click(button);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('bar-chart')).toBeDefined();
+    });
   });
 
-  it('shows spinner when scanning', () => {
-    render(
-      <CapacityAnalysis
-        scanPath="/"
-        setScanPath={() => {}}
-        runScan={() => {}}
-        scanning={true}
-        scanResults={[]}
-        settings={mockSettings}
-      />
+  it('shows spinner when scanning', async () => {
+    let resolveFetch: (value: unknown) => void;
+    (global.fetch as Mock).mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveFetch = resolve;
+      })
     );
-    const button = screen.getByRole('button');
-    expect(button).toBeDisabled();
+
+    render(<CapacityAnalysis settings={mockSettings} />);
+    const button = screen.getByRole('button', { name: /scan/i });
+    fireEvent.click(button);
+
+    await waitFor(() => {
+      expect(button).toBeDisabled();
+    });
+
+    // Cleanup
+    resolveFetch!({ json: async () => ({ results: [] }) });
   });
 });
