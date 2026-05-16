@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { NodeServerMonPanel } from './NodeServerMonPanel';
+import { NodeServerMonPanel, shouldReplaceInstallLogs } from './NodeServerMonPanel';
 
 vi.mock('@/components/ui/toast', () => ({
   useToast: () => ({ toast: vi.fn() }),
@@ -66,6 +66,50 @@ describe('NodeServerMonPanel', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
+  });
+
+  it('keeps install log state stable when polled logs are unchanged', () => {
+    const existingLogs = [
+      {
+        _id: 'log-1',
+        createdAt: '2026-04-29T16:35:01.000Z',
+        service: 'servermon',
+        level: 'info',
+        eventType: 'servermon.install_queued',
+        message: 'ServerMon install queued for Orion',
+        metadata: { commandId: 'cmd-1' },
+      },
+      {
+        _id: 'log-2',
+        createdAt: '2026-04-29T16:35:02.000Z',
+        service: 'agent',
+        level: 'info',
+        eventType: 'servermon.install.log',
+        message: 'Installing dependencies...',
+        metadata: { commandId: 'cmd-1' },
+      },
+    ];
+
+    expect(
+      shouldReplaceInstallLogs(
+        existingLogs,
+        existingLogs.map((log) => ({ ...log, metadata: { ...log.metadata } }))
+      )
+    ).toBe(false);
+    expect(
+      shouldReplaceInstallLogs(existingLogs, [
+        ...existingLogs,
+        {
+          _id: 'log-3',
+          createdAt: '2026-04-29T16:35:03.000Z',
+          service: 'agent',
+          level: 'info',
+          eventType: 'servermon.install.succeeded',
+          message: 'Install finished',
+          metadata: { commandId: 'cmd-1' },
+        },
+      ])
+    ).toBe(true);
   });
 
   it('renders installed service and public route details', async () => {
