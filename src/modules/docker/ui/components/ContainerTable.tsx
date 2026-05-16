@@ -1,6 +1,6 @@
 'use client';
 
-import { Fragment } from 'react';
+import { memo, Fragment } from 'react';
 import { ChevronDown, ChevronRight, Trash2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -24,7 +24,7 @@ function statusVariant(state: string): 'success' | 'warning' | 'destructive' {
   return 'destructive';
 }
 
-export function ContainerTable({
+export const ContainerTable = memo(function ContainerTable({
   snapshot,
   expandedId,
   pendingActionId,
@@ -305,4 +305,4 @@ export function ContainerTable({
       </CardContent>
     </Card>
   );
-}
+});

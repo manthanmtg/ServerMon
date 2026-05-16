@@ -150,7 +150,7 @@ export default function DockerPage() {
     });
   }, [snapshot]);
 
-  async function runAction(containerId: string, action: 'start' | 'stop' | 'restart' | 'remove') {
+  const runAction = useCallback(async (containerId: string, action: 'start' | 'stop' | 'restart' | 'remove') => {
     if (action === 'remove' && !window.confirm('Are you sure you want to remove this container?'))
       return;
     setPendingActionId(containerId);
@@ -176,9 +176,9 @@ export default function DockerPage() {
     } finally {
       setPendingActionId(null);
     }
-  }
+  }, [loadSnapshot, toast]);
 
-  async function deleteAsset(id: string, type: 'images' | 'volumes' | 'networks') {
+  const deleteAsset = useCallback(async (id: string, type: 'images' | 'volumes' | 'networks') => {
     if (!window.confirm(`Are you sure you want to remove this ${type.slice(0, -1)}?`)) return;
     const url = `/api/modules/docker/${type}/${id}`;
     try {
@@ -196,7 +196,17 @@ export default function DockerPage() {
         variant: 'destructive',
       });
     }
-  }
+  }, [loadSnapshot, toast]);
+
+  const handleLogs = useCallback((id: string, name: string) => {
+    setSelectedContainerId(id);
+    setTerminalCommand(`docker logs -f ${name}\n`);
+  }, []);
+
+  const handleExec = useCallback((id: string, name: string) => {
+    setSelectedContainerId(id);
+    setTerminalCommand(`docker exec -it ${name} sh\n`);
+  }, []);
 
   if (loading) {
     return <PageSkeleton statCards={3} />;
@@ -230,14 +240,8 @@ export default function DockerPage() {
           pendingActionId={pendingActionId}
           onExpand={setExpandedId}
           onAction={runAction}
-          onLogs={(id, name) => {
-            setSelectedContainerId(id);
-            setTerminalCommand(`docker logs -f ${name}\n`);
-          }}
-          onExec={(id, name) => {
-            setSelectedContainerId(id);
-            setTerminalCommand(`docker exec -it ${name} sh\n`);
-          }}
+          onLogs={handleLogs}
+          onExec={handleExec}
         />
 
         <AssetManager
