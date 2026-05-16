@@ -91,10 +91,13 @@ export default function DatabasesWidget() {
           </div>
         </div>
 
-        <div className="mt-3 space-y-1.5">
+        <ul className="mt-3 space-y-1.5" aria-label="Database preview">
           {visibleDatabases.map((database) => (
-            <div
+            <li
               key={database.id}
+              aria-label={`${database.name} database, ${database.status}, ${
+                database.publicRoute ? 'public route' : 'private'
+              }`}
               className="flex items-center gap-2 rounded-md px-2 py-1.5 text-xs"
             >
               {database.status === 'running' ? (
@@ -111,14 +114,14 @@ export default function DatabasesWidget() {
                   Public
                 </Badge>
               )}
-            </div>
+            </li>
           ))}
           {databases.length === 0 && (
-            <p className="py-2 text-center text-xs text-muted-foreground">
+            <li className="py-2 text-center text-xs text-muted-foreground">
               No databases deployed yet
-            </p>
+            </li>
           )}
-        </div>
+        </ul>
       </CardContent>
     </Card>
   );
