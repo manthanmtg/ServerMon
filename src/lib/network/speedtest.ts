@@ -296,7 +296,7 @@ export async function runNetworkSpeedtest(
   }
 }
 
-export function isNetworkSpeedtestRunning(): boolean {
+function isNetworkSpeedtestRunning(): boolean {
   return activeRun !== null;
 }
 

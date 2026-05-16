@@ -40,7 +40,7 @@ function managedPath(managedDir: string, fileName: string): string {
   return resolvedPath;
 }
 
-export function getDefaultManagedDir(): string {
+function getDefaultManagedDir(): string {
   return process.env.NGINX_MANAGED_DIR || '/etc/nginx/servermon';
 }
 
