@@ -301,14 +301,11 @@
       "category": "ui-quality",
       "enabled": true,
       "autonomousSafe": true,
-      "totalSelected": 27,
-      "totalCompleted": 27,
+      "totalSelected": 28,
+      "totalCompleted": 28,
       "totalNoop": 0,
       "totalFailed": 0,
-      "lastSelectedAt": "2026-05-16T16:57:58.639Z",
-      "lastCompletedAt": "2026-05-16T16:57:58.639Z",
       "lastOutcome": "completed"
     }
-  },
-  "updatedAt": "2026-05-16T16:57:58.639Z"
+  }
 }
