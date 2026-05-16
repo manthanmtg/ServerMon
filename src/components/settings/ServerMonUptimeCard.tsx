@@ -4,8 +4,11 @@ import { useEffect, useMemo, useState } from 'react';
 import { Activity, Clock3 } from 'lucide-react';
 import { Badge, type BadgeVariant } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { resilientFetch, safeJson } from '@/lib/fetch-utils';
+
+const MotionCard = motion.create(Card);
 
 type HealthStatus = 'online' | 'degraded' | 'unavailable';
 
@@ -86,6 +89,7 @@ export default function ServerMonUptimeCard() {
   }, []);
 
   const status = getDisplayStatus(runtime);
+  const isOnline = runtime.kind === 'loaded' && runtime.status === 'online';
   const uptimeText = useMemo(() => {
     if (runtime.kind !== 'loaded') return runtime.kind === 'loading' ? '--' : 'Unavailable';
     const elapsedSeconds = Math.floor((nowMs - runtime.receivedAtMs) / 1_000);
@@ -93,7 +97,18 @@ export default function ServerMonUptimeCard() {
   }, [nowMs, runtime]);
 
   return (
-    <Card className="overflow-hidden">
+    <MotionCard
+      tabIndex={0}
+      whileHover={{ y: -2, transition: { duration: 0.2 } }}
+      whileTap={{ y: 0, scale: 0.995, transition: { duration: 0.1 } }}
+      className={cn(
+        'overflow-hidden border transition-all duration-300',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+        isOnline
+          ? 'shadow-sm shadow-success/20 ring-1 ring-success/20 hover:shadow-md hover:ring-success/40'
+          : 'hover:shadow-sm hover:ring-1 hover:ring-primary/20'
+      )}
+    >
       <CardHeader className="pb-4">
         <div className="flex items-start justify-between gap-3">
           <div className="flex min-w-0 items-start gap-3">
@@ -125,6 +140,32 @@ export default function ServerMonUptimeCard() {
           )}
         >
           <div className="mb-2 flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+            <motion.span
+              className={cn(
+                'h-1.5 w-1.5 shrink-0 rounded-full',
+                isOnline
+                  ? 'bg-success'
+                  : 'bg-muted-foreground/80'
+              )}
+              animate={
+                isOnline
+                  ? {
+                      scale: [1, 1.4, 1],
+                      opacity: [1, 0.5, 1],
+                    }
+                  : { scale: 1, opacity: 1 }
+              }
+              transition={
+                isOnline
+                  ? {
+                      duration: 2,
+                      repeat: Number.POSITIVE_INFINITY,
+                      ease: 'easeInOut',
+                    }
+                  : undefined
+              }
+              aria-hidden="true"
+            />
             <Clock3 className="w-3.5 h-3.5" />
             <span>Uptime</span>
           </div>
@@ -139,7 +180,7 @@ export default function ServerMonUptimeCard() {
           </p>
         </div>
       </CardContent>
-    </Card>
+    </MotionCard>
   );
 }
 
