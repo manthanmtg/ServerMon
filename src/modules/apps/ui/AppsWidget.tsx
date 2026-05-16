@@ -72,7 +72,8 @@ export default function AppsWidget() {
           </CardTitle>
           <a
             href="/apps"
-            className="flex items-center gap-1 text-[11px] text-primary hover:underline"
+            className="inline-flex min-h-11 items-center gap-1 rounded-md border border-transparent px-3 text-[11px] font-medium text-primary transition-all duration-200 hover:border-border/60 hover:bg-accent/35 hover:text-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background active:scale-[0.99]"
+            aria-label="View all apps"
           >
             View all
             <ArrowRight className="h-3 w-3" />
@@ -81,15 +82,15 @@ export default function AppsWidget() {
       </CardHeader>
       <CardContent>
         <div className="grid grid-cols-3 gap-2">
-          <div className="rounded-lg bg-muted/50 p-2 text-center">
+          <div className="rounded-lg border border-border/50 bg-muted/45 p-2 text-center transition-colors hover:border-primary/25 hover:bg-muted/65">
             <div className="text-lg font-bold">{apps.length}</div>
             <div className="text-[10px] text-muted-foreground">Apps</div>
           </div>
-          <div className="rounded-lg bg-success/5 p-2 text-center">
+          <div className="rounded-lg border border-success/20 bg-success/5 p-2 text-center transition-colors hover:border-success/40 hover:bg-success/10">
             <div className="text-lg font-bold text-success">{summary.running}</div>
             <div className="text-[10px] text-muted-foreground">Running</div>
           </div>
-          <div className="rounded-lg bg-muted/50 p-2 text-center">
+          <div className="rounded-lg border border-border/50 bg-muted/45 p-2 text-center transition-colors hover:border-warning/35 hover:bg-warning/15">
             <div className="text-lg font-bold">{attentionCount}</div>
             <div className="text-[10px] text-muted-foreground">Attention</div>
           </div>
