@@ -103,6 +103,25 @@ function logEventTime(event: InstallLogEvent): number {
   return Number.isFinite(time) ? time : 0;
 }
 
+export function shouldReplaceInstallLogs(
+  current: InstallLogEvent[],
+  next: InstallLogEvent[]
+): boolean {
+  if (current.length !== next.length) return true;
+  return current.some((event, index) => {
+    const nextEvent = next[index];
+    return (
+      event._id !== nextEvent._id ||
+      event.createdAt !== nextEvent.createdAt ||
+      event.service !== nextEvent.service ||
+      event.level !== nextEvent.level ||
+      event.eventType !== nextEvent.eventType ||
+      event.message !== nextEvent.message ||
+      event.metadata?.commandId !== nextEvent.metadata?.commandId
+    );
+  });
+}
+
 export function NodeServerMonPanel({ nodeId }: { nodeId: string }) {
   const { toast } = useToast();
   const [data, setData] = useState<ServerMonResponse | null>(null);
@@ -160,7 +179,7 @@ export function NodeServerMonPanel({ nodeId }: { nodeId: string }) {
             return !commandId || !eventCommandId || eventCommandId === commandId;
           })
           .sort((a, b) => logEventTime(a) - logEventTime(b));
-        setInstallLogs(events);
+        setInstallLogs((current) => (shouldReplaceInstallLogs(current, events) ? events : current));
         setInstallLogsError(null);
         if (events.some(isTerminalInstallEvent)) {
           setInstallLogPolling(false);
