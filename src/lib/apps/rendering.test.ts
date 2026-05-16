@@ -73,6 +73,29 @@ describe('apps rendering helpers', () => {
     expect(rendered).toContain('proxy_cache_bypass $http_upgrade;');
   });
 
+  it('renders nginx TLS config when certificate paths are provided', () => {
+    const rendered = buildNginxConfig({
+      domain: 'app.example.com',
+      port: 3010,
+      tls: {
+        certificatePath: '/etc/letsencrypt/live/app.example.com/fullchain.pem',
+        certificateKeyPath: '/etc/letsencrypt/live/app.example.com/privkey.pem',
+      },
+    });
+
+    expect(rendered).toContain('listen 80;');
+    expect(rendered).toContain('return 301 https://$host$request_uri;');
+    expect(rendered).toContain('listen 443 ssl;');
+    expect(rendered).toContain(
+      'ssl_certificate /etc/letsencrypt/live/app.example.com/fullchain.pem;'
+    );
+    expect(rendered).toContain(
+      'ssl_certificate_key /etc/letsencrypt/live/app.example.com/privkey.pem;'
+    );
+    expect(rendered).toContain('proxy_pass http://127.0.0.1:3010;');
+    expect(rendered).toContain('proxy_set_header Upgrade $http_upgrade;');
+  });
+
   it('builds DNS instructions from a detected public ip', () => {
     expect(buildDnsInstructions('app.example.com', '203.0.113.10')).toEqual({
       type: 'A',

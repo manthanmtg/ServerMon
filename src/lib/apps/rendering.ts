@@ -96,12 +96,13 @@ WantedBy=multi-user.target
 `;
 }
 
-export function buildNginxConfig({ domain, port }: { domain: string; port: number }): string {
-  return `server {
-  listen 80;
-  server_name ${domain};
+interface NginxTlsConfig {
+  certificatePath: string;
+  certificateKeyPath: string;
+}
 
-  location / {
+function renderProxyLocation(port: number): string {
+  return `  location / {
     proxy_pass http://127.0.0.1:${port};
     proxy_http_version 1.1;
     proxy_set_header Host $host;
@@ -112,6 +113,44 @@ export function buildNginxConfig({ domain, port }: { domain: string; port: numbe
     proxy_set_header Connection "upgrade";
     proxy_cache_bypass $http_upgrade;
   }
+`;
+}
+
+export function buildNginxConfig({
+  domain,
+  port,
+  tls,
+}: {
+  domain: string;
+  port: number;
+  tls?: NginxTlsConfig;
+}): string {
+  if (tls) {
+    return `server {
+  listen 80;
+  server_name ${domain};
+  return 301 https://$host$request_uri;
+}
+
+server {
+  listen 443 ssl;
+  server_name ${domain};
+
+  ssl_certificate ${tls.certificatePath};
+  ssl_certificate_key ${tls.certificateKeyPath};
+  include /etc/letsencrypt/options-ssl-nginx.conf;
+  ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+
+${renderProxyLocation(port)}
+}
+`;
+  }
+
+  return `server {
+  listen 80;
+  server_name ${domain};
+
+${renderProxyLocation(port)}
 }
 `;
 }

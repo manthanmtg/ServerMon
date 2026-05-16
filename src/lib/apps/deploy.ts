@@ -48,6 +48,9 @@ export interface DeployNextJsAppOptions {
   systemdDir?: string;
   nginxAvailableDir?: string;
   nginxEnabledDir?: string;
+  letsencryptLiveDir?: string;
+  certbotRetryAttempts?: number;
+  certbotRetryIntervalMs?: number;
   releaseId?: string;
   runAsUser?: string;
   healthCheckAttempts?: number;
@@ -66,6 +69,9 @@ export interface DeployNextJsAppResult {
 const DEFAULT_SYSTEMD_DIR = '/etc/systemd/system';
 const DEFAULT_NGINX_AVAILABLE_DIR = '/etc/nginx/sites-available';
 const DEFAULT_NGINX_ENABLED_DIR = '/etc/nginx/sites-enabled';
+const DEFAULT_LETSENCRYPT_LIVE_DIR = '/etc/letsencrypt/live';
+const DEFAULT_CERTBOT_RETRY_ATTEMPTS = 3;
+const DEFAULT_CERTBOT_RETRY_INTERVAL_MS = 10_000;
 
 const EXCLUDED_SOURCE_NAMES = new Set([
   '.git',
@@ -176,6 +182,62 @@ function buildCertbotCommand(domain: string): string {
   ].join(' ');
 }
 
+function certbotIsAlreadyRunning(output: string): boolean {
+  return /another instance of certbot is already running/i.test(output);
+}
+
+async function runCertbotOrThrow({
+  commandRunner,
+  command,
+  logs,
+  retryAttempts,
+  retryIntervalMs,
+}: {
+  commandRunner: CommandRunner;
+  command: string;
+  logs: string[];
+  retryAttempts: number;
+  retryIntervalMs: number;
+}): Promise<void> {
+  const attempts = Math.max(1, retryAttempts);
+
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    logs.push(`$ ${command}`);
+    const result = await commandRunner({ command });
+    if (result.output.trim()) logs.push(result.output.trim());
+    if (result.code === 0) return;
+
+    if (attempt < attempts && certbotIsAlreadyRunning(result.output)) {
+      logs.push(
+        `Certbot is already running; retrying in ${retryIntervalMs}ms (attempt ${
+          attempt + 1
+        }/${attempts})`
+      );
+      await sleep(retryIntervalMs);
+      continue;
+    }
+
+    throw new Error(`Command failed: ${command}\n${result.output}`.trim());
+  }
+}
+
+function letsEncryptCertificatePaths(domain: string, liveDir: string) {
+  const certificateRoot = path.join(liveDir, domain);
+  return {
+    certificatePath: path.join(certificateRoot, 'fullchain.pem'),
+    certificateKeyPath: path.join(certificateRoot, 'privkey.pem'),
+  };
+}
+
+async function hasLetsEncryptCertificate(domain: string, liveDir: string): Promise<boolean> {
+  const paths = letsEncryptCertificatePaths(domain, liveDir);
+  const [hasCertificate, hasKey] = await Promise.all([
+    pathExists(paths.certificatePath),
+    pathExists(paths.certificateKeyPath),
+  ]);
+  return hasCertificate && hasKey;
+}
+
 function healthUrl(port: number, healthCheckPath?: string): string {
   const normalizedPath = healthCheckPath?.startsWith('/') ? healthCheckPath : '/';
   return `http://127.0.0.1:${port}${normalizedPath}`;
@@ -224,6 +286,9 @@ export async function deployNextJsApp({
   systemdDir = DEFAULT_SYSTEMD_DIR,
   nginxAvailableDir = DEFAULT_NGINX_AVAILABLE_DIR,
   nginxEnabledDir = DEFAULT_NGINX_ENABLED_DIR,
+  letsencryptLiveDir = DEFAULT_LETSENCRYPT_LIVE_DIR,
+  certbotRetryAttempts = DEFAULT_CERTBOT_RETRY_ATTEMPTS,
+  certbotRetryIntervalMs = DEFAULT_CERTBOT_RETRY_INTERVAL_MS,
   releaseId = createReleaseId(),
   runAsUser,
   healthCheckAttempts = 12,
@@ -304,9 +369,16 @@ export async function deployNextJsApp({
 
     const nginxAvailablePath = path.join(nginxAvailableDir, app.domain);
     const nginxEnabledPath = path.join(nginxEnabledDir, app.domain);
+    const existingTlsCertificate = app.tlsEnabled
+      ? await hasLetsEncryptCertificate(app.domain, letsencryptLiveDir)
+      : false;
+    const tls = existingTlsCertificate
+      ? letsEncryptCertificatePaths(app.domain, letsencryptLiveDir)
+      : undefined;
+
     await writeFile(
       nginxAvailablePath,
-      buildNginxConfig({ domain: app.domain, port: app.port }),
+      buildNginxConfig({ domain: app.domain, port: app.port, tls }),
       'utf8'
     );
     await ensureNginxEnabled(nginxAvailablePath, nginxEnabledPath);
@@ -314,9 +386,19 @@ export async function deployNextJsApp({
     await runOrThrow(commandRunner, 'nginx -s reload', logs);
 
     if (app.tlsEnabled) {
-      await runOrThrow(commandRunner, buildCertbotCommand(app.domain), logs);
-      await runOrThrow(commandRunner, 'nginx -t', logs);
-      await runOrThrow(commandRunner, 'nginx -s reload', logs);
+      if (existingTlsCertificate) {
+        logs.push(`Existing TLS certificate found for ${app.domain}; skipping certbot`);
+      } else {
+        await runCertbotOrThrow({
+          commandRunner,
+          command: buildCertbotCommand(app.domain),
+          logs,
+          retryAttempts: certbotRetryAttempts,
+          retryIntervalMs: certbotRetryIntervalMs,
+        });
+        await runOrThrow(commandRunner, 'nginx -t', logs);
+        await runOrThrow(commandRunner, 'nginx -s reload', logs);
+      }
     }
 
     return { releaseId, status: 'active', logs };

@@ -168,6 +168,121 @@ describe('deployNextJsApp', () => {
     ]);
   });
 
+  it('skips certbot issuance when a TLS certificate already exists', async () => {
+    const sourcePath = await createSourceRepo();
+    const dirs = await createDeployDirs();
+    const letsencryptLiveDir = path.join(dirs.root, 'letsencrypt-live');
+    const certificateDir = path.join(letsencryptLiveDir, 'app.example.com');
+    await mkdir(certificateDir, { recursive: true });
+    await writeFile(path.join(certificateDir, 'fullchain.pem'), 'certificate', 'utf8');
+    await writeFile(path.join(certificateDir, 'privkey.pem'), 'private key', 'utf8');
+    const commands: string[] = [];
+
+    const result = await deployNextJsApp({
+      app: {
+        name: 'LifeOS',
+        slug: 'lifeos',
+        templateId: 'nextjs',
+        sourcePath,
+        domain: 'app.example.com',
+        port: 3010,
+        commands: {
+          install: 'pnpm install',
+          build: 'pnpm build',
+          start: 'pnpm start',
+        },
+        envVars: {},
+        healthCheckPath: '/',
+        tlsEnabled: true,
+        status: 'active',
+      },
+      appsRoot: dirs.root,
+      systemdDir: dirs.systemdDir,
+      nginxAvailableDir: dirs.nginxAvailableDir,
+      nginxEnabledDir: dirs.nginxEnabledDir,
+      letsencryptLiveDir,
+      releaseId: 'tls-existing-release',
+      commandRunner: async ({ command }) => {
+        commands.push(command);
+        return { code: 0, output: `${command} ok` };
+      },
+      healthCheck: async () => ({ ok: true }),
+    });
+
+    expect(result.status).toBe('active');
+    expect(commands).toEqual([
+      'pnpm install',
+      'pnpm build',
+      'systemctl daemon-reload',
+      'systemctl enable servermon-app-lifeos.service',
+      'systemctl restart servermon-app-lifeos.service',
+      'nginx -t',
+      'nginx -s reload',
+    ]);
+    expect(result.logs).toContain(
+      'Existing TLS certificate found for app.example.com; skipping certbot'
+    );
+    await expect(
+      readFile(path.join(dirs.nginxAvailableDir, 'app.example.com'), 'utf8')
+    ).resolves.toContain(`ssl_certificate ${path.join(certificateDir, 'fullchain.pem')};`);
+    await expect(
+      readFile(path.join(dirs.nginxAvailableDir, 'app.example.com'), 'utf8')
+    ).resolves.toContain(`ssl_certificate_key ${path.join(certificateDir, 'privkey.pem')};`);
+  });
+
+  it('retries certbot issuance when another certbot instance is running', async () => {
+    const sourcePath = await createSourceRepo();
+    const dirs = await createDeployDirs();
+    const letsencryptLiveDir = path.join(dirs.root, 'letsencrypt-live');
+    const commands: string[] = [];
+    let certbotAttempts = 0;
+
+    const result = await deployNextJsApp({
+      app: {
+        name: 'LifeOS',
+        slug: 'lifeos',
+        templateId: 'nextjs',
+        sourcePath,
+        domain: 'app.example.com',
+        port: 3010,
+        commands: {
+          install: 'pnpm install',
+          build: 'pnpm build',
+          start: 'pnpm start',
+        },
+        envVars: {},
+        healthCheckPath: '/',
+        tlsEnabled: true,
+        status: 'draft',
+      },
+      appsRoot: dirs.root,
+      systemdDir: dirs.systemdDir,
+      nginxAvailableDir: dirs.nginxAvailableDir,
+      nginxEnabledDir: dirs.nginxEnabledDir,
+      letsencryptLiveDir,
+      certbotRetryIntervalMs: 1,
+      releaseId: 'tls-retry-release',
+      commandRunner: async ({ command }) => {
+        commands.push(command);
+        if (command.startsWith('certbot ')) {
+          certbotAttempts += 1;
+          if (certbotAttempts === 1) {
+            return { code: 1, output: 'Another instance of Certbot is already running.' };
+          }
+        }
+        return { code: 0, output: `${command} ok` };
+      },
+      healthCheck: async () => ({ ok: true }),
+    });
+
+    expect(result.status).toBe('active');
+    expect(commands.filter((command) => command.startsWith('certbot '))).toEqual([
+      'certbot --nginx -d app.example.com --non-interactive --agree-tos --redirect --register-unsafely-without-email',
+      'certbot --nginx -d app.example.com --non-interactive --agree-tos --redirect --register-unsafely-without-email',
+    ]);
+    expect(result.logs).toContain('Certbot is already running; retrying in 1ms (attempt 2/3)');
+  });
+
   it('does not change current release when build fails before cutover', async () => {
     const sourcePath = await createSourceRepo();
     const dirs = await createDeployDirs();
