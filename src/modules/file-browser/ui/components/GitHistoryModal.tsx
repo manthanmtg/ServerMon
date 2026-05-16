@@ -16,6 +16,7 @@ import {
   Check,
   MessageSquare,
 } from 'lucide-react';
+import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
@@ -36,6 +37,8 @@ const TIME_RANGES = [
 ];
 
 const LIMIT_OPTIONS = [50, 100, 250, 500, 1000];
+const interactivePillClass =
+  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background';
 
 export default function GitHistoryModal({ root, onClose }: Props) {
   const [commits, setCommits] = useState<GitCommitInfo[]>([]);
@@ -223,6 +226,7 @@ export default function GitHistoryModal({ root, onClose }: Props) {
                       onClick={() => setLimit(opt)}
                       className={cn(
                         'px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-lg transition-all duration-200',
+                        interactivePillClass,
                         limit === opt
                           ? 'bg-primary text-primary-foreground shadow-sm'
                           : 'text-muted-foreground hover:text-foreground hover:bg-accent'
@@ -251,6 +255,7 @@ export default function GitHistoryModal({ root, onClose }: Props) {
                       onClick={() => setSince(range.value)}
                       className={cn(
                         'px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-lg transition-all duration-200',
+                        interactivePillClass,
                         since === range.value
                           ? 'bg-primary text-primary-foreground shadow-sm'
                           : 'text-muted-foreground hover:text-foreground hover:bg-accent'
@@ -267,7 +272,7 @@ export default function GitHistoryModal({ root, onClose }: Props) {
               <Button
                 variant="ghost"
                 size="icon"
-                className="rounded-xl h-10 w-10 text-muted-foreground hover:text-foreground hover:bg-destructive/10 hover:text-destructive transition-all"
+                className="rounded-xl h-10 w-10 text-muted-foreground hover:text-foreground hover:bg-destructive/10 hover:text-destructive transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                 onClick={onClose}
                 aria-label="Close git history"
               >
@@ -323,18 +328,21 @@ export default function GitHistoryModal({ root, onClose }: Props) {
                 </div>
               ) : (
                 filteredCommits.map((c) => (
-                  <button
+                  <motion.button
                     key={c.hash}
                     type="button"
                     aria-label={`View commit ${c.hash.slice(0, 7)}: ${c.subject}`}
                     aria-pressed={selectedHash === c.hash}
                     onClick={() => setSelectedHash(c.hash === selectedHash ? null : c.hash)}
+                    whileHover={{ y: -2, scale: 1.01 }}
+                    whileTap={{ scale: 0.99 }}
                     className={cn(
-                      'group w-full text-left p-4 rounded-2xl transition-all duration-300 border',
+                      'group w-full text-left p-4 rounded-2xl transition-all duration-300 border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
                       selectedHash === c.hash
                         ? 'bg-primary/10 border-primary/30 shadow-lg shadow-primary/5'
-                        : 'bg-card/40 border-border/30 hover:bg-accent/40 hover:border-primary/20 hover:-translate-y-0.5'
+                        : 'bg-card/40 border-border/30 hover:bg-accent/40 hover:border-primary/20'
                     )}
+                    transition={{ type: 'spring', stiffness: 280, damping: 22 }}
                   >
                     <div className="flex items-start justify-between gap-3 mb-2.5">
                       <span
@@ -367,7 +375,7 @@ export default function GitHistoryModal({ root, onClose }: Props) {
                         <span>{formatDate(c.date).split(',')[0]}</span>
                       </div>
                     </div>
-                  </button>
+                  </motion.button>
                 ))
               )}
             </div>
