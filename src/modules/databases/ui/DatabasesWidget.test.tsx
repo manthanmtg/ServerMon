@@ -26,6 +26,18 @@ describe('DatabasesWidget', () => {
     expect(screen.getByRole('link', { name: /view all/i })).toHaveAttribute('href', '/databases');
   });
 
+  it('exposes previewed databases as a labelled status list', async () => {
+    render(<DatabasesWidget />);
+
+    expect(await screen.findByRole('list', { name: /database preview/i })).toBeTruthy();
+    expect(
+      screen.getByRole('listitem', { name: /main postgres database, running, private/i })
+    ).toBeTruthy();
+    expect(
+      screen.getByRole('listitem', { name: /public mongo database, failed, public route/i })
+    ).toBeTruthy();
+  });
+
   it('derives widget summary counts in one reusable pass', () => {
     const summary = deriveDatabaseWidgetSummary([
       { status: 'running', publicRoute: false },
