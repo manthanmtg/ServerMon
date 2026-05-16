@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { GripVertical, Zap, Settings, type LucideIcon } from 'lucide-react';
+import { motion } from 'framer-motion';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/components/ui/toast';
 import { resilientFetch } from '@/lib/fetch-utils';
@@ -65,6 +66,8 @@ const ALL_MODULES: ModuleDef[] = navGroups.flatMap((group) =>
 export { ALL_MODULES };
 
 const MODULE_BY_ID = new Map(ALL_MODULES.map((moduleDef) => [moduleDef.id, moduleDef]));
+const MotionRow = motion.create('div');
+const MotionSpan = motion.create('span');
 
 export default function QuickAccessSettings() {
   const { toast } = useToast();
@@ -190,13 +193,15 @@ export default function QuickAccessSettings() {
               </span>
             ) : (
               enabledModules.map((mod) => (
-                <span
+                <MotionSpan
                   key={mod.id}
+                  whileHover={{ y: -1, scale: 1.01 }}
+                  transition={{ type: 'spring', stiffness: 250, damping: 18 }}
                   className="flex items-center gap-1.5 px-3 h-8 rounded-full text-xs font-medium bg-accent text-foreground whitespace-nowrap shrink-0"
                 >
                   <mod.icon className="w-3.5 h-3.5 shrink-0" />
                   <span className="hidden sm:inline">{mod.label}</span>
-                </span>
+                </MotionSpan>
               ))
             )}
           </div>
@@ -218,12 +223,14 @@ export default function QuickAccessSettings() {
                 </p>
                 <div className="space-y-1">
                   {enabledModules.map((mod, idx) => (
-                    <div
+                    <MotionRow
                       key={mod.id}
                       draggable
                       onDragStart={() => handleDragStart(idx)}
                       onDragOver={(e) => handleDragOver(e, idx)}
                       onDragEnd={handleDragEnd}
+                      whileHover={{ y: -1 }}
+                      transition={{ type: 'spring', stiffness: 260, damping: 20 }}
                       className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-primary/5 border border-primary/20 cursor-grab active:cursor-grabbing min-h-[44px] group"
                     >
                       <GripVertical className="w-4 h-4 text-muted-foreground/50 group-hover:text-muted-foreground shrink-0 transition-colors" />
@@ -235,12 +242,12 @@ export default function QuickAccessSettings() {
                       </span>
                       <button
                         onClick={() => toggleModule(mod.id, false)}
-                        className="text-xs text-muted-foreground hover:text-destructive transition-colors px-2 py-1 rounded min-h-[44px]"
+                        className="text-xs text-muted-foreground hover:text-destructive transition-colors px-2 py-1 rounded min-h-[44px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                         aria-label={`Remove ${mod.label}`}
                       >
                         Remove
                       </button>
-                    </div>
+                    </MotionRow>
                   ))}
                 </div>
               </div>
@@ -253,8 +260,10 @@ export default function QuickAccessSettings() {
                 </p>
                 <div className="space-y-1">
                   {disabledModules.map((mod) => (
-                    <div
+                    <MotionRow
                       key={mod.id}
+                      whileHover={{ y: -1 }}
+                      transition={{ type: 'spring', stiffness: 260, damping: 20 }}
                       className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-accent transition-colors min-h-[44px]"
                     >
                       <div className="w-7 h-7 rounded-md bg-secondary flex items-center justify-center shrink-0">
@@ -263,12 +272,12 @@ export default function QuickAccessSettings() {
                       <span className="flex-1 text-sm text-muted-foreground">{mod.label}</span>
                       <button
                         onClick={() => toggleModule(mod.id, true)}
-                        className="text-xs text-primary hover:text-primary/80 font-medium transition-colors px-2 py-1 rounded min-h-[44px]"
+                        className="text-xs text-primary hover:text-primary/80 font-medium transition-colors px-2 py-1 rounded min-h-[44px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                         aria-label={`Pin ${mod.label}`}
                       >
                         Pin
                       </button>
-                    </div>
+                    </MotionRow>
                   ))}
                 </div>
               </div>
