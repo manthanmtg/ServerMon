@@ -125,6 +125,7 @@ export default React.memo(function QuickAccessBar() {
                 className={cn(
                   'flex items-center gap-1.5 px-3 h-11 rounded-full text-xs font-medium transition-all duration-200 whitespace-nowrap shrink-0 min-w-[44px] justify-center sm:h-8',
                   'hover:scale-[1.04] active:scale-[0.97]',
+                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
                   isActive
                     ? 'bg-primary text-primary-foreground shadow-sm shadow-primary/30'
                     : 'text-muted-foreground hover:text-foreground hover:bg-accent'
