@@ -77,16 +77,24 @@ export default function HealthWidget({ metric }: HealthWidgetProps) {
   ];
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       {items.map((item, index) => (
         <motion.div
           key={item.label}
-          className="space-y-2 group cursor-default"
+          className="group relative space-y-2 rounded-xl border border-transparent bg-card/35 px-2 py-2 transition-colors duration-200 hover:border-border/60 hover:bg-card/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background min-h-14"
+          role="group"
+          tabIndex={0}
+          layout
           initial={{ opacity: 0, x: -10 }}
           animate={{ opacity: 1, x: 0 }}
-          transition={{ delay: index * 0.1, duration: 0.4 }}
-          whileHover={{ x: 2 }}
+          transition={{ delay: index * 0.1, duration: 0.4, layout: { type: 'spring', stiffness: 260, damping: 20 } }}
+          whileHover={{ x: 2, scale: 1.004 }}
+          whileTap={{ scale: 0.996 }}
         >
+          <span
+            className="pointer-events-none absolute left-0 top-0 h-full w-0.5 rounded-l-xl bg-primary/80 opacity-0 transition-opacity duration-200 group-hover:opacity-100 group-focus-visible:opacity-100"
+            aria-hidden
+          />
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2 text-muted-foreground group-hover:text-foreground transition-colors duration-300">
               <item.icon className="w-3.5 h-3.5" />
