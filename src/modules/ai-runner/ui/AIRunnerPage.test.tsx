@@ -411,6 +411,92 @@ describe('AIRunnerPage', () => {
     );
   });
 
+  it('can load a saved prompt into an AutoFlow step', async () => {
+    const fetchMock = vi.mocked(global.fetch);
+
+    await act(async () => {
+      render(<AIRunnerPage />);
+    });
+
+    await waitFor(() => expect(screen.getByText('AutoFlow Builder')).toBeInTheDocument());
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('AutoFlow Name'), {
+        target: { value: 'Saved prompt flow' },
+      });
+      fireEvent.change(screen.getByLabelText('Load saved prompt into AutoFlow step'), {
+        target: { value: 'prompt-1' },
+      });
+    });
+
+    expect(screen.getByLabelText('Step Name')).toHaveValue('Fix tests');
+    expect(screen.getByLabelText(/^Prompt$/i)).toHaveValue(
+      'Audit failing tests and patch the root cause.'
+    );
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /Start AutoFlow/i }));
+    });
+
+    await waitFor(() => {
+      const createCall = fetchMock.mock.calls.find(
+        ([url, init]) =>
+          String(url).includes('/api/modules/ai-runner/autoflows') && init?.method === 'POST'
+      );
+      expect(createCall).toBeDefined();
+      const body = JSON.parse(String(createCall?.[1]?.body ?? '{}'));
+      expect(body.items[0]).toMatchObject({
+        name: 'Fix tests',
+        promptId: 'prompt-1',
+        promptContent: 'Audit failing tests and patch the root cause.',
+      });
+    });
+  });
+
+  it('expands sequential AutoFlow loop times into named step runs', async () => {
+    const fetchMock = vi.mocked(global.fetch);
+
+    await act(async () => {
+      render(<AIRunnerPage />);
+    });
+
+    await waitFor(() => expect(screen.getByText('AutoFlow Builder')).toBeInTheDocument());
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('AutoFlow Name'), {
+        target: { value: 'Looped flow' },
+      });
+      fireEvent.change(screen.getByLabelText('Step Name'), {
+        target: { value: 'Patch tests' },
+      });
+      fireEvent.change(screen.getByLabelText(/^Prompt$/i), {
+        target: { value: 'Review patch' },
+      });
+      fireEvent.change(screen.getByLabelText('Loop times'), {
+        target: { value: '3' },
+      });
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /Start AutoFlow/i }));
+    });
+
+    await waitFor(() => {
+      const createCall = fetchMock.mock.calls.find(
+        ([url, init]) =>
+          String(url).includes('/api/modules/ai-runner/autoflows') && init?.method === 'POST'
+      );
+      expect(createCall).toBeDefined();
+      const body = JSON.parse(String(createCall?.[1]?.body ?? '{}'));
+      expect(body.items.map((item: { name: string }) => item.name)).toEqual([
+        'Patch tests - Loop 1',
+        'Patch tests - Loop 2',
+        'Patch tests - Loop 3',
+      ]);
+      expect(body.items).toHaveLength(3);
+    });
+  });
+
   it('warns when schedules are running from an interactive session', async () => {
     mockDiagnostics.runtime = {
       kind: 'interactive',

@@ -10,6 +10,7 @@ import { cn } from '@/lib/utils';
 import type {
   AIRunnerAutoflowDTO,
   AIRunnerProfileDTO,
+  AIRunnerPromptDTO,
   AIRunnerPromptTemplateDTO,
   AIRunnerWorkspaceDTO,
 } from '../types';
@@ -27,7 +28,10 @@ interface AutoFlowViewProps {
   profileMap: Record<string, AIRunnerProfileDTO>;
   workspaces: AIRunnerWorkspaceDTO[];
   workspaceMap: Record<string, AIRunnerWorkspaceDTO>;
+  prompts: AIRunnerPromptDTO[];
   promptTemplates: AIRunnerPromptTemplateDTO[];
+  autoflowDraftLoopCount: number;
+  setAutoflowDraftLoopCount: (loopCount: number) => void;
   autoflowContinueOnFailure: boolean;
   setAutoflowContinueOnFailure: (continueOnFailure: boolean) => void;
   autoflowItems: AutoflowItemDraft[];
@@ -87,7 +91,10 @@ export function AutoFlowView({
   profileMap,
   workspaces,
   workspaceMap,
+  prompts,
   promptTemplates,
+  autoflowDraftLoopCount,
+  setAutoflowDraftLoopCount,
   autoflowContinueOnFailure,
   setAutoflowContinueOnFailure,
   autoflowItems,
@@ -122,6 +129,7 @@ export function AutoFlowView({
     [autoflows]
   );
   const isEditingExistingAutoflow = Boolean(editingAutoflowId);
+  const isSequentialMode = autoflowMode === 'sequential';
 
   useEffect(() => {
     if (editingStepIndex !== null && editingStepIndex >= autoflowItems.length) {
@@ -133,6 +141,11 @@ export function AutoFlowView({
 
   const submitButtonLabel = autoflowShouldStart ? 'Start AutoFlow' : 'Save as draft';
   const addStepButtonLabel = editingStepIndex === null ? 'Add Step' : 'Update Step';
+  const updateLoopCount = (value: string) => {
+    const numericValue = Number(value);
+    const finiteValue = Number.isFinite(numericValue) ? numericValue : 1;
+    setAutoflowDraftLoopCount(Math.min(Math.max(finiteValue, 1), 100));
+  };
 
   const resetDraftToBlankStep = () => {
     setAutoflowDraft((current) => ({
@@ -198,7 +211,7 @@ export function AutoFlowView({
           </div>
 
           <div className="rounded-xl border border-border/60 bg-card/60 p-4 space-y-4">
-            <div className="grid gap-4 md:grid-cols-[1fr_200px_180px]">
+            <div className="grid gap-4 md:grid-cols-[minmax(220px,1.45fr)_minmax(220px,1fr)_112px]">
               <Input
                 label="Step Name"
                 value={autoflowDraft.name}
@@ -246,6 +259,22 @@ export function AutoFlowView({
               />
             </div>
 
+            {isSequentialMode ? (
+              <div className="grid gap-2 md:grid-cols-[112px_1fr] md:items-end">
+                <Input
+                  label="Loop times"
+                  type="number"
+                  value={autoflowDraftLoopCount}
+                  onChange={(event) => updateLoopCount(event.target.value)}
+                  min={1}
+                  max={100}
+                />
+                <p className="pb-2 text-xs text-muted-foreground">
+                  Sequential only. Repeated steps are named with Loop 1, Loop 2, and so on.
+                </p>
+              </div>
+            ) : null}
+
             <div className="grid gap-4 md:grid-cols-[220px_1fr]">
               <label className="space-y-1.5">
                 <span className="block text-sm font-medium">Workspace</span>
@@ -289,39 +318,68 @@ export function AutoFlowView({
               </div>
             </div>
 
-            <label className="block space-y-1.5">
-              <span className="flex items-center justify-between gap-2 text-sm font-medium">
-                Prompt
-                {promptTemplates.length > 0 ? (
-                  <select
-                    aria-label="Load prompt template into AutoFlow step"
-                    onChange={(event) => {
-                      const template = promptTemplates.find(
-                        (item) => item._id === event.target.value
-                      );
-                      if (!template) return;
-                      setAutoflowDraft((current) => ({
-                        ...current,
-                        promptId: undefined,
-                        promptContent: applyPromptTemplate(
-                          template.content,
-                          current.promptContent ?? ''
-                        ),
-                      }));
-                      event.target.value = '';
-                    }}
-                    className="h-9 max-w-[260px] rounded-lg border border-input bg-background px-3 text-xs outline-none focus:ring-2 focus:ring-ring/40"
-                  >
-                    <option value="">Load template...</option>
-                    {promptTemplates.map((template) => (
-                      <option key={template._id} value={template._id}>
-                        {template.name}
-                      </option>
-                    ))}
-                  </select>
-                ) : null}
-              </span>
+            <div className="space-y-1.5">
+              <div className="flex flex-wrap items-center justify-between gap-2 text-sm font-medium">
+                <span>Prompt</span>
+                <div className="flex flex-wrap justify-end gap-2">
+                  {prompts.length > 0 ? (
+                    <select
+                      aria-label="Load saved prompt into AutoFlow step"
+                      onChange={(event) => {
+                        const prompt = prompts.find((item) => item._id === event.target.value);
+                        if (!prompt) return;
+                        setAutoflowDraft((current) => ({
+                          ...current,
+                          name: current.name.trim() ? current.name : prompt.name,
+                          promptId: prompt._id,
+                          promptContent: prompt.content,
+                          promptType: prompt.type,
+                          attachments: [],
+                        }));
+                        event.target.value = '';
+                      }}
+                      className="h-9 max-w-[260px] rounded-lg border border-input bg-background px-3 text-xs outline-none focus:ring-2 focus:ring-ring/40"
+                    >
+                      <option value="">Load saved prompt...</option>
+                      {prompts.map((prompt) => (
+                        <option key={prompt._id} value={prompt._id}>
+                          {prompt.name}
+                        </option>
+                      ))}
+                    </select>
+                  ) : null}
+                  {promptTemplates.length > 0 ? (
+                    <select
+                      aria-label="Load prompt template into AutoFlow step"
+                      onChange={(event) => {
+                        const template = promptTemplates.find(
+                          (item) => item._id === event.target.value
+                        );
+                        if (!template) return;
+                        setAutoflowDraft((current) => ({
+                          ...current,
+                          promptId: undefined,
+                          promptContent: applyPromptTemplate(
+                            template.content,
+                            current.promptContent ?? ''
+                          ),
+                        }));
+                        event.target.value = '';
+                      }}
+                      className="h-9 max-w-[260px] rounded-lg border border-input bg-background px-3 text-xs outline-none focus:ring-2 focus:ring-ring/40"
+                    >
+                      <option value="">Load template...</option>
+                      {promptTemplates.map((template) => (
+                        <option key={template._id} value={template._id}>
+                          {template.name}
+                        </option>
+                      ))}
+                    </select>
+                  ) : null}
+                </div>
+              </div>
               <textarea
+                aria-label="Prompt"
                 value={autoflowDraft.promptContent ?? ''}
                 onChange={(event) =>
                   setAutoflowDraft((current) => ({
@@ -332,7 +390,7 @@ export function AutoFlowView({
                 }
                 className="min-h-44 w-full rounded-xl border border-input bg-background px-3 py-3 text-sm outline-none focus:ring-2 focus:ring-ring/40"
               />
-            </label>
+            </div>
 
             <div
               role="region"

@@ -144,6 +144,8 @@ const DEFAULT_PORTABLE_RESOURCES = PORTABLE_RESOURCE_OPTIONS.map((item) => item.
 const MAX_PROMPT_ATTACHMENTS = 8;
 const MAX_PROMPT_ATTACHMENT_BYTES = 5 * 1024 * 1024;
 const MAX_PROMPT_ATTACHMENTS_TOTAL_BYTES = 10 * 1024 * 1024;
+const MAX_AUTOFLOW_ITEMS = 100;
+const MAX_AUTOFLOW_ITEM_NAME_LENGTH = 160;
 const DEFAULT_MONGO_RETENTION_DAYS = 30;
 const DEFAULT_ARTIFACT_RETENTION_DAYS = 90;
 const DEFAULT_MAX_CONCURRENT_RUNS = 3;
@@ -499,6 +501,7 @@ export default function AIRunnerPage() {
   const [autoflowMode, setAutoflowMode] = useState<'sequential' | 'parallel'>('sequential');
   const [autoflowContinueOnFailure, setAutoflowContinueOnFailure] = useState(false);
   const [autoflowItems, setAutoflowItems] = useState<AutoflowItemDraft[]>([]);
+  const [autoflowDraftLoopCount, setAutoflowDraftLoopCount] = useState(1);
   const [editingAutoflowId, setEditingAutoflowId] = useState<string | null>(null);
   const [autoflowShouldStart, setAutoflowShouldStart] = useState(true);
   const [autoflowDraft, setAutoflowDraft] = useState<AutoflowItemDraft>({
@@ -827,6 +830,12 @@ export default function AIRunnerPage() {
       schedulesAbortRef.current?.abort();
     };
   }, [loadMetadata]);
+
+  useEffect(() => {
+    if (autoflowMode === 'parallel' && autoflowDraftLoopCount !== 1) {
+      setAutoflowDraftLoopCount(1);
+    }
+  }, [autoflowDraftLoopCount, autoflowMode]);
 
   // Debounced refetch of runs when the history search input changes. We
   // deliberately don't re-run metadata loads here — typing in the search
@@ -1190,7 +1199,9 @@ export default function AIRunnerPage() {
     );
   }, [profiles, schedules]);
 
-  const hasAutoflowDraftPrompt = Boolean(autoflowDraft.promptContent?.trim());
+  const hasAutoflowDraftPrompt = Boolean(
+    autoflowDraft.promptId || autoflowDraft.promptContent?.trim()
+  );
 
   const selectProfileForEdit = (profile: AIRunnerProfileDTO) => {
     setEditingProfileId(profile._id);
@@ -2101,6 +2112,7 @@ export default function AIRunnerPage() {
       promptType: prompt.type,
       attachments: [],
     }));
+    setAutoflowDraftLoopCount(1);
     setActiveTab('autoflows');
   };
 
@@ -2463,11 +2475,15 @@ export default function AIRunnerPage() {
   };
 
   const buildAutoflowDraftItem = (): AutoflowItemDraft | null => {
+    const savedPromptName = autoflowDraft.promptId
+      ? promptMap[autoflowDraft.promptId]?.name
+      : undefined;
     const name =
       autoflowDraft.name.trim() ||
+      savedPromptName ||
       autoflowDraft.promptContent?.split('\n')[0]?.trim().slice(0, 64) ||
       `Step ${autoflowItems.length + 1}`;
-    if (!autoflowDraft.promptContent?.trim()) {
+    if (!autoflowDraft.promptId && !autoflowDraft.promptContent?.trim()) {
       toast({
         title: 'Prompt required',
         description: 'Add prompt content before adding this AutoFlow step.',
@@ -2494,6 +2510,30 @@ export default function AIRunnerPage() {
     return { ...autoflowDraft, name };
   };
 
+  const getEffectiveAutoflowLoopCount = () => {
+    if (autoflowMode !== 'sequential') return 1;
+    return Math.min(Math.max(Math.floor(autoflowDraftLoopCount), 1), MAX_AUTOFLOW_ITEMS);
+  };
+
+  const expandAutoflowDraftItemForLoop = (item: AutoflowItemDraft) => {
+    const loopCount = getEffectiveAutoflowLoopCount();
+    if (loopCount === 1) return [item];
+
+    return Array.from({ length: loopCount }, (_, index) => {
+      const suffix = ` - Loop ${index + 1}`;
+      const baseName = item.name.slice(0, MAX_AUTOFLOW_ITEM_NAME_LENGTH - suffix.length);
+      return {
+        ...item,
+        name: `${baseName}${suffix}`,
+      };
+    });
+  };
+
+  const buildAutoflowDraftItems = (): AutoflowItemDraft[] | null => {
+    const item = buildAutoflowDraftItem();
+    return item ? expandAutoflowDraftItemForLoop(item) : null;
+  };
+
   const clearAutoflowDraft = () => {
     setAutoflowDraft((current) => ({
       ...current,
@@ -2502,6 +2542,7 @@ export default function AIRunnerPage() {
       promptContent: '',
       attachments: [],
     }));
+    setAutoflowDraftLoopCount(1);
   };
 
   const clearAutoflowEdit = () => {
@@ -2514,15 +2555,24 @@ export default function AIRunnerPage() {
   };
 
   const addAutoflowItem = (replaceStepIndex: number | null = null) => {
-    const item = buildAutoflowDraftItem();
-    if (!item) return;
+    const items = buildAutoflowDraftItems();
+    if (!items) return;
+    const nextItemCount = autoflowItems.length + items.length - (replaceStepIndex === null ? 0 : 1);
+    if (nextItemCount > MAX_AUTOFLOW_ITEMS) {
+      toast({
+        title: 'Too many AutoFlow steps',
+        description: `AutoFlows support up to ${MAX_AUTOFLOW_ITEMS} steps.`,
+        variant: 'warning',
+      });
+      return;
+    }
     setAutoflowItems((current) => {
       if (replaceStepIndex === null) {
-        return [...current, item];
+        return [...current, ...items];
       }
       if (replaceStepIndex < 0 || replaceStepIndex >= current.length) return current;
       const next = [...current];
-      next[replaceStepIndex] = item;
+      next.splice(replaceStepIndex, 1, ...items);
       return next;
     });
     clearAutoflowDraft();
@@ -2536,8 +2586,8 @@ export default function AIRunnerPage() {
         mode: autoflowMode,
         continueOnFailure: autoflowContinueOnFailure,
       };
-      const draftItem = autoflowItems.length === 0 ? buildAutoflowDraftItem() : null;
-      const items = autoflowItems.length > 0 ? autoflowItems : draftItem ? [draftItem] : [];
+      const draftItems = autoflowItems.length === 0 ? buildAutoflowDraftItems() : null;
+      const items = autoflowItems.length > 0 ? autoflowItems : draftItems ? draftItems : [];
       if (items.length === 0) return;
 
       if (editingAutoflowId) {
@@ -3416,7 +3466,10 @@ export default function AIRunnerPage() {
               profileMap={profileMap}
               workspaces={workspaces}
               workspaceMap={workspaceMap}
+              prompts={prompts}
               promptTemplates={promptTemplates}
+              autoflowDraftLoopCount={autoflowDraftLoopCount}
+              setAutoflowDraftLoopCount={setAutoflowDraftLoopCount}
               autoflowContinueOnFailure={autoflowContinueOnFailure}
               setAutoflowContinueOnFailure={setAutoflowContinueOnFailure}
               autoflowItems={autoflowItems}
