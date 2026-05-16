@@ -3,6 +3,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { motion } from 'framer-motion';
 import {
   LayoutDashboard,
   Terminal,
@@ -71,6 +72,8 @@ const ICON_MAP: Record<string, LucideIcon> = {
   'env-vars': KeyRound,
 };
 
+const MotionLink = motion.create(Link);
+
 export default React.memo(function QuickAccessBar() {
   const pathname = usePathname();
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -98,21 +101,27 @@ export default React.memo(function QuickAccessBar() {
         className="flex items-center gap-1 px-3 lg:px-5 overflow-x-auto scrollbar-none h-full"
       >
         {items.length === 0 ? (
-          <Link
+          <MotionLink
             href="/settings"
-            className="flex items-center gap-1.5 px-3 h-11 rounded-full text-xs text-muted-foreground hover:text-foreground hover:bg-accent transition-all whitespace-nowrap sm:h-8"
+            whileHover={{ scale: 1.01 }}
+            whileTap={{ scale: 0.99 }}
+            transition={{ type: 'spring', stiffness: 250, damping: 18 }}
+            className="flex items-center gap-1.5 px-3 h-11 rounded-full text-xs text-muted-foreground hover:text-foreground hover:bg-accent transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background whitespace-nowrap sm:h-8"
           >
             <Settings className="w-3.5 h-3.5 shrink-0" />
             <span>Pin modules in Settings →</span>
-          </Link>
+          </MotionLink>
         ) : (
           items.map((item) => {
             const Icon = ICON_MAP[item.id] ?? LayoutDashboard;
             const isActive = pathname === item.href;
             return (
-              <Link
+              <MotionLink
                 key={item.id}
                 href={item.href}
+                whileHover={{ scale: 1.01 }}
+                whileTap={{ scale: 0.99 }}
+                transition={{ type: 'spring', stiffness: 250, damping: 18 }}
                 className={cn(
                   'flex items-center gap-1.5 px-3 h-11 rounded-full text-xs font-medium transition-all duration-200 whitespace-nowrap shrink-0 min-w-[44px] justify-center sm:h-8',
                   'hover:scale-[1.04] active:scale-[0.97]',
@@ -120,11 +129,13 @@ export default React.memo(function QuickAccessBar() {
                     ? 'bg-primary text-primary-foreground shadow-sm shadow-primary/30'
                     : 'text-muted-foreground hover:text-foreground hover:bg-accent'
                 )}
+                aria-current={isActive ? 'page' : undefined}
+                aria-label={item.label}
                 title={item.label}
               >
                 <Icon className="w-3.5 h-3.5 shrink-0" />
                 <span className="hidden sm:inline">{item.label}</span>
-              </Link>
+              </MotionLink>
             );
           })
         )}
