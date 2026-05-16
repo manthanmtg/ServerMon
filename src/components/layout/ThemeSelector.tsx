@@ -61,6 +61,7 @@ export default function ThemeSelector() {
       {isOpen && (
         <div
           role="listbox"
+          aria-label="Available themes"
           className="absolute right-0 mt-2 w-56 p-1.5 z-50 rounded-2xl border border-white/5 bg-popover/80 backdrop-blur-xl shadow-2xl animate-in fade-in zoom-in-95 duration-200"
         >
           <div className="px-2.5 py-2 mb-1 border-b border-border/30">

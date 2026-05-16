@@ -38,6 +38,12 @@ describe('ThemeSelector', () => {
     expect(screen.getByText('Interface Theme')).toBeDefined();
   });
 
+  it('names the theme options listbox for assistive technology', () => {
+    render(<ThemeSelector />);
+    fireEvent.click(screen.getByRole('button'));
+    expect(screen.getByRole('listbox', { name: 'Available themes' })).toBeDefined();
+  });
+
   it('shows all available themes in dropdown', () => {
     render(<ThemeSelector />);
     fireEvent.click(screen.getByRole('button'));
