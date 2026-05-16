@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { memo, useState } from 'react';
 import { Trash2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -44,7 +44,7 @@ function DatasetTabs({
   );
 }
 
-export function AssetManager({ images, volumes, networks, onDelete }: AssetManagerProps) {
+export const AssetManager = memo(function AssetManager({ images, volumes, networks, onDelete }: AssetManagerProps) {
   const [activeTab, setActiveTab] = useState<DataTab>('images');
 
   return (
@@ -184,4 +184,4 @@ export function AssetManager({ images, volumes, networks, onDelete }: AssetManag
       </CardContent>
     </Card>
   );
-}
+});
