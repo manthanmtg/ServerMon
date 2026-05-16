@@ -11,6 +11,7 @@ import {
   Lock,
   LockOpen,
 } from 'lucide-react';
+import { AnimatePresence, motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { cn, relativeTime } from '@/lib/utils';
 import { MethodBadge } from './common/MethodBadge';
@@ -63,6 +64,12 @@ export function EndpointList({
   onToggle,
   isResizing,
 }: EndpointListProps) {
+  const endpointRowVariants = {
+    hidden: { opacity: 0, y: 8, scale: 0.995 },
+    show: { opacity: 1, y: 0, scale: 1 },
+    exit: { opacity: 0, y: -4, scale: 0.995 },
+  };
+
   return (
     <div
       className={cn(
@@ -235,113 +242,128 @@ export function EndpointList({
         {endpoints.length === 0 && !loading ? (
           <EmptyState onCreateNew={onCreate} onFromTemplate={onShowTemplates} />
         ) : (
-          endpoints.map((ep) => (
-            <div
-              key={ep._id}
-              data-testid="endpoint-list-item"
-              role="button"
-              tabIndex={0}
-              onClick={() => onSelect(ep)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  onSelect(ep);
-                }
-              }}
-              className={cn(
-                'w-full text-left p-4 rounded-2xl border transition-all group relative overflow-hidden cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-primary',
-                selectedId === ep._id
-                  ? 'bg-primary/5 border-primary/30 shadow-md ring-1 ring-primary/20'
-                  : 'bg-card/50 border-border/40 hover:bg-accent/30 hover:border-border hover:shadow-sm'
-              )}
-            >
-              {selectedId === ep._id && (
-                <div className="absolute left-0 top-0 bottom-0 w-1 bg-primary animate-in slide-in-from-left-full duration-300" />
-              )}
-              <div className="flex items-center gap-3 mb-2">
-                <MethodBadge method={ep.method} />
-                <span className="text-sm font-bold text-foreground truncate flex-1 group-hover:text-primary transition-colors">
-                  {ep.name}
-                </span>
-                {ep.auth === 'token' ? (
-                  <span title="Protected: Requires Bearer Token">
-                    <Lock className="w-3.5 h-3.5 text-success/80 shrink-0 drop-shadow-[0_0_8px_rgba(var(--success-rgb),0.4)]" />
-                  </span>
-                ) : (
-                  <span title="Public: Accessible without authentication">
-                    <LockOpen className="w-3.5 h-3.5 text-destructive/70 shrink-0 drop-shadow-[0_0_8px_rgba(var(--destructive-rgb),0.3)]" />
-                  </span>
+          <AnimatePresence initial={false}>
+            {endpoints.map((ep, index) => (
+              <motion.div
+                key={ep._id}
+                data-testid="endpoint-list-item"
+                layout
+                variants={endpointRowVariants}
+                initial="hidden"
+                animate="show"
+                exit="exit"
+                transition={{
+                  delay: index * 0.03,
+                  type: 'spring',
+                  stiffness: 500,
+                  damping: 30,
+                }}
+                whileHover={{ y: -1 }}
+                whileTap={{ scale: 0.997 }}
+                onClick={() => onSelect(ep)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    onSelect(ep);
+                  }
+                }}
+                role="button"
+                tabIndex={0}
+                className={cn(
+                  'w-full text-left p-4 rounded-2xl border transition-all group relative overflow-hidden cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-primary/70 focus-visible:ring-offset-2',
+                  selectedId === ep._id
+                    ? 'bg-primary/5 border-primary/30 shadow-md ring-1 ring-primary/20'
+                    : 'bg-card/50 border-border/40 hover:bg-accent/30 hover:border-border hover:shadow-sm'
                 )}
-                <span
-                  role="button"
-                  tabIndex={0}
-                  data-testid="endpoint-toggle"
-                  aria-label={`${ep.enabled ? 'Disable' : 'Enable'} ${ep.name}`}
-                  aria-pressed={ep.enabled}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onToggle(ep._id);
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      onToggle(ep._id);
-                    }
-                  }}
-                  title={ep.enabled ? 'Disable' : 'Enable'}
-                  className={cn(
-                    'w-2 h-2 rounded-full shrink-0 cursor-pointer ring-4 ring-transparent hover:ring-muted/50 transition-all',
-                    ep.enabled
-                      ? 'bg-success shadow-[0_0_10px_rgba(var(--success-rgb),0.5)]'
-                      : 'bg-muted-foreground/40'
-                  )}
-                />
-              </div>
-              <div className="flex items-center gap-2 text-[11px] text-muted-foreground/70">
-                <code className="truncate flex-1 font-mono bg-muted/30 px-1.5 py-0.5 rounded leading-none">
-                  /api/endpoints/{ep.slug}
-                </code>
-              </div>
-              <div className="flex items-center gap-3 text-[11px] text-muted-foreground/70 mt-2">
-                <div className="flex items-center gap-2 shrink-0">
-                  <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-lg bg-background/50 border border-border/40 font-bold uppercase tracking-tighter text-[9px] text-muted-foreground/80">
-                    {ep.endpointType === 'script' ? (
-                      <div className="flex items-center gap-1">
-                        <Terminal className="w-2.5 h-2.5 text-primary/60" />
-                        <span>{ep.scriptLang}</span>
-                      </div>
-                    ) : ep.endpointType === 'logic' ? (
-                      <div className="flex items-center gap-1">
-                        <Braces className="w-2.5 h-2.5 text-success/60" />
-                        <span>Logic</span>
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-1">
-                        <Globe className="w-2.5 h-2.5 text-warning/60" />
-                        <span>Webhook</span>
-                      </div>
-                    )}
-                  </div>
-                  <span className="font-medium">{ep.executionCount.toLocaleString()} hits</span>
-                </div>
-              </div>
-              {ep.lastExecutedAt && (
-                <div className="text-[10px] text-muted-foreground/50 mt-2 flex items-center justify-between border-t border-border/20 pt-2">
-                  <span>Last run {relativeTime(ep.lastExecutedAt)}</span>
-                  {ep.lastStatus && (
-                    <span
-                      className={cn(
-                        'font-mono font-bold',
-                        ep.lastStatus < 400 ? 'text-success/80' : 'text-destructive/80'
-                      )}
-                    >
-                      {ep.lastStatus}
+              >
+                {selectedId === ep._id && (
+                  <div className="absolute left-0 top-0 bottom-0 w-1 bg-primary animate-in slide-in-from-left-full duration-300" />
+                )}
+                <div className="flex items-center gap-3 mb-2">
+                  <MethodBadge method={ep.method} />
+                  <span className="text-sm font-bold text-foreground truncate flex-1 group-hover:text-primary transition-colors">
+                    {ep.name}
+                  </span>
+                  {ep.auth === 'token' ? (
+                    <span title="Protected: Requires Bearer Token">
+                      <Lock className="w-3.5 h-3.5 text-success/80 shrink-0 drop-shadow-[0_0_8px_rgba(var(--success-rgb),0.4)]" />
+                    </span>
+                  ) : (
+                    <span title="Public: Accessible without authentication">
+                      <LockOpen className="w-3.5 h-3.5 text-destructive/70 shrink-0 drop-shadow-[0_0_8px_rgba(var(--destructive-rgb),0.3)]" />
                     </span>
                   )}
+                  <span
+                    role="button"
+                    tabIndex={0}
+                    data-testid="endpoint-toggle"
+                    aria-label={`${ep.enabled ? 'Disable' : 'Enable'} ${ep.name}`}
+                    aria-pressed={ep.enabled}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onToggle(ep._id);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        onToggle(ep._id);
+                      }
+                    }}
+                    title={ep.enabled ? 'Disable' : 'Enable'}
+                    className={cn(
+                      'w-2 h-2 rounded-full shrink-0 cursor-pointer ring-4 ring-transparent hover:ring-muted/50 transition-all',
+                      ep.enabled
+                        ? 'bg-success shadow-[0_0_10px_rgba(var(--success-rgb),0.5)]'
+                        : 'bg-muted-foreground/40'
+                    )}
+                  />
                 </div>
-              )}
-            </div>
-          ))
+                <div className="flex items-center gap-2 text-[11px] text-muted-foreground/70">
+                  <code className="truncate flex-1 font-mono bg-muted/30 px-1.5 py-0.5 rounded leading-none">
+                    /api/endpoints/{ep.slug}
+                  </code>
+                </div>
+                <div className="flex items-center gap-3 text-[11px] text-muted-foreground/70 mt-2">
+                  <div className="flex items-center gap-2 shrink-0">
+                    <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-lg bg-background/50 border border-border/40 font-bold uppercase tracking-tighter text-[9px] text-muted-foreground/80">
+                      {ep.endpointType === 'script' ? (
+                        <div className="flex items-center gap-1">
+                          <Terminal className="w-2.5 h-2.5 text-primary/60" />
+                          <span>{ep.scriptLang}</span>
+                        </div>
+                      ) : ep.endpointType === 'logic' ? (
+                        <div className="flex items-center gap-1">
+                          <Braces className="w-2.5 h-2.5 text-success/60" />
+                          <span>Logic</span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-1">
+                          <Globe className="w-2.5 h-2.5 text-warning/60" />
+                          <span>Webhook</span>
+                        </div>
+                      )}
+                    </div>
+                    <span className="font-medium">{ep.executionCount.toLocaleString()} hits</span>
+                  </div>
+                </div>
+                {ep.lastExecutedAt && (
+                  <div className="text-[10px] text-muted-foreground/50 mt-2 flex items-center justify-between border-t border-border/20 pt-2">
+                    <span>Last run {relativeTime(ep.lastExecutedAt)}</span>
+                    {ep.lastStatus && (
+                      <span
+                        className={cn(
+                          'font-mono font-bold',
+                          ep.lastStatus < 400 ? 'text-success/80' : 'text-destructive/80'
+                        )}
+                      >
+                        {ep.lastStatus}
+                      </span>
+                    )}
+                  </div>
+                )}
+              </motion.div>
+            ))}
+          </AnimatePresence>
         )}
       </div>
 
