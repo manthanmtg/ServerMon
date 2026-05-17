@@ -1,16 +1,28 @@
-import type { Model } from 'mongoose';
-import type { IResourcePolicy } from '@/models/ResourcePolicy';
-import type { IFleetLogEvent } from '@/models/FleetLogEvent';
-import type { LimitKey, Enforcement, EffectivePolicy } from './resourceGuards';
+import type { IFleetLogEventDTO } from '@/models/FleetLogEvent';
+import type {
+  LimitKey,
+  Enforcement,
+  EffectivePolicy,
+  ResourcePolicyReader,
+} from './resourceGuards';
 import { checkLimit, getEffectivePolicy } from './resourceGuards';
+
+type ResourceGuardLogEvent = Pick<
+  IFleetLogEventDTO,
+  'service' | 'level' | 'eventType' | 'message' | 'actorUserId' | 'metadata'
+>;
+
+export interface FleetLogEventWriter {
+  create(event: ResourceGuardLogEvent): PromiseLike<unknown>;
+}
 
 export interface ResourceGuardCheckInput {
   key: LimitKey;
   scope: 'global' | 'node' | 'tag' | 'role';
   scopeId?: string;
   currentCounter: () => Promise<number>;
-  ResourcePolicy: Model<IResourcePolicy>;
-  FleetLogEvent?: Model<IFleetLogEvent>;
+  ResourcePolicy: ResourcePolicyReader;
+  FleetLogEvent?: FleetLogEventWriter;
   actorUserId?: string;
 }
 

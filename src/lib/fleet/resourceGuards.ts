@@ -1,5 +1,4 @@
-import type { Model } from 'mongoose';
-import type { IResourcePolicy } from '@/models/ResourcePolicy';
+import type { IResourcePolicyDTO } from '@/models/ResourcePolicy';
 
 export type LimitKey =
   | 'maxAgents'
@@ -19,6 +18,12 @@ export type Enforcement = 'soft' | 'hard';
 export interface EffectivePolicy {
   limits: Partial<Record<LimitKey, number>>;
   enforcement: Partial<Record<LimitKey, Enforcement>>;
+}
+
+export interface ResourcePolicyReader {
+  find(filter: Record<string, never>): {
+    lean(): PromiseLike<Array<Partial<IResourcePolicyDTO>>>;
+  };
 }
 
 interface CheckLimitInput {
@@ -66,10 +71,13 @@ export function checkLimit(i: CheckLimitInput): CheckLimitResult {
 interface GetEffectivePolicyInput {
   scope: 'global' | 'node' | 'tag' | 'role';
   scopeId?: string;
-  model: Model<IResourcePolicy>;
+  model: ResourcePolicyReader;
 }
 
-function mergePolicy(base: EffectivePolicy, override: Partial<IResourcePolicy>): EffectivePolicy {
+function mergePolicy(
+  base: EffectivePolicy,
+  override: Partial<IResourcePolicyDTO>
+): EffectivePolicy {
   return {
     limits: { ...base.limits, ...(override.limits ?? {}) },
     enforcement: { ...base.enforcement, ...(override.enforcement ?? {}) },
@@ -78,7 +86,7 @@ function mergePolicy(base: EffectivePolicy, override: Partial<IResourcePolicy>):
 
 export async function getEffectivePolicy(i: GetEffectivePolicyInput): Promise<EffectivePolicy> {
   const query = i.model.find({});
-  const docs = (await query.lean()) as Partial<IResourcePolicy>[];
+  const docs = await query.lean();
 
   let merged: EffectivePolicy = { limits: {}, enforcement: {} };
 
