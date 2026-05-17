@@ -57,6 +57,24 @@ export async function runAIRunnerExecutionWrapper(launchPath: string | undefined
     stdio: ['ignore', 'pipe', 'pipe'],
   }) as ChildProcessByStdio<null, Readable, Readable>;
 
+  let childExitCode: number | null = null;
+  let childSignal: NodeJS.Signals | null = null;
+  let hasExited = false;
+  let exitPromiseResolve: () => void;
+  const exitPromise = new Promise<void>((resolve) => {
+    exitPromiseResolve = resolve;
+  });
+
+  child.on('error', (error: Error) => {
+    void appendWrapperLog(launch.paths, `child error: ${error.message}`);
+  });
+  child.on('close', (exitCode: number | null, signal: NodeJS.Signals | null) => {
+    childExitCode = exitCode;
+    childSignal = signal;
+    hasExited = true;
+    exitPromiseResolve();
+  });
+
   const existingMetadata: Record<string, unknown> = await readFile(
     launch.paths.metadataPath,
     'utf8'
@@ -98,23 +116,16 @@ export async function runAIRunnerExecutionWrapper(launchPath: string | undefined
     combined.write(text);
   });
 
-  const exit = await new Promise<{ exitCode: number | null; signal: NodeJS.Signals | null }>(
-    (resolve) => {
-      child.on('error', (error: Error) => {
-        void appendWrapperLog(launch.paths, `child error: ${error.message}`);
-      });
-      child.on('close', (exitCode: number | null, signal: NodeJS.Signals | null) => {
-        resolve({ exitCode, signal });
-      });
-    }
-  );
+  if (!hasExited) {
+    await exitPromise;
+  }
 
   const finishedAt = new Date();
   const exitPayload: AIRunnerExecutionExitDTO = {
     jobId: launch.jobId,
     runId: launch.runId,
-    exitCode: exit.exitCode,
-    signal: exit.signal,
+    exitCode: childExitCode,
+    signal: childSignal,
     startedAt: startedAt.toISOString(),
     finishedAt: finishedAt.toISOString(),
     durationSeconds: Math.max(0, Math.round((finishedAt.getTime() - startedAt.getTime()) / 1000)),
