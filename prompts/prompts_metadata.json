@@ -90,13 +90,11 @@
       "category": "documentation",
       "enabled": true,
       "autonomousSafe": true,
-      "totalSelected": 23,
+      "totalSelected": 24,
       "totalCompleted": 21,
-      "totalNoop": 2,
+      "totalNoop": 3,
       "totalFailed": 0,
-      "lastSelectedAt": "2026-05-17T13:45:52Z",
-      "lastCompletedAt": "2026-05-17T13:51:20Z",
-      "lastOutcome": "completed"
+      "lastOutcome": "noop"
     },
     "mobile_view_optimizer.md": {
       "id": "mobile-view-optimizer",
@@ -309,6 +307,5 @@
       "lastCompletedAt": "2026-05-17T15:52:30Z",
       "lastOutcome": "completed"
     }
-  },
-  "updatedAt": "2026-05-17T15:52:30Z"
+  }
 }
