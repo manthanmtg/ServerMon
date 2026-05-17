@@ -134,6 +134,15 @@ function isAbortError(err: unknown): boolean {
   );
 }
 
+function isAgentCommand(cmd: unknown): cmd is AgentCommand {
+  if (!cmd || typeof cmd !== 'object') {
+    return false;
+  }
+
+  const candidate = cmd as Record<string, unknown>;
+  return typeof candidate.id === 'string' && typeof candidate.command === 'string';
+}
+
 async function safeJson<T>(res: Response): Promise<T | null> {
   try {
     return (await res.json()) as T;
@@ -554,8 +563,8 @@ export class AgentClient {
     }
   }
 
-  private async handleCommand(cmd: AgentCommand): Promise<void> {
-    if (!cmd || typeof cmd !== 'object' || !cmd.command) {
+  async handleCommand(cmd: unknown): Promise<void> {
+    if (!isAgentCommand(cmd)) {
       this.log('error', 'agent.command.invalid', 'Received invalid command payload');
       return;
     }
