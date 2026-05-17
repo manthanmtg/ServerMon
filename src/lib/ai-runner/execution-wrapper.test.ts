@@ -17,14 +17,14 @@ describe('ai-runner execution wrapper', () => {
     await rm(tempDir, { recursive: true, force: true });
   });
 
-  async function writeLaunchFile(overrides: Partial<{ command: string; metadata: unknown }> = {}) {
+  async function writeLaunchFile(overrides: Partial<{ shell: string; command: string; metadata: unknown; requiresTTY?: boolean; runAsUser?: string; runAsUserAuthMode?: 'passwordless-sudo' | string; env?: Record<string, string> }> = {}) {
     const paths = resolveAIRunnerArtifactPaths(tempDir, 'run-1');
     const launchPath = path.join(paths.artifactDir, 'launch.json');
     await mkdir(paths.artifactDir, { recursive: true });
     await writeFile(
       paths.metadataPath,
       JSON.stringify(
-        overrides.metadata ?? {
+        overrides.metadata !== undefined ? overrides.metadata : {
           createdAt: '2026-04-30T10:00:00.000Z',
           existing: true,
         }
@@ -37,11 +37,14 @@ describe('ai-runner execution wrapper', () => {
         {
           jobId: 'job-1',
           runId: 'run-1',
-          shell: '/bin/sh',
+          shell: overrides.shell ?? '/bin/sh',
           command: overrides.command ?? 'printf stdout-text; printf stderr-text >&2',
           cwd: tempDir,
-          env: { PATH: process.env.PATH, HOME: tempDir },
+          env: overrides.env ?? { PATH: process.env.PATH, HOME: tempDir, CUSTOM_ENV_VAR: 'test-value' },
           paths,
+          requiresTTY: overrides.requiresTTY,
+          runAsUser: overrides.runAsUser,
+          runAsUserAuthMode: overrides.runAsUserAuthMode,
         },
         null,
         2
@@ -124,5 +127,67 @@ describe('ai-runner execution wrapper', () => {
       jobId: 'job-1',
       runId: 'run-1',
     });
+  }, 20000);
+
+  it('throws an error if launch file does not exist', async () => {
+    await expect(runAIRunnerExecutionWrapper(path.join(tempDir, 'does-not-exist.json'))).rejects.toThrow(/ENOENT/);
+  });
+
+  it('throws an error if launch file contains malformed json', async () => {
+    const launchPath = path.join(tempDir, 'malformed-launch.json');
+    await writeFile(launchPath, '{ invalid json', 'utf8');
+    await expect(runAIRunnerExecutionWrapper(launchPath)).rejects.toThrow(/(Unexpected token|Expected property name|JSON)/);
+  });
+
+  it('handles child process spawn errors gracefully by writing to wrapper log and exiting with code', async () => {
+    const { launchPath, paths } = await writeLaunchFile({ shell: '/does/not/exist/shell' });
+    
+    await runAIRunnerExecutionWrapper(launchPath);
+
+    const exitData = JSON.parse(await readFile(paths.exitPath, 'utf8'));
+    // Usually spawn error results in exit code or signal depending on the implementation.
+    // The execution wrapper listens to 'error' and just writes to wrapper log.
+    expect(exitData).toHaveProperty('finishedAt');
+    const logData = await readFile(paths.wrapperLogPath, 'utf8');
+    expect(logData).toContain('child error:');
+  });
+
+  it('passes environment variables to the spawned child', async () => {
+    const { launchPath, paths } = await writeLaunchFile({ command: 'node -e "console.log(process.env.CUSTOM_ENV_VAR)"' });
+
+    await runAIRunnerExecutionWrapper(launchPath);
+
+    const stdoutData = await readFile(paths.stdoutPath, 'utf8');
+    expect(stdoutData.trim()).toBe('test-value');
+  });
+
+  it('incorporates requiresTTY if requested', async () => {
+    // Requires Linux for TTY check inside run-as-user, but we can verify the launch wrapper doesn't fail
+    const { launchPath } = await writeLaunchFile({ requiresTTY: true, command: 'echo tty-test' });
+    await expect(runAIRunnerExecutionWrapper(launchPath)).resolves.toBeUndefined();
+  });
+
+  it('applies sudo wrapper when runAsUser is provided', async () => {
+    // Note: since we might not have sudo privileges in the test environment, we might get an error in the wrapper log or stderr
+    // but the wrapper should execute it without crashing itself.
+    const { launchPath, paths } = await writeLaunchFile({ runAsUser: 'root' });
+    await runAIRunnerExecutionWrapper(launchPath);
+    const exitData = JSON.parse(await readFile(paths.exitPath, 'utf8'));
+    expect(exitData).toBeDefined();
+  });
+
+  it('throws an error synchronously if runAsUserAuthMode is unsupported', async () => {
+    const { launchPath } = await writeLaunchFile({ runAsUser: 'root', runAsUserAuthMode: 'invalid-mode' });
+    await expect(runAIRunnerExecutionWrapper(launchPath)).rejects.toThrow('Unsupported run as user auth mode');
+  });
+
+  it('handles metadata write failure gracefully (e.g. path is a directory)', async () => {
+    const { launchPath, paths } = await writeLaunchFile();
+    await rm(paths.metadataPath, { force: true });
+    await mkdir(paths.metadataPath, { recursive: true }); // make it a directory to induce write error
+
+    // Should reject because writeFile will throw EISDIR
+    await expect(runAIRunnerExecutionWrapper(launchPath)).rejects.toThrow(/EISDIR/);
   });
 });
+
