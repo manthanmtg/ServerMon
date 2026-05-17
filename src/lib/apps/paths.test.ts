@@ -41,6 +41,36 @@ describe('apps path helpers', () => {
     );
   });
 
+  it('rejects release ids with forward slash path separators', () => {
+    expect(() => getReleaseRoot('LifeOS', 'stable/next', '/srv/apps')).toThrow(
+      'Release id must be a safe directory name'
+    );
+  });
+
+  it('rejects release ids with backslash path separators', () => {
+    expect(() => getReleaseRoot('LifeOS', String.raw`stable\next`, '/srv/apps')).toThrow(
+      'Release id must be a safe directory name'
+    );
+  });
+
+  it('rejects release ids with parent directory traversal', () => {
+    expect(() => getReleaseRoot('LifeOS', '../stable', '/srv/apps')).toThrow(
+      'Release id must be a safe directory name'
+    );
+  });
+
+  it('rejects blank release ids', () => {
+    expect(() => getReleaseRoot('LifeOS', '   ', '/srv/apps')).toThrow(
+      'Release id must be a safe directory name'
+    );
+  });
+
+  it('allows release ids with timestamp and semantic separators', () => {
+    expect(getReleaseRoot('LifeOS', '20260517-054555.908_release-7', '/srv/apps')).toBe(
+      '/srv/apps/lifeos/releases/20260517-054555.908_release-7'
+    );
+  });
+
   it('sanitizes app slugs consistently across roots', () => {
     expect(getAppRoot('My_Custom App!', '/srv/apps')).toBe('/srv/apps/my-custom-app');
     expect(getAppRepositoryRoot('My_Custom App!', '/srv/apps')).toBe(
