@@ -57,6 +57,7 @@ export interface DeployNextJsAppOptions {
   healthCheckIntervalMs?: number;
   commandRunner?: CommandRunner;
   healthCheck?: HealthCheck;
+  onProgress?: (entry: string) => void | Promise<void>;
 }
 
 export interface DeployNextJsAppResult {
@@ -156,15 +157,25 @@ async function ensureNginxEnabled(availablePath: string, enabledPath: string): P
   await symlink(availablePath, enabledPath);
 }
 
+async function pushLog(
+  logs: string[],
+  entry: string,
+  onProgress?: (entry: string) => void | Promise<void>
+): Promise<void> {
+  logs.push(entry);
+  await onProgress?.(entry);
+}
+
 async function runOrThrow(
   commandRunner: CommandRunner,
   command: string,
   logs: string[],
-  cwd?: string
+  cwd?: string,
+  onProgress?: (entry: string) => void | Promise<void>
 ): Promise<void> {
-  logs.push(`$ ${command}`);
+  await pushLog(logs, `$ ${command}`, onProgress);
   const result = await commandRunner({ command, cwd });
-  if (result.output.trim()) logs.push(result.output.trim());
+  if (result.output.trim()) await pushLog(logs, result.output.trim(), onProgress);
   if (result.code !== 0) {
     throw new Error(`Command failed: ${command}\n${result.output}`.trim());
   }
@@ -192,26 +203,30 @@ async function runCertbotOrThrow({
   logs,
   retryAttempts,
   retryIntervalMs,
+  onProgress,
 }: {
   commandRunner: CommandRunner;
   command: string;
   logs: string[];
   retryAttempts: number;
   retryIntervalMs: number;
+  onProgress?: (entry: string) => void | Promise<void>;
 }): Promise<void> {
   const attempts = Math.max(1, retryAttempts);
 
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
-    logs.push(`$ ${command}`);
+    await pushLog(logs, `$ ${command}`, onProgress);
     const result = await commandRunner({ command });
-    if (result.output.trim()) logs.push(result.output.trim());
+    if (result.output.trim()) await pushLog(logs, result.output.trim(), onProgress);
     if (result.code === 0) return;
 
     if (attempt < attempts && certbotIsAlreadyRunning(result.output)) {
-      logs.push(
+      await pushLog(
+        logs,
         `Certbot is already running; retrying in ${retryIntervalMs}ms (attempt ${
           attempt + 1
-        }/${attempts})`
+        }/${attempts})`,
+        onProgress
       );
       await sleep(retryIntervalMs);
       continue;
@@ -253,26 +268,32 @@ async function waitForHealthy({
   logs,
   attempts,
   intervalMs,
+  onProgress,
 }: {
   url: string;
   healthCheck: HealthCheck;
   logs: string[];
   attempts: number;
   intervalMs: number;
+  onProgress?: (entry: string) => void | Promise<void>;
 }): Promise<void> {
   let lastFailure = 'Health check failed';
 
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
     const checked = await healthCheck(url);
     if (checked.ok) {
-      logs.push('Health check passed');
+      await pushLog(logs, 'Health check passed', onProgress);
       return;
     }
 
     lastFailure =
       checked.error || `Health check failed${checked.status ? ` with ${checked.status}` : ''}`;
     if (attempt < attempts) {
-      logs.push(`Health check attempt ${attempt}/${attempts} failed: ${lastFailure}`);
+      await pushLog(
+        logs,
+        `Health check attempt ${attempt}/${attempts} failed: ${lastFailure}`,
+        onProgress
+      );
       await sleep(intervalMs);
     }
   }
@@ -295,6 +316,7 @@ export async function deployNextJsApp({
   healthCheckIntervalMs = 2_000,
   commandRunner = defaultCommandRunner,
   healthCheck = defaultHealthCheck,
+  onProgress,
 }: DeployNextJsAppOptions): Promise<DeployNextJsAppResult> {
   const logs: string[] = [];
   const appRoot = getAppRoot(app.slug, appsRoot);
@@ -306,7 +328,7 @@ export async function deployNextJsApp({
   let serviceRestarted = false;
 
   try {
-    logs.push(`Creating release ${releaseId}`);
+    await pushLog(logs, `Creating release ${releaseId}`, onProgress);
     await mkdir(sourceRoot, { recursive: true });
     await cp(app.sourcePath, sourceRoot, {
       recursive: true,
@@ -334,8 +356,8 @@ export async function deployNextJsApp({
       'utf8'
     );
 
-    await runOrThrow(commandRunner, app.commands.install, logs, sourceRoot);
-    await runOrThrow(commandRunner, app.commands.build, logs, sourceRoot);
+    await runOrThrow(commandRunner, app.commands.install, logs, sourceRoot, onProgress);
+    await runOrThrow(commandRunner, app.commands.build, logs, sourceRoot, onProgress);
 
     await mkdir(systemdDir, { recursive: true });
     await mkdir(nginxAvailableDir, { recursive: true });
@@ -354,9 +376,15 @@ export async function deployNextJsApp({
     );
 
     await replaceSymlink(currentPath, releaseRoot);
-    await runOrThrow(commandRunner, 'systemctl daemon-reload', logs);
-    await runOrThrow(commandRunner, `systemctl enable ${serviceName}`, logs);
-    await runOrThrow(commandRunner, `systemctl restart ${serviceName}`, logs);
+    await runOrThrow(commandRunner, 'systemctl daemon-reload', logs, undefined, onProgress);
+    await runOrThrow(commandRunner, `systemctl enable ${serviceName}`, logs, undefined, onProgress);
+    await runOrThrow(
+      commandRunner,
+      `systemctl restart ${serviceName}`,
+      logs,
+      undefined,
+      onProgress
+    );
     serviceRestarted = true;
 
     await waitForHealthy({
@@ -365,6 +393,7 @@ export async function deployNextJsApp({
       logs,
       attempts: healthCheckAttempts,
       intervalMs: healthCheckIntervalMs,
+      onProgress,
     });
 
     const nginxAvailablePath = path.join(nginxAvailableDir, app.domain);
@@ -382,12 +411,16 @@ export async function deployNextJsApp({
       'utf8'
     );
     await ensureNginxEnabled(nginxAvailablePath, nginxEnabledPath);
-    await runOrThrow(commandRunner, 'nginx -t', logs);
-    await runOrThrow(commandRunner, 'nginx -s reload', logs);
+    await runOrThrow(commandRunner, 'nginx -t', logs, undefined, onProgress);
+    await runOrThrow(commandRunner, 'nginx -s reload', logs, undefined, onProgress);
 
     if (app.tlsEnabled) {
       if (existingTlsCertificate) {
-        logs.push(`Existing TLS certificate found for ${app.domain}; skipping certbot`);
+        await pushLog(
+          logs,
+          `Existing TLS certificate found for ${app.domain}; skipping certbot`,
+          onProgress
+        );
       } else {
         await runCertbotOrThrow({
           commandRunner,
@@ -395,9 +428,10 @@ export async function deployNextJsApp({
           logs,
           retryAttempts: certbotRetryAttempts,
           retryIntervalMs: certbotRetryIntervalMs,
+          onProgress,
         });
-        await runOrThrow(commandRunner, 'nginx -t', logs);
-        await runOrThrow(commandRunner, 'nginx -s reload', logs);
+        await runOrThrow(commandRunner, 'nginx -t', logs, undefined, onProgress);
+        await runOrThrow(commandRunner, 'nginx -s reload', logs, undefined, onProgress);
       }
     }
 
@@ -409,15 +443,17 @@ export async function deployNextJsApp({
         const rollbackRestart = await commandRunner({
           command: `systemctl restart ${serviceName}`,
         });
-        logs.push(`$ systemctl restart ${serviceName}`);
-        if (rollbackRestart.output.trim()) logs.push(rollbackRestart.output.trim());
+        await pushLog(logs, `$ systemctl restart ${serviceName}`, onProgress);
+        if (rollbackRestart.output.trim()) {
+          await pushLog(logs, rollbackRestart.output.trim(), onProgress);
+        }
       }
     } else {
       await unlink(currentPath).catch(() => undefined);
     }
 
     const message = error instanceof Error ? error.message : 'Deployment failed';
-    logs.push(`ERROR: ${message}`);
+    await pushLog(logs, `ERROR: ${message}`, onProgress);
     return { releaseId, status: 'failed', logs, error: message };
   }
 }

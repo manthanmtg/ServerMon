@@ -2,6 +2,7 @@ import mongoose, { Document, Model, Schema } from 'mongoose';
 import type {
   AppAutoUpdateStatus,
   AppCommands,
+  AppOperation,
   AppRelease,
   AppSourceType,
   AppTemplateId,
@@ -36,6 +37,12 @@ export interface IManagedApp extends Document {
   tlsEnabled: boolean;
   status: ManagedAppStatus;
   currentReleaseId?: string;
+  operations: Array<
+    Omit<AppOperation, 'startedAt' | 'completedAt'> & {
+      startedAt: Date;
+      completedAt?: Date;
+    }
+  >;
   releases: Array<
     Omit<AppRelease, 'createdAt' | 'activatedAt'> & {
       createdAt: Date;
@@ -78,6 +85,31 @@ const AutoUpdateSchema = new Schema(
   { _id: false }
 );
 
+const OperationSchema = new Schema(
+  {
+    id: { type: String, required: true },
+    type: {
+      type: String,
+      enum: ['deploy', 'update', 'rollback', 'delete'],
+      required: true,
+    },
+    status: {
+      type: String,
+      enum: ['running', 'succeeded', 'failed', 'unchanged'],
+      required: true,
+    },
+    title: { type: String, required: true },
+    step: { type: String, required: true },
+    startedAt: { type: Date, required: true },
+    completedAt: { type: Date },
+    releaseId: { type: String },
+    commitSha: { type: String },
+    error: { type: String },
+    logs: { type: [String], default: [] },
+  },
+  { _id: false }
+);
+
 const ManagedAppSchema = new Schema<IManagedApp>(
   {
     name: { type: String, required: true, trim: true },
@@ -112,6 +144,7 @@ const ManagedAppSchema = new Schema<IManagedApp>(
     },
     currentReleaseId: { type: String },
     releases: { type: [ReleaseSchema], default: [] },
+    operations: { type: [OperationSchema], default: [] },
     lastDeployedAt: { type: Date },
   },
   { timestamps: true }

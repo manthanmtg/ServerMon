@@ -1,4 +1,7 @@
 /** @vitest-environment node */
+import { mkdir, mkdtemp, readlink, rm, symlink } from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { mockFindById, mockDeployNextJsApp, mockPrepareGitSourceForDeploy } = vi.hoisted(() => ({
@@ -24,7 +27,7 @@ vi.mock('./git', async () => {
   };
 });
 
-import { deployManagedApp, updateManagedGitApp } from './service';
+import { deployManagedApp, rollbackManagedApp, updateManagedGitApp } from './service';
 
 describe('updateManagedGitApp', () => {
   beforeEach(() => {
@@ -189,5 +192,96 @@ describe('deployManagedApp', () => {
     );
     expect(app.gitCurrentSha).toBe('new-sha');
     expect(app.currentReleaseId).toBe('new-release');
+  });
+});
+
+describe('rollbackManagedApp', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('switches current to an earlier release, restarts the service, and records an operation', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'servermon-rollback-'));
+    vi.stubEnv('SERVERMON_APPS_ROOT', root);
+    try {
+      const oldRelease = path.join(root, 'git-portal', 'releases', 'old-release');
+      const newRelease = path.join(root, 'git-portal', 'releases', 'new-release');
+      await mkdir(path.join(oldRelease, 'source'), { recursive: true });
+      await mkdir(path.join(newRelease, 'source'), { recursive: true });
+      await symlink(newRelease, path.join(root, 'git-portal', 'current'));
+
+      const save = vi.fn(() => Promise.resolve());
+      const app = {
+        _id: { toString: () => 'app-1' },
+        id: 'app-1',
+        name: 'Git Portal',
+        slug: 'git-portal',
+        templateId: 'nextjs',
+        sourceType: 'git',
+        gitUrl: 'https://github.com/acme/git-portal.git',
+        gitBranch: 'main',
+        autoUpdate: {
+          enabled: true,
+          intervalMinutes: 60,
+        },
+        domain: 'git.example.com',
+        port: 3010,
+        commands: {
+          install: 'pnpm install --frozen-lockfile',
+          build: 'pnpm build',
+          start: 'pnpm start',
+        },
+        envVars: new Map(),
+        healthCheckPath: '/',
+        tlsEnabled: false,
+        status: 'running',
+        currentReleaseId: 'new-release',
+        releases: [
+          {
+            id: 'old-release',
+            status: 'superseded',
+            createdAt: new Date('2026-05-07T00:00:00.000Z'),
+            activatedAt: new Date('2026-05-07T00:01:00.000Z'),
+            logs: ['old release ok'],
+          },
+          {
+            id: 'new-release',
+            status: 'active',
+            createdAt: new Date('2026-05-07T01:00:00.000Z'),
+            activatedAt: new Date('2026-05-07T01:01:00.000Z'),
+            logs: ['new release ok'],
+          },
+        ],
+        operations: [],
+        save,
+      };
+      const commands: string[] = [];
+      mockFindById.mockResolvedValue(app);
+
+      const result = await rollbackManagedApp('app-1', 'old-release', {
+        commandRunner: async ({ command }) => {
+          commands.push(command);
+          return { code: 0, output: 'ok' };
+        },
+        healthCheck: async (url) => ({ ok: url === 'http://127.0.0.1:3010/' }),
+      });
+
+      expect(result.status).toBe('active');
+      expect(app.currentReleaseId).toBe('old-release');
+      expect(app.releases).toEqual([
+        expect.objectContaining({ id: 'old-release', status: 'active' }),
+        expect.objectContaining({ id: 'new-release', status: 'superseded' }),
+      ]);
+      expect(app.operations.at(-1)).toMatchObject({
+        type: 'rollback',
+        status: 'succeeded',
+        releaseId: 'old-release',
+      });
+      expect(commands).toEqual(['systemctl restart servermon-app-git-portal.service']);
+      await expect(readlink(path.join(root, 'git-portal', 'current'))).resolves.toBe(oldRelease);
+    } finally {
+      vi.unstubAllEnvs();
+      await rm(root, { recursive: true, force: true });
+    }
   });
 });

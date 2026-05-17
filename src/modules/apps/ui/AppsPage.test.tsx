@@ -317,6 +317,114 @@ describe('AppsPage', () => {
     expect(screen.getByRole('button', { name: /update/i })).toBeTruthy();
   });
 
+  it('shows app runtime, operation progress, and opens runtime logs', async () => {
+    global.fetch = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          apps: [
+            {
+              id: 'app-1',
+              name: 'Git Portal',
+              slug: 'git-portal',
+              templateId: 'nextjs',
+              sourceType: 'git',
+              git: {
+                url: 'https://github.com/acme/git-portal.git',
+                branch: 'main',
+                currentSha: 'abcdef123456',
+                autoUpdate: {
+                  enabled: true,
+                  intervalMinutes: 60,
+                },
+              },
+              domain: 'git.example.com',
+              port: 3010,
+              commands: {
+                install: 'pnpm install --frozen-lockfile',
+                build: 'pnpm build',
+                start: 'pnpm start',
+              },
+              envVars: {},
+              healthCheckPath: '/',
+              tlsEnabled: false,
+              status: 'running',
+              currentReleaseId: 'release-1',
+              runtime: {
+                available: true,
+                serviceName: 'servermon-app-git-portal.service',
+                activeState: 'active',
+                subState: 'running',
+                mainPid: 4242,
+                cpuPercent: 2.5,
+                memoryBytes: 134217728,
+                memoryPercent: 1.25,
+                uptimeSeconds: 120,
+                restartCount: 1,
+                checkedAt: '2026-05-06T12:02:01.000Z',
+              },
+              operations: [
+                {
+                  id: 'op-1',
+                  type: 'update',
+                  status: 'running',
+                  title: 'Manual update',
+                  step: 'Running pnpm build',
+                  startedAt: '2026-05-06T12:00:00.000Z',
+                  logs: ['$ git fetch origin main', '$ pnpm build'],
+                },
+              ],
+              releases: [
+                {
+                  id: 'release-1',
+                  status: 'active',
+                  createdAt: '2026-05-06T12:00:00.000Z',
+                  activatedAt: '2026-05-06T12:01:00.000Z',
+                  logs: ['Health check passed'],
+                },
+              ],
+            },
+          ],
+        }),
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          logs: [
+            {
+              timestamp: '2026-05-06T12:00:00.000Z',
+              priority: 'info',
+              message: 'server started',
+              unit: 'servermon-app-git-portal.service',
+            },
+          ],
+        }),
+      } as Response);
+
+    render(<AppsPage />);
+    await screen.findByText('Git Portal');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Expand Git Portal' }));
+
+    expect(screen.getByText('Runtime')).toBeTruthy();
+    expect(screen.getByText('PID 4242')).toBeTruthy();
+    expect(screen.getByText('2.5% CPU')).toBeTruthy();
+    expect(screen.getByText('128 MB memory')).toBeTruthy();
+    expect(screen.getByText('Manual update')).toBeTruthy();
+    expect(screen.getByText('Running pnpm build')).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Runtime logs for Git Portal' }));
+
+    const dialog = await screen.findByRole('dialog', { name: 'Runtime logs' });
+    expect(within(dialog).getByText('server started')).toBeTruthy();
+    expect(global.fetch).toHaveBeenNthCalledWith(
+      2,
+      '/api/modules/apps/app-1/logs?lines=200',
+      expect.objectContaining({ cache: 'no-store' })
+    );
+  });
+
   it('opens a clean deployment history modal with passed and failed releases', async () => {
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,
@@ -376,6 +484,81 @@ describe('AppsPage', () => {
     expect(within(dialog).getByText('Failed')).toBeTruthy();
     expect(within(dialog).getByText('Command failed: pnpm build')).toBeTruthy();
     expect(within(dialog).getByText('build failed')).toBeTruthy();
+  });
+
+  it('rolls back to a selected release from deployment history', async () => {
+    global.fetch = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          apps: [
+            {
+              id: 'app-1',
+              name: 'Inventory Portal',
+              slug: 'inventory-portal',
+              templateId: 'nextjs',
+              sourceType: 'local',
+              sourcePath: '/srv/apps/inventory-portal',
+              domain: 'inventory.example.com',
+              port: 3010,
+              commands: {
+                install: 'pnpm install --frozen-lockfile',
+                build: 'pnpm build',
+                start: 'pnpm start',
+              },
+              envVars: {},
+              healthCheckPath: '/',
+              tlsEnabled: false,
+              status: 'running',
+              currentReleaseId: 'release-new',
+              releases: [
+                {
+                  id: 'release-old',
+                  status: 'superseded',
+                  createdAt: '2026-05-07T00:00:00.000Z',
+                  activatedAt: '2026-05-07T00:01:00.000Z',
+                  logs: ['old ok'],
+                },
+                {
+                  id: 'release-new',
+                  status: 'active',
+                  createdAt: '2026-05-07T01:00:00.000Z',
+                  activatedAt: '2026-05-07T01:01:00.000Z',
+                  logs: ['new ok'],
+                },
+              ],
+            },
+          ],
+        }),
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ rollback: { releaseId: 'release-old', status: 'active', logs: [] } }),
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ apps: [] }),
+      } as Response);
+
+    render(<AppsPage />);
+    await screen.findByText('Inventory Portal');
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Deployment history for Inventory Portal' })
+    );
+    const dialog = screen.getByRole('dialog', { name: 'Deployment history' });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Rollback to release-old' }));
+
+    await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(3));
+    expect(global.fetch).toHaveBeenNthCalledWith(
+      2,
+      '/api/modules/apps/app-1/rollback',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ releaseId: 'release-old' }),
+      })
+    );
   });
 
   it('edits an existing app and saves updated commands', async () => {

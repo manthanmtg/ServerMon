@@ -2,6 +2,7 @@
 
 import { FormEvent, type ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  Activity,
   Boxes,
   ChevronDown,
   ChevronUp,
@@ -14,12 +15,14 @@ import {
   GitBranch,
   Globe2,
   History,
+  FileText,
   LoaderCircle,
   Lock,
   Pencil,
   Play,
   Plus,
   RefreshCw,
+  RotateCcw,
   Rocket,
   Server,
   Trash2,
@@ -30,7 +33,14 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import ConfirmationModal from '@/components/ui/ConfirmationModal';
-import type { AppRelease, AppSourceType, AppTemplateId, ManagedAppDTO } from '../types';
+import type {
+  AppLogEntry,
+  AppOperation,
+  AppRelease,
+  AppSourceType,
+  AppTemplateId,
+  ManagedAppDTO,
+} from '../types';
 import { readManagedAppsList } from './appPayload';
 
 interface FormState {
@@ -210,6 +220,37 @@ function formatHistoryDate(value?: string) {
   return new Date(value).toLocaleString();
 }
 
+function formatBytes(bytes?: number) {
+  if (!bytes || bytes <= 0) return '0 B';
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  let value = bytes;
+  let unitIndex = 0;
+  while (value >= 1024 && unitIndex < units.length - 1) {
+    value /= 1024;
+    unitIndex += 1;
+  }
+  const precision = value >= 10 || unitIndex === 0 ? 0 : 1;
+  return `${value.toFixed(precision)} ${units[unitIndex]}`;
+}
+
+function formatUptime(seconds?: number) {
+  if (!seconds || seconds <= 0) return 'Not running';
+  if (seconds < 60) return `${seconds}s`;
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ${minutes % 60}m`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ${hours % 24}h`;
+}
+
+function operationStatusBadge(operation: AppOperation) {
+  if (operation.status === 'running') return <Badge variant="warning">Running</Badge>;
+  if (operation.status === 'failed') return <Badge variant="destructive">Failed</Badge>;
+  if (operation.status === 'unchanged') return <Badge variant="secondary">Unchanged</Badge>;
+  return <Badge variant="success">Succeeded</Badge>;
+}
+
 function fieldClassName() {
   return 'min-h-[44px] w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-ring focus:ring-2 focus:ring-ring/20';
 }
@@ -248,8 +289,13 @@ export default function AppsPage() {
   const [deployingId, setDeployingId] = useState<string | null>(null);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [rollbackTarget, setRollbackTarget] = useState<string | null>(null);
   const [deleteCandidate, setDeleteCandidate] = useState<ManagedAppDTO | null>(null);
   const [historyApp, setHistoryApp] = useState<ManagedAppDTO | null>(null);
+  const [runtimeLogsApp, setRuntimeLogsApp] = useState<ManagedAppDTO | null>(null);
+  const [runtimeLogs, setRuntimeLogs] = useState<AppLogEntry[]>([]);
+  const [runtimeLogsLoading, setRuntimeLogsLoading] = useState(false);
+  const [runtimeLogsError, setRuntimeLogsError] = useState<string | null>(null);
   const [editingApp, setEditingApp] = useState<ManagedAppDTO | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -277,6 +323,15 @@ export default function AppsPage() {
   }, [load]);
 
   const summary = useMemo(() => deriveAppsPageSummary(apps), [apps]);
+  const activeOperations = useMemo(
+    () =>
+      apps.reduce(
+        (count, app) =>
+          count + app.operations.filter((operation) => operation.status === 'running').length,
+        0
+      ),
+    [apps]
+  );
 
   const updateForm = <K extends keyof FormState>(key: K, value: FormState[K]) => {
     setForm((current) => ({ ...current, [key]: value }));
@@ -415,6 +470,48 @@ export default function AppsPage() {
     }
   };
 
+  const rollbackApp = async (appId: string, releaseId: string) => {
+    const token = `${appId}:${releaseId}`;
+    setRollbackTarget(token);
+    setError(null);
+    try {
+      const response = await resilientFetch(`/api/modules/apps/${appId}/rollback`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ releaseId }),
+        timeout: 60000,
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || data.rollback?.error || 'Rollback failed');
+      await load();
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Rollback failed');
+      await load();
+    } finally {
+      setRollbackTarget(null);
+    }
+  };
+
+  const openRuntimeLogs = async (app: ManagedAppDTO) => {
+    setRuntimeLogsApp(app);
+    setRuntimeLogs([]);
+    setRuntimeLogsError(null);
+    setRuntimeLogsLoading(true);
+    try {
+      const response = await resilientFetch(`/api/modules/apps/${app.id}/logs?lines=200`, {
+        cache: 'no-store',
+        timeout: 10000,
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Failed to load runtime logs');
+      setRuntimeLogs(Array.isArray(data.logs) ? data.logs : []);
+    } catch (err: unknown) {
+      setRuntimeLogsError(err instanceof Error ? err.message : 'Failed to load runtime logs');
+    } finally {
+      setRuntimeLogsLoading(false);
+    }
+  };
+
   const deleteApp = async () => {
     if (!deleteCandidate) return;
     setDeletingId(deleteCandidate.id);
@@ -455,7 +552,7 @@ export default function AppsPage() {
         </div>
       )}
 
-      <div className="grid gap-3 md:grid-cols-3">
+      <div className="grid gap-3 md:grid-cols-4">
         <Card>
           <CardContent className="flex items-center gap-3 p-4">
             <Boxes className="h-5 w-5 text-primary" />
@@ -480,6 +577,15 @@ export default function AppsPage() {
             <div>
               <div className="text-xl font-semibold">{summary.failed}</div>
               <div className="text-xs text-muted-foreground">Failed</div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="flex items-center gap-3 p-4">
+            <Activity className="h-5 w-5 text-warning" />
+            <div>
+              <div className="text-xl font-semibold">{activeOperations}</div>
+              <div className="text-xs text-muted-foreground">Active operations</div>
             </div>
           </CardContent>
         </Card>
@@ -926,6 +1032,16 @@ export default function AppsPage() {
                       type="button"
                       size="sm"
                       variant="outline"
+                      aria-label={`Runtime logs for ${app.name}`}
+                      onClick={() => void openRuntimeLogs(app)}
+                    >
+                      <FileText className="h-3.5 w-3.5" />
+                      Logs
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
                       aria-expanded={isExpanded}
                       aria-label={`${isExpanded ? 'Collapse' : 'Expand'} ${app.name}`}
                       onClick={() => toggleAppExpanded(app.id)}
@@ -979,6 +1095,106 @@ export default function AppsPage() {
 
                 {isExpanded && (
                   <div className="space-y-4 border-t border-border pt-4">
+                    <div className="grid gap-3 lg:grid-cols-[1.1fr_0.9fr]">
+                      <div className="rounded-lg border border-border p-3">
+                        <div className="mb-3 flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2 text-sm font-medium">
+                            <Activity className="h-4 w-4 text-primary" />
+                            Runtime
+                          </div>
+                          {app.runtime?.available ? (
+                            <Badge variant="success">{app.runtime.activeState || 'active'}</Badge>
+                          ) : (
+                            <Badge variant="warning">Unavailable</Badge>
+                          )}
+                        </div>
+                        {app.runtime?.available ? (
+                          <div className="grid gap-2 text-xs sm:grid-cols-2">
+                            <div className="rounded-md bg-muted/30 p-2">
+                              <div className="text-muted-foreground">Service</div>
+                              <div className="mt-1 truncate font-mono">
+                                {app.runtime.serviceName}
+                              </div>
+                            </div>
+                            <div className="rounded-md bg-muted/30 p-2">
+                              <div className="text-muted-foreground">Process</div>
+                              <div className="mt-1 font-medium">PID {app.runtime.mainPid || 0}</div>
+                            </div>
+                            <div className="rounded-md bg-muted/30 p-2">
+                              <div className="text-muted-foreground">CPU</div>
+                              <div className="mt-1 font-medium">
+                                {(app.runtime.cpuPercent ?? 0).toFixed(1)}% CPU
+                              </div>
+                            </div>
+                            <div className="rounded-md bg-muted/30 p-2">
+                              <div className="text-muted-foreground">Memory</div>
+                              <div className="mt-1 font-medium">
+                                {formatBytes(app.runtime.memoryBytes)} memory
+                              </div>
+                            </div>
+                            <div className="rounded-md bg-muted/30 p-2">
+                              <div className="text-muted-foreground">Uptime</div>
+                              <div className="mt-1 font-medium">
+                                {formatUptime(app.runtime.uptimeSeconds)}
+                              </div>
+                            </div>
+                            <div className="rounded-md bg-muted/30 p-2">
+                              <div className="text-muted-foreground">Restarts</div>
+                              <div className="mt-1 font-medium">
+                                {app.runtime.restartCount ?? 0}
+                              </div>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="rounded-md border border-dashed border-border px-3 py-4 text-xs text-muted-foreground">
+                            {app.runtime?.error ||
+                              'Runtime inspection is not available for this app.'}
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="rounded-lg border border-border p-3">
+                        <div className="mb-3 flex items-center gap-2 text-sm font-medium">
+                          <RefreshCw className="h-4 w-4 text-primary" />
+                          Operations
+                        </div>
+                        {app.operations.length > 0 ? (
+                          <div className="space-y-2">
+                            {[...app.operations]
+                              .reverse()
+                              .slice(0, 3)
+                              .map((operation) => (
+                                <div
+                                  key={operation.id}
+                                  className="rounded-md bg-muted/30 p-2 text-xs"
+                                >
+                                  <div className="flex items-start justify-between gap-2">
+                                    <div>
+                                      <div className="font-medium text-foreground">
+                                        {operation.title}
+                                      </div>
+                                      <div className="mt-1 text-muted-foreground">
+                                        {operation.step}
+                                      </div>
+                                    </div>
+                                    {operationStatusBadge(operation)}
+                                  </div>
+                                  {operation.logs.length > 0 && (
+                                    <pre className="mt-2 max-h-24 overflow-auto whitespace-pre-wrap rounded bg-background/70 p-2 font-mono">
+                                      {operation.logs.slice(-8).join('\n')}
+                                    </pre>
+                                  )}
+                                </div>
+                              ))}
+                          </div>
+                        ) : (
+                          <div className="rounded-md border border-dashed border-border px-3 py-4 text-center text-xs text-muted-foreground">
+                            No operations recorded yet.
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
                     {app.sourceType === 'git' && app.git && (
                       <div className="grid gap-3 text-sm md:grid-cols-4">
                         <div className="rounded-lg border border-border p-3">
@@ -1176,6 +1392,11 @@ export default function AppsPage() {
                 <div className="space-y-3">
                   {[...historyApp.releases].reverse().map((release) => {
                     const status = releaseStatus(release);
+                    const canRollback =
+                      release.status !== 'active' &&
+                      release.status !== 'failed' &&
+                      release.status !== 'building';
+                    const rollbackToken = `${historyApp.id}:${release.id}`;
                     return (
                       <div key={release.id} className="rounded-lg border border-border p-4">
                         <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
@@ -1190,7 +1411,22 @@ export default function AppsPage() {
                                 : ''}
                             </div>
                           </div>
-                          <Badge variant={status.variant}>{status.label}</Badge>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Badge variant={status.variant}>{status.label}</Badge>
+                            {canRollback && (
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                aria-label={`Rollback to ${release.id}`}
+                                loading={rollbackTarget === rollbackToken}
+                                onClick={() => void rollbackApp(historyApp.id, release.id)}
+                              >
+                                <RotateCcw className="h-3.5 w-3.5" />
+                                Rollback
+                              </Button>
+                            )}
+                          </div>
                         </div>
 
                         {release.error && (
@@ -1209,6 +1445,74 @@ export default function AppsPage() {
               ) : (
                 <div className="rounded-lg border border-dashed border-border px-4 py-10 text-center text-sm text-muted-foreground">
                   No deployment history yet.
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {runtimeLogsApp && (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-background/80 p-4 backdrop-blur-sm">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="runtime-logs-title"
+            className="w-full max-w-3xl overflow-hidden rounded-lg border border-border bg-card shadow-xl"
+          >
+            <div className="flex items-start justify-between gap-3 border-b border-border p-5">
+              <div>
+                <h2 id="runtime-logs-title" className="text-lg font-semibold">
+                  Runtime logs
+                </h2>
+                <p className="mt-1 text-sm text-muted-foreground">{runtimeLogsApp.name}</p>
+              </div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                aria-label="Close runtime logs"
+                onClick={() => setRuntimeLogsApp(null)}
+              >
+                <XCircle className="h-4 w-4" />
+              </Button>
+            </div>
+
+            <div className="max-h-[70vh] overflow-auto p-5">
+              {runtimeLogsLoading ? (
+                <div className="flex items-center justify-center py-12">
+                  <LoaderCircle className="h-5 w-5 animate-spin text-primary" />
+                </div>
+              ) : runtimeLogsError ? (
+                <div
+                  role="alert"
+                  className="rounded-lg border border-destructive/20 bg-destructive/5 px-4 py-3 text-sm text-destructive"
+                >
+                  {runtimeLogsError}
+                </div>
+              ) : runtimeLogs.length > 0 ? (
+                <div className="space-y-2">
+                  {runtimeLogs.map((entry, index) => (
+                    <div
+                      key={`${entry.timestamp}-${index}`}
+                      className="rounded-md border border-border bg-muted/20 p-3 text-xs"
+                    >
+                      <div className="mb-1 flex flex-wrap items-center gap-2 text-muted-foreground">
+                        <span>{formatHistoryDate(entry.timestamp)}</span>
+                        <Badge variant={entry.priority === 'err' ? 'destructive' : 'outline'}>
+                          {entry.priority}
+                        </Badge>
+                        {entry.pid && <span>PID {entry.pid}</span>}
+                      </div>
+                      <pre className="whitespace-pre-wrap font-mono text-foreground">
+                        {entry.message}
+                      </pre>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="rounded-lg border border-dashed border-border px-4 py-10 text-center text-sm text-muted-foreground">
+                  No runtime logs captured.
                 </div>
               )}
             </div>

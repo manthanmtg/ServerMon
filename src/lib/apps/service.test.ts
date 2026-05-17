@@ -42,6 +42,8 @@ describe('apps service helpers', () => {
       templateId: 'nextjs',
       sourceType: 'local',
       sourcePath: '/srv/apps/inventory-portal',
+      gitUrl: undefined,
+      gitBranch: undefined,
       domain: 'app.example.com',
       port: 3010,
       commands: {
@@ -57,6 +59,7 @@ describe('apps service helpers', () => {
       tlsEnabled: true,
       status: 'draft',
       releases: [],
+      operations: [],
       autoUpdate: {
         enabled: false,
         intervalMinutes: 60,
@@ -169,6 +172,20 @@ describe('apps service helpers', () => {
             logs: ['deployed'],
           },
         ],
+        operations: [
+          {
+            id: 'op-1',
+            type: 'deploy',
+            status: 'succeeded',
+            title: 'Manual deploy',
+            step: 'Health check passed',
+            startedAt: new Date('2026-05-06T12:34:00.000Z'),
+            completedAt: new Date('2026-05-06T12:35:00.000Z'),
+            releaseId: '20260506-123456-789',
+            commitSha: 'abcdef123456',
+            logs: ['Creating release', 'Health check passed'],
+          },
+        ],
         autoUpdate: {
           enabled: true,
           intervalMinutes: 60,
@@ -180,7 +197,20 @@ describe('apps service helpers', () => {
         updatedAt: new Date('2026-05-06T12:35:00.000Z'),
         lastDeployedAt: new Date('2026-05-06T12:35:00.000Z'),
       },
-      '203.0.113.10'
+      '203.0.113.10',
+      {
+        available: true,
+        serviceName: 'servermon-app-lifeos.service',
+        activeState: 'active',
+        subState: 'running',
+        mainPid: 4242,
+        cpuPercent: 2.5,
+        memoryBytes: 134217728,
+        memoryPercent: 1.25,
+        uptimeSeconds: 120,
+        restartCount: 1,
+        checkedAt: '2026-05-06T12:36:00.000Z',
+      }
     );
 
     expect(dto.envVars).toEqual({
@@ -205,6 +235,27 @@ describe('apps service helpers', () => {
     expect(dto.tlsEnabled).toBe(true);
     expect(dto.dns?.summary).toBe('Create A record: app.example.com -> 203.0.113.10');
     expect(dto.releases[0]?.createdAt).toBe('2026-05-06T12:34:56.789Z');
+    expect(dto.operations).toEqual([
+      {
+        id: 'op-1',
+        type: 'deploy',
+        status: 'succeeded',
+        title: 'Manual deploy',
+        step: 'Health check passed',
+        startedAt: '2026-05-06T12:34:00.000Z',
+        completedAt: '2026-05-06T12:35:00.000Z',
+        releaseId: '20260506-123456-789',
+        commitSha: 'abcdef123456',
+        logs: ['Creating release', 'Health check passed'],
+      },
+    ]);
+    expect(dto.runtime).toMatchObject({
+      available: true,
+      serviceName: 'servermon-app-lifeos.service',
+      mainPid: 4242,
+      cpuPercent: 2.5,
+      memoryBytes: 134217728,
+    });
   });
 
   it('deletes all managed host resources for an app', async () => {

@@ -60,6 +60,7 @@ describe('deployNextJsApp', () => {
     const sourcePath = await createSourceRepo();
     const dirs = await createDeployDirs();
     const commands: string[] = [];
+    const progress: string[] = [];
 
     const result = await deployNextJsApp({
       app: {
@@ -89,6 +90,9 @@ describe('deployNextJsApp', () => {
         return { code: 0, output: `${command} ok` };
       },
       healthCheck: async (url) => ({ ok: url === 'http://127.0.0.1:3010/' }),
+      onProgress: (entry) => {
+        progress.push(entry);
+      },
     });
 
     expect(result.status).toBe('active');
@@ -115,6 +119,14 @@ describe('deployNextJsApp', () => {
     ).resolves.toContain('WorkingDirectory=' + path.join(dirs.root, 'lifeos', 'current', 'source'));
     await expect(readlink(path.join(dirs.nginxEnabledDir, 'app.example.com'))).resolves.toBe(
       path.join(dirs.nginxAvailableDir, 'app.example.com')
+    );
+    expect(progress).toEqual(
+      expect.arrayContaining([
+        'Creating release 20260506-123456-789',
+        '$ pnpm install --frozen-lockfile',
+        '$ pnpm build',
+        'Health check passed',
+      ])
     );
   });
 

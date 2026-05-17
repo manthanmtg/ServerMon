@@ -3,6 +3,8 @@ export type AppTemplateId = 'nextjs';
 export type ManagedAppStatus = 'draft' | 'deploying' | 'running' | 'failed' | 'stopped' | 'unknown';
 export type AppSourceType = 'local' | 'git';
 export type AppAutoUpdateStatus = 'idle' | 'updated' | 'unchanged' | 'failed';
+export type AppOperationType = 'deploy' | 'update' | 'rollback' | 'delete';
+export type AppOperationStatus = 'running' | 'succeeded' | 'failed' | 'unchanged';
 
 export interface AppCommands {
   install: string;
@@ -17,6 +19,43 @@ export interface AppRelease {
   activatedAt?: string;
   error?: string;
   logs: string[];
+}
+
+export interface AppOperation {
+  id: string;
+  type: AppOperationType;
+  status: AppOperationStatus;
+  title: string;
+  step: string;
+  startedAt: string;
+  completedAt?: string;
+  releaseId?: string;
+  commitSha?: string;
+  error?: string;
+  logs: string[];
+}
+
+export interface AppLogEntry {
+  timestamp: string;
+  priority: 'emerg' | 'alert' | 'crit' | 'err' | 'warning' | 'notice' | 'info' | 'debug';
+  message: string;
+  unit: string;
+  pid?: number;
+}
+
+export interface AppRuntimeSnapshot {
+  available: boolean;
+  serviceName: string;
+  activeState?: string;
+  subState?: string;
+  mainPid?: number;
+  cpuPercent?: number;
+  memoryBytes?: number;
+  memoryPercent?: number;
+  uptimeSeconds?: number;
+  restartCount?: number;
+  checkedAt: string;
+  error?: string;
 }
 
 export interface ManagedAppDTO {
@@ -41,8 +80,10 @@ export interface ManagedAppDTO {
   healthCheckPath: string;
   tlsEnabled: boolean;
   status: ManagedAppStatus;
+  runtime?: AppRuntimeSnapshot;
   currentReleaseId?: string;
   releases: AppRelease[];
+  operations: AppOperation[];
   dns?: DnsInstructions;
   createdAt?: string;
   updatedAt?: string;

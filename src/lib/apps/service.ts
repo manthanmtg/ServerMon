@@ -1,11 +1,15 @@
 import { z } from 'zod';
 import { isIP } from 'node:net';
-import { rm } from 'node:fs/promises';
+import { access, readlink, rename, rm, symlink } from 'node:fs/promises';
 import path from 'node:path';
 import connectDB from '@/lib/db';
 import ManagedApp, { type IManagedApp } from '@/models/ManagedApp';
 import type {
   AppAutoUpdate,
+  AppOperation,
+  AppOperationStatus,
+  AppOperationType,
+  AppRuntimeSnapshot,
   AppTemplate,
   CreateManagedAppInput,
   ManagedAppDTO,
@@ -17,14 +21,18 @@ import {
   deployNextJsApp,
   type CommandRunner,
   type DeployNextJsAppResult,
+  type HealthCheck,
 } from './deploy';
-import { getAppRepositoryRoot, getAppRoot } from './paths';
+import { getAppRepositoryRoot, getAppRoot, getReleaseRoot } from './paths';
 import { isHttpsGitUrl, prepareGitSourceForDeploy } from './git';
+import { getManagedAppLogs, getManagedAppRuntime } from './runtime';
 
 const DOMAIN_PATTERN = /^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$/;
 const DEFAULT_SYSTEMD_DIR = '/etc/systemd/system';
 const DEFAULT_NGINX_AVAILABLE_DIR = '/etc/nginx/sites-available';
 const DEFAULT_NGINX_ENABLED_DIR = '/etc/nginx/sites-enabled';
+const MAX_APP_OPERATIONS = 20;
+const MAX_OPERATION_LOGS = 200;
 
 const NextJsAppTemplate: AppTemplate = {
   id: 'nextjs',
@@ -132,6 +140,7 @@ export function normalizeCreateManagedAppInput(input: CreateManagedAppData) {
     tlsEnabled: input.tlsEnabled,
     status: 'draft' as ManagedAppStatus,
     releases: [],
+    operations: [],
     autoUpdate: {
       enabled: input.sourceType === 'git' ? input.autoUpdate.enabled : false,
       intervalMinutes: input.autoUpdate.intervalMinutes,
@@ -212,6 +221,19 @@ interface ManagedAppDTORecord {
     error?: string;
     logs: string[];
   }>;
+  operations?: Array<{
+    id: string;
+    type: AppOperationType;
+    status: AppOperationStatus;
+    title: string;
+    step: string;
+    startedAt: Date | string;
+    completedAt?: Date | string;
+    releaseId?: string;
+    commitSha?: string;
+    error?: string;
+    logs: string[];
+  }>;
   createdAt?: Date | string;
   updatedAt?: Date | string;
   lastDeployedAt?: Date | string;
@@ -228,7 +250,27 @@ function mapAutoUpdate(value: ManagedAppDTORecord['autoUpdate']): AppAutoUpdate 
   };
 }
 
-export function mapManagedAppToDTO(app: ManagedAppDTORecord, publicIp?: string): ManagedAppDTO {
+function mapOperations(operations?: ManagedAppDTORecord['operations']): AppOperation[] {
+  return (operations ?? []).map((operation) => ({
+    id: operation.id,
+    type: operation.type,
+    status: operation.status,
+    title: operation.title,
+    step: operation.step,
+    startedAt: toIsoDate(operation.startedAt) ?? new Date(0).toISOString(),
+    completedAt: toIsoDate(operation.completedAt),
+    releaseId: operation.releaseId,
+    commitSha: operation.commitSha,
+    error: operation.error,
+    logs: operation.logs ?? [],
+  }));
+}
+
+export function mapManagedAppToDTO(
+  app: ManagedAppDTORecord,
+  publicIp?: string,
+  runtime?: AppRuntimeSnapshot
+): ManagedAppDTO {
   const sourceType = app.sourceType ?? 'local';
   return {
     id: app._id.toString(),
@@ -255,6 +297,7 @@ export function mapManagedAppToDTO(app: ManagedAppDTORecord, publicIp?: string):
     healthCheckPath: app.healthCheckPath,
     tlsEnabled: Boolean(app.tlsEnabled),
     status: app.status,
+    runtime,
     currentReleaseId: app.currentReleaseId,
     releases: app.releases.map((release) => ({
       id: release.id,
@@ -264,6 +307,7 @@ export function mapManagedAppToDTO(app: ManagedAppDTORecord, publicIp?: string):
       error: release.error,
       logs: release.logs,
     })),
+    operations: mapOperations(app.operations),
     dns: publicIp ? buildDnsInstructions(app.domain, publicIp) : undefined,
     createdAt: toIsoDate(app.createdAt),
     updatedAt: toIsoDate(app.updatedAt),
@@ -307,7 +351,8 @@ async function prepareSource(app: IManagedApp, updateToRemote: boolean) {
 
 async function deployPreparedApp(
   app: IManagedApp,
-  sourcePath: string
+  sourcePath: string,
+  onProgress?: (entry: string) => void | Promise<void>
 ): Promise<DeployNextJsAppResult> {
   return deployNextJsApp({
     app: {
@@ -331,13 +376,26 @@ async function deployPreparedApp(
       status: app.status,
       currentReleaseId: app.currentReleaseId,
     },
+    onProgress,
   });
 }
 
 export async function listManagedApps(publicIp?: string): Promise<ManagedAppDTO[]> {
   await connectDB();
   const apps = await ManagedApp.find({}).sort({ updatedAt: -1 }).lean<IManagedApp[]>();
-  return apps.map((app) => mapManagedAppToDTO(app, publicIp));
+  return Promise.all(
+    apps.map(async (app) => {
+      const runtime = await getManagedAppRuntime({ slug: app.slug });
+      return mapManagedAppToDTO(app, publicIp, runtime);
+    })
+  );
+}
+
+export async function getManagedAppLogsById(appId: string, lines = 200) {
+  await connectDB();
+  const app = await ManagedApp.findById(appId).lean<IManagedApp | null>();
+  if (!app) throw new Error('App not found');
+  return getManagedAppLogs({ slug: app.slug }, lines);
 }
 
 export async function createManagedApp(
@@ -470,23 +528,285 @@ export async function deleteManagedApp(appId: string) {
   };
 }
 
+function createOperationId(type: AppOperationType): string {
+  return `${type}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+async function startAppOperation(
+  app: IManagedApp,
+  input: {
+    type: AppOperationType;
+    title: string;
+    step: string;
+    releaseId?: string;
+    commitSha?: string;
+  }
+): Promise<string> {
+  const operationId = createOperationId(input.type);
+  app.operations = [
+    ...(app.operations ?? []),
+    {
+      id: operationId,
+      type: input.type,
+      status: 'running',
+      title: input.title,
+      step: input.step,
+      startedAt: new Date(),
+      releaseId: input.releaseId,
+      commitSha: input.commitSha,
+      logs: [],
+    },
+  ].slice(-MAX_APP_OPERATIONS) as IManagedApp['operations'];
+  await app.save();
+  return operationId;
+}
+
+async function appendAppOperationLog(
+  app: IManagedApp,
+  operationId: string,
+  entry: string,
+  step = entry
+): Promise<void> {
+  const operation = app.operations?.find((item) => item.id === operationId);
+  if (!operation) return;
+  operation.step = step;
+  operation.logs = [...(operation.logs ?? []), entry].slice(-MAX_OPERATION_LOGS);
+  await app.save();
+}
+
+async function completeAppOperation(
+  app: IManagedApp,
+  operationId: string,
+  input: {
+    status: AppOperationStatus;
+    step: string;
+    logs?: string[];
+    error?: string;
+    releaseId?: string;
+    commitSha?: string;
+  }
+): Promise<void> {
+  const operation = app.operations?.find((item) => item.id === operationId);
+  if (!operation) return;
+  operation.status = input.status;
+  operation.step = input.step;
+  operation.completedAt = new Date();
+  operation.error = input.error;
+  operation.releaseId = input.releaseId ?? operation.releaseId;
+  operation.commitSha = input.commitSha ?? operation.commitSha;
+  operation.logs = input.logs ? input.logs.slice(-MAX_OPERATION_LOGS) : operation.logs;
+  await app.save();
+}
+
+async function pathExists(target: string): Promise<boolean> {
+  try {
+    await access(target);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function replaceSymlink(linkPath: string, target: string): Promise<void> {
+  const tempLink = `${linkPath}.tmp-${process.pid}-${Date.now()}`;
+  await symlink(target, tempLink);
+  await rm(linkPath, { recursive: true, force: true });
+  await rename(tempLink, linkPath);
+}
+
+async function readCurrentTarget(currentPath: string): Promise<string | undefined> {
+  try {
+    return await readlink(currentPath);
+  } catch {
+    return undefined;
+  }
+}
+
+function rollbackHealthUrl(port: number, healthCheckPath?: string): string {
+  const normalizedPath = healthCheckPath?.startsWith('/') ? healthCheckPath : '/';
+  return `http://127.0.0.1:${port}${normalizedPath}`;
+}
+
+const defaultRollbackHealthCheck: HealthCheck = async (url) => {
+  try {
+    const response = await fetch(url, { signal: AbortSignal.timeout(15_000) });
+    return { ok: response.ok, status: response.status };
+  } catch (error: unknown) {
+    return { ok: false, error: error instanceof Error ? error.message : 'Health check failed' };
+  }
+};
+
+export interface RollbackManagedAppOptions {
+  commandRunner?: CommandRunner;
+  healthCheck?: HealthCheck;
+  appsRoot?: string;
+}
+
+export async function rollbackManagedApp(
+  appId: string,
+  releaseId: string,
+  {
+    commandRunner = defaultCommandRunner,
+    healthCheck = defaultRollbackHealthCheck,
+    appsRoot,
+  }: RollbackManagedAppOptions = {}
+) {
+  await connectDB();
+  const app = await ManagedApp.findById(appId);
+  if (!app) throw new Error('App not found');
+
+  const targetRelease = app.releases.find((release) => release.id === releaseId);
+  if (!targetRelease || targetRelease.status === 'failed' || targetRelease.status === 'building') {
+    throw new Error('Rollback release is not available');
+  }
+
+  const releaseRoot = getReleaseRoot(app.slug, releaseId, appsRoot);
+  if (!(await pathExists(releaseRoot))) {
+    throw new Error('Rollback release files are missing');
+  }
+
+  const operationId = await startAppOperation(app, {
+    type: 'rollback',
+    title: 'Rollback',
+    step: `Rolling back to ${releaseId}`,
+    releaseId,
+  });
+  const logs: string[] = [`Rolling back to ${releaseId}`];
+  await appendAppOperationLog(app, operationId, logs[0]);
+
+  const currentPath = path.join(getAppRoot(app.slug, appsRoot), 'current');
+  const serviceName = toSystemdServiceName(app.slug);
+  const previousCurrentTarget = await readCurrentTarget(currentPath);
+
+  try {
+    await replaceSymlink(currentPath, releaseRoot);
+    const restartCommand = `systemctl restart ${serviceName}`;
+    logs.push(`$ ${restartCommand}`);
+    await appendAppOperationLog(app, operationId, `$ ${restartCommand}`);
+    const restart = await commandRunner({ command: restartCommand });
+    if (restart.output.trim()) {
+      logs.push(restart.output.trim());
+      await appendAppOperationLog(app, operationId, restart.output.trim());
+    }
+    if (restart.code !== 0) {
+      throw new Error(`Command failed: ${restartCommand}\n${restart.output}`.trim());
+    }
+
+    const checked = await healthCheck(rollbackHealthUrl(app.port, app.healthCheckPath));
+    if (!checked.ok) {
+      throw new Error(
+        checked.error || `Health check failed${checked.status ? ` with ${checked.status}` : ''}`
+      );
+    }
+    logs.push('Health check passed');
+    await appendAppOperationLog(app, operationId, 'Health check passed');
+
+    const now = new Date();
+    app.releases = app.releases.map((release) => ({
+      ...release,
+      status: release.id === releaseId ? 'active' : 'superseded',
+      ...(release.id === releaseId ? { activatedAt: now } : {}),
+    })) as IManagedApp['releases'];
+    app.currentReleaseId = releaseId;
+    app.status = 'running';
+    app.lastDeployedAt = now;
+    await completeAppOperation(app, operationId, {
+      status: 'succeeded',
+      step: 'Rollback completed',
+      logs,
+      releaseId,
+    });
+    await app.save();
+    return {
+      releaseId,
+      status: 'active' as const,
+      logs,
+      app: mapManagedAppToDTO(app),
+    };
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Rollback failed';
+    if (previousCurrentTarget) {
+      await replaceSymlink(currentPath, previousCurrentTarget);
+      const restoreCommand = `systemctl restart ${serviceName}`;
+      logs.push(`$ ${restoreCommand}`);
+      const restored = await commandRunner({ command: restoreCommand });
+      if (restored.output.trim()) logs.push(restored.output.trim());
+    }
+    logs.push(`ERROR: ${message}`);
+    app.status = 'failed';
+    await completeAppOperation(app, operationId, {
+      status: 'failed',
+      step: 'Rollback failed',
+      logs,
+      error: message,
+      releaseId,
+    });
+    await app.save();
+    return {
+      releaseId,
+      status: 'failed' as const,
+      logs,
+      error: message,
+      app: mapManagedAppToDTO(app),
+    };
+  }
+}
+
 export async function deployManagedApp(appId: string) {
   await connectDB();
   const app = await ManagedApp.findById(appId);
   if (!app) throw new Error('App not found');
 
+  const operationId = await startAppOperation(app, {
+    type: 'deploy',
+    title: 'Manual deploy',
+    step: 'Preparing deployment',
+  });
   app.status = 'deploying';
   await app.save();
 
   let source: Awaited<ReturnType<typeof prepareSource>>;
   try {
     source = await prepareSource(app, (app.sourceType ?? 'local') === 'git');
+    for (const entry of source.logs) {
+      await appendAppOperationLog(app, operationId, entry);
+    }
   } catch (error) {
+    const message = error instanceof Error ? error.message : 'Deployment source preparation failed';
     app.status = 'failed';
+    await completeAppOperation(app, operationId, {
+      status: 'failed',
+      step: 'Source preparation failed',
+      error: message,
+      logs: [message],
+    });
     await app.save();
     throw error;
   }
-  const result = await deployPreparedApp(app, source.sourcePath);
+  const result = await deployNextJsApp({
+    app: {
+      name: app.name,
+      slug: app.slug,
+      templateId: app.templateId,
+      sourceType: app.sourceType,
+      sourcePath: source.sourcePath,
+      gitUrl: app.gitUrl,
+      gitBranch: app.gitBranch,
+      autoUpdate: {
+        enabled: app.autoUpdate?.enabled,
+        intervalMinutes: app.autoUpdate?.intervalMinutes,
+      },
+      domain: app.domain,
+      port: app.port,
+      commands: app.commands,
+      envVars: mapEnv(app.envVars),
+      healthCheckPath: app.healthCheckPath,
+      tlsEnabled: app.tlsEnabled,
+      status: app.status,
+      currentReleaseId: app.currentReleaseId,
+    },
+    onProgress: (entry) => appendAppOperationLog(app, operationId, entry),
+  });
   result.logs.unshift(...source.logs);
 
   const now = new Date();
@@ -508,6 +828,13 @@ export async function deployManagedApp(appId: string) {
       activatedAt: now,
       logs: result.logs,
     });
+    await completeAppOperation(app, operationId, {
+      status: 'succeeded',
+      step: 'Deployment completed',
+      logs: result.logs,
+      releaseId: result.releaseId,
+      commitSha: source.currentSha,
+    });
   } else {
     app.status = 'failed';
     app.releases.push({
@@ -516,6 +843,14 @@ export async function deployManagedApp(appId: string) {
       createdAt: now,
       error: result.error,
       logs: result.logs,
+    });
+    await completeAppOperation(app, operationId, {
+      status: 'failed',
+      step: 'Deployment failed',
+      logs: result.logs,
+      error: result.error,
+      releaseId: result.releaseId,
+      commitSha: source.currentSha,
     });
   }
 
@@ -533,9 +868,17 @@ export async function updateManagedGitApp(appId: string) {
   if ((app.sourceType ?? 'local') !== 'git') throw new Error('Only git apps can be updated');
 
   const now = new Date();
+  const operationId = await startAppOperation(app, {
+    type: 'update',
+    title: 'Manual update',
+    step: 'Checking upstream repository',
+  });
   let source: Awaited<ReturnType<typeof prepareSource>>;
   try {
     source = await prepareSource(app, true);
+    for (const entry of source.logs) {
+      await appendAppOperationLog(app, operationId, entry);
+    }
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Git update failed';
     app.autoUpdate = {
@@ -547,6 +890,12 @@ export async function updateManagedGitApp(appId: string) {
         ? nextAutoUpdateRun(app.autoUpdate.intervalMinutes, now)
         : undefined,
     };
+    await completeAppOperation(app, operationId, {
+      status: 'failed',
+      step: 'Git update failed',
+      error: message,
+      logs: [message],
+    });
     await app.save();
     throw error;
   }
@@ -563,6 +912,13 @@ export async function updateManagedGitApp(appId: string) {
         ? nextAutoUpdateRun(app.autoUpdate.intervalMinutes, now)
         : undefined,
     };
+    await completeAppOperation(app, operationId, {
+      status: 'unchanged',
+      step: 'No upstream changes found',
+      logs: [...source.logs, 'No upstream changes found.'],
+      releaseId: app.currentReleaseId,
+      commitSha: source.currentSha,
+    });
     await app.save();
     return {
       releaseId: app.currentReleaseId,
@@ -579,7 +935,9 @@ export async function updateManagedGitApp(appId: string) {
     await app.save();
   }
 
-  const result = await deployPreparedApp(app, source.sourcePath);
+  const result = await deployPreparedApp(app, source.sourcePath, (entry) =>
+    appendAppOperationLog(app, operationId, entry)
+  );
   result.logs.unshift(...source.logs);
   const completedAt = new Date();
   app.gitCurrentSha = source.currentSha;
@@ -608,6 +966,13 @@ export async function updateManagedGitApp(appId: string) {
         ? nextAutoUpdateRun(app.autoUpdate.intervalMinutes, completedAt)
         : undefined,
     };
+    await completeAppOperation(app, operationId, {
+      status: 'succeeded',
+      step: 'Update deployed',
+      logs: result.logs,
+      releaseId: result.releaseId,
+      commitSha: source.currentSha,
+    });
   } else {
     app.status = previousReleaseId ? previousStatus : 'failed';
     app.releases.push({
@@ -626,6 +991,14 @@ export async function updateManagedGitApp(appId: string) {
         ? nextAutoUpdateRun(app.autoUpdate.intervalMinutes, completedAt)
         : undefined,
     };
+    await completeAppOperation(app, operationId, {
+      status: 'failed',
+      step: 'Update deployment failed',
+      logs: result.logs,
+      error: result.error,
+      releaseId: result.releaseId,
+      commitSha: source.currentSha,
+    });
   }
 
   await app.save();
