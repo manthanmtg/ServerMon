@@ -68,6 +68,7 @@ function MobileLogCard({ log }: { log: LogEntry }) {
 export default function LogsPage() {
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [filter, setFilter] = useState<FilterType>('all');
   const [search, setSearch] = useState('');
 
@@ -75,10 +76,12 @@ export default function LogsPage() {
     const fetchLogs = async () => {
       try {
         const res = await fetch('/api/analytics/recent?limit=100');
+        if (!res.ok) throw new Error(`Failed to load logs: ${res.status}`);
         const data = await res.json();
         setLogs(data.events || []);
-      } catch (err) {
-        console.error(err);
+        setLoadFailed(false);
+      } catch {
+        setLoadFailed(true);
       } finally {
         setLoading(false);
       }
@@ -149,6 +152,16 @@ export default function LogsPage() {
         {loading ? (
           <div className="flex items-center justify-center py-16">
             <Spinner size="lg" />
+          </div>
+        ) : loadFailed && logs.length === 0 ? (
+          <div className="flex flex-col items-center justify-center px-4 py-12 text-center">
+            <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-lg bg-destructive/10">
+              <AlertTriangle className="h-5 w-5 text-destructive" />
+            </div>
+            <p className="text-sm font-medium text-foreground">Unable to load logs</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Recent audit events could not be fetched. The page will keep retrying.
+            </p>
           </div>
         ) : filtered.length === 0 ? (
           <div className="py-12 text-center text-sm text-muted-foreground">

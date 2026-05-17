@@ -122,4 +122,19 @@ describe('LogsPage', () => {
 
     await waitFor(() => expect(screen.queryByRole('status')).toBeNull());
   });
+
+  it('shows a failure state when logs cannot be loaded', async () => {
+    global.fetch = vi.fn().mockRejectedValue(new Error('Fetch failed'));
+
+    await act(async () => {
+      render(<LogsPage />);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText('Unable to load logs')).toBeTruthy();
+      expect(
+        screen.getByText('Recent audit events could not be fetched. The page will keep retrying.')
+      ).toBeTruthy();
+    });
+  });
 });
