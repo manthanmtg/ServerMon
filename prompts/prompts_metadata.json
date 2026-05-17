@@ -242,12 +242,12 @@
       "enabled": true,
       "autonomousSafe": true,
       "totalSelected": 22,
-      "totalCompleted": 20,
+      "totalCompleted": 21,
       "totalNoop": 0,
       "totalFailed": 1,
       "lastSelectedAt": "2026-05-17T17:46:38.779Z",
-      "lastCompletedAt": "2026-05-17T05:51:34.132Z",
-      "lastOutcome": "selected"
+      "lastCompletedAt": "2026-05-17T17:46:45.888Z",
+      "lastOutcome": "completed"
     },
     "test_corrector.md": {
       "id": "test-corrector",
@@ -310,5 +310,5 @@
       "lastOutcome": "completed"
     }
   },
-  "updatedAt": "2026-05-17T17:46:38.779Z"
+  "updatedAt": "2026-05-17T17:46:45.888Z"
 }
