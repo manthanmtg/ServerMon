@@ -4,6 +4,7 @@ import { type FormEvent, useCallback, useEffect, useMemo, useState } from 'react
 import { Database, LoaderCircle, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { resilientFetch } from '@/lib/fetch-utils';
 import { DatabaseDeploymentCard, type DatabaseAction } from './DatabaseDeploymentCard';
 import { DatabaseSummaryCards, deriveDatabaseSummary } from './DatabaseSummaryCards';
 import {
@@ -188,10 +189,11 @@ export default function DatabasesPage() {
     setWorkingId(database.id);
     setError(null);
     try {
-      const response = await fetch(`/api/modules/databases/${database.id}/action`, {
+      const response = await resilientFetch(`/api/modules/databases/${database.id}/action`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: nextAction }),
+        timeout: 15_000,
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Failed to update database');
