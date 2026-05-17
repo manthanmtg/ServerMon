@@ -937,6 +937,7 @@ The following modules are currently implemented in the core system:
 - **EnvVars**: Inspect and update host-level user environment variables with OS-aware system instructions
 - **Certificates**: Manage SSL/TLS certificates and renewals
 - **Ports**: Monitor open ports and listening services
+- **Firewall**: Monitor firewall posture, default policies, and network exposure
 - **Hardware**: Detailed hardware specifications and health info
 - **Nginx**: Manage Nginx configurations and site status
 - **Security**: Security configuration and MFA management
