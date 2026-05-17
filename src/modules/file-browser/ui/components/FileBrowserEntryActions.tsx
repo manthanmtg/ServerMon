@@ -42,6 +42,7 @@ export function MobileEntryActions({
           e.stopPropagation();
           setOpen(!open);
         }}
+        aria-label="More file actions"
       >
         <MoreHorizontal className="h-4 w-4" />
       </Button>
@@ -160,6 +161,7 @@ export function DesktopEntryActions({
           className={cn('h-7 w-7', isFavorited && 'text-red-500 hover:text-red-600')}
           onClick={() => onFavorite(entry)}
           title={isFavorited ? 'Remove from shortcuts' : 'Add to shortcuts'}
+          aria-label={isFavorited ? 'Remove from shortcuts' : 'Add to shortcuts'}
         >
           <Heart className={cn('h-3 w-3', isFavorited && 'fill-red-500')} />
         </Button>
@@ -170,18 +172,20 @@ export function DesktopEntryActions({
         className="h-7 w-7"
         onClick={() => onCopyPath(entry)}
         title="Copy Path"
+        aria-label="Copy path"
       >
         <Copy className="h-3 w-3" />
       </Button>
       {!entry.isDirectory && (
         <>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7"
-            onClick={() => onDownload(entry)}
-            title="Download"
-          >
+      <Button
+        variant="ghost"
+        size="icon"
+        className="h-7 w-7"
+        onClick={() => onDownload(entry)}
+        title="Download"
+        aria-label="Download file"
+      >
             <Download className="h-3 w-3" />
           </Button>
           <Button
