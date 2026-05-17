@@ -206,18 +206,23 @@ Runtime config lives in `/etc/servermon/env` (production) or `.env.local` (devel
 
 Common optional controls:
 
-| Variable                        | Description                                                     | Default                           |
-| ------------------------------- | --------------------------------------------------------------- | --------------------------------- |
-| `SERVERMON_SLOW_REQUEST_MS`     | Slow request logging threshold                                  | `2000`                            |
-| `SERVERMON_REPO_DIR`            | Source checkout used by self-update actions                     | `/opt/servermon/repo`             |
-| `SERVERMON_NETWORK_MOCK`        | Set to `1` to use mocked network speedtest data                 | unset                             |
-| `SERVERMON_DOCKER_MOCK`         | Set to `1` to use mocked Docker data                            | unset                             |
-| `SERVERMON_DATABASES_ROOT`      | Host data root for managed database containers                  | `/var/lib/servermon/databases`    |
-| `SERVERMON_APPS_ROOT`           | Host data root for managed app releases                         | `/var/lib/servermon/apps`         |
-| `SERVERMON_UPDATES_MOCK`        | Set to `1` to use mocked system update data                     | unset                             |
-| `SERVERMON_AUTO_UPDATE_CONFIG`  | Server auto-update schedule config path                         | `/etc/servermon/auto-update.json` |
-| `AI_RUNNER_MAX_CONCURRENT_RUNS` | Maximum concurrently executing AI Runner jobs                   | `3`                               |
-| `FLEET_HUB_PUBLIC_URL`          | Public hub URL used by fleet install scripts and pair callbacks | unset                             |
+| Variable                        | Description                                                     | Default                             |
+| ------------------------------- | --------------------------------------------------------------- | ----------------------------------- |
+| `SERVERMON_SLOW_REQUEST_MS`     | Slow request logging threshold                                  | `2000`                              |
+| `SERVERMON_REPO_DIR`            | Source checkout used by self-update actions                     | `/opt/servermon/repo`               |
+| `SERVERMON_NETWORK_MOCK`        | Set to `1` to use mocked network speedtest data                 | unset                               |
+| `SERVERMON_DOCKER_MOCK`         | Set to `1` to use mocked Docker data                            | unset                               |
+| `SERVERMON_DATABASES_ROOT`      | Host data root for managed database containers                  | `/var/lib/servermon/databases`      |
+| `SERVERMON_PUBLIC_HOST`         | Default public hostname for managed database connection strings | unset                               |
+| `SERVERMON_PUBLIC_IP`           | Default public IP fallback for managed database connections     | unset                               |
+| `SERVERMON_MONGO_EXPRESS_IMAGE` | Docker image used for MongoDB web explorers                     | `mongo-express:1.0.2-20-alpine3.19` |
+| `SERVERMON_PGWEB_IMAGE`         | Docker image used for PostgreSQL web explorers                  | `sosedoff/pgweb:0.16.2`             |
+| `SERVERMON_PHPMYADMIN_IMAGE`    | Docker image used for MySQL web explorers                       | `phpmyadmin:5.2.2-apache`           |
+| `SERVERMON_APPS_ROOT`           | Host data root for managed app releases                         | `/var/lib/servermon/apps`           |
+| `SERVERMON_UPDATES_MOCK`        | Set to `1` to use mocked system update data                     | unset                               |
+| `SERVERMON_AUTO_UPDATE_CONFIG`  | Server auto-update schedule config path                         | `/etc/servermon/auto-update.json`   |
+| `AI_RUNNER_MAX_CONCURRENT_RUNS` | Maximum concurrently executing AI Runner jobs                   | `3`                                 |
+| `FLEET_HUB_PUBLIC_URL`          | Public hub URL used by fleet install scripts and pair callbacks | unset                               |
 
 See [DEPLOY.md](DEPLOY.md#fleet-management-deployment) for the full fleet hub and agent environment variables.
 
