@@ -256,13 +256,13 @@
       "category": "testing",
       "enabled": true,
       "autonomousSafe": true,
-      "totalSelected": 26,
+      "totalSelected": 27,
       "totalCompleted": 1,
       "totalNoop": 25,
-      "totalFailed": 0,
-      "lastSelectedAt": "2026-05-17T17:48:28.005Z",
-      "lastCompletedAt": "2026-05-17T17:51:41.423Z",
-      "lastOutcome": "noop"
+      "totalFailed": 1,
+      "lastSelectedAt": "2026-05-17T18:17:16.643Z",
+      "lastCompletedAt": "2026-05-17T18:21:28.000Z",
+      "lastOutcome": "failed"
     },
     "test_coverage_adder.md": {
       "id": "test-coverage-adder",
@@ -310,5 +310,5 @@
       "lastOutcome": "completed"
     }
   },
-  "updatedAt": "2026-05-17T18:14:52Z"
+  "updatedAt": "2026-05-17T18:21:28.000Z"
 }
