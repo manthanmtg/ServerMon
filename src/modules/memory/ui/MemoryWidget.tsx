@@ -15,6 +15,15 @@ export default function MemoryWidget() {
   const usedGb = latest.memUsed / (1024 * 1024 * 1024);
   const totalGb = latest.memTotal / (1024 * 1024 * 1024);
   const percent = latest.memory;
+  const statusLabel = percent > 90 ? 'Critical' : percent > 70 ? 'High' : 'Healthy';
+  const statusColorClass =
+    percent > 90 ? 'bg-destructive' : percent > 70 ? 'bg-warning' : 'bg-success';
+  const statusGlowClass =
+    percent > 90
+      ? 'bg-destructive shadow-[0_0_8px_var(--destructive)]'
+      : percent > 70
+        ? 'bg-warning shadow-[0_0_8px_var(--warning)]'
+        : 'bg-success shadow-[0_0_8px_var(--success)]';
 
   return (
     <motion.div
@@ -25,7 +34,7 @@ export default function MemoryWidget() {
     >
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary shadow-[0_0_15px_rgba(var(--primary-rgb),0.1)]">
+          <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary shadow-sm shadow-primary/10">
             <Brain className="w-5 h-5" />
           </div>
           <div>
@@ -47,9 +56,9 @@ export default function MemoryWidget() {
 
       <div className="grid grid-cols-2 gap-3">
         <motion.div
-          whileHover={{ scale: 1.01, backgroundColor: 'rgba(var(--card-rgb), 0.6)' }}
+          whileHover={{ scale: 1.01 }}
           whileTap={{ scale: 0.99 }}
-          className="p-3 rounded-xl bg-card/40 backdrop-blur-md border border-white/5 shadow-sm transition-colors group"
+          className="p-3 rounded-xl bg-card/40 backdrop-blur-md border border-border/40 shadow-sm transition-colors group hover:bg-card/70 hover:border-primary/20"
         >
           <div className="flex items-center gap-2 mb-1.5">
             <Activity className="w-3.5 h-3.5 text-primary group-hover:scale-110 transition-transform" />
@@ -60,9 +69,9 @@ export default function MemoryWidget() {
           <div className="text-sm font-bold truncate tracking-tight">{usedGb.toFixed(2)} GB</div>
         </motion.div>
         <motion.div
-          whileHover={{ scale: 1.01, backgroundColor: 'rgba(var(--card-rgb), 0.6)' }}
+          whileHover={{ scale: 1.01 }}
           whileTap={{ scale: 0.99 }}
-          className="p-3 rounded-xl bg-card/40 backdrop-blur-md border border-white/5 shadow-sm transition-colors group"
+          className="p-3 rounded-xl bg-card/40 backdrop-blur-md border border-border/40 shadow-sm transition-colors group hover:bg-card/70 hover:border-primary/20"
         >
           <div className="flex items-center gap-2 mb-1.5">
             <Database className="w-3.5 h-3.5 text-muted-foreground group-hover:scale-110 transition-transform" />
@@ -97,28 +106,22 @@ export default function MemoryWidget() {
         </ResponsiveContainer>
       </div>
 
-      <div className="flex items-center justify-between pt-3 border-t border-white/5">
+      <div className="flex items-center justify-between pt-3 border-t border-border/40">
         <div className="flex items-center gap-2.5">
           <div className="relative flex items-center justify-center">
             <div
-              className={cn(
-                'w-2 h-2 rounded-full animate-pulse z-10',
-                percent > 90 ? 'bg-destructive' : percent > 70 ? 'bg-warning' : 'bg-emerald-500'
-              )}
+              className={cn('w-2 h-2 rounded-full animate-pulse z-10', statusColorClass)}
+              aria-label={`Memory status: ${statusLabel}`}
             />
             <div
               className={cn(
                 'absolute inset-0 rounded-full blur-[4px] opacity-60 animate-pulse',
-                percent > 90
-                  ? 'bg-destructive shadow-[0_0_8px_var(--destructive)]'
-                  : percent > 70
-                    ? 'bg-warning shadow-[0_0_8px_var(--warning)]'
-                    : 'bg-emerald-500 shadow-[0_0_8px_#10b981]'
+                statusGlowClass
               )}
             />
           </div>
           <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
-            {percent > 90 ? 'Critical' : percent > 70 ? 'High' : 'Healthy'}
+            {statusLabel}
           </span>
         </div>
         <a
