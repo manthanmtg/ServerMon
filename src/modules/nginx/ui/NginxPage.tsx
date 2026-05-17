@@ -322,16 +322,21 @@ export default function NginxPage() {
             <p className="text-sm text-muted-foreground text-center py-8">No virtual hosts found</p>
           ) : (
             <div className="space-y-3">
-              {snapshot.virtualHosts.map((vhost) => {
+              {snapshot.virtualHosts.map((vhost, index) => {
                 const vhostKey = `${vhost.filename}::${vhost.name}`;
                 const displayName = getDisplayVhostName(vhost);
+                const detailsId = `nginx-vhost-details-${index}`;
+                const isExpanded = expandedVhost === vhostKey;
                 return (
                   <div
                     key={vhostKey}
                     className="rounded-lg border border-border/60 overflow-hidden"
                   >
                     <button
-                      onClick={() => setExpandedVhost(expandedVhost === vhostKey ? null : vhostKey)}
+                      type="button"
+                      aria-expanded={isExpanded}
+                      aria-controls={detailsId}
+                      onClick={() => setExpandedVhost(isExpanded ? null : vhostKey)}
                       className="w-full p-4 flex items-center justify-between hover:bg-accent/30 transition-colors text-left"
                     >
                       <div className="flex items-center gap-3">
@@ -373,8 +378,11 @@ export default function NginxPage() {
                         )}
                       </div>
                     </button>
-                    {expandedVhost === vhostKey && (
-                      <div className="border-t border-border/60 p-4 bg-secondary/30 space-y-2 text-xs">
+                    {isExpanded && (
+                      <div
+                        id={detailsId}
+                        className="border-t border-border/60 p-4 bg-secondary/30 space-y-2 text-xs"
+                      >
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                           <div>
                             <span className="text-muted-foreground">Hostnames:</span>{' '}
