@@ -395,15 +395,19 @@ export default function FileBrowserPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
+  const normalizedSearch = useMemo(() => search.trim(), [search]);
+
   const filteredEntries = useMemo(
-    () => listing?.entries.filter((entry) => matchesFilter(entry.name, search)) || [],
-    [listing?.entries, search]
+    () => listing?.entries.filter((entry) => matchesFilter(entry.name, normalizedSearch)) || [],
+    [listing?.entries, normalizedSearch]
   );
 
   const favoritePaths = useMemo(
     () => new Set(settings.shortcuts.map((s) => s.path)),
     [settings.shortcuts]
   );
+
+  const breadcrumbSegments = useMemo(() => buildSegments(currentPath), [currentPath]);
 
   const loadSettings = useCallback(async () => {
     try {
@@ -858,7 +862,7 @@ export default function FileBrowserPage() {
               <div className="h-6 w-px bg-border/50 mx-1" />
             </div>
             <FileBrowserBreadcrumbs
-              segments={buildSegments(currentPath)}
+              segments={breadcrumbSegments}
               onNavigate={(path) => navigate(path)}
             />
           </div>
