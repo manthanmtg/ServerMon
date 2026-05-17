@@ -131,6 +131,26 @@ describe('NginxPage', () => {
     expect(screen.getByText('example.com, www.example.com')).toBeDefined();
   });
 
+  it('exposes virtual host disclosure state to assistive technology', async () => {
+    await act(async () => {
+      render(<NginxPage />);
+    });
+    await waitFor(() =>
+      expect(screen.getAllByRole('button', { name: /example\.com/ }).length).toBeGreaterThan(0)
+    );
+
+    const disclosure = screen.getAllByRole('button', { name: /example\.com/ })[0];
+    expect(disclosure).toHaveAttribute('aria-expanded', 'false');
+
+    const detailsId = disclosure.getAttribute('aria-controls');
+    expect(detailsId).toBeTruthy();
+
+    fireEvent.click(disclosure);
+
+    expect(disclosure).toHaveAttribute('aria-expanded', 'true');
+    expect(document.getElementById(detailsId as string)).toBeDefined();
+  });
+
   it('prefers configured server_name as the visible host label', async () => {
     const readableSnapshot = {
       ...mockNginxSnapshot,
