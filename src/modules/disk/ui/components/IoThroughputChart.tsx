@@ -21,7 +21,10 @@ interface IoThroughputChartProps {
   settings: DiskSettings;
 }
 
-export function IoThroughputChart({ ioData, settings }: IoThroughputChartProps) {
+export const IoThroughputChart = React.memo(function IoThroughputChart({
+  ioData,
+  settings,
+}: IoThroughputChartProps) {
   return (
     <Card className="lg:col-span-2 border-border/50 bg-card/50">
       <CardHeader className="flex flex-row items-center justify-between">
@@ -96,4 +99,4 @@ export function IoThroughputChart({ ioData, settings }: IoThroughputChartProps) 
       </CardContent>
     </Card>
   );
-}
+});
