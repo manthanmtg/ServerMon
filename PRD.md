@@ -61,7 +61,12 @@ Example environment variables:
 PORT=8912
 MONGO_URI=mongodb://localhost:27017/servermon
 NODE_ENV=production
+AI_RUNNER_MAX_CONCURRENT_RUNS=3
 ```
+
+Optional controls include:
+
+- `AI_RUNNER_MAX_CONCURRENT_RUNS`: cap concurrent AI Runner jobs (defaults to `3`, max `8`).
 
 ### MongoDB Connection
 
