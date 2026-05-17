@@ -58,25 +58,31 @@ type SearchableListeningPort = ListeningPort & {
 };
 
 export function getFilteredListeningPorts(
-  listening: ReadonlyArray<SearchableListeningPort>,
+  listening: ReadonlyArray<ListeningPort | SearchableListeningPort>,
   protocolFilter: ProtocolFilter,
   query: string
 ): ListeningPort[] {
   return listening
     .filter((entry) => {
-      const port = entry;
-      if (protocolFilter === 'tcp' && !port.protocolLower.startsWith('tcp')) return false;
-      if (protocolFilter === 'udp' && !port.protocolLower.startsWith('udp')) return false;
+      const protocolLower = entry.protocolLower ?? entry.protocol.toLowerCase();
+      if (protocolFilter === 'tcp' && !protocolLower.startsWith('tcp')) return false;
+      if (protocolFilter === 'udp' && !protocolLower.startsWith('udp')) return false;
       if (!query) return true;
+      const processLower = entry.processLower ?? entry.process.toLowerCase();
+      const addressLower = entry.addressLower ?? entry.address.toLowerCase();
+      const userLower = entry.userLower ?? entry.user.toLowerCase();
+      const stateLower = entry.stateLower ?? entry.state.toLowerCase();
+      const wellKnownLower = entry.wellKnownLower ?? (WELL_KNOWN[entry.port] || '').toLowerCase();
+      const pidText = entry.pidText ?? String(entry.pid ?? '');
 
       return (
-        port.port.toString().includes(query) ||
-        port.processLower.includes(query) ||
-        port.addressLower.includes(query) ||
-        port.userLower.includes(query) ||
-        port.stateLower.includes(query) ||
-        (port.pidText.includes(query)) ||
-        port.wellKnownLower.includes(query)
+        entry.port.toString().includes(query) ||
+        processLower.includes(query) ||
+        addressLower.includes(query) ||
+        userLower.includes(query) ||
+        stateLower.includes(query) ||
+        pidText.includes(query) ||
+        wellKnownLower.includes(query)
       );
     })
     .sort((left, right) => left.port - right.port);
