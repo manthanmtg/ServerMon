@@ -1,22 +1,20 @@
 import { describe, it, expect, vi } from 'vitest';
-import type { Model } from 'mongoose';
-import type { IResourcePolicy, IResourcePolicyDTO } from '@/models/ResourcePolicy';
-import type { IFleetLogEvent } from '@/models/FleetLogEvent';
-import { enforceResourceGuard } from './resourceGuardMiddleware';
+import type { IResourcePolicyDTO } from '@/models/ResourcePolicy';
+import { enforceResourceGuard, type FleetLogEventWriter } from './resourceGuardMiddleware';
 
-function mockPolicyModel(docs: Array<IResourcePolicyDTO>): Model<IResourcePolicy> {
+function mockPolicyModel(docs: Array<IResourcePolicyDTO>) {
   const find = vi.fn().mockReturnValue({
     lean: () => Promise.resolve(docs),
   });
-  return { find } as unknown as Model<IResourcePolicy>;
+  return { find };
 }
 
 function mockLogModel(): {
-  model: Model<IFleetLogEvent>;
-  create: ReturnType<typeof vi.fn>;
+  model: FleetLogEventWriter;
+  create: ReturnType<typeof vi.fn<FleetLogEventWriter['create']>>;
 } {
-  const create = vi.fn().mockResolvedValue({});
-  const model = { create } as unknown as Model<IFleetLogEvent>;
+  const create = vi.fn<FleetLogEventWriter['create']>().mockResolvedValue({});
+  const model = { create };
   return { model, create };
 }
 
@@ -157,8 +155,8 @@ describe('enforceResourceGuard', () => {
         enforcement: { maxPublicRoutes: 'soft' },
       },
     ]);
-    const create = vi.fn().mockRejectedValue(new Error('db down'));
-    const FleetLogEvent = { create } as unknown as Model<IFleetLogEvent>;
+    const create = vi.fn<FleetLogEventWriter['create']>().mockRejectedValue(new Error('db down'));
+    const FleetLogEvent = { create };
 
     const result = await enforceResourceGuard({
       key: 'maxPublicRoutes',

@@ -17,17 +17,29 @@ describe('ai-runner execution wrapper', () => {
     await rm(tempDir, { recursive: true, force: true });
   });
 
-  async function writeLaunchFile(overrides: Partial<{ shell: string; command: string; metadata: unknown; requiresTTY?: boolean; runAsUser?: string; runAsUserAuthMode?: 'passwordless-sudo' | string; env?: Record<string, string> }> = {}) {
+  async function writeLaunchFile(
+    overrides: Partial<{
+      shell: string;
+      command: string;
+      metadata: unknown;
+      requiresTTY?: boolean;
+      runAsUser?: string;
+      runAsUserAuthMode?: 'passwordless-sudo' | string;
+      env?: Record<string, string>;
+    }> = {}
+  ) {
     const paths = resolveAIRunnerArtifactPaths(tempDir, 'run-1');
     const launchPath = path.join(paths.artifactDir, 'launch.json');
     await mkdir(paths.artifactDir, { recursive: true });
     await writeFile(
       paths.metadataPath,
       JSON.stringify(
-        overrides.metadata !== undefined ? overrides.metadata : {
-          createdAt: '2026-04-30T10:00:00.000Z',
-          existing: true,
-        }
+        overrides.metadata !== undefined
+          ? overrides.metadata
+          : {
+              createdAt: '2026-04-30T10:00:00.000Z',
+              existing: true,
+            }
       ),
       'utf8'
     ).catch(() => undefined);
@@ -40,7 +52,11 @@ describe('ai-runner execution wrapper', () => {
           shell: overrides.shell ?? '/bin/sh',
           command: overrides.command ?? 'printf stdout-text; printf stderr-text >&2',
           cwd: tempDir,
-          env: overrides.env ?? { PATH: process.env.PATH, HOME: tempDir, CUSTOM_ENV_VAR: 'test-value' },
+          env: overrides.env ?? {
+            PATH: process.env.PATH,
+            HOME: tempDir,
+            CUSTOM_ENV_VAR: 'test-value',
+          },
           paths,
           requiresTTY: overrides.requiresTTY,
           runAsUser: overrides.runAsUser,
@@ -130,18 +146,22 @@ describe('ai-runner execution wrapper', () => {
   }, 20000);
 
   it('throws an error if launch file does not exist', async () => {
-    await expect(runAIRunnerExecutionWrapper(path.join(tempDir, 'does-not-exist.json'))).rejects.toThrow(/ENOENT/);
+    await expect(
+      runAIRunnerExecutionWrapper(path.join(tempDir, 'does-not-exist.json'))
+    ).rejects.toThrow(/ENOENT/);
   });
 
   it('throws an error if launch file contains malformed json', async () => {
     const launchPath = path.join(tempDir, 'malformed-launch.json');
     await writeFile(launchPath, '{ invalid json', 'utf8');
-    await expect(runAIRunnerExecutionWrapper(launchPath)).rejects.toThrow(/(Unexpected token|Expected property name|JSON)/);
+    await expect(runAIRunnerExecutionWrapper(launchPath)).rejects.toThrow(
+      /(Unexpected token|Expected property name|JSON)/
+    );
   });
 
   it('handles child process spawn errors gracefully by writing to wrapper log and exiting with code', async () => {
     const { launchPath, paths } = await writeLaunchFile({ shell: '/does/not/exist/shell' });
-    
+
     await runAIRunnerExecutionWrapper(launchPath);
 
     const exitData = JSON.parse(await readFile(paths.exitPath, 'utf8'));
@@ -153,7 +173,9 @@ describe('ai-runner execution wrapper', () => {
   });
 
   it('passes environment variables to the spawned child', async () => {
-    const { launchPath, paths } = await writeLaunchFile({ command: 'node -e "console.log(process.env.CUSTOM_ENV_VAR)"' });
+    const { launchPath, paths } = await writeLaunchFile({
+      command: 'node -e "console.log(process.env.CUSTOM_ENV_VAR)"',
+    });
 
     await runAIRunnerExecutionWrapper(launchPath);
 
@@ -177,8 +199,13 @@ describe('ai-runner execution wrapper', () => {
   });
 
   it('throws an error synchronously if runAsUserAuthMode is unsupported', async () => {
-    const { launchPath } = await writeLaunchFile({ runAsUser: 'root', runAsUserAuthMode: 'invalid-mode' });
-    await expect(runAIRunnerExecutionWrapper(launchPath)).rejects.toThrow('Unsupported run as user auth mode');
+    const { launchPath } = await writeLaunchFile({
+      runAsUser: 'root',
+      runAsUserAuthMode: 'invalid-mode',
+    });
+    await expect(runAIRunnerExecutionWrapper(launchPath)).rejects.toThrow(
+      'Unsupported run as user auth mode'
+    );
   });
 
   it('handles metadata write failure gracefully (e.g. path is a directory)', async () => {
@@ -190,4 +217,3 @@ describe('ai-runner execution wrapper', () => {
     await expect(runAIRunnerExecutionWrapper(launchPath)).rejects.toThrow(/EISDIR/);
   });
 });
-
