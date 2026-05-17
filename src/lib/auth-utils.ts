@@ -44,5 +44,17 @@ export async function generateQRCode(username: string, secret: string): Promise<
  */
 export function verifyTOTPToken(token: string, secret: string): boolean {
   const result = verifySync({ token, secret });
-  return result.valid;
+  if (typeof result === 'boolean') {
+    return result;
+  }
+
+  if (result === null || result === undefined) {
+    return false;
+  }
+
+  if (typeof result === 'object' && 'valid' in result && typeof result.valid === 'boolean') {
+    return result.valid;
+  }
+
+  return false;
 }

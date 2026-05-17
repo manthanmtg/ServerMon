@@ -23,7 +23,8 @@ vi.mock('qrcode', () => ({
 }));
 
 import argon2 from 'argon2';
-import { generateSecret, verifySync } from 'otplib';
+import qrcode from 'qrcode';
+import { generateSecret, generateURI, verifySync } from 'otplib';
 import {
   hashPassword,
   verifyPassword,
@@ -34,7 +35,9 @@ import {
 
 const mockedArgon2 = vi.mocked(argon2);
 const mockedGenerateSecret = vi.mocked(generateSecret);
+const mockedGenerateURI = vi.mocked(generateURI);
 const mockedVerifySync = vi.mocked(verifySync);
+const mockedQRCode = vi.mocked(qrcode);
 
 describe('auth-utils', () => {
   beforeEach(() => {
@@ -85,6 +88,15 @@ describe('auth-utils', () => {
 
       expect(result).toBe(false);
     });
+
+    it('should forward empty strings to argon2.verify', async () => {
+      mockedArgon2.verify.mockResolvedValue(false);
+
+      const result = await verifyPassword('', '');
+
+      expect(mockedArgon2.verify).toHaveBeenCalledWith('', '');
+      expect(result).toBe(false);
+    });
   });
 
   describe('generateTOTPSecret', () => {
@@ -101,6 +113,13 @@ describe('auth-utils', () => {
       mockedGenerateSecret.mockReturnValue('ANOTHERSECRET');
 
       expect(generateTOTPSecret()).toBe('ANOTHERSECRET');
+    });
+
+    it('should return different values across multiple calls', () => {
+      mockedGenerateSecret.mockReturnValueOnce('SECRET_ONE').mockReturnValueOnce('SECRET_TWO');
+
+      expect(generateTOTPSecret()).toBe('SECRET_ONE');
+      expect(generateTOTPSecret()).toBe('SECRET_TWO');
     });
   });
 
@@ -126,6 +145,38 @@ describe('auth-utils', () => {
       expect(result).toBe(false);
     });
 
+    it('should return true when verifySync returns boolean true', () => {
+      mockedVerifySync.mockReturnValue(true as ReturnType<typeof mockedVerifySync>);
+
+      const result = verifyTOTPToken('123456', 'JBSWY3DPEHPK3PXP');
+
+      expect(result).toBe(true);
+    });
+
+    it('should return false when verifySync returns boolean false', () => {
+      mockedVerifySync.mockReturnValue(false as ReturnType<typeof mockedVerifySync>);
+
+      const result = verifyTOTPToken('123456', 'JBSWY3DPEHPK3PXP');
+
+      expect(result).toBe(false);
+    });
+
+    it('should return false when verifySync returns null', () => {
+      mockedVerifySync.mockReturnValue(null as ReturnType<typeof mockedVerifySync>);
+
+      const result = verifyTOTPToken('123456', 'JBSWY3DPEHPK3PXP');
+
+      expect(result).toBe(false);
+    });
+
+    it('should return false when verifySync returns object without valid flag', () => {
+      mockedVerifySync.mockReturnValue({} as ReturnType<typeof mockedVerifySync>);
+
+      const result = verifyTOTPToken('123456', 'JBSWY3DPEHPK3PXP');
+
+      expect(result).toBe(false);
+    });
+
     it('should pass through token and secret unchanged', () => {
       mockedVerifySync.mockReturnValue({ valid: true, delta: 0 });
 
@@ -137,13 +188,10 @@ describe('auth-utils', () => {
 
   describe('generateQRCode', () => {
     it('should generate a QR code data URL', async () => {
-      const { generateURI } = await import('otplib');
-      const qrcode = (await import('qrcode')).default;
-
       vi.mocked(generateURI).mockReturnValue(
         'otpauth://totp/ServerMon:test-user?secret=JBSWY3DPEHPK3PXP&issuer=ServerMon'
       );
-      vi.mocked(qrcode.toDataURL).mockImplementation(async () => 'data:image/png;base64,mock');
+      mockedQRCode.toDataURL.mockImplementation(async () => 'data:image/png;base64,mock');
 
       const result = await generateQRCode('test-user', 'JBSWY3DPEHPK3PXP');
 
@@ -159,10 +207,36 @@ describe('auth-utils', () => {
     });
 
     it('should propagate errors from qrcode.toDataURL', async () => {
-      const qrcode = (await import('qrcode')).default;
-      vi.mocked(qrcode.toDataURL).mockRejectedValue(new Error('QR error'));
+      mockedGenerateURI.mockReturnValue(
+        'otpauth://totp/ServerMon:user:secret?secret=SECRET&issuer=ServerMon'
+      );
+      mockedQRCode.toDataURL.mockRejectedValue(new Error('QR error'));
 
       await expect(generateQRCode('user', 'secret')).rejects.toThrow('QR error');
+    });
+
+    it('should propagate errors from generateURI', async () => {
+      mockedGenerateURI.mockImplementation(() => {
+        throw new Error('URI error');
+      });
+
+      await expect(generateQRCode('user', 'secret')).rejects.toThrow('URI error');
+    });
+
+    it('should generate data URL with special-character labels', async () => {
+      mockedGenerateURI.mockReturnValue(
+        'otpauth://totp/ServerMon:test%40user%2Bplus?secret=JBSWY3DPEHPK3PXP&issuer=ServerMon'
+      );
+      mockedQRCode.toDataURL.mockResolvedValue('data:image/png;base64,special');
+
+      const result = await generateQRCode('test@user+plus', 'JBSWY3DPEHPK3PXP');
+
+      expect(mockedGenerateURI).toHaveBeenCalledWith({
+        issuer: 'ServerMon',
+        label: 'test@user+plus',
+        secret: 'JBSWY3DPEHPK3PXP',
+      });
+      expect(result).toBe('data:image/png;base64,special');
     });
   });
 });
