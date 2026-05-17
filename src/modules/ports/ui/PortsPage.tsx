@@ -45,30 +45,54 @@ const WELL_KNOWN: Record<number, string> = {
   27017: 'MongoDB',
 };
 
-export function getFilteredListeningPorts(
-  listening: PortsSnapshot['listening'],
-  protocolFilter: ProtocolFilter,
-  search: string
-): PortsSnapshot['listening'] {
-  const query = search.trim().toLowerCase();
+type ListeningPort = PortsSnapshot['listening'][number];
 
+type SearchableListeningPort = ListeningPort & {
+  processLower: string;
+  addressLower: string;
+  userLower: string;
+  stateLower: string;
+  protocolLower: string;
+  wellKnownLower: string;
+  pidText: string;
+};
+
+export function getFilteredListeningPorts(
+  listening: ReadonlyArray<SearchableListeningPort>,
+  protocolFilter: ProtocolFilter,
+  query: string
+): ListeningPort[] {
   return listening
-    .filter((port) => {
-      if (protocolFilter === 'tcp' && !port.protocol.startsWith('tcp')) return false;
-      if (protocolFilter === 'udp' && !port.protocol.startsWith('udp')) return false;
+    .filter((entry) => {
+      const port = entry;
+      if (protocolFilter === 'tcp' && !port.protocolLower.startsWith('tcp')) return false;
+      if (protocolFilter === 'udp' && !port.protocolLower.startsWith('udp')) return false;
       if (!query) return true;
 
       return (
         port.port.toString().includes(query) ||
-        port.process.toLowerCase().includes(query) ||
-        port.address.toLowerCase().includes(query) ||
-        port.user.toLowerCase().includes(query) ||
-        port.state.toLowerCase().includes(query) ||
-        (port.pid?.toString() || '').includes(query) ||
-        (WELL_KNOWN[port.port] || '').toLowerCase().includes(query)
+        port.processLower.includes(query) ||
+        port.addressLower.includes(query) ||
+        port.userLower.includes(query) ||
+        port.stateLower.includes(query) ||
+        (port.pidText.includes(query)) ||
+        port.wellKnownLower.includes(query)
       );
     })
     .sort((left, right) => left.port - right.port);
+}
+
+function buildSearchableListeningPorts(listening: ListeningPort[]): SearchableListeningPort[] {
+  return listening.map((port) => ({
+    ...port,
+    processLower: port.process.toLowerCase(),
+    addressLower: port.address.toLowerCase(),
+    userLower: port.user.toLowerCase(),
+    stateLower: port.state.toLowerCase(),
+    protocolLower: port.protocol.toLowerCase(),
+    wellKnownLower: (WELL_KNOWN[port.port] || '').toLowerCase(),
+    pidText: String(port.pid ?? ''),
+  }));
 }
 
 export default function PortsPage() {
@@ -76,6 +100,12 @@ export default function PortsPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [protocolFilter, setProtocolFilter] = useState<ProtocolFilter>('all');
+
+  const preparedListening = useMemo(
+    () => buildSearchableListeningPorts(snapshot?.listening ?? []),
+    [snapshot?.listening]
+  );
+  const normalizedSearch = useMemo(() => search.trim().toLowerCase(), [search]);
 
   const load = useCallback(async () => {
     try {
@@ -98,8 +128,8 @@ export default function PortsPage() {
   }, [load]);
 
   const filtered = useMemo(
-    () => getFilteredListeningPorts(snapshot?.listening ?? [], protocolFilter, search),
-    [snapshot?.listening, protocolFilter, search]
+    () => getFilteredListeningPorts(preparedListening, protocolFilter, normalizedSearch),
+    [preparedListening, protocolFilter, normalizedSearch]
   );
 
   if (loading && !snapshot) {
