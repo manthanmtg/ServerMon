@@ -178,14 +178,14 @@ export function DesktopEntryActions({
       </Button>
       {!entry.isDirectory && (
         <>
-      <Button
-        variant="ghost"
-        size="icon"
-        className="h-7 w-7"
-        onClick={() => onDownload(entry)}
-        title="Download"
-        aria-label="Download file"
-      >
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            onClick={() => onDownload(entry)}
+            title="Download"
+            aria-label="Download file"
+          >
             <Download className="h-3 w-3" />
           </Button>
           <Button

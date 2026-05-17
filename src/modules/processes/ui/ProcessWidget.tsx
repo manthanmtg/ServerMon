@@ -42,7 +42,9 @@ export default function ProcessWidget() {
         const data = await res.json();
         if (!res.ok) {
           const message =
-            typeof data?.error === 'string' ? data.error : `Failed to load processes (${res.status})`;
+            typeof data?.error === 'string'
+              ? data.error
+              : `Failed to load processes (${res.status})`;
           throw new Error(message);
         }
         setProcesses(data.processes || []);
@@ -59,7 +61,7 @@ export default function ProcessWidget() {
         if (isManual) setRefreshing(false);
       }
     },
-    [sortField, debouncedSearch]
+    [sortField, debouncedSearch, toast]
   );
 
   useEffect(() => {

@@ -64,16 +64,22 @@ export function getFilteredListeningPorts(
 ): ListeningPort[] {
   return listening
     .filter((entry) => {
-      const protocolLower = entry.protocolLower ?? entry.protocol.toLowerCase();
+      const protocolLower =
+        'protocolLower' in entry ? entry.protocolLower : entry.protocol.toLowerCase();
       if (protocolFilter === 'tcp' && !protocolLower.startsWith('tcp')) return false;
       if (protocolFilter === 'udp' && !protocolLower.startsWith('udp')) return false;
       if (!query) return true;
-      const processLower = entry.processLower ?? entry.process.toLowerCase();
-      const addressLower = entry.addressLower ?? entry.address.toLowerCase();
-      const userLower = entry.userLower ?? entry.user.toLowerCase();
-      const stateLower = entry.stateLower ?? entry.state.toLowerCase();
-      const wellKnownLower = entry.wellKnownLower ?? (WELL_KNOWN[entry.port] || '').toLowerCase();
-      const pidText = entry.pidText ?? String(entry.pid ?? '');
+      const processLower =
+        'processLower' in entry ? entry.processLower : entry.process.toLowerCase();
+      const addressLower =
+        'addressLower' in entry ? entry.addressLower : entry.address.toLowerCase();
+      const userLower = 'userLower' in entry ? entry.userLower : entry.user.toLowerCase();
+      const stateLower = 'stateLower' in entry ? entry.stateLower : entry.state.toLowerCase();
+      const wellKnownLower =
+        'wellKnownLower' in entry
+          ? entry.wellKnownLower
+          : (WELL_KNOWN[entry.port] || '').toLowerCase();
+      const pidText = 'pidText' in entry ? entry.pidText : String(entry.pid ?? '');
 
       return (
         entry.port.toString().includes(query) ||

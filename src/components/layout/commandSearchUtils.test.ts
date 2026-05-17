@@ -15,10 +15,18 @@ describe('commandSearchUtils', () => {
       expect.objectContaining({ id: 'nav-dashboard', href: '/dashboard', group: 'Overview' })
     );
     expect(items).toContainEqual(
-      expect.objectContaining({ id: 'overview-ai-runner', href: '/ai-runner', label: 'AI Runner > Overview' })
+      expect.objectContaining({
+        id: 'overview-ai-runner',
+        href: '/ai-runner',
+        label: 'AI Runner > Overview',
+      })
     );
     expect(items).toContainEqual(
-      expect.objectContaining({ id: 'section-ai-runner-history', href: '/ai-runner?tab=history', group: 'AI Runner' })
+      expect.objectContaining({
+        id: 'section-ai-runner-history',
+        href: '/ai-runner?tab=history',
+        group: 'AI Runner',
+      })
     );
     expect(items).toContainEqual(
       expect.objectContaining({ id: 'nav-guide', href: '/guide', group: 'System' })
@@ -31,7 +39,13 @@ describe('commandSearchUtils', () => {
   it('returns stable ranking for exact and prefix label matches', () => {
     const items: CommandSearchItem[] = [
       { id: 'services', label: 'Services', href: '/services', group: 'Modules', priority: 10 },
-      { id: 'service', label: 'Service Health', href: '/services/health', group: 'Modules', priority: 5 },
+      {
+        id: 'service',
+        label: 'Service Health',
+        href: '/services/health',
+        group: 'Modules',
+        priority: 5,
+      },
       { id: 'users', label: 'User Guide', href: '/guide', group: 'System', priority: 1 },
     ];
 
