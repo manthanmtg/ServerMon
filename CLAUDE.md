@@ -226,6 +226,7 @@ Concise map of major directories, commands, and key files. Update this section w
 - `src/lib/env-vars/` — stateless host environment variable helpers for OS target detection, shell env parsing, user-scope add/delete, and system-scope instructions
 - `src/lib/apps/` — managed app deployment helpers for persistent release paths, systemd/Nginx rendering, health checks, and Apps service DTOs
 - `src/lib/databases/` — Docker-only database templates, managed data path helpers, connection string generation, runtime actions, and explorer sidecar orchestration for MongoDB, PostgreSQL, and MySQL
+- `src/lib/docker/` — Docker CLI-backed container, image, network, volume, event, and alert aggregation service with mock-mode support
 - `src/lib/network/speedtest.ts`, `src/lib/network/speedtest-scheduler.ts` — speedtest CLI normalization, history persistence, fixed-interval scheduling, and startup scheduler
 - `src/server.ts` — custom Next.js server entry (Socket.IO bridge)
 - `src/proxy.ts`, `src/proxy.test.ts` — reverse proxy helper + tests
@@ -278,6 +279,7 @@ Concise map of major directories, commands, and key files. Update this section w
 
 - `src/models/` — Terminal & Processes models: TerminalHistory, TerminalSession, TerminalSettings, SavedCommand, DockerAlert, DockerStatAggregate
 - `src/app/api/modules/processes/`, `src/app/api/terminal/`, `src/app/api/modules/docker/` — API handlers for OS processes, host terminal sessions, and Docker container management
+- `src/lib/docker/` — Docker service layer for container snapshots/actions, image/network/volume discovery, lifecycle events, persisted alerts, and daily stats aggregation
 - `src/modules/processes/`, `src/modules/terminal/`, `src/modules/docker/` — UI modules for process monitoring, web terminal, and Docker management; uses extracted component pattern (e.g., `ProcessList.tsx`, `ProcessListChrome.tsx`, `ContainerTable.tsx`)
 
 ### File Browser Module
