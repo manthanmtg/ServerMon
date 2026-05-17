@@ -30,7 +30,7 @@ export default function ProcessWidget() {
   }, [search]);
 
   const fetchProcs = useCallback(
-    async (isManual = false) => {
+    async (isManual = false, showError = isManual) => {
       if (isManual) setRefreshing(true);
       try {
         const res = await resilientFetch(
@@ -40,10 +40,20 @@ export default function ProcessWidget() {
           { timeout: 8000 }
         );
         const data = await res.json();
+        if (!res.ok) {
+          const message =
+            typeof data?.error === 'string' ? data.error : `Failed to load processes (${res.status})`;
+          throw new Error(message);
+        }
         setProcesses(data.processes || []);
-        if (data.summary) setSummary(data.summary);
-      } catch {
-        // silent fail on auto-refresh
+        setSummary(data.summary || null);
+      } catch (err) {
+        if (showError) {
+          toast({
+            title: err instanceof Error ? err.message : 'Failed to load processes',
+            variant: 'destructive',
+          });
+        }
       } finally {
         setLoading(false);
         if (isManual) setRefreshing(false);
@@ -53,7 +63,7 @@ export default function ProcessWidget() {
   );
 
   useEffect(() => {
-    fetchProcs();
+    fetchProcs(false, true);
     const interval = setInterval(() => fetchProcs(), 5000);
     return () => clearInterval(interval);
   }, [fetchProcs]);
