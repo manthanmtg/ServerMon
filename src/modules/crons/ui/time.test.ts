@@ -1,7 +1,67 @@
-import { describe, expect, it } from 'vitest';
-import { formatCountdown, formatPastTime } from './time';
+import { act, renderHook } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { formatCountdown, formatPastTime, useRealtimeNow } from './time';
 
 describe('cron time helpers', () => {
+  describe('useRealtimeNow', () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date('2026-04-19T00:00:00Z'));
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('returns the current timestamp on initial render', () => {
+      const initialNow = Date.UTC(2026, 3, 19, 0, 0, 0);
+
+      const { result } = renderHook(() => useRealtimeNow());
+
+      expect(result.current).toBe(initialNow);
+    });
+
+    it('updates after the default one second interval', () => {
+      const { result } = renderHook(() => useRealtimeNow());
+
+      act(() => {
+        vi.advanceTimersByTime(1000);
+      });
+
+      expect(result.current).toBe(Date.UTC(2026, 3, 19, 0, 0, 1));
+    });
+
+    it('does not update before the configured interval elapses', () => {
+      const { result } = renderHook(() => useRealtimeNow(5000));
+
+      act(() => {
+        vi.advanceTimersByTime(4999);
+      });
+
+      expect(result.current).toBe(Date.UTC(2026, 3, 19, 0, 0, 0));
+    });
+
+    it('uses a custom interval for updates', () => {
+      const { result } = renderHook(() => useRealtimeNow(5000));
+
+      act(() => {
+        vi.advanceTimersByTime(5000);
+      });
+
+      expect(result.current).toBe(Date.UTC(2026, 3, 19, 0, 0, 5));
+    });
+
+    it('clears the active interval when unmounted', () => {
+      const clearIntervalSpy = vi.spyOn(window, 'clearInterval');
+      const { unmount } = renderHook(() => useRealtimeNow(2500));
+
+      unmount();
+
+      expect(clearIntervalSpy).toHaveBeenCalledOnce();
+      clearIntervalSpy.mockRestore();
+    });
+  });
+
   it('formats hour, minute, and second countdowns', () => {
     const now = Date.UTC(2026, 3, 19, 0, 0, 0);
     const target = new Date(now + (5 * 3600 + 3 * 60 + 6) * 1000).toISOString();
