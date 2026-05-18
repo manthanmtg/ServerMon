@@ -43,7 +43,7 @@ export function resolveAIRunnerArtifactPaths(
   };
 }
 
-export async function ensureAIRunnerArtifactDir(paths: AIRunnerArtifactPathsDTO): Promise<void> {
+async function ensureAIRunnerArtifactDir(paths: AIRunnerArtifactPathsDTO): Promise<void> {
   await mkdir(paths.artifactDir, { recursive: true, mode: 0o700 });
 }
 
