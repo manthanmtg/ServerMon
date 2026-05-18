@@ -33,6 +33,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { resilientFetch, safeJson } from '@/lib/fetch-utils';
 
 export interface QuickAccessItem {
   id: string;
@@ -74,6 +75,24 @@ const ICON_MAP: Record<string, LucideIcon> = {
 
 const MotionLink = motion.create(Link);
 
+function isQuickAccessItem(value: unknown): value is QuickAccessItem {
+  if (!value || typeof value !== 'object') return false;
+  const item = value as Record<string, unknown>;
+  return (
+    typeof item.id === 'string' &&
+    typeof item.href === 'string' &&
+    typeof item.label === 'string' &&
+    typeof item.icon === 'string'
+  );
+}
+
+function parseQuickAccessItems(data: unknown): QuickAccessItem[] {
+  if (!data || typeof data !== 'object') return [];
+  const items = (data as { items?: unknown }).items;
+  if (!Array.isArray(items)) return [];
+  return items.filter(isQuickAccessItem);
+}
+
 export default React.memo(function QuickAccessBar() {
   const pathname = usePathname();
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -81,10 +100,10 @@ export default React.memo(function QuickAccessBar() {
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
-    fetch('/api/settings/quick-access')
-      .then((r) => r.json())
-      .then((data: { items?: QuickAccessItem[] }) => {
-        setItems(data.items ?? []);
+    resilientFetch('/api/settings/quick-access', { timeout: 5000 })
+      .then((response) => safeJson<unknown>(response))
+      .then((data) => {
+        setItems(parseQuickAccessItems(data));
         setLoaded(true);
       })
       .catch(() => {

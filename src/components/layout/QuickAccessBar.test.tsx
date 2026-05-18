@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, act, waitFor } from '@testing-library/react';
 import QuickAccessBar from './QuickAccessBar';
 
@@ -44,6 +44,11 @@ describe('QuickAccessBar', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockUsePathname.mockReturnValue('/dashboard');
+    vi.useRealTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it('renders nothing before the API response resolves', () => {
@@ -169,6 +174,25 @@ describe('QuickAccessBar', () => {
     await waitFor(() => {
       expect(screen.getByText(/Pin modules in Settings/)).toBeDefined();
     });
+  });
+
+  it('shows settings link when the API request times out', async () => {
+    vi.useFakeTimers();
+    global.fetch = vi.fn((_input: RequestInfo | URL, init?: RequestInit) => {
+      return new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener('abort', () =>
+          reject(new DOMException('Aborted', 'AbortError'))
+        );
+      });
+    });
+
+    render(<QuickAccessBar />);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5000);
+    });
+
+    expect(screen.getByText(/Pin modules in Settings/)).toBeDefined();
   });
 
   it('shows settings link when API returns null items field', async () => {
