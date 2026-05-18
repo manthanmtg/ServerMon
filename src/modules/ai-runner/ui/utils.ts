@@ -1,13 +1,14 @@
 import { formatBytes, relativeTime, slugify } from '@/lib/utils';
 import cronstrue from 'cronstrue';
 import type { DragEvent } from 'react';
-import type { AIRunnerRunDTO, AIRunnerScheduleDTO } from '../types';
+import type { AIRunnerLogEntry, AIRunnerRunDTO, AIRunnerScheduleDTO } from '../types';
 import { ICON_PRESETS } from './constants';
 import type { PromptFormState, ScheduleBuilderMode, ScheduleFormState } from './types';
 
 export { relativeTime as formatRelative, slugify as slugifyValue, formatBytes as formatMemory };
 
 const PROMPT_TEMPLATE_PLACEHOLDER = '<YOUR_PROMPT>';
+const DEFAULT_LOG_ENTRY_LIMIT = 500;
 
 export function applyPromptTemplate(template: string, current: string): string {
   if (!current.trim()) return template;
@@ -54,6 +55,29 @@ export function emptyScheduleForm(
     cronExpression: '0 9 * * 1-5',
     enabled: true,
   };
+}
+
+export function mergeLogEntries(
+  current: AIRunnerLogEntry[],
+  incoming: AIRunnerLogEntry[],
+  limit = DEFAULT_LOG_ENTRY_LIMIT
+): AIRunnerLogEntry[] {
+  const merged = new Map<string, AIRunnerLogEntry>();
+  for (const entry of current) {
+    merged.set(entry.id, entry);
+  }
+  for (const entry of incoming) {
+    merged.set(entry.id, entry);
+  }
+
+  return Array.from(merged.values())
+    .map((entry) => ({
+      entry,
+      timestamp: Date.parse(entry.timestamp),
+    }))
+    .sort((left, right) => left.timestamp - right.timestamp)
+    .slice(-limit)
+    .map(({ entry }) => entry);
 }
 
 export function formatDuration(seconds?: number): string {
