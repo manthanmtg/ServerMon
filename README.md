@@ -222,6 +222,8 @@ Common optional controls:
 | `SERVERMON_APPS_ROOT`           | Host data root for managed app releases                         | `/var/lib/servermon/apps`           |
 | `SERVERMON_UPDATES_MOCK`        | Set to `1` to use mocked system update data                     | unset                               |
 | `SERVERMON_AUTO_UPDATE_CONFIG`  | Server auto-update schedule config path                         | `/etc/servermon/auto-update.json`   |
+| `WEBAUTHN_RP_ID`                | Override the passkey relying party ID                           | request host                        |
+| `WEBAUTHN_ORIGIN`               | Override the expected passkey browser origin                    | request origin                      |
 | `AI_RUNNER_MAX_CONCURRENT_RUNS` | Maximum concurrently executing AI Runner jobs                   | `3`                                 |
 | `FLEET_HUB_PUBLIC_URL`          | Public hub URL used by fleet install scripts and pair callbacks | unset                               |
 

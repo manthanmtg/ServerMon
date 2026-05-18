@@ -95,7 +95,10 @@ export default React.memo(function QuickAccessBar() {
   if (!loaded) return null;
 
   return (
-    <nav aria-label="Quick Access" className="animate-slide-down h-14 w-full bg-background/60 backdrop-blur-md border-b border-border/50 sticky top-14 z-30 flex items-center sm:h-12">
+    <nav
+      aria-label="Quick Access"
+      className="animate-slide-down h-14 w-full bg-background/60 backdrop-blur-md border-b border-border/50 sticky top-14 z-30 flex items-center sm:h-12"
+    >
       <div
         ref={scrollRef}
         className="flex items-center gap-1 px-3 lg:px-5 overflow-x-auto scrollbar-none h-full"
