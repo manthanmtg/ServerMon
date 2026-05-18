@@ -103,7 +103,7 @@ type HostCommandRunner = (
   args: string[]
 ) => Promise<{ stdout: string; stderr: string }>;
 
-export const defaultDockerRunner: DockerRunner = {
+const defaultDockerRunner: DockerRunner = {
   async run(args, timeoutMs = 60_000) {
     try {
       const { stdout, stderr } = await execFileAsync('docker', args, {

@@ -205,7 +205,7 @@ async function exists(file: string): Promise<boolean> {
   }
 }
 
-export async function detectUserTarget(
+async function detectUserTarget(
   env: EnvDictionary = process.env,
   platform: EnvVarPlatform = process.platform
 ): Promise<EnvVarTarget> {

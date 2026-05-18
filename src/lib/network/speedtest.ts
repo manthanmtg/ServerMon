@@ -315,7 +315,7 @@ async function loadSettingsDocument(): Promise<LeanSpeedtestSettings | null> {
   return await leanQuery;
 }
 
-export async function getNetworkSpeedtestSettings(): Promise<NetworkSpeedtestSettingsDto> {
+async function getNetworkSpeedtestSettings(): Promise<NetworkSpeedtestSettingsDto> {
   return serializeSettings(await loadSettingsDocument());
 }
 

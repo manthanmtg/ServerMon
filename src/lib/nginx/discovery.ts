@@ -28,7 +28,7 @@ async function runNginxDump(): Promise<string> {
   return `${stdout}\n${stderr}`.trim();
 }
 
-export function splitNginxDumpBySource(raw: string): NginxDumpSection[] {
+function splitNginxDumpBySource(raw: string): NginxDumpSection[] {
   const sections: NginxDumpSection[] = [];
   let currentPath = '';
   let currentLines: string[] = [];
