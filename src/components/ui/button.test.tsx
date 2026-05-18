@@ -57,16 +57,20 @@ describe('Button component', () => {
     );
     const button = screen.getByRole('button', { name: /submit form/i });
     expect(button).toHaveAttribute('type', 'submit');
-    
+
     fireEvent.click(button);
     expect(handleClick).toHaveBeenCalledTimes(1);
   });
 
   it('disables the button when disabled prop is true', () => {
     const handleClick = vi.fn();
-    render(<Button disabled onClick={handleClick}>Disabled Button</Button>);
+    render(
+      <Button disabled onClick={handleClick}>
+        Disabled Button
+      </Button>
+    );
     const button = screen.getByRole('button', { name: /disabled button/i });
-    
+
     expect(button).toBeDisabled();
     fireEvent.click(button);
     expect(handleClick).not.toHaveBeenCalled();
@@ -75,7 +79,7 @@ describe('Button component', () => {
   it('renders a loading spinner when loading is true', () => {
     render(<Button loading>Loading Button</Button>);
     const button = screen.getByRole('button', { name: /loading button/i });
-    
+
     // Spinner element checking
     const spinner = button.querySelector('.animate-spin');
     expect(spinner).toBeInTheDocument();
@@ -83,9 +87,13 @@ describe('Button component', () => {
 
   it('disables the button when loading is true', () => {
     const handleClick = vi.fn();
-    render(<Button loading onClick={handleClick}>Loading Disabled</Button>);
+    render(
+      <Button loading onClick={handleClick}>
+        Loading Disabled
+      </Button>
+    );
     const button = screen.getByRole('button', { name: /loading disabled/i });
-    
+
     expect(button).toBeDisabled();
     fireEvent.click(button);
     expect(handleClick).not.toHaveBeenCalled();
@@ -94,7 +102,7 @@ describe('Button component', () => {
   it('renders children alongside loading spinner', () => {
     render(<Button loading>Saving...</Button>);
     const button = screen.getByRole('button', { name: /saving\.\.\./i });
-    
+
     expect(button.textContent).toContain('Saving...');
     expect(button.querySelector('.animate-spin')).toBeInTheDocument();
   });
