@@ -1,5 +1,5 @@
 /** @vitest-environment node */
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   describeWeekdays,
   emptyScheduleForm,
@@ -15,7 +15,21 @@ import {
   humanizeCron,
   summarizeRunsPerDay,
   parseScheduleBuilder,
+  mergeLogEntries,
 } from './utils';
+import type { AIRunnerLogEntry } from '../types';
+
+function createLogEntry(
+  entry: Pick<AIRunnerLogEntry, 'id' | 'timestamp' | 'level' | 'message'>
+): AIRunnerLogEntry {
+  return {
+    component: 'ai-runner',
+    event: 'runner.log',
+    sessionId: 'session-1',
+    pid: 1234,
+    ...entry,
+  };
+}
 
 describe('ai-runner ui utils', () => {
   describe('emptyScheduleForm', () => {
@@ -196,6 +210,47 @@ describe('ai-runner ui utils', () => {
       expect(state.enabledProfileCount).toBe(2);
       expect(state.activeWorkspaceCount).toBe(2);
       expect(state.blockingWorkspaceCount).toBe(2);
+    });
+  });
+
+  describe('mergeLogEntries', () => {
+    it('deduplicates, orders, caps entries, and parses each timestamp once', () => {
+      const parseSpy = vi.spyOn(Date, 'parse');
+      const current: AIRunnerLogEntry[] = [
+        createLogEntry({
+          id: 'current',
+          timestamp: '2026-04-29T12:00:02.000Z',
+          level: 'info',
+          message: 'Current',
+        }),
+        createLogEntry({
+          id: 'replace',
+          timestamp: '2026-04-29T12:00:01.000Z',
+          level: 'warn',
+          message: 'Old',
+        }),
+      ];
+      const incoming: AIRunnerLogEntry[] = [
+        createLogEntry({
+          id: 'replace',
+          timestamp: '2026-04-29T12:00:03.000Z',
+          level: 'error',
+          message: 'New',
+        }),
+        createLogEntry({
+          id: 'incoming',
+          timestamp: '2026-04-29T12:00:00.000Z',
+          level: 'debug',
+          message: 'Incoming',
+        }),
+      ];
+
+      expect(mergeLogEntries(current, incoming, 2).map((entry) => entry.id)).toEqual([
+        'current',
+        'replace',
+      ]);
+      expect(parseSpy).toHaveBeenCalledTimes(3);
+      parseSpy.mockRestore();
     });
   });
 

@@ -94,6 +94,7 @@ import {
   getScheduleModeLabel,
   getScheduleStatusVariant,
   humanizeCron,
+  mergeLogEntries,
   slugifyValue,
   summarizeRunsPerDay,
 } from './utils';
@@ -102,7 +103,6 @@ import { buildScheduleVisualizationModel } from './scheduleVisualization';
 const SCHEDULE_SURFACE_REFRESH_MS = 15_000;
 const HISTORY_REFRESH_MS = 5_000;
 const ACTIVE_SCHEDULE_RUN_REFRESH_MS = 5_000;
-const LOG_ENTRY_LIMIT = 500;
 const PROMPT_TEMPLATE_PLACEHOLDER = '<YOUR_PROMPT>';
 const PORTABLE_RESOURCE_OPTIONS: Array<{
   id: AIRunnerPortableResource;
@@ -330,22 +330,6 @@ function getSchedulerReliabilityWarning(
   }
 
   return null;
-}
-
-function mergeLogEntries(
-  current: AIRunnerLogEntry[],
-  incoming: AIRunnerLogEntry[]
-): AIRunnerLogEntry[] {
-  const merged = new Map<string, AIRunnerLogEntry>();
-  for (const entry of [...current, ...incoming]) {
-    merged.set(entry.id, entry);
-  }
-
-  return Array.from(merged.values())
-    .sort((left, right) => {
-      return new Date(left.timestamp).getTime() - new Date(right.timestamp).getTime();
-    })
-    .slice(-LOG_ENTRY_LIMIT);
 }
 
 function fileToBase64(file: File): Promise<string> {
