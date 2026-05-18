@@ -291,6 +291,15 @@ describe('fetch-utils', () => {
       expect(fetch).toHaveBeenCalledTimes(1);
     });
 
+    it('treats invalid retry counts as a single request attempt', async () => {
+      vi.mocked(fetch).mockRejectedValueOnce(new Error('Network error'));
+
+      await expect(resilientFetch('/api/test', { retries: -1, retryDelay: 1 })).rejects.toThrow(
+        'Network error'
+      );
+      expect(fetch).toHaveBeenCalledTimes(1);
+    });
+
     it('respects already aborted signals', async () => {
       const controller = new AbortController();
       controller.abort('Already done');
