@@ -213,6 +213,8 @@ Common optional controls:
 | `SERVERMON_REPO_DIR`            | Source checkout used by self-update actions                     | `/opt/servermon/repo`               |
 | `SERVERMON_NETWORK_MOCK`        | Set to `1` to use mocked network speedtest data                 | unset                               |
 | `SERVERMON_DOCKER_MOCK`         | Set to `1` to use mocked Docker data                            | unset                               |
+| `SERVERMON_FIREWALL_MOCK`       | Set to `1` to use mocked firewall posture data                  | unset                               |
+| `SERVERMON_BRANDING_MOCK`       | Set to `1` to use default branding without MongoDB              | unset                               |
 | `SERVERMON_DATABASES_ROOT`      | Host data root for managed database containers                  | `/var/lib/servermon/databases`      |
 | `SERVERMON_PUBLIC_HOST`         | Default public hostname for managed database connection strings | unset                               |
 | `SERVERMON_PUBLIC_IP`           | Default public IP fallback for managed database connections     | unset                               |
