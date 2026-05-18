@@ -1,33 +1,17 @@
 'use client';
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import ProShell from '@/components/layout/ProShell';
-import { Key, ShieldCheck, Search, Trash2, UserPlus, ShieldAlert } from 'lucide-react';
+import { Search, ShieldCheck, UserPlus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/components/ui/toast';
 import AddUserModal from './AddUserModal';
-
-interface OSUser {
-  username: string;
-  uid: number;
-  home: string;
-  shell: string;
-  groups: string[];
-  hasSudo: boolean;
-  sshKeysCount: number;
-}
-
-interface WebUser {
-  id: string;
-  username: string;
-  role: 'admin' | 'user';
-  isActive: boolean;
-  lastLoginAt?: string;
-}
+import { UsersList } from './UsersList';
+import type { OSUser, UsersTab, WebUser } from './types';
 
 export default function UsersPage() {
   const { toast } = useToast();
-  const [activeTab, setActiveTab] = useState<'os' | 'web'>('os');
+  const [activeTab, setActiveTab] = useState<UsersTab>('os');
   const [osUsers, setOsUsers] = useState<OSUser[]>([]);
   const [webUsers, setWebUsers] = useState<WebUser[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -55,7 +39,7 @@ export default function UsersPage() {
     fetchData();
   }, [fetchData]);
 
-  const handleDeleteUser = async (type: 'os' | 'web', identifier: string) => {
+  const handleDeleteUser = async (type: UsersTab, identifier: string) => {
     if (!confirm(`Are you sure you want to delete this ${type} user?`)) return;
 
     try {
@@ -102,7 +86,7 @@ export default function UsersPage() {
     }
   };
 
-  const handleUpdateRole = async (id: string, current: string) => {
+  const handleUpdateRole = async (id: string, current: WebUser['role']) => {
     const newRole = current === 'admin' ? 'user' : 'admin';
     try {
       const res = await fetch('/api/modules/users', {
@@ -178,298 +162,15 @@ export default function UsersPage() {
           </div>
         </div>
 
-        {/* Users List Container */}
-        <div className="bg-card border border-border rounded-3xl shadow-md overflow-hidden">
-          {/* Mobile Card View */}
-          <div className="sm:hidden divide-y divide-border/30">
-            {isLoading ? (
-              <div className="px-6 py-12 text-center text-sm text-muted-foreground animate-pulse">
-                Scanning identity records...
-              </div>
-            ) : filteredUsers.length === 0 ? (
-              <div className="px-6 py-12 text-center text-sm text-muted-foreground">
-                No users found matching &quot;{searchQuery}&quot;
-              </div>
-            ) : (
-              filteredUsers.map((user) => (
-                <div key={'id' in user ? user.id : user.username} className="p-4 space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div
-                        className={cn(
-                          'w-10 h-10 rounded-xl flex items-center justify-center font-bold text-sm',
-                          activeTab === 'web'
-                            ? 'bg-indigo-500/10 text-indigo-500'
-                            : 'bg-primary/10 text-primary'
-                        )}
-                      >
-                        {(user.username[0] || 'U').toUpperCase()}
-                      </div>
-                      <div>
-                        <div className="text-sm font-bold">{user.username}</div>
-                        <div className="text-[10px] text-muted-foreground font-mono">
-                          {'id' in user ? user.id.slice(-8) : `UID: ${user.uid}`}
-                        </div>
-                      </div>
-                    </div>
-                    <button
-                      onClick={() =>
-                        handleDeleteUser(activeTab, 'id' in user ? user.id : user.username)
-                      }
-                      className="p-2 rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-all"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1">
-                      <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
-                        {activeTab === 'web' ? 'Role' : 'Home'}
-                      </div>
-                      {activeTab === 'web' ? (
-                        <button
-                          onClick={() =>
-                            handleUpdateRole((user as WebUser).id, (user as WebUser).role)
-                          }
-                          className={cn(
-                            'px-2 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-widest border transition-all',
-                            (user as WebUser).role === 'admin'
-                              ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20'
-                              : 'bg-accent/40 text-muted-foreground border-border/50'
-                          )}
-                        >
-                          {(user as WebUser).role}
-                        </button>
-                      ) : (
-                        <div className="text-xs font-medium truncate">{(user as OSUser).home}</div>
-                      )}
-                    </div>
-
-                    <div className="space-y-1 text-right">
-                      <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
-                        {activeTab === 'web' ? 'Status' : 'Privileges'}
-                      </div>
-                      {activeTab === 'web' ? (
-                        <div className="flex items-center justify-end gap-2">
-                          <div
-                            className={cn(
-                              'w-2 h-2 rounded-full',
-                              (user as WebUser).isActive ? 'bg-emerald-500' : 'bg-muted'
-                            )}
-                          />
-                          <span className="text-xs">
-                            {(user as WebUser).isActive ? 'Active' : 'Disabled'}
-                          </span>
-                        </div>
-                      ) : (
-                        <div className="flex justify-end">
-                          <button
-                            onClick={() =>
-                              handleToggleSudo((user as OSUser).username, (user as OSUser).hasSudo)
-                            }
-                            className={cn(
-                              'flex items-center gap-1.5 px-2 py-1 rounded-lg border transition-all',
-                              (user as OSUser).hasSudo
-                                ? 'bg-amber-500/10 text-amber-500 border-amber-500/20'
-                                : 'bg-accent/20 text-muted-foreground border-border/30 grayscale opacity-60'
-                            )}
-                          >
-                            <ShieldAlert className="w-3.5 h-3.5" />
-                            <span className="text-[10px] font-bold uppercase">Sudo</span>
-                          </button>
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="space-y-1">
-                      <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
-                        {activeTab === 'web' ? 'Last Login' : 'SSH Keys'}
-                      </div>
-                      {activeTab === 'web' ? (
-                        <div className="text-xs text-muted-foreground">
-                          {(user as WebUser).lastLoginAt
-                            ? new Date((user as WebUser).lastLoginAt!).toLocaleDateString()
-                            : 'Never'}
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-1.5">
-                          <Key className="w-3.5 h-3.5 text-primary/60" />
-                          <span className="text-xs font-bold">{(user as OSUser).sshKeysCount}</span>
-                        </div>
-                      )}
-                    </div>
-
-                    {activeTab === 'os' && (
-                      <div className="space-y-1 text-right">
-                        <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
-                          Shell
-                        </div>
-                        <div className="text-[10px] text-muted-foreground font-mono">
-                          {(user as OSUser).shell}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-
-          {/* Desktop Table View */}
-          <div className="hidden sm:block overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="border-b border-border/50 bg-accent/10">
-                  <th className="px-6 py-4 text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
-                    User
-                  </th>
-                  <th className="px-6 py-4 text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
-                    {activeTab === 'web' ? 'Role' : 'Home / Shell'}
-                  </th>
-                  <th className="px-6 py-4 text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
-                    {activeTab === 'web' ? 'Status' : 'Privileges'}
-                  </th>
-                  <th className="px-6 py-4 text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
-                    {activeTab === 'web' ? 'Last Login' : 'SSH Keys'}
-                  </th>
-                  <th className="px-6 py-4 text-[11px] font-bold text-muted-foreground uppercase tracking-wider text-right">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border/30">
-                {isLoading ? (
-                  <tr>
-                    <td
-                      colSpan={5}
-                      className="px-6 py-12 text-center text-sm text-muted-foreground animate-pulse"
-                    >
-                      Scanning identity records...
-                    </td>
-                  </tr>
-                ) : (
-                  filteredUsers.map((user) => (
-                    <tr
-                      key={'id' in user ? user.id : user.username}
-                      className="group hover:bg-accent/20 transition-colors"
-                    >
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-3">
-                          <div
-                            className={cn(
-                              'w-10 h-10 rounded-xl flex items-center justify-center font-bold text-sm',
-                              activeTab === 'web'
-                                ? 'bg-indigo-500/10 text-indigo-500'
-                                : 'bg-primary/10 text-primary'
-                            )}
-                          >
-                            {(user.username[0] || 'U').toUpperCase()}
-                          </div>
-                          <div>
-                            <div className="text-sm font-bold">{user.username}</div>
-                            <div className="text-[10px] text-muted-foreground font-mono">
-                              {'id' in user ? user.id.slice(-8) : `UID: ${user.uid}`}
-                            </div>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        {activeTab === 'web' ? (
-                          <button
-                            aria-label={`Toggle role for ${user.username}`}
-                            onClick={() =>
-                              handleUpdateRole((user as WebUser).id, (user as WebUser).role)
-                            }
-                            className={cn(
-                              'px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest border transition-all',
-                              (user as WebUser).role === 'admin'
-                                ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20'
-                                : 'bg-accent/40 text-muted-foreground border-border/50'
-                            )}
-                          >
-                            {(user as WebUser).role}
-                          </button>
-                        ) : (
-                          <div className="space-y-1">
-                            <div className="text-xs font-medium truncate max-w-[150px]">
-                              {(user as OSUser).home}
-                            </div>
-                            <div className="text-[10px] text-muted-foreground font-mono">
-                              {(user as OSUser).shell}
-                            </div>
-                          </div>
-                        )}
-                      </td>
-                      <td className="px-6 py-4">
-                        {activeTab === 'web' ? (
-                          <div className="flex items-center gap-2">
-                            <div
-                              className={cn(
-                                'w-2 h-2 rounded-full',
-                                (user as WebUser).isActive ? 'bg-emerald-500' : 'bg-muted'
-                              )}
-                            />
-                            <span className="text-xs">
-                              {(user as WebUser).isActive ? 'Active' : 'Disabled'}
-                            </span>
-                          </div>
-                        ) : (
-                          <button
-                            data-testid="toggle-sudo-btn"
-                            aria-label={`Toggle sudo privileges for ${user.username}`}
-                            onClick={() =>
-                              handleToggleSudo((user as OSUser).username, (user as OSUser).hasSudo)
-                            }
-                            className={cn(
-                              'flex items-center gap-1.5 px-2 py-1 rounded-lg border transition-all',
-                              (user as OSUser).hasSudo
-                                ? 'bg-amber-500/10 text-amber-500 border-amber-500/20 shadow-sm shadow-amber-500/5'
-                                : 'bg-accent/20 text-muted-foreground border-border/30 grayscale opacity-60'
-                            )}
-                          >
-                            <ShieldAlert className="w-3.5 h-3.5" />
-                            <span className="text-[10px] font-bold uppercase">Sudo</span>
-                          </button>
-                        )}
-                      </td>
-                      <td className="px-6 py-4">
-                        {activeTab === 'web' ? (
-                          <div className="text-xs text-muted-foreground">
-                            {(user as WebUser).lastLoginAt
-                              ? new Date((user as WebUser).lastLoginAt!).toLocaleDateString()
-                              : 'Never'}
-                          </div>
-                        ) : (
-                          <div className="flex items-center gap-2">
-                            <Key className="w-4 h-4 text-primary/60" />
-                            <span className="text-xs font-bold">
-                              {(user as OSUser).sshKeysCount}
-                            </span>
-                            <span className="text-[10px] text-muted-foreground">Keys</span>
-                          </div>
-                        )}
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          <button
-                            data-testid="delete-user-btn"
-                            onClick={() =>
-                              handleDeleteUser(activeTab, 'id' in user ? user.id : user.username)
-                            }
-                            className="p-2 rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-all"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        <UsersList
+          activeTab={activeTab}
+          users={filteredUsers}
+          isLoading={isLoading}
+          searchQuery={searchQuery}
+          onDeleteUser={handleDeleteUser}
+          onToggleSudo={handleToggleSudo}
+          onUpdateRole={handleUpdateRole}
+        />
 
         {/* Security Advisory */}
         <div className="p-4 rounded-2xl bg-indigo-500/5 border border-indigo-500/10 flex items-start gap-4">
