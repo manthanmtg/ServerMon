@@ -38,9 +38,10 @@ export async function resilientFetch(
     fetchOptions.method ?? (url instanceof Request ? url.method : 'GET')
   ).toUpperCase();
   const canRetryStatus = SAFE_RETRY_METHODS.has(method);
+  const retryCount = Number.isFinite(retries) ? Math.max(0, Math.floor(retries)) : 0;
 
   let lastError: unknown = null;
-  for (let i = 0; i <= retries; i++) {
+  for (let i = 0; i <= retryCount; i++) {
     const controller = new AbortController();
     let timedOut = false;
     const abortFromCaller = () => controller.abort(signal?.reason);
@@ -64,7 +65,7 @@ export async function resilientFetch(
       signal?.removeEventListener('abort', abortFromCaller);
 
       if (
-        i < retries &&
+        i < retryCount &&
         canRetryStatus &&
         retryOnStatuses.includes(response.status) &&
         !signal?.aborted
@@ -95,7 +96,7 @@ export async function resilientFetch(
         lastError = new Error(`Request timed out after ${timeout}ms`);
       }
 
-      if (i < retries) {
+      if (i < retryCount) {
         if (signal?.aborted) {
           throw signal.reason || lastError;
         }
