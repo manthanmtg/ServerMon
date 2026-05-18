@@ -5,11 +5,13 @@ import { motion } from 'framer-motion';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ServerCog } from 'lucide-react';
 import { deriveNodeStatus } from '@/lib/fleet/status';
+import type { NodeStatus } from '@/lib/fleet/enums';
 
 interface NodeSummary {
   _id: string;
   status: string;
   tunnelStatus: string;
+  computedStatus?: NodeStatus;
   lastSeen?: string;
   maintenance?: { enabled: boolean };
   pairingVerifiedAt?: string | null;
@@ -43,13 +45,15 @@ export default function FleetWidget() {
     const now = new Date();
     return nodes.reduce(
       (acc, n) => {
-        const s = deriveNodeStatus({
-          lastSeen: n.lastSeen ? new Date(n.lastSeen) : undefined,
-          tunnelStatus: n.tunnelStatus as never,
-          maintenanceEnabled: n.maintenance?.enabled,
-          unpaired: !n.pairingVerifiedAt,
-          now,
-        });
+        const s =
+          n.computedStatus ??
+          deriveNodeStatus({
+            lastSeen: n.lastSeen ? new Date(n.lastSeen) : undefined,
+            tunnelStatus: n.tunnelStatus as never,
+            maintenanceEnabled: n.maintenance?.enabled,
+            unpaired: !n.pairingVerifiedAt,
+            now,
+          });
         acc[s] = (acc[s] ?? 0) + 1;
         acc.total++;
         return acc;

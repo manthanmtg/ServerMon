@@ -73,6 +73,39 @@ describe('FleetWidget', () => {
     expect(screen.getByText('Offline')).toBeDefined();
   });
 
+  it('uses API computed status when counting nodes', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          nodes: [
+            {
+              _id: 'n1',
+              computedStatus: 'online',
+              status: 'online',
+              tunnelStatus: 'disconnected',
+              lastSeen: new Date(Date.now() - 10 * 60_000).toISOString(),
+              pairingVerifiedAt: new Date().toISOString(),
+            },
+          ],
+          total: 1,
+        }),
+      })
+    );
+
+    await act(async () => {
+      render(<FleetWidget />);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText('Total').parentElement).toHaveTextContent('1');
+    });
+
+    expect(screen.getByText('Online').parentElement).toHaveTextContent('1');
+    expect(screen.getByText('Offline').parentElement).toHaveTextContent('0');
+  });
+
   it('shows error state on fetch failure', async () => {
     vi.stubGlobal(
       'fetch',
