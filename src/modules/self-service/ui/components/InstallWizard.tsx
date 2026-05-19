@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import {
   ArrowLeft,
   ArrowRight,
@@ -37,38 +37,54 @@ interface InstallWizardProps {
 }
 
 export function InstallWizard({ template, method, onBack, onStart }: InstallWizardProps) {
-  const allFields = [...template.configSchema, ...(method.configOverrides || [])];
+  const allFields = useMemo(
+    () => [...template.configSchema, ...(method.configOverrides || [])],
+    [method.configOverrides, template.configSchema]
+  );
 
-  const initialConfig: Record<string, string | number | boolean> = {};
-  for (const field of allFields) {
-    initialConfig[field.key] = field.default;
-  }
+  const initialConfig = useMemo(() => {
+    const values: Record<string, string | number | boolean> = {};
+    for (const field of allFields) {
+      values[field.key] = field.default;
+    }
+    return values;
+  }, [allFields]);
 
   const [config, setConfig] = useState(initialConfig);
   const [sslMode, setSslMode] = useState<string>('letsencrypt');
   const [step, setStep] = useState<WizardStep>('configure');
 
-  const pipeline = method.pipeline ?? template.defaultPipeline;
-  const hasSslStep = pipeline.includes('ssl-cert');
-  const hasDomain = allFields.some((f) => f.key === 'domain');
+  const pipeline = useMemo(
+    () => method.pipeline ?? template.defaultPipeline,
+    [method.pipeline, template.defaultPipeline]
+  );
+  const hasSslStep = useMemo(() => pipeline.includes('ssl-cert'), [pipeline]);
+  const hasDomain = useMemo(() => allFields.some((f) => f.key === 'domain'), [allFields]);
 
   const updateField = useCallback((key: string, value: string | number | boolean) => {
     setConfig((prev) => ({ ...prev, [key]: value }));
   }, []);
 
-  const fullConfig = { ...config, sslMode };
+  const fullConfig = useMemo(() => ({ ...config, sslMode }), [config, sslMode]);
 
-  const canProceedConfigure = allFields
-    .filter((f) => f.required)
-    .every((f) => {
-      const val = config[f.key];
-      if (typeof val === 'string') return val.trim().length > 0;
-      return val !== undefined && val !== null;
-    });
+  const canProceedConfigure = useMemo(
+    () =>
+      allFields
+        .filter((f) => f.required)
+        .every((f) => {
+          const val = config[f.key];
+          if (typeof val === 'string') return val.trim().length > 0;
+          return val !== undefined && val !== null;
+        }),
+    [allFields, config]
+  );
 
-  const steps: WizardStep[] = ['configure'];
-  if (hasSslStep && hasDomain) steps.push('ssl');
-  steps.push('review');
+  const steps = useMemo<WizardStep[]>(() => {
+    const items: WizardStep[] = ['configure'];
+    if (hasSslStep && hasDomain) items.push('ssl');
+    items.push('review');
+    return items;
+  }, [hasDomain, hasSslStep]);
 
   const currentIdx = steps.indexOf(step);
   const isFirst = currentIdx === 0;
