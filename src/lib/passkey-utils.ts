@@ -19,6 +19,10 @@ function firstHeaderValue(value: string | null | undefined): string | null {
   return first || null;
 }
 
+function normalizeProtocol(value: string | null | undefined): string | null {
+  return firstHeaderValue(value)?.toLowerCase() ?? null;
+}
+
 function normalizeHost(value: string | null | undefined, stripPort = false): string {
   let host = firstHeaderValue(value) ?? '';
 
@@ -96,7 +100,7 @@ export function getOrigin(req: NextRequest): string {
 
   const host = getForwardedHost(req);
   const proto =
-    firstHeaderValue(req.headers.get('x-forwarded-proto')) ||
+    normalizeProtocol(req.headers.get('x-forwarded-proto')) ||
     (process.env.NODE_ENV === 'production' ? 'https' : 'http');
   return `${proto}://${host}`;
 }
