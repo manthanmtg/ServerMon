@@ -194,8 +194,8 @@ Concise map of major directories, commands, and key files. Update this section w
 
 ## `src/` Layout
 
-- `src/app/` — Next.js App Router pages + `api/` route handlers (dashboard, settings, fleet, ai-agents, ai-runner, apps, databases, disk, docker, endpoints, env-vars, file-browser, firewall, hardware, logs, network, nginx, processes, self-service, services, terminal, updates, users, security/system health, etc.)
-- `src/app/api/modules/` — feature-specific API routes (ai-runner, ai-agents, disk, firewall, nginx, users, services, processes, security, etc.)
+- `src/app/` — Next.js App Router pages + `api/` route handlers (dashboard, settings, fleet, ai-agents, ai-runner, apps, certificates, crons, databases, disk, docker, endpoints, env-vars, file-browser, firewall, guide, hardware, logs, memory, network, nginx, ports, processes, self-service, services, terminal, updates, users, security/system health, etc.)
+- `src/app/api/modules/` — feature-specific API routes (ai-runner, ai-agents, certificates, crons, disk, firewall, memory, nginx, ports, users, services, processes, security, etc.)
 - `src/app/api/auth/` — authentication handlers (login, logout, me, verify, passkey registration/auth)
 - `src/app/api/analytics/` — internal usage analytics and recent event history
 - `src/app/api/system/` — system-level actions (diagnostics, reboot, update history)
@@ -220,7 +220,7 @@ Concise map of major directories, commands, and key files. Update this section w
 - `src/lib/endpoints/` — executors for custom API logic (scripts, webhooks, logic handlers)
 - `src/lib/certificates/`, `src/lib/ports/`, `src/lib/memory/`, `src/lib/security/` — service-layer logic for certificates, ports, memory monitoring, and security management
 - `src/models/` — Mongoose schemas
-- `src/modules/` — feature modules (terminal, processes, logs, metrics, fleet, ai-agents, ai-runner, apps, disk, firewall, nginx, network, hardware, self-service, endpoints, users, services, security, certificates, ports, memory, guide, etc.)
+- `src/modules/` — feature modules (terminal, processes, logs, metrics, fleet, ai-agents, ai-runner, apps, certificates, crons, disk, firewall, health, nginx, network, hardware, self-service, endpoints, users, services, security, ports, memory, guide, etc.)
 - `src/models/NetworkSpeedtestResult.ts`, `src/models/NetworkSpeedtestSettings.ts`, `src/models/NetworkAlert.ts`, `src/models/NetworkStatAggregate.ts` — persisted Network module data
 - `src/models/CustomEndpoint.ts`, `src/models/EndpointExecutionLog.ts` — persisted endpoint configuration and execution history
 - `src/lib/env-vars/` — stateless host environment variable helpers for OS target detection, shell env parsing, user-scope add/delete, and system-scope instructions
