@@ -426,6 +426,20 @@ describe('fetch-utils', () => {
       expect(fetch).toHaveBeenCalledTimes(1);
     });
 
+    it('does not retry network failures for mutation requests', async () => {
+      const networkError = new Error('Network error');
+      vi.mocked(fetch).mockRejectedValueOnce(networkError);
+
+      await expect(
+        resilientFetch('/api/test', {
+          method: 'POST',
+          retries: 1,
+          retryDelay: 1,
+        })
+      ).rejects.toBe(networkError);
+      expect(fetch).toHaveBeenCalledTimes(1);
+    });
+
     it('does not retry transient server responses for mutation Request objects', async () => {
       vi.mocked(fetch).mockResolvedValueOnce(new Response('Unavailable', { status: 503 }));
       const req = new Request('https://example.com/api/test', { method: 'DELETE' });
