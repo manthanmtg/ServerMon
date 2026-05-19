@@ -14,6 +14,16 @@ import { writeAIRunnerLogEntry } from './logs';
 import { cleanupAIRunnerArtifacts } from './artifact-store';
 import * as shared from './shared';
 
+
+// Interface to access private methods for testing without using 'any'
+interface TestSupervisor {
+  instanceId: string;
+  acquireLease(): Promise<boolean>;
+  reconcileStaleJobs(): Promise<void>;
+  enqueueDueSchedules(): Promise<void>;
+  dispatchRunnableJobs(): Promise<void>;
+}
+
 vi.mock('@/lib/db', () => ({
   default: vi.fn().mockResolvedValue(undefined),
 }));
@@ -115,12 +125,9 @@ describe('AIRunnerSupervisor', () => {
       (
         AIRunnerSupervisorLease.findOneAndUpdate as unknown as ReturnType<typeof vi.fn>
       ).mockResolvedValue({
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        ownerId: (supervisor as any).instanceId,
+        ownerId: (supervisor as unknown as TestSupervisor).instanceId,
       });
-
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const result = await (supervisor as any).acquireLease();
+      const result = await (supervisor as unknown as TestSupervisor).acquireLease();
       expect(result).toBe(true);
       expect(AIRunnerSupervisorLease.findOneAndUpdate).toHaveBeenCalled();
     });
@@ -130,12 +137,9 @@ describe('AIRunnerSupervisor', () => {
         AIRunnerSupervisorLease.findOneAndUpdate as unknown as ReturnType<typeof vi.fn>
       ).mockResolvedValue(null);
       (AIRunnerSupervisorLease.create as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        ownerId: (supervisor as any).instanceId,
+        ownerId: (supervisor as unknown as TestSupervisor).instanceId,
       });
-
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const result = await (supervisor as any).acquireLease();
+      const result = await (supervisor as unknown as TestSupervisor).acquireLease();
       expect(result).toBe(true);
       expect(AIRunnerSupervisorLease.create).toHaveBeenCalled();
     });
@@ -147,9 +151,7 @@ describe('AIRunnerSupervisor', () => {
       (AIRunnerSupervisorLease.create as unknown as ReturnType<typeof vi.fn>).mockRejectedValue(
         new Error('duplicate')
       );
-
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const result = await (supervisor as any).acquireLease();
+      const result = await (supervisor as unknown as TestSupervisor).acquireLease();
       expect(result).toBe(false);
     });
   });
@@ -173,9 +175,7 @@ describe('AIRunnerSupervisor', () => {
       (AIRunnerRun.findById as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
         _id: 'run-1',
       });
-
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (supervisor as any).reconcileStaleJobs();
+      await (supervisor as unknown as TestSupervisor).reconcileStaleJobs();
 
       expect(terminateAIRunnerExecution).toHaveBeenCalled();
       expect(AIRunnerJob.findByIdAndUpdate).toHaveBeenCalledWith(
@@ -204,9 +204,7 @@ describe('AIRunnerSupervisor', () => {
       (AIRunnerRun.findById as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
         _id: 'run-1',
       });
-
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (supervisor as any).reconcileStaleJobs();
+      await (supervisor as unknown as TestSupervisor).reconcileStaleJobs();
 
       expect(AIRunnerJob.findByIdAndUpdate).toHaveBeenCalledWith(
         'job-1',
@@ -234,9 +232,7 @@ describe('AIRunnerSupervisor', () => {
       (AIRunnerRun.findById as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
         _id: 'run-1',
       });
-
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (supervisor as any).reconcileStaleJobs();
+      await (supervisor as unknown as TestSupervisor).reconcileStaleJobs();
 
       expect(AIRunnerRun.findByIdAndUpdate).toHaveBeenCalledWith(
         'run-1',
@@ -260,9 +256,7 @@ describe('AIRunnerSupervisor', () => {
       (AIRunnerSchedule.find as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
         sort: vi.fn().mockResolvedValue([mockSchedule]),
       });
-
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (supervisor as any).enqueueDueSchedules();
+      await (supervisor as unknown as TestSupervisor).enqueueDueSchedules();
 
       expect(enqueueRunRequest).toHaveBeenCalled();
       expect(mockSchedule.save).toHaveBeenCalled();
@@ -281,9 +275,7 @@ describe('AIRunnerSupervisor', () => {
         sort: vi.fn().mockResolvedValue([mockSchedule]),
       });
       (enqueueRunRequest as unknown as ReturnType<typeof vi.fn>).mockRejectedValue({ code: 11000 });
-
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (supervisor as any).enqueueDueSchedules();
+      await (supervisor as unknown as TestSupervisor).enqueueDueSchedules();
 
       expect(enqueueRunRequest).toHaveBeenCalled();
       expect(mockSchedule.save).toHaveBeenCalled(); // Still saves to update nextRunTime
@@ -364,9 +356,7 @@ describe('AIRunnerSupervisor', () => {
       (AIRunnerSchedule.find as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
         sort: vi.fn().mockResolvedValue([mockSchedule]),
       });
-
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (supervisor as any).enqueueDueSchedules();
+      await (supervisor as unknown as TestSupervisor).enqueueDueSchedules();
 
       expect(enqueueRunRequest).not.toHaveBeenCalled();
       expect(mockSchedule.save).toHaveBeenCalled();
@@ -393,9 +383,7 @@ describe('AIRunnerSupervisor', () => {
         .mockResolvedValueOnce({ _id: 'j2', runId: 'r2', attemptCount: 1, maxAttempts: 2 })
         .mockResolvedValueOnce(null);
       (spawnAIRunnerWorker as unknown as ReturnType<typeof vi.fn>).mockReturnValue(123);
-
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (supervisor as any).dispatchRunnableJobs();
+      await (supervisor as unknown as TestSupervisor).dispatchRunnableJobs();
 
       expect(spawnAIRunnerWorker).toHaveBeenCalledTimes(2);
       expect(AIRunnerJob.findOneAndUpdate).toHaveBeenCalledTimes(2);
@@ -403,9 +391,7 @@ describe('AIRunnerSupervisor', () => {
 
     it('stops if limit reached', async () => {
       (AIRunnerJob.countDocuments as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(2); // Limit is 2
-
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (supervisor as any).dispatchRunnableJobs();
+      await (supervisor as unknown as TestSupervisor).dispatchRunnableJobs();
 
       expect(AIRunnerJob.findOneAndUpdate).not.toHaveBeenCalled();
     });
@@ -434,9 +420,7 @@ describe('AIRunnerSupervisor', () => {
         maxAttempts: 2,
       });
       (spawnAIRunnerWorker as unknown as ReturnType<typeof vi.fn>).mockReturnValue(123);
-
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (supervisor as any).dispatchRunnableJobs();
+      await (supervisor as unknown as TestSupervisor).dispatchRunnableJobs();
 
       expect(spawnAIRunnerWorker).toHaveBeenCalledTimes(1);
       expect(AIRunnerJob.findOneAndUpdate).toHaveBeenCalledTimes(1);
@@ -467,12 +451,8 @@ describe('AIRunnerSupervisor', () => {
         })
         .mockResolvedValueOnce(null);
       (spawnAIRunnerWorker as unknown as ReturnType<typeof vi.fn>).mockReturnValue(null);
-
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (supervisor as any).dispatchRunnableJobs();
-
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      expect(spawnAIRunnerWorker).toHaveBeenCalledWith('j1', (supervisor as any).instanceId);
+      await (supervisor as unknown as TestSupervisor).dispatchRunnableJobs();
+      expect(spawnAIRunnerWorker).toHaveBeenCalledWith('j1', (supervisor as unknown as TestSupervisor).instanceId);
       expect(AIRunnerJob.findByIdAndUpdate).toHaveBeenCalledWith(
         'j1',
         expect.objectContaining({
