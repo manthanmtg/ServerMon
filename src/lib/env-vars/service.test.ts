@@ -112,6 +112,45 @@ describe('env vars service helpers', () => {
     expect(parsed.skipped).toEqual([]);
   });
 
+  it('unescapes double-quoted shell values conservatively', async () => {
+    const file = await tempFile(
+      [
+        'DOUBLE_QUOTE="say \\"hello\\""',
+        'DOLLAR_VALUE="cost \\$5"',
+        'BACKSLASH_VALUE="C:\\\\tools"',
+      ].join('\n')
+    );
+
+    const parsed = await parseShellEnvFile(file);
+
+    expect(parsed.variables.map(({ key, value }) => ({ key, value }))).toEqual([
+      { key: 'DOUBLE_QUOTE', value: 'say "hello"' },
+      { key: 'DOLLAR_VALUE', value: 'cost $5' },
+      { key: 'BACKSLASH_VALUE', value: 'C:\\tools' },
+    ]);
+  });
+
+  it('unescapes portable single-quote shell sequences', async () => {
+    const file = await tempFile(`OWNER='can'"'"'t fail'\n`);
+
+    const parsed = await parseShellEnvFile(file);
+
+    expect(parsed.variables.map(({ key, value }) => ({ key, value }))).toEqual([
+      { key: 'OWNER', value: "can't fail" },
+    ]);
+  });
+
+  it('skips malformed quoted shell values instead of exposing partial values', async () => {
+    const file = await tempFile(
+      ['BROKEN_DOUBLE="unterminated', "BROKEN_SINGLE='unterminated", 'SAFE=value'].join('\n')
+    );
+
+    const parsed = await parseShellEnvFile(file);
+
+    expect(parsed.variables.map((record) => record.key)).toEqual(['SAFE']);
+    expect(parsed.skipped.map((record) => record.key)).toEqual(['BROKEN_DOUBLE', 'BROKEN_SINGLE']);
+  });
+
   it('skips unsafe shell syntax when parsing env files', async () => {
     const file = await tempFile(
       [
@@ -172,6 +211,20 @@ describe('env vars service helpers', () => {
         source: 'env command',
         writable: false,
         sensitive: true,
+        inCurrentSession: true,
+      },
+    ]);
+  });
+
+  it('preserves equals signs inside env command values', () => {
+    expect(parseEnvCommandOutput('DATABASE_URL=mongodb://user:pass@example/db?x=1&y=2\n')).toEqual([
+      {
+        key: 'DATABASE_URL',
+        value: 'mongodb://user:pass@example/db?x=1&y=2',
+        scope: 'session',
+        source: 'env command',
+        writable: false,
+        sensitive: false,
         inCurrentSession: true,
       },
     ]);
@@ -284,5 +337,23 @@ describe('env vars service helpers', () => {
     expect(linux.requiresAdmin).toBe(true);
     expect(windows.command).toContain('Machine');
     expect(windows.command).toContain('$null');
+  });
+
+  it('escapes platform-specific system instruction values', () => {
+    const windows = buildSystemInstruction({
+      platform: 'win32',
+      action: 'add',
+      key: 'OWNER',
+      value: "team's value",
+    });
+    const macos = buildSystemInstruction({
+      platform: 'darwin',
+      action: 'add',
+      key: 'OWNER',
+      value: "team's value",
+    });
+
+    expect(windows.command).toContain("'team''s value'");
+    expect(macos.command).toContain("'team'\"'\"'s value'");
   });
 });
