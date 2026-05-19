@@ -122,12 +122,13 @@ export function ServiceLogPanel({ serviceName }: ServiceLogPanelProps) {
         </p>
         <button
           type="button"
+          aria-pressed={autoScroll}
           onClick={() => setAutoScroll(!autoScroll)}
           className={cn(
-            'flex items-center gap-1.5 px-2 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all border',
+            'flex min-h-8 items-center gap-1.5 rounded-lg border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider shadow-sm transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background active:scale-[0.98]',
             autoScroll
-              ? 'bg-primary/10 text-primary border-primary/20'
-              : 'bg-muted/50 text-muted-foreground border-border/60 hover:bg-muted'
+              ? 'border-primary/25 bg-primary/10 text-primary shadow-[0_0_0_1px_color-mix(in_oklab,var(--primary)_12%,transparent)] hover:bg-primary/15'
+              : 'border-border/60 bg-muted/50 text-muted-foreground hover:border-border hover:bg-muted hover:text-foreground'
           )}
         >
           <RotateCcw
