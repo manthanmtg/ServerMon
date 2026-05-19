@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { resilientFetch, safeJson } from '@/lib/fetch-utils';
 import type { CronRunStatus } from '../../types';
 
 export function PastRunsPanel({
@@ -19,13 +20,18 @@ export function PastRunsPanel({
     setError(null);
     try {
       const url = jobId ? `/api/modules/crons/${jobId}/run` : '/api/modules/crons/all/run'; // Use a generic ID for global
-      const res = await fetch(url);
+      const res = await resilientFetch(url, { cache: 'no-store', timeout: 8000 });
       if (!res.ok) {
         throw new Error('Unable to load run history.');
       }
 
-      const data = (await res.json()) as CronRunStatus[];
-      setRuns(data);
+      const data = await safeJson<unknown>(res);
+      if (!Array.isArray(data)) {
+        throw new Error('Invalid run history response.');
+      }
+
+      const runs = data as CronRunStatus[];
+      setRuns(runs);
     } catch {
       setError('Unable to load run history.');
     } finally {
