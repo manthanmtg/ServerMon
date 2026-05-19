@@ -282,13 +282,6 @@ Concise map of major directories, commands, and key files. Update this section w
 - `src/lib/docker/` — Docker service layer for container snapshots/actions, image/network/volume discovery, lifecycle events, persisted alerts, and daily stats aggregation
 - `src/modules/processes/`, `src/modules/terminal/`, `src/modules/docker/` — UI modules for process monitoring, web terminal, and Docker management; uses extracted component pattern (e.g., `ProcessList.tsx`, `ProcessListChrome.tsx`, `ContainerTable.tsx`)
 
-### File Browser Module
-
-- `src/app/api/modules/file-browser/` — API routes for directory listings, file reading/writing, uploads, git operations, and settings
-- `src/app/file-browser/` — File Browser module page route wrapped in `ProShell`
-- `src/models/FileBrowserSettings.ts` — persisted shortcuts, default path, and editor/preview size limits for the File Browser module
-- `src/modules/file-browser/` — File Browser module definition, shared library logic (`lib/file-browser.ts`), and UI components (including CodeMirror editor integration and entry actions)
-
 ### Self-Service & Custom Endpoints
 
 - `src/modules/self-service/` — Browse and install services/tools with fully managed provisioning (Nginx, SSL, systemd); logic in `engine/`, definitions in `templates/`
