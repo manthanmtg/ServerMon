@@ -96,7 +96,7 @@ export async function resilientFetch(
         lastError = new Error(`Request timed out after ${timeout}ms`);
       }
 
-      if (i < retryCount) {
+      if (i < retryCount && canRetryStatus) {
         if (signal?.aborted) {
           throw signal.reason || lastError;
         }
@@ -116,6 +116,8 @@ export async function resilientFetch(
         });
         continue;
       }
+
+      throw lastError;
     }
   }
   throw lastError;
