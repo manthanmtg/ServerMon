@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createLogger } from '@/lib/logger';
 import connectDB from '@/lib/db';
+import { getSession } from '@/lib/session';
 import CustomEndpoint from '@/models/CustomEndpoint';
 
 export const dynamic = 'force-dynamic';
@@ -9,6 +10,11 @@ const log = createLogger('api:endpoints');
 
 export async function GET(req: NextRequest) {
   try {
+    const session = await getSession();
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     await connectDB();
 
     const { searchParams } = new URL(req.url);
