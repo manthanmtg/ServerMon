@@ -61,24 +61,36 @@ function lineNumberAt(src: string, index: number): number {
   return src.slice(0, index).split('\n').length;
 }
 
+function hasKeywordAt(src: string, index: number, keyword: string): boolean {
+  if (!src.startsWith(keyword, index)) return false;
+  const before = index === 0 ? undefined : src[index - 1];
+  const after = src[index + keyword.length];
+  return isWordBoundary(before) && isWordBoundary(after);
+}
+
 function extractServerBlocks(src: string): ServerBlock[] {
   const blocks: ServerBlock[] = [];
   let index = 0;
 
   while (index < src.length) {
-    const found = src.indexOf('server', index);
-    if (found < 0) break;
-    const before = found === 0 ? undefined : src[found - 1];
-    const after = src[found + 'server'.length];
-    if (!isWordBoundary(before) || !isWordBoundary(after)) {
-      index = found + 1;
+    const ch = src[index];
+    if (ch === '"' || ch === "'") {
+      index = skipQuoted(src, index);
+      continue;
+    }
+    if (ch === '#') {
+      index = skipComment(src, index);
+      continue;
+    }
+    if (!hasKeywordAt(src, index, 'server')) {
+      index++;
       continue;
     }
 
-    let brace = found + 'server'.length;
+    let brace = index + 'server'.length;
     while (brace < src.length && /\s/.test(src[brace])) brace++;
     if (src[brace] !== '{') {
-      index = found + 1;
+      index++;
       continue;
     }
 
@@ -86,8 +98,8 @@ function extractServerBlocks(src: string): ServerBlock[] {
     if (close < 0) break;
     blocks.push({
       body: src.slice(brace + 1, close),
-      raw: src.slice(found, close + 1),
-      sourceLine: lineNumberAt(src, found),
+      raw: src.slice(index, close + 1),
+      sourceLine: lineNumberAt(src, index),
     });
     index = close + 1;
   }
@@ -182,15 +194,21 @@ function extractLocationBlocks(body: string): Array<{ path: string; body: string
   const locations: Array<{ path: string; body: string }> = [];
   let index = 0;
   while (index < body.length) {
-    const found = body.indexOf('location', index);
-    if (found < 0) break;
-    const before = found === 0 ? undefined : body[found - 1];
-    const after = body[found + 'location'.length];
-    if (!isWordBoundary(before) || !/\s/.test(after ?? '')) {
-      index = found + 1;
+    const ch = body[index];
+    if (ch === '"' || ch === "'") {
+      index = skipQuoted(body, index);
       continue;
     }
-    let cursor = found + 'location'.length;
+    if (ch === '#') {
+      index = skipComment(body, index);
+      continue;
+    }
+    const after = body[index + 'location'.length];
+    if (!hasKeywordAt(body, index, 'location') || !/\s/.test(after ?? '')) {
+      index++;
+      continue;
+    }
+    let cursor = index + 'location'.length;
     while (cursor < body.length && /\s/.test(body[cursor])) cursor++;
     const pathStart = cursor;
     while (cursor < body.length && body[cursor] !== '{') cursor++;
