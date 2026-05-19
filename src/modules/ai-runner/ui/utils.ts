@@ -520,7 +520,7 @@ function getAdvancedCronRunsPerDay(expression: string): RunsPerDaySummary | null
   };
 }
 
-export function estimateCronRunsPerDay(expression: string): RunsPerDaySummary | null {
+function estimateCronRunsPerDay(expression: string): RunsPerDaySummary | null {
   const parsed = parseScheduleBuilder(expression);
 
   if (parsed.mode === 'every') {
