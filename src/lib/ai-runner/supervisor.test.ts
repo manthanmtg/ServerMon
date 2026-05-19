@@ -14,7 +14,6 @@ import { writeAIRunnerLogEntry } from './logs';
 import { cleanupAIRunnerArtifacts } from './artifact-store';
 import * as shared from './shared';
 
-
 // Interface to access private methods for testing without using 'any'
 interface TestSupervisor {
   instanceId: string;
@@ -452,7 +451,10 @@ describe('AIRunnerSupervisor', () => {
         .mockResolvedValueOnce(null);
       (spawnAIRunnerWorker as unknown as ReturnType<typeof vi.fn>).mockReturnValue(null);
       await (supervisor as unknown as TestSupervisor).dispatchRunnableJobs();
-      expect(spawnAIRunnerWorker).toHaveBeenCalledWith('j1', (supervisor as unknown as TestSupervisor).instanceId);
+      expect(spawnAIRunnerWorker).toHaveBeenCalledWith(
+        'j1',
+        (supervisor as unknown as TestSupervisor).instanceId
+      );
       expect(AIRunnerJob.findByIdAndUpdate).toHaveBeenCalledWith(
         'j1',
         expect.objectContaining({
