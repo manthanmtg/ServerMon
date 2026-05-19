@@ -82,4 +82,80 @@ describe('parseNginxServerBlocks', () => {
     expect(block.primaryServerName).toBe('*.apps.example.com');
     expect(block.locations?.[0]?.proxyPass).toBe('http://127.0.0.1:9000');
   });
+
+  it('ignores server-looking text inside comments and quoted directives', () => {
+    const blocks = parseNginxServerBlocks(
+      `# server {
+       #   server_name commented.example.com;
+       # }
+       map $http_upgrade $connection_upgrade {
+         default upgrade;
+         '' close;
+         "server { ignored }" close;
+       }
+       server {
+         listen 80 default_server;
+         server_name real.example.com;
+       }`,
+      '/etc/nginx/sites-enabled/default.conf'
+    );
+
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0]?.primaryServerName).toBe('real.example.com');
+    expect(blocks[0]?.listen?.[0]).toMatchObject({
+      port: 80,
+      defaultServer: true,
+    });
+  });
+
+  it('ignores commented location blocks inside real server blocks', () => {
+    const [block] = parseNginxServerBlocks(
+      `server {
+        listen 443 ssl http2;
+        server_name app.example.com;
+
+        # location /old {
+        #   proxy_pass http://127.0.0.1:3000;
+        # }
+
+        location /live {
+          root /srv/app;
+        }
+      }`,
+      '/etc/nginx/servermon/app.conf'
+    );
+
+    expect(block?.listen?.[0]).toMatchObject({
+      port: 443,
+      ssl: true,
+      http2: true,
+    });
+    expect(block?.locations).toHaveLength(1);
+    expect(block?.locations?.[0]).toMatchObject({
+      path: '/live',
+      root: '/srv/app',
+    });
+  });
+
+  it('ignores location-looking text inside quoted directive values', () => {
+    const [block] = parseNginxServerBlocks(
+      `server {
+        listen 80;
+        server_name quoted.example.com;
+        add_header X-Debug "location /fake { proxy_pass http://127.0.0.1:1; }";
+
+        location /api {
+          proxy_pass http://127.0.0.1:8080;
+        }
+      }`,
+      '/etc/nginx/servermon/quoted.conf'
+    );
+
+    expect(block?.locations).toEqual([
+      expect.objectContaining({
+        path: '/api',
+        proxyPass: 'http://127.0.0.1:8080',
+      }),
+    ]);
+  });
 });
