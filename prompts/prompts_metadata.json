@@ -76,12 +76,12 @@
       "enabled": true,
       "autonomousSafe": true,
       "totalSelected": 23,
-      "totalCompleted": 19,
+      "totalCompleted": 20,
       "totalNoop": 1,
       "totalFailed": 0,
       "lastSelectedAt": "2026-05-19T13:19:47.686Z",
-      "lastOutcome": "selected",
-      "lastCompletedAt": "2026-05-18T05:33:38.692Z"
+      "lastOutcome": "completed",
+      "lastCompletedAt": "2026-05-19T13:27:30.665Z"
     },
     "documentation_ghostwriter_prompt.md": {
       "id": "documentation-ghostwriter-prompt",
@@ -310,5 +310,5 @@
       "lastOutcome": "completed"
     }
   },
-  "updatedAt": "2026-05-19T13:19:47.686Z"
-}\n
+  "updatedAt": "2026-05-19T13:27:30.665Z"
+}
