@@ -507,7 +507,7 @@ async function setWindowsUserEnv(key: string, value: string | null): Promise<voi
   await execFileAsync('powershell.exe', ['-NoProfile', '-Command', command]);
 }
 
-export async function addEnvVar(input: EnvVarMutationInput): Promise<EnvVarMutationResult> {
+async function addEnvVar(input: EnvVarMutationInput): Promise<EnvVarMutationResult> {
   assertValidKey(input.key);
   if (input.scope === 'system') {
     return {
@@ -540,7 +540,7 @@ export async function addEnvVar(input: EnvVarMutationInput): Promise<EnvVarMutat
   };
 }
 
-export async function deleteEnvVar(input: EnvVarMutationInput): Promise<EnvVarMutationResult> {
+async function deleteEnvVar(input: EnvVarMutationInput): Promise<EnvVarMutationResult> {
   assertValidKey(input.key);
   if (input.scope === 'system') {
     return {

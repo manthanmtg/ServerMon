@@ -3,8 +3,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { encrypt, decrypt } from './session-core';
 import { SESSION_TIMEOUT_MS } from './session-config';
 
-export { encrypt, decrypt };
-
 function getSessionExpiry() {
   return new Date(Date.now() + SESSION_TIMEOUT_MS);
 }
