@@ -46,7 +46,15 @@ describe('PastRunsPanel', () => {
     expect(table).toHaveClass('min-w-[520px]');
     expect(within(table).getByText(run.command)).toBeDefined();
 
-    await waitFor(() => expect(global.fetch).toHaveBeenCalledWith('/api/modules/crons/all/run'));
+    await waitFor(() =>
+      expect(global.fetch).toHaveBeenCalledWith(
+        '/api/modules/crons/all/run',
+        expect.objectContaining({
+          cache: 'no-store',
+          signal: expect.any(AbortSignal),
+        })
+      )
+    );
   });
 
   it('shows an error with retry when run history cannot be loaded', async () => {
@@ -60,5 +68,18 @@ describe('PastRunsPanel', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Unable to load run history.');
     expect(screen.getByRole('button', { name: 'Retry' })).toBeDefined();
+  });
+
+  it('shows an error when run history payload is malformed', async () => {
+    global.fetch = vi.fn(() =>
+      Promise.resolve({
+        ok: true,
+        json: async () => ({ runs: [run] }),
+      } as Response)
+    ) as unknown as typeof fetch;
+
+    render(<PastRunsPanel onShowOutput={vi.fn()} />);
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Unable to load run history.');
   });
 });
