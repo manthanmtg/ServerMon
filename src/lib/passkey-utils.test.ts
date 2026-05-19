@@ -97,8 +97,38 @@ describe('passkey-utils', () => {
       expect(getOrigin(req)).toBe('http://dev.example.com');
     });
 
+    it('should normalize uppercase x-forwarded-proto values', () => {
+      const req = makeRequest({ host: 'dev.example.com', 'x-forwarded-proto': 'HTTPS' });
+      expect(getOrigin(req)).toBe('https://dev.example.com');
+    });
+
+    it('should normalize uppercase forwarded host values', () => {
+      const req = makeRequest({
+        host: '127.0.0.1:8912',
+        'x-forwarded-host': 'Node-ServerMon.Hub.Example',
+        'x-forwarded-proto': 'https',
+      });
+      expect(getOrigin(req)).toBe('https://node-servermon.hub.example');
+    });
+
+    it('should ignore empty forwarded host entries before falling back to host', () => {
+      const req = makeRequest({
+        host: 'dev.example.com',
+        'x-forwarded-host': ' , proxy.internal',
+        'x-forwarded-proto': 'https',
+      });
+      expect(getOrigin(req)).toBe('https://dev.example.com');
+    });
+
     it('should prefer WEBAUTHN_ORIGIN when configured', () => {
       vi.stubEnv('WEBAUTHN_ORIGIN', 'https://configured.example/path');
+
+      const req = makeRequest({ host: 'dev.example.com', 'x-forwarded-proto': 'http' });
+      expect(getOrigin(req)).toBe('https://configured.example');
+    });
+
+    it('should use the first configured WEBAUTHN_ORIGIN value', () => {
+      vi.stubEnv('WEBAUTHN_ORIGIN', 'https://configured.example, https://fallback.example');
 
       const req = makeRequest({ host: 'dev.example.com', 'x-forwarded-proto': 'http' });
       expect(getOrigin(req)).toBe('https://configured.example');
@@ -179,6 +209,13 @@ describe('passkey-utils', () => {
 
     it('should prefer WEBAUTHN_RP_ID when configured', () => {
       vi.stubEnv('WEBAUTHN_RP_ID', 'hub.example');
+
+      const req = makeRequest({ host: 'node-servermon.hub.example' });
+      expect(getRPID(req)).toBe('hub.example');
+    });
+
+    it('should normalize configured WEBAUTHN_RP_ID values', () => {
+      vi.stubEnv('WEBAUTHN_RP_ID', 'https://Hub.Example:8443/path');
 
       const req = makeRequest({ host: 'node-servermon.hub.example' });
       expect(getRPID(req)).toBe('hub.example');
