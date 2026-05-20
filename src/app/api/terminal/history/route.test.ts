@@ -1,15 +1,17 @@
 /** @vitest-environment node */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-const { mockConnectDB, mockFind } = vi.hoisted(() => ({
+const { mockConnectDB, mockFind, mockGetSession } = vi.hoisted(() => ({
   mockConnectDB: vi.fn().mockResolvedValue(undefined),
   mockFind: vi.fn(),
+  mockGetSession: vi.fn(),
 }));
 
 vi.mock('@/lib/db', () => ({ default: mockConnectDB }));
 vi.mock('@/models/TerminalHistory', () => ({
   default: { find: mockFind },
 }));
+vi.mock('@/lib/session', () => ({ getSession: mockGetSession }));
 vi.mock('@/lib/logger', () => ({
   createLogger: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }),
 }));
@@ -19,6 +21,17 @@ import { GET } from './route';
 describe('GET /api/terminal/history', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockGetSession.mockResolvedValue({ user: { username: 'admin', role: 'admin' } });
+  });
+
+  it('requires an authenticated session', async () => {
+    mockGetSession.mockResolvedValue(null);
+
+    const res = await GET();
+
+    expect(res.status).toBe(401);
+    await expect(res.json()).resolves.toEqual({ error: 'Unauthorized' });
+    expect(mockConnectDB).not.toHaveBeenCalled();
   });
 
   it('returns terminal history', async () => {
