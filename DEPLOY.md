@@ -350,25 +350,28 @@ sudo systemctl restart servermon
 
 Common optional controls:
 
-| Variable                        | Description                                                 | Default                           |
-| ------------------------------- | ----------------------------------------------------------- | --------------------------------- |
-| `LOG_LEVEL`                     | Structured log verbosity (`debug`, `info`, `warn`, `error`) | `info`                            |
-| `SERVERMON_SLOW_REQUEST_MS`     | Slow request logging threshold                              | `2000`                            |
-| `SERVERMON_REPO_DIR`            | Source checkout used by source-mode update actions          | `/opt/servermon/repo`             |
-| `SERVERMON_INSTALL_MODE`        | Update mode, either `source` or `release`                   | `source`                          |
-| `SERVERMON_VERSION_TARGET`      | Release tag or `latest` for release-mode updates            | `latest`                          |
-| `SERVERMON_RELEASE_BASE_URL`    | Custom release asset base URL                               | GitHub Releases URL               |
-| `SERVERMON_SOURCE_REF`          | Git branch or ref used by source-mode updates               | `main`                            |
-| `SERVERMON_APPS_ROOT`           | Host data root for managed app releases                     | `/var/lib/servermon/apps`         |
-| `SERVERMON_DATABASES_ROOT`      | Host data root for managed database containers              | `/var/lib/servermon/databases`    |
-| `SERVERMON_AUTO_UPDATE_CONFIG`  | Server auto-update schedule config path                     | `/etc/servermon/auto-update.json` |
-| `SERVERMON_NETWORK_MOCK`        | Set to `1` to use mocked network speedtest data             | unset                             |
-| `SERVERMON_DOCKER_MOCK`         | Set to `1` to use mocked Docker data                        | unset                             |
-| `SERVERMON_FIREWALL_MOCK`       | Set to `1` to use mocked firewall posture data              | unset                             |
-| `SERVERMON_BRANDING_MOCK`       | Set to `1` to use default branding without MongoDB          | unset                             |
-| `WEBAUTHN_RP_ID`                | Override the passkey relying party ID                       | request host                      |
-| `WEBAUTHN_ORIGIN`               | Override the expected passkey browser origin                | request origin                    |
-| `AI_RUNNER_MAX_CONCURRENT_RUNS` | Maximum concurrently executing AI Runner jobs               | `3`                               |
+| Variable                        | Description                                                             | Default                           |
+| ------------------------------- | ----------------------------------------------------------------------- | --------------------------------- |
+| `LOG_LEVEL`                     | Structured log verbosity (`debug`, `info`, `warn`, `error`)             | `info`                            |
+| `SERVERMON_SLOW_REQUEST_MS`     | Slow request logging threshold                                          | `2000`                            |
+| `SERVERMON_REPO_DIR`            | Source checkout used by source-mode update actions                      | `/opt/servermon/repo`             |
+| `SERVERMON_INSTALL_MODE`        | Update mode, either `source` or `release`                               | `source`                          |
+| `SERVERMON_VERSION_TARGET`      | Release tag or `latest` for release-mode updates                        | `latest`                          |
+| `SERVERMON_RELEASE_BASE_URL`    | Custom release asset base URL                                           | GitHub Releases URL               |
+| `SERVERMON_SOURCE_REF`          | Git branch or ref used by source-mode updates                           | `main`                            |
+| `SERVERMON_APPS_ROOT`           | Host data root for managed app releases                                 | `/var/lib/servermon/apps`         |
+| `SERVERMON_DATABASES_ROOT`      | Host data root for managed database containers                          | `/var/lib/servermon/databases`    |
+| `SERVERMON_PUBLIC_HOST`         | Default public hostname for managed database connection URLs            | unset                             |
+| `SERVERMON_PUBLIC_IP`           | Default public IP fallback for managed database connections             | unset                             |
+| `PUBLIC_IP`                     | Legacy public IP fallback used when ServerMon-specific values are unset | unset                             |
+| `SERVERMON_AUTO_UPDATE_CONFIG`  | Server auto-update schedule config path                                 | `/etc/servermon/auto-update.json` |
+| `SERVERMON_NETWORK_MOCK`        | Set to `1` to use mocked network speedtest data                         | unset                             |
+| `SERVERMON_DOCKER_MOCK`         | Set to `1` to use mocked Docker data                                    | unset                             |
+| `SERVERMON_FIREWALL_MOCK`       | Set to `1` to use mocked firewall posture data                          | unset                             |
+| `SERVERMON_BRANDING_MOCK`       | Set to `1` to use default branding without MongoDB                      | unset                             |
+| `WEBAUTHN_RP_ID`                | Override the passkey relying party ID                                   | request host                      |
+| `WEBAUTHN_ORIGIN`               | Override the expected passkey browser origin                            | request origin                    |
+| `AI_RUNNER_MAX_CONCURRENT_RUNS` | Maximum concurrently executing AI Runner jobs                           | `3`                               |
 
 Fleet hub installs may also write these values:
 
