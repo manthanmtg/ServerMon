@@ -211,6 +211,10 @@ Common optional controls:
 | ------------------------------- | --------------------------------------------------------------- | ----------------------------------- |
 | `SERVERMON_SLOW_REQUEST_MS`     | Slow request logging threshold                                  | `2000`                              |
 | `SERVERMON_REPO_DIR`            | Source checkout used by self-update actions                     | `/opt/servermon/repo`               |
+| `SERVERMON_INSTALL_MODE`        | Update mode for hub installs, either `source` or `release`      | `source`                            |
+| `SERVERMON_VERSION_TARGET`      | Release tag or `latest` for release-mode updates                | `latest`                            |
+| `SERVERMON_RELEASE_BASE_URL`    | Custom release asset base URL for release-mode updates          | GitHub Releases URL                 |
+| `SERVERMON_SOURCE_REF`          | Git branch or ref used by source-mode updates                   | `main`                              |
 | `SERVERMON_NETWORK_MOCK`        | Set to `1` to use mocked network speedtest data                 | unset                               |
 | `SERVERMON_DOCKER_MOCK`         | Set to `1` to use mocked Docker data                            | unset                               |
 | `SERVERMON_FIREWALL_MOCK`       | Set to `1` to use mocked firewall posture data                  | unset                               |
