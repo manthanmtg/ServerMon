@@ -19,6 +19,7 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/components/ui/toast';
 import ConfirmationModal from '@/components/ui/ConfirmationModal';
 import { cn } from '@/lib/utils';
+import { resilientFetch } from '@/lib/fetch-utils';
 import type { CronJob, CronRunStatus, CronsSnapshot } from '../types';
 import { CronSummaryCards } from './components/CronSummaryCards';
 import { NextScheduledRunCard } from './components/NextScheduledRunCard';
@@ -78,7 +79,10 @@ export default function CronsPage() {
     } else if (!run.stdout) {
       // Fetch full details for completed runs that don't have stdout (from history list)
       try {
-        const res = await fetch(`/api/modules/crons/${run.jobId}/run?runId=${run.runId}`);
+        const res = await resilientFetch(
+          `/api/modules/crons/${run.jobId}/run?runId=${run.runId}`,
+          { timeout: 5000, retries: 1, retryDelay: 500 }
+        );
         if (res.ok) {
           const fullRun = await res.json();
           setActiveRun(fullRun);
@@ -90,7 +94,13 @@ export default function CronsPage() {
   }, []);
 
   const loadSnapshot = useCallback(async () => {
-    const response = await fetch('/api/modules/crons', { cache: 'no-store' });
+    const response = await resilientFetch('/api/modules/crons', {
+      cache: 'no-store',
+      timeout: 10000,
+      retries: 2,
+      retryDelay: 1000,
+      retryOnStatuses: [502, 503, 504],
+    });
     const data = await response.json();
     if (!response.ok) {
       throw new Error(data.error || 'Failed to fetch crons data');
@@ -197,10 +207,11 @@ export default function CronsPage() {
     setConfirmToggle(null);
     setPendingAction(`${job.id}:toggle`);
     try {
-      const response = await fetch(`/api/modules/crons/${job.id}`, {
+      const response = await resilientFetch(`/api/modules/crons/${job.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ enabled: !job.enabled }),
+        timeout: 10000,
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Failed');
@@ -225,7 +236,10 @@ export default function CronsPage() {
     setConfirmDelete(null);
     setPendingAction(`${job.id}:delete`);
     try {
-      const response = await fetch(`/api/modules/crons/${job.id}`, { method: 'DELETE' });
+      const response = await resilientFetch(`/api/modules/crons/${job.id}`, {
+        method: 'DELETE',
+        timeout: 10000,
+      });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Failed');
       toast({ title: 'Job deleted', description: data.message, variant: 'success' });
@@ -271,8 +285,9 @@ export default function CronsPage() {
     }
     const interval = window.setInterval(async () => {
       try {
-        const res = await fetch(
-          `/api/modules/crons/${activeRun.jobId}/run?runId=${activeRun.runId}`
+        const res = await resilientFetch(
+          `/api/modules/crons/${activeRun.jobId}/run?runId=${activeRun.runId}`,
+          { timeout: 5000, retries: 1, retryDelay: 500 }
         );
         if (res.ok) {
           const data: CronRunStatus = await res.json();
@@ -328,10 +343,11 @@ export default function CronsPage() {
       comment?: string;
     }
   ) {
-    const response = await fetch(`/api/modules/crons/${jobId}`, {
+    const response = await resilientFetch(`/api/modules/crons/${jobId}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
+      timeout: 10000,
     });
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || 'Failed');
