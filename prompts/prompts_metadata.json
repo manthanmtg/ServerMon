@@ -165,12 +165,12 @@
       "category": "prompt-maintenance",
       "enabled": true,
       "autonomousSafe": true,
-      "totalSelected": 13,
-      "totalCompleted": 14,
+      "totalSelected": 15,
+      "totalCompleted": 15,
       "totalNoop": 0,
       "totalFailed": 0,
-      "lastSelectedAt": "2026-05-15T09:46:03.160Z",
-      "lastCompletedAt": "2026-05-15T09:47:27.939Z",
+      "lastSelectedAt": "2026-05-20T19:46:01.048Z",
+      "lastCompletedAt": "2026-05-20T19:47:17.485Z",
       "lastOutcome": "completed",
       "notes": "Selected only by the rare maintenance branch, roughly 1 in 25 runs."
     },
@@ -310,5 +310,5 @@
       "lastOutcome": "completed"
     }
   },
-  "updatedAt": "2026-05-20T17:52:30.749Z"
+  "updatedAt": "2026-05-20T19:47:17.485Z"
 }
