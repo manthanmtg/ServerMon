@@ -1,12 +1,16 @@
 /** @vitest-environment node */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-const { mockRenewCertificate } = vi.hoisted(() => ({
+const { mockGetSession, mockRenewCertificate } = vi.hoisted(() => ({
+  mockGetSession: vi.fn(),
   mockRenewCertificate: vi.fn(),
 }));
 
 vi.mock('@/lib/certificates/service', () => ({
   certificatesService: { renewCertificate: mockRenewCertificate },
+}));
+vi.mock('@/lib/session', () => ({
+  getSession: mockGetSession,
 }));
 vi.mock('@/lib/logger', () => ({
   createLogger: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }),
@@ -26,6 +30,18 @@ function makeRequest(body: unknown): NextRequest {
 describe('POST /api/modules/certificates/renew', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockGetSession.mockResolvedValue({ user: { role: 'admin' } });
+  });
+
+  it('returns 401 when the request is unauthenticated', async () => {
+    mockGetSession.mockResolvedValue(null);
+
+    const res = await POST(makeRequest({ domain: 'example.com' }));
+
+    expect(res.status).toBe(401);
+    const json = await res.json();
+    expect(json.error).toBe('Unauthorized');
+    expect(mockRenewCertificate).not.toHaveBeenCalled();
   });
 
   it('renews certificate successfully', async () => {
