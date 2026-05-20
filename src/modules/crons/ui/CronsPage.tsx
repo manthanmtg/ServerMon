@@ -79,10 +79,11 @@ export default function CronsPage() {
     } else if (!run.stdout) {
       // Fetch full details for completed runs that don't have stdout (from history list)
       try {
-        const res = await resilientFetch(
-          `/api/modules/crons/${run.jobId}/run?runId=${run.runId}`,
-          { timeout: 5000, retries: 1, retryDelay: 500 }
-        );
+        const res = await resilientFetch(`/api/modules/crons/${run.jobId}/run?runId=${run.runId}`, {
+          timeout: 5000,
+          retries: 1,
+          retryDelay: 500,
+        });
         if (res.ok) {
           const fullRun = await res.json();
           setActiveRun(fullRun);
