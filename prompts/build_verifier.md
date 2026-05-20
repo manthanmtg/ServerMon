@@ -36,7 +36,7 @@ If either command fails, identify the stage:
 | Format    | `pnpm format:check` | Prettier formatting drift                         |
 | Lint      | `pnpm lint`         | Unused imports, `any` types, missing deps         |
 | Typecheck | `tsc --noEmit`      | Type mismatches, missing properties               |
-| Build     | `next build`        | Import errors, missing modules, SSR issues        |
+| Build     | `pnpm build`        | Import errors, missing modules, SSR issues        |
 | Test      | `pnpm test`         | Failing assertions (delegate to `test_corrector`) |
 
 Runtime warning noise emitted by passing tests is not a build-verifier failure by itself. If the suite passes but warning cleanup would span unrelated components, leave it for a dedicated warning-cleanup issue instead of expanding this run.
