@@ -1,8 +1,9 @@
 /** @vitest-environment node */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-const { mockGetServiceLogs } = vi.hoisted(() => ({
+const { mockGetServiceLogs, mockGetSession } = vi.hoisted(() => ({
   mockGetServiceLogs: vi.fn(),
+  mockGetSession: vi.fn(),
 }));
 
 vi.mock('@/lib/services/service', () => ({
@@ -10,6 +11,9 @@ vi.mock('@/lib/services/service', () => ({
 }));
 vi.mock('@/lib/logger', () => ({
   createLogger: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }),
+}));
+vi.mock('@/lib/session', () => ({
+  getSession: mockGetSession,
 }));
 
 import { GET } from './route';
@@ -29,6 +33,13 @@ function makeRequest(params?: Record<string, string>): Request {
 describe('GET /api/modules/services/[serviceName]/logs', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockGetSession.mockResolvedValue({ id: 'user1', username: 'admin' });
+  });
+
+  it('returns 401 if unauthorized', async () => {
+    mockGetSession.mockResolvedValue(null);
+    const res = await GET(makeRequest(), makeContext('nginx'));
+    expect(res.status).toBe(401);
   });
 
   it('returns service logs on success', async () => {
