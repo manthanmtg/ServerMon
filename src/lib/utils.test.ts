@@ -144,6 +144,12 @@ describe('utils', () => {
       expect(formatDuration(86400)).toBe('24 hours');
     });
 
+    it('should return "0 secs" for non-finite durations', () => {
+      expect(formatDuration(Number.NaN)).toBe('0 secs');
+      expect(formatDuration(Number.POSITIVE_INFINITY)).toBe('0 secs');
+      expect(formatDuration(Number.NEGATIVE_INFINITY)).toBe('0 secs');
+    });
+
     it('should handle mixed singular and plural forms', () => {
       expect(formatDuration(3600 + 60 + 1)).toBe('1 hour 1 min 1 sec');
       expect(formatDuration(7200 + 120 + 2)).toBe('2 hours 2 mins 2 secs');
@@ -174,6 +180,20 @@ describe('utils', () => {
       expect(relativeTime(null)).toBe('—');
       expect(relativeTime(undefined)).toBe('—');
       expect(relativeTime('')).toBe('—');
+    });
+
+    it('should return "-" for invalid date strings', () => {
+      expect(relativeTime('not-a-date')).toBe('—');
+    });
+
+    it('should return "-" for invalid Date objects', () => {
+      expect(relativeTime(new Date('not-a-date'))).toBe('—');
+    });
+
+    it('should return "-" for non-finite timestamps', () => {
+      expect(relativeTime(Number.NaN)).toBe('—');
+      expect(relativeTime(Number.POSITIVE_INFINITY)).toBe('—');
+      expect(relativeTime(Number.NEGATIVE_INFINITY)).toBe('—');
     });
 
     it('should return "just now" for very recent times', () => {
