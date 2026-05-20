@@ -261,5 +261,3 @@ export function NodeTerminal({ nodeId }: NodeTerminalProps) {
     </Card>
   );
 }
-
-export default NodeTerminal;
