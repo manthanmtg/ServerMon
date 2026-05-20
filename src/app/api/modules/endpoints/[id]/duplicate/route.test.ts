@@ -2,13 +2,15 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { NextRequest } from 'next/server';
 
-const { mockFindById, mockFindOne, mockCreate } = vi.hoisted(() => ({
+const { mockFindById, mockFindOne, mockCreate, mockGetSession } = vi.hoisted(() => ({
   mockFindById: vi.fn(),
   mockFindOne: vi.fn(),
   mockCreate: vi.fn(),
+  mockGetSession: vi.fn(),
 }));
 
 vi.mock('@/lib/db', () => ({ default: vi.fn().mockResolvedValue(true) }));
+vi.mock('@/lib/session', () => ({ getSession: mockGetSession }));
 vi.mock('@/lib/logger', () => ({
   createLogger: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }),
 }));
@@ -48,6 +50,7 @@ const mockEndpoint = {
 describe('POST /api/modules/endpoints/[id]/duplicate', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockGetSession.mockResolvedValue({ user: { role: 'admin' } });
     mockFindOne.mockResolvedValue(null); // no slug conflict by default
     mockCreate.mockResolvedValue({
       ...mockEndpoint,
@@ -57,6 +60,13 @@ describe('POST /api/modules/endpoints/[id]/duplicate', () => {
       enabled: false,
       toObject: () => ({ _id: 'ep-2', name: 'My Endpoint (Copy)', slug: 'my-endpoint-copy' }),
     });
+  });
+
+  it('returns 401 when unauthenticated', async () => {
+    mockGetSession.mockResolvedValue(null);
+    const res = await POST(new NextRequest('http://localhost'), makeContext('ep-1'));
+    expect(res.status).toBe(401);
+    expect(mockFindById).not.toHaveBeenCalled();
   });
 
   it('duplicates endpoint successfully with 201', async () => {

@@ -2,16 +2,17 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { NextRequest } from 'next/server';
 
-const { mockFindById, mockFindByIdAndUpdate, mockFindByIdAndDelete, mockFindOne } = vi.hoisted(
-  () => ({
+const { mockFindById, mockFindByIdAndUpdate, mockFindByIdAndDelete, mockFindOne, mockGetSession } =
+  vi.hoisted(() => ({
     mockFindById: vi.fn(),
     mockFindByIdAndUpdate: vi.fn(),
     mockFindByIdAndDelete: vi.fn(),
     mockFindOne: vi.fn(),
-  })
-);
+    mockGetSession: vi.fn(),
+  }));
 
 vi.mock('@/lib/db', () => ({ default: vi.fn().mockResolvedValue(true) }));
+vi.mock('@/lib/session', () => ({ getSession: mockGetSession }));
 vi.mock('@/lib/logger', () => ({
   createLogger: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }),
 }));
@@ -68,6 +69,14 @@ const mockEndpoint = {
 describe('GET /api/modules/endpoints/[id]', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockGetSession.mockResolvedValue({ user: { role: 'admin' } });
+  });
+
+  it('returns 401 when unauthenticated', async () => {
+    mockGetSession.mockResolvedValue(null);
+    const res = await GET(new NextRequest('http://localhost'), makeContext('ep-1'));
+    expect(res.status).toBe(401);
+    expect(mockFindById).not.toHaveBeenCalled();
   });
 
   it('returns endpoint on success', async () => {
@@ -107,6 +116,7 @@ describe('GET /api/modules/endpoints/[id]', () => {
 describe('PUT /api/modules/endpoints/[id]', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockGetSession.mockResolvedValue({ user: { role: 'admin' } });
     mockFindOne.mockResolvedValue(null);
   });
 
@@ -122,6 +132,13 @@ describe('PUT /api/modules/endpoints/[id]', () => {
     mockFindById.mockResolvedValue(null);
     const res = await PUT(makeRequest({ name: 'Updated' }), makeContext('ep-1'));
     expect(res.status).toBe(404);
+  });
+
+  it('returns 401 when unauthenticated', async () => {
+    mockGetSession.mockResolvedValue(null);
+    const res = await PUT(makeRequest({ name: 'Updated' }), makeContext('ep-1'));
+    expect(res.status).toBe(401);
+    expect(mockFindById).not.toHaveBeenCalled();
   });
 
   it('updates endpoint successfully', async () => {
@@ -176,6 +193,14 @@ describe('PUT /api/modules/endpoints/[id]', () => {
 describe('DELETE /api/modules/endpoints/[id]', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockGetSession.mockResolvedValue({ user: { role: 'admin' } });
+  });
+
+  it('returns 401 when unauthenticated', async () => {
+    mockGetSession.mockResolvedValue(null);
+    const res = await DELETE(new NextRequest('http://localhost'), makeContext('ep-1'));
+    expect(res.status).toBe(401);
+    expect(mockFindByIdAndDelete).not.toHaveBeenCalled();
   });
 
   it('deletes endpoint and returns success', async () => {
