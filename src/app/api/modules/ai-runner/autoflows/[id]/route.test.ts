@@ -70,7 +70,10 @@ describe('AI runner autoflows [id] route (PUT)', () => {
     });
 
     expect(response.status).toBe(404);
-    expect(mockUpdateAutoflow).toHaveBeenCalledWith('auto-1', expect.objectContaining({ name: 'updated name' }));
+    expect(mockUpdateAutoflow).toHaveBeenCalledWith(
+      'auto-1',
+      expect.objectContaining({ name: 'updated name' })
+    );
     expect(await response.json()).toEqual({ error: 'Autoflow not found' });
   });
 
@@ -84,7 +87,10 @@ describe('AI runner autoflows [id] route (PUT)', () => {
     });
 
     expect(response.status).toBe(200);
-    expect(mockUpdateAutoflow).toHaveBeenCalledWith('auto-1', expect.objectContaining({ name: 'updated name' }));
+    expect(mockUpdateAutoflow).toHaveBeenCalledWith(
+      'auto-1',
+      expect.objectContaining({ name: 'updated name' })
+    );
     expect(await response.json()).toEqual(mockAutoflow);
   });
 
@@ -111,7 +117,10 @@ describe('AI runner autoflows [id] route (PUT)', () => {
     });
 
     expect(response.status).toBe(400);
-    expect(mockLogError).toHaveBeenCalledWith('Failed to update AI runner autoflow', 'String error');
+    expect(mockLogError).toHaveBeenCalledWith(
+      'Failed to update AI runner autoflow',
+      'String error'
+    );
     expect(await response.json()).toEqual({ error: 'Failed to update autoflow' });
   });
 });
