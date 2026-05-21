@@ -238,8 +238,9 @@ export default function PortsPage() {
                   <button
                     key={f}
                     onClick={() => setProtocolFilter(f)}
+                    aria-pressed={protocolFilter === f}
                     className={cn(
-                      'px-2 py-1 rounded text-xs font-medium transition-colors',
+                      'px-2 py-1 rounded text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
                       protocolFilter === f
                         ? 'bg-primary text-primary-foreground'
                         : 'text-muted-foreground hover:text-foreground hover:bg-accent'
@@ -251,8 +252,9 @@ export default function PortsPage() {
               </div>
               <button
                 onClick={load}
-                className="h-8 w-8 flex items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                className="h-8 w-8 flex items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                 title="Refresh"
+                aria-label="Refresh listening ports"
               >
                 <RefreshCw className="w-3.5 h-3.5" />
               </button>
