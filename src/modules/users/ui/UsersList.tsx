@@ -50,6 +50,7 @@ export function UsersList({
               <div className="flex items-center justify-between">
                 <UserIdentity activeTab={activeTab} user={user} />
                 <button
+                  aria-label={`Delete user ${user.username}`}
                   onClick={() => onDeleteUser(activeTab, getUserKey(user))}
                   className="p-2 rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-all"
                 >
@@ -178,6 +179,7 @@ export function UsersList({
                     <div className="flex items-center justify-end gap-1">
                       <button
                         data-testid="delete-user-btn"
+                        aria-label={`Delete user ${user.username}`}
                         onClick={() => onDeleteUser(activeTab, getUserKey(user))}
                         className="p-2 rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-all"
                       >
