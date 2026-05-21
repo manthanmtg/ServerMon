@@ -1,6 +1,7 @@
 import { EventEmitter } from 'node:events';
 import os from 'node:os';
 import type * as Pty from 'node-pty';
+import type { IncomingMessage } from 'node:http';
 import { parseTtyMessage, TTY_MSG } from './tty-bridge';
 
 export interface AgentPtyBridgeLogEntry {
@@ -10,8 +11,12 @@ export interface AgentPtyBridgeLogEntry {
   metadata?: Record<string, unknown>;
 }
 
-export interface AgentWsServer extends EventEmitter {
+export interface AgentWsServer {
   close(cb?: () => void): void;
+  on(
+    event: 'connection',
+    listener: (socket: AgentWsSocket, req?: AgentConnectionRequest) => void
+  ): this;
 }
 
 export interface AgentWsSocket extends EventEmitter {
@@ -19,9 +24,7 @@ export interface AgentWsSocket extends EventEmitter {
   close(code?: number, reason?: string): void;
 }
 
-export interface AgentConnectionRequest {
-  headers?: Record<string, string | string[] | undefined>;
-}
+export type AgentConnectionRequest = Pick<IncomingMessage, 'headers'>;
 
 export interface AgentPtyBridgeOpts {
   port: number;
@@ -62,7 +65,7 @@ function defaultShell(override?: string): string {
 
 async function defaultWsServerFactory(port: number): Promise<AgentWsServer> {
   const { WebSocketServer } = await import('ws');
-  return new WebSocketServer({ port }) as unknown as AgentWsServer;
+  return new WebSocketServer({ port });
 }
 
 export class AgentPtyBridge {
