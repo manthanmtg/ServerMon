@@ -26,15 +26,17 @@ export interface FrpServerStateLike {
   configVersion?: number;
 }
 
+type Awaitable<T> = T | PromiseLike<T>;
+
 export interface FrpOrchestratorDeps {
   FrpServerState: {
     findOneAndUpdate: (
       filter: Record<string, unknown>,
       update: Record<string, unknown>,
       opts?: Record<string, unknown>
-    ) => Promise<unknown> | unknown;
+    ) => Awaitable<unknown>;
     findOne: (filter: Record<string, unknown>) => {
-      lean: () => Promise<FrpServerStateLike | null> | FrpServerStateLike | null;
+      lean: () => Awaitable<FrpServerStateLike | null>;
     };
   };
   FleetLogEvent: {

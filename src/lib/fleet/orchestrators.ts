@@ -10,8 +10,8 @@ import { createLogger } from '@/lib/logger';
 import FrpServerState from '@/models/FrpServerState';
 import NginxState from '@/models/NginxState';
 import FleetLogEvent from '@/models/FleetLogEvent';
-import { FrpOrchestrator } from './frpOrchestrator';
-import { NginxOrchestrator } from './nginxOrchestrator';
+import { FrpOrchestrator, type FrpOrchestratorDeps } from './frpOrchestrator';
+import { NginxOrchestrator, type NginxOrchestratorDeps } from './nginxOrchestrator';
 
 const log = createLogger('fleet:orchestrators');
 
@@ -29,24 +29,24 @@ function buildFrp(): FrpOrchestrator {
   const configDir = process.env.FLEET_FRPS_CONFIG_DIR || '/etc/servermon/frp';
   const version = process.env.FLEET_FRP_VERSION;
 
-  type Deps = ConstructorParameters<typeof FrpOrchestrator>[0];
-
-  return new FrpOrchestrator({
-    FrpServerState: FrpServerState as unknown as Deps['FrpServerState'],
-    FleetLogEvent: FleetLogEvent as unknown as Deps['FleetLogEvent'],
+  const deps = {
+    FrpServerState,
+    FleetLogEvent,
     binaryCacheDir: cacheDir,
     configDir,
     binaryVersion: version,
-  });
+  } satisfies FrpOrchestratorDeps;
+
+  return new FrpOrchestrator(deps);
 }
 
 function buildNginx(): NginxOrchestrator {
-  type Deps = ConstructorParameters<typeof NginxOrchestrator>[0];
+  const deps = {
+    NginxState,
+    FleetLogEvent,
+  } satisfies NginxOrchestratorDeps;
 
-  return new NginxOrchestrator({
-    NginxState: NginxState as unknown as Deps['NginxState'],
-    FleetLogEvent: FleetLogEvent as unknown as Deps['FleetLogEvent'],
-  });
+  return new NginxOrchestrator(deps);
 }
 
 function makeNoopFrp(): FrpPublicInterface {
