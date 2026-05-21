@@ -82,6 +82,16 @@ function formatSpeedtestDate(value: string | undefined) {
   });
 }
 
+function getSafeHttpUrl(value: string | undefined) {
+  if (!value) return null;
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' || url.protocol === 'http:' ? url.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
 const scheduleOptions: Array<{ value: NetworkSpeedtestScheduleInterval; label: string }> = [
   { value: 'off', label: 'Off' },
   { value: '30m', label: 'Every 30 min' },
@@ -324,6 +334,7 @@ export default function NetworkPage() {
 
   const speedtestHistory = useMemo(() => speedtestOverview?.history ?? [], [speedtestOverview]);
   const latestSpeedtest = speedtestOverview?.latest ?? null;
+  const speedtestResultUrl = getSafeHttpUrl(latestSpeedtest?.resultUrl);
   const speedtestChartData = useMemo(
     () =>
       [...speedtestHistory]
@@ -521,10 +532,10 @@ export default function NetworkPage() {
                   {latestSpeedtest.isp}
                 </Badge>
               )}
-              {latestSpeedtest?.resultUrl && (
+              {speedtestResultUrl && (
                 <a
                   className="inline-flex items-center gap-1 text-primary hover:underline"
-                  href={latestSpeedtest.resultUrl}
+                  href={speedtestResultUrl}
                   target="_blank"
                   rel="noopener noreferrer"
                 >
