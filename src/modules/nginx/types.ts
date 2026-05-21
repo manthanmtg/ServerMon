@@ -69,12 +69,6 @@ export interface NginxRedirect {
   raw: string;
 }
 
-export interface NginxLogEntry {
-  timestamp: string;
-  level: string;
-  message: string;
-}
-
 export interface NginxConfigTest {
   success: boolean;
   output: string;
