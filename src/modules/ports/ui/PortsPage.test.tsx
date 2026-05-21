@@ -146,6 +146,22 @@ describe('PortsPage', () => {
     });
   });
 
+  it('marks the active protocol filter as pressed', async () => {
+    await renderPage();
+    const allButton = screen.getByRole('button', { name: 'ALL' });
+    const tcpButton = screen.getByRole('button', { name: 'TCP' });
+
+    expect(allButton).toHaveAttribute('aria-pressed', 'true');
+    expect(tcpButton).toHaveAttribute('aria-pressed', 'false');
+
+    await act(async () => {
+      fireEvent.click(tcpButton);
+    });
+
+    expect(allButton).toHaveAttribute('aria-pressed', 'false');
+    expect(tcpButton).toHaveAttribute('aria-pressed', 'true');
+  });
+
   it('checks port availability', async () => {
     await renderPage();
     const checkInput = screen.getByPlaceholderText(/Enter port number/i);
