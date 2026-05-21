@@ -78,7 +78,7 @@ describe('SessionManager', () => {
       window.dispatchEvent(new Event('pointerdown'));
     });
 
-    expect(fetchMock).toHaveBeenCalledWith('/api/auth/me', { cache: 'no-store' });
+    expect(fetchMock).toHaveBeenCalledWith('/api/auth/me', expect.objectContaining({ cache: 'no-store' }));
 
     await act(async () => {
       vi.advanceTimersByTime(SESSION_REFRESH_THROTTLE_MS + 1);

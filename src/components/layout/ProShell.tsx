@@ -8,6 +8,7 @@ import { useBrand } from '@/lib/BrandContext';
 import ThemeSelector from './ThemeSelector';
 import { Activity, LogOut, Menu, X, Power, LoaderCircle, Search } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { resilientFetch } from '@/lib/fetch-utils';
 import { useToast } from '@/components/ui/toast';
 import ConfirmationModal from '@/components/ui/ConfirmationModal';
 import QuickAccessBar from '@/components/layout/QuickAccessBar';
@@ -191,7 +192,7 @@ export default function ProShell({ children, title, subtitle, headerContent }: P
 
   const handleLogout = React.useCallback(async () => {
     try {
-      await fetch('/api/auth/logout', { method: 'POST' });
+      await resilientFetch('/api/auth/logout', { method: 'POST', timeout: 5000 });
     } finally {
       router.push('/login');
     }
@@ -205,7 +206,7 @@ export default function ProShell({ children, title, subtitle, headerContent }: P
     setShowRebootConfirm(false);
     setIsRebooting(true);
     try {
-      const response = await fetch('/api/system/reboot', { method: 'POST' });
+      const response = await resilientFetch('/api/system/reboot', { method: 'POST', timeout: 15000 });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Failed to issue reboot command');
 
