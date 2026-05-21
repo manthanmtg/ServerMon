@@ -206,7 +206,10 @@ export default function ProShell({ children, title, subtitle, headerContent }: P
     setShowRebootConfirm(false);
     setIsRebooting(true);
     try {
-      const response = await resilientFetch('/api/system/reboot', { method: 'POST', timeout: 15000 });
+      const response = await resilientFetch('/api/system/reboot', {
+        method: 'POST',
+        timeout: 15000,
+      });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Failed to issue reboot command');
 
