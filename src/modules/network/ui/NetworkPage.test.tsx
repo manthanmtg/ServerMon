@@ -233,4 +233,28 @@ describe('NetworkPage', () => {
     await waitFor(() => expect(screen.getByRole('dialog')).toBeDefined());
     expect(screen.getByText('Speedtest History')).toBeDefined();
   });
+
+  it('does not render unsafe speedtest result links', async () => {
+    global.fetch = vi.fn().mockImplementation((input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes('/api/modules/network/speedtest')) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            ...mockSpeedtestOverview,
+            latest: {
+              ...mockSpeedtestOverview.latest,
+              resultUrl: 'javascript:alert(1)',
+            },
+          }),
+        });
+      }
+      return Promise.resolve({ ok: true, json: async () => mockNetworkSnapshot });
+    });
+
+    await renderPage();
+
+    await waitFor(() => expect(screen.getByText('Internet Speedtest')).toBeDefined());
+    expect(screen.queryByRole('link', { name: 'Result' })).toBeNull();
+  });
 });
