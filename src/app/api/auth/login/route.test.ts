@@ -61,6 +61,77 @@ describe('POST /api/auth/login', () => {
     mockUserSave.mockResolvedValue(undefined);
   });
 
+  it('returns 500 when request body cannot be parsed', async () => {
+    const req = new Request('http://localhost/api/auth/login', {
+      method: 'POST',
+      body: 'invalid-json',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    const response = await POST(req as never);
+    const body = await response.json();
+
+    expect(response.status).toBe(500);
+    expect(body.error).toBe('Internal server error');
+    expect(mockFindOne).not.toHaveBeenCalled();
+  });
+
+  it('returns 400 when username is missing', async () => {
+    const req = makeRequest({ password: 'secret' });
+    const response = await POST(req as never);
+    const body = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(body.error).toBe('Invalid request body');
+    expect(mockFindOne).not.toHaveBeenCalled();
+  });
+
+  it('returns 400 when password is empty', async () => {
+    const req = makeRequest({ username: 'admin', password: '' });
+    const response = await POST(req as never);
+    const body = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(body.error).toBe('Invalid request body');
+  });
+
+  it('calls User.findOne with isActive: true', async () => {
+    mockFindOne.mockResolvedValue(makeUser());
+    vi.mocked(verifyPassword).mockResolvedValue(true);
+
+    const req = makeRequest({ username: 'admin', password: 'secret' });
+    await POST(req as never);
+
+    expect(mockFindOne).toHaveBeenCalledWith({ username: 'admin', isActive: true });
+  });
+
+  it('returns 401 when TOTP is enabled but token is missing', async () => {
+    mockFindOne.mockResolvedValue(makeUser({ totpEnabled: true, totpSecret: 'TOTP_SECRET' }));
+    vi.mocked(verifyPassword).mockResolvedValue(true);
+
+    const req = makeRequest({ username: 'admin', password: 'secret' });
+    const response = await POST(req as never);
+    const body = await response.json();
+
+    expect(response.status).toBe(401);
+    expect(body.error).toBe('Verification code required');
+    expect(verifyTOTPToken).not.toHaveBeenCalled();
+    expect(login).not.toHaveBeenCalled();
+  });
+
+  it('returns 500 if user save fails', async () => {
+    const user = makeUser();
+    user.save = vi.fn().mockRejectedValue(new Error('DB Save Error'));
+    mockFindOne.mockResolvedValue(user);
+    vi.mocked(verifyPassword).mockResolvedValue(true);
+
+    const req = makeRequest({ username: 'admin', password: 'secret' });
+    const response = await POST(req as never);
+    const body = await response.json();
+
+    expect(response.status).toBe(500);
+    expect(body.error).toBe('Internal server error');
+  });
+
   it('returns 200 on valid credentials without TOTP', async () => {
     mockFindOne.mockResolvedValue(makeUser());
     vi.mocked(verifyPassword).mockResolvedValue(true);
