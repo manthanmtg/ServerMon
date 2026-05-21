@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, act, fireEvent } from '@testing-library/react';
-import MemoryPage from './MemoryPage';
+import MemoryPage, { deriveMemoryBreakdownRows, deriveMemoryStatCards } from './MemoryPage';
 import { ToastProvider } from '@/components/ui/toast';
 
 // Mock recharts to avoid jsdom SVG issues
@@ -210,5 +210,32 @@ describe('MemoryPage', () => {
         expect(deleteCalls.length).toBeGreaterThan(0);
       });
     }
+  });
+
+  it('derives stable memory summary card values', () => {
+    const cards = deriveMemoryStatCards({
+      memTotal: mockMetrics.latest.memTotal,
+      memUsed: mockMetrics.latest.memUsed,
+      swapTotal: mockDetailedStats.swaptotal,
+      swapUsed: mockDetailedStats.swapused,
+    });
+
+    expect(cards.map((card) => [card.label, card.value])).toEqual([
+      ['Total RAM', '16 GiB'],
+      ['Used RAM', '8 GiB'],
+      ['Total Swap', '4 GiB'],
+      ['Used Swap', '1 GiB'],
+    ]);
+  });
+
+  it('derives memory breakdown rows from detailed stats', () => {
+    const rows = deriveMemoryBreakdownRows(mockDetailedStats);
+
+    expect(rows.map((row) => [row.label, row.value, row.total])).toEqual([
+      ['Active', mockDetailedStats.active, mockDetailedStats.total],
+      ['Cached', mockDetailedStats.cached, mockDetailedStats.total],
+      ['Buffers', mockDetailedStats.buffers, mockDetailedStats.total],
+      ['Slab', mockDetailedStats.slab, mockDetailedStats.total],
+    ]);
   });
 });

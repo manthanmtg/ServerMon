@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import ProShell from '@/components/layout/ProShell';
 import { useMetrics } from '@/lib/MetricsContext';
 import {
@@ -12,11 +12,20 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from 'recharts';
-import { Activity, Zap, Database, Trash2, Brain, RefreshCcw, List, Terminal } from 'lucide-react';
+import {
+  Activity,
+  Zap,
+  Database,
+  Trash2,
+  Brain,
+  RefreshCcw,
+  List,
+  Terminal,
+  type LucideIcon,
+} from 'lucide-react';
 import { formatBytes } from '@/lib/utils';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/components/ui/toast';
-import { useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface MemoryStats {
@@ -40,6 +49,79 @@ interface MemoryProcess {
   mem: number;
   memRss: number;
   memVsz: number;
+}
+
+interface MemoryStatCard {
+  label: string;
+  value: string;
+  icon: LucideIcon;
+}
+
+interface MemoryBreakdownRow {
+  label: string;
+  value: number | undefined;
+  total: number | undefined;
+  color: string;
+}
+
+export function deriveMemoryStatCards({
+  memTotal,
+  memUsed,
+  swapTotal,
+  swapUsed,
+}: {
+  memTotal?: number;
+  memUsed?: number;
+  swapTotal?: number;
+  swapUsed?: number;
+}): MemoryStatCard[] {
+  return [
+    {
+      label: 'Total RAM',
+      value: memTotal !== undefined ? formatBytes(memTotal) : '--',
+      icon: Database,
+    },
+    { label: 'Used RAM', value: memUsed !== undefined ? formatBytes(memUsed) : '--', icon: Zap },
+    {
+      label: 'Total Swap',
+      value: swapTotal !== undefined ? formatBytes(swapTotal) : '--',
+      icon: Terminal,
+    },
+    {
+      label: 'Used Swap',
+      value: swapUsed !== undefined ? formatBytes(swapUsed) : '--',
+      icon: Brain,
+    },
+  ];
+}
+
+export function deriveMemoryBreakdownRows(detailedStats: MemoryStats | null): MemoryBreakdownRow[] {
+  return [
+    {
+      label: 'Active',
+      value: detailedStats?.active,
+      total: detailedStats?.total,
+      color: 'bg-primary',
+    },
+    {
+      label: 'Cached',
+      value: detailedStats?.cached,
+      total: detailedStats?.total,
+      color: 'bg-emerald-500',
+    },
+    {
+      label: 'Buffers',
+      value: detailedStats?.buffers,
+      total: detailedStats?.total,
+      color: 'bg-amber-500',
+    },
+    {
+      label: 'Slab',
+      value: detailedStats?.slab,
+      total: detailedStats?.total,
+      color: 'bg-indigo-500',
+    },
+  ];
 }
 
 export default function MemoryPage() {
@@ -92,6 +174,17 @@ export default function MemoryPage() {
   };
 
   const isHighPressure = latest ? latest.memory > 85 : false;
+  const statCards = useMemo(
+    () =>
+      deriveMemoryStatCards({
+        memTotal: latest?.memTotal,
+        memUsed: latest?.memUsed,
+        swapTotal: detailedStats?.swaptotal,
+        swapUsed: detailedStats?.swapused,
+      }),
+    [detailedStats?.swaptotal, detailedStats?.swapused, latest?.memTotal, latest?.memUsed]
+  );
+  const breakdownRows = useMemo(() => deriveMemoryBreakdownRows(detailedStats), [detailedStats]);
 
   return (
     <ProShell title="Memory" subtitle="Resource Diagnostics">
@@ -135,26 +228,9 @@ export default function MemoryPage() {
           </motion.div>
 
           <div className="flex-[2] grid grid-cols-2 lg:grid-cols-4 gap-4">
-            {[
-              {
-                label: 'Total RAM',
-                value: latest ? formatBytes(latest.memTotal) : '--',
-                icon: Database,
-              },
-              { label: 'Used RAM', value: latest ? formatBytes(latest.memUsed) : '--', icon: Zap },
-              {
-                label: 'Total Swap',
-                value: detailedStats ? formatBytes(detailedStats.swaptotal) : '--',
-                icon: Terminal,
-              },
-              {
-                label: 'Used Swap',
-                value: detailedStats ? formatBytes(detailedStats.swapused) : '--',
-                icon: Brain,
-              },
-            ].map((stat, i) => (
+            {statCards.map((stat) => (
               <motion.div
-                key={i}
+                key={stat.label}
                 whileHover={{ y: -2 }}
                 className="p-4 rounded-2xl bg-card border border-border shadow-sm flex flex-col justify-between"
               >
@@ -250,35 +326,10 @@ export default function MemoryPage() {
             </div>
 
             <div className="space-y-4">
-              {[
-                {
-                  label: 'Active',
-                  value: detailedStats?.active,
-                  total: detailedStats?.total,
-                  color: 'bg-primary',
-                },
-                {
-                  label: 'Cached',
-                  value: detailedStats?.cached,
-                  total: detailedStats?.total,
-                  color: 'bg-emerald-500',
-                },
-                {
-                  label: 'Buffers',
-                  value: detailedStats?.buffers,
-                  total: detailedStats?.total,
-                  color: 'bg-amber-500',
-                },
-                {
-                  label: 'Slab',
-                  value: detailedStats?.slab,
-                  total: detailedStats?.total,
-                  color: 'bg-indigo-500',
-                },
-              ].map((item, i) => {
+              {breakdownRows.map((item) => {
                 const ratio = ((item.value || 0) / (item.total || 1)) * 100;
                 return (
-                  <div key={i} className="space-y-1.5">
+                  <div key={item.label} className="space-y-1.5">
                     <div className="flex justify-between text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
                       <span>{item.label}</span>
                       <span className="text-foreground">{formatBytes(item.value || 0)}</span>
