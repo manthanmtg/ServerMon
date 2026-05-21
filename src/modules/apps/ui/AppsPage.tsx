@@ -3,7 +3,6 @@
 import { FormEvent, type ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Activity,
-  Boxes,
   ChevronDown,
   ChevronUp,
   CheckCircle2,
@@ -24,7 +23,6 @@ import {
   RefreshCw,
   RotateCcw,
   Rocket,
-  Server,
   Trash2,
   XCircle,
 } from 'lucide-react';
@@ -42,6 +40,7 @@ import type {
   ManagedAppDTO,
 } from '../types';
 import { readManagedAppsList } from './appPayload';
+import { AppsSummaryCards } from './AppsSummaryCards';
 
 interface FormState {
   templateId: AppTemplateId;
@@ -552,44 +551,7 @@ export default function AppsPage() {
         </div>
       )}
 
-      <div className="grid gap-3 md:grid-cols-4">
-        <Card>
-          <CardContent className="flex items-center gap-3 p-4">
-            <Boxes className="h-5 w-5 text-primary" />
-            <div>
-              <div className="text-xl font-semibold">{summary.total}</div>
-              <div className="text-xs text-muted-foreground">Managed apps</div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="flex items-center gap-3 p-4">
-            <Server className="h-5 w-5 text-success" />
-            <div>
-              <div className="text-xl font-semibold">{summary.running}</div>
-              <div className="text-xs text-muted-foreground">Running</div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="flex items-center gap-3 p-4">
-            <XCircle className="h-5 w-5 text-destructive" />
-            <div>
-              <div className="text-xl font-semibold">{summary.failed}</div>
-              <div className="text-xs text-muted-foreground">Failed</div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="flex items-center gap-3 p-4">
-            <Activity className="h-5 w-5 text-warning" />
-            <div>
-              <div className="text-xl font-semibold">{activeOperations}</div>
-              <div className="text-xs text-muted-foreground">Active operations</div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      <AppsSummaryCards summary={summary} activeOperations={activeOperations} />
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>

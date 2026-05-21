@@ -41,16 +41,18 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
         frp,
         nginx,
         ConfigRevision: {
-          findById: (id: string) => ConfigRevision.findById(id).exec()
+          findById: (id: string) => ConfigRevision.findById(id).exec(),
         },
         FrpServerState: {
-          findOneAndUpdate: (filter, update, opts) => FrpServerState.findOneAndUpdate(filter, update, opts).exec()
+          findOneAndUpdate: (filter, update, opts) =>
+            FrpServerState.findOneAndUpdate(filter, update, opts).exec(),
         },
         PublicRoute: {
-          findByIdAndUpdate: (id, update, opts) => PublicRoute.findByIdAndUpdate(id, update, opts).exec()
+          findByIdAndUpdate: (id, update, opts) =>
+            PublicRoute.findByIdAndUpdate(id, update, opts).exec(),
         },
         Node: {
-          findByIdAndUpdate: (id, update, opts) => Node.findByIdAndUpdate(id, update, opts).exec()
+          findByIdAndUpdate: (id, update, opts) => Node.findByIdAndUpdate(id, update, opts).exec(),
         },
       };
       const result = await applyRevision(id, engineDeps);
