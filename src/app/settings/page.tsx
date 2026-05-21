@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import ProShell from '@/components/layout/ProShell';
 import { useBrand } from '@/lib/BrandContext';
+import { resilientFetch } from '@/lib/fetch-utils';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import PasskeySettings from '@/modules/security/ui/PasskeySettings';
@@ -53,10 +54,14 @@ export default function SettingsPage() {
   }, [brandSettings]);
 
   useEffect(() => {
-    fetch('/api/modules')
+    const controller = new AbortController();
+    resilientFetch('/api/modules', { signal: controller.signal })
       .then((res) => res.json())
       .then((data) => setModules(data.modules || []))
-      .catch((err) => console.error(err));
+      .catch((err) => {
+        if (err.name !== 'AbortError') console.error(err);
+      });
+    return () => controller.abort();
   }, []);
 
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
