@@ -7,7 +7,7 @@ vi.mock('@/components/ui/toast', () => ({
   useToast: () => ({ toast: mockToast }),
 }));
 
-import AIAgentsPage from './AIAgentsPage';
+import AIAgentsPage, { buildFilteredAgentSessions } from './AIAgentsPage';
 import type { AgentsSnapshot } from '../types';
 
 const makeSession = (overrides: Partial<(typeof mockSnapshot)['sessions'][0]> = {}) => ({
@@ -503,5 +503,48 @@ describe('AIAgentsPage', () => {
       // running session should be gone
       expect(screen.queryByText('Claude Code')).toBeNull();
     });
+  });
+
+  it('filters agent sessions by status, agent type, and search query in one helper', () => {
+    const sessions = [
+      makeSession(),
+      makeSession({
+        id: 'sess-2',
+        status: 'idle',
+        agent: { type: 'codex', displayName: 'OpenAI Codex', version: '1.0' },
+        environment: {
+          workingDirectory: '/srv/servermon',
+          repository: 'servermon',
+          gitBranch: 'main',
+          host: 'localhost',
+        },
+      }),
+      makeSession({
+        id: 'sess-3',
+        status: 'running',
+        agent: { type: 'codex', displayName: 'OpenAI Codex', version: '1.0' },
+        environment: {
+          workingDirectory: '/srv/other',
+          repository: 'other-repo',
+          gitBranch: 'main',
+          host: 'localhost',
+        },
+      }),
+    ];
+
+    expect(
+      buildFilteredAgentSessions(sessions, {
+        filterStatus: 'running',
+        filterAgent: 'codex',
+        search: 'SERVERMON',
+      }).map((session) => session.id)
+    ).toEqual([]);
+
+    expect(
+      buildFilteredAgentSessions(sessions, {
+        filterAgent: 'codex',
+        search: 'SERVERMON',
+      }).map((session) => session.id)
+    ).toEqual(['sess-2']);
   });
 });
