@@ -235,7 +235,10 @@ describe('ProShell', () => {
     });
 
     await waitFor(() => {
-      expect(global.fetch).toHaveBeenCalledWith('/api/auth/logout', expect.objectContaining({ method: 'POST' }));
+      expect(global.fetch).toHaveBeenCalledWith(
+        '/api/auth/logout',
+        expect.objectContaining({ method: 'POST' })
+      );
       expect(mockPush).toHaveBeenCalledWith('/login');
     });
   });
@@ -289,7 +292,10 @@ describe('ProShell', () => {
       fireEvent.click(screen.getByTestId('modal-confirm'));
     });
     await waitFor(() => {
-      expect(global.fetch).toHaveBeenCalledWith('/api/system/reboot', expect.objectContaining({ method: 'POST' }));
+      expect(global.fetch).toHaveBeenCalledWith(
+        '/api/system/reboot',
+        expect.objectContaining({ method: 'POST' })
+      );
     });
   });
 
