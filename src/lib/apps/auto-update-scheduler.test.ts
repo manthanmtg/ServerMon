@@ -1,7 +1,8 @@
 /** @vitest-environment node */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { logger, runDueGitAppAutoUpdates } = vi.hoisted(() => ({
+const { countDueGitAppAutoUpdates, logger, runDueGitAppAutoUpdates } = vi.hoisted(() => ({
+  countDueGitAppAutoUpdates: vi.fn(),
   logger: {
     debug: vi.fn(),
     error: vi.fn(),
@@ -15,6 +16,7 @@ vi.mock('@/lib/logger', () => ({
   createLogger: () => logger,
 }));
 vi.mock('./auto-update', () => ({
+  countDueGitAppAutoUpdates,
   runDueGitAppAutoUpdates,
 }));
 
@@ -26,7 +28,9 @@ import {
 describe('git app auto-update scheduler', () => {
   beforeEach(() => {
     vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-05-07T00:05:00.000Z'));
     vi.clearAllMocks();
+    countDueGitAppAutoUpdates.mockResolvedValue(0);
     runDueGitAppAutoUpdates.mockResolvedValue({ checked: 0, failed: 0, unchanged: 0, updated: 0 });
   });
 
@@ -102,5 +106,51 @@ describe('git app auto-update scheduler', () => {
     await vi.advanceTimersByTimeAsync(0);
 
     expect(logger.error).toHaveBeenCalledWith('Git app auto-update scheduler tick failed', error);
+  });
+
+  it('watchdog runs a recovery tick when enabled git apps are overdue', async () => {
+    countDueGitAppAutoUpdates.mockResolvedValueOnce(2);
+
+    startGitAppAutoUpdateScheduler({
+      intervalMs: 60_000,
+      watchdogGraceMs: 120_000,
+      watchdogIntervalMs: 1_000,
+    });
+    await vi.advanceTimersByTimeAsync(0);
+    runDueGitAppAutoUpdates.mockClear();
+
+    await vi.advanceTimersByTimeAsync(1_000);
+
+    expect(countDueGitAppAutoUpdates).toHaveBeenCalledWith(new Date('2026-05-07T00:03:01.000Z'));
+    expect(logger.warn).toHaveBeenCalledWith('Git app auto-update watchdog found overdue apps', {
+      overdue: 2,
+      overdueBefore: '2026-05-07T00:03:01.000Z',
+    });
+    expect(runDueGitAppAutoUpdates).toHaveBeenCalledTimes(1);
+  });
+
+  it('skips overlapping ticks so a slow update cannot start duplicate auto-update runs', async () => {
+    let releaseTick: (() => void) | undefined;
+    runDueGitAppAutoUpdates.mockReturnValueOnce(
+      new Promise((resolve) => {
+        releaseTick = () => resolve({ checked: 1, failed: 0, unchanged: 1, updated: 0 });
+      })
+    );
+
+    startGitAppAutoUpdateScheduler({ intervalMs: 25 });
+    await vi.advanceTimersByTimeAsync(0);
+    await vi.advanceTimersByTimeAsync(25);
+
+    expect(runDueGitAppAutoUpdates).toHaveBeenCalledTimes(1);
+    expect(logger.warn).toHaveBeenCalledWith(
+      'Git app auto-update tick skipped while previous tick is running',
+      {
+        reason: 'scheduled',
+        runningForMs: 25,
+      }
+    );
+
+    releaseTick?.();
+    await vi.advanceTimersByTimeAsync(0);
   });
 });

@@ -1,23 +1,42 @@
 /** @vitest-environment node */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { mockFind, mockUpdateManagedGitApp } = vi.hoisted(() => ({
+const { mockCountDocuments, mockFind, mockUpdateManagedGitApp } = vi.hoisted(() => ({
+  mockCountDocuments: vi.fn(),
   mockFind: vi.fn(),
   mockUpdateManagedGitApp: vi.fn(),
 }));
 
 vi.mock('@/lib/db', () => ({ default: vi.fn() }));
-vi.mock('@/models/ManagedApp', () => ({ default: { find: mockFind } }));
+vi.mock('@/models/ManagedApp', () => ({
+  default: { countDocuments: mockCountDocuments, find: mockFind },
+}));
 vi.mock('./service', () => ({ updateManagedGitApp: mockUpdateManagedGitApp }));
 vi.mock('@/lib/logger', () => ({
   createLogger: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }),
 }));
 
-import { runDueGitAppAutoUpdates } from './auto-update';
+import { countDueGitAppAutoUpdates, runDueGitAppAutoUpdates } from './auto-update';
 
 describe('git app auto update runner', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  it('counts due git apps for scheduler watchdog checks', async () => {
+    mockCountDocuments.mockResolvedValue(3);
+
+    const result = await countDueGitAppAutoUpdates(new Date('2026-05-07T00:03:00.000Z'));
+
+    expect(mockCountDocuments).toHaveBeenCalledWith({
+      sourceType: 'git',
+      'autoUpdate.enabled': true,
+      $or: [
+        { 'autoUpdate.nextRunAt': { $exists: false } },
+        { 'autoUpdate.nextRunAt': { $lte: new Date('2026-05-07T00:03:00.000Z') } },
+      ],
+    });
+    expect(result).toBe(3);
   });
 
   it('updates due git apps with auto update enabled', async () => {

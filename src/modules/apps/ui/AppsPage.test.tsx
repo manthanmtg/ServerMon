@@ -418,6 +418,123 @@ describe('AppsPage', () => {
     expect(screen.getByText('Next check')).toBeTruthy();
   });
 
+  it('polls and autoscrolls live update operation logs while an update is running', async () => {
+    vi.useFakeTimers();
+    const scrollIntoView = vi.fn();
+    const originalScrollIntoView = Element.prototype.scrollIntoView;
+    Object.defineProperty(Element.prototype, 'scrollIntoView', {
+      configurable: true,
+      value: scrollIntoView,
+    });
+
+    const appBeforeUpdate = {
+      id: 'app-1',
+      name: 'Git Portal',
+      slug: 'git-portal',
+      templateId: 'nextjs',
+      sourceType: 'git',
+      git: {
+        url: 'https://github.com/acme/git-portal.git',
+        branch: 'main',
+        currentSha: 'abcdef123456',
+        autoUpdate: {
+          enabled: true,
+          intervalMinutes: 60,
+        },
+      },
+      domain: 'git.example.com',
+      port: 3010,
+      commands: {
+        install: 'pnpm install --frozen-lockfile',
+        build: 'pnpm build',
+        start: 'pnpm start',
+      },
+      envVars: {},
+      healthCheckPath: '/',
+      tlsEnabled: false,
+      status: 'running',
+      currentReleaseId: 'release-1',
+      operations: [],
+      releases: [],
+    };
+    const appDuringUpdate = {
+      ...appBeforeUpdate,
+      operations: [
+        {
+          id: 'update-1',
+          type: 'update',
+          status: 'running',
+          title: 'Manual update',
+          step: 'Building release',
+          startedAt: '2026-05-07T00:00:00.000Z',
+          logs: ['$ git fetch origin main', '$ pnpm build'],
+        },
+      ],
+    };
+    let appLoadCount = 0;
+    let resolveUpdate: (response: Response) => void = () => undefined;
+    const updateResponse = new Promise<Response>((resolve) => {
+      resolveUpdate = resolve;
+    });
+    global.fetch = vi.fn((input: RequestInfo | URL) => {
+      const url = typeof input === 'string' ? input : input.toString();
+      if (url === '/api/modules/apps/app-1/update') return updateResponse;
+      if (url === '/api/modules/apps') {
+        appLoadCount += 1;
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({ apps: [appLoadCount === 1 ? appBeforeUpdate : appDuringUpdate] }),
+        } as Response);
+      }
+      return Promise.reject(new Error(`Unexpected fetch ${url}`));
+    });
+
+    try {
+      render(<AppsPage />);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      expect(screen.getByText('Git Portal')).toBeTruthy();
+
+      fireEvent.click(screen.getByRole('button', { name: /update/i }));
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1500);
+      });
+
+      const liveLogs = screen.getByLabelText('Live update logs for Git Portal');
+      expect(liveLogs.textContent).toContain('$ git fetch origin main');
+      expect(liveLogs.textContent).toContain('$ pnpm build');
+      expect((screen.getByLabelText('Autoscroll update logs') as HTMLInputElement).checked).toBe(
+        true
+      );
+      expect(scrollIntoView).toHaveBeenCalled();
+
+      resolveUpdate({
+        ok: true,
+        json: async () => ({
+          update: {
+            status: 'active',
+            releaseId: 'release-2',
+            logs: ['$ pnpm build', 'Health check passed'],
+          },
+        }),
+      } as Response);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+    } finally {
+      if (originalScrollIntoView) {
+        Object.defineProperty(Element.prototype, 'scrollIntoView', {
+          configurable: true,
+          value: originalScrollIntoView,
+        });
+      } else {
+        delete (Element.prototype as { scrollIntoView?: unknown }).scrollIntoView;
+      }
+      vi.useRealTimers();
+    }
+  });
+
   it('shows app runtime, operation progress, and opens runtime logs', async () => {
     global.fetch = vi
       .fn()

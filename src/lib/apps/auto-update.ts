@@ -12,16 +12,27 @@ export interface GitAppAutoUpdateSummary {
   failed: number;
 }
 
-export async function runDueGitAppAutoUpdates(now = new Date()): Promise<GitAppAutoUpdateSummary> {
-  await connectDB();
-  const apps = await ManagedApp.find({
+function dueGitAppAutoUpdateQuery(before: Date) {
+  return {
     sourceType: 'git',
     'autoUpdate.enabled': true,
     $or: [
       { 'autoUpdate.nextRunAt': { $exists: false } },
-      { 'autoUpdate.nextRunAt': { $lte: now } },
+      { 'autoUpdate.nextRunAt': { $lte: before } },
     ],
-  }).lean<Array<{ _id: { toString: () => string } | string }>>();
+  };
+}
+
+export async function countDueGitAppAutoUpdates(before = new Date()): Promise<number> {
+  await connectDB();
+  return ManagedApp.countDocuments(dueGitAppAutoUpdateQuery(before));
+}
+
+export async function runDueGitAppAutoUpdates(now = new Date()): Promise<GitAppAutoUpdateSummary> {
+  await connectDB();
+  const apps = await ManagedApp.find(dueGitAppAutoUpdateQuery(now)).lean<
+    Array<{ _id: { toString: () => string } | string }>
+  >();
 
   const summary: GitAppAutoUpdateSummary = {
     checked: apps.length,

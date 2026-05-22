@@ -1,6 +1,14 @@
 'use client';
 
-import { FormEvent, type ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  FormEvent,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import {
   Activity,
   ChevronDown,
@@ -135,6 +143,11 @@ const autoUpdateIntervals = [
   { value: '60', label: 'Hourly' },
   { value: '1440', label: 'Daily' },
 ];
+
+const UPDATE_OPERATION_POLL_MS = 1500;
+const UPDATE_REQUEST_TIMEOUT_MS = 10 * 60_000;
+const LIVE_OPERATION_LOG_LIMIT = 80;
+const RECENT_OPERATION_LOG_LIMIT = 8;
 
 function createEnvVarRow(): EnvVarRow {
   return {
@@ -321,6 +334,10 @@ function updateNoticeFor(appName: string, result: ActionResult | null): ActionNo
   };
 }
 
+function getLatestUpdateOperation(app: ManagedAppDTO): AppOperation | undefined {
+  return [...app.operations].reverse().find((operation) => operation.type === 'update');
+}
+
 function fieldClassName() {
   return 'min-h-[44px] w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-ring focus:ring-2 focus:ring-ring/20';
 }
@@ -369,6 +386,8 @@ export default function AppsPage() {
   const [editingApp, setEditingApp] = useState<ManagedAppDTO | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<ActionNotice | null>(null);
+  const [updateLogAutoscroll, setUpdateLogAutoscroll] = useState(true);
+  const liveUpdateLogEndRef = useRef<HTMLSpanElement | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -403,6 +422,37 @@ export default function AppsPage() {
       ),
     [apps]
   );
+
+  const liveUpdateOperation = useMemo(() => {
+    if (updatingId) {
+      const app = apps.find((item) => item.id === updatingId);
+      return app ? getLatestUpdateOperation(app) : undefined;
+    }
+
+    for (const app of apps) {
+      const operation = getLatestUpdateOperation(app);
+      if (operation?.status === 'running') return operation;
+    }
+
+    return undefined;
+  }, [apps, updatingId]);
+  const liveUpdateLogCount = liveUpdateOperation?.logs.length ?? 0;
+  const liveUpdateStep = liveUpdateOperation?.step;
+
+  useEffect(() => {
+    if (!updatingId && activeOperations === 0) return undefined;
+
+    const interval = setInterval(() => {
+      void load();
+    }, UPDATE_OPERATION_POLL_MS);
+
+    return () => clearInterval(interval);
+  }, [activeOperations, load, updatingId]);
+
+  useEffect(() => {
+    if (!updateLogAutoscroll || (!updatingId && activeOperations === 0)) return;
+    liveUpdateLogEndRef.current?.scrollIntoView({ block: 'end' });
+  }, [activeOperations, liveUpdateLogCount, liveUpdateStep, updateLogAutoscroll, updatingId]);
 
   const updateForm = <K extends keyof FormState>(key: K, value: FormState[K]) => {
     setForm((current) => ({ ...current, [key]: value }));
@@ -538,10 +588,11 @@ export default function AppsPage() {
     setUpdatingId(appId);
     setError(null);
     setNotice(null);
+    expandApp(appId);
     try {
       const response = await resilientFetch(`/api/modules/apps/${appId}/update`, {
         method: 'POST',
-        timeout: 60000,
+        timeout: UPDATE_REQUEST_TIMEOUT_MS,
       });
       const data: unknown = await response.json();
       const result = readActionResult(data, 'update');
@@ -549,7 +600,6 @@ export default function AppsPage() {
         throw new Error(readPayloadError(data) || result?.error || 'Update failed');
       }
       setNotice(updateNoticeFor(appName, result));
-      expandApp(appId);
       await load();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Update failed');
@@ -1038,6 +1088,10 @@ export default function AppsPage() {
       <div className="space-y-3">
         {apps.map((app) => {
           const isExpanded = expandedAppIds.has(app.id);
+          const latestUpdateOperation = getLatestUpdateOperation(app);
+          const isUpdatingThisApp = updatingId === app.id;
+          const hasRunningUpdateOperation =
+            latestUpdateOperation?.type === 'update' && latestUpdateOperation.status === 'running';
 
           return (
             <Card key={app.id}>
@@ -1222,44 +1276,92 @@ export default function AppsPage() {
                       </div>
 
                       <div className="rounded-lg border border-border p-3">
-                        <div className="mb-3 flex items-center gap-2 text-sm font-medium">
-                          <RefreshCw className="h-4 w-4 text-primary" />
-                          Operations
+                        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                          <div className="flex items-center gap-2 text-sm font-medium">
+                            <RefreshCw className="h-4 w-4 text-primary" />
+                            Operations
+                          </div>
+                          {(isUpdatingThisApp || hasRunningUpdateOperation) && (
+                            <label className="flex min-h-[32px] items-center gap-2 text-xs text-muted-foreground">
+                              <input
+                                type="checkbox"
+                                aria-label="Autoscroll update logs"
+                                checked={updateLogAutoscroll}
+                                onChange={(event) => setUpdateLogAutoscroll(event.target.checked)}
+                                className="h-4 w-4 rounded border-input accent-primary"
+                              />
+                              Autoscroll
+                            </label>
+                          )}
                         </div>
+                        {isUpdatingThisApp && !latestUpdateOperation && (
+                          <div className="mb-2 rounded-md border border-dashed border-border px-3 py-4 text-xs text-muted-foreground">
+                            Waiting for update logs...
+                          </div>
+                        )}
                         {app.operations.length > 0 ? (
                           <div className="space-y-2">
                             {[...app.operations]
                               .reverse()
                               .slice(0, 3)
-                              .map((operation) => (
-                                <div
-                                  key={operation.id}
-                                  className="rounded-md bg-muted/30 p-2 text-xs"
-                                >
-                                  <div className="flex items-start justify-between gap-2">
-                                    <div>
-                                      <div className="font-medium text-foreground">
-                                        {operation.title}
+                              .map((operation) => {
+                                const isLiveUpdateOperation =
+                                  operation.id === latestUpdateOperation?.id &&
+                                  operation.type === 'update' &&
+                                  operation.status === 'running';
+                                const visibleLogs = operation.logs.slice(
+                                  isLiveUpdateOperation
+                                    ? -LIVE_OPERATION_LOG_LIMIT
+                                    : -RECENT_OPERATION_LOG_LIMIT
+                                );
+
+                                return (
+                                  <div
+                                    key={operation.id}
+                                    className="rounded-md bg-muted/30 p-2 text-xs"
+                                  >
+                                    <div className="flex items-start justify-between gap-2">
+                                      <div>
+                                        <div className="font-medium text-foreground">
+                                          {operation.title}
+                                        </div>
+                                        <div className="mt-1 text-muted-foreground">
+                                          {operation.step}
+                                        </div>
                                       </div>
-                                      <div className="mt-1 text-muted-foreground">
-                                        {operation.step}
-                                      </div>
+                                      {operationStatusBadge(operation)}
                                     </div>
-                                    {operationStatusBadge(operation)}
+                                    {operation.logs.length > 0 ? (
+                                      <pre
+                                        aria-label={
+                                          isLiveUpdateOperation
+                                            ? `Live update logs for ${app.name}`
+                                            : undefined
+                                        }
+                                        role={isLiveUpdateOperation ? 'log' : undefined}
+                                        className={`mt-2 overflow-auto whitespace-pre-wrap rounded bg-background/70 p-2 font-mono ${
+                                          isLiveUpdateOperation ? 'max-h-56' : 'max-h-24'
+                                        }`}
+                                      >
+                                        {visibleLogs.join('\n')}
+                                        {isLiveUpdateOperation && (
+                                          <span ref={liveUpdateLogEndRef} />
+                                        )}
+                                      </pre>
+                                    ) : isLiveUpdateOperation ? (
+                                      <div className="mt-2 rounded border border-dashed border-border px-3 py-4 text-muted-foreground">
+                                        Waiting for update logs...
+                                      </div>
+                                    ) : null}
                                   </div>
-                                  {operation.logs.length > 0 && (
-                                    <pre className="mt-2 max-h-24 overflow-auto whitespace-pre-wrap rounded bg-background/70 p-2 font-mono">
-                                      {operation.logs.slice(-8).join('\n')}
-                                    </pre>
-                                  )}
-                                </div>
-                              ))}
+                                );
+                              })}
                           </div>
-                        ) : (
+                        ) : !isUpdatingThisApp ? (
                           <div className="rounded-md border border-dashed border-border px-3 py-4 text-center text-xs text-muted-foreground">
                             No operations recorded yet.
                           </div>
-                        )}
+                        ) : null}
                       </div>
                     </div>
 
