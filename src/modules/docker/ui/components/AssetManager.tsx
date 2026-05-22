@@ -24,14 +24,14 @@ function DatasetTabs({
   onChange: (tab: DataTab) => void;
 }) {
   return (
-    <div className="inline-flex rounded-xl border border-border/40 bg-muted/20 p-1 backdrop-blur-sm">
+    <div className="grid w-full grid-cols-3 rounded-xl border border-border/40 bg-muted/20 p-1 backdrop-blur-sm sm:inline-grid sm:w-auto">
       {(['images', 'volumes', 'networks'] as DataTab[]).map((tab) => (
         <button
           key={tab}
           type="button"
           onClick={() => onChange(tab)}
           className={cn(
-            'min-h-[36px] rounded-lg px-4 text-[10px] font-bold uppercase tracking-widest transition-all',
+            'min-h-[44px] rounded-lg px-2 text-[10px] font-bold uppercase tracking-widest transition-all sm:min-h-[36px] sm:px-4',
             activeTab === tab
               ? 'bg-card text-foreground shadow-sm ring-1 ring-border/20'
               : 'text-muted-foreground hover:text-foreground hover:bg-muted/30'
