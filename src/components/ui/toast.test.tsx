@@ -16,6 +16,14 @@ const TestTrigger = () => {
   );
 };
 
+const memoizedToastConsumerRender = vi.fn();
+
+const MemoizedToastConsumer = React.memo(function MemoizedToastConsumer() {
+  useToast();
+  memoizedToastConsumerRender();
+  return <div>Memoized toast consumer</div>;
+});
+
 describe('Toast Component', () => {
   it('renders toast when triggered', async () => {
     render(
@@ -70,5 +78,26 @@ describe('Toast Component', () => {
     expect(region.className).toContain('w-auto');
     expect(region.className).toContain('sm:left-auto');
     expect(region.className).toContain('sm:w-full');
+  });
+
+  it('keeps the toast context value stable while notifications change', async () => {
+    memoizedToastConsumerRender.mockClear();
+
+    render(
+      <ToastProvider>
+        <TestTrigger />
+        <MemoizedToastConsumer />
+      </ToastProvider>
+    );
+
+    expect(memoizedToastConsumerRender).toHaveBeenCalledTimes(1);
+
+    const button = screen.getByText('Show Toast');
+    await act(async () => {
+      button.click();
+    });
+
+    expect(await screen.findByText('Test Toast')).toBeDefined();
+    expect(memoizedToastConsumerRender).toHaveBeenCalledTimes(1);
   });
 });
