@@ -11,9 +11,12 @@ const execFileAsync = promisify(execFile);
 const log = createLogger('auto-update');
 const DEFAULT_CONFIG_PATH = '/etc/servermon/auto-update.json';
 const DEFAULT_AGENT_CONFIG_PATH = '/etc/servermon/agent-auto-update.json';
+const DEFAULT_ENV_PATH = '/etc/servermon/env';
 const DEFAULT_TIME = '03:00';
 const DEFAULT_GRACE_MINUTES = 120;
 const DEFAULT_MAX_RETRIES = 1;
+const DEFAULT_SOURCE_REMOTE = 'origin';
+const DEFAULT_SOURCE_REF = 'main';
 
 const TimeZ = z
   .string()
@@ -69,6 +72,17 @@ export type RepoUpdateCheck =
   | { status: 'unchanged'; localRef: string; upstreamRef: string }
   | { status: 'failed'; message: string };
 
+interface RepoUpdateCheckOptions {
+  remote?: string;
+  branch?: string;
+}
+
+interface ServerMonInstallMetadata {
+  installMode: 'release' | 'source';
+  repoDir?: string;
+  sourceRef: string;
+}
+
 export type AutoUpdateRunResult =
   | { launched: true; runId?: string; scheduledDate: string; kind: 'scheduled' | 'catch-up' }
   | { launched: false; reason: string; scheduledDate?: string; runId?: string };
@@ -92,6 +106,35 @@ function getSystemTimezone(): string {
 
 function getDefaultAutoUpdateSettings(): AutoUpdateSettings {
   return AutoUpdateSettingsZ.parse({});
+}
+
+function parseEnvFile(raw: string): Record<string, string> {
+  const values: Record<string, string> = {};
+  for (const line of raw.split('\n')) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    const index = trimmed.indexOf('=');
+    if (index <= 0) continue;
+    values[trimmed.slice(0, index)] = trimmed.slice(index + 1).trim();
+  }
+  return values;
+}
+
+async function loadServerMonInstallMetadata(): Promise<ServerMonInstallMetadata> {
+  let envFile: Record<string, string> = {};
+  try {
+    envFile = parseEnvFile(await readFile(DEFAULT_ENV_PATH, 'utf8'));
+  } catch {
+    envFile = {};
+  }
+
+  const installModeRaw = process.env.SERVERMON_INSTALL_MODE || envFile.SERVERMON_INSTALL_MODE;
+  const installMode = installModeRaw === 'release' ? 'release' : 'source';
+  const repoDir = process.env.SERVERMON_REPO_DIR || envFile.SERVERMON_REPO_DIR || undefined;
+  const sourceRef =
+    process.env.SERVERMON_SOURCE_REF || envFile.SERVERMON_SOURCE_REF || DEFAULT_SOURCE_REF;
+
+  return { installMode, repoDir, sourceRef };
 }
 
 export async function loadAutoUpdateSettings(
@@ -177,13 +220,21 @@ export function shouldLaunchAutoUpdate(
   return { shouldLaunch: true, kind: 'catch-up', scheduledDate: local.date };
 }
 
-export async function checkRepoForUpdates(repoDir: string): Promise<RepoUpdateCheck> {
+export async function checkRepoForUpdates(
+  repoDir: string,
+  options: RepoUpdateCheckOptions = {}
+): Promise<RepoUpdateCheck> {
   try {
-    await execFileAsync('git', ['-C', repoDir, 'fetch', '--quiet'], { timeout: 30000 });
+    const remote = options.remote ?? DEFAULT_SOURCE_REMOTE;
+    const branch = options.branch?.trim();
+    const fetchArgs = ['-C', repoDir, 'fetch', '--quiet'];
+    if (branch) fetchArgs.push(remote, branch);
+    await execFileAsync('git', fetchArgs, { timeout: 30000 });
     const local = await execFileAsync('git', ['-C', repoDir, 'rev-parse', 'HEAD'], {
       timeout: 10000,
     });
-    const upstream = await execFileAsync('git', ['-C', repoDir, 'rev-parse', '@{u}'], {
+    const upstreamRevision = branch ? 'FETCH_HEAD' : '@{u}';
+    const upstream = await execFileAsync('git', ['-C', repoDir, 'rev-parse', upstreamRevision], {
       timeout: 10000,
     });
     const localRef = String(local.stdout).trim();
@@ -257,8 +308,15 @@ async function runServerMonAutoUpdate(
   now: Date,
   target: LocalAutoUpdateTarget
 ): Promise<AutoUpdateRunResult> {
-  const servermonRepo = process.env.SERVERMON_REPO_DIR || '/opt/servermon/repo';
-  const servermonCheck = await checkRepoForUpdates(servermonRepo);
+  const metadata = await loadServerMonInstallMetadata();
+  const servermonRepo = metadata.repoDir || '/opt/servermon/repo';
+  const servermonCheck =
+    metadata.installMode === 'release'
+      ? ({ status: 'changed', localRef: 'release', upstreamRef: 'latest' } as const)
+      : await checkRepoForUpdates(servermonRepo, {
+          remote: DEFAULT_SOURCE_REMOTE,
+          branch: metadata.sourceRef,
+        });
   if (servermonCheck.status === 'failed') {
     await saveAutoUpdateSettings(
       {

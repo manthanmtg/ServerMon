@@ -218,7 +218,7 @@ describe('local auto-update service', () => {
       ) => void;
       const argList = args as string[];
       if (argList.includes('fetch')) return cb(null, { stdout: '', stderr: '' });
-      if (argList.includes('HEAD') || argList.includes('@{u}')) {
+      if (argList.includes('HEAD') || argList.includes('FETCH_HEAD') || argList.includes('@{u}')) {
         return cb(null, { stdout: 'same\n', stderr: '' });
       }
       return cb(new Error('unexpected'), { stdout: '', stderr: '' });
@@ -242,6 +242,34 @@ describe('local auto-update service', () => {
     });
   });
 
+  it('checks the configured source branch instead of trusting the local upstream', async () => {
+    const { checkRepoForUpdates } = await import('./auto-update');
+    const mockedExecFile = vi.mocked(execFile);
+    mockExecFile((cmd, args, ...rest: unknown[]) => {
+      const cb = rest.at(-1) as (
+        error: Error | null,
+        result: { stdout: string; stderr: string }
+      ) => void;
+      const argList = args as string[];
+      if (argList.join(' ') === '-C /repo fetch --quiet origin stable') {
+        return cb(null, { stdout: '', stderr: '' });
+      }
+      if (argList.includes('HEAD')) return cb(null, { stdout: 'local\n', stderr: '' });
+      if (argList.includes('FETCH_HEAD')) return cb(null, { stdout: 'remote\n', stderr: '' });
+      if (argList.includes('@{u}')) return cb(null, { stdout: 'local\n', stderr: '' });
+      return cb(new Error(`unexpected ${argList.join(' ')}`), { stdout: '', stderr: '' });
+    });
+
+    await expect(
+      checkRepoForUpdates('/repo', { branch: 'stable', remote: 'origin' })
+    ).resolves.toEqual({
+      status: 'changed',
+      localRef: 'local',
+      upstreamRef: 'remote',
+    });
+    expect(JSON.stringify(mockedExecFile.mock.calls)).not.toContain('@{u}');
+  });
+
   it('records a skipped run when neither ServerMon nor the running agent changed', async () => {
     const { saveAutoUpdateSettings, runLocalAutoUpdateOnce } = await import('./auto-update');
     await saveAutoUpdateSettings({
@@ -262,7 +290,7 @@ describe('local auto-update service', () => {
       ) => void;
       const argList = args as string[];
       if (argList.includes('fetch')) return cb(null, { stdout: '', stderr: '' });
-      if (argList.includes('HEAD') || argList.includes('@{u}')) {
+      if (argList.includes('HEAD') || argList.includes('FETCH_HEAD') || argList.includes('@{u}')) {
         return cb(null, { stdout: 'same\n', stderr: '' });
       }
       return cb(new Error('unexpected'), { stdout: '', stderr: '' });
@@ -302,7 +330,9 @@ describe('local auto-update service', () => {
       const argList = args as string[];
       if (argList.includes('fetch')) return cb(null, { stdout: '', stderr: '' });
       if (argList.includes('HEAD')) return cb(null, { stdout: 'local\n', stderr: '' });
-      if (argList.includes('@{u}')) return cb(null, { stdout: 'remote\n', stderr: '' });
+      if (argList.includes('FETCH_HEAD') || argList.includes('@{u}')) {
+        return cb(null, { stdout: 'remote\n', stderr: '' });
+      }
       return cb(new Error('unexpected'), { stdout: '', stderr: '' });
     });
 
@@ -317,6 +347,52 @@ describe('local auto-update service', () => {
     };
     expect(stored.activeRunId).toBe('launched-1');
     expect(stored.lastScheduledDateLaunched).toBe('2026-04-26');
+  });
+
+  it('uses SERVERMON_SOURCE_REF when checking scheduled ServerMon app updates', async () => {
+    vi.stubEnv('SERVERMON_SOURCE_REF', 'stable');
+    const { saveAutoUpdateSettings, runLocalAutoUpdateOnce } = await import('./auto-update');
+    await saveAutoUpdateSettings({
+      enabled: true,
+      time: '03:00',
+      timezone: 'Asia/Kolkata',
+    });
+    mockExecFile((cmd, args, ...rest: unknown[]) => {
+      const cb = rest.at(-1) as (
+        error: Error | null,
+        result: { stdout: string; stderr: string }
+      ) => void;
+      const argList = args as string[];
+      if (argList.join(' ') === '-C /opt/servermon/repo fetch --quiet origin stable') {
+        return cb(null, { stdout: '', stderr: '' });
+      }
+      if (argList.includes('HEAD')) return cb(null, { stdout: 'local\n', stderr: '' });
+      if (argList.includes('FETCH_HEAD')) return cb(null, { stdout: 'remote\n', stderr: '' });
+      return cb(new Error(`unexpected ${argList.join(' ')}`), { stdout: '', stderr: '' });
+    });
+
+    const result = await runLocalAutoUpdateOnce(new Date('2026-04-25T21:30:00.000Z'));
+
+    expect(result).toMatchObject({ launched: true, runId: 'launched-1' });
+    expect(mockTriggerUpdate).toHaveBeenCalledWith({ trigger: 'scheduled' });
+  });
+
+  it('launches release-mode ServerMon app updates without requiring a source git checkout', async () => {
+    vi.stubEnv('SERVERMON_INSTALL_MODE', 'release');
+    vi.stubEnv('SERVERMON_REPO_DIR', '');
+    const { saveAutoUpdateSettings, runLocalAutoUpdateOnce } = await import('./auto-update');
+    await saveAutoUpdateSettings({
+      enabled: true,
+      time: '03:00',
+      timezone: 'Asia/Kolkata',
+    });
+
+    const result = await runLocalAutoUpdateOnce(new Date('2026-04-25T21:30:00.000Z'));
+
+    expect(result).toMatchObject({ launched: true, runId: 'launched-1' });
+    expect(execFile).not.toHaveBeenCalled();
+    expect(mockRecordSkippedUpdateRun).not.toHaveBeenCalled();
+    expect(mockTriggerUpdate).toHaveBeenCalledWith({ trigger: 'scheduled' });
   });
 
   it('launches release-mode agent update without requiring a git checkout', async () => {
