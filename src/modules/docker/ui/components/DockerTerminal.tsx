@@ -35,7 +35,7 @@ export function DockerTerminal({
             <Button
               size="sm"
               variant="ghost"
-              className={`h-8 px-3 text-xs font-medium rounded-md transition-all ${terminalCommand === 'docker ps -a\n' ? 'bg-card shadow-sm text-primary' : 'hover:bg-card/50'}`}
+              className={`h-11 px-3 text-xs font-medium rounded-md transition-all sm:h-8 ${terminalCommand === 'docker ps -a\n' ? 'bg-card shadow-sm text-primary' : 'hover:bg-card/50'}`}
               onClick={() => onCommandChange('docker ps -a\n')}
             >
               Containers
@@ -43,7 +43,7 @@ export function DockerTerminal({
             <Button
               size="sm"
               variant="ghost"
-              className={`h-8 px-3 text-xs font-medium rounded-md transition-all ${terminalCommand === 'docker images\n' ? 'bg-card shadow-sm text-primary' : 'hover:bg-card/50'}`}
+              className={`h-11 px-3 text-xs font-medium rounded-md transition-all sm:h-8 ${terminalCommand === 'docker images\n' ? 'bg-card shadow-sm text-primary' : 'hover:bg-card/50'}`}
               onClick={() => onCommandChange('docker images\n')}
             >
               Images
@@ -51,7 +51,7 @@ export function DockerTerminal({
             <Button
               size="sm"
               variant="ghost"
-              className={`h-8 px-3 text-xs font-medium rounded-md transition-all ${terminalCommand === 'docker compose ps\n' ? 'bg-card shadow-sm text-primary' : 'hover:bg-card/50'}`}
+              className={`h-11 px-3 text-xs font-medium rounded-md transition-all sm:h-8 ${terminalCommand === 'docker compose ps\n' ? 'bg-card shadow-sm text-primary' : 'hover:bg-card/50'}`}
               onClick={() => onCommandChange('docker compose ps\n')}
             >
               Compose
@@ -59,7 +59,7 @@ export function DockerTerminal({
             <Button
               size="sm"
               variant="ghost"
-              className={`h-8 px-3 text-xs font-medium rounded-md transition-all ${terminalCommand === 'crictl ps -a\n' ? 'bg-card shadow-sm text-primary' : 'hover:bg-card/50'}`}
+              className={`h-11 px-3 text-xs font-medium rounded-md transition-all sm:h-8 ${terminalCommand === 'crictl ps -a\n' ? 'bg-card shadow-sm text-primary' : 'hover:bg-card/50'}`}
               onClick={() => onCommandChange('crictl ps -a\n')}
             >
               CRI

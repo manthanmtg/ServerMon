@@ -450,6 +450,18 @@ describe('DockerPage', () => {
     expect(screen.getByText('crictl ps -a')).toBeDefined();
   });
 
+  it('keeps terminal preset buttons large enough on mobile', async () => {
+    await renderPage();
+    await waitFor(() => screen.getByText('Embedded Docker terminal'));
+    const terminalCard = screen.getByTestId('docker-terminal');
+
+    for (const label of ['Containers', 'Images', 'Compose', 'CRI']) {
+      const presetButton = within(terminalCard).getByRole('button', { name: label });
+      expect(presetButton).toHaveClass('h-11');
+      expect(presetButton).toHaveClass('sm:h-8');
+    }
+  });
+
   it('handles fetch error gracefully', async () => {
     global.fetch = vi.fn().mockResolvedValue({
       ok: false,
