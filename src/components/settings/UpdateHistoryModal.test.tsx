@@ -78,6 +78,23 @@ describe('UpdateHistoryModal', () => {
     });
   });
 
+  it('stacks update run rows on narrow screens before expanding on larger viewports', async () => {
+    const run = makeRun({ runId: 'run-mobile-row-test', status: 'completed', type: 'servermon' });
+    mockFetchRuns([run]);
+
+    render(<UpdateHistoryModal onClose={vi.fn()} />);
+
+    const title = await screen.findByText('ServerMon App Update');
+    const row = title.closest('button');
+    const contentGroup = title.closest('.relative.z-10');
+    const titleGroup = title.closest('.text-left');
+
+    expect(row?.className).toContain('flex-col');
+    expect(row?.className).toContain('sm:flex-row');
+    expect(contentGroup?.className).toContain('min-w-0');
+    expect(titleGroup?.className).toContain('min-w-0');
+  });
+
   it('requests only agent history when scoped to the agent', async () => {
     const runs = [
       makeRun({ runId: 'run-app', status: 'completed', type: 'servermon' }),
