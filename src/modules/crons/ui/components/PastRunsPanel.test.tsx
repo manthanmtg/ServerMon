@@ -22,7 +22,7 @@ describe('PastRunsPanel', () => {
   });
 
   it('announces loading while fetching run history', () => {
-    global.fetch = vi.fn(() => new Promise(() => {})) as unknown as typeof fetch;
+    global.fetch = vi.fn<typeof fetch>(() => new Promise(() => {}));
 
     render(<PastRunsPanel onShowOutput={vi.fn()} />);
 
@@ -30,12 +30,14 @@ describe('PastRunsPanel', () => {
   });
 
   it('keeps the global history table scrollable on narrow viewports', async () => {
-    global.fetch = vi.fn(() =>
-      Promise.resolve({
-        ok: true,
-        json: async () => [run],
-      } as Response)
-    ) as unknown as typeof fetch;
+    global.fetch = vi.fn<typeof fetch>(() =>
+      Promise.resolve(
+        new Response(JSON.stringify([run]), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      )
+    );
 
     render(<PastRunsPanel onShowOutput={vi.fn()} />);
 
@@ -58,11 +60,7 @@ describe('PastRunsPanel', () => {
   });
 
   it('shows an error with retry when run history cannot be loaded', async () => {
-    global.fetch = vi.fn(() =>
-      Promise.resolve({
-        ok: false,
-      } as Response)
-    ) as unknown as typeof fetch;
+    global.fetch = vi.fn<typeof fetch>(() => Promise.resolve(new Response(null, { status: 500 })));
 
     render(<PastRunsPanel onShowOutput={vi.fn()} />);
 
@@ -71,12 +69,14 @@ describe('PastRunsPanel', () => {
   });
 
   it('shows an error when run history payload is malformed', async () => {
-    global.fetch = vi.fn(() =>
-      Promise.resolve({
-        ok: true,
-        json: async () => ({ runs: [run] }),
-      } as Response)
-    ) as unknown as typeof fetch;
+    global.fetch = vi.fn<typeof fetch>(() =>
+      Promise.resolve(
+        new Response(JSON.stringify({ runs: [run] }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      )
+    );
 
     render(<PastRunsPanel onShowOutput={vi.fn()} />);
 
