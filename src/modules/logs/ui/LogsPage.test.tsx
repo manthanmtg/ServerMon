@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
-import LogsPage from './LogsPage';
+import LogsPage, { buildSearchableLogEntries, getFilteredLogs } from './LogsPage';
 
 const mockLogs = [
   {
@@ -27,7 +27,7 @@ const mockLogs = [
     timestamp: new Date().toISOString(),
     metadata: { service: 'nginx' },
   },
-];
+] satisfies Parameters<typeof buildSearchableLogEntries>[0];
 
 describe('LogsPage', () => {
   beforeEach(() => {
@@ -136,5 +136,15 @@ describe('LogsPage', () => {
         screen.getByText('Recent audit events could not be fetched. The page will keep retrying.')
       ).toBeTruthy();
     });
+  });
+
+  it('prepares searchable log fields once and filters against the prepared values', () => {
+    const prepared = buildSearchableLogEntries(mockLogs);
+
+    expect(prepared[0].eventLower).toBe('user admin created');
+    expect(prepared[0].moduleLower).toBe('users');
+    expect(prepared[0].metadataJson).toBe('{"user":"admin"}');
+    expect(getFilteredLogs(prepared, 'warn', '').map((log) => log._id)).toEqual(['2']);
+    expect(getFilteredLogs(prepared, 'all', 'SYSTEM').map((log) => log._id)).toEqual(['3']);
   });
 });

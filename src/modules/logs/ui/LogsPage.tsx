@@ -17,6 +17,12 @@ interface LogEntry {
 
 type FilterType = 'all' | 'info' | 'warn' | 'error';
 
+type SearchableLogEntry = LogEntry & {
+  eventLower: string;
+  moduleLower: string;
+  metadataJson: string;
+};
+
 const FILTER_OPTIONS: { label: string; value: FilterType }[] = [
   { label: 'All', value: 'all' },
   { label: 'Info', value: 'info' },
@@ -39,6 +45,34 @@ const severityConfig = {
     color: 'text-destructive',
   },
 };
+
+export function buildSearchableLogEntries(logs: LogEntry[]): SearchableLogEntry[] {
+  return logs.map((log) => ({
+    ...log,
+    eventLower: log.event.toLowerCase(),
+    moduleLower: log.moduleId.toLowerCase(),
+    metadataJson: JSON.stringify(log.metadata),
+  }));
+}
+
+export function getFilteredLogs(
+  logs: SearchableLogEntry[],
+  filter: FilterType,
+  search: string
+): SearchableLogEntry[] {
+  const normalizedSearch = search.trim().toLowerCase();
+
+  return logs.filter((log) => {
+    if (filter !== 'all' && log.severity !== filter) return false;
+    if (
+      normalizedSearch &&
+      !log.eventLower.includes(normalizedSearch) &&
+      !log.moduleLower.includes(normalizedSearch)
+    )
+      return false;
+    return true;
+  });
+}
 
 function MobileLogCard({ log }: { log: LogEntry }) {
   const config = severityConfig[log.severity] || severityConfig.info;
@@ -92,21 +126,11 @@ export default function LogsPage() {
     return () => clearInterval(interval);
   }, []);
 
-  const normalizedSearch = useMemo(() => search.toLowerCase(), [search]);
+  const searchableLogs = useMemo(() => buildSearchableLogEntries(logs), [logs]);
 
   const filtered = useMemo(
-    () =>
-      logs.filter((log) => {
-        if (filter !== 'all' && log.severity !== filter) return false;
-        if (
-          normalizedSearch &&
-          !log.event.toLowerCase().includes(normalizedSearch) &&
-          !log.moduleId.toLowerCase().includes(normalizedSearch)
-        )
-          return false;
-        return true;
-      }),
-    [filter, logs, normalizedSearch]
+    () => getFilteredLogs(searchableLogs, filter, search),
+    [filter, searchableLogs, search]
   );
 
   return (
@@ -213,7 +237,7 @@ export default function LogsPage() {
                         </td>
                         <td className="px-4 py-3 hidden lg:table-cell">
                           <span className="text-xs font-mono text-muted-foreground truncate block max-w-[200px]">
-                            {JSON.stringify(log.metadata)}
+                            {log.metadataJson}
                           </span>
                         </td>
                         <td className="px-4 py-3 text-right">
