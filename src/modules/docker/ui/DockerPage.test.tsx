@@ -264,10 +264,13 @@ describe('DockerPage', () => {
 
   it('switches between Image/Volumes/Networks tabs', async () => {
     await renderPage();
-    await waitFor(() => screen.getByTestId('docker-assets'));
+    const assets = await waitFor(() => screen.getByTestId('docker-assets'));
 
     // Default is images
     expect(screen.getByTestId('docker-images-table')).toBeDefined();
+    expect(within(assets).getByRole('button', { name: /^images$/i }).className).toContain(
+      'min-h-[44px]'
+    );
 
     // Switch to volumes
     await act(async () => {
