@@ -558,8 +558,11 @@ export default function NetworkPage() {
         {selectedInterfaces.map((iface) => {
           const stats = statsByInterface.get(iface.iface);
           return (
-            <Card key={iface.iface} className="border-border/60 bg-card/80">
-              <CardContent className="p-5 space-y-4">
+            <Card
+              key={iface.iface}
+              className="group overflow-hidden border-border/60 bg-card/80 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/30 hover:bg-card hover:shadow-[0_18px_36px_-28px_color-mix(in_oklab,var(--primary)_45%,transparent)]"
+            >
+              <CardContent className="space-y-4 p-5">
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
@@ -572,16 +575,20 @@ export default function NetworkPage() {
                   </Badge>
                 </div>
                 <div className="grid grid-cols-2 gap-2 text-xs">
-                  <div className="flex items-center gap-1.5 text-muted-foreground">
+                  <div className="flex items-center gap-1.5 rounded-lg border border-border/40 bg-muted/20 px-2 py-1.5 text-muted-foreground transition-colors group-hover:border-success/30 group-hover:bg-success/5">
                     <ArrowDown className="h-3 w-3 text-success" />
-                    <span>{stats ? formatBytes(stats.rx_sec) : '0 B'}/s</span>
+                    <span className="truncate tabular-nums">
+                      {stats ? formatBytes(stats.rx_sec) : '0 B'}/s
+                    </span>
                   </div>
-                  <div className="flex items-center gap-1.5 text-muted-foreground">
+                  <div className="flex items-center gap-1.5 rounded-lg border border-border/40 bg-muted/20 px-2 py-1.5 text-muted-foreground transition-colors group-hover:border-primary/30 group-hover:bg-primary/5">
                     <ArrowUp className="h-3 w-3 text-primary" />
-                    <span>{stats ? formatBytes(stats.tx_sec) : '0 B'}/s</span>
+                    <span className="truncate tabular-nums">
+                      {stats ? formatBytes(stats.tx_sec) : '0 B'}/s
+                    </span>
                   </div>
                 </div>
-                <div className="pt-2 border-t border-border/40 flex items-center justify-between text-[10px] uppercase tracking-wider text-muted-foreground font-medium">
+                <div className="flex items-center justify-between border-t border-border/40 pt-2 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
                   <span>{iface.speed > 0 ? formatSpeed(iface.speed) : 'N/A Speed'}</span>
                   <span>MTU {iface.mtu}</span>
                 </div>
