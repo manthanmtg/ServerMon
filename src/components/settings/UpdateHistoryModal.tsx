@@ -284,9 +284,9 @@ export default function UpdateHistoryModal({ onClose, type }: UpdateHistoryModal
                       key={run.runId}
                       onClick={() => loadDetails(run.runId)}
                       style={{ animationDelay: `${index * 50}ms` }}
-                      className="w-full flex items-center justify-between p-6 sm:px-8 rounded-[2.5rem] bg-white/[0.03] hover:bg-white/[0.06] border border-white/5 hover:border-white/10 transition-all group relative overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-500 active:scale-[0.98]"
+                      className="w-full flex flex-col items-stretch justify-between gap-4 p-5 sm:flex-row sm:items-center sm:px-8 sm:py-6 rounded-[2.5rem] bg-white/[0.03] hover:bg-white/[0.06] border border-white/5 hover:border-white/10 transition-all group relative overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-500 active:scale-[0.98]"
                     >
-                      <div className="flex items-center gap-6 sm:gap-8 relative z-10">
+                      <div className="flex min-w-0 items-center gap-4 sm:gap-8 relative z-10">
                         <div
                           className={cn(
                             'w-14 h-14 rounded-[1.25rem] flex items-center justify-center shrink-0 border transition-all duration-500 group-hover:scale-110 group-hover:rotate-3 shadow-xl',
@@ -299,9 +299,9 @@ export default function UpdateHistoryModal({ onClose, type }: UpdateHistoryModal
                         >
                           <StatusIcon status={run.status} />
                         </div>
-                        <div className="text-left">
-                          <div className="flex items-center gap-4">
-                            <span className="text-lg font-bold text-foreground tracking-tight">
+                        <div className="min-w-0 text-left">
+                          <div className="flex min-w-0 flex-wrap items-center gap-2 sm:gap-4">
+                            <span className="min-w-0 truncate text-lg font-bold text-foreground tracking-tight">
                               {getRunTitle(run)}
                             </span>
                             <Badge
@@ -355,7 +355,7 @@ export default function UpdateHistoryModal({ onClose, type }: UpdateHistoryModal
                           </div>
                         </div>
                       </div>
-                      <div className="bg-primary/10 p-3 rounded-2xl opacity-0 group-hover:opacity-100 transition-all translate-x-4 group-hover:translate-x-0 relative z-10 shadow-2xl shadow-primary/30 border border-primary/20">
+                      <div className="self-end bg-primary/10 p-3 rounded-2xl opacity-0 group-hover:opacity-100 transition-all translate-x-4 group-hover:translate-x-0 relative z-10 shadow-2xl shadow-primary/30 border border-primary/20 sm:self-auto">
                         <ChevronRight className="w-6 h-6 text-primary" />
                       </div>
                     </button>
