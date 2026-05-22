@@ -6,7 +6,7 @@ import { Bot, Info } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getPresetIcon, isUploadedIcon } from '../utils';
 
-export function FieldHint({ text }: { text: string }) {
+function FieldHint({ text }: { text: string }) {
   return (
     <span
       title={text}
