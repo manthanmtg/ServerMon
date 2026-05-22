@@ -5,7 +5,7 @@ import { Eye, EyeOff, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { DatabaseTemplateId } from '../types';
 
-export interface DatabaseTemplateOption {
+interface DatabaseTemplateOption {
   id: DatabaseTemplateId;
   label: string;
   versions: string[];

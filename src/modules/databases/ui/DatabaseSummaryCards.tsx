@@ -2,7 +2,7 @@ import { CheckCircle2, Database, Globe2, XCircle } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import type { ManagedDatabaseDTO } from '../types';
 
-export interface DatabaseSummary {
+interface DatabaseSummary {
   total: number;
   running: number;
   failed: number;

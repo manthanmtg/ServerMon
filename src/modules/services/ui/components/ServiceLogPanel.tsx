@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import type { ServiceLogEntry } from '../../types';
 
-export interface ServiceLogPanelProps {
+interface ServiceLogPanelProps {
   serviceName: string;
 }
 

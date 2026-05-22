@@ -73,7 +73,7 @@ function CpuBarBase({ value }: { value: number }) {
 
 const CpuBar = React.memo(CpuBarBase);
 
-export interface ProcessItemProps {
+interface ProcessItemProps {
   process: ProcessInfo;
   isExpanded: boolean;
   isKilling: boolean;
