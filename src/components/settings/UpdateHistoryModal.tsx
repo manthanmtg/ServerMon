@@ -148,6 +148,7 @@ export default function UpdateHistoryModal({ onClose, type }: UpdateHistoryModal
           <Button
             variant="ghost"
             size="sm"
+            aria-label="Close modal"
             onClick={onClose}
             className="h-10 w-10 p-0 rounded-2xl border border-white/5 hover:bg-destructive/10 hover:text-destructive hover:border-destructive/20 transition-all active:scale-90"
           >
@@ -197,6 +198,7 @@ export default function UpdateHistoryModal({ onClose, type }: UpdateHistoryModal
                 <div className="flex items-center gap-4 ml-auto">
                   <button
                     onClick={() => setAutoScroll(!autoScroll)}
+                    aria-pressed={autoScroll}
                     className={cn(
                       'flex items-center gap-2.5 px-3.5 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border',
                       autoScroll
