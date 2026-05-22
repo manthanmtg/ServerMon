@@ -32,6 +32,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import ConfirmationModal from '@/components/ui/ConfirmationModal';
 import type {
+  AppAutoUpdateStatus,
   AppLogEntry,
   AppOperation,
   AppRelease,
@@ -75,6 +76,19 @@ type AppsPageSummary = {
 };
 
 type AppsPageSummaryInput = Pick<ManagedAppDTO, 'status'>;
+
+interface ActionResult {
+  status?: string;
+  releaseId?: string;
+  error?: string;
+  logs: string[];
+}
+
+interface ActionNotice {
+  tone: 'success' | 'info';
+  title: string;
+  detail?: string;
+}
 
 export function deriveAppsPageSummary(apps: AppsPageSummaryInput[]): AppsPageSummary {
   return apps.reduce<AppsPageSummary>(
@@ -251,6 +265,62 @@ function operationStatusBadge(operation: AppOperation) {
   return <Badge variant="success">Succeeded</Badge>;
 }
 
+function autoUpdateStatusBadge(status?: AppAutoUpdateStatus) {
+  if (status === 'failed') return <Badge variant="destructive">Failed</Badge>;
+  if (status === 'updated') return <Badge variant="success">Updated</Badge>;
+  if (status === 'unchanged') return <Badge variant="secondary">Unchanged</Badge>;
+  if (status === 'idle') return <Badge variant="secondary">Idle</Badge>;
+  return <Badge variant="secondary">Never run</Badge>;
+}
+
+function formatOptionalDate(value: string | undefined, fallback: string) {
+  return value ? new Date(value).toLocaleString() : fallback;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+function readPayloadError(payload: unknown): string | undefined {
+  if (!isRecord(payload)) return undefined;
+  return typeof payload.error === 'string' ? payload.error : undefined;
+}
+
+function readActionResult(payload: unknown, key: string): ActionResult | null {
+  if (!isRecord(payload) || !isRecord(payload[key])) return null;
+  const result = payload[key];
+  return {
+    status: typeof result.status === 'string' ? result.status : undefined,
+    releaseId: typeof result.releaseId === 'string' ? result.releaseId : undefined,
+    error: typeof result.error === 'string' ? result.error : undefined,
+    logs: Array.isArray(result.logs)
+      ? result.logs.filter((line): line is string => typeof line === 'string')
+      : [],
+  };
+}
+
+function updateNoticeFor(appName: string, result: ActionResult | null): ActionNotice {
+  if (result?.status === 'unchanged') {
+    return {
+      tone: 'info',
+      title: `${appName} is already up to date.`,
+      detail: result.logs.at(-1) || 'No upstream changes found.',
+    };
+  }
+  if (result?.status === 'active') {
+    return {
+      tone: 'success',
+      title: `${appName} updated successfully.`,
+      detail: result.releaseId ? `Release ${result.releaseId} is now active.` : undefined,
+    };
+  }
+  return {
+    tone: 'success',
+    title: `${appName} update completed.`,
+    detail: result?.releaseId ? `Release ${result.releaseId} is now active.` : undefined,
+  };
+}
+
 function fieldClassName() {
   return 'min-h-[44px] w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-ring focus:ring-2 focus:ring-ring/20';
 }
@@ -298,6 +368,7 @@ export default function AppsPage() {
   const [runtimeLogsError, setRuntimeLogsError] = useState<string | null>(null);
   const [editingApp, setEditingApp] = useState<ManagedAppDTO | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<ActionNotice | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -364,6 +435,15 @@ export default function AppsPage() {
     });
   };
 
+  const expandApp = (appId: string) => {
+    setExpandedAppIds((current) => {
+      if (current.has(appId)) return current;
+      const next = new Set(current);
+      next.add(appId);
+      return next;
+    });
+  };
+
   const toggleEnvValue = (appId: string, key: string) => {
     const token = `${appId}:${key}`;
     setRevealedEnvVars((current) => {
@@ -386,6 +466,7 @@ export default function AppsPage() {
     event.preventDefault();
     setSubmitting(true);
     setError(null);
+    setNotice(null);
     try {
       const payload = formToPayload(form);
       const url = editingApp ? `/api/modules/apps/${editingApp.id}` : '/api/modules/apps';
@@ -435,6 +516,7 @@ export default function AppsPage() {
   const deployApp = async (appId: string) => {
     setDeployingId(appId);
     setError(null);
+    setNotice(null);
     try {
       const response = await resilientFetch(`/api/modules/apps/${appId}/deploy`, {
         method: 'POST',
@@ -452,15 +534,22 @@ export default function AppsPage() {
   };
 
   const updateApp = async (appId: string) => {
+    const appName = apps.find((app) => app.id === appId)?.name ?? 'App';
     setUpdatingId(appId);
     setError(null);
+    setNotice(null);
     try {
       const response = await resilientFetch(`/api/modules/apps/${appId}/update`, {
         method: 'POST',
         timeout: 60000,
       });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || data.update?.error || 'Update failed');
+      const data: unknown = await response.json();
+      const result = readActionResult(data, 'update');
+      if (!response.ok) {
+        throw new Error(readPayloadError(data) || result?.error || 'Update failed');
+      }
+      setNotice(updateNoticeFor(appName, result));
+      expandApp(appId);
       await load();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Update failed');
@@ -474,6 +563,7 @@ export default function AppsPage() {
     const token = `${appId}:${releaseId}`;
     setRollbackTarget(token);
     setError(null);
+    setNotice(null);
     try {
       const response = await resilientFetch(`/api/modules/apps/${appId}/rollback`, {
         method: 'POST',
@@ -516,6 +606,7 @@ export default function AppsPage() {
     if (!deleteCandidate) return;
     setDeletingId(deleteCandidate.id);
     setError(null);
+    setNotice(null);
     try {
       const response = await resilientFetch(`/api/modules/apps/${deleteCandidate.id}`, {
         method: 'DELETE',
@@ -549,6 +640,20 @@ export default function AppsPage() {
           className="rounded-lg border border-destructive/20 bg-destructive/5 px-4 py-3 text-sm text-destructive"
         >
           {error}
+        </div>
+      )}
+
+      {notice && (
+        <div
+          role="status"
+          className={`rounded-lg border px-4 py-3 text-sm ${
+            notice.tone === 'success'
+              ? 'border-success/20 bg-success/5 text-success'
+              : 'border-border bg-muted/40 text-foreground'
+          }`}
+        >
+          <div className="font-medium">{notice.title}</div>
+          {notice.detail && <div className="mt-1 text-muted-foreground">{notice.detail}</div>}
         </div>
       )}
 
@@ -1180,6 +1285,31 @@ export default function AppsPage() {
                             {app.git.autoUpdate.enabled
                               ? `${app.git.autoUpdate.intervalMinutes} min`
                               : 'Off'}
+                          </div>
+                        </div>
+                        <div className="rounded-lg border border-border p-3">
+                          <div className="text-xs text-muted-foreground">Last auto update</div>
+                          <div className="mt-1 font-medium">
+                            {formatOptionalDate(app.git.autoUpdate.lastRunAt, 'Never run')}
+                          </div>
+                        </div>
+                        <div className="rounded-lg border border-border p-3">
+                          <div className="text-xs text-muted-foreground">Last result</div>
+                          <div className="mt-1">
+                            {autoUpdateStatusBadge(app.git.autoUpdate.lastStatus)}
+                          </div>
+                          {app.git.autoUpdate.lastError && (
+                            <div className="mt-2 text-xs leading-5 text-destructive">
+                              {app.git.autoUpdate.lastError}
+                            </div>
+                          )}
+                        </div>
+                        <div className="rounded-lg border border-border p-3">
+                          <div className="text-xs text-muted-foreground">Next check</div>
+                          <div className="mt-1 font-medium">
+                            {app.git.autoUpdate.enabled
+                              ? formatOptionalDate(app.git.autoUpdate.nextRunAt, 'Pending schedule')
+                              : 'Not scheduled'}
                           </div>
                         </div>
                       </div>

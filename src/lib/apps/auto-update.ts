@@ -33,7 +33,7 @@ export async function runDueGitAppAutoUpdates(now = new Date()): Promise<GitAppA
   for (const app of apps) {
     const appId = app._id.toString();
     try {
-      const result = await updateManagedGitApp(appId);
+      const result = await updateManagedGitApp(appId, { trigger: 'auto' });
       if (result.status === 'unchanged') summary.unchanged += 1;
       else if (result.status === 'active') summary.updated += 1;
       else summary.failed += 1;

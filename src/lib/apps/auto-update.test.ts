@@ -36,7 +36,8 @@ describe('git app auto update runner', () => {
         { 'autoUpdate.nextRunAt': { $lte: new Date('2026-05-07T00:00:00.000Z') } },
       ],
     });
-    expect(mockUpdateManagedGitApp).toHaveBeenCalledTimes(2);
+    expect(mockUpdateManagedGitApp).toHaveBeenNthCalledWith(1, 'app-1', { trigger: 'auto' });
+    expect(mockUpdateManagedGitApp).toHaveBeenNthCalledWith(2, 'app-2', { trigger: 'auto' });
     expect(result).toEqual({ checked: 2, updated: 0, unchanged: 2, failed: 0 });
   });
 

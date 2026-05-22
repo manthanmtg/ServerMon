@@ -114,6 +114,68 @@ describe('updateManagedGitApp', () => {
     });
     expect(savedStatuses).not.toContain('deploying');
   });
+
+  it('records scheduled updates separately from manual update clicks', async () => {
+    const save = vi.fn(() => Promise.resolve());
+    const app = {
+      _id: { toString: () => 'app-1' },
+      id: 'app-1',
+      name: 'Git Portal',
+      slug: 'git-portal',
+      templateId: 'nextjs',
+      sourceType: 'git',
+      sourcePath: undefined,
+      gitUrl: 'https://github.com/acme/git-portal.git',
+      gitBranch: 'main',
+      gitCurrentSha: 'old-sha',
+      autoUpdate: {
+        enabled: true,
+        intervalMinutes: 60,
+      },
+      domain: 'git.example.com',
+      port: 3010,
+      commands: {
+        install: 'pnpm install --frozen-lockfile',
+        build: 'pnpm build',
+        start: 'pnpm start',
+      },
+      envVars: new Map(),
+      healthCheckPath: '/',
+      tlsEnabled: false,
+      status: 'running',
+      currentReleaseId: 'old-release',
+      releases: [
+        {
+          id: 'old-release',
+          status: 'active',
+          createdAt: new Date('2026-05-07T00:00:00.000Z'),
+          activatedAt: new Date('2026-05-07T00:01:00.000Z'),
+          logs: ['old release ok'],
+        },
+      ],
+      operations: [],
+      save,
+    };
+    mockFindById.mockResolvedValue(app);
+    mockPrepareGitSourceForDeploy.mockResolvedValue({
+      sourcePath: '/srv/servermon/apps/git-portal/repository',
+      previousSha: 'old-sha',
+      remoteSha: 'old-sha',
+      currentSha: 'old-sha',
+      changed: false,
+      cloned: false,
+      logs: ['$ git fetch origin main'],
+    });
+
+    await updateManagedGitApp('app-1', { trigger: 'auto' });
+
+    expect(app.operations.at(-1)).toMatchObject({
+      type: 'update',
+      title: 'Auto update',
+      status: 'unchanged',
+      step: 'No upstream changes found',
+    });
+  });
 });
 
 describe('deployManagedApp', () => {

@@ -627,6 +627,10 @@ function rollbackHealthUrl(port: number, healthCheckPath?: string): string {
   return `http://127.0.0.1:${port}${normalizedPath}`;
 }
 
+export interface UpdateManagedGitAppOptions {
+  trigger?: 'manual' | 'auto';
+}
+
 const defaultRollbackHealthCheck: HealthCheck = async (url) => {
   try {
     const response = await fetch(url, { signal: AbortSignal.timeout(15_000) });
@@ -861,7 +865,10 @@ export async function deployManagedApp(appId: string) {
   };
 }
 
-export async function updateManagedGitApp(appId: string) {
+export async function updateManagedGitApp(
+  appId: string,
+  { trigger = 'manual' }: UpdateManagedGitAppOptions = {}
+) {
   await connectDB();
   const app = await ManagedApp.findById(appId);
   if (!app) throw new Error('App not found');
@@ -870,7 +877,7 @@ export async function updateManagedGitApp(appId: string) {
   const now = new Date();
   const operationId = await startAppOperation(app, {
     type: 'update',
-    title: 'Manual update',
+    title: trigger === 'auto' ? 'Auto update' : 'Manual update',
     step: 'Checking upstream repository',
   });
   let source: Awaited<ReturnType<typeof prepareSource>>;

@@ -317,6 +317,107 @@ describe('AppsPage', () => {
     expect(screen.getByRole('button', { name: /update/i })).toBeTruthy();
   });
 
+  it('shows a clear manual update result and latest auto-update state', async () => {
+    const appBeforeUpdate = {
+      id: 'app-1',
+      name: 'Git Portal',
+      slug: 'git-portal',
+      templateId: 'nextjs',
+      sourceType: 'git',
+      git: {
+        url: 'https://github.com/acme/git-portal.git',
+        branch: 'main',
+        currentSha: 'abcdef123456',
+        lastCheckedAt: '2026-05-07T00:00:00.000Z',
+        autoUpdate: {
+          enabled: true,
+          intervalMinutes: 60,
+          nextRunAt: '2026-05-07T01:00:00.000Z',
+        },
+      },
+      domain: 'git.example.com',
+      port: 3010,
+      commands: {
+        install: 'pnpm install --frozen-lockfile',
+        build: 'pnpm build',
+        start: 'pnpm start',
+      },
+      envVars: {},
+      healthCheckPath: '/',
+      tlsEnabled: false,
+      status: 'running',
+      currentReleaseId: 'release-1',
+      operations: [],
+      releases: [
+        {
+          id: 'release-1',
+          status: 'active',
+          createdAt: '2026-05-07T00:00:00.000Z',
+          activatedAt: '2026-05-07T00:01:00.000Z',
+          logs: ['deployed'],
+        },
+      ],
+    };
+    const appAfterUpdate = {
+      ...appBeforeUpdate,
+      git: {
+        ...appBeforeUpdate.git,
+        autoUpdate: {
+          enabled: true,
+          intervalMinutes: 60,
+          nextRunAt: '2026-05-07T01:00:00.000Z',
+          lastRunAt: '2026-05-07T00:00:00.000Z',
+          lastStatus: 'unchanged',
+        },
+      },
+      operations: [
+        {
+          id: 'update-1',
+          type: 'update',
+          status: 'unchanged',
+          title: 'Manual update',
+          step: 'No upstream changes found',
+          startedAt: '2026-05-07T00:00:00.000Z',
+          completedAt: '2026-05-07T00:00:01.000Z',
+          releaseId: 'release-1',
+          logs: ['$ git fetch origin main', 'No upstream changes found.'],
+        },
+      ],
+    };
+    global.fetch = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ apps: [appBeforeUpdate] }),
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          update: {
+            status: 'unchanged',
+            releaseId: 'release-1',
+            logs: ['No upstream changes found.'],
+          },
+        }),
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ apps: [appAfterUpdate] }),
+      } as Response);
+
+    render(<AppsPage />);
+    await screen.findByText('Git Portal');
+
+    fireEvent.click(screen.getByRole('button', { name: /update/i }));
+
+    expect(await screen.findByText('Git Portal is already up to date.')).toBeTruthy();
+    expect(screen.getByText('No upstream changes found.')).toBeTruthy();
+    expect(screen.getByText('Last auto update')).toBeTruthy();
+    expect(screen.getByText('Last result')).toBeTruthy();
+    expect(screen.getAllByText('Unchanged').length).toBeGreaterThan(0);
+    expect(screen.getByText('Next check')).toBeTruthy();
+  });
+
   it('shows app runtime, operation progress, and opens runtime logs', async () => {
     global.fetch = vi
       .fn()
