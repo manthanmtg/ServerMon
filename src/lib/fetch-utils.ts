@@ -1,4 +1,4 @@
-export interface ResilientFetchOptions extends RequestInit {
+interface ResilientFetchOptions extends RequestInit {
   timeout?: number;
   retries?: number;
   retryDelay?: number;
