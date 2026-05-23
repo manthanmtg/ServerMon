@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { RefreshCw, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { SkeletonCard, SkeletonTable } from '@/components/ui/skeleton';
 import { useToast } from '@/components/ui/toast';
 import { resilientFetch } from '@/lib/fetch-utils';
@@ -124,18 +125,16 @@ export default function ProcessWidget() {
       {summary && <ProcessSummaryGrid summary={summary} />}
 
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-        <div className="relative flex-1 sm:max-w-xs">
-          <label htmlFor="process-search" className="sr-only">
-            Search processes
-          </label>
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-          <input
+        <div className="flex-1 sm:max-w-xs">
+          <Input
             id="process-search"
             type="text"
             placeholder="Search by name, PID, user..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full h-9 pl-9 pr-3 rounded-lg border border-input bg-background text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/40 focus:border-ring transition-colors"
+            icon={<Search className="w-4 h-4" />}
+            className="h-9"
+            aria-label="Search processes"
           />
         </div>
         <Button
