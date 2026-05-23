@@ -3,14 +3,13 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import type { CronLogEntry } from '../../types';
-import { formatPastTime } from '../time';
+import { LivePastTime } from './LiveTime';
 
 interface SystemLogsPanelProps {
   recentLogs: CronLogEntry[];
-  now: number;
 }
 
-export function SystemLogsPanel({ recentLogs, now }: SystemLogsPanelProps) {
+export function SystemLogsPanel({ recentLogs }: SystemLogsPanelProps) {
   return (
     <Card
       id="cron-view-panel-logs"
@@ -37,7 +36,7 @@ export function SystemLogsPanel({ recentLogs, now }: SystemLogsPanelProps) {
             {recentLogs.map((entry, i) => (
               <div key={i} className="flex items-start gap-3 py-1.5 px-2 rounded hover:bg-muted/20">
                 <span className="text-muted-foreground shrink-0 w-[80px]">
-                  {formatPastTime(entry.timestamp, now)}
+                  <LivePastTime iso={entry.timestamp} />
                 </span>
                 <Badge variant="secondary" className="text-[10px] shrink-0">
                   PID {entry.pid}

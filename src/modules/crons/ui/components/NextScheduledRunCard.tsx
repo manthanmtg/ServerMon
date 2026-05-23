@@ -1,15 +1,14 @@
 import { Timer } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import type { CronsSnapshot } from '../../types';
-import { formatCountdown } from '../time';
+import { LiveCountdown } from './LiveTime';
 
 interface NextScheduledRunCardProps {
   nextRunJob?: string;
   nextRunTime: NonNullable<CronsSnapshot['summary']['nextRunTime']>;
-  now: number;
 }
 
-export function NextScheduledRunCard({ nextRunJob, nextRunTime, now }: NextScheduledRunCardProps) {
+export function NextScheduledRunCard({ nextRunJob, nextRunTime }: NextScheduledRunCardProps) {
   return (
     <Card className="border-border/60 bg-card/80">
       <CardContent className="flex items-center gap-4 p-4">
@@ -34,7 +33,7 @@ export function NextScheduledRunCard({ nextRunJob, nextRunTime, now }: NextSched
                 timeZoneName: 'short',
               })}
             >
-              {formatCountdown(nextRunTime, now)}
+              <LiveCountdown targetIso={nextRunTime} />
             </span>
           </p>
           <p className="text-xs text-muted-foreground mt-0.5">
