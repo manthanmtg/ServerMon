@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import AppsPage, { deriveAppsPageSummary } from './AppsPage';
+import AppsPage, { deriveAppsPageSummary, deriveAppsPageViewModels } from './AppsPage';
 
 describe('AppsPage', () => {
   const writeText = vi.fn();
@@ -35,6 +35,77 @@ describe('AppsPage', () => {
       running: 2,
       failed: 1,
     });
+  });
+
+  it('derives visible operation rows for expanded apps without mutating source operations', () => {
+    const operations = [
+      {
+        id: 'deploy-1',
+        type: 'deploy' as const,
+        status: 'succeeded' as const,
+        title: 'Deploy',
+        step: 'Complete',
+        startedAt: '2026-05-23T05:00:00.000Z',
+        logs: Array.from({ length: 12 }, (_, index) => `deploy log ${index}`),
+      },
+      {
+        id: 'update-1',
+        type: 'update' as const,
+        status: 'running' as const,
+        title: 'Update',
+        step: 'Installing',
+        startedAt: '2026-05-23T05:01:00.000Z',
+        logs: Array.from({ length: 90 }, (_, index) => `update log ${index}`),
+      },
+      {
+        id: 'rollback-1',
+        type: 'rollback' as const,
+        status: 'failed' as const,
+        title: 'Rollback',
+        step: 'Failed',
+        startedAt: '2026-05-23T05:02:00.000Z',
+        logs: ['rollback failed'],
+      },
+      {
+        id: 'delete-1',
+        type: 'delete' as const,
+        status: 'failed' as const,
+        title: 'Delete',
+        step: 'Failed',
+        startedAt: '2026-05-23T05:03:00.000Z',
+        logs: ['delete failed'],
+      },
+    ];
+
+    const [viewModel] = deriveAppsPageViewModels(
+      [
+        {
+          id: 'app-1',
+          name: 'Inventory Portal',
+          operations,
+        },
+      ],
+      new Set(['app-1']),
+      'app-1'
+    );
+
+    expect(viewModel.isExpanded).toBe(true);
+    expect(viewModel.latestUpdateOperation?.id).toBe('update-1');
+    expect(viewModel.hasRunningUpdateOperation).toBe(true);
+    expect(viewModel.visibleOperations.map((entry) => entry.operation.id)).toEqual([
+      'delete-1',
+      'rollback-1',
+      'update-1',
+    ]);
+    expect(viewModel.visibleOperations[2].isLiveUpdateOperation).toBe(true);
+    expect(viewModel.visibleOperations[2].visibleLogs).toHaveLength(80);
+    expect(viewModel.visibleOperations[2].visibleLogs[0]).toBe('update log 10');
+    expect(operations.map((operation) => operation.id)).toEqual([
+      'deploy-1',
+      'update-1',
+      'rollback-1',
+      'delete-1',
+    ]);
   });
 
   it('treats malformed app payloads as an empty list', async () => {

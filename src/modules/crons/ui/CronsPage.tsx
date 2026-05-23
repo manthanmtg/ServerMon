@@ -440,7 +440,6 @@ export default function CronsPage() {
         <NextScheduledRunCard
           nextRunJob={snapshot.summary.nextRunJob}
           nextRunTime={snapshot.summary.nextRunTime}
-          
         />
       )}
 
@@ -582,7 +581,6 @@ export default function CronsPage() {
                       onCopy={copyExpression}
                       copiedId={copiedId}
                       pendingAction={pendingAction}
-                      
                       onShowOutput={showRunOutput}
                     />
                   ))
