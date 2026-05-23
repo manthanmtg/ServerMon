@@ -235,7 +235,6 @@ function statusBadge(app: ManagedAppDTO) {
   return <Badge variant="secondary">{app.status}</Badge>;
 }
 
-
 function formatBytes(bytes?: number) {
   if (!bytes || bytes <= 0) return '0 B';
   const units = ['B', 'KB', 'MB', 'GB', 'TB'];

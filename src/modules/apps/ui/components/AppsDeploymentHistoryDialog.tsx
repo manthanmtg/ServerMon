@@ -68,9 +68,7 @@ export function AppsDeploymentHistoryDialog({
                   <div key={release.id} className="rounded-lg border border-border p-4">
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                       <div className="min-w-0">
-                        <div className="truncate font-mono text-sm font-medium">
-                          {release.id}
-                        </div>
+                        <div className="truncate font-mono text-sm font-medium">{release.id}</div>
                         <div className="mt-1 text-xs text-muted-foreground">
                           Created {formatHistoryDate(release.createdAt)}
                           {release.activatedAt
