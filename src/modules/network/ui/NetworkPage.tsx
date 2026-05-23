@@ -17,17 +17,13 @@ import {
   YAxis,
 } from 'recharts';
 import {
-  Activity,
-  AlertTriangle,
   ArrowDown,
   ArrowUp,
   CalendarClock,
   ExternalLink,
   Gauge,
-  Globe,
   History,
   Loader2,
-  Network,
   RefreshCcw,
   Shield,
   TerminalSquare,
@@ -38,7 +34,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/components/ui/toast';
 import { resilientFetch, safeJson } from '@/lib/fetch-utils';
-import { cn, formatBytes, relativeTime } from '@/lib/utils';
+import { cn, formatBytes } from '@/lib/utils';
 import type {
   NetworkSnapshot,
   NetworkSpeedtestOverview,
@@ -46,6 +42,8 @@ import type {
 } from '../types';
 import TerminalUI from '@/modules/terminal/ui/TerminalUI';
 import { SpeedtestHistoryModal } from './components/SpeedtestHistoryModal';
+import { NetworkAlerts } from './components/NetworkAlerts';
+import { QuickInsights } from './components/QuickInsights';
 
 const chartColors = [
   'var(--primary)',
@@ -856,92 +854,8 @@ export default function NetworkPage() {
       </Card>
 
       <section className="grid gap-6 md:grid-cols-2">
-        <Card className="border-border/60">
-          <CardHeader>
-            <CardTitle>Network Alerts</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {snapshot?.alerts.length ? (
-                snapshot.alerts.map((alert) => (
-                  <div
-                    key={alert.id}
-                    className={cn(
-                      'p-3 rounded-xl border flex gap-3',
-                      alert.severity === 'critical'
-                        ? 'bg-destructive/5 border-destructive/20'
-                        : 'bg-warning/5 border-warning/20'
-                    )}
-                  >
-                    <AlertTriangle
-                      className={cn(
-                        'h-5 w-5 shrink-0',
-                        alert.severity === 'critical' ? 'text-destructive' : 'text-warning'
-                      )}
-                    />
-                    <div>
-                      <p className="font-semibold text-sm">{alert.title}</p>
-                      <p className="text-xs text-muted-foreground">{alert.message}</p>
-                      <p className="text-[10px] mt-2 text-muted-foreground uppercase font-bold tracking-wider">
-                        {alert.source} • {relativeTime(alert.lastSeenAt)}
-                      </p>
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <div className="text-center py-8 text-muted-foreground">
-                  <Zap className="h-10 w-10 mx-auto mb-3 opacity-20" />
-                  <p className="text-sm font-medium">All systems normal</p>
-                  <p className="text-xs mt-1">No active network alerts detected.</p>
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-border/60">
-          <CardHeader>
-            <CardTitle>Quick Insights</CardTitle>
-          </CardHeader>
-          <CardContent className="grid grid-cols-2 gap-4">
-            <div className="p-4 rounded-2xl bg-muted/30 border border-border/40">
-              <Activity className="h-5 w-5 text-primary mb-2" />
-              <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">
-                Avg Throughput
-              </p>
-              <p className="text-xl font-bold mt-1">
-                {formatBytes(snapshot?.stats.reduce((acc, s) => acc + s.rx_sec + s.tx_sec, 0) || 0)}
-                /s
-              </p>
-            </div>
-            <div className="p-4 rounded-2xl bg-muted/30 border border-border/40">
-              <Network className="h-5 w-5 text-success mb-2" />
-              <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">
-                Interfaces
-              </p>
-              <p className="text-xl font-bold mt-1">{snapshot?.interfaces.length || 0}</p>
-            </div>
-            <div className="p-4 rounded-2xl bg-muted/30 border border-border/40">
-              <Globe className="h-5 w-5 text-accent mb-2" />
-              <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">
-                Total Connections
-              </p>
-              <p className="text-xl font-bold mt-1">{snapshot?.connections.length || 0}</p>
-            </div>
-            <div className="p-4 rounded-2xl bg-muted/30 border border-border/40">
-              <Shield className="h-5 w-5 text-destructive mb-2" />
-              <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">
-                Errors/Drops
-              </p>
-              <p className="text-xl font-bold mt-1">
-                {snapshot?.stats.reduce(
-                  (acc, s) => acc + s.rx_errors + s.tx_errors + s.rx_dropped + s.tx_dropped,
-                  0
-                )}
-              </p>
-            </div>
-          </CardContent>
-        </Card>
+        <NetworkAlerts alerts={snapshot?.alerts} />
+        <QuickInsights snapshot={snapshot} />
       </section>
 
       {showSpeedtestHistory && (
