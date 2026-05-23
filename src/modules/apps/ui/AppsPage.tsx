@@ -83,6 +83,22 @@ type AppsPageSummary = {
 };
 
 type AppsPageSummaryInput = Pick<ManagedAppDTO, 'status'>;
+type AppsPageViewModelInput = Pick<ManagedAppDTO, 'id' | 'operations'>;
+
+interface AppsPageVisibleOperation {
+  operation: AppOperation;
+  isLiveUpdateOperation: boolean;
+  visibleLogs: string[];
+}
+
+interface AppsPageViewModel<TApp extends AppsPageViewModelInput> {
+  app: TApp;
+  isExpanded: boolean;
+  isUpdatingThisApp: boolean;
+  latestUpdateOperation: AppOperation | undefined;
+  hasRunningUpdateOperation: boolean;
+  visibleOperations: AppsPageVisibleOperation[];
+}
 
 interface ActionResult {
   status?: string;
@@ -107,6 +123,47 @@ export function deriveAppsPageSummary(apps: AppsPageSummaryInput[]): AppsPageSum
     },
     { total: 0, running: 0, failed: 0 }
   );
+}
+
+export function deriveAppsPageViewModels<TApp extends AppsPageViewModelInput>(
+  apps: TApp[],
+  expandedAppIds: ReadonlySet<string>,
+  updatingId: string | null
+): AppsPageViewModel<TApp>[] {
+  return apps.map((app) => {
+    const isExpanded = expandedAppIds.has(app.id);
+    const latestUpdateOperation = getLatestUpdateOperation(app);
+    const isUpdatingThisApp = updatingId === app.id;
+    const hasRunningUpdateOperation =
+      latestUpdateOperation?.type === 'update' && latestUpdateOperation.status === 'running';
+
+    return {
+      app,
+      isExpanded,
+      isUpdatingThisApp,
+      latestUpdateOperation,
+      hasRunningUpdateOperation,
+      visibleOperations: isExpanded
+        ? [...app.operations]
+            .reverse()
+            .slice(0, 3)
+            .map((operation) => {
+              const isLiveUpdateOperation =
+                operation.id === latestUpdateOperation?.id &&
+                operation.type === 'update' &&
+                operation.status === 'running';
+
+              return {
+                operation,
+                isLiveUpdateOperation,
+                visibleLogs: operation.logs.slice(
+                  isLiveUpdateOperation ? -LIVE_OPERATION_LOG_LIMIT : -RECENT_OPERATION_LOG_LIMIT
+                ),
+              };
+            })
+        : [],
+    };
+  });
 }
 
 const initialForm: FormState = {
@@ -322,7 +379,9 @@ function updateNoticeFor(appName: string, result: ActionResult | null): ActionNo
   };
 }
 
-function getLatestUpdateOperation(app: ManagedAppDTO): AppOperation | undefined {
+function getLatestUpdateOperation(
+  app: Pick<ManagedAppDTO, 'operations'>
+): AppOperation | undefined {
   return [...app.operations].reverse().find((operation) => operation.type === 'update');
 }
 
@@ -424,6 +483,10 @@ export default function AppsPage() {
 
     return undefined;
   }, [apps, updatingId]);
+  const appViewModels = useMemo(
+    () => deriveAppsPageViewModels(apps, expandedAppIds, updatingId),
+    [apps, expandedAppIds, updatingId]
+  );
   const liveUpdateLogCount = liveUpdateOperation?.logs.length ?? 0;
   const liveUpdateStep = liveUpdateOperation?.step;
 
@@ -1074,13 +1137,15 @@ export default function AppsPage() {
       )}
 
       <div className="space-y-3">
-        {apps.map((app) => {
-          const isExpanded = expandedAppIds.has(app.id);
-          const latestUpdateOperation = getLatestUpdateOperation(app);
-          const isUpdatingThisApp = updatingId === app.id;
-          const hasRunningUpdateOperation =
-            latestUpdateOperation?.type === 'update' && latestUpdateOperation.status === 'running';
-
+        {appViewModels.map((viewModel) => {
+          const {
+            app,
+            isExpanded,
+            isUpdatingThisApp,
+            latestUpdateOperation,
+            hasRunningUpdateOperation,
+            visibleOperations,
+          } = viewModel;
           return (
             <Card key={app.id}>
               <CardHeader>
@@ -1289,20 +1354,8 @@ export default function AppsPage() {
                         )}
                         {app.operations.length > 0 ? (
                           <div className="space-y-2">
-                            {[...app.operations]
-                              .reverse()
-                              .slice(0, 3)
-                              .map((operation) => {
-                                const isLiveUpdateOperation =
-                                  operation.id === latestUpdateOperation?.id &&
-                                  operation.type === 'update' &&
-                                  operation.status === 'running';
-                                const visibleLogs = operation.logs.slice(
-                                  isLiveUpdateOperation
-                                    ? -LIVE_OPERATION_LOG_LIMIT
-                                    : -RECENT_OPERATION_LOG_LIMIT
-                                );
-
+                            {visibleOperations.map(
+                              ({ operation, isLiveUpdateOperation, visibleLogs }) => {
                                 return (
                                   <div
                                     key={operation.id}
@@ -1343,7 +1396,8 @@ export default function AppsPage() {
                                     ) : null}
                                   </div>
                                 );
-                              })}
+                              }
+                            )}
                           </div>
                         ) : !isUpdatingThisApp ? (
                           <div className="rounded-md border border-dashed border-border px-3 py-4 text-center text-xs text-muted-foreground">
