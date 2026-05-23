@@ -29,7 +29,6 @@ import { CronJobRow } from './components/CronJobRow';
 import { SystemDirsPanel } from './components/SystemDirsPanel';
 import { SystemLogsPanel } from './components/SystemLogsPanel';
 import { RunOutputModal } from './components/RunOutputModal';
-import { useRealtimeNow } from './time';
 
 type FilterSource = 'all' | 'user' | 'system';
 type FilterStatus = 'all' | 'active' | 'disabled';
@@ -50,7 +49,7 @@ export default function CronsPage() {
   const { toast } = useToast();
   const [snapshot, setSnapshot] = useState<CronsSnapshot | null>(null);
   const [loading, setLoading] = useState(true);
-  const now = useRealtimeNow();
+
   const [refreshMs, setRefreshMs] = useState(30000);
   const [filterSource, setFilterSource] = useState<FilterSource>('all');
   const [filterStatus, setFilterStatus] = useState<FilterStatus>('all');
@@ -441,7 +440,7 @@ export default function CronsPage() {
         <NextScheduledRunCard
           nextRunJob={snapshot.summary.nextRunJob}
           nextRunTime={snapshot.summary.nextRunTime}
-          now={now}
+          
         />
       )}
 
@@ -583,7 +582,7 @@ export default function CronsPage() {
                       onCopy={copyExpression}
                       copiedId={copiedId}
                       pendingAction={pendingAction}
-                      now={now}
+                      
                       onShowOutput={showRunOutput}
                     />
                   ))
@@ -598,7 +597,7 @@ export default function CronsPage() {
       {viewTab === 'system' && <SystemDirsPanel systemDirs={snapshot?.systemDirs || []} />}
 
       {/* Execution logs tab */}
-      {viewTab === 'logs' && <SystemLogsPanel recentLogs={snapshot?.recentLogs || []} now={now} />}
+      {viewTab === 'logs' && <SystemLogsPanel recentLogs={snapshot?.recentLogs || []} />}
 
       {/* Global Manual Run History tab */}
       {viewTab === 'manual' && (

@@ -19,7 +19,7 @@ import { cn } from '@/lib/utils';
 import type { CronJob, CronRunStatus } from '../../types';
 import { NextRunsPanel } from './NextRunsPanel';
 import { PastRunsPanel } from './PastRunsPanel';
-import { formatCountdown } from '../time';
+import { LiveCountdown } from './LiveTime';
 
 interface CronJobRowProps {
   job: CronJob;
@@ -32,7 +32,6 @@ interface CronJobRowProps {
   onCopy: (expr: string, id: string) => void;
   copiedId: string | null;
   pendingAction: string | null;
-  now: number;
   onShowOutput: (run: CronRunStatus) => void;
 }
 
@@ -47,7 +46,6 @@ export function CronJobRow({
   onCopy,
   copiedId,
   pendingAction,
-  now,
   onShowOutput,
 }: CronJobRowProps) {
   return (
@@ -135,7 +133,7 @@ export function CronJobRow({
                 timeZoneName: 'short',
               })}
             >
-              {formatCountdown(job.nextRuns[0], now)}
+              <LiveCountdown targetIso={job.nextRuns[0]} />
             </span>
           ) : (
             <span className="text-muted-foreground">-</span>
