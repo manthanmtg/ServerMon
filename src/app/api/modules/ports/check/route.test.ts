@@ -68,6 +68,38 @@ describe('GET /api/modules/ports/check', () => {
     expect(res.status).toBe(400);
   });
 
+  it('returns 400 for floating-point ports', async () => {
+    const res = await GET(makeRequest('8080.5'));
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBe('port must be between 1 and 65535');
+  });
+
+  it('returns 400 for mixed numeric strings', async () => {
+    const res = await GET(makeRequest('80abc'));
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBe('port must be between 1 and 65535');
+  });
+
+  it('returns 400 for scientific notation', async () => {
+    const res = await GET(makeRequest('1e2'));
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBe('port must be between 1 and 65535');
+  });
+
+  it('allows numeric strings with surrounding whitespace', async () => {
+    mockCheckPort.mockResolvedValue({ port: 80, open: true, process: 'nginx' });
+    const res = await GET(makeRequest('  80  '));
+    expect(res.status).toBe(200);
+    expect(mockCheckPort).toHaveBeenCalledWith(80);
+  });
+
+  it('accepts leading-zero ports', async () => {
+    mockCheckPort.mockResolvedValue({ port: 8080, open: true, process: 'nginx' });
+    const res = await GET(makeRequest('08080'));
+    expect(res.status).toBe(200);
+    expect(mockCheckPort).toHaveBeenCalledWith(8080);
+  });
+
   it('returns check result for valid port 80', async () => {
     mockCheckPort.mockResolvedValue({ port: 80, open: true, process: 'nginx' });
     const res = await GET(makeRequest('80'));

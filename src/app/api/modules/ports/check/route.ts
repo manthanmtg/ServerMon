@@ -21,8 +21,13 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'port parameter is required' }, { status: 400 });
     }
 
-    const port = parseInt(portParam, 10);
-    if (isNaN(port) || port < 1 || port > 65535) {
+    const normalizedPort = portParam.trim();
+    if (!/^\d+$/.test(normalizedPort)) {
+      return NextResponse.json({ error: 'port must be between 1 and 65535' }, { status: 400 });
+    }
+
+    const port = Number(normalizedPort);
+    if (port < 1 || port > 65535) {
       return NextResponse.json({ error: 'port must be between 1 and 65535' }, { status: 400 });
     }
 
