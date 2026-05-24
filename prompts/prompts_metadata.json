@@ -189,13 +189,13 @@
       "category": "feature-quality",
       "enabled": true,
       "autonomousSafe": true,
-      "totalSelected": 40,
+      "totalSelected": 41,
       "totalCompleted": 39,
       "totalNoop": 0,
       "totalFailed": 1,
-      "lastSelectedAt": "2026-05-24T12:25:24.227Z",
+      "lastSelectedAt": "2026-05-24T13:05:58.305Z",
       "lastCompletedAt": "2026-05-24T12:26:22.760Z",
-      "lastOutcome": "completed",
+      "lastOutcome": "selected",
       "updatedAt": "2026-05-24T07:00:32.036Z"
     },
     "random_selector.md": {
@@ -323,5 +323,5 @@
       "lastOutcome": "completed"
     }
   },
-  "updatedAt": "2026-05-24T13:04:50.712Z"
+  "updatedAt": "2026-05-24T13:05:58.305Z"
 }
