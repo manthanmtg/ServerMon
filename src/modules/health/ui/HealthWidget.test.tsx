@@ -31,9 +31,9 @@ describe('HealthWidget', () => {
     expect(screen.getByText('Disk')).toBeDefined();
   });
 
-  it('renders initial 0% values', () => {
+  it('renders initial empty values', () => {
     render(<HealthWidget />);
-    const percentages = screen.getAllByText('0.0%');
+    const percentages = screen.getAllByText('—');
     expect(percentages.length).toBe(3);
   });
 
@@ -63,7 +63,7 @@ describe('HealthWidget', () => {
       }
     });
     // Should still show initial values
-    const percentages = screen.getAllByText('0.0%');
+    const percentages = screen.getAllByText('—');
     expect(percentages.length).toBe(3);
   });
 

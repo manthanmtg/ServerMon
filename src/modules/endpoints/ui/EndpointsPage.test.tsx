@@ -438,7 +438,8 @@ describe('EndpointsPage', () => {
 
     await waitFor(() => {
       expect(global.fetch).toHaveBeenCalledWith(
-        expect.stringContaining('/api/modules/endpoints/ep-1/logs')
+        expect.stringContaining('/api/modules/endpoints/ep-1/logs'),
+        expect.any(Object)
       );
     });
   });

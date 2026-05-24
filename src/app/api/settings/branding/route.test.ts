@@ -179,7 +179,7 @@ describe('POST /api/settings/branding', () => {
 
   it('returns 500 when connectDB rejects', async () => {
     mockGetSession.mockResolvedValue({ user: { role: 'admin' } });
-    mockConnectDB.mockRejectedValue(new Error('connect failed'));
+    mockConnectDB.mockRejectedValueOnce(new Error('connect failed'));
     const res = await POST(makeRequest({ pageTitle: 'Test' }));
     expect(res.status).toBe(500);
     const json = await res.json();
