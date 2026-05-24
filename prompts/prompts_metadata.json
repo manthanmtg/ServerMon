@@ -249,13 +249,14 @@
       "category": "testing",
       "enabled": true,
       "autonomousSafe": true,
-      "totalSelected": 36,
-      "totalCompleted": 35,
+      "totalSelected": 37,
+      "totalCompleted": 36,
       "totalNoop": 0,
       "totalFailed": 1,
-      "lastSelectedAt": "2026-05-24T16:49:02.726Z",
-      "lastCompletedAt": "2026-05-24T16:49:10.589Z",
-      "lastOutcome": "completed"
+      "lastSelectedAt": "2026-05-24T17:02:48.800Z",
+      "lastCompletedAt": "2026-05-24T17:02:57.201Z",
+      "lastOutcome": "completed",
+      "updatedAt": "2026-05-24T17:02:57.201Z"
     },
     "test_corrector.md": {
       "id": "test-corrector",
@@ -321,5 +322,5 @@
       "updatedAt": "2026-05-24T16:56:00.287Z"
     }
   },
-  "updatedAt": "2026-05-24T17:00:49.866Z"
+  "updatedAt": "2026-05-24T17:02:57.201Z"
 }
