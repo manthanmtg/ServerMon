@@ -10,12 +10,24 @@ interface ServiceLogPanelProps {
   serviceName: string;
 }
 
-function logPriorityVariant(priority: string): 'destructive' | 'warning' | 'default' | 'secondary' {
+function logPriorityVariant(
+  priority: ServiceLogEntry['priority'],
+): 'destructive' | 'warning' | 'default' | 'secondary' {
   if (priority === 'emerg' || priority === 'alert' || priority === 'crit' || priority === 'err')
     return 'destructive';
   if (priority === 'warning') return 'warning';
   if (priority === 'notice') return 'default';
   return 'secondary';
+}
+
+function formatLogTimestamp(timestamp: string): string {
+  return new Date(timestamp).toLocaleString([], {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    month: 'short',
+    day: 'numeric',
+  });
 }
 
 const serviceLogPriorities = new Set<ServiceLogEntry['priority']>([
@@ -143,7 +155,7 @@ export function ServiceLogPanel({ serviceName }: ServiceLogPanelProps) {
       >
         {logs.map((entry, i) => (
           <div
-            key={i}
+            key={`${entry.timestamp}-${entry.priority}-${entry.unit}-${i}`}
             className="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-2 py-1 sm:py-0.5 border-b border-border/10 last:border-0 sm:border-0"
           >
             <div className="flex items-center gap-2 shrink-0">
@@ -154,13 +166,7 @@ export function ServiceLogPanel({ serviceName }: ServiceLogPanelProps) {
                 {entry.priority}
               </Badge>
               <span className="text-muted-foreground text-[10px] sm:text-xs shrink-0 sm:w-[140px]">
-                {new Date(entry.timestamp).toLocaleString([], {
-                  hour: '2-digit',
-                  minute: '2-digit',
-                  second: '2-digit',
-                  month: 'short',
-                  day: 'numeric',
-                })}
+                {formatLogTimestamp(entry.timestamp)}
               </span>
             </div>
             <span className="text-foreground break-words sm:break-all">{entry.message}</span>
