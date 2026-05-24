@@ -188,10 +188,12 @@ describe('ProShell', () => {
     expect(screen.getByTestId('theme-selector')).toBeDefined();
   });
 
-  it('opens command search with the header search button', () => {
+  it('opens command search with the header search button', async () => {
     renderProShell();
     fireEvent.click(screen.getByLabelText('Open search'));
-    expect(screen.getByTestId('command-search')).toBeDefined();
+    await waitFor(() => {
+      expect(screen.getByTestId('command-search')).toBeDefined();
+    });
   });
 
   it('opens command search with Cmd+K', () => {

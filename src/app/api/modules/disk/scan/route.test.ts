@@ -1,15 +1,16 @@
 /** @vitest-environment node */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-const { mockExec } = vi.hoisted(() => ({
-  mockExec: vi.fn(),
+const { mockExecFile } = vi.hoisted(() => ({
+  mockExecFile: vi.fn(),
 }));
 
 const { mockGetSession } = vi.hoisted(() => ({
   mockGetSession: vi.fn(),
 }));
 
-vi.mock('child_process', () => ({ exec: mockExec }));
+vi.mock('node:child_process', () => ({ execFile: mockExecFile }));
+vi.mock('child_process', () => ({ execFile: mockExecFile }));
 vi.mock('@/lib/session', () => ({ getSession: mockGetSession }));
 vi.mock('@/lib/logger', () => ({
   createLogger: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }),
@@ -29,11 +30,15 @@ describe('POST /api/modules/disk/scan', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockGetSession.mockResolvedValue({ user: { id: 'user-1', role: 'admin' } });
-    // Default: mock exec to call callback with stdout
-    mockExec.mockImplementation(
+    // Default: mock execFile to call callback with stdout
+    mockExecFile.mockImplementation(
       (
         _cmd: string,
-        callback: (err: Error | null, result: { stdout: string; stderr: string }) => void
+        _args: string[],
+        callback: (
+          err: Error | null,
+          result: { stdout: string; stderr: string } | null
+        ) => void
       ) => {
         callback(null, { stdout: '1024\t/var/log\n512\t/var/cache\n', stderr: '' });
       }
@@ -48,7 +53,7 @@ describe('POST /api/modules/disk/scan', () => {
     expect(res.status).toBe(401);
     const json = await res.json();
     expect(json.error).toBe('Unauthorized');
-    expect(mockExec).not.toHaveBeenCalled();
+    expect(mockExecFile).not.toHaveBeenCalled();
   });
 
   it('returns 400 for path with semicolon', async () => {
@@ -76,42 +81,55 @@ describe('POST /api/modules/disk/scan', () => {
   });
 
   it('returns scan results on success', async () => {
-    mockExec.mockImplementation(
+    mockExecFile.mockImplementation(
       (
         _cmd: string,
-        callback: (err: Error | null, result: { stdout: string; stderr: string }) => void
+        _args: string[],
+        callback: (
+          err: Error | null,
+          result: { stdout: string; stderr: string } | null
+        ) => void
       ) => {
         callback(null, { stdout: '2048\t/var/log\n1024\t/var/cache\n', stderr: '' });
       }
     );
     const res = await POST(makeRequest({ path: '/var' }));
-    expect(res.status).toBe(200);
     const json = await res.json();
+    expect(res.status).toBe(200);
     expect(json.results).toHaveLength(2);
     expect(json.results[0].name).toBe('log');
     expect(json.results[0].size).toBe(2048 * 1024);
   });
 
   it('uses / as default path when not specified', async () => {
-    mockExec.mockImplementation(
+    mockExecFile.mockImplementation(
       (
         _cmd: string,
-        callback: (err: Error | null, result: { stdout: string; stderr: string }) => void
+        _args: string[],
+        callback: (
+          err: Error | null,
+          result: { stdout: string; stderr: string } | null
+        ) => void
       ) => {
         callback(null, { stdout: '100\t/bin\n', stderr: '' });
       }
     );
     const res = await POST(makeRequest({}));
+    const json = await res.json();
     expect(res.status).toBe(200);
   });
 
   it('returns 500 on exec error', async () => {
-    mockExec.mockImplementation(
+    mockExecFile.mockImplementation(
       (
         _cmd: string,
-        callback: (err: Error | null, result: { stdout: string; stderr: string }) => void
+        _args: string[],
+        callback: (
+          err: Error | null,
+          result: { stdout: string; stderr: string } | null
+        ) => void
       ) => {
-        callback(new Error('exec failed'), { stdout: '', stderr: '' });
+        callback(new Error('exec failed'), null);
       }
     );
     const res = await POST(makeRequest({ path: '/tmp' }));
