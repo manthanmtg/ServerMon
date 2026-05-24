@@ -20,12 +20,16 @@ const { mockSave, mockLean, mockFind, mockConnectDB } = vi.hoisted(() => {
 vi.mock('@/lib/db', () => ({ default: mockConnectDB }));
 
 vi.mock('@/models/AnalyticsEvent', () => {
-  // Must use a regular function (not arrow) so it can be called with `new`.
-  const Ctor = vi.fn(function (this: { save: typeof mockSave }) {
-    this.save = mockSave;
-  }) as unknown as { find: typeof mockFind; new (): { save: typeof mockSave } };
-  Ctor.find = mockFind;
-  return { default: Ctor };
+  class MockAnalyticsEvent {
+    save: typeof mockSave;
+    static find = mockFind;
+
+    constructor() {
+      this.save = mockSave;
+    }
+  }
+
+  return { default: MockAnalyticsEvent };
 });
 
 import { analyticsService, AnalyticsService } from './analytics';
