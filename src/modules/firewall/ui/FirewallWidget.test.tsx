@@ -29,10 +29,12 @@ const snapshot: FirewallSnapshot = {
 describe('FirewallWidget', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    global.fetch = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => snapshot,
-    }) as unknown as typeof fetch;
+    global.fetch = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) =>
+      new Response(JSON.stringify(snapshot), {
+        headers: { 'Content-Type': 'application/json' },
+        status: 200,
+      }),
+    );
   });
 
   it('renders firewall posture after loading', async () => {
