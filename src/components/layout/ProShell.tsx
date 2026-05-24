@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import dynamic from 'next/dynamic';
 import { usePathname, useRouter } from 'next/navigation';
 import { useTheme } from '@/lib/ThemeContext';
 import { useBrand } from '@/lib/BrandContext';
@@ -12,7 +13,6 @@ import { resilientFetch } from '@/lib/fetch-utils';
 import { useToast } from '@/components/ui/toast';
 import ConfirmationModal from '@/components/ui/ConfirmationModal';
 import QuickAccessBar from '@/components/layout/QuickAccessBar';
-import CommandSearch from '@/components/layout/CommandSearch';
 import { footerNavItems, navGroups } from '@/components/layout/navigation';
 
 interface ProShellProps {
@@ -136,6 +136,10 @@ const SidebarNav = React.memo(function SidebarNav({
       </div>
     </div>
   );
+});
+
+const CommandSearch = dynamic(() => import('@/components/layout/CommandSearch'), {
+  ssr: false,
 });
 
 export default function ProShell({ children, title, subtitle, headerContent }: ProShellProps) {
