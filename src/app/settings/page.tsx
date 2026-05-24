@@ -295,7 +295,9 @@ export default function SettingsPage() {
                       )}
                       {logoBase64 && (
                         <button
+                          type="button"
                           onClick={() => setLogoBase64('')}
+                          aria-label="Clear logo preview"
                           className="absolute inset-0 bg-destructive/80 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity"
                         >
                           <X className="w-5 h-5 text-white" />
