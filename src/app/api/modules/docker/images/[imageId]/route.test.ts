@@ -4,9 +4,15 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 const { mockRemoveImage } = vi.hoisted(() => ({
   mockRemoveImage: vi.fn(),
 }));
+const { mockGetSession } = vi.hoisted(() => ({
+  mockGetSession: vi.fn(),
+}));
 
 vi.mock('@/lib/docker/service', () => ({
   dockerService: { removeImage: mockRemoveImage },
+}));
+vi.mock('@/lib/session', () => ({
+  getSession: mockGetSession,
 }));
 vi.mock('@/lib/logger', () => ({
   createLogger: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }),
@@ -21,6 +27,7 @@ function makeContext(imageId: string) {
 describe('DELETE /api/modules/docker/images/[imageId]', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockGetSession.mockResolvedValue({ user: { userId: 'test-user' } } as never);
   });
 
   it('removes an image successfully', async () => {
