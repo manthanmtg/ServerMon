@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState, memo } from 'react';
 import { deriveNodeStatus } from '@/lib/fleet/status';
 import { useFleetStream } from '../lib/useFleetStream';
 import { type ServiceState } from '@/lib/fleet/enums';
+import { resilientFetch, safeJson } from '@/lib/fetch-utils';
 
 interface RawNode {
   status: string;
@@ -11,6 +12,12 @@ interface RawNode {
   maintenance?: { enabled: boolean };
   pairingVerifiedAt?: string | null;
 }
+
+const STATS_TIMEOUT_MS = 8000;
+const STATS_RETRY_STATUSES = [502, 503, 504];
+
+type NodesResponse = { nodes?: unknown };
+type HubResponse = { state?: { runtimeState?: ServiceState | 'unknown' } };
 
 export const FleetStatsBanner = memo(function FleetStatsBanner({
   pollMs = 30000,
@@ -25,30 +32,64 @@ export const FleetStatsBanner = memo(function FleetStatsBanner({
     let cancelled = false;
     const load = async () => {
       // Load Nodes
-      const nodeRes = await fetch('/api/fleet/nodes?limit=200').catch(() => null);
+      const nodeRes = await resilientFetch('/api/fleet/nodes?limit=200', {
+        timeout: STATS_TIMEOUT_MS,
+        retries: 1,
+        retryDelay: 300,
+        retryOnStatuses: STATS_RETRY_STATUSES,
+      }).catch(() => null);
       if (nodeRes && nodeRes.ok && !cancelled) {
-        const data = await nodeRes.json();
-        const now = new Date();
-        const c: Record<string, number> = { total: 0 };
-        for (const n of (data.nodes ?? []) as RawNode[]) {
-          const s = deriveNodeStatus({
-            lastSeen: n.lastSeen ? new Date(n.lastSeen) : undefined,
-            tunnelStatus: n.tunnelStatus as never,
-            maintenanceEnabled: n.maintenance?.enabled,
-            unpaired: !n.pairingVerifiedAt,
-            now,
-          });
-          c[s] = (c[s] ?? 0) + 1;
-          c.total++;
+        const payload = await safeJson<NodesResponse>(nodeRes);
+        const nodes = Array.isArray(payload?.nodes) ? (payload.nodes as RawNode[]) : [];
+        if (nodes.length > 0 || payload?.nodes !== undefined) {
+          const now = new Date();
+          const c: Record<string, number> = { total: 0 };
+          for (const n of nodes) {
+            if (!n || typeof n !== 'object') {
+              continue;
+            }
+
+            const tunnelStatus =
+              typeof n.tunnelStatus === 'string' ? n.tunnelStatus : 'disconnected';
+            const lastSeen = typeof n.lastSeen === 'string' ? n.lastSeen : undefined;
+            const maintenanceEnabled =
+              n.maintenance && typeof n.maintenance === 'object'
+                ? Boolean(n.maintenance.enabled)
+                : undefined;
+            const pairingVerifiedAt =
+              typeof n.pairingVerifiedAt === 'string' || n.pairingVerifiedAt === null
+                ? n.pairingVerifiedAt
+                : undefined;
+
+            const s = deriveNodeStatus({
+              lastSeen: lastSeen ? new Date(lastSeen) : undefined,
+              tunnelStatus: tunnelStatus as never,
+              maintenanceEnabled,
+              unpaired: !pairingVerifiedAt,
+              now,
+            });
+            c[s] = (c[s] ?? 0) + 1;
+            c.total++;
+          }
+          setCounts(c);
         }
-        setCounts(c);
       }
 
       // Load Hub State
-      const hubRes = await fetch('/api/fleet/server').catch(() => null);
+      const hubRes = await resilientFetch('/api/fleet/server', {
+        timeout: STATS_TIMEOUT_MS,
+        retries: 1,
+        retryDelay: 300,
+        retryOnStatuses: STATS_RETRY_STATUSES,
+      }).catch(() => null);
       if (hubRes && hubRes.ok && !cancelled) {
-        const data = await hubRes.json();
-        setHubState(data.state?.runtimeState || 'unknown');
+        const data = await safeJson<HubResponse>(hubRes);
+        const nextState = data?.state?.runtimeState;
+        if (typeof nextState === 'string') {
+          setHubState(nextState);
+        } else {
+          setHubState('unknown');
+        }
       }
     };
     refreshRef.current = () => {
