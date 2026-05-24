@@ -179,10 +179,10 @@ function GitActionBar({
 
 function GitCommitForm({ commitMsg, onCommitMsgChange, onSubmit, onCancel, isBusy }: GitCommitFormProps) {
   return (
-    <form
-      onSubmit={onSubmit}
-      className="flex items-center gap-2 px-4 pb-3 animate-in fade-in slide-in-from-top-1 duration-150"
-    >
+      <form
+        onSubmit={onSubmit}
+        className="flex items-center gap-2 px-4 pb-3 animate-in fade-in slide-in-from-top-1 duration-150"
+      >
       <GitCommit className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
       <input
         type="text"
@@ -201,7 +201,14 @@ function GitCommitForm({ commitMsg, onCommitMsgChange, onSubmit, onCancel, isBus
         {isBusy ? <LoaderCircle className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
         <span className="ml-1">Commit</span>
       </Button>
-      <Button type="button" variant="ghost" size="icon" className="h-8 w-8" onClick={() => onCancel()}>
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        className="h-8 w-8"
+        onClick={() => onCancel()}
+        aria-label="Cancel commit"
+      >
         <X className="w-3.5 h-3.5" />
       </Button>
     </form>
@@ -666,6 +673,7 @@ function FileStatusRow({ file, actions }: { file: GitFileStatus; actions: FileAc
             title={a.title}
             onClick={a.onClick}
             disabled={a.disabled}
+            aria-label={a.title}
             className={cn(
               'p-1 rounded-md transition-colors disabled:cursor-wait disabled:opacity-50',
               a.destructive
