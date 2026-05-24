@@ -24,7 +24,7 @@ export default function AIAgentsWidget() {
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
           <CardTitle className="flex items-center gap-2">
-            <Bot className="w-4 h-4 text-primary" />
+            <Bot className="w-4 h-4 text-primary" aria-hidden="true" />
             AI Agents
           </CardTitle>
           <Badge variant={sessions.length > 0 ? 'success' : 'secondary'} className="text-[10px]">
@@ -35,17 +35,17 @@ export default function AIAgentsWidget() {
       <CardContent>
         <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs">
           <div className="flex items-center gap-1.5">
-            <CircleDot className="w-3 h-3 text-success" />
+            <CircleDot className="w-3 h-3 text-success" aria-hidden="true" />
             <span className="text-muted-foreground">Running</span>
             <span className="ml-auto font-semibold">{s?.running ?? 0}</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <Clock className="w-3 h-3 text-warning" />
+            <Clock className="w-3 h-3 text-warning" aria-hidden="true" />
             <span className="text-muted-foreground">Idle</span>
             <span className="ml-auto font-semibold">{s?.idle ?? 0}</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <AlertTriangle className="w-3 h-3 text-destructive" />
+            <AlertTriangle className="w-3 h-3 text-destructive" aria-hidden="true" />
             <span className="text-muted-foreground">Error</span>
             <span
               className={cn('ml-auto font-semibold', (s?.error ?? 0) > 0 && 'text-destructive')}
@@ -54,7 +54,7 @@ export default function AIAgentsWidget() {
             </span>
           </div>
           <div className="flex items-center gap-1.5">
-            <Bot className="w-3 h-3 text-muted-foreground" />
+            <Bot className="w-3 h-3 text-muted-foreground" aria-hidden="true" />
             <span className="text-muted-foreground">Total</span>
             <span className="ml-auto font-semibold">{s?.total ?? 0}</span>
           </div>
@@ -67,7 +67,10 @@ export default function AIAgentsWidget() {
                 key={session.id}
                 className="flex items-center gap-2 rounded-lg bg-secondary/50 px-3 py-2 text-xs"
               >
-                <CircleDot className={cn('w-3 h-3 shrink-0', statusTextColor(session.status))} />
+                <CircleDot
+                  className={cn('w-3 h-3 shrink-0', statusTextColor(session.status))}
+                  aria-hidden="true"
+                />
                 <span className="font-medium truncate">{session.agent.displayName}</span>
                 {session.environment.repository && (
                   <span className="text-muted-foreground truncate">
@@ -83,7 +86,11 @@ export default function AIAgentsWidget() {
               </div>
             ))}
             {sessions.length > 3 && (
-              <p className="text-[10px] text-muted-foreground text-center">
+              <p
+                className="text-[10px] text-muted-foreground text-center"
+                role="status"
+                aria-live="polite"
+              >
                 +{sessions.length - 3} more session{sessions.length - 3 !== 1 ? 's' : ''}
               </p>
             )}
@@ -91,8 +98,12 @@ export default function AIAgentsWidget() {
         )}
 
         {sessions.length === 0 && (
-          <div className="mt-3 flex items-center gap-2 rounded-lg bg-secondary/30 px-3 py-2 text-xs text-muted-foreground">
-            <Bot className="w-3.5 h-3.5 shrink-0" />
+          <div
+            className="mt-3 flex items-center gap-2 rounded-lg bg-secondary/30 px-3 py-2 text-xs text-muted-foreground"
+            role="status"
+            aria-live="polite"
+          >
+            <Bot className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
             No active AI agent sessions detected
           </div>
         )}
