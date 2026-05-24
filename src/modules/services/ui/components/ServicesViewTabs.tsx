@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { AlertTriangle, Cog, Search, Timer } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -11,7 +12,7 @@ type ServicesViewTabsProps = {
   onSearchChange: (search: string) => void;
 };
 
-export function ServicesViewTabs({
+export const ServicesViewTabs = memo(function ServicesViewTabs({
   alertsCount,
   search,
   selectedTab,
@@ -60,4 +61,4 @@ export function ServicesViewTabs({
       )}
     </div>
   );
-}
+});
