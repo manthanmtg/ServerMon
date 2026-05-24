@@ -82,4 +82,29 @@ describe('PastRunsPanel', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Unable to load run history.');
   });
+
+  it('shows an error when run history contains invalid run rows', async () => {
+    global.fetch = vi.fn<typeof fetch>(() =>
+      Promise.resolve(
+        Promise.resolve(
+          new Response(
+            JSON.stringify([
+              {
+                ...run,
+                status: 'stale',
+              },
+            ]),
+            {
+              status: 200,
+              headers: { 'Content-Type': 'application/json' },
+            }
+          )
+        )
+      )
+    );
+
+    render(<PastRunsPanel onShowOutput={vi.fn()} />);
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Unable to load run history.');
+  });
 });
