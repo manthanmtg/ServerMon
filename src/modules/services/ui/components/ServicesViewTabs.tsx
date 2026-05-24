@@ -46,7 +46,7 @@ export function ServicesViewTabs({
         ))}
       </div>
       {selectedTab === 'services' && (
-        <div className="relative flex-1 min-w-[200px] max-w-md">
+        <div className="relative flex-1 min-w-0 sm:min-w-[200px] sm:max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <input
             type="text"
@@ -54,11 +54,10 @@ export function ServicesViewTabs({
             value={search}
             aria-label="Search services"
             onChange={(event) => onSearchChange(event.target.value)}
-            className="w-full h-10 pl-9 pr-3 rounded-xl border border-border bg-background text-sm outline-none focus:ring-2 focus:ring-primary/30"
+            className="w-full min-h-[44px] pl-9 pr-3 rounded-xl border border-border bg-background text-sm outline-none focus:ring-2 focus:ring-primary/30"
           />
         </div>
       )}
     </div>
   );
 }
-
