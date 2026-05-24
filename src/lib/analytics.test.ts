@@ -20,14 +20,11 @@ const { mockSave, mockLean, mockFind, mockConnectDB } = vi.hoisted(() => {
 vi.mock('@/lib/db', () => ({ default: mockConnectDB }));
 
 vi.mock('@/models/AnalyticsEvent', () => {
-  class MockAnalyticsEvent {
-    save: typeof mockSave;
-    static find = mockFind;
+  const MockAnalyticsEvent = vi.fn(function MockAnalyticsEvent(this: { save: typeof mockSave }) {
+    this.save = mockSave;
+  });
 
-    constructor() {
-      this.save = mockSave;
-    }
-  }
+  MockAnalyticsEvent.find = mockFind;
 
   return { default: MockAnalyticsEvent };
 });
