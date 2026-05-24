@@ -15,6 +15,7 @@ import {
   FileText,
   Server,
 } from 'lucide-react';
+import { memo } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
@@ -57,7 +58,7 @@ interface TemplateCardProps {
   onClick: (template: TemplateListItem) => void;
 }
 
-export function TemplateCard({ template, onClick }: TemplateCardProps) {
+export const TemplateCard = memo(function TemplateCard({ template, onClick }: TemplateCardProps) {
   const IconComponent = template.icon ? ICON_MAP[template.icon] : Package;
   const Icon = IconComponent || Package;
   const categoryColor = CATEGORY_COLORS[template.category] || CATEGORY_COLORS.service;
@@ -109,4 +110,4 @@ export function TemplateCard({ template, onClick }: TemplateCardProps) {
       </CardContent>
     </Card>
   );
-}
+});
