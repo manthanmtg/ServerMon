@@ -34,6 +34,7 @@ function isNetworkSnapshotPayload(value: unknown): value is NetworkSnapshot {
 export default function NetworkWidget() {
   const [stats, setStats] = useState<{ rx: number; tx: number; iface: string } | null>(null);
   const [loadError, setLoadError] = useState(false);
+  const [isEmpty, setIsEmpty] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -63,6 +64,7 @@ export default function NetworkWidget() {
           if (mounted) {
             setLoadError(true);
             setStats(null);
+            setIsEmpty(true);
           }
           return;
         }
@@ -71,6 +73,7 @@ export default function NetworkWidget() {
           const primary = data.stats.find((s) => !isLoopbackInterface(s.iface)) || data.stats[0];
           setLoadError(false);
           setStats({ rx: primary.rx_sec, tx: primary.tx_sec, iface: primary.iface });
+          setIsEmpty(false);
         }
       } catch (error: unknown) {
         if (!mounted || isAbortError(error)) {
@@ -79,6 +82,7 @@ export default function NetworkWidget() {
         if (mounted) {
           setLoadError(true);
           setStats(null);
+          setIsEmpty(false);
         }
       } finally {
         if (mounted) {
@@ -100,7 +104,9 @@ export default function NetworkWidget() {
   const displayedInterface = isLoading
     ? 'Loading…'
     : loadError
-      ? 'Unavailable'
+      ? isEmpty
+        ? 'No interfaces'
+        : 'Unavailable'
       : stats?.iface || 'Network';
 
   const downloadText = isLoading || loadError
@@ -139,7 +145,9 @@ export default function NetworkWidget() {
             </div>
           </div>
           {loadError && !isLoading && (
-            <span className="text-[10px] text-destructive">Data unavailable</span>
+            <span className="text-[10px] text-destructive">
+              {isEmpty ? 'No interface data' : 'Data unavailable'}
+            </span>
           )}
         </div>
       </motion.div>
