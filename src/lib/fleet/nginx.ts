@@ -22,6 +22,25 @@ export type NginxRenderRoute = Pick<
 
 const HEADER_NAME_RE = /^[A-Za-z0-9!#$%&'*+.^_`|~-]+$/;
 
+type HeaderEntryValue = string | number | boolean;
+
+function hasToObject(value: unknown): value is { toObject: () => unknown } {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'toObject' in value &&
+    typeof (value as { toObject?: unknown }).toObject === 'function'
+  );
+}
+
+function isHeaderRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && value.constructor === Object;
+}
+
+function isHeaderValue(value: unknown): value is HeaderEntryValue {
+  return typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean';
+}
+
 export function normalizeNginxHeaders(headers: unknown): Record<string, string> {
   if (!headers || typeof headers !== 'object') return {};
 
@@ -33,15 +52,16 @@ export function normalizeNginxHeaders(headers: unknown): Record<string, string> 
     );
   }
 
-  const maybeMongooseMap = headers as { toObject?: () => unknown };
-  if (typeof maybeMongooseMap.toObject === 'function') {
-    return normalizeNginxHeaders(maybeMongooseMap.toObject());
+  if (hasToObject(headers)) {
+    return normalizeNginxHeaders(headers.toObject());
   }
 
+  if (!isHeaderRecord(headers)) return {};
+
   const out: Record<string, string> = {};
-  for (const [k, v] of Object.entries(headers as Record<string, unknown>)) {
+  for (const [k, v] of Object.entries(headers)) {
     if (!HEADER_NAME_RE.test(k)) continue;
-    if (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean') {
+    if (isHeaderValue(v)) {
       out[k] = String(v);
     }
   }
