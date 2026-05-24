@@ -219,12 +219,12 @@
       "category": "security",
       "enabled": true,
       "autonomousSafe": true,
-      "totalSelected": 27,
-      "totalCompleted": 26,
+      "totalSelected": 28,
+      "totalCompleted": 27,
       "totalNoop": 0,
       "totalFailed": 1,
-      "lastSelectedAt": "2026-05-24T10:54:40.573Z",
-      "lastCompletedAt": "2026-05-24T10:54:45.806Z",
+      "lastSelectedAt": "2026-05-24T11:24:18.718Z",
+      "lastCompletedAt": "2026-05-24T11:25:54.693Z",
       "lastOutcome": "completed",
       "updatedAt": "2026-05-24T10:54:45.806Z"
     },
@@ -321,5 +321,5 @@
       "lastOutcome": "completed"
     }
   },
-  "updatedAt": "2026-05-24T11:22:38.933Z"
+  "updatedAt": "2026-05-24T11:25:54.693Z"
 }
