@@ -159,7 +159,7 @@ export default function LogsPage() {
               aria-pressed={filter === f.value}
               onClick={() => setFilter(f.value)}
               className={cn(
-                'px-3 py-1.5 rounded-md text-xs font-medium transition-colors cursor-pointer whitespace-nowrap min-h-[32px]',
+                'px-3 py-1.5 rounded-md text-xs font-medium transition-colors cursor-pointer whitespace-nowrap min-h-[44px]',
                 filter === f.value
                   ? 'bg-background text-foreground shadow-sm'
                   : 'text-muted-foreground hover:text-foreground'
