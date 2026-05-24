@@ -197,7 +197,7 @@ export default function QuickAccessSettings() {
                   key={mod.id}
                   whileHover={{ y: -1, scale: 1.01 }}
                   transition={{ type: 'spring', stiffness: 250, damping: 18 }}
-                  className="flex items-center gap-1.5 px-3 h-8 rounded-full text-xs font-medium bg-accent text-foreground whitespace-nowrap shrink-0"
+                  className="flex items-center gap-1.5 px-3 h-11 sm:h-8 rounded-full text-xs font-medium bg-accent text-foreground whitespace-nowrap shrink-0"
                 >
                   <mod.icon className="w-3.5 h-3.5 shrink-0" />
                   <span className="hidden sm:inline">{mod.label}</span>
