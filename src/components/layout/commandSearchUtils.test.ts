@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { Cog } from 'lucide-react';
 import { footerNavItems, navGroups } from './navigation';
 import {
   buildGlobalSearchItems,
@@ -97,5 +98,121 @@ describe('commandSearchUtils', () => {
     ];
 
     expect(rankCommandSearchItems(items, 'unrelated-topic')).toEqual([]);
+  });
+
+  it('respects empty-query priorities and enforces the limit', () => {
+    const items: CommandSearchItem[] = [
+      { id: 'low', label: 'Low', href: '/low', group: 'Modules', priority: 1 },
+      { id: 'mid', label: 'Middle', href: '/mid', group: 'Modules', priority: 4 },
+      { id: 'high', label: 'High', href: '/high', group: 'Modules', priority: 12 },
+    ];
+
+    expect(rankCommandSearchItems(items, '', 2).map((item) => item.id)).toEqual(['high', 'mid']);
+  });
+
+  it('adds custom nav-derived overview entries except for dashboard', () => {
+    const items = buildGlobalSearchItems([
+      {
+        label: 'Operations',
+        items: [
+          { label: 'Dashboard', href: '/dashboard', icon: Cog },
+          { label: 'Control Panel', href: '/admin/panel', icon: Cog },
+        ],
+      },
+    ]);
+
+    expect(items).toHaveLength(2 + 1 + footerNavItems.length);
+    expect(items.some((item) => item.id === 'nav-dashboard')).toBe(true);
+    expect(items.some((item) => item.id === 'overview-dashboard')).toBe(false);
+    expect(items.some((item) => item.id === 'nav-admin-panel')).toBe(true);
+    expect(items.some((item) => item.id === 'overview-admin-panel')).toBe(true);
+  });
+
+  it('keeps AI Runner section links when AI Runner is present', () => {
+    const items = buildGlobalSearchItems();
+    const sections = items.filter((item) => item.id.startsWith('section-ai-runner-'));
+
+    expect(sections).toHaveLength(6);
+    expect(sections.map((item) => item.label)).toEqual([
+      'AI Runner > AutoFlow',
+      'AI Runner > Saved Prompts',
+      'AI Runner > Schedules',
+      'AI Runner > History',
+      'AI Runner > Logs',
+      'AI Runner > Settings',
+    ]);
+  });
+
+  it('returns high priority prefix matches ahead of lower priority prefix matches', () => {
+    const items: CommandSearchItem[] = [
+      {
+        id: 'status',
+        label: 'Status',
+        href: '/status',
+        group: 'Modules',
+        priority: 1,
+      },
+      {
+        id: 'status-overview',
+        label: 'Status Overview',
+        href: '/status',
+        group: 'Modules',
+        priority: 50,
+      },
+    ];
+
+    expect(rankCommandSearchItems(items, 'status').map((item) => item.id)).toEqual([
+      'status-overview',
+      'status',
+    ]);
+  });
+
+  it('matches query text stored in generated searchText from keywords', () => {
+    const items: CommandSearchItem[] = [
+      {
+        id: 'jobs',
+        label: 'Jobs',
+        href: '/jobs',
+        group: 'Modules',
+        keywords: ['queue', 'rollback', 'retries'],
+        priority: 10,
+      },
+      {
+        id: 'alerts',
+        label: 'Alerts',
+        href: '/alerts',
+        group: 'Modules',
+        keywords: ['watch', 'notify'],
+        priority: 5,
+      },
+    ];
+
+    expect(rankCommandSearchItems(items, 'rollback')).toEqual([
+      expect.objectContaining({ id: 'jobs' }),
+    ]);
+  });
+
+  it('normalizes punctuation-heavy queries while matching subsequence fallback', () => {
+    const results = rankCommandSearchItems(
+      [
+        {
+          id: 'disk',
+          label: 'Disk Queue',
+          href: '/disk',
+          group: 'Modules',
+          priority: 1,
+        },
+        {
+          id: 'network',
+          label: 'Network',
+          href: '/network',
+          group: 'Modules',
+          priority: 1,
+        },
+      ],
+      'DI-SK!! Qu-e'
+    );
+
+    expect(results[0]).toMatchObject({ id: 'disk' });
   });
 });
