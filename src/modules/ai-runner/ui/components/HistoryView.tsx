@@ -1,5 +1,6 @@
 'use client';
 
+import { memo, type MutableRefObject } from 'react';
 import { ListFilter, RefreshCcw, Search } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -41,6 +42,91 @@ interface HistoryViewProps {
   getRunContextLabel: (run: AIRunnerRunDTO) => string;
   promptMap: Record<string, { name: string }>;
 }
+
+type HistoryRunRowProps = {
+  run: AIRunnerRunDTO;
+  isSelected: boolean;
+  isFocused: boolean;
+  profileMap: Record<string, AIRunnerProfileDTO>;
+  historyRowRefs: MutableRefObject<Record<string, HTMLTableRowElement | null>>;
+  onOpenRun: (run: AIRunnerRunDTO) => void;
+  getRunDisplayName: (run: AIRunnerRunDTO) => string;
+  getRunContextLabel: (run: AIRunnerRunDTO) => string;
+  getRunStatusVariant: (status: AIRunnerRunDTO['status']) => string;
+  promptMap: Record<string, { name: string }>;
+};
+
+const HistoryRunRow = memo(function HistoryRunRow({
+  run,
+  isSelected,
+  isFocused,
+  profileMap,
+  historyRowRefs,
+  onOpenRun,
+  getRunDisplayName,
+  getRunContextLabel,
+  getRunStatusVariant,
+  promptMap,
+}: HistoryRunRowProps) {
+  return (
+    <tr
+      key={run._id}
+      ref={(node) => {
+        historyRowRefs.current[run._id] = node;
+      }}
+      tabIndex={-1}
+      onClick={() => onOpenRun(run)}
+      className={cn(
+        'cursor-pointer border-b border-border/40 transition-colors hover:bg-accent/30 focus:outline-none focus:ring-2 focus:ring-ring/40',
+        isSelected && 'bg-primary/5',
+        isFocused && 'bg-primary/10'
+      )}
+    >
+      <td className="px-4 py-3 align-top">
+        <Badge variant={getRunStatusVariant(run.status)}>{run.status}</Badge>
+      </td>
+      <td className="px-4 py-3 align-top">
+        <div className="max-w-[220px]">
+          <p className="truncate font-medium">{getRunDisplayName(run)}</p>
+          <p className="truncate text-xs text-muted-foreground">{getRunContextLabel(run)}</p>
+        </div>
+      </td>
+      <td className="px-4 py-3 align-top">
+        <div className="max-w-[280px]">
+          <p className="truncate">{run.promptContent.slice(0, 80)}</p>
+          <p className="truncate text-xs text-muted-foreground">
+            {run.promptId ? promptMap[run.promptId]?.name || 'Saved prompt' : 'Inline prompt'}
+          </p>
+        </div>
+      </td>
+      <td className="px-4 py-3 align-top">
+        {profileMap[run.agentProfileId]?.name || 'Unknown profile'}
+      </td>
+      <td className="px-4 py-3 align-top">
+        <Badge variant="outline">{run.triggeredBy}</Badge>
+      </td>
+      <td className="px-4 py-3 align-top">
+        <span className="block max-w-[220px] truncate text-xs text-muted-foreground">
+          {run.workingDirectory}
+        </span>
+      </td>
+      <td className="px-4 py-3 align-top">
+        <div>
+          <p>{formatDateTime(run.startedAt ?? run.queuedAt)}</p>
+          <p className="text-xs text-muted-foreground">{formatRelative(run.startedAt ?? run.queuedAt)}</p>
+        </div>
+      </td>
+      <td className="px-4 py-3 align-top">{formatDuration(run.durationSeconds)}</td>
+      <td className="px-4 py-3 align-top">{run.exitCode === undefined ? '—' : run.exitCode}</td>
+      <td className="px-4 py-3 align-top">
+        <div className="text-xs text-muted-foreground">
+          <p>CPU {run.resourceUsage?.peakCpuPercent?.toFixed(1) ?? '—'}%</p>
+          <p>Mem {formatMemory(run.resourceUsage?.peakMemoryBytes)}</p>
+        </div>
+      </td>
+    </tr>
+  );
+});
 
 export function HistoryView({
   runSearch,
@@ -194,70 +280,19 @@ export function HistoryView({
               </thead>
               <tbody>
                 {filteredHistoryRuns.map((run) => (
-                  <tr
+                  <HistoryRunRow
                     key={run._id}
-                    ref={(node) => {
-                      historyRowRefs.current[run._id] = node;
-                    }}
-                    tabIndex={-1}
-                    onClick={() => openRunDetail(run)}
-                    className={cn(
-                      'cursor-pointer border-b border-border/40 transition-colors hover:bg-accent/30 focus:outline-none focus:ring-2 focus:ring-ring/40',
-                      selectedRun?._id === run._id && 'bg-primary/5',
-                      focusedHistoryRunId === run._id && 'bg-primary/10'
-                    )}
-                  >
-                    <td className="px-4 py-3 align-top">
-                      <Badge variant={getRunStatusVariant(run.status)}>{run.status}</Badge>
-                    </td>
-                    <td className="px-4 py-3 align-top">
-                      <div className="max-w-[220px]">
-                        <p className="truncate font-medium">{getRunDisplayName(run)}</p>
-                        <p className="truncate text-xs text-muted-foreground">
-                          {getRunContextLabel(run)}
-                        </p>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 align-top">
-                      <div className="max-w-[280px]">
-                        <p className="truncate">{run.promptContent.slice(0, 80)}</p>
-                        <p className="truncate text-xs text-muted-foreground">
-                          {run.promptId
-                            ? promptMap[run.promptId]?.name || 'Saved prompt'
-                            : 'Inline prompt'}
-                        </p>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 align-top">
-                      {profileMap[run.agentProfileId]?.name || 'Unknown profile'}
-                    </td>
-                    <td className="px-4 py-3 align-top">
-                      <Badge variant="outline">{run.triggeredBy}</Badge>
-                    </td>
-                    <td className="px-4 py-3 align-top">
-                      <span className="block max-w-[220px] truncate text-xs text-muted-foreground">
-                        {run.workingDirectory}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 align-top">
-                      <div>
-                        <p>{formatDateTime(run.startedAt ?? run.queuedAt)}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {formatRelative(run.startedAt ?? run.queuedAt)}
-                        </p>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 align-top">{formatDuration(run.durationSeconds)}</td>
-                    <td className="px-4 py-3 align-top">
-                      {run.exitCode === undefined ? '—' : run.exitCode}
-                    </td>
-                    <td className="px-4 py-3 align-top">
-                      <div className="text-xs text-muted-foreground">
-                        <p>CPU {run.resourceUsage?.peakCpuPercent?.toFixed(1) ?? '—'}%</p>
-                        <p>Mem {formatMemory(run.resourceUsage?.peakMemoryBytes)}</p>
-                      </div>
-                    </td>
-                  </tr>
+                    run={run}
+                    isSelected={selectedRun?._id === run._id}
+                    isFocused={focusedHistoryRunId === run._id}
+                    profileMap={profileMap}
+                    historyRowRefs={historyRowRefs}
+                    onOpenRun={openRunDetail}
+                    getRunDisplayName={getRunDisplayName}
+                    getRunContextLabel={getRunContextLabel}
+                    getRunStatusVariant={getRunStatusVariant}
+                    promptMap={promptMap}
+                  />
                 ))}
               </tbody>
             </table>
