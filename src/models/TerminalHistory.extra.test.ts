@@ -1,12 +1,20 @@
 /** @vitest-environment node */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
+type PreSaveCallback = ((this: Record<string, unknown>) => void) | null;
+
+type MockSchemaConstructor = {
+  (definition: unknown, options?: unknown): Record<string, unknown>;
+  _getPreSave: () => PreSaveCallback;
+  Types: { ObjectId: unknown; Mixed: unknown };
+};
+
 // We need a working Schema.pre() to test the pre-save hook.
 // Use a minimal mongoose mock that actually invokes the pre-save callback.
 vi.mock('mongoose', async () => {
   const modelStore: Record<string, unknown> = {};
 
-  let preSaveCallback: ((this: Record<string, unknown>) => void) | null = null;
+  let preSaveCallback: PreSaveCallback = null;
 
   const mockSchema = vi.fn().mockImplementation(function (
     this: Record<string, unknown>,
@@ -20,15 +28,11 @@ vi.mock('mongoose', async () => {
     });
     this.index = vi.fn();
     // Expose for tests
-    (mockSchema as { _getPreSave: () => typeof preSaveCallback })._getPreSave = () =>
-      preSaveCallback;
+    mockSchema._getPreSave = () => preSaveCallback;
     return this;
-  }) as unknown as {
-    Types: { ObjectId: unknown; Mixed: unknown };
-    _getPreSave: () => typeof preSaveCallback;
-  };
+  }) as MockSchemaConstructor;
 
-  (mockSchema as { Types: { ObjectId: string; Mixed: string } }).Types = {
+  mockSchema.Types = {
     ObjectId: 'ObjectId',
     Mixed: 'Mixed',
   };
@@ -51,6 +55,11 @@ vi.mock('mongoose', async () => {
   };
 });
 
+async function getSchemaConstructorAsync(): Promise<MockSchemaConstructor> {
+  const mongoose = await import('mongoose');
+  return mongoose.default.Schema as MockSchemaConstructor;
+}
+
 describe('TerminalHistory — pre-save hook', () => {
   beforeEach(() => {
     vi.resetModules();
@@ -66,10 +75,7 @@ describe('TerminalHistory — pre-save hook', () => {
     await import('./TerminalHistory');
 
     // Access the registered pre-save callback via our mock
-    const mongoose = await import('mongoose');
-    const SchemaConstructor = mongoose.default.Schema as unknown as {
-      _getPreSave: () => ((this: Record<string, unknown>) => void) | null;
-    };
+    const SchemaConstructor = await getSchemaConstructorAsync();
     const preSave = SchemaConstructor._getPreSave();
     expect(preSave).toBeTruthy();
 
@@ -90,10 +96,7 @@ describe('TerminalHistory — pre-save hook', () => {
   it('does not set durationMinutes when closedAt is absent', async () => {
     await import('./TerminalHistory');
 
-    const mongoose = await import('mongoose');
-    const SchemaConstructor = mongoose.default.Schema as unknown as {
-      _getPreSave: () => ((this: Record<string, unknown>) => void) | null;
-    };
+    const SchemaConstructor = await getSchemaConstructorAsync();
     const preSave = SchemaConstructor._getPreSave();
 
     const doc: Record<string, unknown> = {
@@ -110,10 +113,7 @@ describe('TerminalHistory — pre-save hook', () => {
   it('rounds durationMinutes correctly for sub-minute durations', async () => {
     await import('./TerminalHistory');
 
-    const mongoose = await import('mongoose');
-    const SchemaConstructor = mongoose.default.Schema as unknown as {
-      _getPreSave: () => ((this: Record<string, unknown>) => void) | null;
-    };
+    const SchemaConstructor = await getSchemaConstructorAsync();
     const preSave = SchemaConstructor._getPreSave();
 
     const createdAt = new Date('2026-01-01T10:00:00Z');
@@ -128,10 +128,7 @@ describe('TerminalHistory — pre-save hook', () => {
   it('rounds durationMinutes down for 29 seconds', async () => {
     await import('./TerminalHistory');
 
-    const mongoose = await import('mongoose');
-    const SchemaConstructor = mongoose.default.Schema as unknown as {
-      _getPreSave: () => ((this: Record<string, unknown>) => void) | null;
-    };
+    const SchemaConstructor = await getSchemaConstructorAsync();
     const preSave = SchemaConstructor._getPreSave();
 
     const createdAt = new Date('2026-01-01T10:00:00Z');
@@ -146,10 +143,7 @@ describe('TerminalHistory — pre-save hook', () => {
   it('calculates multi-hour duration correctly', async () => {
     await import('./TerminalHistory');
 
-    const mongoose = await import('mongoose');
-    const SchemaConstructor = mongoose.default.Schema as unknown as {
-      _getPreSave: () => ((this: Record<string, unknown>) => void) | null;
-    };
+    const SchemaConstructor = await getSchemaConstructorAsync();
     const preSave = SchemaConstructor._getPreSave();
 
     const createdAt = new Date('2026-01-01T08:00:00Z');
