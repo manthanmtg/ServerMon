@@ -105,6 +105,19 @@ describe('utils', () => {
     it('should keep fractional precision when decimal values exceed TB', () => {
       expect(formatBytes(1.5 * Math.pow(1000, 5), 'decimal')).toBe('1500 TB');
     });
+
+    it('should preserve fractional bytes as one decimal place', () => {
+      expect(formatBytes(0.2)).toBe('0.2 B');
+      expect(formatBytes(1.05)).toBe('1.1 B');
+    });
+
+    it('should keep sub-threshold values in B unit', () => {
+      expect(formatBytes(999.9)).toBe('999.9 B');
+    });
+
+    it('should keep fractional precision for decimal mode', () => {
+      expect(formatBytes(1500.4, 'decimal')).toBe('1.5 KB');
+    });
   });
 
   describe('formatDuration', () => {
@@ -245,6 +258,14 @@ describe('utils', () => {
       expect(relativeTime('2024-01-01T10:31:00Z')).toBe('1h ago');
       expect(relativeTime('2023-12-31T00:30:00Z')).toBe('2d ago');
     });
+
+    it('should round up to nearest minute before returning hours', () => {
+      expect(relativeTime('2024-01-01T10:30:31Z')).toBe('1h ago');
+    });
+
+    it('should return days when the rounded hours span into next day', () => {
+      expect(relativeTime('2023-12-31T11:00:00Z')).toBe('1d ago');
+    });
   });
 
   describe('slugify', () => {
@@ -289,6 +310,10 @@ describe('utils', () => {
 
     it('should collapse mixed whitespace characters into a single hyphen', () => {
       expect(slugify('hello\tworld\nagain')).toBe('hello-world-again');
+    });
+
+    it('should remove embedded punctuation while preserving word boundaries', () => {
+      expect(slugify("Jane's project plan")).toBe('janes-project-plan');
     });
   });
 });

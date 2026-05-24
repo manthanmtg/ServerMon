@@ -9,7 +9,10 @@ export function formatBytes(bytes?: number | null, system: 'binary' | 'decimal' 
   const k = system === 'binary' ? 1024 : 1000;
   const sizes =
     system === 'binary' ? ['B', 'KiB', 'MiB', 'GiB', 'TiB'] : ['B', 'KB', 'MB', 'GB', 'TB'];
-  const i = Math.min(Math.floor(Math.log(bytes) / Math.log(k)), sizes.length - 1);
+  const i = Math.min(
+    Math.max(0, Math.floor(Math.log(bytes) / Math.log(k))),
+    sizes.length - 1
+  );
   return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
 }
 
