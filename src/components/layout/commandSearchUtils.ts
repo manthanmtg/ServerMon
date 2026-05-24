@@ -84,8 +84,10 @@ function scoreCandidate(item: CommandSearchItem, rawQuery: string): number {
   const labelCompact = item.compactLabel ?? compact(item.label);
 
   let score = 0;
-  if (label === query) score = 10_000;
-  else if (label.startsWith(query)) score = 9_000 - (label.length - query.length);
+  if (label === query) score = 9_500 + (item.priority ?? 0);
+  else if (label.startsWith(query)) {
+    score = 9_000 + (item.priority ?? 0) * 11 - (label.length - query.length);
+  }
   else if (searchText.includes(query)) score = 7_000 - searchText.indexOf(query);
   else if (labelCompact.startsWith(queryCompact)) {
     score = 6_000 - (labelCompact.length - queryCompact.length);
