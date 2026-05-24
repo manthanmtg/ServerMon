@@ -1,4 +1,4 @@
-import { Fragment, memo } from 'react';
+import { Fragment, memo, type ReactNode } from 'react';
 import {
   ArrowDown,
   ArrowUp,
@@ -36,6 +36,42 @@ interface ServicesTableProps {
   onToggleExpanded: (serviceName: string | null) => void;
   onToggleSort: (field: ServicesSortField) => void;
   onRunAction: (serviceName: string, action: ServiceAction) => void;
+}
+
+type SortHeaderProps = {
+  className: string;
+  field: ServicesSortField;
+  sortField: ServicesSortField;
+  sortDir: ServicesSortDir;
+  label: string;
+  onToggleSort: (field: ServicesSortField) => void;
+  children: ReactNode;
+};
+
+function ServicesSortHeader({
+  className,
+  field,
+  sortField,
+  sortDir,
+  label,
+  onToggleSort,
+  children,
+}: SortHeaderProps) {
+  const isActive = sortField === field;
+  const ariaSort = isActive ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none';
+
+  return (
+    <th className={className} aria-sort={ariaSort}>
+      <button
+        type="button"
+        onClick={() => onToggleSort(field)}
+        className="inline-flex items-center gap-1"
+        aria-label={`Sort by ${label}`}
+      >
+        {children}
+      </button>
+    </th>
+  );
 }
 
 function formatUptime(seconds: number): string {
@@ -95,55 +131,67 @@ function ServicesTableBase({
           <thead className="text-left text-xs uppercase tracking-[0.18em] text-muted-foreground bg-muted/20">
             <tr>
               <th className="py-3 px-4 w-8" />
-              <th
+              <ServicesSortHeader
+                field="name"
+                sortField={sortField}
+                sortDir={sortDir}
+                label="Name"
                 className="py-3 px-4 cursor-pointer select-none"
-                onClick={() => onToggleSort('name')}
+                onToggleSort={onToggleSort}
               >
-                <span className="inline-flex items-center gap-1">
-                  Service {sortIcon(sortField, sortDir, 'name')}
-                </span>
-              </th>
-              <th
+                Service {sortIcon(sortField, sortDir, 'name')}
+              </ServicesSortHeader>
+              <ServicesSortHeader
+                field="status"
+                sortField={sortField}
+                sortDir={sortDir}
+                label="Status"
                 className="py-3 px-4 cursor-pointer select-none"
-                onClick={() => onToggleSort('status')}
+                onToggleSort={onToggleSort}
               >
-                <span className="inline-flex items-center gap-1">
-                  Status {sortIcon(sortField, sortDir, 'status')}
-                </span>
-              </th>
+                Status {sortIcon(sortField, sortDir, 'status')}
+              </ServicesSortHeader>
               <th className="py-3 px-4">PID</th>
-              <th
+              <ServicesSortHeader
+                field="cpu"
+                sortField={sortField}
+                sortDir={sortDir}
+                label="CPU"
                 className="py-3 px-4 cursor-pointer select-none"
-                onClick={() => onToggleSort('cpu')}
+                onToggleSort={onToggleSort}
               >
-                <span className="inline-flex items-center gap-1">
-                  CPU {sortIcon(sortField, sortDir, 'cpu')}
-                </span>
-              </th>
-              <th
+                CPU {sortIcon(sortField, sortDir, 'cpu')}
+              </ServicesSortHeader>
+              <ServicesSortHeader
+                field="memory"
+                sortField={sortField}
+                sortDir={sortDir}
+                label="Memory"
                 className="py-3 px-4 cursor-pointer select-none"
-                onClick={() => onToggleSort('memory')}
+                onToggleSort={onToggleSort}
               >
-                <span className="inline-flex items-center gap-1">
-                  Memory {sortIcon(sortField, sortDir, 'memory')}
-                </span>
-              </th>
-              <th
+                Memory {sortIcon(sortField, sortDir, 'memory')}
+              </ServicesSortHeader>
+              <ServicesSortHeader
+                field="uptime"
+                sortField={sortField}
+                sortDir={sortDir}
+                label="Uptime"
                 className="py-3 px-4 cursor-pointer select-none"
-                onClick={() => onToggleSort('uptime')}
+                onToggleSort={onToggleSort}
               >
-                <span className="inline-flex items-center gap-1">
-                  Uptime {sortIcon(sortField, sortDir, 'uptime')}
-                </span>
-              </th>
-              <th
+                Uptime {sortIcon(sortField, sortDir, 'uptime')}
+              </ServicesSortHeader>
+              <ServicesSortHeader
+                field="restarts"
+                sortField={sortField}
+                sortDir={sortDir}
+                label="Restarts"
                 className="py-3 px-4 cursor-pointer select-none"
-                onClick={() => onToggleSort('restarts')}
+                onToggleSort={onToggleSort}
               >
-                <span className="inline-flex items-center gap-1">
-                  Restarts {sortIcon(sortField, sortDir, 'restarts')}
-                </span>
-              </th>
+                Restarts {sortIcon(sortField, sortDir, 'restarts')}
+              </ServicesSortHeader>
               <th className="py-3 px-4">Enabled</th>
               <th className="py-3 px-4">Actions</th>
             </tr>
