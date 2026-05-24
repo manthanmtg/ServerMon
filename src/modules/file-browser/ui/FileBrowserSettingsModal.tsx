@@ -125,6 +125,7 @@ export default function FileBrowserSettingsModal({ settings, onClose, onSaved }:
             </p>
           </div>
           <button
+            aria-label="Close file browser settings"
             onClick={onClose}
             className="min-h-[44px] min-w-[44px] rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground transition-colors flex items-center justify-center"
           >
@@ -170,6 +171,7 @@ export default function FileBrowserSettingsModal({ settings, onClose, onSaved }:
                       <Button
                         variant="ghost"
                         size="icon"
+                        aria-label={`Remove shortcut ${shortcut.label.trim() || 'item'}`}
                         className="text-muted-foreground hover:text-destructive"
                         onClick={() => removeShortcut(index)}
                       >
