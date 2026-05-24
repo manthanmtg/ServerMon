@@ -4,6 +4,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 const { mockRemoveNetwork } = vi.hoisted(() => ({
   mockRemoveNetwork: vi.fn(),
 }));
+const { mockGetSession } = vi.hoisted(() => ({
+  mockGetSession: vi.fn(),
+}));
 
 vi.mock('@/lib/docker/service', () => ({
   dockerService: { removeNetwork: mockRemoveNetwork },
@@ -11,6 +14,7 @@ vi.mock('@/lib/docker/service', () => ({
 vi.mock('@/lib/logger', () => ({
   createLogger: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }),
 }));
+vi.mock('@/lib/session', () => ({ getSession: mockGetSession }));
 
 import { DELETE } from './route';
 
@@ -21,6 +25,7 @@ function makeContext(networkId: string) {
 describe('DELETE /api/modules/docker/networks/[networkId]', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockGetSession.mockResolvedValue({ user: { role: 'admin' } });
   });
 
   it('removes a network successfully', async () => {
