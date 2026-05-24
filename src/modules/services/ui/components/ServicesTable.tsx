@@ -172,7 +172,7 @@ function ServicesTableBase({
                           aria-label={`${isExpanded ? 'Collapse' : 'Expand'} ${svc.name} details`}
                           aria-expanded={isExpanded}
                           onClick={() => onToggleExpanded(isExpanded ? null : svc.name)}
-                          className="p-1 rounded hover:bg-accent transition-colors"
+                          className="min-h-11 min-w-11 rounded-lg flex items-center justify-center hover:bg-accent transition-colors"
                         >
                           {isExpanded ? (
                             <ChevronDown className="w-4 h-4 text-muted-foreground" />
