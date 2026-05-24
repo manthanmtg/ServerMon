@@ -162,4 +162,110 @@ describe('GET /api/health', () => {
     expect(body.uptime).toBeGreaterThanOrEqual(0);
     expect(Number.isInteger(body.uptime)).toBe(true);
   });
+
+  it('returns degraded health when the current metrics call throws', async () => {
+    vi.mocked(metricsService.getCurrent).mockImplementation(() => {
+      throw new Error('metrics collector unavailable');
+    });
+
+    const response = await GET();
+    const body = await response.json();
+
+    expect(response.status).toBe(503);
+    expect(body.status).toBe('degraded');
+    expect(body.database).toBe('connected');
+    expect(body.metrics).toBeNull();
+    expect(body.sseConnections).toBe(0);
+  });
+
+  it('returns degraded health when SSE connection count lookup throws', async () => {
+    vi.mocked(metricsService.getCurrent).mockReturnValue({
+      cpu: 15,
+      memory: 35,
+      timestamp: '12:00:00',
+      serverTimestamp: new Date().toISOString(),
+      cpuCores: 4,
+      memTotal: 8000000000,
+      memUsed: 1000000000,
+      uptime: 240,
+      swapTotal: 0,
+      swapUsed: 0,
+      swapFree: 0,
+      disks: [],
+      io: null,
+    });
+    vi.mocked(metricsService.getConnectionCount).mockImplementation(() => {
+      throw new Error('sse pool closed');
+    });
+
+    const response = await GET();
+    const body = await response.json();
+
+    expect(response.status).toBe(503);
+    expect(body.status).toBe('degraded');
+    expect(body.metrics).toEqual({ cpu: 15, memory: 35 });
+    expect(body.sseConnections).toBe(0);
+  });
+
+  it('treats non-connected DB states as disconnected but still healthy with metrics', async () => {
+    mockMongoose.connection.readyState = 2;
+    vi.mocked(metricsService.getCurrent).mockReturnValue({
+      cpu: 45,
+      memory: 70,
+      timestamp: '12:00:00',
+      serverTimestamp: new Date().toISOString(),
+      cpuCores: 8,
+      memTotal: 16000000000,
+      memUsed: 7000000000,
+      uptime: 5400,
+      swapTotal: 0,
+      swapUsed: 0,
+      swapFree: 0,
+      disks: [],
+      io: null,
+    });
+
+    const response = await GET();
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.status).toBe('ok');
+    expect(body.database).toBe('disconnected');
+  });
+
+  it('reports degraded status when metrics payload is undefined', async () => {
+    vi.mocked(metricsService.getCurrent).mockReturnValue(undefined as unknown as null);
+
+    const response = await GET();
+    const body = await response.json();
+
+    expect(response.status).toBe(503);
+    expect(body.status).toBe('degraded');
+    expect(body.metrics).toBeNull();
+  });
+
+  it('returns an ISO-8601 timestamp', async () => {
+    vi.mocked(metricsService.getCurrent).mockReturnValue({
+      cpu: 11,
+      memory: 22,
+      timestamp: '12:00:00',
+      serverTimestamp: new Date().toISOString(),
+      cpuCores: 4,
+      memTotal: 8000000000,
+      memUsed: 2500000000,
+      uptime: 600,
+      swapTotal: 0,
+      swapUsed: 0,
+      swapFree: 0,
+      disks: [],
+      io: null,
+    });
+
+    const response = await GET();
+    const body = await response.json();
+    const parsedTimestamp = new Date(body.timestamp);
+
+    expect(Number.isNaN(parsedTimestamp.getTime())).toBe(false);
+    expect(parsedTimestamp.toISOString()).toBe(body.timestamp);
+  });
 });

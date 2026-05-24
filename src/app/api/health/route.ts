@@ -18,10 +18,18 @@ export async function GET() {
     dbStatus = 'error';
   }
 
-  const latest = metricsService.getCurrent();
-  const sseConnections = metricsService.getConnectionCount();
+  let latest = null;
+  let sseConnections = 0;
+  let metricsError = false;
 
-  const healthy = dbStatus !== 'error' && latest !== null;
+  try {
+    latest = metricsService.getCurrent();
+    sseConnections = metricsService.getConnectionCount();
+  } catch {
+    metricsError = true;
+  }
+
+  const healthy = dbStatus !== 'error' && latest !== null && !metricsError;
 
   return NextResponse.json(
     {
