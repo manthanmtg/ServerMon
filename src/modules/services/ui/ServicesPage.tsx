@@ -250,6 +250,7 @@ export default function ServicesPage() {
   const [expandedService, setExpandedService] = useState<string | null>(null);
   const [pendingAction, setPendingAction] = useState<string | null>(null);
   const [viewTab, setViewTab] = useState<ViewTab>('services');
+  const normalizedSearch = useMemo(() => search.trim().toLowerCase(), [search]);
 
   const loadSnapshot = useCallback(async () => {
     const response = await fetch('/api/modules/services', { cache: 'no-store' });
@@ -301,11 +302,12 @@ export default function ServicesPage() {
       });
     }
 
-    if (search) {
-      const q = search.toLowerCase();
-      list = list.filter(
-        (s) => s.name.toLowerCase().includes(q) || s.description.toLowerCase().includes(q)
-      );
+    if (normalizedSearch) {
+      list = list.filter((s) => {
+        const name = s.name.toLowerCase();
+        const description = s.description.toLowerCase();
+        return name.includes(normalizedSearch) || description.includes(normalizedSearch);
+      });
     }
 
     const sorted = [...list].sort((a, b) => {
@@ -334,7 +336,7 @@ export default function ServicesPage() {
     });
 
     return sorted;
-  }, [snapshot, filter, search, sortField, sortDir]);
+  }, [snapshot, filter, normalizedSearch, sortField, sortDir]);
 
   const topByCpu = useMemo(() => {
     if (!snapshot) return [];
@@ -425,6 +427,18 @@ export default function ServicesPage() {
     [loadSnapshot, toast]
   );
 
+  const handleFilterChange = useCallback((value: FilterStatus) => {
+    setFilter(value);
+  }, []);
+
+  const handleRefreshMsChange = useCallback((value: number) => {
+    setRefreshMs(value);
+  }, []);
+
+  const handleRefresh = useCallback(() => {
+    void loadSnapshot().catch(() => undefined);
+  }, [loadSnapshot]);
+
   const toggleExpandedService = useCallback((serviceName: string | null) => {
     setExpandedService(serviceName);
   }, []);
@@ -446,9 +460,9 @@ export default function ServicesPage() {
         snapshot={snapshot}
         filter={filter}
         refreshMs={refreshMs}
-        onFilterChange={setFilter}
-        onRefreshMsChange={setRefreshMs}
-        onRefresh={() => loadSnapshot().catch(() => undefined)}
+        onFilterChange={handleFilterChange}
+        onRefreshMsChange={handleRefreshMsChange}
+        onRefresh={handleRefresh}
       />
 
       <ServicesSummaryGrid summary={snapshot?.summary} alertsCount={snapshot?.alerts.length ?? 0} />
