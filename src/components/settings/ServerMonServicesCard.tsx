@@ -10,6 +10,7 @@ import {
   ServerCog,
   Settings2,
 } from 'lucide-react';
+import { motion } from 'framer-motion';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -441,7 +442,11 @@ function UpdateSchedulePanel({
       : 'Toggle ServerMon agent auto-update';
 
   return (
-    <div className="overflow-hidden rounded-xl border border-border bg-background/70">
+    <motion.div
+      whileHover={{ y: -1, transition: { duration: 0.18, ease: 'easeOut' } }}
+      whileTap={{ y: 0, transition: { duration: 0.1 } }}
+      className="overflow-hidden rounded-xl border border-border bg-background/70 transition-all duration-200 hover:shadow-sm hover:ring-1 hover:ring-border/50"
+    >
       <div className="flex items-center justify-between gap-3 border-b border-border bg-accent/20 px-3 py-3">
         <div className="flex min-w-0 items-center gap-3">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
@@ -468,7 +473,8 @@ function UpdateSchedulePanel({
           disabled={state.loading}
           onClick={onToggle}
           className={cn(
-            'relative h-8 w-14 shrink-0 rounded-full border transition-colors disabled:cursor-not-allowed disabled:opacity-60',
+            'relative h-8 w-14 shrink-0 rounded-full border transition-all disabled:cursor-not-allowed disabled:opacity-60',
+            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
             isEnabled
               ? 'border-primary/35 bg-primary shadow-sm shadow-primary/20'
               : 'border-border bg-muted/70'
@@ -501,7 +507,7 @@ function UpdateSchedulePanel({
           {target === 'servermon' ? 'Configure App Schedule' : 'Configure Agent Schedule'}
         </Button>
       </div>
-    </div>
+    </motion.div>
   );
 }
 
