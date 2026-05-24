@@ -16,6 +16,11 @@ interface SessionUser {
 
 export async function GET() {
   try {
+    const session = await getSession();
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     await connectDB();
     const sessions = await TerminalSession.find().sort({ order: 1, createdAt: 1 }).lean();
     return NextResponse.json({ sessions });
