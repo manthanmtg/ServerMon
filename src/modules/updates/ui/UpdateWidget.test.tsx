@@ -7,6 +7,7 @@ const mockSnapshot = {
     security: 2,
     regular: 5,
     language: 1,
+    optional: 0,
   },
   pendingRestart: true,
 };
@@ -31,7 +32,7 @@ describe('UpdateWidget', () => {
     vi.mocked(global.fetch).mockResolvedValueOnce({
       ok: true,
       json: async () => ({
-        counts: { security: 0, regular: 0, language: 0 },
+        counts: { security: 0, regular: 0, language: 0, optional: 0 },
         pendingRestart: false,
       }),
     } as Response);

@@ -151,7 +151,8 @@ describe('NetworkWidget', () => {
     await act(async () => {
       render(<NetworkWidget />);
     });
-    await waitFor(() => expect(screen.getByText('Network')).toBeDefined());
+    await waitFor(() => expect(screen.getByText('Active Interface')).toBeDefined());
+    expect(screen.getByText('Unavailable')).toBeDefined();
   });
 
   it('handles fetch failure gracefully', async () => {
@@ -159,7 +160,7 @@ describe('NetworkWidget', () => {
     await act(async () => {
       render(<NetworkWidget />);
     });
-    await waitFor(() => expect(screen.getByText('Network')).toBeDefined());
+    await waitFor(() => expect(screen.getByText('Active Interface')).toBeDefined());
   });
 
   it('does not parse failed HTTP responses', async () => {
@@ -173,7 +174,8 @@ describe('NetworkWidget', () => {
     });
     await waitFor(() => expect(global.fetch).toHaveBeenCalled());
     expect(json).not.toHaveBeenCalled();
-    expect(screen.getByText('Network')).toBeDefined();
+    await waitFor(() => expect(screen.getByText('Active Interface')).toBeDefined());
+    expect(screen.getByText('Unavailable')).toBeDefined();
   });
 
   it('passes an abort signal to each poll request', async () => {
