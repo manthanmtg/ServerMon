@@ -16,6 +16,22 @@ interface CPUMetric {
   timestamp: string;
 }
 
+function isCPUMetric(value: unknown): value is CPUMetric {
+  if (!value || typeof value !== 'object') return false;
+
+  const candidate = value as Record<string, unknown>;
+
+  return (
+    typeof candidate.cpu === 'number' &&
+    Number.isFinite(candidate.cpu) &&
+    typeof candidate.timestamp === 'string'
+  );
+}
+
+function clampPercent(value: number): number {
+  return Math.min(100, Math.max(0, value));
+}
+
 interface Props {
   externalData?: CPUMetric[];
 }
@@ -29,8 +45,19 @@ export default function CPUChartWidget({ externalData }: Props) {
 
     const es = new EventSource('/api/metrics/stream');
     es.onmessage = (event) => {
-      const metric = JSON.parse(event.data);
-      setInternalData((prev) => [...prev, metric].slice(-30));
+      try {
+        const payload = JSON.parse(event.data);
+        if (!isCPUMetric(payload)) return;
+
+        const metric: CPUMetric = {
+          cpu: clampPercent(payload.cpu),
+          timestamp: payload.timestamp,
+        };
+
+        setInternalData((prev) => [...prev, metric].slice(-30));
+      } catch {
+        return;
+      }
     };
     es.onerror = () => es.close();
     return () => es.close();
