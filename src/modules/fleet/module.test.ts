@@ -13,9 +13,39 @@ describe('fleetModule', () => {
     expect(fleetModule.widgets!.map((w) => w.component)).toContain('FleetWidget');
   });
   it('lifecycle hooks accept a context without throwing', () => {
-    const ctx = {
-      logger: { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} },
-    } as unknown as ModuleContext;
+    const ctx: ModuleContext = {
+      analytics: { track: () => {} },
+      events: {
+        emit: () => {},
+        on: () => {},
+      },
+      db: {
+        getCollection: () => ({}),
+      },
+      logger: {
+        info: () => {},
+        warn: () => {},
+        error: () => {},
+      },
+      system: {
+        capabilities: {
+          platform: 'linux',
+          arch: 'x64',
+          cpus: 4,
+          memory: 16_000_000_000,
+        },
+      },
+      settings: {
+        get: async () => undefined,
+        set: async () => {},
+      },
+      ui: {
+        theme: {
+          id: 'default',
+          mode: 'light',
+        },
+      },
+    };
     expect(() => fleetModule.init!(ctx)).not.toThrow();
     expect(() => fleetModule.start!(ctx)).not.toThrow();
     expect(() => fleetModule.stop!(ctx)).not.toThrow();
