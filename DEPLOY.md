@@ -367,6 +367,7 @@ Common optional controls:
 | `SERVERMON_AUTO_UPDATE_CONFIG`  | Server auto-update schedule config path                                 | `/etc/servermon/auto-update.json` |
 | `SERVERMON_NETWORK_MOCK`        | Set to `1` to use mocked network speedtest data                         | unset                             |
 | `SERVERMON_DOCKER_MOCK`         | Set to `1` to use mocked Docker data                                    | unset                             |
+| `AI_RUNNER_MAX_CONCURRENT_RUNS` | Set to a positive integer to cap concurrent AI Runner jobs (`3` default) | `3`                               |
 | `SERVERMON_FIREWALL_MOCK`       | Set to `1` to use mocked firewall posture data                          | unset                             |
 | `SERVERMON_SKIP_STARTUP_JOBS`   | Set to `1` to skip startup jobs (stale session cleanup and schedulers)   | `unset`                           |
 | `SERVERMON_BRANDING_MOCK`       | Set to `1` to use default branding without MongoDB                      | unset                             |
