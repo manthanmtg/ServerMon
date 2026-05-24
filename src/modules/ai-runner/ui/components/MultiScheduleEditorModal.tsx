@@ -143,6 +143,7 @@ export function MultiScheduleEditorModal({
       }),
     [draftRows, scheduleMap]
   );
+  const dirtyRowIds = useMemo(() => new Set(dirtyRows.map((row) => row.id)), [dirtyRows]);
   const canSave = dirtyRows.length > 0 && Object.keys(localErrors).length === 0 && !saving;
 
   const updateDraft = (id: string, field: EditableField, value: string) => {
@@ -372,7 +373,7 @@ export function MultiScheduleEditorModal({
                 {schedules.map((schedule) => {
                   const row = draftMap[schedule._id];
                   if (!row) return null;
-                  const rowDirty = dirtyRows.some((dirtyRow) => dirtyRow.id === schedule._id);
+                  const rowDirty = dirtyRowIds.has(schedule._id);
                   const rowError = localErrors[schedule._id] ?? serverErrorMap[schedule._id];
                   return (
                     <tr key={schedule._id} className={cn(rowDirty && 'bg-warning/5')}>

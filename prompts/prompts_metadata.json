@@ -236,12 +236,12 @@
       "category": "reliability",
       "enabled": true,
       "autonomousSafe": true,
-      "totalSelected": 29,
-      "totalCompleted": 29,
+      "totalSelected": 30,
+      "totalCompleted": 30,
       "totalNoop": 0,
       "totalFailed": 0,
-      "lastSelectedAt": "2026-05-24T08:09:40.701Z",
-      "lastCompletedAt": "2026-05-24T08:10:40.740Z",
+      "lastSelectedAt": "2026-05-24T13:24:28.524Z",
+      "lastCompletedAt": "2026-05-24T13:24:43.577Z",
       "lastOutcome": "completed"
     },
     "test_adder.md": {
@@ -323,5 +323,5 @@
       "lastOutcome": "completed"
     }
   },
-  "updatedAt": "2026-05-24T13:22:10.207Z"
+  "updatedAt": "2026-05-24T13:24:43.577Z"
 }
