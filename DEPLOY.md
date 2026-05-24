@@ -368,6 +368,7 @@ Common optional controls:
 | `SERVERMON_NETWORK_MOCK`        | Set to `1` to use mocked network speedtest data                         | unset                             |
 | `SERVERMON_DOCKER_MOCK`         | Set to `1` to use mocked Docker data                                    | unset                             |
 | `SERVERMON_FIREWALL_MOCK`       | Set to `1` to use mocked firewall posture data                          | unset                             |
+| `SERVERMON_SKIP_STARTUP_JOBS`   | Set to `1` to skip startup jobs (stale session cleanup and schedulers)   | `unset`                           |
 | `SERVERMON_BRANDING_MOCK`       | Set to `1` to use default branding without MongoDB                      | unset                             |
 | `WEBAUTHN_RP_ID`                | Override the passkey relying party ID                                   | request host                      |
 | `WEBAUTHN_ORIGIN`               | Override the expected passkey browser origin                            | request origin                    |
