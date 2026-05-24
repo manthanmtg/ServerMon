@@ -1,6 +1,6 @@
 'use client';
 
-import { Fragment } from 'react';
+import { Fragment, memo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Check,
@@ -24,18 +24,18 @@ import { LiveCountdown } from './LiveTime';
 interface CronJobRowProps {
   job: CronJob;
   isExpanded: boolean;
-  onToggleExpand: () => void;
+  onToggleExpand: (jobId: string) => void;
   onToggle: (job: CronJob) => void;
   onEdit: (job: CronJob) => void;
   onRun: (job: CronJob) => void;
   onDelete: (job: CronJob) => void;
-  onCopy: (expr: string, id: string) => void;
+  onCopy: (job: CronJob) => void;
   copiedId: string | null;
   pendingAction: string | null;
   onShowOutput: (run: CronRunStatus) => void;
 }
 
-export function CronJobRow({
+export const CronJobRow = memo(function CronJobRow({
   job,
   isExpanded,
   onToggleExpand,
@@ -59,10 +59,10 @@ export function CronJobRow({
       >
         <td className="py-3 px-4">
           <motion.button
-            type="button"
-            aria-expanded={isExpanded}
-            aria-label={`${isExpanded ? 'Hide' : 'Show'} next runs for ${job.command}`}
-            onClick={onToggleExpand}
+              type="button"
+              aria-expanded={isExpanded}
+              aria-label={`${isExpanded ? 'Hide' : 'Show'} next runs for ${job.command}`}
+              onClick={() => onToggleExpand(job.id)}
             whileHover={{ scale: 1.1 }}
             whileTap={{ scale: 0.9 }}
             className="p-1.5 rounded hover:bg-accent transition-colors flex items-center justify-center min-h-[44px] min-w-[44px] sm:min-h-[32px] sm:min-w-[32px]"
@@ -86,7 +86,7 @@ export function CronJobRow({
             </code>
             <motion.button
               type="button"
-              onClick={() => onCopy(job.expression, job.id)}
+              onClick={() => onCopy(job)}
               whileHover={{ scale: 1.1 }}
               whileTap={{ scale: 0.9 }}
               className="p-1.5 rounded hover:bg-accent transition-colors flex items-center justify-center min-h-[44px] min-w-[44px] sm:min-h-[32px] sm:min-w-[32px]"
@@ -268,4 +268,6 @@ export function CronJobRow({
       </AnimatePresence>
     </Fragment>
   );
-}
+});
+
+CronJobRow.displayName = 'CronJobRow';

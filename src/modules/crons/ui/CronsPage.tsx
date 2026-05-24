@@ -189,19 +189,46 @@ export default function CronsPage() {
     return sorted;
   }, [snapshot, filterSource, filterStatus, search, sortField, sortDir]);
 
-  function toggleSort(field: SortField) {
+  const toggleSort = useCallback((field: SortField) => {
     if (sortField === field) {
       setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
     } else {
       setSortField(field);
       setSortDir(field === 'command' ? 'asc' : 'desc');
     }
-  }
+  }, [sortField]);
 
-  const renderSortIcon = (field: SortField) => {
+  const renderSortIcon = useCallback((field: SortField) => {
     if (sortField !== field) return <ArrowUpDown className="w-3 h-3 text-muted-foreground/50" />;
     return sortDir === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />;
-  };
+  }, [sortDir, sortField]);
+
+  const toggleExpandedJob = useCallback((jobId: string) => {
+    setExpandedJob((current) => (current === jobId ? null : jobId));
+  }, []);
+
+  const openToggleModal = useCallback((job: CronJob) => {
+    setConfirmToggle(job);
+  }, []);
+
+  const openEditModal = useCallback((job: CronJob) => {
+    setModal({ mode: 'edit', job });
+  }, []);
+
+  const openRunModal = useCallback((job: CronJob) => {
+    setConfirmRun(job);
+  }, []);
+
+  const openDeleteModal = useCallback((job: CronJob) => {
+    setConfirmDelete(job);
+  }, []);
+
+  const copyExpression = useCallback((job: CronJob) => {
+    navigator.clipboard.writeText(job.expression).then(() => {
+      setCopiedId(job.id);
+      setTimeout(() => setCopiedId(null), 1500);
+    });
+  }, []);
 
   async function toggleJob(job: CronJob) {
     setConfirmToggle(null);
@@ -354,13 +381,6 @@ export default function CronsPage() {
     toast({ title: 'Job updated', description: result.message, variant: 'success' });
     setModal(null);
     await loadSnapshot();
-  }
-
-  function copyExpression(expr: string, id: string) {
-    navigator.clipboard.writeText(expr).then(() => {
-      setCopiedId(id);
-      setTimeout(() => setCopiedId(null), 1500);
-    });
   }
 
   if (loading) {
@@ -573,11 +593,11 @@ export default function CronsPage() {
                       key={job.id}
                       job={job}
                       isExpanded={expandedJob === job.id}
-                      onToggleExpand={() => setExpandedJob(expandedJob === job.id ? null : job.id)}
-                      onToggle={setConfirmToggle}
-                      onEdit={(j) => setModal({ mode: 'edit', job: j })}
-                      onRun={setConfirmRun}
-                      onDelete={setConfirmDelete}
+                      onToggleExpand={toggleExpandedJob}
+                      onToggle={openToggleModal}
+                      onEdit={openEditModal}
+                      onRun={openRunModal}
+                      onDelete={openDeleteModal}
                       onCopy={copyExpression}
                       copiedId={copiedId}
                       pendingAction={pendingAction}
