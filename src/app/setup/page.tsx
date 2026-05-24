@@ -19,6 +19,59 @@ export default function SetupPage() {
   const [totpToken, setTotpToken] = useState('');
   const router = useRouter();
 
+  const REQUEST_TIMEOUT_MS = 15000;
+
+  type SetupInitResponse = {
+    secret?: string;
+    qrCode?: string;
+    error?: string;
+  };
+
+  type SetupCompleteResponse = {
+    success?: boolean;
+    error?: string;
+  };
+
+  const parseJsonSafely = <T,>(body: string): T | null => {
+    if (!body) return null;
+    try {
+      return JSON.parse(body) as T;
+    } catch {
+      return null;
+    }
+  };
+
+  const fetchWithTimeout = async <T,>(
+    input: RequestInfo | URL,
+    init: RequestInit,
+    timeoutMs = REQUEST_TIMEOUT_MS
+  ): Promise<{ response: Response; payload: T | null }> => {
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
+
+    try {
+      const response = await fetch(input, { ...init, signal: controller.signal });
+      const body = await response.text();
+      return { response, payload: parseJsonSafely<T>(body) };
+    } catch (error: unknown) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw new Error(`Request timed out after ${timeoutMs}ms`);
+      }
+      throw error;
+    } finally {
+      clearTimeout(timeout);
+    }
+  };
+
+  const getErrorMessage = <T,>(payload: T | null, fallback: string): string => {
+    if (!payload || typeof payload !== 'object' || payload === null) return fallback;
+    const maybeError =
+      'error' in payload && typeof (payload as Record<string, unknown>).error === 'string'
+        ? ((payload as Record<string, unknown>).error as string)
+        : '';
+    return maybeError || fallback;
+  };
+
   const handleCreateAdmin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (password !== confirmPassword) {
@@ -34,15 +87,22 @@ export default function SetupPage() {
     setError('');
 
     try {
-      const res = await fetch('/api/setup/init', {
+      const { response, payload } = await fetchWithTimeout<SetupInitResponse>('/api/setup/init', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
-      setTotpSecret(data.secret);
-      setQrCode(data.qrCode);
+
+      if (!response.ok) {
+        throw new Error(getErrorMessage(payload, `Failed to start setup (HTTP ${response.status})`));
+      }
+
+      if (typeof payload?.secret !== 'string' || typeof payload.qrCode !== 'string') {
+        throw new Error('Setup response was missing expected setup data');
+      }
+
+      setTotpSecret(payload.secret);
+      setQrCode(payload.qrCode);
       setStep(2);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Setup failed');
@@ -57,15 +117,18 @@ export default function SetupPage() {
     setError('');
 
     try {
-      const res = await fetch('/api/setup/complete', {
+      const { response, payload } = await fetchWithTimeout<SetupCompleteResponse>('/api/setup/complete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password, totpSecret, totpToken }),
       });
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error);
+
+      if (!response.ok) {
+        throw new Error(
+          getErrorMessage(payload, `Failed to complete setup (HTTP ${response.status})`)
+        );
       }
+
       setStep(3);
       setTimeout(() => router.push('/login'), 2500);
     } catch (err: unknown) {
