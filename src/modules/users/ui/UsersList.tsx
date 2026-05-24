@@ -52,7 +52,7 @@ export function UsersList({
                 <button
                   aria-label={`Delete user ${user.username}`}
                   onClick={() => onDeleteUser(activeTab, getUserKey(user))}
-                  className="p-2 rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-all"
+                  className="h-11 w-11 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-all sm:h-auto sm:w-auto sm:min-h-0 sm:min-w-0"
                 >
                   <Trash2 className="w-4 h-4" />
                 </button>
@@ -181,7 +181,7 @@ export function UsersList({
                         data-testid="delete-user-btn"
                         aria-label={`Delete user ${user.username}`}
                         onClick={() => onDeleteUser(activeTab, getUserKey(user))}
-                        className="p-2 rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-all"
+                        className="h-11 w-11 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-all sm:h-auto sm:w-auto sm:min-h-0 sm:min-w-0"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
