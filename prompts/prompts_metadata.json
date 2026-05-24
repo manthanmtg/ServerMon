@@ -218,13 +218,14 @@
       "category": "security",
       "enabled": true,
       "autonomousSafe": true,
-      "totalSelected": 25,
-      "totalCompleted": 24,
+      "totalSelected": 26,
+      "totalCompleted": 25,
       "totalNoop": 0,
       "totalFailed": 1,
-      "lastSelectedAt": "2026-05-24T08:00:54.962Z",
-      "lastCompletedAt": "2026-05-24T08:01:21.281Z",
-      "lastOutcome": "completed"
+      "lastSelectedAt": "2026-05-24T08:02:59.712Z",
+      "lastCompletedAt": "2026-05-24T08:03:09.067Z",
+      "lastOutcome": "completed",
+      "updatedAt": "2026-05-24T08:03:09.067Z"
     },
     "state_management_optimizer.md": {
       "id": "state-management-optimizer",
@@ -318,5 +319,5 @@
       "lastOutcome": "completed"
     }
   },
-  "updatedAt": "2026-05-24T08:01:21.281Z"
+  "updatedAt": "2026-05-24T08:03:09.067Z"
 }

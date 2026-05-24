@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createLogger } from '@/lib/logger';
 import { updateService } from '@/lib/updates/service';
+import { getSession } from '@/lib/session';
 
 export const dynamic = 'force-dynamic';
 
@@ -8,6 +9,11 @@ const log = createLogger('api:updates');
 
 export async function GET() {
   try {
+    const session = await getSession();
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const snapshot = await updateService.getSnapshot();
     return NextResponse.json(snapshot);
   } catch (error) {
@@ -18,6 +24,11 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
+    const session = await getSession();
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const body = await request.json().catch(() => ({}));
     const snapshot = await updateService.getSnapshot(body.force === true);
     return NextResponse.json(snapshot);
