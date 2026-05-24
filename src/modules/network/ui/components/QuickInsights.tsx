@@ -1,41 +1,11 @@
+import { memo, useMemo } from 'react';
 import { Activity, Globe, Network, Shield } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { formatBytes } from '@/lib/utils';
 import type { NetworkSnapshot } from '../../types';
 
-export function QuickInsights({ snapshot }: { snapshot: NetworkSnapshot | null }) {
-  const metrics = [
-    {
-      label: 'Avg Throughput',
-      icon: Activity,
-      value: `${formatBytes((snapshot?.stats || []).reduce((acc, stat) => acc + stat.rx_sec + stat.tx_sec, 0))}/s`,
-      tone: 'primary',
-    },
-    {
-      label: 'Interfaces',
-      icon: Network,
-      value: `${snapshot?.interfaces.length || 0}`,
-      tone: 'success',
-    },
-    {
-      label: 'Total Connections',
-      icon: Globe,
-      value: `${snapshot?.connections.length || 0}`,
-      tone: 'accent',
-    },
-    {
-      label: 'Errors/Drops',
-      icon: Shield,
-      value: `${(snapshot?.stats || []).reduce(
-        (acc, stat) => acc + stat.rx_errors + stat.tx_errors + stat.rx_dropped + stat.tx_dropped,
-        0
-      )}`,
-      tone: 'destructive',
-    },
-  ];
-
-  const toneClasses: Record<string, { icon: string; glow: string; hover: string }> = {
+const toneClasses: Record<string, { icon: string; glow: string; hover: string }> = {
     primary: {
       icon: 'text-primary',
       glow: 'bg-primary/12',
@@ -57,6 +27,41 @@ export function QuickInsights({ snapshot }: { snapshot: NetworkSnapshot | null }
       hover: 'hover:border-destructive/45 hover:bg-muted/50',
     },
   };
+
+export const QuickInsights = memo(({ snapshot }: { snapshot: NetworkSnapshot | null }) => {
+  const metrics = useMemo(() => {
+    const stats = snapshot?.stats || [];
+
+    return [
+      {
+        label: 'Avg Throughput',
+        icon: Activity,
+        value: `${formatBytes(stats.reduce((acc, stat) => acc + stat.rx_sec + stat.tx_sec, 0))}/s`,
+        tone: 'primary',
+      },
+      {
+        label: 'Interfaces',
+        icon: Network,
+        value: `${snapshot?.interfaces.length || 0}`,
+        tone: 'success',
+      },
+      {
+        label: 'Total Connections',
+        icon: Globe,
+        value: `${snapshot?.connections.length || 0}`,
+        tone: 'accent',
+      },
+      {
+        label: 'Errors/Drops',
+        icon: Shield,
+        value: `${stats.reduce(
+          (acc, stat) => acc + stat.rx_errors + stat.tx_errors + stat.rx_dropped + stat.tx_dropped,
+          0
+        )}`,
+        tone: 'destructive',
+      },
+    ];
+  }, [snapshot]);
 
   return (
     <Card className="border-border/60">
@@ -91,4 +96,6 @@ export function QuickInsights({ snapshot }: { snapshot: NetworkSnapshot | null }
       </CardContent>
     </Card>
   );
-}
+});
+
+QuickInsights.displayName = 'QuickInsights';
