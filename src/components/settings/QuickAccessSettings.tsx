@@ -106,11 +106,11 @@ export default function QuickAccessSettings() {
     });
   }, []);
 
-  const handleDragStart = (index: number) => {
+  const handleDragStart = useCallback((index: number) => {
     dragIndex.current = index;
-  };
+  }, []);
 
-  const handleDragOver = (e: React.DragEvent, targetIndex: number) => {
+  const handleDragOver = useCallback((e: React.DragEvent, targetIndex: number) => {
     e.preventDefault();
     const src = dragIndex.current;
     if (src === null || src === targetIndex) return;
@@ -121,13 +121,13 @@ export default function QuickAccessSettings() {
       return next;
     });
     dragIndex.current = targetIndex;
-  };
+  }, []);
 
-  const handleDragEnd = () => {
+  const handleDragEnd = useCallback(() => {
     dragIndex.current = null;
-  };
+  }, []);
 
-  const handleSave = async () => {
+  const handleSave = useCallback(async () => {
     setIsSaving(true);
     try {
       const items: QuickAccessItem[] = enabledIds
@@ -164,7 +164,7 @@ export default function QuickAccessSettings() {
     } finally {
       setIsSaving(false);
     }
-  };
+  }, [enabledIds, toast]);
 
   return (
     <Card>
