@@ -82,6 +82,23 @@ describe('AnalyticsService', () => {
       expect(mockSave).toHaveBeenCalledOnce();
     });
 
+    it('omits metadata when it is not provided', async () => {
+      await analyticsService.track({ moduleId: 'ui', event: 'page_view' });
+
+      const eventArgs = vi.mocked(AnalyticsEvent).mock.calls.at(-1)?.[0] as Record<string, unknown>;
+      expect(eventArgs).toBeDefined();
+      expect(eventArgs).not.toHaveProperty('metadata');
+      expect(mockSave).toHaveBeenCalledOnce();
+    });
+
+    it('tracks repeated events by creating a new event instance each call', async () => {
+      await analyticsService.track({ moduleId: 'flows', event: 'start' });
+      await analyticsService.track({ moduleId: 'flows', event: 'stop' });
+
+      expect(AnalyticsEvent).toHaveBeenCalledTimes(2);
+      expect(mockSave).toHaveBeenCalledTimes(2);
+    });
+
     it('attaches a timestamp to every tracked event', async () => {
       const before = new Date();
       await analyticsService.track({ moduleId: 'health', event: 'check' });
@@ -131,11 +148,51 @@ describe('AnalyticsService', () => {
       expect(result).toEqual(mockEvents);
     });
 
+    it('uses the default limit of 50 when not provided', async () => {
+      await analyticsService.getRecentEvents();
+      const chain = mockFind.mock.results[0]?.value as {
+        sort: ReturnType<typeof vi.fn>;
+        limit: ReturnType<typeof vi.fn>;
+      };
+
+      expect(chain.limit).toHaveBeenCalledWith(50);
+      expect(chain.sort).toHaveBeenCalledWith({ timestamp: -1 });
+    });
+
+    it('passes explicit limit to the query chain', async () => {
+      await analyticsService.getRecentEvents(7);
+      const chain = mockFind.mock.results[0]?.value as {
+        sort: ReturnType<typeof vi.fn>;
+        limit: ReturnType<typeof vi.fn>;
+      };
+
+      expect(chain.limit).toHaveBeenCalledWith(7);
+    });
+
     it('passes the filter object to AnalyticsEvent.find', async () => {
       const filter = { moduleId: 'auth', severity: 'error' };
       await analyticsService.getRecentEvents(5, filter);
 
       expect(mockFind).toHaveBeenCalledWith(filter);
+    });
+
+    it('applies sort and limit before returning lean result', async () => {
+      const mockEvents = [{ moduleId: 'db', event: 'connect' }];
+      mockLean.mockResolvedValueOnce(mockEvents);
+      await analyticsService.getRecentEvents(3, { moduleId: 'db' });
+
+      const chain = mockFind.mock.results[0]?.value as {
+        sort: ReturnType<typeof vi.fn>;
+        limit: ReturnType<typeof vi.fn>;
+        lean: ReturnType<typeof vi.fn>;
+      };
+
+      expect(chain.sort).toHaveBeenCalledOnce();
+      expect(chain.limit).toHaveBeenCalledWith(3);
+      expect(chain.lean).toHaveBeenCalledOnce();
+      expect(mockFind).toHaveBeenCalledWith({ moduleId: 'db' });
+      expect(chain.sort.mock.invocationCallOrder[0]).toBeLessThan(chain.limit.mock.invocationCallOrder[0]);
+      expect(chain.limit.mock.invocationCallOrder[0]).toBeLessThan(chain.lean.mock.invocationCallOrder[0]);
     });
 
     it('uses an empty filter by default', async () => {
