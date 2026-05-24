@@ -359,6 +359,7 @@ export default function SettingsPage() {
                   <button
                     type="button"
                     onClick={() => setHistoryType('all')}
+                    aria-label="View update history"
                     className="flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-background text-foreground transition-all hover:bg-accent"
                     title="View update history"
                   >
