@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { memo, useEffect, useMemo, useState } from 'react';
 import { Info, AlertTriangle, XCircle, Clock, Search } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Spinner } from '@/components/ui/spinner';
@@ -21,6 +21,8 @@ type SearchableLogEntry = LogEntry & {
   eventLower: string;
   moduleLower: string;
   metadataJson: string;
+  displayTime: string;
+  displayTimeWithSeconds: string;
 };
 
 const FILTER_OPTIONS: { label: string; value: FilterType }[] = [
@@ -47,12 +49,24 @@ const severityConfig = {
 };
 
 export function buildSearchableLogEntries(logs: LogEntry[]): SearchableLogEntry[] {
-  return logs.map((log) => ({
-    ...log,
-    eventLower: log.event.toLowerCase(),
-    moduleLower: log.moduleId.toLowerCase(),
-    metadataJson: JSON.stringify(log.metadata),
-  }));
+  return logs.map((log) => {
+    const timestampDate = new Date(log.timestamp);
+    return {
+      ...log,
+      eventLower: log.event.toLowerCase(),
+      moduleLower: log.moduleId.toLowerCase(),
+      metadataJson: JSON.stringify(log.metadata),
+      displayTime: timestampDate.toLocaleTimeString([], {
+        hour: '2-digit',
+        minute: '2-digit',
+      }),
+      displayTimeWithSeconds: timestampDate.toLocaleTimeString([], {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+      }),
+    };
+  });
 }
 
 export function getFilteredLogs(
@@ -74,7 +88,7 @@ export function getFilteredLogs(
   });
 }
 
-function MobileLogCard({ log }: { log: LogEntry }) {
+const MobileLogCard = memo(function MobileLogCard({ log }: { log: SearchableLogEntry }) {
   const config = severityConfig[log.severity] || severityConfig.info;
   const Icon = config.icon;
   return (
@@ -87,17 +101,42 @@ function MobileLogCard({ log }: { log: LogEntry }) {
             <span className="text-xs text-muted-foreground capitalize">{log.moduleId}</span>
             <span className="text-muted-foreground/30">·</span>
             <span className="text-xs text-muted-foreground">
-              {new Date(log.timestamp).toLocaleTimeString([], {
-                hour: '2-digit',
-                minute: '2-digit',
-              })}
+              {log.displayTime}
             </span>
           </div>
         </div>
       </div>
     </div>
   );
-}
+});
+
+const LogTableRow = memo(function LogTableRow({ log }: { log: SearchableLogEntry }) {
+  const config = severityConfig[log.severity] || severityConfig.info;
+  return (
+    <tr className="border-b border-border last:border-0 hover:bg-accent/50 transition-colors">
+      <td className="px-4 py-3">
+        <Badge variant={config.variant}>{config.label}</Badge>
+      </td>
+      <td className="px-4 py-3">
+        <span className="text-sm text-muted-foreground capitalize">{log.moduleId}</span>
+      </td>
+      <td className="px-4 py-3">
+        <span className="text-sm text-foreground">{log.event}</span>
+      </td>
+      <td className="px-4 py-3 hidden lg:table-cell">
+        <span className="text-xs font-mono text-muted-foreground truncate block max-w-[200px]">
+          {log.metadataJson}
+        </span>
+      </td>
+      <td className="px-4 py-3 text-right">
+        <span className="text-xs text-muted-foreground flex items-center justify-end gap-1 whitespace-nowrap">
+          <Clock className="w-3 h-3" />
+          {log.displayTimeWithSeconds}
+        </span>
+      </td>
+    </tr>
+  );
+});
 
 export default function LogsPage() {
   const [logs, setLogs] = useState<LogEntry[]>([]);
@@ -217,42 +256,9 @@ export default function LogsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map((log) => {
-                    const config = severityConfig[log.severity] || severityConfig.info;
-                    return (
-                      <tr
-                        key={log._id}
-                        className="border-b border-border last:border-0 hover:bg-accent/50 transition-colors"
-                      >
-                        <td className="px-4 py-3">
-                          <Badge variant={config.variant}>{config.label}</Badge>
-                        </td>
-                        <td className="px-4 py-3">
-                          <span className="text-sm text-muted-foreground capitalize">
-                            {log.moduleId}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3">
-                          <span className="text-sm text-foreground">{log.event}</span>
-                        </td>
-                        <td className="px-4 py-3 hidden lg:table-cell">
-                          <span className="text-xs font-mono text-muted-foreground truncate block max-w-[200px]">
-                            {log.metadataJson}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-right">
-                          <span className="text-xs text-muted-foreground flex items-center justify-end gap-1 whitespace-nowrap">
-                            <Clock className="w-3 h-3" />
-                            {new Date(log.timestamp).toLocaleTimeString([], {
-                              hour: '2-digit',
-                              minute: '2-digit',
-                              second: '2-digit',
-                            })}
-                          </span>
-                        </td>
-                      </tr>
-                    );
-                  })}
+                  {filtered.map((log) => (
+                    <LogTableRow key={log._id} log={log} />
+                  ))}
                 </tbody>
               </table>
             </div>
