@@ -1,10 +1,13 @@
 'use client';
 import { useEffect, useMemo, useState } from 'react';
+import { motion } from 'framer-motion';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Spinner } from '@/components/ui/spinner';
 import { Badge } from '@/components/ui/badge';
+
+const MotionCard = motion.create('div');
 
 interface ProxyRule {
   name: string;
@@ -229,9 +232,12 @@ export function ProxyRuleTable({ nodeId }: { nodeId: string }) {
             </div>
             <div className="grid gap-2">
               {proxySuggestions.map((candidate) => (
-                <div
+                <MotionCard
+                  whileHover={{ y: -1 }}
+                  whileTap={{ y: 0 }}
                   key={candidate.id}
-                  className="flex flex-col gap-2 rounded border border-border bg-card p-2 md:flex-row md:items-center md:justify-between"
+                  transition={{ type: 'spring', stiffness: 300, damping: 22, mass: 0.5 }}
+                  className="flex flex-col gap-2 rounded border border-border bg-card p-2 transition-all duration-200 hover:border-primary/70 hover:bg-card/80 md:flex-row md:items-center md:justify-between"
                 >
                   <div className="min-w-0 space-y-1">
                     <div className="flex flex-wrap items-center gap-2">
@@ -253,15 +259,18 @@ export function ProxyRuleTable({ nodeId }: { nodeId: string }) {
                   >
                     Add proxy
                   </Button>
-                </div>
+                </MotionCard>
               ))}
             </div>
           </section>
         )}
         {rules.map((r, i) => (
-          <div
+          <MotionCard
             key={i}
-            className="rounded border border-border p-2 space-y-2"
+            whileHover={{ y: -1 }}
+            whileTap={{ y: 0 }}
+            transition={{ type: 'spring', stiffness: 280, damping: 24, mass: 0.5 }}
+            className="rounded border border-border p-2 space-y-2 transition-all duration-200 hover:border-primary/50 hover:bg-card/50 hover:shadow-sm"
             data-testid={`proxy-rule-${i}`}
           >
             <div className="grid grid-cols-2 md:grid-cols-6 gap-2">
@@ -275,7 +284,7 @@ export function ProxyRuleTable({ nodeId }: { nodeId: string }) {
                 value={r.type}
                 onChange={(e) => update(i, { type: e.target.value as ProxyRule['type'] })}
                 aria-label={`Rule ${i + 1} type`}
-                className="h-10 rounded-md border border-input bg-background px-2 text-sm"
+                className="h-10 rounded-md border border-input bg-background px-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               >
                 {(['tcp', 'http', 'https', 'udp', 'stcp', 'xtcp'] as const).map((t) => (
                   <option key={t} value={t}>
@@ -334,11 +343,12 @@ export function ProxyRuleTable({ nodeId }: { nodeId: string }) {
                 type="button"
                 onClick={() => remove(i)}
                 aria-label={`Remove rule ${i + 1}`}
+                className="hover:bg-destructive/10 focus-visible:ring-destructive/40 active:translate-y-px"
               >
                 Remove
               </Button>
             </div>
-          </div>
+          </MotionCard>
         ))}
       </CardContent>
     </Card>
