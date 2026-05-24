@@ -53,6 +53,24 @@ interface Props {
 
 type PanelTab = 'status' | null;
 
+interface GitActionBarProps {
+  dirty: boolean;
+  behind: number;
+  busy: string | null;
+  stagedCount: number;
+  onShowHistory: () => void;
+  onToggleCommit: () => void;
+  doAction: (action: string, extra?: Record<string, string>, label?: string) => Promise<void>;
+}
+
+interface GitCommitFormProps {
+  commitMsg: string;
+  onCommitMsgChange: (value: string) => void;
+  onSubmit: (event: FormEvent) => void;
+  onCancel: () => void;
+  isBusy: boolean;
+}
+
 interface BranchSwitcherProps {
   branch: string;
   branches: string[];
@@ -82,6 +100,112 @@ interface GitStatusSectionProps {
   busy: string | null;
   action?: GitStatusSectionAction;
   getActions: (file: GitFileStatus) => FileAction[];
+}
+
+function GitActionBar({
+  dirty,
+  behind,
+  busy,
+  stagedCount,
+  onShowHistory,
+  onToggleCommit,
+  doAction,
+}: GitActionBarProps) {
+  return (
+    <div className="ml-auto flex items-center gap-1.5 shrink-0">
+      {dirty && (
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-7 px-2 text-[10px] font-bold uppercase tracking-wider text-destructive hover:bg-destructive/10"
+          disabled={Boolean(busy)}
+          onClick={() => doAction('discard-all', {}, 'Discarded all changes')}
+          title="Discard all changes"
+        >
+          {busy === 'discard-all' ? <LoaderCircle className="w-3 h-3 animate-spin" /> : <RotateCcw className="w-3 h-3" />}
+          <span className="hidden sm:inline ml-1">Reset</span>
+        </Button>
+      )}
+      <button
+        type="button"
+        onClick={() => onShowHistory()}
+        className="flex items-center gap-1.5 rounded-xl border border-border/60 bg-background px-3 py-1.5 font-bold text-[10px] uppercase tracking-wider text-muted-foreground transition-all hover:bg-accent hover:text-foreground hover:shadow-sm active:scale-95"
+      >
+        <History className="w-3.5 h-3.5" />
+        History
+      </button>
+      <button
+        type="button"
+        disabled={Boolean(busy)}
+        onClick={() => doAction('fetch', {}, 'Fetched')}
+        className="flex items-center gap-1.5 rounded-xl border border-border/60 bg-background px-3 py-1.5 font-bold text-[10px] uppercase tracking-wider text-muted-foreground transition-all hover:bg-accent hover:text-foreground hover:shadow-sm active:scale-95 disabled:opacity-50"
+      >
+        {busy === 'fetch' ? <LoaderCircle className="w-3.5 h-3.5 animate-spin" /> : <RefreshCcw className="w-3.5 h-3.5" />}
+        Fetch
+      </button>
+      {behind > 0 && (
+        <button
+          type="button"
+          disabled={Boolean(busy)}
+          onClick={() => doAction('pull', {}, 'Pulled')}
+          className="flex items-center gap-1.5 rounded-xl border border-border/60 bg-background px-3 py-1.5 font-bold text-[10px] uppercase tracking-wider text-muted-foreground transition-all hover:bg-accent hover:text-foreground hover:shadow-sm active:scale-95 disabled:opacity-50"
+        >
+          {busy === 'pull' ? <LoaderCircle className="w-3.5 h-3.5 animate-spin" /> : <ArrowDown className="w-3.5 h-3.5" />}
+          Pull
+        </button>
+      )}
+      <button
+        type="button"
+        disabled={stagedCount === 0}
+        onClick={() => onToggleCommit()}
+        className={cn(
+          'flex items-center gap-1.5 rounded-xl px-3 py-1.5 font-bold text-[10px] uppercase tracking-wider transition-all active:scale-95 disabled:opacity-40',
+          stagedCount > 0
+            ? 'bg-primary text-primary-foreground hover:opacity-90 hover:shadow-md'
+            : 'bg-muted text-muted-foreground'
+        )}
+      >
+        <GitCommit className="w-3.5 h-3.5" />
+        Commit
+        {stagedCount > 0 && (
+          <span className="bg-primary-foreground/20 rounded-md px-1 text-[9px]">
+            {stagedCount}
+          </span>
+        )}
+      </button>
+    </div>
+  );
+}
+
+function GitCommitForm({ commitMsg, onCommitMsgChange, onSubmit, onCancel, isBusy }: GitCommitFormProps) {
+  return (
+    <form
+      onSubmit={onSubmit}
+      className="flex items-center gap-2 px-4 pb-3 animate-in fade-in slide-in-from-top-1 duration-150"
+    >
+      <GitCommit className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+      <input
+        type="text"
+        value={commitMsg}
+        onChange={(e) => onCommitMsgChange(e.target.value)}
+        placeholder="Commit message..."
+        className="flex-1 h-8 rounded-lg border border-border bg-background px-3 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+        autoFocus
+      />
+      <Button
+        type="submit"
+        size="sm"
+        className="h-8 px-3 text-[10px]"
+        disabled={!commitMsg.trim() || isBusy}
+      >
+        {isBusy ? <LoaderCircle className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
+        <span className="ml-1">Commit</span>
+      </Button>
+      <Button type="button" variant="ghost" size="icon" className="h-8 w-8" onClick={() => onCancel()}>
+        <X className="w-3.5 h-3.5" />
+      </Button>
+    </form>
+  );
 }
 
 function GitBranchSwitcher({
@@ -397,127 +521,33 @@ export function FileBrowserGitBar({ git, onRefresh }: Props) {
         )}
 
         {/* Actions */}
-        <div className="ml-auto flex items-center gap-1.5 shrink-0">
-          {git.dirty && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-7 px-2 text-[10px] font-bold uppercase tracking-wider text-destructive hover:bg-destructive/10"
-              disabled={Boolean(busy)}
-              onClick={() => doAction('discard-all', {}, 'Discarded all changes')}
-              title="Discard all changes"
-            >
-              {busy === 'discard-all' ? (
-                <LoaderCircle className="w-3 h-3 animate-spin" />
-              ) : (
-                <RotateCcw className="w-3 h-3" />
-              )}
-              <span className="hidden sm:inline ml-1">Reset</span>
-            </Button>
-          )}
-          <button
-            type="button"
-            onClick={() => {
-              setShowHistory(true);
-              toast({
-                title: 'Git History',
-                description: 'Loading repository log...',
-                variant: 'success',
-              });
-            }}
-            className="flex items-center gap-1.5 rounded-xl border border-border/60 bg-background px-3 py-1.5 font-bold text-[10px] uppercase tracking-wider text-muted-foreground transition-all hover:bg-accent hover:text-foreground hover:shadow-sm active:scale-95"
-          >
-            <History className="w-3.5 h-3.5" />
-            History
-          </button>
-          <button
-            type="button"
-            disabled={Boolean(busy)}
-            onClick={() => doAction('fetch', {}, 'Fetched')}
-            className="flex items-center gap-1.5 rounded-xl border border-border/60 bg-background px-3 py-1.5 font-bold text-[10px] uppercase tracking-wider text-muted-foreground transition-all hover:bg-accent hover:text-foreground hover:shadow-sm active:scale-95 disabled:opacity-50"
-          >
-            {busy === 'fetch' ? (
-              <LoaderCircle className="w-3.5 h-3.5 animate-spin" />
-            ) : (
-              <RefreshCcw className="w-3.5 h-3.5" />
-            )}
-            Fetch
-          </button>
-          {git.behind > 0 && (
-            <button
-              type="button"
-              disabled={Boolean(busy)}
-              onClick={() => doAction('pull', {}, 'Pulled')}
-              className="flex items-center gap-1.5 rounded-xl border border-border/60 bg-background px-3 py-1.5 font-bold text-[10px] uppercase tracking-wider text-muted-foreground transition-all hover:bg-accent hover:text-foreground hover:shadow-sm active:scale-95 disabled:opacity-50"
-            >
-              {busy === 'pull' ? (
-                <LoaderCircle className="w-3.5 h-3.5 animate-spin" />
-              ) : (
-                <ArrowDown className="w-3.5 h-3.5" />
-              )}
-              Pull
-            </button>
-          )}
-          <button
-            type="button"
-            disabled={git.staged.length === 0}
-            onClick={() => setShowCommit(!showCommit)}
-            className={cn(
-              'flex items-center gap-1.5 rounded-xl px-3 py-1.5 font-bold text-[10px] uppercase tracking-wider transition-all active:scale-95 disabled:opacity-40',
-              git.staged.length > 0
-                ? 'bg-primary text-primary-foreground hover:opacity-90 hover:shadow-md'
-                : 'bg-muted text-muted-foreground'
-            )}
-          >
-            <GitCommit className="w-3.5 h-3.5" />
-            Commit
-            {git.staged.length > 0 && (
-              <span className="bg-primary-foreground/20 rounded-md px-1 text-[9px]">
-                {git.staged.length}
-              </span>
-            )}
-          </button>
-        </div>
+        <GitActionBar
+          dirty={git.dirty}
+          behind={git.behind}
+          busy={busy}
+          stagedCount={git.staged.length}
+          doAction={doAction}
+          onShowHistory={() => {
+            setShowHistory(true);
+            toast({
+              title: 'Git History',
+              description: 'Loading repository log...',
+              variant: 'success',
+            });
+          }}
+          onToggleCommit={() => setShowCommit(!showCommit)}
+        />
       </div>
 
       {/* Commit message bar */}
       {showCommit && git.staged.length > 0 && (
-        <form
+        <GitCommitForm
+          commitMsg={commitMsg}
+          onCommitMsgChange={setCommitMsg}
           onSubmit={handleCommit}
-          className="flex items-center gap-2 px-4 pb-3 animate-in fade-in slide-in-from-top-1 duration-150"
-        >
-          <GitCommit className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-          <input
-            type="text"
-            value={commitMsg}
-            onChange={(e) => setCommitMsg(e.target.value)}
-            placeholder="Commit message..."
-            className="flex-1 h-8 rounded-lg border border-border bg-background px-3 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-            autoFocus
-          />
-          <Button
-            type="submit"
-            size="sm"
-            className="h-8 px-3 text-[10px]"
-            disabled={!commitMsg.trim() || Boolean(busy)}
-          >
-            {busy === 'commit' ? (
-              <LoaderCircle className="w-3 h-3 animate-spin" />
-            ) : (
-              <Check className="w-3 h-3" />
-            )}
-            <span className="ml-1">Commit</span>
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8"
-            onClick={() => setShowCommit(false)}
-          >
-            <X className="w-3.5 h-3.5" />
-          </Button>
-        </form>
+          onCancel={() => setShowCommit(false)}
+          isBusy={Boolean(busy)}
+        />
       )}
 
       {/* Expandable status panel */}
