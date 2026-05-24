@@ -219,12 +219,12 @@
       "enabled": true,
       "autonomousSafe": true,
       "totalSelected": 31,
-      "totalCompleted": 29,
+      "totalCompleted": 30,
       "totalNoop": 0,
       "totalFailed": 1,
       "lastSelectedAt": "2026-05-24T16:58:38.620Z",
-      "lastCompletedAt": "2026-05-24T16:35:28.568Z",
-      "lastOutcome": "selected",
+      "lastCompletedAt": "2026-05-24T16:59:20.870Z",
+      "lastOutcome": "completed",
       "updatedAt": "2026-05-24T16:35:28.568Z"
     },
     "state_management_optimizer.md": {
@@ -321,5 +321,5 @@
       "updatedAt": "2026-05-24T16:56:00.287Z"
     }
   },
-  "updatedAt": "2026-05-24T16:58:38.620Z"
+  "updatedAt": "2026-05-24T16:59:20.870Z"
 }
