@@ -73,7 +73,7 @@ describe('PortsWidget', () => {
     });
 
     await waitFor(() => {
-      expect(screen.queryByRole('img', { hidden: true })).toBeNull();
+      expect(screen.getByText(/Unable to refresh port data/i)).toBeTruthy();
     });
   });
 });

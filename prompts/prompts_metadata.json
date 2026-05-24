@@ -190,12 +190,12 @@
       "enabled": true,
       "autonomousSafe": true,
       "totalSelected": 41,
-      "totalCompleted": 39,
+      "totalCompleted": 40,
       "totalNoop": 0,
       "totalFailed": 1,
       "lastSelectedAt": "2026-05-24T13:05:58.305Z",
-      "lastCompletedAt": "2026-05-24T12:26:22.760Z",
-      "lastOutcome": "selected",
+      "lastCompletedAt": "2026-05-24T13:08:28.278Z",
+      "lastOutcome": "completed",
       "updatedAt": "2026-05-24T07:00:32.036Z"
     },
     "random_selector.md": {
@@ -323,5 +323,5 @@
       "lastOutcome": "completed"
     }
   },
-  "updatedAt": "2026-05-24T13:05:58.305Z"
+  "updatedAt": "2026-05-24T13:08:28.278Z"
 }
