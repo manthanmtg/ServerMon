@@ -52,6 +52,7 @@ export function RunOutputModal({
           <button
             type="button"
             onClick={onClose}
+            aria-label="Close run output"
             className="p-2 rounded-lg hover:bg-accent transition-colors"
           >
             <X className="w-4 h-4" />
