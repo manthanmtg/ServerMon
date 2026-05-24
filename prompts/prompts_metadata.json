@@ -16,12 +16,12 @@
       "enabled": true,
       "autonomousSafe": true,
       "totalSelected": 35,
-      "totalCompleted": 34,
+      "totalCompleted": 35,
       "totalNoop": 0,
       "totalFailed": 0,
       "lastSelectedAt": "2026-05-24T07:58:10.703Z",
-      "lastCompletedAt": "2026-05-24T07:16:13.025Z",
-      "lastOutcome": "selected",
+      "lastCompletedAt": "2026-05-24T07:58:14.952Z",
+      "lastOutcome": "completed",
       "updatedAt": "2026-05-24T07:16:13.025Z"
     },
     "api_resilience_improver.md": {
@@ -318,5 +318,5 @@
       "lastOutcome": "completed"
     }
   },
-  "updatedAt": "2026-05-24T07:58:10.703Z"
+  "updatedAt": "2026-05-24T07:58:14.952Z"
 }
