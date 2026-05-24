@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Cable,
   Filter,
+  AlertTriangle,
   LoaderCircle,
   Radio,
   RefreshCw,
@@ -110,6 +111,7 @@ function buildSearchableListeningPorts(listening: ListeningPort[]): SearchableLi
 export default function PortsPage() {
   const [snapshot, setSnapshot] = useState<PortsSnapshot | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [protocolFilter, setProtocolFilter] = useState<ProtocolFilter>('all');
 
@@ -120,14 +122,16 @@ export default function PortsPage() {
   const normalizedSearch = useMemo(() => search.trim().toLowerCase(), [search]);
 
   const load = useCallback(async () => {
+    setLoadError(null);
     try {
       const res = await fetch('/api/modules/ports', { cache: 'no-store' });
-      if (res.ok) {
-        const data = await res.json();
-        setSnapshot(data);
+      if (!res.ok) {
+        throw new Error('Unable to load ports data');
       }
+      const data = await res.json();
+      setSnapshot(data);
     } catch {
-      // ignore
+      setLoadError('Unable to load ports data. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -148,6 +152,24 @@ export default function PortsPage() {
     return (
       <div className="flex items-center justify-center py-24">
         <LoaderCircle className="h-6 w-6 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (loadError && !snapshot) {
+    return (
+      <div className="flex items-center justify-center py-24">
+        <div className="border rounded-lg p-6 bg-destructive/10 border-destructive/30 text-center max-w-md">
+          <AlertTriangle className="h-8 w-8 text-destructive mx-auto" />
+          <p className="text-sm mt-3 text-destructive">{loadError}</p>
+          <button
+            type="button"
+            onClick={load}
+            className="mt-4 inline-flex h-11 min-h-[44px] items-center justify-center rounded-lg bg-destructive px-4 text-sm font-medium text-destructive-foreground"
+          >
+            Retry
+          </button>
+        </div>
       </div>
     );
   }
@@ -215,6 +237,15 @@ export default function PortsPage() {
       {/* Listening Ports Table */}
       <Card className="border-border/60">
         <CardHeader className="pb-3">
+          {loadError && (
+            <div
+              role="status"
+              aria-live="polite"
+              className="mb-3 rounded-md bg-warning/10 border border-warning/30 px-3 py-2 text-xs text-warning"
+            >
+              {loadError}
+            </div>
+          )}
           <div className="flex items-center justify-between flex-wrap gap-3">
             <CardTitle className="flex items-center gap-2 text-base">
               <Radio className="w-4 h-4 text-primary" />
