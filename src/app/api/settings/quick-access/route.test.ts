@@ -60,6 +60,27 @@ describe('GET /api/settings/quick-access', () => {
     const json = await res.json();
     expect(json.error).toBe('Failed to fetch settings');
   });
+
+  it('returns empty items when stored settings are missing the items field', async () => {
+    mockFindById.mockReturnValue({
+      lean: () => Promise.resolve({ _id: 'quick-access-settings' }),
+    });
+
+    const res = await GET();
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.items).toEqual([]);
+  });
+
+  it('loads settings by fixed document id', async () => {
+    mockFindById.mockReturnValue({ lean: () => Promise.resolve({ items: [sampleItem] }) });
+
+    const res = await GET();
+    await res.json();
+
+    expect(mockConnectDB).toHaveBeenCalledTimes(1);
+    expect(mockFindById).toHaveBeenCalledWith('quick-access-settings');
+  });
 });
 
 describe('PUT /api/settings/quick-access', () => {
@@ -69,12 +90,88 @@ describe('PUT /api/settings/quick-access', () => {
     mockGetSession.mockResolvedValue(null);
     const res = await PUT(makePutRequest({ items: [] }));
     expect(res.status).toBe(401);
+    expect(mockConnectDB).not.toHaveBeenCalled();
   });
 
   it('returns 401 when not admin', async () => {
     mockGetSession.mockResolvedValue({ user: { role: 'viewer' } });
     const res = await PUT(makePutRequest({ items: [] }));
     expect(res.status).toBe(401);
+    expect(mockConnectDB).not.toHaveBeenCalled();
+  });
+
+  it('returns 400 when item id exceeds 64 chars', async () => {
+    mockGetSession.mockResolvedValue({ user: { role: 'admin' } });
+
+    const res = await PUT(
+      makePutRequest({
+        items: [
+          {
+            ...sampleItem,
+            id: 'a'.repeat(65),
+          },
+        ],
+      })
+    );
+
+    expect(res.status).toBe(400);
+    const json = await res.json();
+    expect(json.error).toBe('Invalid request body');
+  });
+
+  it('returns 400 when label is empty', async () => {
+    mockGetSession.mockResolvedValue({ user: { role: 'admin' } });
+
+    const res = await PUT(
+      makePutRequest({
+        items: [
+          {
+            ...sampleItem,
+            label: '',
+          },
+        ],
+      })
+    );
+
+    expect(res.status).toBe(400);
+    const json = await res.json();
+    expect(json.error).toBe('Invalid request body');
+  });
+
+  it('returns 400 when label is not provided at all', async () => {
+    mockGetSession.mockResolvedValue({ user: { role: 'admin' } });
+
+    const res = await PUT(
+      makePutRequest({
+        items: [
+          {
+            id: 'terminal',
+            href: '/terminal',
+            icon: 'Terminal',
+          },
+        ],
+      })
+    );
+
+    expect(res.status).toBe(400);
+    const json = await res.json();
+    expect(json.error).toBe('Invalid request body');
+  });
+
+  it('returns 500 when request body is invalid JSON', async () => {
+    mockGetSession.mockResolvedValue({ user: { role: 'admin' } });
+
+    const response = await PUT(
+      new Request('http://localhost/api/settings/quick-access', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{',
+      })
+    );
+
+    expect(response.status).toBe(500);
+    const json = await response.json();
+    expect(json.error).toBe('Failed to update settings');
   });
 
   it('returns 400 for invalid body', async () => {
