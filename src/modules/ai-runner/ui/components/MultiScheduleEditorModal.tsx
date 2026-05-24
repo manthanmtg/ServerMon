@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { FileJson, Upload, X } from 'lucide-react';
+import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -278,7 +279,12 @@ export function MultiScheduleEditorModal({
       aria-modal="true"
       aria-labelledby="multi-schedule-editor-title"
     >
-      <div className="flex max-h-[90vh] w-full max-w-6xl flex-col overflow-hidden rounded-[24px] border border-border bg-card shadow-2xl">
+      <motion.div
+        initial={{ opacity: 0, scale: 0.985, y: 10 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        transition={{ duration: 0.2, ease: 'easeOut' }}
+        className="flex max-h-[90vh] w-full max-w-6xl flex-col overflow-hidden rounded-[24px] border border-border bg-card shadow-2xl"
+      >
         <div className="flex items-start justify-between gap-4 border-b border-border/60 px-6 py-5">
           <div>
             <h2 id="multi-schedule-editor-title" className="text-xl font-semibold tracking-tight">
@@ -465,7 +471,7 @@ export function MultiScheduleEditorModal({
             </Button>
           </div>
         </div>
-      </div>
+      </motion.div>
     </div>
   );
 }
