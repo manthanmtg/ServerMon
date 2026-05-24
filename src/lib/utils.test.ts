@@ -315,5 +315,29 @@ describe('utils', () => {
     it('should remove embedded punctuation while preserving word boundaries', () => {
       expect(slugify("Jane's project plan")).toBe('janes-project-plan');
     });
+
+    it('should collapse mixed punctuation, whitespace, and separator runs', () => {
+      expect(slugify('foo--bar___baz')).toBe('foo-bar-baz');
+    });
+
+    it('should remove punctuation-only separators around words', () => {
+      expect(slugify('a!@#b')).toBe('ab');
+    });
+
+    it('should handle emoji and symbol separators as removable characters', () => {
+      expect(slugify('hello 😀 world')).toBe('hello-world');
+    });
+
+    it('should handle newline and tab separators consistently', () => {
+      expect(slugify('  alpha\nbeta\tgamma  ')).toBe('alpha-beta-gamma');
+    });
+
+    it('should preserve version-like text while removing punctuation', () => {
+      expect(slugify('v2.0.1-beta')).toBe('v201-beta');
+    });
+
+    it('should keep repeated version separators normalized to single hyphens', () => {
+      expect(slugify('--release--v3.0---candidate--')).toBe('release-v30-candidate');
+    });
   });
 });
