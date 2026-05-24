@@ -53,6 +53,195 @@ interface Props {
 
 type PanelTab = 'status' | null;
 
+interface BranchSwitcherProps {
+  branch: string;
+  branches: string[];
+  remotes: string[];
+  busy: string | null;
+  showBranches: boolean;
+  branchBtnRef: React.RefObject<HTMLButtonElement | null>;
+  dropdownPos: { top: number; left: number };
+  doAction: (action: string, extra: Record<string, string>, label?: string) => Promise<void>;
+  setShowBranches: (show: boolean) => void;
+}
+
+interface GitStatusSectionAction {
+  icon: React.ReactNode;
+  label: string;
+  onClick: () => Promise<void> | void;
+  className?: string;
+  disabled?: boolean;
+}
+
+interface GitStatusSectionProps {
+  title: string;
+  titleClass: string;
+  bgClass: string;
+  headerIcon: React.ReactElement<{ className?: string }>;
+  files: GitFileStatus[];
+  busy: string | null;
+  action?: GitStatusSectionAction;
+  getActions: (file: GitFileStatus) => FileAction[];
+}
+
+function GitBranchSwitcher({
+  branch,
+  branches,
+  remotes,
+  busy,
+  showBranches,
+  branchBtnRef,
+  dropdownPos,
+  doAction,
+  setShowBranches,
+}: BranchSwitcherProps) {
+  return (
+    <div className="min-w-0">
+      <button
+        ref={branchBtnRef}
+        type="button"
+        onClick={() => setShowBranches(!showBranches)}
+        className="flex items-center gap-2 rounded-xl border border-border/40 bg-background/80 px-3 py-1.5 transition-all hover:bg-accent hover:border-border active:scale-95 min-w-0 max-w-full"
+      >
+        <GitBranch className="w-3.5 h-3.5 text-primary shrink-0" />
+        <span className="font-semibold text-foreground truncate" title={branch}>
+          {branch}
+        </span>
+        <ChevronDown
+          className={cn('w-3 h-3 text-muted-foreground transition-transform shrink-0', showBranches && 'rotate-180')}
+        />
+      </button>
+
+      {showBranches &&
+        createPortal(
+          <>
+            <div className="fixed inset-0 z-[9998]" onClick={() => setShowBranches(false)} />
+            <div
+              className="fixed z-[9999] w-56 max-h-64 overflow-y-auto rounded-xl border border-border shadow-2xl text-xs"
+              style={{
+                top: dropdownPos.top,
+                left: dropdownPos.left,
+                backgroundColor: 'var(--popover)',
+                color: 'var(--popover-foreground)',
+                overscrollBehavior: 'contain',
+              }}
+            >
+              <div className="p-1.5">
+                <p className="px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                  Local
+                </p>
+                {branches.map((b) => (
+                  <button
+                    key={b}
+                    type="button"
+                    disabled={b === branch || Boolean(busy)}
+                    onClick={async () => {
+                      setShowBranches(false);
+                      await doAction('checkout', { branch: b }, `Switched to ${b}`);
+                    }}
+                    className={cn(
+                      'flex items-center gap-2 w-full rounded-lg px-2.5 py-2 text-left transition-colors disabled:cursor-wait disabled:opacity-50',
+                      b === branch
+                        ? 'bg-primary/10 text-primary font-semibold'
+                        : 'hover:bg-accent text-foreground'
+                    )}
+                  >
+                    {b === branch && <Check className="w-3 h-3" />}
+                    <span className={cn('truncate', b !== branch && 'ml-5')}>{b}</span>
+                  </button>
+                ))}
+
+                {remotes.length > 0 && (
+                  <>
+                    <div className="my-1 h-px bg-border" />
+                    <p className="px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                      Remote
+                    </p>
+                    {remotes.map((b) => {
+                      const localName = b.split('/').slice(1).join('/');
+                      return (
+                        <button
+                          key={b}
+                          type="button"
+                          disabled={Boolean(busy)}
+                          onClick={async () => {
+                            setShowBranches(false);
+                            await doAction('checkout', { branch: localName }, `Switched to ${localName}`);
+                          }}
+                          className="flex items-center gap-2 w-full rounded-lg px-2.5 py-2 text-left hover:bg-accent text-muted-foreground transition-colors disabled:cursor-wait disabled:opacity-50"
+                        >
+                          <span className="ml-5 truncate text-[11px]">{b}</span>
+                        </button>
+                      );
+                    })}
+                  </>
+                )}
+              </div>
+            </div>
+          </>,
+          document.body
+        )}
+    </div>
+  );
+}
+
+function GitStatusSection({
+  title,
+  titleClass,
+  bgClass,
+  headerIcon,
+  files,
+  busy,
+  action,
+  getActions,
+}: GitStatusSectionProps) {
+  if (files.length === 0) {
+    return null;
+  }
+
+  const icon = React.cloneElement(headerIcon, {
+    className: cn('w-3 h-3', titleClass, headerIcon.props.className),
+  });
+
+  return (
+    <div>
+      <div className={cn('flex items-center justify-between px-4 py-2', bgClass)}>
+        <div className="flex items-center gap-2">
+          {icon}
+          <span className={cn('text-[10px] font-bold uppercase tracking-widest', titleClass)}>
+            {title} ({files.length})
+          </span>
+        </div>
+
+        {action && (
+          <button
+            type="button"
+            onClick={action.onClick}
+            disabled={Boolean(busy || action.disabled)}
+            className={cn(
+              'flex items-center gap-1.5 text-[10px] font-semibold text-muted-foreground hover:text-foreground transition-colors disabled:cursor-wait disabled:opacity-50',
+              action.className
+            )}
+          >
+            {action.icon}
+            {action.label}
+          </button>
+        )}
+      </div>
+
+      <div className="max-h-32 overflow-y-auto">
+        {files.map((f) => (
+          <FileStatusRow
+            key={`s-${f.path}`}
+            file={f}
+            actions={getActions(f)}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 const STATUS_COLORS: Record<string, string> = {
   modified: 'text-warning',
   added: 'text-success',
@@ -152,96 +341,17 @@ export function FileBrowserGitBar({ git, onRefresh }: Props) {
       {/* Main bar */}
       <div className="flex items-center gap-2 sm:gap-3 px-4 py-3 text-xs">
         {/* Branch with switcher */}
-        <div className="min-w-0">
-          <button
-            ref={branchBtnRef}
-            type="button"
-            onClick={() => setShowBranches(!showBranches)}
-            className="flex items-center gap-2 rounded-xl border border-border/40 bg-background/80 px-3 py-1.5 transition-all hover:bg-accent hover:border-border active:scale-95 min-w-0 max-w-full"
-          >
-            <GitBranch className="w-3.5 h-3.5 text-primary shrink-0" />
-            <span className="font-semibold text-foreground truncate" title={git.branch}>
-              {git.branch}
-            </span>
-            <ChevronDown
-              className={cn(
-                'w-3 h-3 text-muted-foreground transition-transform shrink-0',
-                showBranches && 'rotate-180'
-              )}
-            />
-          </button>
-
-          {showBranches &&
-            createPortal(
-              <>
-                <div className="fixed inset-0 z-[9998]" onClick={() => setShowBranches(false)} />
-                <div
-                  className="fixed z-[9999] w-56 max-h-64 overflow-y-auto rounded-xl border border-border shadow-2xl text-xs"
-                  style={{
-                    top: dropdownPos.top,
-                    left: dropdownPos.left,
-                    backgroundColor: 'var(--popover)',
-                    color: 'var(--popover-foreground)',
-                    overscrollBehavior: 'contain',
-                  }}
-                >
-                  <div className="p-1.5">
-                    <p className="px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-                      Local
-                    </p>
-                    {git.branches.map((b) => (
-                      <button
-                        key={b}
-                        type="button"
-                        disabled={b === git.branch || Boolean(busy)}
-                        onClick={async () => {
-                          setShowBranches(false);
-                          await doAction('checkout', { branch: b }, `Switched to ${b}`);
-                        }}
-                        className={cn(
-                          'flex items-center gap-2 w-full rounded-lg px-2.5 py-2 text-left transition-colors disabled:cursor-wait disabled:opacity-50',
-                          b === git.branch
-                            ? 'bg-primary/10 text-primary font-semibold'
-                            : 'hover:bg-accent text-foreground'
-                        )}
-                      >
-                        {b === git.branch && <Check className="w-3 h-3" />}
-                        <span className={cn('truncate', b !== git.branch && 'ml-5')}>{b}</span>
-                      </button>
-                    ))}
-                    {git.remotes.length > 0 && (
-                      <>
-                        <div className="my-1 h-px bg-border" />
-                        <p className="px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-                          Remote
-                        </p>
-                        {git.remotes.map((b) => (
-                          <button
-                            key={b}
-                            type="button"
-                            disabled={Boolean(busy)}
-                            onClick={async () => {
-                              setShowBranches(false);
-                              const localName = b.split('/').slice(1).join('/');
-                              await doAction(
-                                'checkout',
-                                { branch: localName },
-                                `Switched to ${localName}`
-                              );
-                            }}
-                            className="flex items-center gap-2 w-full rounded-lg px-2.5 py-2 text-left hover:bg-accent text-muted-foreground transition-colors disabled:cursor-wait disabled:opacity-50"
-                          >
-                            <span className="ml-5 truncate text-[11px]">{b}</span>
-                          </button>
-                        ))}
-                      </>
-                    )}
-                  </div>
-                </div>
-              </>,
-              document.body
-            )}
-        </div>
+        <GitBranchSwitcher
+          branch={git.branch}
+          branches={git.branches}
+          remotes={git.remotes}
+          busy={busy}
+          showBranches={showBranches}
+          branchBtnRef={branchBtnRef}
+          dropdownPos={dropdownPos}
+          doAction={doAction}
+          setShowBranches={(show) => setShowBranches(show)}
+        />
 
         <div className="h-4 w-px bg-border hidden lg:block shrink-0" />
 
@@ -413,128 +523,78 @@ export function FileBrowserGitBar({ git, onRefresh }: Props) {
       {/* Expandable status panel */}
       {activeTab === 'status' && git.dirty && (
         <div className="border-t border-border/30 animate-in fade-in slide-in-from-top-1 duration-150">
-          {/* Staged files */}
-          {git.staged.length > 0 && (
-            <div>
-              <div className="flex items-center justify-between px-4 py-2 bg-success/5">
-                <div className="flex items-center gap-2">
-                  <CircleDot className="w-3 h-3 text-success" />
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-success">
-                    Staged ({git.staged.length})
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => doAction('unstage-all', {}, 'Unstaged all')}
-                  disabled={Boolean(busy)}
-                  className="text-[10px] font-semibold text-muted-foreground hover:text-foreground transition-colors disabled:cursor-wait disabled:opacity-50"
-                >
-                  Unstage All
-                </button>
-              </div>
-              <div className="max-h-32 overflow-y-auto">
-                {git.staged.map((f) => (
-                  <FileStatusRow
-                    key={`s-${f.path}`}
-                    file={f}
-                    actions={[
-                      {
-                        icon: <Minus className="w-3 h-3" />,
-                        title: 'Unstage',
-                        onClick: () => doAction('unstage', { path: f.path }, `Unstaged ${f.path}`),
-                        disabled: Boolean(busy),
-                      },
-                    ]}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
+          <GitStatusSection
+            title="Staged"
+            titleClass="text-success"
+            bgClass="bg-success/5"
+            headerIcon={<CircleDot />}
+            files={git.staged}
+            busy={busy}
+            action={{
+              icon: <Minus className="w-3 h-3" />,
+              label: 'Unstage All',
+              onClick: () => doAction('unstage-all', {}, 'Unstaged all'),
+            }}
+            getActions={(f) => [
+              {
+                icon: <Minus className="w-3 h-3" />,
+                title: 'Unstage',
+                onClick: () => doAction('unstage', { path: f.path }, `Unstaged ${f.path}`),
+                disabled: Boolean(busy),
+              },
+            ]}
+          />
 
-          {/* Unstaged files */}
-          {git.unstaged.length > 0 && (
-            <div>
-              <div className="flex items-center justify-between px-4 py-2 bg-warning/5">
-                <div className="flex items-center gap-2">
-                  <FileText className="w-3 h-3 text-warning" />
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-warning">
-                    Modified ({git.unstaged.length})
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => doAction('stage-all', {}, 'Staged all')}
-                    disabled={Boolean(busy)}
-                    className="text-[10px] font-semibold text-muted-foreground hover:text-foreground transition-colors disabled:cursor-wait disabled:opacity-50"
-                  >
-                    Stage All
-                  </button>
-                </div>
-              </div>
-              <div className="max-h-32 overflow-y-auto">
-                {git.unstaged.map((f) => (
-                  <FileStatusRow
-                    key={`u-${f.path}`}
-                    file={f}
-                    actions={[
-                      {
-                        icon: <Plus className="w-3 h-3" />,
-                        title: 'Stage',
-                        onClick: () => doAction('stage', { path: f.path }, `Staged ${f.path}`),
-                        disabled: Boolean(busy),
-                      },
-                      {
-                        icon: <Undo2 className="w-3 h-3" />,
-                        title: 'Discard',
-                        onClick: () => doAction('discard', { path: f.path }, `Discarded ${f.path}`),
-                        destructive: true,
-                        disabled: Boolean(busy),
-                      },
-                    ]}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
+          <GitStatusSection
+            title="Modified"
+            titleClass="text-warning"
+            bgClass="bg-warning/5"
+            headerIcon={<FileText />}
+            files={git.unstaged}
+            busy={busy}
+            action={{
+              icon: <Plus className="w-3 h-3" />,
+              label: 'Stage All',
+              onClick: () => doAction('stage-all', {}, 'Staged all'),
+            }}
+            getActions={(f) => [
+              {
+                icon: <Plus className="w-3 h-3" />,
+                title: 'Stage',
+                onClick: () => doAction('stage', { path: f.path }, `Staged ${f.path}`),
+                disabled: Boolean(busy),
+              },
+              {
+                icon: <Undo2 className="w-3 h-3" />,
+                title: 'Discard',
+                onClick: () => doAction('discard', { path: f.path }, `Discarded ${f.path}`),
+                destructive: true,
+                disabled: Boolean(busy),
+              },
+            ]}
+          />
 
-          {/* Untracked files */}
-          {git.untracked.length > 0 && (
-            <div>
-              <div className="flex items-center justify-between px-4 py-2 bg-muted/30">
-                <div className="flex items-center gap-2">
-                  <FileText className="w-3 h-3 text-muted-foreground" />
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-                    Untracked ({git.untracked.length})
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => doAction('stage-all', {}, 'Staged all')}
-                  disabled={Boolean(busy)}
-                  className="text-[10px] font-semibold text-muted-foreground hover:text-foreground transition-colors disabled:cursor-wait disabled:opacity-50"
-                >
-                  Stage All
-                </button>
-              </div>
-              <div className="max-h-32 overflow-y-auto">
-                {git.untracked.map((f) => (
-                  <FileStatusRow
-                    key={`?-${f.path}`}
-                    file={f}
-                    actions={[
-                      {
-                        icon: <Plus className="w-3 h-3" />,
-                        title: 'Stage',
-                        onClick: () => doAction('stage', { path: f.path }, `Staged ${f.path}`),
-                        disabled: Boolean(busy),
-                      },
-                    ]}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
+          <GitStatusSection
+            title="Untracked"
+            titleClass="text-muted-foreground"
+            bgClass="bg-muted/30"
+            headerIcon={<FileText />}
+            files={git.untracked}
+            busy={busy}
+            action={{
+              icon: <Plus className="w-3 h-3" />,
+              label: 'Stage All',
+              onClick: () => doAction('stage-all', {}, 'Staged all'),
+            }}
+            getActions={(f) => [
+              {
+                icon: <Plus className="w-3 h-3" />,
+                title: 'Stage',
+                onClick: () => doAction('stage', { path: f.path }, `Staged ${f.path}`),
+                disabled: Boolean(busy),
+              },
+            ]}
+          />
         </div>
       )}
 
