@@ -1,7 +1,7 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { z, ZodError } from 'zod';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { requireSession, parseBody, zodErrorResponse } from './_shared';
+import { type JsonRequest, requireSession, parseBody, zodErrorResponse } from './_shared';
 import { getSession } from '@/lib/session';
 
 vi.mock('@/lib/session', () => ({
@@ -11,13 +11,14 @@ vi.mock('@/lib/session', () => ({
 vi.mock('next/server', () => {
   const jsonMock = vi.fn();
   return {
-    NextResponse: {
+  NextResponse: {
       json: jsonMock,
     },
-    NextRequest: vi.fn().mockImplementation(() => ({
-      json: vi.fn(),
-    })),
   };
+});
+
+const createMockRequest = (jsonValue: unknown): JsonRequest => ({
+  json: vi.fn().mockResolvedValue(jsonValue),
 });
 
 describe('ai-runner _shared utils', () => {
@@ -28,13 +29,14 @@ describe('ai-runner _shared utils', () => {
   describe('requireSession', () => {
     it('returns 401 response if no session exists', async () => {
       vi.mocked(getSession).mockResolvedValueOnce(null);
-      vi.mocked(NextResponse.json).mockReturnValueOnce({ status: 401 } as never);
+      const unauthorizedResponse = new Response(null, { status: 401 });
+      vi.mocked(NextResponse.json).mockReturnValueOnce(unauthorizedResponse);
 
       const response = await requireSession();
 
       expect(getSession).toHaveBeenCalled();
       expect(NextResponse.json).toHaveBeenCalledWith({ error: 'Unauthorized' }, { status: 401 });
-      expect(response).toEqual({ status: 401 });
+      expect(response).toBe(unauthorizedResponse);
     });
 
     it('returns null if session exists', async () => {
@@ -55,9 +57,7 @@ describe('ai-runner _shared utils', () => {
 
     it('parses valid json according to schema', async () => {
       const validData = { name: 'Alice', age: 30 };
-      const req = {
-        json: vi.fn().mockResolvedValueOnce(validData),
-      } as unknown as NextRequest;
+      const req = createMockRequest(validData);
 
       const result = await parseBody(req, schema);
       expect(result).toEqual(validData);
@@ -65,9 +65,7 @@ describe('ai-runner _shared utils', () => {
 
     it('throws ZodError on invalid json', async () => {
       const invalidData = { name: 123 }; // invalid name
-      const req = {
-        json: vi.fn().mockResolvedValueOnce(invalidData),
-      } as unknown as NextRequest;
+      const req = createMockRequest(invalidData);
 
       await expect(parseBody(req, schema)).rejects.toThrow(ZodError);
     });
