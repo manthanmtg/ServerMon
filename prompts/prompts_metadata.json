@@ -93,14 +93,14 @@
       "category": "documentation",
       "enabled": true,
       "autonomousSafe": true,
-      "totalSelected": 34,
+      "totalSelected": 35,
       "totalCompleted": 29,
-      "totalNoop": 5,
+      "totalNoop": 6,
       "totalFailed": 0,
       "lastOutcome": "noop",
-      "lastSelectedAt": "2026-05-24T06:46:37.996Z",
-      "lastCompletedAt": "2026-05-24T06:46:37.996Z",
-      "updatedAt": "2026-05-24T06:46:37.996Z"
+      "lastCompletedAt": "2026-05-24T07:17:38.432Z",
+      "updatedAt": "2026-05-24T06:46:37.996Z",
+      "lastSelectedAt": "2026-05-24T07:17:35.133Z"
     },
     "mobile_view_optimizer.md": {
       "id": "mobile-view-optimizer",
@@ -316,5 +316,5 @@
       "lastOutcome": "completed"
     }
   },
-  "updatedAt": "2026-05-24T07:16:13.025Z"
+  "updatedAt": "2026-05-24T07:17:38.432Z"
 }
