@@ -42,7 +42,7 @@ async function execCmd(cmd: string, args: string[], timeoutMs = 10000): Promise<
     const commandResult = (await execFileAsync(cmd, args, {
       timeout: timeoutMs,
       maxBuffer: 10 * 1024 * 1024,
-    })) as unknown as { stdout?: string | Buffer } | string;
+    })) as { stdout?: string | Buffer } | string;
 
     if (typeof commandResult === 'string') {
       return commandResult;
@@ -62,8 +62,10 @@ async function execCmd(cmd: string, args: string[], timeoutMs = 10000): Promise<
 
     return '';
   } catch (err: unknown) {
-    const error = err as { stdout?: string; stderr?: string };
-    if (error.stdout) return error.stdout;
+    const error = err as { stdout?: string | Buffer; stderr?: string | Buffer };
+    if (error.stdout) {
+      return Buffer.isBuffer(error.stdout) ? error.stdout.toString() : String(error.stdout);
+    }
     throw err;
   }
 }
