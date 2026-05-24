@@ -141,12 +141,12 @@
       "category": "performance",
       "enabled": true,
       "autonomousSafe": true,
-      "totalSelected": 37,
-      "totalCompleted": 36,
+      "totalSelected": 38,
+      "totalCompleted": 37,
       "totalNoop": 0,
       "totalFailed": 1,
-      "lastSelectedAt": "2026-05-24T13:18:22.257Z",
-      "lastCompletedAt": "2026-05-24T13:19:47.064Z",
+      "lastSelectedAt": "2026-05-24T16:40:28.176Z",
+      "lastCompletedAt": "2026-05-24T16:41:52.042Z",
       "lastOutcome": "completed",
       "updatedAt": "2026-05-24T12:18:24.687Z"
     },
@@ -320,5 +320,5 @@
       "lastOutcome": "completed"
     }
   },
-  "updatedAt": "2026-05-24T16:38:54.424Z"
+  "updatedAt": "2026-05-24T16:41:52.042Z"
 }
