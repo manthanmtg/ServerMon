@@ -218,6 +218,7 @@ Common optional controls:
 | `SERVERMON_NETWORK_MOCK`        | Set to `1` to use mocked network speedtest data                 | unset                               |
 | `SERVERMON_DOCKER_MOCK`         | Set to `1` to use mocked Docker data                            | unset                               |
 | `SERVERMON_FIREWALL_MOCK`       | Set to `1` to use mocked firewall posture data                  | unset                               |
+| `SERVERMON_SKIP_STARTUP_JOBS`   | Set to `1` to skip startup jobs (stale session cleanup, schedulers) | unset                             |
 | `SERVERMON_BRANDING_MOCK`       | Set to `1` to use default branding without MongoDB              | unset                               |
 | `SERVERMON_DATABASES_ROOT`      | Host data root for managed database containers                  | `/var/lib/servermon/databases`      |
 | `SERVERMON_PUBLIC_HOST`         | Default public hostname for managed database connection strings | unset                               |
