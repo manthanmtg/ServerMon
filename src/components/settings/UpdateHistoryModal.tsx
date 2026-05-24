@@ -126,13 +126,13 @@ export default function UpdateHistoryModal({ onClose, type }: UpdateHistoryModal
         <div className="flex items-center justify-between p-6 sm:px-8 border-b border-white/5 bg-white/5 shrink-0">
           <div className="flex items-center gap-5">
             {selectedRun && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setSelectedRun(null)}
-                aria-label="Back to update history list"
-                className="h-10 w-10 p-0 rounded-2xl hover:bg-white/10 transition-all active:scale-90"
-              >
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setSelectedRun(null)}
+                    aria-label="Back to update history list"
+                    className="h-11 w-11 min-h-[44px] min-w-[44px] sm:h-10 sm:w-10 p-0 rounded-2xl hover:bg-white/10 transition-all active:scale-90"
+                  >
                 <ArrowLeft className="w-5 h-5" />
               </Button>
             )}
@@ -153,7 +153,7 @@ export default function UpdateHistoryModal({ onClose, type }: UpdateHistoryModal
             size="sm"
             aria-label="Close modal"
             onClick={onClose}
-            className="h-10 w-10 p-0 rounded-2xl border border-white/5 hover:bg-destructive/10 hover:text-destructive hover:border-destructive/20 transition-all active:scale-90"
+            className="h-11 w-11 min-h-[44px] min-w-[44px] sm:h-10 sm:w-10 p-0 rounded-2xl border border-white/5 hover:bg-destructive/10 hover:text-destructive hover:border-destructive/20 transition-all active:scale-90"
           >
             <X className="w-5 h-5" />
           </Button>
