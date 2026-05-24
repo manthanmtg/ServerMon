@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { ArrowDown, ArrowUp, Network } from 'lucide-react';
+import { isAbortError, safeJson, resilientFetch } from '@/lib/fetch-utils';
 import { formatBytes } from '@/lib/utils';
 import type { NetworkSnapshot } from '../types';
 
@@ -10,46 +11,109 @@ function isLoopbackInterface(iface: string) {
   return iface === 'lo' || iface === 'lo0' || iface.startsWith('lo:');
 }
 
+function isNetworkSnapshotPayload(value: unknown): value is NetworkSnapshot {
+  if (!value || typeof value !== 'object') return false;
+
+  const candidate = value as Record<string, unknown>;
+  if (!Array.isArray(candidate.stats)) return false;
+
+  return candidate.stats.every((stat) => {
+    if (!stat || typeof stat !== 'object') return false;
+    const candidateStat = stat as Record<string, unknown>;
+
+    return (
+      typeof candidateStat.iface === 'string' &&
+      typeof candidateStat.rx_sec === 'number' &&
+      typeof candidateStat.tx_sec === 'number' &&
+      Number.isFinite(candidateStat.rx_sec) &&
+      Number.isFinite(candidateStat.tx_sec)
+    );
+  });
+}
+
 export default function NetworkWidget() {
   const [stats, setStats] = useState<{ rx: number; tx: number; iface: string } | null>(null);
+  const [loadError, setLoadError] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     let mounted = true;
+    const controller = new AbortController();
 
     const fetchStats = async () => {
-      const controller = new AbortController();
-      const timeout = window.setTimeout(() => controller.abort(), 4000);
-
       try {
-        const res = await fetch('/api/modules/network', { signal: controller.signal });
-        if (!res.ok) return;
+        const res = await resilientFetch('/api/modules/network', {
+          timeout: 4000,
+          retries: 1,
+          retryDelay: 250,
+          retryOnStatuses: [502, 503, 504],
+          signal: controller.signal,
+        });
 
-        const data: NetworkSnapshot = await res.json();
-        if (!Array.isArray(data.stats) || data.stats.length === 0) return;
+        if (!res.ok) {
+          throw new Error(`Network endpoint responded with ${res.status}`);
+        }
+
+        const data = await safeJson<unknown>(res);
+        if (!isNetworkSnapshotPayload(data)) {
+          throw new Error('Received malformed network snapshot payload');
+        }
+
+        if (data.stats.length === 0) {
+          if (mounted) {
+            setLoadError(true);
+            setStats(null);
+          }
+          return;
+        }
 
         if (mounted) {
-          // Show stats for the first non-internal interface or first one
           const primary = data.stats.find((s) => !isLoopbackInterface(s.iface)) || data.stats[0];
+          setLoadError(false);
           setStats({ rx: primary.rx_sec, tx: primary.tx_sec, iface: primary.iface });
         }
-      } catch {
-        /* ignore */
+      } catch (error: unknown) {
+        if (!mounted || isAbortError(error)) {
+          return;
+        }
+        if (mounted) {
+          setLoadError(true);
+          setStats(null);
+        }
       } finally {
-        window.clearTimeout(timeout);
         if (mounted) {
           setIsLoading(false);
         }
       }
     };
 
-    fetchStats();
+    void fetchStats();
     const interval = setInterval(fetchStats, 5000);
+
     return () => {
       mounted = false;
+      controller.abort();
       clearInterval(interval);
     };
   }, []);
+
+  const displayedInterface = isLoading
+    ? 'Loading…'
+    : loadError
+      ? 'Unavailable'
+      : stats?.iface || 'Network';
+
+  const downloadText = isLoading || loadError
+    ? '—'
+    : stats
+      ? formatBytes(stats.rx)
+      : '0 B';
+
+  const uploadText = isLoading || loadError
+    ? '—'
+    : stats
+      ? formatBytes(stats.tx)
+      : '0 B';
 
   return (
     <div className="space-y-4">
@@ -70,10 +134,13 @@ export default function NetworkWidget() {
                 Active Interface
               </span>
               <span className="block truncate text-sm font-black tracking-tighter text-foreground">
-                {isLoading ? 'Loading…' : stats?.iface || 'Network'}
+                {displayedInterface}
               </span>
             </div>
           </div>
+          {loadError && !isLoading && (
+            <span className="text-[10px] text-destructive">Data unavailable</span>
+          )}
         </div>
       </motion.div>
 
@@ -93,7 +160,7 @@ export default function NetworkWidget() {
               <span className="text-[10px] font-black uppercase tracking-tighter">Download</span>
             </div>
             <span className="text-sm font-bold tabular-nums truncate tracking-tighter">
-              {isLoading ? '—' : stats ? formatBytes(stats.rx) : '0 B'}/s
+              {downloadText}/s
             </span>
           </div>
         </motion.div>
@@ -113,7 +180,7 @@ export default function NetworkWidget() {
               <span className="text-[10px] font-black uppercase tracking-tighter">Upload</span>
             </div>
             <span className="text-sm font-bold tabular-nums truncate tracking-tighter">
-              {isLoading ? '—' : stats ? formatBytes(stats.tx) : '0 B'}/s
+              {uploadText}/s
             </span>
           </div>
         </motion.div>
