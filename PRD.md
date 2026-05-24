@@ -72,6 +72,7 @@ Optional controls include:
 - `SERVERMON_UPDATES_MOCK`: set to `1` to mock update check data
 - `SERVERMON_BRANDING_MOCK`: set to `1` to serve default branding in MongoDB-agnostic environments
 - `SERVERMON_SKIP_STARTUP_JOBS`: set to `1` to skip non-critical startup jobs (session cleanup, schedulers, health warmups) during boot
+- `SERVERMON_FIREWALL_MOCK`: set to `1` to mock firewall posture data
 
 ### MongoDB Connection
 
