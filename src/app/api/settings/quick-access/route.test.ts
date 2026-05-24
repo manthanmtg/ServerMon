@@ -136,6 +136,20 @@ describe('PUT /api/settings/quick-access', () => {
     expect(res.status).toBe(400);
   });
 
+  it('rejects items with unsafe href values', async () => {
+    mockGetSession.mockResolvedValue({ user: { role: 'admin' } });
+
+    const res = await PUT(
+      makePutRequest({
+        items: [{ ...sampleItem, href: 'https://example.com' }],
+      })
+    );
+
+    expect(res.status).toBe(400);
+    const json = await res.json();
+    expect(json.error).toBe('Invalid request body');
+  });
+
   it('returns 500 on DB error', async () => {
     mockGetSession.mockResolvedValue({ user: { role: 'admin' } });
     mockFindOneAndUpdate.mockRejectedValue(new Error('db error'));
