@@ -67,6 +67,10 @@ AI_RUNNER_MAX_CONCURRENT_RUNS=3
 Optional controls include:
 
 - `AI_RUNNER_MAX_CONCURRENT_RUNS`: cap concurrent AI Runner jobs (defaults to `3`, max `8`).
+- `SERVERMON_NETWORK_MOCK`: set to `1` to mock network speedtest data
+- `SERVERMON_DOCKER_MOCK`: set to `1` to mock Docker data
+- `SERVERMON_UPDATES_MOCK`: set to `1` to mock update check data
+- `SERVERMON_BRANDING_MOCK`: set to `1` to serve default branding in MongoDB-agnostic environments
 
 ### MongoDB Connection
 
