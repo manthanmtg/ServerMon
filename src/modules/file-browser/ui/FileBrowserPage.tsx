@@ -407,6 +407,18 @@ export default function FileBrowserPage() {
     [settings.shortcuts]
   );
 
+  const pathToEntry = useMemo(() => {
+    const map = new Map<string, FileEntry>();
+    for (const entry of listing?.entries ?? []) {
+      map.set(entry.path, entry);
+    }
+    return map;
+  }, [listing?.entries]);
+
+  const computeTreeRoots = useCallback((shortcuts: FileBrowserShortcut[]) => {
+    return Array.from(new Set(shortcuts.map((shortcut) => shortcut.path).concat('/')));
+  }, []);
+
   const breadcrumbSegments = useMemo(() => buildSegments(currentPath), [currentPath]);
 
   const loadSettings = useCallback(async () => {
@@ -415,9 +427,7 @@ export default function FileBrowserPage() {
         '/api/modules/file-browser/settings'
       );
       setSettings(data.settings);
-      setTreeRoots(
-        Array.from(new Set(data.settings.shortcuts.map((shortcut) => shortcut.path).concat('/')))
-      );
+      setTreeRoots(computeTreeRoots(data.settings.shortcuts));
 
       if (!pathFromQuery && data.settings.defaultPath) {
         setCurrentPath(data.settings.defaultPath);
@@ -425,7 +435,7 @@ export default function FileBrowserPage() {
     } catch {
       setSettings(DEFAULT_SETTINGS);
     }
-  }, [pathFromQuery]);
+  }, [pathFromQuery, computeTreeRoots]);
 
   const loadListing = useCallback(
     async (nextPath: string, recordHistory = false) => {
@@ -594,7 +604,7 @@ export default function FileBrowserPage() {
     return () => window.clearInterval(interval);
   }, [autoRefreshLogs, loadPreview, preview?.kind, selectedEntry]);
 
-  const navigate = (nextPath: string, recordHistory = true) => {
+  const navigate = useCallback((nextPath: string, recordHistory = true) => {
     router.replace(`/file-browser?path=${encodeURIComponent(nextPath)}`);
     if (!recordHistory) {
       void loadListing(nextPath, false);
@@ -610,14 +620,28 @@ export default function FileBrowserPage() {
       historyIndexRef.current = next;
       return next;
     });
-  };
+  }, [router, loadListing]);
 
-  const refresh = () => {
+  const refresh = useCallback(() => {
     void loadListing(currentPath);
     if (selectedEntry && selectedEntry.parentPath === currentPath) {
       void loadPreview(selectedEntry, isEditing);
     }
-  };
+  }, [currentPath, isEditing, loadListing, loadPreview, selectedEntry]);
+
+  const handleSelectFileFromTree = useCallback(
+    (path: string) => {
+      const fileEntry = pathToEntry.get(path);
+      if (fileEntry) {
+        loadPreview(fileEntry);
+        return;
+      }
+
+      const parentPath = path.substring(0, path.lastIndexOf('/')) || '/';
+      navigate(parentPath);
+    },
+    [loadPreview, navigate, pathToEntry]
+  );
 
   const handleCreate = async (kind: 'file' | 'directory', name: string) => {
     const label = kind === 'file' ? 'file' : 'folder';
@@ -724,7 +748,7 @@ export default function FileBrowserPage() {
         }
       );
       setSettings(data.settings);
-      setTreeRoots(Array.from(new Set(data.settings.shortcuts.map((s) => s.path).concat('/'))));
+      setTreeRoots(computeTreeRoots(data.settings.shortcuts));
       window.dispatchEvent(
         new CustomEvent('file-browser-shortcuts-updated', { detail: data.settings })
       );
@@ -958,16 +982,7 @@ export default function FileBrowserPage() {
               }
             }}
             onSelectDirectory={navigate}
-            onSelectFile={(path) => {
-              const fileEntry = listing?.entries.find((entry) => entry.path === path);
-              if (fileEntry) {
-                loadPreview(fileEntry);
-                return;
-              }
-
-              const parentPath = path.substring(0, path.lastIndexOf('/')) || '/';
-              navigate(parentPath);
-            }}
+            onSelectFile={handleSelectFileFromTree}
             onCreateDirectory={() => setDialogState({ type: 'create', kind: 'directory' })}
             onClose={() => setShowTree(false)}
           />
@@ -1117,11 +1132,7 @@ export default function FileBrowserPage() {
           onClose={() => setShowSettings(false)}
           onSaved={(nextSettings) => {
             setSettings(nextSettings);
-            setTreeRoots(
-              Array.from(
-                new Set(nextSettings.shortcuts.map((shortcut) => shortcut.path).concat('/'))
-              )
-            );
+            setTreeRoots(computeTreeRoots(nextSettings.shortcuts));
           }}
         />
       )}
