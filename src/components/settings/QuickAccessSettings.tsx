@@ -53,7 +53,7 @@ function quickAccessIdFromHref(href: string): string {
   return href.replace(/^\/+/, '').replaceAll('/', '-') || 'dashboard';
 }
 
-const ALL_MODULES: ModuleDef[] = navGroups.flatMap((group) =>
+const allModules: ModuleDef[] = navGroups.flatMap((group) =>
   group.items.map((item) => ({
     id: quickAccessIdFromHref(item.href),
     label: item.label,
@@ -63,9 +63,7 @@ const ALL_MODULES: ModuleDef[] = navGroups.flatMap((group) =>
   }))
 );
 
-export { ALL_MODULES };
-
-const MODULE_BY_ID = new Map(ALL_MODULES.map((moduleDef) => [moduleDef.id, moduleDef]));
+const MODULE_BY_ID = new Map(allModules.map((moduleDef) => [moduleDef.id, moduleDef]));
 const MotionRow = motion.create('div');
 const MotionSpan = motion.create('span');
 
@@ -96,7 +94,7 @@ export default function QuickAccessSettings() {
 
   const disabledModules = useMemo(() => {
     const enabledSet = new Set(enabledIds);
-    return ALL_MODULES.filter((m) => !enabledSet.has(m.id));
+    return allModules.filter((m) => !enabledSet.has(m.id));
   }, [enabledIds]);
 
   const toggleModule = useCallback((id: string, enabled: boolean) => {
