@@ -79,8 +79,10 @@ export default function TerminalSettingsModal({ settings, onClose, onSaved }: Pr
         <div className="flex items-center justify-between p-5 border-b border-border">
           <h3 className="text-base font-semibold text-foreground">Terminal Settings</h3>
           <button
+            type="button"
+            aria-label="Close terminal settings dialog"
             onClick={onClose}
-            className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors cursor-pointer"
+            className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
           >
             <X className="w-4 h-4" />
           </button>
