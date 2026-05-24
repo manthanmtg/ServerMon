@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { type ReactNode, useCallback, useEffect, useState } from 'react';
 import {
   Cpu,
   HardDrive,
@@ -49,6 +49,58 @@ function TempGauge({ value, label }: { value: number; label: string }) {
         />
       </div>
     </div>
+  );
+}
+
+type HardwareInfoRowProps = {
+  label: string;
+  value: ReactNode;
+  valueClassName?: string;
+};
+
+function HardwareInfoRow({
+  label,
+  value,
+  valueClassName = 'font-medium',
+}: HardwareInfoRowProps) {
+  return (
+    <div className="flex justify-between">
+      <span className="text-muted-foreground">{label}</span>
+      <span className={cn(valueClassName)}>{value}</span>
+    </div>
+  );
+}
+
+type HardwareInfoCardProps = {
+  icon: ReactNode;
+  title: string;
+  children: ReactNode;
+  titleSize?: 'sm' | 'base';
+  contentClassName?: string;
+};
+
+function HardwareInfoCard({
+  icon,
+  title,
+  children,
+  titleSize = 'sm',
+  contentClassName = 'space-y-1.5 text-xs',
+}: HardwareInfoCardProps) {
+  return (
+    <Card className="border-border/60">
+      <CardHeader className="pb-2">
+        <CardTitle
+          className={cn(
+            'flex items-center gap-2',
+            titleSize === 'base' ? 'text-base' : 'text-sm'
+          )}
+        >
+          {icon}
+          {title}
+        </CardTitle>
+      </CardHeader>
+      <CardContent className={contentClassName}>{children}</CardContent>
+    </Card>
   );
 }
 
@@ -117,155 +169,89 @@ export default function HardwarePage() {
 
       {/* System / OS Info */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        <Card className="border-border/60">
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-sm">
-              <Monitor className="w-4 h-4 text-primary" />
-              System
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-1.5 text-xs">
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Hostname</span>
-              <span className="font-medium">{snapshot.os.hostname}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Platform</span>
-              <span className="font-medium">{snapshot.os.platform}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Kernel</span>
-              <span className="font-medium truncate ml-2 max-w-[60%] text-right">
-                {snapshot.os.kernel}
-              </span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Arch</span>
-              <span className="font-medium">{snapshot.os.arch}</span>
-            </div>
-            {snapshot.os.distro && (
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Distro</span>
-                <span className="font-medium">
+        <HardwareInfoCard
+          icon={<Monitor className="w-4 h-4 text-primary" />}
+          title="System"
+        >
+          <HardwareInfoRow label="Hostname" value={snapshot.os.hostname} />
+          <HardwareInfoRow label="Platform" value={snapshot.os.platform} />
+          <HardwareInfoRow
+            label="Kernel"
+            valueClassName="font-medium truncate ml-2 max-w-[60%] text-right"
+            value={snapshot.os.kernel}
+          />
+          <HardwareInfoRow label="Arch" value={snapshot.os.arch} />
+          {snapshot.os.distro && (
+            <HardwareInfoRow
+              label="Distro"
+              value={
+                <>
                   {snapshot.os.distro} {snapshot.os.release}
-                </span>
-              </div>
-            )}
-            {snapshot.system.manufacturer && (
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Manufacturer</span>
-                <span className="font-medium">{snapshot.system.manufacturer}</span>
-              </div>
-            )}
-            {snapshot.system.model && (
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Model</span>
-                <span className="font-medium">{snapshot.system.model}</span>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+                </>
+              }
+            />
+          )}
+          {snapshot.system.manufacturer && (
+            <HardwareInfoRow label="Manufacturer" value={snapshot.system.manufacturer} />
+          )}
+          {snapshot.system.model && <HardwareInfoRow label="Model" value={snapshot.system.model} />}
+        </HardwareInfoCard>
 
         {/* CPU */}
-        <Card className="border-border/60">
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-sm">
-              <Cpu className="w-4 h-4 text-primary" />
-              CPU
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-1.5 text-xs">
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Model</span>
-              <span className="font-medium truncate ml-2 max-w-[65%] text-right">
-                {snapshot.cpu.brand}
-              </span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Manufacturer</span>
-              <span className="font-medium">{snapshot.cpu.manufacturer}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Cores</span>
-              <span className="font-medium">
+        <HardwareInfoCard icon={<Cpu className="w-4 h-4 text-primary" />} title="CPU">
+          <HardwareInfoRow
+            label="Model"
+            value={snapshot.cpu.brand}
+            valueClassName="font-medium truncate ml-2 max-w-[65%] text-right"
+          />
+          <HardwareInfoRow label="Manufacturer" value={snapshot.cpu.manufacturer} />
+          <HardwareInfoRow
+            label="Cores"
+            value={
+              <>
                 {snapshot.cpu.cores} ({snapshot.cpu.physicalCores} physical)
-              </span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Speed</span>
-              <span className="font-medium">{snapshot.cpu.speed} GHz</span>
-            </div>
-            {snapshot.cpu.speedMax > 0 && (
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Max Speed</span>
-                <span className="font-medium">{snapshot.cpu.speedMax} GHz</span>
-              </div>
-            )}
-            {snapshot.cpu.socket && (
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Socket</span>
-                <span className="font-medium">{snapshot.cpu.socket}</span>
-              </div>
-            )}
-            {snapshot.cpu.cache.l3 > 0 && (
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">L3 Cache</span>
-                <span className="font-medium">{formatBytes(snapshot.cpu.cache.l3)}</span>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+              </>
+            }
+          />
+          <HardwareInfoRow label="Speed" value={<>{snapshot.cpu.speed} GHz</>} />
+          {snapshot.cpu.speedMax > 0 && (
+            <HardwareInfoRow label="Max Speed" value={<>{snapshot.cpu.speedMax} GHz</>} />
+          )}
+          {snapshot.cpu.socket && <HardwareInfoRow label="Socket" value={snapshot.cpu.socket} />}
+          {snapshot.cpu.cache.l3 > 0 && (
+            <HardwareInfoRow label="L3 Cache" value={<>{formatBytes(snapshot.cpu.cache.l3)}</>} />
+          )}
+        </HardwareInfoCard>
 
         {/* Memory */}
-        <Card className="border-border/60">
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-sm">
-              <MemoryStick className="w-4 h-4 text-primary" />
-              Memory
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2 text-xs">
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Total</span>
-              <span className="font-medium">{formatBytes(snapshot.memory.total)}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Used</span>
-              <span className="font-medium">
-                {formatBytes(snapshot.memory.used)} ({memPct}%)
-              </span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Available</span>
-              <span className="font-medium">{formatBytes(snapshot.memory.available)}</span>
-            </div>
-            {snapshot.memory.swaptotal > 0 && (
-              <>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Swap Total</span>
-                  <span className="font-medium">{formatBytes(snapshot.memory.swaptotal)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Swap Used</span>
-                  <span className="font-medium">{formatBytes(snapshot.memory.swapused)}</span>
-                </div>
-              </>
-            )}
-            <div className="h-2 rounded-full bg-secondary overflow-hidden">
-              <div
-                className={cn(
-                  'h-full rounded-full transition-all',
-                  parseFloat(memPct) > 90
-                    ? 'bg-destructive'
-                    : parseFloat(memPct) > 70
-                      ? 'bg-warning'
-                      : 'bg-primary'
-                )}
-                style={{ width: `${memPct}%` }}
-              />
-            </div>
-          </CardContent>
-        </Card>
+        <HardwareInfoCard
+          icon={<MemoryStick className="w-4 h-4 text-primary" />}
+          title="Memory"
+          contentClassName="space-y-2 text-xs"
+        >
+          <HardwareInfoRow label="Total" value={formatBytes(snapshot.memory.total)} />
+          <HardwareInfoRow label="Used" value={<>{formatBytes(snapshot.memory.used)} ({memPct}%)</>} />
+          <HardwareInfoRow label="Available" value={formatBytes(snapshot.memory.available)} />
+          {snapshot.memory.swaptotal > 0 && (
+            <>
+              <HardwareInfoRow label="Swap Total" value={formatBytes(snapshot.memory.swaptotal)} />
+              <HardwareInfoRow label="Swap Used" value={formatBytes(snapshot.memory.swapused)} />
+            </>
+          )}
+          <div className="h-2 rounded-full bg-secondary overflow-hidden">
+            <div
+              className={cn(
+                'h-full rounded-full transition-all',
+                parseFloat(memPct) > 90
+                  ? 'bg-destructive'
+                  : parseFloat(memPct) > 70
+                    ? 'bg-warning'
+                    : 'bg-primary'
+              )}
+              style={{ width: `${memPct}%` }}
+            />
+          </div>
+        </HardwareInfoCard>
       </div>
 
       {/* Temperature Sensors */}
