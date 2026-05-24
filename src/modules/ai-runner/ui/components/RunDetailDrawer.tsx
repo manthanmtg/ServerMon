@@ -98,6 +98,7 @@ export function RunDetailDrawer({
   const scheduleDelayInsight = getScheduleDelayInsight(run);
   const primaryTimestamp = run.startedAt ?? run.queuedAt;
   const primaryTimestampLabel = run.startedAt ? 'Started' : 'Queued';
+  const stateKey = `${run._id}-${historyDetailSection}`;
   const timingRows = [
     ...(run.scheduleId || run.scheduledFor
       ? [
@@ -151,13 +152,11 @@ export function RunDetailDrawer({
   ];
 
   // Reset autoscroll when switching to output section or a new run
-  const [lastStateKey, setLastStateKey] = useState(`${run._id}-${historyDetailSection}`);
-  if (lastStateKey !== `${run._id}-${historyDetailSection}`) {
-    setLastStateKey(`${run._id}-${historyDetailSection}`);
+  useEffect(() => {
     if (historyDetailSection === 'output') {
       setAutoscrollEnabled(true);
     }
-  }
+  }, [historyDetailSection, stateKey]);
 
   const outputRef = useRef<HTMLPreElement | null>(null);
   const outputText = run.rawOutput || run.stdout || run.stderr || 'No output captured';
