@@ -172,7 +172,7 @@ export default function ConfirmationModal({
 
         <button
           onClick={onCancel}
-          className="absolute top-4 right-4 h-8 w-8 flex items-center justify-center rounded-full hover:bg-muted/50 text-muted-foreground hover:text-foreground transition-colors"
+          className="absolute top-4 right-4 h-11 w-11 flex items-center justify-center rounded-full bg-card/90 text-muted-foreground transition-all duration-200 hover:bg-muted/60 hover:text-foreground active:scale-[0.95] active:bg-muted/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
           aria-label="Close"
         >
           <X className="h-4 w-4" />
