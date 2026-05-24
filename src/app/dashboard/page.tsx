@@ -92,23 +92,30 @@ const Sparkline = React.memo(function Sparkline({
   color?: string;
 }) {
   const gradientId = React.useId();
-  if (data.length < 2) return null;
-  const min = Math.min(...data);
-  const max = Math.max(...data);
-  const range = max - min || 1;
   const width = 100;
   const height = 30;
 
-  // Normalize points to SVG coordinate space
-  const points = data.map((v, i) => {
-    const x = (i / (data.length - 1)) * width;
-    const y = height - ((v - min) / range) * height;
-    return { x, y };
-  });
+  const paths = React.useMemo(() => {
+    if (data.length < 2) return null;
+    const min = Math.min(...data);
+    const max = Math.max(...data);
+    const range = max - min || 1;
 
-  const pathData = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
+    // Normalize points to SVG coordinate space
+    const points = data.map((v, i) => {
+      const x = (i / (data.length - 1)) * width;
+      const y = height - ((v - min) / range) * height;
+      return { x, y };
+    });
 
-  const areaPathData = `${pathData} L ${width} ${height} L 0 ${height} Z`;
+    const pathData = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
+    return {
+      pathData,
+      areaPathData: `${pathData} L ${width} ${height} L 0 ${height} Z`,
+    };
+  }, [data]);
+
+  if (paths === null) return null;
 
   return (
     <svg
@@ -127,7 +134,7 @@ const Sparkline = React.memo(function Sparkline({
         animate={{ opacity: 1 }}
         transition={{ duration: 1.5, delay: 0.2 }}
         fill={`url(#${gradientId})`}
-        d={areaPathData}
+        d={paths.areaPathData}
         stroke="none"
       />
       <motion.path
@@ -139,7 +146,7 @@ const Sparkline = React.memo(function Sparkline({
         strokeWidth="2"
         strokeLinecap="round"
         strokeLinejoin="round"
-        d={pathData}
+        d={paths.pathData}
       />
     </svg>
   );
