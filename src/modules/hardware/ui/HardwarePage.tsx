@@ -160,6 +160,7 @@ export default function HardwarePage() {
         </div>
         <button
           onClick={load}
+          aria-label="Refresh hardware snapshot"
           className="h-8 w-8 flex items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
           title="Refresh"
         >
