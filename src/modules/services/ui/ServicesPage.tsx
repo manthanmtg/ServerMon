@@ -22,7 +22,11 @@ import { Badge } from '@/components/ui/badge';
 import { PageSkeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/components/ui/toast';
 import { cn, formatBytes, relativeTime } from '@/lib/utils';
-import type { ServicesSnapshot } from '../types';
+import type {
+  ServiceAlertSummary,
+  ServiceTimerInfo,
+  ServicesSnapshot,
+} from '../types';
 import type { ServiceAction, ServicesSortDir, ServicesSortField } from './components/ServicesTable';
 import { ServicesSummaryGrid } from './components/ServicesSummaryGrid';
 import { ServicesTable } from './components/ServicesTable';
@@ -49,6 +53,129 @@ function futureTime(value: string): string {
   const hours = Math.round(minutes / 60);
   if (hours < 24) return `in ${hours}h`;
   return `in ${Math.round(hours / 24)}d`;
+}
+
+type ServicesTimersPanelProps = {
+  timers: ServiceTimerInfo[] | undefined;
+};
+
+type ServicesAlertsPanelProps = {
+  alerts: ServiceAlertSummary[] | undefined;
+};
+
+function ServicesTimersPanel({ timers = [] }: ServicesTimersPanelProps) {
+  return (
+    <Card className="border-border/60 overflow-hidden">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Timer className="w-4 h-4" />
+          Systemd Timers
+        </CardTitle>
+        <p className="text-sm text-muted-foreground">
+          Scheduled timer units and their next/last execution times.
+        </p>
+      </CardHeader>
+      <div className="overflow-x-auto">
+        <table className="min-w-full text-sm">
+          <thead className="text-left text-xs uppercase tracking-[0.18em] text-muted-foreground bg-muted/20">
+            <tr>
+              <th className="py-3 px-5">Timer</th>
+              <th className="py-3 px-5">Activates</th>
+              <th className="py-3 px-5">Next Run</th>
+              <th className="py-3 px-5">Last Run</th>
+            </tr>
+          </thead>
+          <tbody>
+            {timers.length === 0 ? (
+              <tr>
+                <td colSpan={4} className="py-12 text-center text-muted-foreground">
+                  No timers found.
+                </td>
+              </tr>
+            ) : (
+              timers.map((timer) => (
+                <tr key={timer.name} className="border-t border-border/60">
+                  <td className="py-3 px-5 font-medium">{timer.name}</td>
+                  <td className="py-3 px-5 font-mono text-xs text-muted-foreground">
+                    {timer.activates}
+                  </td>
+                  <td className="py-3 px-5">
+                    <div className="flex items-center gap-2">
+                      <Clock className="w-3.5 h-3.5 text-muted-foreground" />
+                      <span className="text-xs">{futureTime(timer.nextRun)}</span>
+                    </div>
+                  </td>
+                  <td className="py-3 px-5 text-xs text-muted-foreground">
+                    {timer.lastRun}
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+    </Card>
+  );
+}
+
+function ServicesAlertsPanel({ alerts = [] }: ServicesAlertsPanelProps) {
+  return (
+    <Card className="border-border/60 overflow-hidden">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <AlertTriangle className="w-4 h-4" />
+          Active Alerts
+        </CardTitle>
+        <p className="text-sm text-muted-foreground">
+          Service alerts based on failure detection, restart loops, and resource thresholds.
+        </p>
+      </CardHeader>
+      <div className="overflow-x-auto">
+        {alerts.length === 0 ? (
+          <div className="py-12 text-center text-muted-foreground flex flex-col items-center gap-2">
+            <CheckCircle className="w-8 h-8 text-success" />
+            <p>No active alerts. All services are healthy.</p>
+          </div>
+        ) : (
+          <table className="min-w-full text-sm">
+            <thead className="text-left text-xs uppercase tracking-[0.18em] text-muted-foreground bg-muted/20">
+              <tr>
+                <th className="py-3 px-5">Severity</th>
+                <th className="py-3 px-5">Service</th>
+                <th className="py-3 px-5">Alert</th>
+                <th className="py-3 px-5">First Seen</th>
+                <th className="py-3 px-5">Last Seen</th>
+              </tr>
+            </thead>
+            <tbody>
+              {alerts.map((alert) => (
+                <tr key={alert.id} className="border-t border-border/60">
+                  <td className="py-3 px-5">
+                    <Badge variant={alert.severity === 'critical' ? 'destructive' : 'warning'}>
+                      {alert.severity}
+                    </Badge>
+                  </td>
+                  <td className="py-3 px-5 font-medium">{alert.service}</td>
+                  <td className="py-3 px-5">
+                    <div>
+                      <p className="font-medium">{alert.title}</p>
+                      <p className="text-xs text-muted-foreground">{alert.message}</p>
+                    </div>
+                  </td>
+                  <td className="py-3 px-5 text-xs text-muted-foreground">
+                    {relativeTime(alert.firstSeenAt)}
+                  </td>
+                  <td className="py-3 px-5 text-xs text-muted-foreground">
+                    {relativeTime(alert.lastSeenAt)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </Card>
+  );
 }
 
 export default function ServicesPage() {
@@ -537,117 +664,10 @@ export default function ServicesPage() {
       )}
 
       {/* Timers tab */}
-      {viewTab === 'timers' && (
-        <Card className="border-border/60 overflow-hidden">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Timer className="w-4 h-4" />
-              Systemd Timers
-            </CardTitle>
-            <p className="text-sm text-muted-foreground">
-              Scheduled timer units and their next/last execution times.
-            </p>
-          </CardHeader>
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-sm">
-              <thead className="text-left text-xs uppercase tracking-[0.18em] text-muted-foreground bg-muted/20">
-                <tr>
-                  <th className="py-3 px-5">Timer</th>
-                  <th className="py-3 px-5">Activates</th>
-                  <th className="py-3 px-5">Next Run</th>
-                  <th className="py-3 px-5">Last Run</th>
-                </tr>
-              </thead>
-              <tbody>
-                {!snapshot?.timers || snapshot.timers.length === 0 ? (
-                  <tr>
-                    <td colSpan={4} className="py-12 text-center text-muted-foreground">
-                      No timers found.
-                    </td>
-                  </tr>
-                ) : (
-                  snapshot.timers.map((timer) => (
-                    <tr key={timer.name} className="border-t border-border/60">
-                      <td className="py-3 px-5 font-medium">{timer.name}</td>
-                      <td className="py-3 px-5 font-mono text-xs text-muted-foreground">
-                        {timer.activates}
-                      </td>
-                      <td className="py-3 px-5">
-                        <div className="flex items-center gap-2">
-                          <Clock className="w-3.5 h-3.5 text-muted-foreground" />
-                          <span className="text-xs">{futureTime(timer.nextRun)}</span>
-                        </div>
-                      </td>
-                      <td className="py-3 px-5 text-xs text-muted-foreground">
-                        {relativeTime(timer.lastRun)}
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </Card>
-      )}
+      {viewTab === 'timers' && <ServicesTimersPanel timers={snapshot?.timers} />}
 
       {/* Alerts tab */}
-      {viewTab === 'alerts' && (
-        <Card className="border-border/60 overflow-hidden">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <AlertTriangle className="w-4 h-4" />
-              Active Alerts
-            </CardTitle>
-            <p className="text-sm text-muted-foreground">
-              Service alerts based on failure detection, restart loops, and resource thresholds.
-            </p>
-          </CardHeader>
-          <div className="overflow-x-auto">
-            {!snapshot?.alerts || snapshot.alerts.length === 0 ? (
-              <div className="py-12 text-center text-muted-foreground flex flex-col items-center gap-2">
-                <CheckCircle className="w-8 h-8 text-success" />
-                <p>No active alerts. All services are healthy.</p>
-              </div>
-            ) : (
-              <table className="min-w-full text-sm">
-                <thead className="text-left text-xs uppercase tracking-[0.18em] text-muted-foreground bg-muted/20">
-                  <tr>
-                    <th className="py-3 px-5">Severity</th>
-                    <th className="py-3 px-5">Service</th>
-                    <th className="py-3 px-5">Alert</th>
-                    <th className="py-3 px-5">First Seen</th>
-                    <th className="py-3 px-5">Last Seen</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {snapshot.alerts.map((alert) => (
-                    <tr key={alert.id} className="border-t border-border/60">
-                      <td className="py-3 px-5">
-                        <Badge variant={alert.severity === 'critical' ? 'destructive' : 'warning'}>
-                          {alert.severity}
-                        </Badge>
-                      </td>
-                      <td className="py-3 px-5 font-medium">{alert.service}</td>
-                      <td className="py-3 px-5">
-                        <div>
-                          <p className="font-medium">{alert.title}</p>
-                          <p className="text-xs text-muted-foreground">{alert.message}</p>
-                        </div>
-                      </td>
-                      <td className="py-3 px-5 text-xs text-muted-foreground">
-                        {relativeTime(alert.firstSeenAt)}
-                      </td>
-                      <td className="py-3 px-5 text-xs text-muted-foreground">
-                        {relativeTime(alert.lastSeenAt)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
-        </Card>
-      )}
+      {viewTab === 'alerts' && <ServicesAlertsPanel alerts={snapshot?.alerts} />}
     </div>
   );
 }
