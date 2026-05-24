@@ -27,6 +27,8 @@ vi.mock('./system-service', () => ({
   },
 }));
 
+type ExecFileCallback = (error: Error | null, result: { stdout: string; stderr: string }) => void;
+
 describe('local auto-update service', () => {
   let tempDir: string;
   let configPath: string;
@@ -191,12 +193,8 @@ describe('local auto-update service', () => {
   it('reports changed, unchanged, and failed upstream checks without mutating the worktree', async () => {
     const { checkRepoForUpdates } = await import('./auto-update');
     const mockedExecFile = vi.mocked(execFile);
-    mockExecFile((cmd, args, ...rest: unknown[]) => {
-      const cb = rest.at(-1) as (
-        error: Error | null,
-        result: { stdout: string; stderr: string }
-      ) => void;
-      const argList = args as string[];
+    mockExecFile((cmd, args, cb: ExecFileCallback) => {
+      const argList = args;
       if (argList.includes('fetch')) return cb(null, { stdout: '', stderr: '' });
       if (argList.includes('HEAD')) return cb(null, { stdout: 'local\n', stderr: '' });
       if (argList.includes('@{u}')) return cb(null, { stdout: 'remote\n', stderr: '' });
@@ -211,12 +209,8 @@ describe('local auto-update service', () => {
     expect(JSON.stringify(mockedExecFile.mock.calls)).not.toContain('reset');
     expect(JSON.stringify(mockedExecFile.mock.calls)).not.toContain('pull');
 
-    mockExecFile((cmd, args, ...rest: unknown[]) => {
-      const cb = rest.at(-1) as (
-        error: Error | null,
-        result: { stdout: string; stderr: string }
-      ) => void;
-      const argList = args as string[];
+    mockExecFile((cmd, args, cb: ExecFileCallback) => {
+      const argList = args;
       if (argList.includes('fetch')) return cb(null, { stdout: '', stderr: '' });
       if (argList.includes('HEAD') || argList.includes('FETCH_HEAD') || argList.includes('@{u}')) {
         return cb(null, { stdout: 'same\n', stderr: '' });
@@ -225,12 +219,8 @@ describe('local auto-update service', () => {
     });
     await expect(checkRepoForUpdates('/repo')).resolves.toMatchObject({ status: 'unchanged' });
 
-    mockExecFile((cmd, args, ...rest: unknown[]) => {
-      const cb = rest.at(-1) as (
-        error: Error | null,
-        result: { stdout: string; stderr: string }
-      ) => void;
-      const argList = args as string[];
+    mockExecFile((cmd, args, cb: ExecFileCallback) => {
+      const argList = args;
       if (argList.includes('fetch')) {
         return cb(new Error('network'), { stdout: '', stderr: 'network' });
       }
@@ -245,12 +235,8 @@ describe('local auto-update service', () => {
   it('checks the configured source branch instead of trusting the local upstream', async () => {
     const { checkRepoForUpdates } = await import('./auto-update');
     const mockedExecFile = vi.mocked(execFile);
-    mockExecFile((cmd, args, ...rest: unknown[]) => {
-      const cb = rest.at(-1) as (
-        error: Error | null,
-        result: { stdout: string; stderr: string }
-      ) => void;
-      const argList = args as string[];
+    mockExecFile((cmd, args, cb: ExecFileCallback) => {
+      const argList = args;
       if (argList.join(' ') === '-C /repo fetch --quiet origin stable') {
         return cb(null, { stdout: '', stderr: '' });
       }
@@ -283,12 +269,8 @@ describe('local auto-update service', () => {
       updateSupported: true,
       repoDir: '/opt/servermon-agent/source',
     });
-    mockExecFile((cmd, args, ...rest: unknown[]) => {
-      const cb = rest.at(-1) as (
-        error: Error | null,
-        result: { stdout: string; stderr: string }
-      ) => void;
-      const argList = args as string[];
+    mockExecFile((cmd, args, cb: ExecFileCallback) => {
+      const argList = args;
       if (argList.includes('fetch')) return cb(null, { stdout: '', stderr: '' });
       if (argList.includes('HEAD') || argList.includes('FETCH_HEAD') || argList.includes('@{u}')) {
         return cb(null, { stdout: 'same\n', stderr: '' });
@@ -322,12 +304,8 @@ describe('local auto-update service', () => {
       updateSupported: true,
       repoDir: '/opt/servermon-agent/source',
     });
-    mockExecFile((cmd, args, ...rest: unknown[]) => {
-      const cb = rest.at(-1) as (
-        error: Error | null,
-        result: { stdout: string; stderr: string }
-      ) => void;
-      const argList = args as string[];
+    mockExecFile((cmd, args, cb: ExecFileCallback) => {
+      const argList = args;
       if (argList.includes('fetch')) return cb(null, { stdout: '', stderr: '' });
       if (argList.includes('HEAD')) return cb(null, { stdout: 'local\n', stderr: '' });
       if (argList.includes('FETCH_HEAD') || argList.includes('@{u}')) {
@@ -357,12 +335,8 @@ describe('local auto-update service', () => {
       time: '03:00',
       timezone: 'Asia/Kolkata',
     });
-    mockExecFile((cmd, args, ...rest: unknown[]) => {
-      const cb = rest.at(-1) as (
-        error: Error | null,
-        result: { stdout: string; stderr: string }
-      ) => void;
-      const argList = args as string[];
+    mockExecFile((cmd, args, cb: ExecFileCallback) => {
+      const argList = args;
       if (argList.join(' ') === '-C /opt/servermon/repo fetch --quiet origin stable') {
         return cb(null, { stdout: '', stderr: '' });
       }
@@ -410,12 +384,8 @@ describe('local auto-update service', () => {
       versionTarget: 'latest',
       repoDir: '/opt/servermon-agent/source',
     });
-    mockExecFile((cmd, args, ...rest: unknown[]) => {
-      const cb = rest.at(-1) as (
-        error: Error | null,
-        result: { stdout: string; stderr: string }
-      ) => void;
-      const argList = args as string[];
+    mockExecFile((cmd, args, cb: ExecFileCallback) => {
+      const argList = args;
       if (argList.includes('fetch')) return cb(null, { stdout: '', stderr: '' });
       if (argList.includes('HEAD') || argList.includes('@{u}')) {
         return cb(null, { stdout: 'same\n', stderr: '' });
@@ -440,10 +410,17 @@ describe('local auto-update service', () => {
   });
 });
 
-function mockExecFile(fn: (...args: unknown[]) => void): void {
-  (
-    execFile as unknown as {
-      mockImplementation: (impl: (...args: unknown[]) => void) => void;
+function mockExecFile(
+  fn: (command: string, args: readonly string[], callback: ExecFileCallback) => void
+): void {
+  vi.mocked(execFile).mockImplementation((command, args, callbackOrOptions, callback) => {
+    const resolvedCallback =
+      typeof callbackOrOptions === 'function' ? callbackOrOptions : callback;
+
+    if (!resolvedCallback) return;
+
+    if (Array.isArray(args)) {
+      fn(command, args, resolvedCallback);
     }
-  ).mockImplementation(fn);
+  });
 }
