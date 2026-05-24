@@ -105,7 +105,7 @@ export default function CommandSearch({ isOpen, onClose, items }: CommandSearchP
             type="button"
             onClick={onClose}
             aria-label="Close search"
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            className="flex h-11 w-11 min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground sm:h-9 sm:w-9 sm:min-h-0 sm:min-w-0"
           >
             <X className="h-4 w-4" />
           </button>
