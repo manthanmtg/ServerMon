@@ -6,6 +6,10 @@ const { mockNodeFind, mockVerifyToken } = vi.hoisted(() => ({
   mockNodeFind: vi.fn(),
   mockVerifyToken: vi.fn(),
 }));
+const makeNodeQuery = (value: Array<{ _id: string; pairingTokenHash: string; pairingTokenPrefix: string }>) => ({
+  select: vi.fn().mockReturnThis(),
+  lean: vi.fn().mockResolvedValue(value),
+});
 
 vi.mock('@/lib/db', () => ({ default: vi.fn().mockResolvedValue(undefined) }));
 vi.mock('@/lib/logger', () => ({
@@ -37,32 +41,36 @@ describe('GET /api/fleet/install', () => {
   });
 
   it('401 when no matching prefix', async () => {
-    mockNodeFind.mockResolvedValue([]);
+    mockNodeFind.mockReturnValue(makeNodeQuery([]));
     const res = await GET(makeReq({ token: 'abc12345rest' }));
     expect(res.status).toBe(401);
   });
 
   it('401 when verify fails', async () => {
-    mockNodeFind.mockResolvedValue([
-      {
-        _id: 'n1',
-        pairingTokenHash: 'hash-1',
-        pairingTokenPrefix: 'abc12345',
-      },
-    ]);
+    mockNodeFind.mockReturnValue(
+      makeNodeQuery([
+        {
+          _id: 'n1',
+          pairingTokenHash: 'hash-1',
+          pairingTokenPrefix: 'abc12345',
+        },
+      ])
+    );
     mockVerifyToken.mockResolvedValue(false);
     const res = await GET(makeReq({ token: 'abc12345rest' }));
     expect(res.status).toBe(401);
   });
 
   it('returns linux shell script when verify passes', async () => {
-    mockNodeFind.mockResolvedValue([
-      {
-        _id: 'n1',
-        pairingTokenHash: 'hash-1',
-        pairingTokenPrefix: 'abc12345',
-      },
-    ]);
+    mockNodeFind.mockReturnValue(
+      makeNodeQuery([
+        {
+          _id: 'n1',
+          pairingTokenHash: 'hash-1',
+          pairingTokenPrefix: 'abc12345',
+        },
+      ])
+    );
     mockVerifyToken.mockResolvedValue(true);
     const res = await GET(makeReq({ token: 'abc12345rest' }));
     expect(res.status).toBe(200);
@@ -73,13 +81,15 @@ describe('GET /api/fleet/install', () => {
   });
 
   it('returns plain text for docker', async () => {
-    mockNodeFind.mockResolvedValue([
-      {
-        _id: 'n1',
-        pairingTokenHash: 'hash-1',
-        pairingTokenPrefix: 'abc12345',
-      },
-    ]);
+    mockNodeFind.mockReturnValue(
+      makeNodeQuery([
+        {
+          _id: 'n1',
+          pairingTokenHash: 'hash-1',
+          pairingTokenPrefix: 'abc12345',
+        },
+      ])
+    );
     mockVerifyToken.mockResolvedValue(true);
     const res = await GET(makeReq({ token: 'abc12345rest', kind: 'docker' }));
     expect(res.status).toBe(200);

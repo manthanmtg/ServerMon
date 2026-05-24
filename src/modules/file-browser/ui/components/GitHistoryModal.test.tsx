@@ -49,11 +49,15 @@ describe('GitHistoryModal', () => {
       const body = init?.body ? JSON.parse(String(init.body)) : {};
       if (body.action === 'diff') {
         return {
+          ok: true,
+          status: 200,
           json: async () => ({ success: true, result: '+added line' }),
         } as Response;
       }
 
       return {
+        ok: true,
+        status: 200,
         json: async () => ({ success: true, result: commits }),
       } as Response;
     });

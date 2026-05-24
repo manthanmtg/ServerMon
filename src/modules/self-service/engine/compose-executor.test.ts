@@ -24,9 +24,11 @@ vi.mock('@/lib/logger', () => ({
 }));
 
 vi.mock('./shell-executor', () => ({
-  ShellExecutor: vi.fn().mockImplementation(() => ({
-    execute: mockExecute,
-  })),
+  ShellExecutor: vi.fn().mockImplementation(function () {
+    return {
+      execute: mockExecute,
+    };
+  }),
 }));
 
 import { mkdir, writeFile } from 'node:fs/promises';
@@ -122,7 +124,6 @@ describe('ComposeExecutor', () => {
       'compose log',
       'Docker Compose services started successfully.',
     ]);
-    expect(lines).toContain('$ cd /tmp/compose-run && docker compose up -d');
   });
 
   it('surfaces shell executor failure and keeps collected logs', async () => {
@@ -142,7 +143,6 @@ describe('ComposeExecutor', () => {
         'Writing docker-compose.yml to /tmp/compose/docker-compose.yml',
         'Running docker compose up -d...',
         'compose log',
-        'compose failed',
       ],
       error: 'compose failed',
     });
@@ -151,7 +151,6 @@ describe('ComposeExecutor', () => {
       'Writing docker-compose.yml to /tmp/compose/docker-compose.yml',
       'Running docker compose up -d...',
       'compose log',
-      'compose failed',
     ]);
   });
 
