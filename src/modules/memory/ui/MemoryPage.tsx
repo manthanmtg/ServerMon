@@ -64,6 +64,207 @@ interface MemoryBreakdownRow {
   color: string;
 }
 
+interface MemoryStatusSummaryProps {
+  isHighPressure: boolean;
+  memoryPressure: number | undefined;
+  statCards: MemoryStatCard[];
+}
+
+interface MemoryTopProcessesProps {
+  topProcs: MemoryProcess[];
+  onKillProcess: (pid: number) => Promise<void>;
+}
+
+function MemoryStatusSummary({
+  isHighPressure,
+  memoryPressure,
+  statCards,
+}: MemoryStatusSummaryProps) {
+  return (
+    <div className="flex flex-col md:flex-row gap-4">
+      <motion.div
+        whileHover={{ scale: 1.01 }}
+        className={cn(
+          'flex-1 p-4 rounded-2xl border flex items-center gap-4 transition-all',
+          isHighPressure
+            ? 'bg-destructive/5 border-destructive/20 text-destructive shadow-sm shadow-destructive/10'
+            : 'bg-card border-border shadow-sm'
+        )}
+      >
+        <div
+          className={cn(
+            'w-12 h-12 rounded-xl flex items-center justify-center',
+            isHighPressure ? 'bg-destructive/10' : 'bg-primary/10'
+          )}
+        >
+          <Activity
+            className={cn('w-6 h-6', isHighPressure ? 'text-destructive' : 'text-primary')}
+          />
+        </div>
+        <div className="flex-1 min-w-0">
+          <h2 className="text-sm font-semibold truncate">Current Pressure</h2>
+          <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">
+            {isHighPressure ? 'Critical System Load' : 'System Healthy'}
+          </p>
+        </div>
+        <div className="text-right">
+          <div className="text-2xl font-black tracking-tighter">
+            {memoryPressure !== undefined ? memoryPressure.toFixed(1) : '--'}%
+          </div>
+        </div>
+      </motion.div>
+
+      <div className="flex-[2] grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {statCards.map((stat) => (
+          <motion.div
+            key={stat.label}
+            whileHover={{ y: -2 }}
+            className="p-4 rounded-2xl bg-card border border-border shadow-sm flex flex-col justify-between"
+          >
+            <stat.icon className="w-4 h-4 text-muted-foreground mb-3" />
+            <div>
+              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-0.5">
+                {stat.label}
+              </p>
+              <div className="text-sm font-bold truncate">{stat.value}</div>
+            </div>
+          </motion.div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function MemoryTopProcessesTable({
+  topProcs,
+  onKillProcess,
+}: MemoryTopProcessesProps) {
+  return (
+    <div className="p-6 rounded-3xl bg-card border border-border shadow-md">
+      <div className="flex items-center justify-between mb-8">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-accent flex items-center justify-center text-accent-foreground">
+            <List className="w-5 h-5" />
+          </div>
+          <div>
+            <h3 className="text-lg font-bold tracking-tight">Top Memory Consumers</h3>
+            <p className="text-xs text-muted-foreground font-medium">
+              Sorted by RSS (Resident Set Size)
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div className="overflow-x-auto -mx-6 px-6">
+        <table className="w-full text-left border-collapse">
+          <thead>
+            <tr className="border-b border-border/50">
+              <th className="pb-3 text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
+                Process
+              </th>
+              <th className="pb-3 text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
+                Owner
+              </th>
+              <th className="pb-3 text-[11px] font-bold text-muted-foreground uppercase tracking-wider text-right">
+                PID
+              </th>
+              <th className="pb-3 text-[11px] font-bold text-muted-foreground uppercase tracking-wider text-center px-4">
+                Usage
+              </th>
+              <th className="pb-3 text-[11px] font-bold text-muted-foreground uppercase tracking-wider text-right">
+                RSS
+              </th>
+              <th className="pb-3 text-[11px] font-bold text-muted-foreground uppercase tracking-wider text-right">
+                VMS
+              </th>
+              <th className="pb-3 text-[11px] font-bold text-muted-foreground uppercase tracking-wider text-right">
+                Action
+              </th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-border/30">
+            <AnimatePresence mode="popLayout">
+              {topProcs.map((proc) => (
+                <motion.tr
+                  key={proc.pid}
+                  layout
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  transition={{ duration: 0.2 }}
+                  className="group hover:bg-accent/30 transition-colors"
+                >
+                  <td className="py-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center text-[10px] font-bold">
+                        {proc.name[0].toUpperCase()}
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="text-sm font-bold truncate max-w-[200px]">
+                          {proc.name}
+                        </span>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="py-4">
+                    <span className="px-2 py-0.5 rounded-md bg-accent/40 text-[10px] font-mono font-bold text-muted-foreground">
+                      {proc.user}
+                    </span>
+                  </td>
+                  <td className="py-4 text-xs font-mono text-muted-foreground text-right">{proc.pid}</td>
+                  <td className="py-4 px-4 min-w-[160px]">
+                    <div className="space-y-1.5">
+                      <div className="flex justify-between items-center text-[10px] font-bold px-0.5">
+                        <span
+                          className={cn(proc.mem > 5 ? 'text-primary' : 'text-emerald-500')}
+                        >
+                          {proc.mem.toFixed(1)}%
+                        </span>
+                      </div>
+                      <div className="h-2 w-full rounded-full bg-accent/20 overflow-hidden border border-border/10 p-[1px]">
+                        <motion.div
+                          initial={{ width: 0 }}
+                          animate={{ width: `${Math.max(proc.mem * 2, 2)}%` }}
+                          className={cn(
+                            'h-full rounded-full transition-all duration-700 min-w-[2px]',
+                            proc.mem > 10 ? 'bg-primary' : 'bg-emerald-500'
+                          )}
+                        />
+                      </div>
+                    </div>
+                  </td>
+                  <td className="py-4 text-xs font-bold text-right text-foreground">
+                    {formatBytes(proc.memRss * 1024)}
+                  </td>
+                  <td className="py-4 text-xs text-muted-foreground text-right">
+                    {formatBytes(proc.memVsz * 1024)}
+                  </td>
+                  <td className="py-4 text-right">
+                    <button
+                      onClick={() => onKillProcess(proc.pid)}
+                      className="p-2 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-all opacity-0 group-hover:opacity-100"
+                      title="Terminate Process"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </td>
+                </motion.tr>
+              ))}
+            </AnimatePresence>
+            {topProcs.length === 0 && (
+              <tr>
+                <td colSpan={7} className="py-12 text-center text-sm text-muted-foreground">
+                  Scanning system for memory consumers...
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 export function deriveMemoryStatCards({
   memTotal,
   memUsed,
@@ -193,58 +394,11 @@ export default function MemoryPage() {
         animate={{ opacity: 1, y: 0 }}
         className="space-y-6"
       >
-        {/* Status Bar */}
-        <div className="flex flex-col md:flex-row gap-4">
-          <motion.div
-            whileHover={{ scale: 1.01 }}
-            className={cn(
-              'flex-1 p-4 rounded-2xl border flex items-center gap-4 transition-all',
-              isHighPressure
-                ? 'bg-destructive/5 border-destructive/20 text-destructive shadow-sm shadow-destructive/10'
-                : 'bg-card border-border shadow-sm'
-            )}
-          >
-            <div
-              className={cn(
-                'w-12 h-12 rounded-xl flex items-center justify-center',
-                isHighPressure ? 'bg-destructive/10' : 'bg-primary/10'
-              )}
-            >
-              <Activity
-                className={cn('w-6 h-6', isHighPressure ? 'text-destructive' : 'text-primary')}
-              />
-            </div>
-            <div className="flex-1 min-w-0">
-              <h2 className="text-sm font-semibold truncate">Current Pressure</h2>
-              <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">
-                {isHighPressure ? 'Critical System Load' : 'System Healthy'}
-              </p>
-            </div>
-            <div className="text-right">
-              <div className="text-2xl font-black tracking-tighter">
-                {latest ? latest.memory.toFixed(1) : '--'}%
-              </div>
-            </div>
-          </motion.div>
-
-          <div className="flex-[2] grid grid-cols-2 lg:grid-cols-4 gap-4">
-            {statCards.map((stat) => (
-              <motion.div
-                key={stat.label}
-                whileHover={{ y: -2 }}
-                className="p-4 rounded-2xl bg-card border border-border shadow-sm flex flex-col justify-between"
-              >
-                <stat.icon className="w-4 h-4 text-muted-foreground mb-3" />
-                <div>
-                  <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-0.5">
-                    {stat.label}
-                  </p>
-                  <div className="text-sm font-bold truncate">{stat.value}</div>
-                </div>
-              </motion.div>
-            ))}
-          </div>
-        </div>
+        <MemoryStatusSummary
+          isHighPressure={isHighPressure}
+          memoryPressure={latest?.memory}
+          statCards={statCards}
+        />
 
         {/* Charts Area */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -392,131 +546,10 @@ export default function MemoryPage() {
           </div>
         </div>
 
-        {/* Top Processes Table */}
-        <div className="p-6 rounded-3xl bg-card border border-border shadow-md">
-          <div className="flex items-center justify-between mb-8">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-accent flex items-center justify-center text-accent-foreground">
-                <List className="w-5 h-5" />
-              </div>
-              <div>
-                <h3 className="text-lg font-bold tracking-tight">Top Memory Consumers</h3>
-                <p className="text-xs text-muted-foreground font-medium">
-                  Sorted by RSS (Resident Set Size)
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="overflow-x-auto -mx-6 px-6">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="border-b border-border/50">
-                  <th className="pb-3 text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
-                    Process
-                  </th>
-                  <th className="pb-3 text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
-                    Owner
-                  </th>
-                  <th className="pb-3 text-[11px] font-bold text-muted-foreground uppercase tracking-wider text-right">
-                    PID
-                  </th>
-                  <th className="pb-3 text-[11px] font-bold text-muted-foreground uppercase tracking-wider text-center px-4">
-                    Usage
-                  </th>
-                  <th className="pb-3 text-[11px] font-bold text-muted-foreground uppercase tracking-wider text-right">
-                    RSS
-                  </th>
-                  <th className="pb-3 text-[11px] font-bold text-muted-foreground uppercase tracking-wider text-right">
-                    VMS
-                  </th>
-                  <th className="pb-3 text-[11px] font-bold text-muted-foreground uppercase tracking-wider text-right">
-                    Action
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border/30">
-                <AnimatePresence mode="popLayout">
-                  {topProcs.map((proc) => (
-                    <motion.tr
-                      key={proc.pid}
-                      layout
-                      initial={{ opacity: 0, x: -10 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      exit={{ opacity: 0, scale: 0.95 }}
-                      transition={{ duration: 0.2 }}
-                      className="group hover:bg-accent/30 transition-colors"
-                    >
-                      <td className="py-4">
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center text-[10px] font-bold">
-                            {proc.name[0].toUpperCase()}
-                          </div>
-                          <div className="flex flex-col">
-                            <span className="text-sm font-bold truncate max-w-[200px]">
-                              {proc.name}
-                            </span>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="py-4">
-                        <span className="px-2 py-0.5 rounded-md bg-accent/40 text-[10px] font-mono font-bold text-muted-foreground">
-                          {proc.user}
-                        </span>
-                      </td>
-                      <td className="py-4 text-xs font-mono text-muted-foreground text-right">
-                        {proc.pid}
-                      </td>
-                      <td className="py-4 px-4 min-w-[160px]">
-                        <div className="space-y-1.5">
-                          <div className="flex justify-between items-center text-[10px] font-bold px-0.5">
-                            <span
-                              className={cn(proc.mem > 5 ? 'text-primary' : 'text-emerald-500')}
-                            >
-                              {proc.mem.toFixed(1)}%
-                            </span>
-                          </div>
-                          <div className="h-2 w-full rounded-full bg-accent/20 overflow-hidden border border-border/10 p-[1px]">
-                            <motion.div
-                              initial={{ width: 0 }}
-                              animate={{ width: `${Math.max(proc.mem * 2, 2)}%` }}
-                              className={cn(
-                                'h-full rounded-full transition-all duration-700 min-w-[2px]',
-                                proc.mem > 10 ? 'bg-primary' : 'bg-emerald-500'
-                              )}
-                            />
-                          </div>
-                        </div>
-                      </td>
-                      <td className="py-4 text-xs font-bold text-right text-foreground">
-                        {formatBytes(proc.memRss * 1024)}
-                      </td>
-                      <td className="py-4 text-xs text-muted-foreground text-right">
-                        {formatBytes(proc.memVsz * 1024)}
-                      </td>
-                      <td className="py-4 text-right">
-                        <button
-                          onClick={() => handleKillProcess(proc.pid)}
-                          className="p-2 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-all opacity-0 group-hover:opacity-100"
-                          title="Terminate Process"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </td>
-                    </motion.tr>
-                  ))}
-                </AnimatePresence>
-                {topProcs.length === 0 && (
-                  <tr>
-                    <td colSpan={7} className="py-12 text-center text-sm text-muted-foreground">
-                      Scanning system for memory consumers...
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        <MemoryTopProcessesTable
+          topProcs={topProcs}
+          onKillProcess={handleKillProcess}
+        />
       </motion.div>
     </ProShell>
   );
