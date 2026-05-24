@@ -68,14 +68,19 @@ const mockSnapshot: ServicesSnapshot = {
   timestamp: new Date().toISOString(),
 };
 
+const mockFetchResponse = (payload: unknown, init?: Omit<ResponseInit, 'headers'>) =>
+  new Response(JSON.stringify(payload), {
+    headers: { 'content-type': 'application/json' },
+    ...init,
+  });
+
 describe('ServicesPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     global.fetch = vi.fn().mockImplementation((url: string, options?: RequestInit) => {
       if (url.includes('/api/modules/services/nginx.service/logs')) {
-        return Promise.resolve({
-          ok: true,
-          json: async () => ({
+        return Promise.resolve(
+          mockFetchResponse({
             logs: [
               {
                 timestamp: new Date().toISOString(),
@@ -84,23 +89,19 @@ describe('ServicesPage', () => {
                 unit: 'nginx.service',
               },
             ],
-          }),
-        });
+          })
+        );
       }
       if (url.endsWith('/api/modules/services')) {
-        return Promise.resolve({ ok: true, json: async () => mockSnapshot });
+        return Promise.resolve(mockFetchResponse(mockSnapshot));
       }
       if (url.includes('/api/modules/services/') && url.includes('/action')) {
         const body = JSON.parse((options?.body as string) || '{}');
-        return Promise.resolve({
-          ok: true,
-          json: async () => ({ status: 'ok', message: `Action ${body.action} executed` }),
-        });
+        return Promise.resolve(
+          mockFetchResponse({ status: 'ok', message: `Action ${body.action} executed` })
+        );
       }
-      return Promise.resolve({
-        ok: true,
-        json: async () => ({ status: 'ok', message: 'Action executed' }),
-      });
+      return Promise.resolve(mockFetchResponse({ status: 'ok', message: 'Action executed' }));
     });
   });
 
@@ -310,12 +311,11 @@ describe('ServicesPage', () => {
     vi.mocked(global.fetch).mockImplementation((url) => {
       const urlString = url.toString();
       if (urlString.includes('/action')) {
-        return Promise.resolve({
-          ok: false,
-          json: async () => ({ error: 'Action failed' }),
-        } as unknown as Response);
+        return Promise.resolve(
+          mockFetchResponse({ error: 'Action failed' }, { status: 500 })
+        );
       }
-      return Promise.resolve({ ok: true, json: async () => mockSnapshot } as unknown as Response);
+      return Promise.resolve(mockFetchResponse(mockSnapshot));
     });
 
     await act(async () => {
@@ -336,12 +336,9 @@ describe('ServicesPage', () => {
     vi.mocked(global.fetch).mockImplementation((url) => {
       const urlString = url.toString();
       if (urlString.includes('/logs')) {
-        return Promise.resolve({
-          ok: false,
-          json: async () => ({ error: 'Logs error' }),
-        } as unknown as Response);
+        return Promise.resolve(mockFetchResponse({ error: 'Logs error' }, { status: 500 }));
       }
-      return Promise.resolve({ ok: true, json: async () => mockSnapshot } as unknown as Response);
+      return Promise.resolve(mockFetchResponse(mockSnapshot));
     });
 
     await act(async () => {
