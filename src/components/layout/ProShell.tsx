@@ -238,9 +238,11 @@ export default function ProShell({ children, title, subtitle, headerContent }: P
       {/* Mobile Sidebar Overlay */}
       {sidebarOpen && (
         <div className="fixed inset-0 z-50 lg:hidden">
-          <div
-            className="absolute inset-0 bg-background/80 backdrop-blur-sm"
+          <button
+            type="button"
+            aria-label="Close sidebar"
             onClick={() => setSidebarOpen(false)}
+            className="absolute inset-0 bg-background/80 backdrop-blur-sm cursor-default border-0"
           />
           <aside className="absolute left-0 top-0 bottom-0 w-[260px] bg-sidebar border-r border-sidebar-border shadow-xl animate-fade-in">
             <SidebarNav pathname={pathname} onNavigate={handleNavigate} onLogout={handleLogout} />

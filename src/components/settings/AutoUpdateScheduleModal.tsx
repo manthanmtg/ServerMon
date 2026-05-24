@@ -53,7 +53,12 @@ export function AutoUpdateScheduleModal({
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-background/80 backdrop-blur-sm" onClick={onClose} />
+      <button
+        type="button"
+        aria-label="Close auto-update schedule dialog"
+        onClick={onClose}
+        className="absolute inset-0 bg-background/80 backdrop-blur-sm cursor-default border-0"
+      />
       <div
         role="dialog"
         aria-modal="true"
