@@ -281,13 +281,14 @@
       "category": "testing",
       "enabled": true,
       "autonomousSafe": true,
-      "totalSelected": 34,
-      "totalCompleted": 33,
+      "totalSelected": 35,
+      "totalCompleted": 34,
       "totalNoop": 0,
       "totalFailed": 1,
-      "lastSelectedAt": "2026-05-24T08:06:53.084Z",
-      "lastCompletedAt": "2026-05-24T08:07:05.978Z",
-      "lastOutcome": "completed"
+      "lastSelectedAt": "2026-05-24T11:26:44.382Z",
+      "lastCompletedAt": "2026-05-24T11:27:17.779Z",
+      "lastOutcome": "completed",
+      "updatedAt": "2026-05-24T11:27:17.779Z"
     },
     "type_safety_enforcer.md": {
       "id": "type-safety-enforcer",
@@ -321,5 +322,5 @@
       "lastOutcome": "completed"
     }
   },
-  "updatedAt": "2026-05-24T11:25:54.693Z"
+  "updatedAt": "2026-05-24T11:27:17.779Z"
 }
