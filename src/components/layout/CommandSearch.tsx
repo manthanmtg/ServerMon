@@ -93,6 +93,7 @@ export default function CommandSearch({ isOpen, onClose, items }: CommandSearchP
             value={query}
             onChange={(event) => handleQueryChange(event.target.value)}
             onKeyDown={handleKeyDown}
+            aria-label="Search modules, pages, and actions"
             role="combobox"
             aria-expanded="true"
             aria-controls="command-search-results"
