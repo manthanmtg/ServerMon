@@ -14,6 +14,7 @@ export interface CommandSearchItem {
    */
   searchText?: string;
   compactLabel?: string;
+  normalizedLabel?: string;
 }
 
 interface ScoredSearchItem {
@@ -73,28 +74,32 @@ function scoreSubsequence(candidate: string, query: string): number {
   return Math.max(1200 - gaps * 12 - (candidate.length - query.length) * 2, 1);
 }
 
-function scoreCandidate(item: CommandSearchItem, rawQuery: string): number {
-  const query = normalizeSearchText(rawQuery);
-  if (!query) return item.priority ?? 0;
+function scoreCandidate(
+  item: CommandSearchItem,
+  normalizedQuery: string,
+  compactQuery: string
+): number {
+  if (!normalizedQuery) return item.priority ?? 0;
 
-  const label = normalizeSearchText(item.label);
+  const label = item.normalizedLabel ?? normalizeSearchText(item.label);
   const searchText =
-    item.searchText ?? normalizeSearchText([item.label, item.group, ...(item.keywords ?? [])].join(' '));
-  const queryCompact = compact(rawQuery);
+    item.searchText ??
+    normalizeSearchText([item.label, item.group, ...(item.keywords ?? [])].join(' '));
   const labelCompact = item.compactLabel ?? compact(item.label);
 
   let score = 0;
-  if (label === query) score = 9_500 + (item.priority ?? 0);
-  else if (label.startsWith(query)) {
-    score = 9_000 + (item.priority ?? 0) * 11 - (label.length - query.length);
+  if (label === normalizedQuery) score = 9_500 + (item.priority ?? 0);
+  else if (label.startsWith(normalizedQuery)) {
+    score = 9_000 + (item.priority ?? 0) * 11 - (label.length - normalizedQuery.length);
   }
-  else if (searchText.includes(query)) score = 7_000 - searchText.indexOf(query);
-  else if (labelCompact.startsWith(queryCompact)) {
-    score = 6_000 - (labelCompact.length - queryCompact.length);
+  else if (searchText.includes(normalizedQuery)) {
+    score = 7_000 - searchText.indexOf(normalizedQuery);
+  } else if (labelCompact.startsWith(compactQuery)) {
+    score = 6_000 - (labelCompact.length - compactQuery.length);
   } else {
     score = Math.max(
-      scoreSubsequence(labelCompact, queryCompact),
-      scoreSubsequence(searchText, queryCompact) - 100
+      scoreSubsequence(labelCompact, compactQuery),
+      scoreSubsequence(searchText, compactQuery) - 100
     );
   }
 
@@ -117,6 +122,7 @@ function toCommandSearchItem(entry: {
 }): CommandSearchItem {
   return {
     ...entry,
+    normalizedLabel: normalizeSearchText(entry.label),
     searchText: normalizeSearchText([entry.label, entry.group, ...entry.keywords].join(' ')),
     compactLabel: compact(entry.label),
   };
@@ -190,8 +196,26 @@ export function rankCommandSearchItems(
   query: string,
   limit = 8
 ): CommandSearchItem[] {
+  const normalizedQuery = normalizeSearchText(query);
+  const compactQuery = compact(normalizedQuery);
+
+  if (!normalizedQuery) {
+    return items
+      .map((item): ScoredSearchItem => ({ item, score: item.priority ?? 0 }))
+      .filter(({ score }) => score > 0)
+      .sort((left, right) => {
+        if (right.score !== left.score) return right.score - left.score;
+        return left.item.label.localeCompare(right.item.label);
+      })
+      .slice(0, limit)
+      .map(({ item }) => item);
+  }
+
   return items
-    .map((item): ScoredSearchItem => ({ item, score: scoreCandidate(item, query) }))
+    .map((item): ScoredSearchItem => ({
+      item,
+      score: scoreCandidate(item, normalizedQuery, compactQuery),
+    }))
     .filter(({ score }) => score > 0)
     .sort((left, right) => {
       if (right.score !== left.score) return right.score - left.score;
