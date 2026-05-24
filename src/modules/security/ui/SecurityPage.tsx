@@ -16,6 +16,7 @@ import {
   XCircle,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { PageSkeleton } from '@/components/ui/skeleton';
 import type { SecuritySnapshot, CheckStatus } from '../types';
@@ -69,16 +70,19 @@ const statusLabel: Record<CheckStatus, string> = {
 export default function SecurityPage() {
   const [snapshot, setSnapshot] = useState<SecuritySnapshot | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
+    setError(null);
     try {
       const res = await fetch('/api/modules/security', { cache: 'no-store' });
-      if (res.ok) {
-        const data = await res.json();
-        setSnapshot(data);
+      if (!res.ok) {
+        throw new Error(`Unable to load security data (HTTP ${res.status}).`);
       }
+      const data = (await res.json()) as SecuritySnapshot;
+      setSnapshot(data);
     } catch {
-      // ignore
+      setError('Unable to load security status. Please retry.');
     } finally {
       setLoading(false);
     }
@@ -109,7 +113,23 @@ export default function SecurityPage() {
     return <PageSkeleton statCards={3} />;
   }
 
-  if (!snapshot) return null;
+  if (!snapshot) {
+    return (
+      <div className="space-y-4">
+        <Card className="border-destructive/40 bg-destructive/5">
+          <CardContent className="flex items-center justify-between gap-3 py-4">
+            <div className="space-y-1">
+              <p className="text-sm font-semibold text-destructive">Security status unavailable</p>
+              <p className="text-sm text-muted-foreground">{error ?? 'Unable to load security status.'}</p>
+            </div>
+            <Button type="button" variant="destructive" size="sm" onClick={load} className="shrink-0">
+              Retry
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -216,6 +236,11 @@ export default function SecurityPage() {
             </button>
           </div>
         </CardHeader>
+        {error && (
+          <div className="px-4 pb-4">
+            <p className="text-xs text-destructive">{error}</p>
+          </div>
+        )}
         <CardContent className="space-y-4">
           {Array.from(checksByCategory.entries()).map(([cat, checks]) => (
             <div key={cat}>
