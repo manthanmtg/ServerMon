@@ -287,6 +287,7 @@ function ServicesViewTabs({
             type="text"
             placeholder="Search services..."
             value={search}
+            aria-label="Search services"
             onChange={(event) => onSearchChange(event.target.value)}
             className="w-full h-10 pl-9 pr-3 rounded-xl border border-border bg-background text-sm outline-none focus:ring-2 focus:ring-primary/30"
           />
