@@ -3,25 +3,40 @@
 import React, { useEffect, useState } from 'react';
 import { Package, ShieldAlert, AlertCircle } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { resilientFetch, safeJson } from '@/lib/fetch-utils';
 import type { UpdateSnapshot } from '../types';
 
 export default function UpdateWidget() {
   const [snapshot, setSnapshot] = useState<UpdateSnapshot | null>(null);
 
   useEffect(() => {
+    let active = true;
+
     const fetchUpdates = async () => {
       try {
-        const res = await fetch('/api/modules/updates');
-        const data = await res.json();
+        const res = await resilientFetch('/api/modules/updates', {
+          timeout: 8000,
+          retries: 1,
+          retryOnStatuses: [502, 503, 504],
+        });
+        const data = parseUpdateSnapshot(await safeJson<unknown>(res));
+        if (!active || !data || !res.ok) {
+          setSnapshot(null);
+          return;
+        }
         setSnapshot(data);
       } catch {
         /* ignore */
+        if (active) setSnapshot(null);
       }
     };
 
     fetchUpdates();
     const interval = setInterval(fetchUpdates, 3600000); // Check every hour
-    return () => clearInterval(interval);
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
   }, []);
 
   if (!snapshot) return null;
@@ -92,5 +107,26 @@ export default function UpdateWidget() {
         )}
       </div>
     </div>
+  );
+}
+
+function parseUpdateSnapshot(value: unknown): UpdateSnapshot | null {
+  if (!value || typeof value !== 'object' || value === null) return null;
+  const record = value as Record<string, unknown>;
+  if (!isUpdateCounts(record.counts)) return null;
+  if (typeof record.pendingRestart !== 'boolean') return null;
+
+  return value as UpdateSnapshot;
+}
+
+function isUpdateCounts(value: unknown): value is UpdateSnapshot['counts'] {
+  if (!value || typeof value !== 'object' || value === null) return false;
+
+  const record = value as Record<string, unknown>;
+  return (
+    typeof record.security === 'number' &&
+    typeof record.regular === 'number' &&
+    typeof record.optional === 'number' &&
+    typeof record.language === 'number'
   );
 }
