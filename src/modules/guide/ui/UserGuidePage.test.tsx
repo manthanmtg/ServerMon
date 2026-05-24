@@ -155,7 +155,7 @@ describe('UserGuidePage', () => {
     // No modules in sidebar
     expect(screen.queryByText('User Guide')).toBeNull();
     expect(screen.queryByText('Terminal')).toBeNull();
-    expect(screen.getByText(/No guides match/i)).toBeDefined();
+    expect(screen.getAllByText(/No guides match/i)).toHaveLength(2);
   });
 
   it('renders guide description in content area', () => {
