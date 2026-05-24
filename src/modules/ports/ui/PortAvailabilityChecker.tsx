@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { CheckCircle, LoaderCircle, Search, XCircle } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -17,58 +17,53 @@ export function PortAvailabilityChecker() {
   const [checkPort, setCheckPort] = useState('');
   const [checkResult, setCheckResult] = useState<PortCheckResult | null>(null);
   const [checking, setChecking] = useState(false);
+  const [checkError, setCheckError] = useState<string | null>(null);
+
+  const runCheck = useCallback(async (port: number, signal?: AbortSignal) => {
+    setChecking(true);
+    setCheckResult(null);
+    setCheckError(null);
+
+    try {
+      const res = await fetch(`/api/modules/ports/check?port=${port}`, signal ? { signal } : undefined);
+      if (res.ok) {
+        const data: PortCheckResult = await res.json();
+        setCheckResult(data);
+      } else {
+        setCheckError('The port check service returned an unexpected response.');
+      }
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        return;
+      }
+      if (signal?.aborted) {
+        return;
+      }
+      setCheckError('Unable to check port availability. Please try again.');
+    } finally {
+      if (!signal?.aborted) {
+        setChecking(false);
+      }
+    }
+  }, []);
 
   const handleCheckPort = async () => {
     if (!isValidPortValue(checkPort)) return;
     const port = parseInt(checkPort, 10);
-    setChecking(true);
-    setCheckResult(null);
-    try {
-      const res = await fetch(`/api/modules/ports/check?port=${port}`);
-      if (res.ok) {
-        const data = await res.json();
-        setCheckResult(data);
-      } else {
-        setCheckResult(null);
-      }
-    } catch {
-      setCheckResult(null);
-    } finally {
-      setChecking(false);
-    }
+    await runCheck(port);
   };
 
   useEffect(() => {
     if (!isValidPortValue(checkPort)) {
       setCheckResult(null);
+      setCheckError(null);
       return;
     }
 
-    setChecking(true);
-    setCheckResult(null);
-
     const controller = new AbortController();
     const timeoutId = window.setTimeout(async () => {
-      try {
-        const port = parseInt(checkPort, 10);
-        const res = await fetch(`/api/modules/ports/check?port=${port}`, {
-          signal: controller.signal,
-        });
-        if (res.ok) {
-          const data: PortCheckResult = await res.json();
-          setCheckResult(data);
-        } else {
-          setCheckResult(null);
-        }
-      } catch {
-        if (!controller.signal.aborted) {
-          setCheckResult(null);
-        }
-      } finally {
-        if (!controller.signal.aborted) {
-          setChecking(false);
-        }
-      }
+      const port = parseInt(checkPort, 10);
+      await runCheck(port, controller.signal);
     }, 400);
 
     return () => {
@@ -131,6 +126,15 @@ export function PortAvailabilityChecker() {
               className="text-xs text-destructive"
             >
               Port must be a number between 1 and 65535.
+            </motion.p>
+          )}
+          {checkError && (
+            <motion.p
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="text-xs text-destructive"
+            >
+              {checkError}
             </motion.p>
           )}
           <AnimatePresence>
