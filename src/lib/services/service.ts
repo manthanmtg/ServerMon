@@ -39,11 +39,28 @@ async function checkSystemd(): Promise<boolean> {
 
 async function execCmd(cmd: string, args: string[], timeoutMs = 10000): Promise<string> {
   try {
-    const { stdout } = await execFileAsync(cmd, args, {
+    const commandResult = (await execFileAsync(cmd, args, {
       timeout: timeoutMs,
       maxBuffer: 10 * 1024 * 1024,
-    });
-    return stdout;
+    })) as unknown as { stdout?: string | Buffer } | string;
+
+    if (typeof commandResult === 'string') {
+      return commandResult;
+    }
+
+    if (Buffer.isBuffer(commandResult)) {
+      return commandResult.toString();
+    }
+
+    if (commandResult && typeof commandResult === 'object' && 'stdout' in commandResult) {
+      const stdout = commandResult.stdout;
+      if (stdout === undefined || stdout === null) {
+        return '';
+      }
+      return Buffer.isBuffer(stdout) ? stdout.toString() : String(stdout);
+    }
+
+    return '';
   } catch (err: unknown) {
     const error = err as { stdout?: string; stderr?: string };
     if (error.stdout) return error.stdout;
