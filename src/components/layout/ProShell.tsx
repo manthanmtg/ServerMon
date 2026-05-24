@@ -44,6 +44,14 @@ const SidebarNav = React.memo(function SidebarNav({
 }) {
   const { settings } = useBrand();
   const navRef = React.useRef<HTMLElement>(null);
+  const navLinkClass = (isActive: boolean) =>
+    cn(
+      'relative flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] font-medium transition-all duration-200 min-h-[44px] group',
+      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
+      isActive
+        ? 'bg-primary text-primary-foreground border border-primary/40 shadow-sm shadow-primary/25'
+        : 'text-sidebar-foreground hover:bg-accent hover:text-foreground hover:translate-x-1 active:bg-accent active:translate-x-0.5'
+    );
 
   // Restore scroll position
   useEffect(() => {
@@ -91,12 +99,7 @@ const SidebarNav = React.memo(function SidebarNav({
                     key={item.href}
                     href={item.href}
                     onClick={onNavigate}
-                    className={cn(
-                      'flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] font-medium transition-colors min-h-[44px]',
-                      isActive
-                        ? 'bg-primary text-primary-foreground'
-                        : 'text-sidebar-foreground hover:bg-accent hover:text-foreground active:bg-accent'
-                    )}
+                    className={navLinkClass(isActive)}
                   >
                     <item.icon className="w-4 h-4 shrink-0" />
                     {item.label}
@@ -116,12 +119,7 @@ const SidebarNav = React.memo(function SidebarNav({
               key={item.href}
               href={item.href}
               onClick={onNavigate}
-              className={cn(
-                'flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] font-medium transition-colors min-h-[44px]',
-                isActive
-                  ? 'bg-primary text-primary-foreground'
-                  : 'text-sidebar-foreground hover:bg-accent hover:text-foreground active:bg-accent'
-              )}
+              className={navLinkClass(isActive)}
             >
               <item.icon className="w-4 h-4 shrink-0" />
               {item.label}
