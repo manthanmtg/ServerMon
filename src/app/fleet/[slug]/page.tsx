@@ -90,11 +90,16 @@ export default function NodeDetailPage() {
 
   return (
     <ProShell title={node.name} subtitle={node.slug}>
-      <div className="space-y-4">
-        <div className="flex gap-1 border-b border-border overflow-x-auto">
+        <div className="space-y-4">
+        <div role="tablist" aria-label="Node detail tabs" className="flex gap-1 border-b border-border overflow-x-auto">
           {tabs.map((t) => (
             <button
               key={t.id}
+              id={`node-tab-${node._id}-${t.id}`}
+              role="tab"
+              aria-selected={tab === t.id}
+              aria-controls={`node-tabpanel-${node._id}-${t.id}`}
+              type="button"
               onClick={() => setTab(t.id)}
               className={cn(
                 'px-3 py-2 text-sm border-b-2 whitespace-nowrap transition-colors',
@@ -107,20 +112,70 @@ export default function NodeDetailPage() {
             </button>
           ))}
         </div>
-        <div className={tab === 'overview' ? 'block' : 'hidden'}>
+        <div
+          id={`node-tabpanel-${node._id}-overview`}
+          role="tabpanel"
+          aria-labelledby={`node-tab-${node._id}-overview`}
+          className={tab === 'overview' ? 'block' : 'hidden'}
+        >
           <NodeStatusPanel nodeId={node._id} />
         </div>
-        <div className={tab === 'servermon' ? 'block' : 'hidden'}>
+        <div
+          id={`node-tabpanel-${node._id}-servermon`}
+          role="tabpanel"
+          aria-labelledby={`node-tab-${node._id}-servermon`}
+          className={tab === 'servermon' ? 'block' : 'hidden'}
+        >
           <NodeServerMonPanel nodeId={node._id} />
         </div>
-        <div className={tab === 'terminal' ? 'block' : 'hidden'}>
+        <div
+          id={`node-tabpanel-${node._id}-terminal`}
+          role="tabpanel"
+          aria-labelledby={`node-tab-${node._id}-terminal`}
+          className={tab === 'terminal' ? 'block' : 'hidden'}
+        >
           <NodeTerminal nodeId={node._id} />
         </div>
-        {tab === 'proxies' && <ProxyRuleTable nodeId={node._id} />}
-        {tab === 'routes' && <PublicRouteTable nodeId={node._id} />}
-        {tab === 'processes' && <RemoteProcessTable nodeId={node._id} />}
-        {tab === 'logs' && <NodeLogsView nodeId={node._id} />}
-        {tab === 'hardware' && <NodeHardwareCharts nodeId={node._id} />}
+        <div
+          id={`node-tabpanel-${node._id}-proxies`}
+          role="tabpanel"
+          aria-labelledby={`node-tab-${node._id}-proxies`}
+          hidden={tab !== 'proxies'}
+        >
+          <ProxyRuleTable nodeId={node._id} />
+        </div>
+        <div
+          id={`node-tabpanel-${node._id}-routes`}
+          role="tabpanel"
+          aria-labelledby={`node-tab-${node._id}-routes`}
+          hidden={tab !== 'routes'}
+        >
+          <PublicRouteTable nodeId={node._id} />
+        </div>
+        <div
+          id={`node-tabpanel-${node._id}-processes`}
+          role="tabpanel"
+          aria-labelledby={`node-tab-${node._id}-processes`}
+          hidden={tab !== 'processes'}
+        >
+          <RemoteProcessTable nodeId={node._id} />
+        </div>
+        <div
+          id={`node-tabpanel-${node._id}-logs`}
+          role="tabpanel"
+          aria-labelledby={`node-tab-${node._id}-logs`}
+          hidden={tab !== 'logs'}
+        >
+          <NodeLogsView nodeId={node._id} />
+        </div>
+        <div
+          id={`node-tabpanel-${node._id}-hardware`}
+          role="tabpanel"
+          aria-labelledby={`node-tab-${node._id}-hardware`}
+          hidden={tab !== 'hardware'}
+        >
+          <NodeHardwareCharts nodeId={node._id} />
+        </div>
       </div>
     </ProShell>
   );
