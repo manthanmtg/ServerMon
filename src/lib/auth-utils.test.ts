@@ -146,7 +146,7 @@ describe('auth-utils', () => {
     });
 
     it('should return true when verifySync returns boolean true', () => {
-      mockedVerifySync.mockReturnValue(true as unknown as ReturnType<typeof mockedVerifySync>);
+      mockedVerifySync.mockReturnValue(true as ReturnType<typeof mockedVerifySync>);
 
       const result = verifyTOTPToken('123456', 'JBSWY3DPEHPK3PXP');
 
@@ -154,7 +154,7 @@ describe('auth-utils', () => {
     });
 
     it('should return false when verifySync returns boolean false', () => {
-      mockedVerifySync.mockReturnValue(false as unknown as ReturnType<typeof mockedVerifySync>);
+      mockedVerifySync.mockReturnValue(false as ReturnType<typeof mockedVerifySync>);
 
       const result = verifyTOTPToken('123456', 'JBSWY3DPEHPK3PXP');
 
@@ -162,7 +162,7 @@ describe('auth-utils', () => {
     });
 
     it('should return false when verifySync returns null', () => {
-      mockedVerifySync.mockReturnValue(null as unknown as ReturnType<typeof mockedVerifySync>);
+      mockedVerifySync.mockReturnValue(null as ReturnType<typeof mockedVerifySync>);
 
       const result = verifyTOTPToken('123456', 'JBSWY3DPEHPK3PXP');
 
