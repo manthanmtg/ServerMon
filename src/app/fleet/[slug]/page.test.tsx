@@ -103,15 +103,15 @@ describe('NodeDetailPage', () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Overview' })).toBeDefined();
+      expect(screen.getByRole('tab', { name: 'Overview' })).toBeDefined();
     });
-    expect(screen.getByRole('button', { name: 'ServerMon' })).toBeDefined();
-    expect(screen.getByRole('button', { name: 'Terminal' })).toBeDefined();
-    expect(screen.getByRole('button', { name: 'Proxies' })).toBeDefined();
-    expect(screen.getByRole('button', { name: 'Public Routes' })).toBeDefined();
-    expect(screen.getByRole('button', { name: 'Processes' })).toBeDefined();
-    expect(screen.getByRole('button', { name: 'Logs' })).toBeDefined();
-    expect(screen.getByRole('button', { name: 'Hardware' })).toBeDefined();
+    expect(screen.getByRole('tab', { name: 'ServerMon' })).toBeDefined();
+    expect(screen.getByRole('tab', { name: 'Terminal' })).toBeDefined();
+    expect(screen.getByRole('tab', { name: 'Proxies' })).toBeDefined();
+    expect(screen.getByRole('tab', { name: 'Public Routes' })).toBeDefined();
+    expect(screen.getByRole('tab', { name: 'Processes' })).toBeDefined();
+    expect(screen.getByRole('tab', { name: 'Logs' })).toBeDefined();
+    expect(screen.getByRole('tab', { name: 'Hardware' })).toBeDefined();
 
     await waitFor(() => {
       expect(screen.getByTestId('overview').textContent).toBe('overview:node-abc');
@@ -128,7 +128,7 @@ describe('NodeDetailPage', () => {
     });
 
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Logs' }));
+      fireEvent.click(screen.getByRole('tab', { name: 'Logs' }));
     });
 
     await waitFor(() => {
@@ -146,7 +146,7 @@ describe('NodeDetailPage', () => {
     });
 
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'ServerMon' }));
+      fireEvent.click(screen.getByRole('tab', { name: 'ServerMon' }));
     });
 
     await waitFor(() => {
