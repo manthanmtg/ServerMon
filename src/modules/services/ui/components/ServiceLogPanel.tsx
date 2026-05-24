@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Activity, LoaderCircle, RotateCcw } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import type { ServiceLogEntry } from '../../types';
 
@@ -67,44 +68,53 @@ function parseServiceLogEntries(data: unknown): ServiceLogEntry[] {
 export function ServiceLogPanel({ serviceName }: ServiceLogPanelProps) {
   const [logs, setLogs] = useState<ServiceLogEntry[] | null>(null);
   const [autoScroll, setAutoScroll] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const logContainerRef = useRef<HTMLDivElement>(null);
+  const mountedRef = useRef(true);
+  const requestControllerRef = useRef<AbortController | null>(null);
+
+  const loadLogs = useCallback(() => {
+    requestControllerRef.current?.abort();
+    const requestController = new AbortController();
+    requestControllerRef.current = requestController;
+
+    fetch(`/api/modules/services/${encodeURIComponent(serviceName)}/logs?lines=30`, {
+      cache: 'no-store',
+      signal: requestController.signal,
+    })
+      .then((r) => r.json())
+      .then((data: unknown) => {
+        const nextLogs = parseServiceLogEntries(data);
+        if (!mountedRef.current) return;
+
+        setLoadError(null);
+        setLogs(nextLogs);
+      })
+      .catch((error: unknown) => {
+        if (error instanceof DOMException && error.name === 'AbortError') return;
+        if (!mountedRef.current) return;
+
+        setLoadError('Unable to load service logs.');
+      })
+      .finally(() => {
+        if (!mountedRef.current) return;
+        if (requestControllerRef.current === requestController) {
+          requestControllerRef.current = null;
+        }
+      });
+  }, [serviceName]);
 
   useEffect(() => {
-    let active = true;
-    let controller: AbortController | null = null;
-
-    function fetchLogs() {
-      controller?.abort();
-      const requestController = new AbortController();
-      controller = requestController;
-
-      fetch(`/api/modules/services/${encodeURIComponent(serviceName)}/logs?lines=30`, {
-        cache: 'no-store',
-        signal: requestController.signal,
-      })
-        .then((r) => r.json())
-        .then((data: unknown) => {
-          const nextLogs = parseServiceLogEntries(data);
-          if (active) setLogs(nextLogs);
-        })
-        .catch((error: unknown) => {
-          if (error instanceof DOMException && error.name === 'AbortError') return;
-          if (active) setLogs([]);
-        })
-        .finally(() => {
-          if (controller === requestController) controller = null;
-        });
-    }
-
-    fetchLogs();
-    const interval = setInterval(fetchLogs, 5000);
+    mountedRef.current = true;
+    loadLogs();
+    const interval = setInterval(loadLogs, 5000);
 
     return () => {
-      active = false;
-      controller?.abort();
+      mountedRef.current = false;
+      requestControllerRef.current?.abort();
       clearInterval(interval);
     };
-  }, [serviceName]);
+  }, [loadLogs]);
 
   useEffect(() => {
     if (autoScroll && logContainerRef.current) {
@@ -118,6 +128,23 @@ export function ServiceLogPanel({ serviceName }: ServiceLogPanelProps) {
     return (
       <div className="flex items-center justify-center py-4">
         <LoaderCircle className="h-4 w-4 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (loadError && logs === null) {
+    return (
+      <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-2 text-xs text-destructive">
+        <p className="mb-2">{loadError}</p>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          onClick={() => void loadLogs()}
+          className="min-h-[44px]"
+        >
+          Retry
+        </Button>
       </div>
     );
   }
