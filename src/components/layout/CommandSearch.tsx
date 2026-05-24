@@ -76,7 +76,7 @@ export default function CommandSearch({ isOpen, onClose, items }: CommandSearchP
       <button
         type="button"
         aria-label="Close search"
-        className="absolute inset-0 cursor-default"
+        className="absolute inset-0 cursor-default focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
         onClick={onClose}
       />
       <div

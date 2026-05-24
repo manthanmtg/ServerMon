@@ -242,7 +242,7 @@ export default function ProShell({ children, title, subtitle, headerContent }: P
             type="button"
             aria-label="Close sidebar"
             onClick={() => setSidebarOpen(false)}
-            className="absolute inset-0 bg-background/80 backdrop-blur-sm cursor-default border-0"
+            className="absolute inset-0 bg-background/80 backdrop-blur-sm cursor-default border-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
           />
           <aside className="absolute left-0 top-0 bottom-0 w-[260px] bg-sidebar border-r border-sidebar-border shadow-xl animate-fade-in">
             <SidebarNav pathname={pathname} onNavigate={handleNavigate} onLogout={handleLogout} />
