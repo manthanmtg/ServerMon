@@ -29,7 +29,7 @@ export async function GET() {
     metricsError = true;
   }
 
-  const healthy = dbStatus !== 'error' && latest !== null && !metricsError;
+  const healthy = dbStatus !== 'error' && latest != null && !metricsError;
 
   return NextResponse.json(
     {
