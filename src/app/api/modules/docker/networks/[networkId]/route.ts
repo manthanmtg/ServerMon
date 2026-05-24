@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createLogger } from '@/lib/logger';
+import { getSession } from '@/lib/session';
 import { dockerService } from '@/lib/docker/service';
 
 export const dynamic = 'force-dynamic';
@@ -11,6 +12,11 @@ export async function DELETE(
   context: { params: Promise<{ networkId: string }> }
 ) {
   try {
+    const session = await getSession();
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const { networkId } = await context.params;
     const result = await dockerService.removeNetwork(networkId);
     return NextResponse.json(result);
