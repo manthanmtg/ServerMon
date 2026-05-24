@@ -215,4 +215,99 @@ describe('commandSearchUtils', () => {
 
     expect(results[0]).toMatchObject({ id: 'disk' });
   });
+
+  it('normalizes unusual nav hrefs into stable search IDs', () => {
+    const items = buildGlobalSearchItems([
+      {
+        label: 'System',
+        items: [
+          { label: 'Root', href: '/', icon: Cog },
+          { label: 'Tools', href: '/tools/AI & Monitoring', icon: Cog },
+        ],
+      },
+    ]);
+
+    expect(items).toContainEqual(expect.objectContaining({ id: 'nav-home', href: '/', group: 'System' }));
+    expect(items).toContainEqual(
+      expect.objectContaining({ id: 'overview-home', href: '/', label: 'Root > Overview' })
+    );
+    expect(items).toContainEqual(
+      expect.objectContaining({
+        id: 'nav-tools-ai-monitoring',
+        href: '/tools/AI & Monitoring',
+        label: 'Tools',
+        group: 'System',
+      })
+    );
+  });
+
+  it('returns an empty list when there are no source items', () => {
+    expect(rankCommandSearchItems([], 'dashboard')).toEqual([]);
+  });
+
+  it('matches compact label prefixes for abbreviated search terms', () => {
+    const items: CommandSearchItem[] = [
+      {
+        id: 'ai-runner',
+        label: 'AI Runner',
+        href: '/ai-runner',
+        group: 'Modules',
+        priority: 1,
+      },
+      {
+        id: 'alerts',
+        label: 'Alert Center',
+        href: '/alerts',
+        group: 'Modules',
+        priority: 1,
+      },
+    ];
+
+    expect(rankCommandSearchItems(items, 'air')[0]).toMatchObject({ id: 'ai-runner' });
+  });
+
+  it('returns subsequence matches when no direct text match exists', () => {
+    const items: CommandSearchItem[] = [
+      {
+        id: 'network',
+        label: 'Network Throughput',
+        href: '/network',
+        group: 'Modules',
+        priority: 1,
+      },
+      {
+        id: 'memory',
+        label: 'Memory Profile',
+        href: '/memory',
+        group: 'Modules',
+        priority: 1,
+      },
+    ];
+
+    expect(rankCommandSearchItems(items, 'ntw').map((item) => item.id)).toEqual(['network']);
+  });
+
+  it('enforces default limit when ranking many matches', () => {
+    const items = Array.from({ length: 12 }, (_, index) => ({
+      id: `item-${index}`,
+      label: `Item ${index}`,
+      href: `/item/${index}`,
+      group: 'Modules',
+      priority: index,
+    }));
+
+    const results = rankCommandSearchItems(items, '');
+
+    expect(results).toHaveLength(8);
+    expect(results.map((item) => item.id)).toEqual([
+      'item-11',
+      'item-10',
+      'item-9',
+      'item-8',
+      'item-7',
+      'item-6',
+      'item-5',
+      'item-4',
+    ]);
+  });
 });
