@@ -65,7 +65,7 @@ export function CronJobRow({
             onClick={onToggleExpand}
             whileHover={{ scale: 1.1 }}
             whileTap={{ scale: 0.9 }}
-            className="p-1 rounded hover:bg-accent transition-colors flex items-center justify-center"
+            className="p-1.5 rounded hover:bg-accent transition-colors flex items-center justify-center min-h-[44px] min-w-[44px] sm:min-h-[32px] sm:min-w-[32px]"
           >
             {isExpanded ? (
               <ChevronDown className="w-4 h-4 text-muted-foreground" />
@@ -89,7 +89,7 @@ export function CronJobRow({
               onClick={() => onCopy(job.expression, job.id)}
               whileHover={{ scale: 1.1 }}
               whileTap={{ scale: 0.9 }}
-              className="p-0.5 rounded hover:bg-accent transition-colors flex items-center justify-center"
+              className="p-1.5 rounded hover:bg-accent transition-colors flex items-center justify-center min-h-[44px] min-w-[44px] sm:min-h-[32px] sm:min-w-[32px]"
               title="Copy expression"
             >
               {copiedId === job.id ? (
@@ -150,7 +150,7 @@ export function CronJobRow({
                   onClick={() => onToggle(job)}
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
-                  className="p-1.5 rounded-lg hover:bg-accent transition-colors min-h-[32px] min-w-[32px] flex items-center justify-center"
+                  className="p-1.5 rounded-lg hover:bg-accent transition-colors min-h-[44px] min-w-[44px] sm:min-h-[32px] sm:min-w-[32px] flex items-center justify-center"
                 >
                   {pendingAction === `${job.id}:toggle` ? (
                     <LoaderCircle className="w-3.5 h-3.5 animate-spin" />
@@ -166,7 +166,7 @@ export function CronJobRow({
                   onClick={() => onEdit(job)}
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
-                  className="p-1.5 rounded-lg hover:bg-accent transition-colors min-h-[32px] min-w-[32px] flex items-center justify-center"
+                  className="p-1.5 rounded-lg hover:bg-accent transition-colors min-h-[44px] min-w-[44px] sm:min-h-[32px] sm:min-w-[32px] flex items-center justify-center"
                 >
                   <Edit3 className="w-3.5 h-3.5 text-muted-foreground" />
                 </motion.button>
@@ -177,7 +177,7 @@ export function CronJobRow({
                   onClick={() => onRun(job)}
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
-                  className="p-1.5 rounded-lg hover:bg-primary/10 transition-colors min-h-[32px] min-w-[32px] flex items-center justify-center"
+                  className="p-1.5 rounded-lg hover:bg-primary/10 transition-colors min-h-[44px] min-w-[44px] sm:min-h-[32px] sm:min-w-[32px] flex items-center justify-center"
                 >
                   {pendingAction === `${job.id}:run` ? (
                     <LoaderCircle className="w-3.5 h-3.5 animate-spin" />
@@ -192,7 +192,7 @@ export function CronJobRow({
                   onClick={() => onDelete(job)}
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
-                  className="p-1.5 rounded-lg hover:bg-destructive/10 transition-colors min-h-[32px] min-w-[32px] flex items-center justify-center"
+                  className="p-1.5 rounded-lg hover:bg-destructive/10 transition-colors min-h-[44px] min-w-[44px] sm:min-h-[32px] sm:min-w-[32px] flex items-center justify-center"
                 >
                   {pendingAction === `${job.id}:delete` ? (
                     <LoaderCircle className="w-3.5 h-3.5 animate-spin" />
