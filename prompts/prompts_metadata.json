@@ -15,13 +15,13 @@
       "category": "ui-quality",
       "enabled": true,
       "autonomousSafe": true,
-      "totalSelected": 34,
+      "totalSelected": 35,
       "totalCompleted": 34,
       "totalNoop": 0,
       "totalFailed": 0,
-      "lastSelectedAt": "2026-05-24T07:14:10.882Z",
+      "lastSelectedAt": "2026-05-24T07:58:10.703Z",
       "lastCompletedAt": "2026-05-24T07:16:13.025Z",
-      "lastOutcome": "completed",
+      "lastOutcome": "selected",
       "updatedAt": "2026-05-24T07:16:13.025Z"
     },
     "api_resilience_improver.md": {
@@ -318,5 +318,5 @@
       "lastOutcome": "completed"
     }
   },
-  "updatedAt": "2026-05-24T07:56:52.509Z"
+  "updatedAt": "2026-05-24T07:58:10.703Z"
 }
