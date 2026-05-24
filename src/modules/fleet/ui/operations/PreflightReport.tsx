@@ -63,13 +63,13 @@ export function PreflightReport() {
 
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between">
+      <CardHeader className="flex flex-row items-center justify-between gap-3">
         <CardTitle>Preflight report</CardTitle>
         <Button onClick={run} disabled={busy} loading={busy}>
           Run preflight
         </Button>
       </CardHeader>
-      <CardContent className="space-y-3">
+      <CardContent className="space-y-4">
         {error && (
           <div
             role="alert"
@@ -100,34 +100,39 @@ export function PreflightReport() {
                   )
               )}
             </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border text-left text-muted-foreground">
-                    <th className="py-2 pr-2 font-medium">Check</th>
-                    <th className="py-2 pr-2 font-medium">Status</th>
-                    <th className="py-2 pr-2 font-medium">Detail</th>
-                    <th className="py-2 pr-2 font-medium">Fix</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {results.map((r) => (
-                    <tr key={r.id} className="border-b border-border/50 last:border-none align-top">
-                      <td className="py-2 pr-2">
-                        <div className="text-sm">{r.label}</div>
-                        <div className="text-xs font-mono text-muted-foreground">{r.id}</div>
-                      </td>
-                      <td className="py-2 pr-2">
-                        <Badge variant={statusVariant(r.status)}>{r.status}</Badge>
-                      </td>
-                      <td className="py-2 pr-2 text-xs max-w-[30ch] break-words">
-                        {r.detail ?? '—'}
-                      </td>
-                      <td className="py-2 pr-2 text-xs max-w-[30ch] break-words">{r.fix ?? '—'}</td>
+            <div className="overflow-hidden rounded-lg border border-border/60">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-border bg-muted/35 text-left text-muted-foreground">
+                      <th className="py-2 pr-2 font-medium">Check</th>
+                      <th className="py-2 pr-2 font-medium">Status</th>
+                      <th className="py-2 pr-2 font-medium">Detail</th>
+                      <th className="py-2 pr-2 font-medium">Fix</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {results.map((r) => (
+                      <tr
+                        key={r.id}
+                        className="border-b border-border/50 last:border-none align-top transition-colors hover:bg-muted/25"
+                      >
+                        <td className="py-2 pr-2">
+                          <div className="text-sm">{r.label}</div>
+                          <div className="text-xs font-mono text-muted-foreground">{r.id}</div>
+                        </td>
+                        <td className="py-2 pr-2">
+                          <Badge variant={statusVariant(r.status)}>{r.status}</Badge>
+                        </td>
+                        <td className="py-2 pr-2 text-xs max-w-[30ch] break-words">
+                          {r.detail ?? '—'}
+                        </td>
+                        <td className="py-2 pr-2 text-xs max-w-[30ch] break-words">{r.fix ?? '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </>
         )}
