@@ -132,7 +132,12 @@ export default function TerminalHistoryModal({ onClose }: TerminalHistoryModalPr
               </p>
             </div>
           </div>
-          <Button variant="ghost" size="icon" onClick={onClose} className="rounded-full w-8 h-8">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onClose}
+            className="rounded-full min-h-[44px] min-w-[44px] sm:h-8 sm:w-8"
+          >
             <X className="w-4 h-4" />
           </Button>
         </div>
