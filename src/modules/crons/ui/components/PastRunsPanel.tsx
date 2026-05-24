@@ -4,6 +4,28 @@ import { Button } from '@/components/ui/button';
 import { resilientFetch, safeJson } from '@/lib/fetch-utils';
 import type { CronRunStatus } from '../../types';
 
+const isCronRunStatus = (value: unknown): value is CronRunStatus => {
+  if (value === null || typeof value !== 'object') {
+    return false;
+  }
+
+  const run = value as Record<string, unknown>;
+
+  return (
+    typeof run.runId === 'string' &&
+    typeof run.jobId === 'string' &&
+    typeof run.command === 'string' &&
+    typeof run.pid === 'number' &&
+    Number.isFinite(run.pid) &&
+    typeof run.stdout === 'string' &&
+    typeof run.stderr === 'string' &&
+    typeof run.startedAt === 'string' &&
+    (run.finishedAt === undefined || typeof run.finishedAt === 'string') &&
+    (run.status === 'running' || run.status === 'completed' || run.status === 'failed') &&
+    (run.exitCode === null || typeof run.exitCode === 'number')
+  );
+};
+
 export function PastRunsPanel({
   jobId,
   onShowOutput,
@@ -26,12 +48,11 @@ export function PastRunsPanel({
       }
 
       const data = await safeJson<unknown>(res);
-      if (!Array.isArray(data)) {
+      if (!Array.isArray(data) || !data.every((run) => isCronRunStatus(run))) {
         throw new Error('Invalid run history response.');
       }
 
-      const runs = data as CronRunStatus[];
-      setRuns(runs);
+      setRuns(data);
     } catch {
       setError('Unable to load run history.');
     } finally {
