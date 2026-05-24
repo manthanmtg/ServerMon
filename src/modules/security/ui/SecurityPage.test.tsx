@@ -243,11 +243,12 @@ describe('SecurityPage', () => {
     });
   });
 
-  it('renders null when fetch fails and no snapshot', async () => {
+  it('shows retry state when fetch fails and no snapshot', async () => {
     global.fetch = vi.fn().mockRejectedValue(new Error('Network error')) as unknown as typeof fetch;
     await act(async () => render(<SecurityPage />));
     await waitFor(() => {
-      expect(screen.queryByText('Security Score')).toBeNull();
+      expect(screen.getByText('Security status unavailable')).toBeDefined();
+      expect(screen.getByText('Unable to load security status. Please retry.')).toBeDefined();
     });
   });
 
