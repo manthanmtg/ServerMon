@@ -190,6 +190,24 @@ describe('executeWebhook', () => {
     expect(mockFetch).toHaveBeenCalledTimes(2);
   });
 
+  it('retries idempotent requests once after a transient network error', async () => {
+    const mockFetch = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('network down'))
+      .mockResolvedValueOnce(mockResponse(200, 'ok'));
+    vi.stubGlobal('fetch', mockFetch);
+
+    const endpoint = makeEndpoint({
+      method: 'GET',
+      webhookConfig: { targetUrl: 'https://example.com/hook', method: 'GET' },
+    });
+    const result = await executeWebhook(endpoint, makeInput({ method: 'GET' }));
+
+    expect(result.statusCode).toBe(200);
+    expect(result.body).toBe('ok');
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+  });
+
   // ── transformBody ──────────────────────────────────────────────────────────
 
   it('applies transformBody function to the outgoing body', async () => {
