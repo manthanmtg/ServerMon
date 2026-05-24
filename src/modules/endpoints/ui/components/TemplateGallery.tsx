@@ -165,6 +165,7 @@ export function TemplateGallery({
           </div>
           <div className="flex items-center gap-2 shrink-0">
             <button
+              aria-label="Toggle template filters"
               onClick={() => setShowFilters(!showFilters)}
               className={cn(
                 'p-2.5 rounded-xl transition-all ring-1 active:scale-95 sm:hidden',
@@ -179,6 +180,7 @@ export function TemplateGallery({
               )}
             </button>
             <button
+              aria-label="Close template gallery"
               onClick={onClose}
               className="p-2.5 sm:p-3 rounded-xl sm:rounded-2xl hover:bg-accent/50 text-muted-foreground transition-all ring-1 ring-border/20 active:scale-95"
             >
