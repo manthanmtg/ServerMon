@@ -1,6 +1,14 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type MouseEvent,
+} from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowUpDown, CornerDownLeft, Search, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -32,21 +40,40 @@ export default function CommandSearch({ isOpen, onClose, items }: CommandSearchP
     inputRef.current?.focus();
   }, [isOpen]);
 
-  const handleQueryChange = (value: string) => {
+  const handleQueryChange = useCallback((value: string) => {
     setQuery(value);
     setSelectedIndex(0);
-  };
+  }, []);
 
   if (!isOpen) return null;
 
   const selectedItem = results[selectedIndex];
 
-  const selectItem = (item: CommandSearchItem) => {
+  const selectItem = useCallback((item: CommandSearchItem) => {
     router.push(item.href);
     onClose();
-  };
+  }, [onClose, router]);
 
-  const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+  const handleResultMouseEnter = useCallback((event: MouseEvent<HTMLButtonElement>) => {
+    const index = Number(event.currentTarget.dataset.index);
+    if (!Number.isNaN(index)) {
+      setSelectedIndex(index);
+    }
+  }, []);
+
+  const handleResultClick = useCallback(
+    (event: MouseEvent<HTMLButtonElement>) => {
+      const index = Number(event.currentTarget.dataset.index);
+      const item = results[index];
+      if (!Number.isNaN(index) && item) {
+        selectItem(item);
+      }
+    },
+    [results, selectItem]
+  );
+
+  const handleKeyDown = useCallback(
+    (event: KeyboardEvent<HTMLInputElement>) => {
     if (event.key === 'Escape') {
       event.preventDefault();
       onClose();
@@ -69,7 +96,9 @@ export default function CommandSearch({ isOpen, onClose, items }: CommandSearchP
       event.preventDefault();
       selectItem(selectedItem);
     }
-  };
+  },
+    [onClose, results, selectedItem, selectItem]
+  );
 
   return (
     <div className="fixed inset-0 z-[80] flex items-start justify-center bg-background/70 px-3 pt-[14vh] backdrop-blur-sm sm:px-6">
@@ -127,8 +156,9 @@ export default function CommandSearch({ isOpen, onClose, items }: CommandSearchP
                   type="button"
                   role="option"
                   aria-selected={selected}
-                  onMouseEnter={() => setSelectedIndex(index)}
-                  onClick={() => selectItem(item)}
+                  data-index={index}
+                  onMouseEnter={handleResultMouseEnter}
+                  onClick={handleResultClick}
                   className={cn(
                     'flex min-h-[56px] w-full items-center gap-3 rounded-md px-3 text-left transition-colors',
                     selected ? 'bg-accent text-accent-foreground' : 'text-popover-foreground'
