@@ -12,6 +12,7 @@ function isLoopbackInterface(iface: string) {
 
 export default function NetworkWidget() {
   const [stats, setStats] = useState<{ rx: number; tx: number; iface: string } | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     let mounted = true;
@@ -36,6 +37,9 @@ export default function NetworkWidget() {
         /* ignore */
       } finally {
         window.clearTimeout(timeout);
+        if (mounted) {
+          setIsLoading(false);
+        }
       }
     };
 
@@ -66,7 +70,7 @@ export default function NetworkWidget() {
                 Active Interface
               </span>
               <span className="block truncate text-sm font-black tracking-tighter text-foreground">
-                {stats?.iface || 'Network'}
+                {isLoading ? 'Loading…' : stats?.iface || 'Network'}
               </span>
             </div>
           </div>
@@ -89,7 +93,7 @@ export default function NetworkWidget() {
               <span className="text-[10px] font-black uppercase tracking-tighter">Download</span>
             </div>
             <span className="text-sm font-bold tabular-nums truncate tracking-tighter">
-              {stats ? formatBytes(stats.rx) : '0 B'}/s
+              {isLoading ? '—' : stats ? formatBytes(stats.rx) : '0 B'}/s
             </span>
           </div>
         </motion.div>
@@ -109,7 +113,7 @@ export default function NetworkWidget() {
               <span className="text-[10px] font-black uppercase tracking-tighter">Upload</span>
             </div>
             <span className="text-sm font-bold tabular-nums truncate tracking-tighter">
-              {stats ? formatBytes(stats.tx) : '0 B'}/s
+              {isLoading ? '—' : stats ? formatBytes(stats.tx) : '0 B'}/s
             </span>
           </div>
         </motion.div>

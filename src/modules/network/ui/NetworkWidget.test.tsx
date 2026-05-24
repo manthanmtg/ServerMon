@@ -56,7 +56,7 @@ describe('NetworkWidget', () => {
     });
   });
 
-  it('shows 0 B before data loads', async () => {
+  it('shows loading placeholders before data loads', async () => {
     let resolveFetch!: (v: Response) => void;
     global.fetch = vi.fn().mockImplementation(
       () =>
@@ -65,7 +65,7 @@ describe('NetworkWidget', () => {
         })
     );
     render(<NetworkWidget />);
-    const zeroValues = screen.getAllByText('0 B/s');
+    const zeroValues = screen.getAllByText('—/s');
     expect(zeroValues.length).toBeGreaterThanOrEqual(1);
     await act(async () => {
       resolveFetch({ ok: true, json: async () => mockNetworkData } as Response);
