@@ -52,6 +52,7 @@ import { GET, POST, PUT, DELETE } from './route';
 describe('GET /api/terminal/sessions', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockGetSession.mockResolvedValue({ user: { username: 'admin' } });
   });
 
   it('returns sessions list', async () => {

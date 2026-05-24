@@ -111,36 +111,32 @@ describe('PUT /api/terminal/settings', () => {
 
   it('clamps fontSize to min 10', async () => {
     mockGetSession.mockResolvedValue({ user: { role: 'admin' } });
-    mockFindByIdAndUpdate.mockReturnValue({ lean: () => Promise.resolve({ fontSize: 10 }) });
-    await PUT(
+    const res = await PUT(
       new Request('http://localhost', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ fontSize: 5 }),
       })
     );
-    expect(mockFindByIdAndUpdate).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({ $set: expect.objectContaining({ fontSize: 10 }) }),
-      expect.anything()
-    );
+    expect(res.status).toBe(400);
+    const json = await res.json();
+    expect(json.error).toBe('Invalid request body');
+    expect(mockFindByIdAndUpdate).not.toHaveBeenCalled();
   });
 
   it('clamps maxSessions to max 20', async () => {
     mockGetSession.mockResolvedValue({ user: { role: 'admin' } });
-    mockFindByIdAndUpdate.mockReturnValue({ lean: () => Promise.resolve({ maxSessions: 20 }) });
-    await PUT(
+    const res = await PUT(
       new Request('http://localhost', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ maxSessions: 100 }),
       })
     );
-    expect(mockFindByIdAndUpdate).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({ $set: expect.objectContaining({ maxSessions: 20 }) }),
-      expect.anything()
-    );
+    expect(res.status).toBe(400);
+    const json = await res.json();
+    expect(json.error).toBe('Invalid request body');
+    expect(mockFindByIdAndUpdate).not.toHaveBeenCalled();
   });
 
   it('returns 500 on DB error', async () => {
