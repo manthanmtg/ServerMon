@@ -169,6 +169,8 @@ function ServicesTableBase({
                       <td className="py-3 px-4">
                         <button
                           type="button"
+                          aria-label={`${isExpanded ? 'Collapse' : 'Expand'} ${svc.name} details`}
+                          aria-expanded={isExpanded}
                           onClick={() => onToggleExpanded(isExpanded ? null : svc.name)}
                           className="p-1 rounded hover:bg-accent transition-colors"
                         >
@@ -254,6 +256,8 @@ function ServicesTableBase({
                                 serviceActionButtonClass,
                                 'text-success hover:bg-success/10'
                               )}
+                              type="button"
+                              aria-label={`Start ${svc.name}`}
                               title="Start"
                               loading={pendingAction === `${svc.name}:start`}
                               onClick={() => onRunAction(svc.name, 'start')}
@@ -269,6 +273,8 @@ function ServicesTableBase({
                                 serviceActionButtonClass,
                                 'text-destructive hover:bg-destructive/10'
                               )}
+                              type="button"
+                              aria-label={`Stop ${svc.name}`}
                               title="Stop"
                               loading={pendingAction === `${svc.name}:stop`}
                               onClick={() => onRunAction(svc.name, 'stop')}
@@ -283,6 +289,8 @@ function ServicesTableBase({
                               serviceActionButtonClass,
                               'text-primary hover:bg-primary/10'
                             )}
+                            type="button"
+                            aria-label={`Restart ${svc.name}`}
                             title="Restart"
                             loading={pendingAction === `${svc.name}:restart`}
                             onClick={() => onRunAction(svc.name, 'restart')}
@@ -293,6 +301,8 @@ function ServicesTableBase({
                             size="sm"
                             variant="ghost"
                             className={cn(serviceActionButtonClass, 'hover:bg-accent')}
+                            type="button"
+                            aria-label={`${svc.enabled ? 'Disable' : 'Enable'} ${svc.name}`}
                             title={svc.enabled ? 'Disable' : 'Enable'}
                             loading={
                               pendingAction === `${svc.name}:enable` ||
