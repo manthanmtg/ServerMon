@@ -102,7 +102,7 @@ describe('POST /api/modules/ai-runner/profiles/validate', () => {
     const response = await POST(makeRequest({}));
     expect(response.status).toBe(400);
     const json = await response.json();
-    expect(json.error).toContain('Required');
+    expect(json.error).toContain('Invalid input');
     expect(mockValidateProfileTemplate).not.toHaveBeenCalled();
   });
 
