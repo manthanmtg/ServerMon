@@ -28,6 +28,15 @@ interface SecurityChecksByCategoryProps {
   onRefresh: () => void;
 }
 
+function EmptyChecksState() {
+  return (
+    <div className="text-center py-6 text-muted-foreground" role="note" aria-live="polite">
+      <p className="text-sm font-medium">No security checks available</p>
+      <p className="text-xs mt-1">Refresh to fetch the latest security checks.</p>
+    </div>
+  );
+}
+
 export const SecurityChecksByCategory = memo(function SecurityChecksByCategory({
   checksByCategory,
   error,
@@ -58,7 +67,10 @@ export const SecurityChecksByCategory = memo(function SecurityChecksByCategory({
         </div>
       )}
       <CardContent className="space-y-4">
-        {Array.from(checksByCategory.entries()).map(([category, checks]) => (
+        {checksByCategory.size === 0 ? (
+          <EmptyChecksState />
+        ) : (
+          Array.from(checksByCategory.entries()).map(([category, checks]) => (
           <div key={category}>
             <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
               {category}
@@ -97,7 +109,8 @@ export const SecurityChecksByCategory = memo(function SecurityChecksByCategory({
               ))}
             </div>
           </div>
-        ))}
+        ))
+      )}
       </CardContent>
     </Card>
   );
