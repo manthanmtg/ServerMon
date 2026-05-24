@@ -152,7 +152,7 @@ describe('NetworkWidget', () => {
       render(<NetworkWidget />);
     });
     await waitFor(() => expect(screen.getByText('Active Interface')).toBeDefined());
-    expect(screen.getByText('Unavailable')).toBeDefined();
+    expect(screen.getByText('No interfaces')).toBeDefined();
   });
 
   it('handles fetch failure gracefully', async () => {
