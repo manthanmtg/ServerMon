@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { memo, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { CheckCircle, Cog, Play, Power, Shield, ShieldAlert, Square, XCircle } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
@@ -64,7 +64,7 @@ const itemVariants = {
   show: { opacity: 1, y: 0, transition: { type: 'spring' as const, stiffness: 300, damping: 24 } },
 };
 
-export function ServicesSummaryGrid({ summary, alertsCount }: ServicesSummaryGridProps) {
+function ServicesSummaryGridInner({ summary, alertsCount }: ServicesSummaryGridProps) {
   const cards = useMemo(
     () => [
       {
@@ -154,3 +154,5 @@ export function ServicesSummaryGrid({ summary, alertsCount }: ServicesSummaryGri
     </motion.div>
   );
 }
+
+export const ServicesSummaryGrid = memo(ServicesSummaryGridInner);
