@@ -9,6 +9,11 @@ export interface CommandSearchItem {
   icon?: LucideIcon;
   keywords?: string[];
   priority?: number;
+  /**
+   * Precomputed normalized text used to reduce repeated string normalization in ranking.
+   */
+  searchText?: string;
+  compactLabel?: string;
 }
 
 interface ScoredSearchItem {
@@ -36,7 +41,8 @@ function normalizeSearchText(value: string): string {
 function idFromHref(prefix: string, href: string): string {
   const slug = href
     .replace(/[?#].*$/, '')
-    .replace(/^\/|\/$/g, '')
+    .replace(/^\//g, '')
+    .replace(/\/$/, '')
     .replace(/[^a-z0-9]+/gi, '-');
   return `${prefix}-${slug || 'home'}`.toLowerCase();
 }
@@ -72,12 +78,10 @@ function scoreCandidate(item: CommandSearchItem, rawQuery: string): number {
   if (!query) return item.priority ?? 0;
 
   const label = normalizeSearchText(item.label);
-  const searchText = normalizeSearchText(
-    [item.label, item.group, ...(item.keywords ?? [])].join(' ')
-  );
+  const searchText =
+    item.searchText ?? normalizeSearchText([item.label, item.group, ...(item.keywords ?? [])].join(' '));
   const queryCompact = compact(rawQuery);
-  const labelCompact = compact(item.label);
-  const searchCompact = compact(searchText);
+  const labelCompact = item.compactLabel ?? compact(item.label);
 
   let score = 0;
   if (label === query) score = 10_000;
@@ -88,7 +92,7 @@ function scoreCandidate(item: CommandSearchItem, rawQuery: string): number {
   } else {
     score = Math.max(
       scoreSubsequence(labelCompact, queryCompact),
-      scoreSubsequence(searchCompact, queryCompact) - 100
+      scoreSubsequence(searchText, queryCompact) - 100
     );
   }
 
@@ -100,56 +104,80 @@ function flattenNavItems(groups: NavGroup[]): Array<{ group: string; item: NavIt
   return groups.flatMap((group) => group.items.map((item) => ({ group: group.label, item })));
 }
 
+function toCommandSearchItem(entry: {
+  id: string;
+  label: string;
+  href: string;
+  group: string;
+  icon?: LucideIcon;
+  keywords: string[];
+  priority: number;
+}): CommandSearchItem {
+  return {
+    ...entry,
+    searchText: normalizeSearchText([entry.label, entry.group, ...entry.keywords].join(' ')),
+    compactLabel: compact(entry.label),
+  };
+}
+
 export function buildGlobalSearchItems(groups: NavGroup[] = navGroups): CommandSearchItem[] {
   const navItems = flattenNavItems(groups);
-  const items: CommandSearchItem[] = navItems.map(({ group, item }) => ({
-    id: idFromHref('nav', item.href),
-    label: item.label,
-    href: item.href,
-    group,
-    icon: item.icon,
-    keywords: [group],
-    priority: 100,
-  }));
+  const items: CommandSearchItem[] = navItems.map(({ group, item }) =>
+    toCommandSearchItem({
+      id: idFromHref('nav', item.href),
+      label: item.label,
+      href: item.href,
+      group,
+      icon: item.icon,
+      keywords: [group],
+      priority: 100,
+    })
+  );
 
   for (const { group, item } of navItems) {
     if (item.href === '/dashboard') continue;
-    items.push({
-      id: idFromHref('overview', item.href),
-      label: `${item.label} > Overview`,
-      href: item.href,
-      group: item.label,
-      icon: item.icon,
-      keywords: [group, item.label],
-      priority: 60,
-    });
+    items.push(
+      toCommandSearchItem({
+        id: idFromHref('overview', item.href),
+        label: `${item.label} > Overview`,
+        href: item.href,
+        group: item.label,
+        icon: item.icon,
+        keywords: [group, item.label],
+        priority: 60,
+      })
+    );
   }
 
   const aiRunnerItem = navItems.find(({ item }) => item.href === '/ai-runner')?.item;
   if (aiRunnerItem) {
     for (const [tab, label, keywords] of AI_RUNNER_SECTIONS) {
-      items.push({
-        id: `section-ai-runner-${tab}`,
-        label: `AI Runner > ${label}`,
-        href: `/ai-runner?tab=${tab}`,
-        group: 'AI Runner',
-        icon: aiRunnerItem.icon,
-        keywords: [...keywords],
-        priority: 70,
-      });
+      items.push(
+        toCommandSearchItem({
+          id: `section-ai-runner-${tab}`,
+          label: `AI Runner > ${label}`,
+          href: `/ai-runner?tab=${tab}`,
+          group: 'AI Runner',
+          icon: aiRunnerItem.icon,
+          keywords: [...keywords],
+          priority: 70,
+        })
+      );
     }
   }
 
   for (const item of footerNavItems) {
-    items.push({
-      id: idFromHref('nav', item.href),
-      label: item.label,
-      href: item.href,
-      group: 'System',
-      icon: item.icon,
-      keywords: ['system'],
-      priority: 90,
-    });
+    items.push(
+      toCommandSearchItem({
+        id: idFromHref('nav', item.href),
+        label: item.label,
+        href: item.href,
+        group: 'System',
+        icon: item.icon,
+        keywords: ['system'],
+        priority: 90,
+      })
+    );
   }
 
   return items;
