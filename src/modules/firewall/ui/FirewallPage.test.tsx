@@ -65,6 +65,17 @@ const snapshot: FirewallSnapshot = {
   },
 };
 
+function createJsonResponse(payload: FirewallSnapshot): Response {
+  return new Response(JSON.stringify(payload), {
+    status: 200,
+    headers: { 'content-type': 'application/json' },
+  });
+}
+
+function createPendingFetchResponse(): Promise<Response> {
+  return new Promise(() => {});
+}
+
 describe('getFilteredFirewallRules', () => {
   it('filters rules by action and search query', () => {
     expect(getFilteredFirewallRules(snapshot.rules, 'allow', '5432')).toHaveLength(1);
@@ -75,14 +86,11 @@ describe('getFilteredFirewallRules', () => {
 describe('FirewallPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    global.fetch = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => snapshot,
-    }) as unknown as typeof fetch;
+    global.fetch = vi.fn(async () => createJsonResponse(snapshot));
   });
 
   it('shows skeleton while loading', () => {
-    global.fetch = vi.fn(() => new Promise(() => {})) as unknown as typeof fetch;
+    global.fetch = vi.fn(async () => createPendingFetchResponse());
     render(<FirewallPage />);
     expect(screen.getByTestId('page-skeleton')).toBeDefined();
   });
