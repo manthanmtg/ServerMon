@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ArrowRight, Boxes, CheckCircle2, Clock, XCircle } from 'lucide-react';
+import { AnimatePresence, motion } from 'framer-motion';
 import { resilientFetch } from '@/lib/fetch-utils';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -97,8 +98,18 @@ export default function AppsWidget() {
         </div>
 
         <div className="mt-3 space-y-1.5">
-          {visibleApps.map((app) => (
-            <div key={app.id} className="flex items-center gap-2 rounded-md px-2 py-1.5 text-xs">
+          <AnimatePresence initial={false}>
+            {visibleApps.map((app, index) => (
+              <motion.div
+                key={app.id}
+                layout
+                initial={{ opacity: 0, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.16, delay: index * 0.03 }}
+                whileHover={{ scale: 1.01 }}
+                whileTap={{ scale: 0.99 }}
+                className="flex items-center gap-2 rounded-md px-2 py-1.5 text-xs transition-colors hover:bg-muted/70"
+              >
               {app.status === 'running' ? (
                 <CheckCircle2 className="h-3 w-3 shrink-0 text-success" />
               ) : app.status === 'failed' ? (
@@ -110,8 +121,9 @@ export default function AppsWidget() {
               <Badge variant="outline" className="max-w-[90px] truncate text-[9px]">
                 {app.domain}
               </Badge>
-            </div>
-          ))}
+              </motion.div>
+            ))}
+          </AnimatePresence>
           {apps.length === 0 && (
             <p className="py-2 text-center text-xs text-muted-foreground">No apps deployed yet</p>
           )}
