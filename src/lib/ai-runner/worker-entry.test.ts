@@ -3,9 +3,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const workerRunMock = vi.fn<[], Promise<void>>();
 
-const workerCtorMock = vi.fn(() => ({
-  run: workerRunMock,
-}));
+const workerCtorMock = vi.fn(function (this: { run: () => Promise<void> }) {
+  this.run = workerRunMock;
+});
 
 const loggerMock = {
   debug: vi.fn(),
@@ -44,7 +44,7 @@ describe('ai-runner worker entrypoint', () => {
     });
     process.exitCode = undefined;
     process.argv = ['node', 'worker-entry.ts'];
-    process.env.AI_RUNNER_JOB_ID = undefined;
+    delete process.env.AI_RUNNER_JOB_ID;
     workerRunMock.mockReset();
   });
 
