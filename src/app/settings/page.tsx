@@ -263,12 +263,17 @@ export default function SettingsPage() {
               </CardHeader>
               <CardContent className="space-y-6">
                 <div className="space-y-3">
-                  <div className="flex items-center gap-2 text-xs font-bold text-muted-foreground uppercase tracking-widest">
+                  <label
+                    htmlFor="page-title-input"
+                    className="flex items-center gap-2 text-xs font-bold text-muted-foreground uppercase tracking-widest"
+                  >
                     <Type className="w-3 h-3" />
                     <span>Page Title</span>
-                  </div>
+                  </label>
                   <input
+                    id="page-title-input"
                     type="text"
+                    aria-label="ServerMon page title"
                     value={pageTitle}
                     onChange={(e) => setPageTitle(e.target.value)}
                     placeholder="e.g. MyServer"
@@ -305,10 +310,14 @@ export default function SettingsPage() {
                       )}
                     </div>
                     <div className="flex-1 space-y-2">
-                      <label className="flex items-center justify-center gap-2 w-full h-10 px-4 py-2 bg-primary/10 text-primary hover:bg-primary/20 rounded-lg text-xs font-bold transition-all cursor-pointer">
+                      <label
+                        htmlFor="logo-upload"
+                        className="flex items-center justify-center gap-2 w-full h-10 px-4 py-2 bg-primary/10 text-primary hover:bg-primary/20 rounded-lg text-xs font-bold transition-all cursor-pointer"
+                      >
                         <Upload className="w-3.5 h-3.5" />
                         <span>Upload Image</span>
                         <input
+                          id="logo-upload"
                           type="file"
                           className="hidden"
                           accept="image/*"
@@ -323,6 +332,7 @@ export default function SettingsPage() {
                 </div>
 
                 <button
+                  aria-label="Save branding changes"
                   onClick={handleSaveBranding}
                   disabled={isSavingBrand}
                   className="w-full h-11 flex items-center justify-center bg-primary text-primary-foreground rounded-xl text-sm font-bold shadow-lg shadow-primary/20 hover:shadow-primary/30 transition-all disabled:opacity-50"
