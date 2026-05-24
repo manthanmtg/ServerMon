@@ -67,6 +67,7 @@ AI_RUNNER_MAX_CONCURRENT_RUNS=3
 Optional controls include:
 
 - `AI_RUNNER_MAX_CONCURRENT_RUNS`: cap concurrent AI Runner jobs (defaults to `3`, max `8`).
+- `FLEET_HUB_PUBLIC_URL`: public ServerMon hub endpoint used by fleet install scripts and callback handshakes.
 - `SERVERMON_NETWORK_MOCK`: set to `1` to mock network speedtest data
 - `SERVERMON_DOCKER_MOCK`: set to `1` to mock Docker data
 - `SERVERMON_UPDATES_MOCK`: set to `1` to mock update check data
