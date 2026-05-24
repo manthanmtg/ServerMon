@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { ZodError, type ZodType } from 'zod';
 import { getSession } from '@/lib/session';
 
+export type JsonRequest = {
+  json: () => Promise<unknown>;
+};
+
 export async function requireSession() {
   const session = await getSession();
   if (!session) {
@@ -10,7 +14,7 @@ export async function requireSession() {
   return null;
 }
 
-export async function parseBody<T>(request: NextRequest, schema: ZodType<T>): Promise<T> {
+export async function parseBody<T>(request: JsonRequest, schema: ZodType<T>): Promise<T> {
   const json = await request.json();
   return schema.parse(json);
 }
