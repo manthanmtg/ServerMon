@@ -22,7 +22,7 @@ Real-time metrics · Web terminal · Docker management · File browser · AI age
 
 - **Multi-factor authentication** — Argon2 password hashing + TOTP (Google Authenticator compatible)
 - **Real-time dashboard** — Live CPU, memory, and network charts via Server-Sent Events
-- **29 built-in feature modules** — Terminal, processes, Docker, disk, network, firewall, file browser, services, cron jobs, environment variables, AI agents, self-service installs, and more
+- **31 built-in feature modules** — Terminal, processes, Docker, disk, network, firewall, file browser, services, cron jobs, environment variables, AI agents, self-service installs, and more
 - **6 stunning themes** — Light, Obsidian, Monokai, Solarized, Nord, and Cyberpunk
 - **One-command deployment** — Interactive installer handles Node.js, MongoDB, Nginx, and SSL
 - **Modular architecture** — Error boundaries per widget, shared UI components, and a module registry for easy extension
