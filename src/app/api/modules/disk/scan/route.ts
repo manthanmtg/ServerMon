@@ -1,13 +1,33 @@
 import { NextResponse } from 'next/server';
-import { exec } from 'child_process';
+import { execFile } from 'node:child_process';
 import { promisify } from 'util';
+import path from 'node:path';
+import { z } from 'zod';
 import { createLogger } from '@/lib/logger';
 import { getSession } from '@/lib/session';
 
-const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 const log = createLogger('api:disk:scan');
 
 export const dynamic = 'force-dynamic';
+
+const ScanBodySchema = z.object({
+  path: z
+    .string()
+    .trim()
+    .min(1)
+    .max(255)
+    .default('/')
+    .transform((rawPath) => path.posix.normalize(rawPath).replace(/\/{2,}/g, '/')),
+});
+
+function isSafeDiskPath(candidate: string): boolean {
+  if (candidate === '/') {
+    return true;
+  }
+
+  return /^\/(?:[A-Za-z0-9._-]+(?:\/[A-Za-z0-9._-]+)*)$/.test(candidate);
+}
 
 export async function POST(request: Request) {
   try {
@@ -16,33 +36,40 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { path = '/' } = await request.json();
+    const result = ScanBodySchema.safeParse(await request.json());
+    if (!result.success) {
+      return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
+    }
 
-    // Basic sanitization
-    if (
-      typeof path !== 'string' ||
-      path.includes(';') ||
-      path.includes('&') ||
-      path.includes('|')
-    ) {
+    const scanPath = result.data.path;
+    if (!isSafeDiskPath(scanPath)) {
       return NextResponse.json({ error: 'Invalid path' }, { status: 400 });
     }
 
-    // Run du with -d 1 (depth 1) and -m (MB)
-    // Note: Using -k (KB) and converting might be safer for varied du versions
-    // We'll use -sk to get summary of top level directories
-    const cmd = `du -sk ${path}/* 2>/dev/null | sort -nr | head -n 10`;
-    const { stdout } = await execAsync(cmd);
+    const { stdout } = await execFileAsync('du', ['-sk', '--max-depth=1', scanPath]);
 
-    const lines = stdout.trim().split('\n');
-    const results = lines.map((line) => {
-      const [size, name] = line.split('\t');
-      return {
-        name: name.split('/').pop() || name,
-        size: parseInt(size, 10) * 1024, // Convert KB to bytes
-        path: name,
-      };
-    });
+    const results = stdout
+      .trim()
+      .split('\n')
+      .map((line) => {
+        const [sizeText, entryPath] = line.split('\t');
+        if (!sizeText || !entryPath || entryPath === scanPath) {
+          return null;
+        }
+        const size = Number.parseInt(sizeText, 10);
+        if (Number.isNaN(size) || size < 0) {
+          return null;
+        }
+        const name = entryPath.split('/').pop() || entryPath;
+        return {
+          name,
+          size: size * 1024,
+          path: entryPath,
+        };
+      })
+      .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry))
+      .sort((a, b) => b.size - a.size)
+      .slice(0, 10);
 
     return NextResponse.json({ results });
   } catch (error) {
