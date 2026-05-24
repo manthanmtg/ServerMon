@@ -24,9 +24,7 @@ describe('utils', () => {
     });
 
     it('should handle boolean and numeric values (ignoring falsy ones)', () => {
-      expect(
-        cn('a', true && 'b', false && 'c', 0 as unknown as string, 1 as unknown as string)
-      ).toBe('a b 1');
+      expect(cn('a', true && 'b', false && 'c', 0, 1)).toBe('a b 1');
     });
 
     it('should handle no arguments', () => {
