@@ -19,6 +19,12 @@ import { EmptyState } from './common/EmptyState';
 import { METHOD_COLORS, TYPE_ICONS, METHODS, TYPES } from './common/constants';
 import type { CustomEndpointDTO } from '../../types';
 
+const ENDPOINT_ROW_VARIANTS = {
+  hidden: { opacity: 0, y: 8, scale: 0.995 },
+  show: { opacity: 1, y: 0, scale: 1 },
+  exit: { opacity: 0, y: -4, scale: 0.995 },
+};
+
 interface EndpointListProps {
   endpoints: CustomEndpointDTO[];
   total: number;
@@ -64,12 +70,6 @@ export function EndpointList({
   onToggle,
   isResizing,
 }: EndpointListProps) {
-  const endpointRowVariants = {
-    hidden: { opacity: 0, y: 8, scale: 0.995 },
-    show: { opacity: 1, y: 0, scale: 1 },
-    exit: { opacity: 0, y: -4, scale: 0.995 },
-  };
-
   return (
     <div
       className={cn(
@@ -248,7 +248,7 @@ export function EndpointList({
                 key={ep._id}
                 data-testid="endpoint-list-item"
                 layout
-                variants={endpointRowVariants}
+                variants={ENDPOINT_ROW_VARIANTS}
                 initial="hidden"
                 animate="show"
                 exit="exit"
