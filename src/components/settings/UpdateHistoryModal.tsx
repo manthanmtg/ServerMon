@@ -114,8 +114,10 @@ export default function UpdateHistoryModal({ onClose, type }: UpdateHistoryModal
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 lg:p-8">
-      <div
-        className="absolute inset-0 bg-background/60 backdrop-blur-sm transition-all duration-500"
+      <button
+        type="button"
+        aria-label="Close update history"
+        className="absolute inset-0 bg-background/60 backdrop-blur-sm transition-all duration-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
         onClick={onClose}
       />
 
@@ -128,6 +130,7 @@ export default function UpdateHistoryModal({ onClose, type }: UpdateHistoryModal
                 variant="ghost"
                 size="sm"
                 onClick={() => setSelectedRun(null)}
+                aria-label="Back to update history list"
                 className="h-10 w-10 p-0 rounded-2xl hover:bg-white/10 transition-all active:scale-90"
               >
                 <ArrowLeft className="w-5 h-5" />
