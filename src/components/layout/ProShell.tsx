@@ -282,7 +282,7 @@ export default function ProShell({ children, title, subtitle, headerContent }: P
 
             <button
               onClick={() => setCommandSearchOpen(true)}
-              className="flex h-11 w-11 items-center justify-center rounded-xl border border-border bg-background text-muted-foreground transition-colors hover:bg-accent hover:text-foreground active:bg-accent sm:h-9 sm:w-9"
+              className="flex h-11 w-11 items-center justify-center rounded-xl border border-border bg-background text-muted-foreground transition-colors hover:bg-accent hover:text-foreground active:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:h-9 sm:w-9"
               aria-label="Open search"
               title="Open search"
             >
@@ -294,6 +294,7 @@ export default function ProShell({ children, title, subtitle, headerContent }: P
               disabled={isRebooting}
               className={cn(
                 'flex items-center justify-center h-11 w-11 rounded-xl transition-all duration-300 sm:h-9 sm:w-9',
+                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
                 'bg-destructive/10 text-destructive border border-destructive/20 hover:bg-destructive hover:text-white hover:shadow-lg hover:shadow-destructive/20',
                 'active:scale-95 disabled:opacity-50 disabled:grayscale disabled:pointer-events-none'
               )}
