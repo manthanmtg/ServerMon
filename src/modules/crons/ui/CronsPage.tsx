@@ -36,6 +36,10 @@ type SortField = 'command' | 'expression' | 'user' | 'source' | 'nextRun';
 type SortDir = 'asc' | 'desc';
 type ViewTab = 'jobs' | 'system' | 'manual' | 'logs';
 
+type CronJobWithNextRun = CronJob & {
+  nextRunTimestamp: number;
+};
+
 const viewTabLabels: Record<ViewTab, string> = {
   jobs: 'jobs',
   system: 'system',
@@ -135,9 +139,23 @@ export default function CronsPage() {
     };
   }, [loadSnapshot, refreshMs, toast]);
 
+  const jobsWithNextRun = useMemo<CronJobWithNextRun[]>(() => {
+    if (!snapshot) return [];
+
+    return snapshot.jobs.map((job) => {
+      const nextRunTimestamp =
+        job.nextRuns[0] ? Date.parse(job.nextRuns[0]) : Number.POSITIVE_INFINITY;
+
+      return {
+        ...job,
+        nextRunTimestamp: Number.isFinite(nextRunTimestamp) ? nextRunTimestamp : Number.POSITIVE_INFINITY,
+      };
+    });
+  }, [snapshot]);
+
   const filteredJobs = useMemo(() => {
     if (!snapshot) return [];
-    let list = snapshot.jobs;
+    let list = jobsWithNextRun;
 
     if (filterSource !== 'all') {
       list = list.filter((j) =>
@@ -177,17 +195,15 @@ export default function CronsPage() {
           cmp = a.source.localeCompare(b.source);
           break;
         case 'nextRun': {
-          const aNext = a.nextRuns[0] ? new Date(a.nextRuns[0]).getTime() : Infinity;
-          const bNext = b.nextRuns[0] ? new Date(b.nextRuns[0]).getTime() : Infinity;
-          cmp = aNext - bNext;
+          cmp = a.nextRunTimestamp - b.nextRunTimestamp;
           break;
         }
       }
       return sortDir === 'asc' ? cmp : -cmp;
     });
 
-    return sorted;
-  }, [snapshot, filterSource, filterStatus, search, sortField, sortDir]);
+    return sorted.map(({ nextRunTimestamp: _nextRunTimestamp, ...job }) => job);
+  }, [jobsWithNextRun, filterSource, filterStatus, search, sortField, sortDir]);
 
   const toggleSort = useCallback((field: SortField) => {
     if (sortField === field) {
