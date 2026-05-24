@@ -218,13 +218,13 @@
       "category": "security",
       "enabled": true,
       "autonomousSafe": true,
-      "totalSelected": 30,
+      "totalSelected": 31,
       "totalCompleted": 29,
       "totalNoop": 0,
       "totalFailed": 1,
-      "lastSelectedAt": "2026-05-24T16:33:09.177Z",
+      "lastSelectedAt": "2026-05-24T16:58:38.620Z",
       "lastCompletedAt": "2026-05-24T16:35:28.568Z",
-      "lastOutcome": "completed",
+      "lastOutcome": "selected",
       "updatedAt": "2026-05-24T16:35:28.568Z"
     },
     "state_management_optimizer.md": {
@@ -321,5 +321,5 @@
       "updatedAt": "2026-05-24T16:56:00.287Z"
     }
   },
-  "updatedAt": "2026-05-24T16:57:24.857Z"
+  "updatedAt": "2026-05-24T16:58:38.620Z"
 }
