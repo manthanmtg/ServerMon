@@ -311,14 +311,15 @@
       "category": "ui-quality",
       "enabled": true,
       "autonomousSafe": true,
-      "totalSelected": 37,
-      "totalCompleted": 37,
+      "totalSelected": 38,
+      "totalCompleted": 38,
       "totalNoop": 0,
       "totalFailed": 0,
-      "lastSelectedAt": "2026-05-24T12:16:53.791Z",
-      "lastCompletedAt": "2026-05-24T12:17:14.968Z",
-      "lastOutcome": "completed"
+      "lastSelectedAt": "2026-05-24T16:55:45.981Z",
+      "lastCompletedAt": "2026-05-24T16:56:00.287Z",
+      "lastOutcome": "completed",
+      "updatedAt": "2026-05-24T16:56:00.287Z"
     }
   },
-  "updatedAt": "2026-05-24T16:54:35.321Z"
+  "updatedAt": "2026-05-24T16:56:00.287Z"
 }
