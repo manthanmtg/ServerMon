@@ -1,6 +1,6 @@
 'use client';
 
-import { type ReactNode } from 'react';
+import { memo, type ReactNode } from 'react';
 import { CheckCircle, AlertTriangle, Info, RefreshCw, SkipForward, ShieldCheck, XCircle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -28,7 +28,7 @@ interface SecurityChecksByCategoryProps {
   onRefresh: () => void;
 }
 
-export function SecurityChecksByCategory({
+export const SecurityChecksByCategory = memo(function SecurityChecksByCategory({
   checksByCategory,
   error,
   onRefresh,
@@ -101,4 +101,6 @@ export function SecurityChecksByCategory({
       </CardContent>
     </Card>
   );
-}
+});
+
+SecurityChecksByCategory.displayName = 'SecurityChecksByCategory';
