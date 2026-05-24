@@ -157,12 +157,12 @@
       "category": "documentation",
       "enabled": true,
       "autonomousSafe": true,
-      "totalSelected": 41,
+      "totalSelected": 42,
       "totalCompleted": 35,
-      "totalNoop": 5,
+      "totalNoop": 6,
       "totalFailed": 1,
-      "lastSelectedAt": "2026-05-24T12:46:07.883Z",
-      "lastCompletedAt": "2026-05-24T12:46:07.883Z",
+      "lastSelectedAt": "2026-05-24T17:29:17.272Z",
+      "lastCompletedAt": "2026-05-24T17:29:18.707Z",
       "lastOutcome": "noop",
       "updatedAt": "2026-05-24T11:09:46.258Z"
     },
@@ -322,5 +322,5 @@
       "updatedAt": "2026-05-24T16:56:00.287Z"
     }
   },
-  "updatedAt": "2026-05-24T17:28:04.566Z"
+  "updatedAt": "2026-05-24T17:29:18.707Z"
 }
