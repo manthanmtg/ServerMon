@@ -15,6 +15,14 @@ function shouldRetryResponse(method: string, response: Response, attempt: number
   );
 }
 
+function shouldRetryError(method: string, error: unknown, attempt: number): boolean {
+  if (attempt >= MAX_IDEMPOTENT_ATTEMPTS || !IDEMPOTENT_RETRY_METHODS.has(method.toUpperCase())) {
+    return false;
+  }
+
+  return error instanceof Error && error.name !== 'AbortError';
+}
+
 export async function executeWebhook(
   endpoint: ICustomEndpoint,
   input: ExecutionInput
@@ -49,28 +57,28 @@ export async function executeWebhook(
   }
 
   try {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeout);
-
-    try {
-      let body: string | undefined;
-      if (method !== 'GET') {
-        if (config.transformBody) {
-          try {
-            const inputData = input.body ? JSON.parse(input.body) : {};
-            const fn = new Function('input', 'query', 'headers', config.transformBody);
-            body = JSON.stringify(fn(inputData, input.query, input.headers));
-          } catch (err: unknown) {
-            const msg = err instanceof Error ? err.message : 'Transform error';
-            log.error(`Body transform error: ${msg}`);
-            body = input.body;
-          }
-        } else {
+    let body: string | undefined;
+    if (method !== 'GET') {
+      if (config.transformBody) {
+        try {
+          const inputData = input.body ? JSON.parse(input.body) : {};
+          const fn = new Function('input', 'query', 'headers', config.transformBody);
+          body = JSON.stringify(fn(inputData, input.query, input.headers));
+        } catch (err: unknown) {
+          const msg = err instanceof Error ? err.message : 'Transform error';
+          log.error(`Body transform error: ${msg}`);
           body = input.body;
         }
+      } else {
+        body = input.body;
       }
+    }
 
-      for (let attempt = 1; attempt <= MAX_IDEMPOTENT_ATTEMPTS; attempt += 1) {
+    for (let attempt = 1; attempt <= MAX_IDEMPOTENT_ATTEMPTS; attempt += 1) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), timeout);
+
+      try {
         const response = await fetch(config.targetUrl, {
           method,
           headers,
@@ -117,12 +125,19 @@ export async function executeWebhook(
           body: responseBody.slice(0, 10_240),
           duration: 0,
         };
+      } catch (err: unknown) {
+        if (shouldRetryError(method, err, attempt)) {
+          const message = err instanceof Error ? err.message : 'Webhook network error';
+          log.warn(`Retrying webhook ${endpoint.slug} after error: ${message}`);
+          continue;
+        }
+        throw err;
+      } finally {
+        clearTimeout(timer);
       }
-
-      throw new Error('Webhook request failed after retry attempts');
-    } finally {
-      clearTimeout(timer);
     }
+
+    throw new Error('Webhook request failed after retry attempts');
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Webhook request failed';
     const isTimeout = err instanceof Error && err.name === 'AbortError';
