@@ -45,15 +45,22 @@ interface HealthWidgetProps {
 
 export default function HealthWidget({ metric }: HealthWidgetProps) {
   const [internalHealth, setInternalHealth] = useState<HealthData>(() => toHealthData(metric));
+  const [hasStreamData, setHasStreamData] = useState<boolean>(Boolean(metric));
 
   useEffect(() => {
-    // If we have a metric provided by props, we don't need the local stream
-    if (metric) return;
+    if (metric) {
+      setHasStreamData(true);
+      setInternalHealth(toHealthData(metric));
+      return;
+    }
+
+    setHasStreamData(false);
 
     const es = new EventSource('/api/metrics/stream');
     es.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
+        setHasStreamData(true);
         setInternalHealth((prev) => ({
           cpu: data.cpu ?? prev.cpu,
           memory: data.memory ?? prev.memory,
@@ -69,6 +76,8 @@ export default function HealthWidget({ metric }: HealthWidgetProps) {
 
   // Use prop if available, otherwise use stream data
   const health = metric ? toHealthData(metric) : internalHealth;
+
+  const labelClass = hasStreamData ? 'text-muted-foreground' : 'text-muted-foreground/70';
 
   const items = [
     { label: 'CPU', value: health.cpu, icon: Cpu, color: 'bg-primary' },
@@ -105,15 +114,15 @@ export default function HealthWidget({ metric }: HealthWidgetProps) {
               <span className="text-xs font-medium tracking-tight">{item.label}</span>
             </div>
             <motion.span
-              className="text-xs font-semibold text-foreground tabular-nums"
+              className={`text-xs font-semibold tabular-nums ${labelClass}`}
               key={item.value}
               initial={{ opacity: 0.5 }}
               animate={{ opacity: 1 }}
             >
-              {item.value.toFixed(1)}%
+              {hasStreamData ? `${item.value.toFixed(1)}%` : '—'}
             </motion.span>
           </div>
-          <ProgressBar value={item.value} color={item.color} />
+          <ProgressBar value={hasStreamData ? item.value : 0} color={item.color} />
         </motion.div>
       ))}
     </div>
