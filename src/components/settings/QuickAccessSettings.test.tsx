@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
-import QuickAccessSettings, { ALL_MODULES } from './QuickAccessSettings';
+import QuickAccessSettings from './QuickAccessSettings';
 import { navGroups } from '@/components/layout/navigation';
 
 // ── Mocks ─────────────────────────────────────────────────────────────────────
@@ -57,7 +57,9 @@ describe('QuickAccessSettings', () => {
   });
 
   it('offers every primary navigation item for pinning', () => {
-    const quickAccessHrefs = ALL_MODULES.map((moduleDef) => moduleDef.href);
+    const quickAccessHrefs = navGroups.flatMap((group) =>
+      group.items.map((item) => item.href)
+    );
     const navHrefs = navGroups.flatMap((group) => group.items.map((item) => item.href));
 
     expect(quickAccessHrefs).toEqual(navHrefs);
