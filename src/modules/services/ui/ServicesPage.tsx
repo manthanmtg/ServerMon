@@ -178,6 +178,149 @@ function ServicesAlertsPanel({ alerts = [] }: ServicesAlertsPanelProps) {
   );
 }
 
+type ServicesHeroSectionProps = {
+  snapshot: ServicesSnapshot | null;
+  filter: FilterStatus;
+  refreshMs: number;
+  onFilterChange: (filter: FilterStatus) => void;
+  onRefreshMsChange: (refreshMs: number) => void;
+  onRefresh: () => void;
+};
+
+function ServicesHeroSection({
+  snapshot,
+  filter,
+  refreshMs,
+  onFilterChange,
+  onRefreshMsChange,
+  onRefresh,
+}: ServicesHeroSectionProps) {
+  return (
+    <section className="rounded-[28px] border border-border/60 bg-[radial-gradient(circle_at_top_left,var(--primary)/0.18,transparent_40%),linear-gradient(180deg,var(--card),color-mix(in_oklab,var(--card)_92%,transparent))] p-4 shadow-sm sm:p-6">
+      <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+        <div className="space-y-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant={snapshot?.systemdAvailable ? 'success' : 'warning'}>
+              {snapshot?.systemdAvailable ? 'systemd connected' : 'Mock mode'}
+            </Badge>
+            <Badge variant="outline">Source: {snapshot?.source || 'unknown'}</Badge>
+            {(snapshot?.summary.failed ?? 0) > 0 && (
+              <Badge variant="destructive">
+                <AlertTriangle className="w-3 h-3 mr-1" />
+                {snapshot?.summary.failed} failed
+              </Badge>
+            )}
+          </div>
+          <div>
+            <h2 className="text-2xl font-semibold tracking-tight text-foreground">
+              Services operations center
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              Live service monitoring, resource tracking, health scores, and management controls.
+            </p>
+          </div>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-3">
+          <label className="flex min-h-[44px] flex-col justify-center rounded-xl border border-border/60 bg-background/70 px-3 py-2 text-xs uppercase tracking-[0.18em] text-muted-foreground">
+            Filter
+            <select
+              className="mt-1 bg-transparent text-sm font-semibold text-foreground outline-none"
+              value={filter}
+              onChange={(event) => onFilterChange(event.target.value as FilterStatus)}
+            >
+              <option value="all">All services</option>
+              <option value="running">Running</option>
+              <option value="failed">Failed</option>
+              <option value="inactive">Inactive</option>
+              <option value="exited">Exited</option>
+            </select>
+          </label>
+          <label className="flex min-h-[44px] flex-col justify-center rounded-xl border border-border/60 bg-background/70 px-3 py-2 text-xs uppercase tracking-[0.18em] text-muted-foreground">
+            Refresh
+            <select
+              className="mt-1 bg-transparent text-sm font-semibold text-foreground outline-none"
+              value={String(refreshMs)}
+              onChange={(event) => onRefreshMsChange(Number(event.target.value))}
+            >
+              <option value="3000">3 sec</option>
+              <option value="5000">5 sec</option>
+              <option value="10000">10 sec</option>
+              <option value="30000">30 sec</option>
+            </select>
+          </label>
+          <button
+            type="button"
+            onClick={onRefresh}
+            className="flex min-h-[44px] items-center justify-center gap-2 rounded-xl border border-border/60 bg-background/70 px-3 py-2 text-sm font-semibold text-foreground transition-colors hover:bg-accent"
+          >
+            <RefreshCcw className="h-4 w-4" />
+            Refresh now
+          </button>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+type ServicesViewTabsProps = {
+  alertsCount: number;
+  search: string;
+  selectedTab: ViewTab;
+  onTabChange: (tab: ViewTab) => void;
+  onSearchChange: (search: string) => void;
+};
+
+function ServicesViewTabs({
+  alertsCount,
+  search,
+  selectedTab,
+  onTabChange,
+  onSearchChange,
+}: ServicesViewTabsProps) {
+  return (
+    <div className="flex items-center gap-4 flex-wrap">
+      <div className="inline-flex rounded-xl border border-border bg-muted/30 p-1">
+        {(['services', 'timers', 'alerts'] as ViewTab[]).map((tab) => (
+          <button
+            key={tab}
+            type="button"
+            onClick={() => onTabChange(tab)}
+            className={cn(
+              'min-h-[44px] rounded-lg px-4 text-xs font-semibold uppercase tracking-[0.18em] transition-colors flex items-center gap-2',
+              selectedTab === tab
+                ? 'bg-card text-foreground shadow-sm'
+                : 'text-muted-foreground hover:text-foreground'
+            )}
+          >
+            {tab === 'services' && <Cog className="w-3.5 h-3.5" />}
+            {tab === 'timers' && <Timer className="w-3.5 h-3.5" />}
+            {tab === 'alerts' && <AlertTriangle className="w-3.5 h-3.5" />}
+            {tab}
+            {tab === 'alerts' && alertsCount > 0 && (
+              <span className="ml-1 rounded-full bg-destructive px-1.5 py-0.5 text-[10px] font-bold text-destructive-foreground">
+                {alertsCount}
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
+      {selectedTab === 'services' && (
+        <div className="relative flex-1 min-w-[200px] max-w-md">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <input
+            type="text"
+            placeholder="Search services..."
+            value={search}
+            onChange={(event) => onSearchChange(event.target.value)}
+            className="w-full h-10 pl-9 pr-3 rounded-xl border border-border bg-background text-sm outline-none focus:ring-2 focus:ring-primary/30"
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function ServicesPage() {
   const { toast } = useToast();
   const [snapshot, setSnapshot] = useState<ServicesSnapshot | null>(null);
@@ -380,73 +523,16 @@ export default function ServicesPage() {
     return <PageSkeleton statCards={3} />;
   }
 
-  return (
+      return (
     <div className="space-y-6" data-testid="services-page">
-      {/* Hero header */}
-      <section className="rounded-[28px] border border-border/60 bg-[radial-gradient(circle_at_top_left,var(--primary)/0.18,transparent_40%),linear-gradient(180deg,var(--card),color-mix(in_oklab,var(--card)_92%,transparent))] p-4 shadow-sm sm:p-6">
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-          <div className="space-y-2">
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge variant={snapshot?.systemdAvailable ? 'success' : 'warning'}>
-                {snapshot?.systemdAvailable ? 'systemd connected' : 'Mock mode'}
-              </Badge>
-              <Badge variant="outline">Source: {snapshot?.source || 'unknown'}</Badge>
-              {(snapshot?.summary.failed ?? 0) > 0 && (
-                <Badge variant="destructive">
-                  <AlertTriangle className="w-3 h-3 mr-1" />
-                  {snapshot?.summary.failed} failed
-                </Badge>
-              )}
-            </div>
-            <div>
-              <h2 className="text-2xl font-semibold tracking-tight text-foreground">
-                Services operations center
-              </h2>
-              <p className="text-sm text-muted-foreground">
-                Live service monitoring, resource tracking, health scores, and management controls.
-              </p>
-            </div>
-          </div>
-
-          <div className="grid gap-3 sm:grid-cols-3">
-            <label className="flex min-h-[44px] flex-col justify-center rounded-xl border border-border/60 bg-background/70 px-3 py-2 text-xs uppercase tracking-[0.18em] text-muted-foreground">
-              Filter
-              <select
-                className="mt-1 bg-transparent text-sm font-semibold text-foreground outline-none"
-                value={filter}
-                onChange={(e) => setFilter(e.target.value as FilterStatus)}
-              >
-                <option value="all">All services</option>
-                <option value="running">Running</option>
-                <option value="failed">Failed</option>
-                <option value="inactive">Inactive</option>
-                <option value="exited">Exited</option>
-              </select>
-            </label>
-            <label className="flex min-h-[44px] flex-col justify-center rounded-xl border border-border/60 bg-background/70 px-3 py-2 text-xs uppercase tracking-[0.18em] text-muted-foreground">
-              Refresh
-              <select
-                className="mt-1 bg-transparent text-sm font-semibold text-foreground outline-none"
-                value={String(refreshMs)}
-                onChange={(e) => setRefreshMs(Number(e.target.value))}
-              >
-                <option value="3000">3 sec</option>
-                <option value="5000">5 sec</option>
-                <option value="10000">10 sec</option>
-                <option value="30000">30 sec</option>
-              </select>
-            </label>
-            <button
-              type="button"
-              onClick={() => loadSnapshot().catch(() => undefined)}
-              className="flex min-h-[44px] items-center justify-center gap-2 rounded-xl border border-border/60 bg-background/70 px-3 py-2 text-sm font-semibold text-foreground transition-colors hover:bg-accent"
-            >
-              <RefreshCcw className="h-4 w-4" />
-              Refresh now
-            </button>
-          </div>
-        </div>
-      </section>
+      <ServicesHeroSection
+        snapshot={snapshot}
+        filter={filter}
+        refreshMs={refreshMs}
+        onFilterChange={setFilter}
+        onRefreshMsChange={setRefreshMs}
+        onRefresh={() => loadSnapshot().catch(() => undefined)}
+      />
 
       <ServicesSummaryGrid summary={snapshot?.summary} alertsCount={snapshot?.alerts.length ?? 0} />
 
@@ -607,46 +693,13 @@ export default function ServicesPage() {
         </Card>
       </div>
 
-      {/* Tab navigation */}
-      <div className="flex items-center gap-4 flex-wrap">
-        <div className="inline-flex rounded-xl border border-border bg-muted/30 p-1">
-          {(['services', 'timers', 'alerts'] as ViewTab[]).map((tab) => (
-            <button
-              key={tab}
-              type="button"
-              onClick={() => setViewTab(tab)}
-              className={cn(
-                'min-h-[44px] rounded-lg px-4 text-xs font-semibold uppercase tracking-[0.18em] transition-colors flex items-center gap-2',
-                viewTab === tab
-                  ? 'bg-card text-foreground shadow-sm'
-                  : 'text-muted-foreground hover:text-foreground'
-              )}
-            >
-              {tab === 'services' && <Cog className="w-3.5 h-3.5" />}
-              {tab === 'timers' && <Timer className="w-3.5 h-3.5" />}
-              {tab === 'alerts' && <AlertTriangle className="w-3.5 h-3.5" />}
-              {tab}
-              {tab === 'alerts' && (snapshot?.alerts.length ?? 0) > 0 && (
-                <span className="ml-1 rounded-full bg-destructive px-1.5 py-0.5 text-[10px] font-bold text-destructive-foreground">
-                  {snapshot?.alerts.length}
-                </span>
-              )}
-            </button>
-          ))}
-        </div>
-        {viewTab === 'services' && (
-          <div className="relative flex-1 min-w-[200px] max-w-md">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <input
-              type="text"
-              placeholder="Search services..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full h-10 pl-9 pr-3 rounded-xl border border-border bg-background text-sm outline-none focus:ring-2 focus:ring-primary/30"
-            />
-          </div>
-        )}
-      </div>
+      <ServicesViewTabs
+        alertsCount={snapshot?.alerts.length ?? 0}
+        search={search}
+        selectedTab={viewTab}
+        onTabChange={setViewTab}
+        onSearchChange={setSearch}
+      />
 
       {/* Services table */}
       {viewTab === 'services' && (
