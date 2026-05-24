@@ -102,6 +102,15 @@ const scheduleOptions: Array<{ value: NetworkSpeedtestScheduleInterval; label: s
 const NETWORK_REQUEST_TIMEOUT_MS = 5000;
 const SPEEDTEST_OVERVIEW_TIMEOUT_MS = 8000;
 const TRANSIENT_RETRY_STATUSES = [502, 503, 504];
+const SPEEDTEST_RUN_TIMEOUT_MS = 20000;
+
+type SpeedtestRunResponse = {
+  status?: string;
+  error?: string;
+  downloadMbps?: number;
+  uploadMbps?: number;
+  pingMs?: number;
+};
 
 type ApiErrorPayload = {
   error?: string;
@@ -160,12 +169,25 @@ export default function NetworkPage() {
   const runSpeedtest = useCallback(async () => {
     setSpeedtestRunning(true);
     try {
-      const response = await fetch('/api/modules/network/speedtest', {
+      const response = await resilientFetch('/api/modules/network/speedtest', {
         method: 'POST',
         cache: 'no-store',
+        timeout: SPEEDTEST_RUN_TIMEOUT_MS,
+        retries: 1,
+        retryDelay: 250,
+        retryOnStatuses: TRANSIENT_RETRY_STATUSES,
       });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Failed to run speedtest');
+      const data = await safeJson<SpeedtestRunResponse>(response);
+      if (!response.ok) {
+        throw new Error(
+          typeof data === 'object' && data !== null && typeof data.error === 'string'
+            ? data.error
+            : 'Failed to run speedtest'
+        );
+      }
+      if (typeof data !== 'object' || data === null || typeof data.status !== 'string') {
+        throw new Error('Speedtest API returned an invalid response');
+      }
       await loadSpeedtestOverview();
       if (data.status === 'failed') {
         toast({
@@ -196,13 +218,23 @@ export default function NetworkPage() {
     async (scheduleInterval: NetworkSpeedtestScheduleInterval) => {
       setScheduleSaving(true);
       try {
-        const response = await fetch('/api/modules/network/speedtest', {
+        const response = await resilientFetch('/api/modules/network/speedtest', {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
+          timeout: NETWORK_REQUEST_TIMEOUT_MS,
+          retries: 1,
+          retryDelay: 250,
+          retryOnStatuses: TRANSIENT_RETRY_STATUSES,
           body: JSON.stringify({ scheduleInterval }),
         });
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.error || 'Failed to update speedtest schedule');
+        const data = await safeJson<ApiErrorPayload>(response);
+        if (!response.ok) {
+          throw new Error(
+            typeof data === 'object' && data !== null && typeof data.error === 'string'
+              ? data.error
+              : 'Failed to update speedtest schedule'
+          );
+        }
         await loadSpeedtestOverview();
       } catch (error) {
         toast({
