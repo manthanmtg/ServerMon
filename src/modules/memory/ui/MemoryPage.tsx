@@ -316,11 +316,12 @@ export default function MemoryPage() {
                   Internal allocation analysis
                 </p>
               </div>
-              <button
-                onClick={fetchData}
-                disabled={isRefreshing}
-                className="p-2.5 rounded-xl bg-primary/5 text-primary hover:bg-primary/10 transition-colors disabled:opacity-50"
-              >
+            <button
+              onClick={fetchData}
+              aria-label="Refresh memory breakdown"
+              disabled={isRefreshing}
+              className="p-2.5 rounded-xl bg-primary/5 text-primary hover:bg-primary/10 transition-colors disabled:opacity-50"
+            >
                 <RefreshCcw className={cn('w-4 h-4', isRefreshing && 'animate-spin')} />
               </button>
             </div>
