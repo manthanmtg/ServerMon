@@ -133,12 +133,15 @@ export default function SettingsPage() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                   {availableThemes.map((t) => (
                     <button
+                      type="button"
                       key={t.id}
                       onClick={() => setTheme(t.id)}
-                      className={`relative p-3 rounded-lg border-2 text-left transition-all hover:scale-[1.01] active:scale-[0.99] cursor-pointer ${
+                      aria-label={`Select ${t.name} theme`}
+                      aria-pressed={theme.id === t.id}
+                      className={`relative p-3 rounded-lg border-2 text-left transition-all hover:scale-[1.01] active:scale-[0.99] cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-background ${
                         theme.id === t.id
-                          ? 'border-primary shadow-sm'
-                          : 'border-border hover:border-muted-foreground/30'
+                          ? 'border-primary shadow-sm focus-visible:ring-primary'
+                          : 'border-border hover:border-muted-foreground/30 focus-visible:ring-muted-foreground'
                       }`}
                     >
                       {theme.id === t.id && (
