@@ -74,10 +74,7 @@ export default function UserGuidePage() {
     moduleGuides[0]?.id || null
   );
 
-  const selectedModule = useMemo(
-    () => moduleGuides.find((m) => m.id === selectedModuleId),
-    [selectedModuleId]
-  );
+
 
   const normalizedSearchQuery = useMemo(() => searchQuery.toLowerCase(), [searchQuery]);
 
@@ -91,6 +88,11 @@ export default function UserGuidePage() {
       ),
     [normalizedSearchQuery]
   );
+
+  const hasSearchQuery = normalizedSearchQuery.length > 0;
+  const hasFilteredModules = filteredModules.length > 0;
+  const visibleSelectedModule =
+    filteredModules.find((module) => module.id === selectedModuleId) ?? filteredModules[0] ?? null;
 
   return (
     <div className="flex flex-col gap-6 animate-fade-in pb-12">
@@ -125,53 +127,61 @@ export default function UserGuidePage() {
             <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest px-3 mb-2">
               Modules
             </p>
-            {filteredModules.map((module) => (
-              <button
-                key={module.id}
-                onClick={() => setSelectedModuleId(module.id)}
-                className={cn(
-                  'flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium transition-all group',
-                  selectedModuleId === module.id
-                    ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/20'
-                    : 'hover:bg-accent text-muted-foreground hover:text-foreground'
-                )}
-              >
-                <span className="flex items-center gap-3">
-                  {(() => {
-                    const Icon = sidebarIconByModuleId[module.id] ?? BookOpen;
-                    return <Icon className="w-4 h-4" />;
-                  })()}
-                  {module.name}
-                </span>
-                <ChevronRight
+            {filteredModules.length > 0 ? (
+              filteredModules.map((module) => (
+                <button
+                  key={module.id}
+                  onClick={() => setSelectedModuleId(module.id)}
                   className={cn(
-                    'w-4 h-4 transition-transform',
-                    selectedModuleId === module.id ? 'rotate-90' : 'group-hover:translate-x-0.5'
+                    'flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium transition-all group',
+                    selectedModuleId === module.id
+                      ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/20'
+                      : 'hover:bg-accent text-muted-foreground hover:text-foreground'
                   )}
-                />
-              </button>
-            ))}
+                >
+                  <span className="flex items-center gap-3">
+                    {(() => {
+                      const Icon = sidebarIconByModuleId[module.id] ?? BookOpen;
+                      return <Icon className="w-4 h-4" />;
+                    })()}
+                    {module.name}
+                  </span>
+                  <ChevronRight
+                    className={cn(
+                      'w-4 h-4 transition-transform',
+                      selectedModuleId === module.id ? 'rotate-90' : 'group-hover:translate-x-0.5'
+                    )}
+                  />
+                </button>
+              ))
+            ) : (
+              <div className="px-3 py-6 text-sm text-muted-foreground">
+                {hasSearchQuery
+                  ? `No guides match “${searchQuery}”.`
+                  : 'No guide modules are available right now.'}
+              </div>
+            )}
           </div>
         </aside>
 
         {/* Guide Content */}
         <main className="min-w-0">
-          {selectedModule && selectedModule.guide ? (
+          {visibleSelectedModule && hasFilteredModules ? (
             <div className="flex flex-col gap-8">
               <div className="p-8 rounded-3xl bg-secondary/30 border border-border/50 relative overflow-hidden group">
                 <div className="absolute top-0 right-0 p-12 -mr-8 -mt-8 bg-primary/5 rounded-full blur-3xl group-hover:bg-primary/10 transition-colors" />
                 <div className="relative flex flex-col gap-4">
                   <h1 className="text-4xl font-extrabold tracking-tight">
-                    {selectedModule.guide.title}
+                    {visibleSelectedModule.guide.title}
                   </h1>
                   <p className="text-xl text-muted-foreground leading-relaxed max-w-3xl">
-                    {selectedModule.guide.description}
+                    {visibleSelectedModule.guide.description}
                   </p>
                 </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {selectedModule.guide.sections.map((section, idx) => {
+                {visibleSelectedModule.guide.sections.map((section, idx) => {
                   const IconComponent = iconMap[section.icon || 'Info'] || Info;
                   return (
                     <div
@@ -195,7 +205,11 @@ export default function UserGuidePage() {
           ) : (
             <div className="h-[400px] rounded-3xl border border-dashed border-border flex flex-col items-center justify-center text-muted-foreground gap-4">
               <BookOpen className="w-12 h-12 opacity-20" />
-              <p className="font-medium text-lg">Select a module to view its guide</p>
+              <p className="font-medium text-lg">
+                {hasSearchQuery
+                  ? `No guides match “${searchQuery}”.`
+                  : 'Select a module to view its guide'}
+              </p>
             </div>
           )}
         </main>
