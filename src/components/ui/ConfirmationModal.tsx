@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useRef } from 'react';
+import React, { memo, useEffect, useRef, useState } from 'react';
 import { AlertTriangle, Info, X } from 'lucide-react';
 import { Button } from './button';
 import { cn } from '@/lib/utils';
@@ -19,7 +19,7 @@ interface ConfirmationModalProps {
   isLoading?: boolean;
 }
 
-export default function ConfirmationModal({
+function ConfirmationModal({
   isOpen,
   onConfirm,
   onCancel,
@@ -33,7 +33,7 @@ export default function ConfirmationModal({
   isLoading = false,
 }: ConfirmationModalProps) {
   const modalRef = useRef<HTMLDivElement>(null);
-  const [inputValue, setInputValue] = React.useState('');
+  const [inputValue, setInputValue] = useState('');
 
   useEffect(() => {
     if (!isOpen) return;
@@ -181,3 +181,5 @@ export default function ConfirmationModal({
     </div>
   );
 }
+
+export default memo(ConfirmationModal);
