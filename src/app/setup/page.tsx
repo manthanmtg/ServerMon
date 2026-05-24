@@ -51,8 +51,16 @@ export default function SetupPage() {
 
     try {
       const response = await fetch(input, { ...init, signal: controller.signal });
-      const body = await response.text();
-      return { response, payload: parseJsonSafely<T>(body) };
+      let body: string | null = null;
+
+      if (typeof response.text === 'function') {
+        body = await response.text();
+      } else if (typeof response.json === 'function') {
+        const parsed = await response.json();
+        return { response, payload: (parsed ?? null) as T | null };
+      }
+
+      return { response, payload: body == null ? null : parseJsonSafely<T>(body) };
     } catch (error: unknown) {
       if (error instanceof Error && error.name === 'AbortError') {
         throw new Error(`Request timed out after ${timeoutMs}ms`);
