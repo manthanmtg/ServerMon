@@ -253,12 +253,12 @@
       "category": "testing",
       "enabled": true,
       "autonomousSafe": true,
-      "totalSelected": 40,
-      "totalCompleted": 39,
+      "totalSelected": 41,
+      "totalCompleted": 40,
       "totalNoop": 0,
       "totalFailed": 1,
-      "lastSelectedAt": "2026-05-24T18:19:11.772Z",
-      "lastCompletedAt": "2026-05-24T18:19:31.801Z",
+      "lastSelectedAt": "2026-05-24T18:36:40.963Z",
+      "lastCompletedAt": "2026-05-24T18:36:51.040Z",
       "lastOutcome": "completed",
       "updatedAt": "2026-05-24T17:02:57.201Z"
     },
@@ -327,5 +327,5 @@
       "updatedAt": "2026-05-24T16:56:00.287Z"
     }
   },
-  "updatedAt": "2026-05-24T18:35:23.552Z"
+  "updatedAt": "2026-05-24T18:36:51.040Z"
 }
