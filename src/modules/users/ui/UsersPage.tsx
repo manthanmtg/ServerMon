@@ -39,7 +39,7 @@ export default function UsersPage() {
     fetchData();
   }, [fetchData]);
 
-  const handleDeleteUser = async (type: UsersTab, identifier: string) => {
+  const handleDeleteUser = useCallback(async (type: UsersTab, identifier: string) => {
     if (!confirm(`Are you sure you want to delete this ${type} user?`)) return;
 
     try {
@@ -64,9 +64,9 @@ export default function UsersPage() {
       const errorMessage = err instanceof Error ? err.message : 'Unknown error';
       toast({ title: 'Action Failed', description: errorMessage, variant: 'destructive' });
     }
-  };
+  }, [fetchData, toast]);
 
-  const handleToggleSudo = async (username: string, current: boolean) => {
+  const handleToggleSudo = useCallback(async (username: string, current: boolean) => {
     try {
       const res = await fetch('/api/modules/users', {
         method: 'PATCH',
@@ -84,9 +84,9 @@ export default function UsersPage() {
     } catch (_err: unknown) {
       toast({ title: 'Error', description: 'Failed to update privileges', variant: 'destructive' });
     }
-  };
+  }, [fetchData, toast]);
 
-  const handleUpdateRole = async (id: string, current: WebUser['role']) => {
+  const handleUpdateRole = useCallback(async (id: string, current: WebUser['role']) => {
     const newRole = current === 'admin' ? 'user' : 'admin';
     try {
       const res = await fetch('/api/modules/users', {
@@ -101,7 +101,7 @@ export default function UsersPage() {
     } catch (_err: unknown) {
       toast({ title: 'Error', description: 'Failed to update user', variant: 'destructive' });
     }
-  };
+  }, [fetchData, toast]);
 
   const normalizedSearchQuery = useMemo(() => searchQuery.toLowerCase(), [searchQuery]);
   const filteredUsers = useMemo(() => {

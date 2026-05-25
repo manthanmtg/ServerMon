@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { Key, ShieldAlert, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { OSUser, UserRecord, UsersTab, WebUser } from './types';
@@ -24,7 +25,7 @@ function formatLastLogin(user: WebUser): string {
   return user.lastLoginAt ? new Date(user.lastLoginAt).toLocaleDateString() : 'Never';
 }
 
-export function UsersList({
+export const UsersList = memo(function UsersList({
   activeTab,
   users,
   isLoading,
@@ -195,7 +196,7 @@ export function UsersList({
       </div>
     </div>
   );
-}
+});
 
 function UserIdentity({ activeTab, user }: { activeTab: UsersTab; user: UserRecord }) {
   return (
