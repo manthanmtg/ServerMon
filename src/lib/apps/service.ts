@@ -34,6 +34,13 @@ const DEFAULT_NGINX_ENABLED_DIR = '/etc/nginx/sites-enabled';
 const MAX_APP_OPERATIONS = 20;
 const MAX_OPERATION_LOGS = 200;
 
+export class AppUpdateAlreadyRunningError extends Error {
+  constructor(public readonly appId: string) {
+    super(`An update is already running for app ${appId}`);
+    this.name = 'AppUpdateAlreadyRunningError';
+  }
+}
+
 const NextJsAppTemplate: AppTemplate = {
   id: 'nextjs',
   name: 'Next.js App',
@@ -528,37 +535,95 @@ export async function deleteManagedApp(appId: string) {
   };
 }
 
+interface StartAppOperationInput {
+  type: AppOperationType;
+  title: string;
+  step: string;
+  releaseId?: string;
+  commitSha?: string;
+}
+
 function createOperationId(type: AppOperationType): string {
   return `${type}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-async function startAppOperation(
-  app: IManagedApp,
-  input: {
-    type: AppOperationType;
-    title: string;
-    step: string;
-    releaseId?: string;
-    commitSha?: string;
-  }
-): Promise<string> {
+function createAppOperation(input: StartAppOperationInput): IManagedApp['operations'][number] {
   const operationId = createOperationId(input.type);
-  app.operations = [
-    ...(app.operations ?? []),
-    {
-      id: operationId,
-      type: input.type,
-      status: 'running',
-      title: input.title,
-      step: input.step,
-      startedAt: new Date(),
-      releaseId: input.releaseId,
-      commitSha: input.commitSha,
-      logs: [],
-    },
-  ].slice(-MAX_APP_OPERATIONS) as IManagedApp['operations'];
+  return {
+    id: operationId,
+    type: input.type,
+    status: 'running',
+    title: input.title,
+    step: input.step,
+    startedAt: new Date(),
+    releaseId: input.releaseId,
+    commitSha: input.commitSha,
+    logs: [],
+  };
+}
+
+function appHasRunningUpdateOperation(app: Pick<IManagedApp, 'operations'>): boolean {
+  return (app.operations ?? []).some(
+    (operation) => operation.type === 'update' && operation.status === 'running'
+  );
+}
+
+function ensureAppOperation(app: IManagedApp, operation: IManagedApp['operations'][number]): void {
+  if (app.operations?.some((item) => item.id === operation.id)) return;
+  app.operations = [...(app.operations ?? []), operation].slice(
+    -MAX_APP_OPERATIONS
+  ) as IManagedApp['operations'];
+}
+
+async function startAppOperation(app: IManagedApp, input: StartAppOperationInput): Promise<string> {
+  const operation = createAppOperation(input);
+  app.operations = [...(app.operations ?? []), operation].slice(
+    -MAX_APP_OPERATIONS
+  ) as IManagedApp['operations'];
   await app.save();
-  return operationId;
+  return operation.id;
+}
+
+async function startExclusiveUpdateOperation(
+  appId: string,
+  input: Omit<StartAppOperationInput, 'type'>
+): Promise<{ app: IManagedApp; operationId: string }> {
+  const operation = createAppOperation({ ...input, type: 'update' });
+  const app = await ManagedApp.findOneAndUpdate(
+    {
+      _id: appId,
+      sourceType: 'git',
+      operations: {
+        $not: {
+          $elemMatch: {
+            type: 'update',
+            status: 'running',
+          },
+        },
+      },
+    },
+    {
+      $push: {
+        operations: {
+          $each: [operation],
+          $slice: -MAX_APP_OPERATIONS,
+        },
+      },
+    },
+    { new: true }
+  );
+
+  if (app) {
+    ensureAppOperation(app, operation);
+    return { app, operationId: operation.id };
+  }
+
+  const existingApp = await ManagedApp.findById(appId);
+  if (!existingApp) throw new Error('App not found');
+  if ((existingApp.sourceType ?? 'local') !== 'git')
+    throw new Error('Only git apps can be updated');
+  if (appHasRunningUpdateOperation(existingApp)) throw new AppUpdateAlreadyRunningError(appId);
+  throw new AppUpdateAlreadyRunningError(appId);
 }
 
 async function appendAppOperationLog(
@@ -870,13 +935,8 @@ export async function updateManagedGitApp(
   { trigger = 'manual' }: UpdateManagedGitAppOptions = {}
 ) {
   await connectDB();
-  const app = await ManagedApp.findById(appId);
-  if (!app) throw new Error('App not found');
-  if ((app.sourceType ?? 'local') !== 'git') throw new Error('Only git apps can be updated');
-
   const now = new Date();
-  const operationId = await startAppOperation(app, {
-    type: 'update',
+  const { app, operationId } = await startExclusiveUpdateOperation(appId, {
     title: trigger === 'auto' ? 'Auto update' : 'Manual update',
     step: 'Checking upstream repository',
   });

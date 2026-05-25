@@ -4,14 +4,18 @@ import os from 'node:os';
 import path from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { mockFindById, mockDeployNextJsApp, mockPrepareGitSourceForDeploy } = vi.hoisted(() => ({
-  mockFindById: vi.fn(),
-  mockDeployNextJsApp: vi.fn(),
-  mockPrepareGitSourceForDeploy: vi.fn(),
-}));
+const { mockFindById, mockFindOneAndUpdate, mockDeployNextJsApp, mockPrepareGitSourceForDeploy } =
+  vi.hoisted(() => ({
+    mockFindById: vi.fn(),
+    mockFindOneAndUpdate: vi.fn(),
+    mockDeployNextJsApp: vi.fn(),
+    mockPrepareGitSourceForDeploy: vi.fn(),
+  }));
 
 vi.mock('@/lib/db', () => ({ default: vi.fn() }));
-vi.mock('@/models/ManagedApp', () => ({ default: { findById: mockFindById } }));
+vi.mock('@/models/ManagedApp', () => ({
+  default: { findById: mockFindById, findOneAndUpdate: mockFindOneAndUpdate },
+}));
 vi.mock('./deploy', async () => {
   const actual = await vi.importActual<typeof import('./deploy')>('./deploy');
   return {
@@ -79,6 +83,7 @@ describe('updateManagedGitApp', () => {
       save,
     };
     mockFindById.mockResolvedValue(app);
+    mockFindOneAndUpdate.mockResolvedValue(app);
     mockPrepareGitSourceForDeploy.mockResolvedValue({
       sourcePath: '/srv/servermon/apps/git-portal/repository',
       previousSha: 'old-sha',
@@ -157,6 +162,7 @@ describe('updateManagedGitApp', () => {
       save,
     };
     mockFindById.mockResolvedValue(app);
+    mockFindOneAndUpdate.mockResolvedValue(app);
     mockPrepareGitSourceForDeploy.mockResolvedValue({
       sourcePath: '/srv/servermon/apps/git-portal/repository',
       previousSha: 'old-sha',
@@ -175,6 +181,60 @@ describe('updateManagedGitApp', () => {
       status: 'unchanged',
       step: 'No upstream changes found',
     });
+  });
+
+  it('rejects a new update when the app already has a running update operation', async () => {
+    const save = vi.fn(() => Promise.resolve());
+    const app = {
+      _id: { toString: () => 'app-1' },
+      id: 'app-1',
+      name: 'Git Portal',
+      slug: 'git-portal',
+      templateId: 'nextjs',
+      sourceType: 'git',
+      sourcePath: undefined,
+      gitUrl: 'https://github.com/acme/git-portal.git',
+      gitBranch: 'main',
+      gitCurrentSha: 'old-sha',
+      autoUpdate: {
+        enabled: true,
+        intervalMinutes: 60,
+      },
+      domain: 'git.example.com',
+      port: 3010,
+      commands: {
+        install: 'pnpm install --frozen-lockfile',
+        build: 'pnpm build',
+        start: 'pnpm start',
+      },
+      envVars: new Map(),
+      healthCheckPath: '/',
+      tlsEnabled: false,
+      status: 'running',
+      currentReleaseId: 'old-release',
+      releases: [],
+      operations: [
+        {
+          id: 'update-running',
+          type: 'update',
+          status: 'running',
+          title: 'Manual update',
+          step: 'Building release',
+          startedAt: new Date('2026-05-07T00:00:00.000Z'),
+          logs: ['$ pnpm build'],
+        },
+      ],
+      save,
+    };
+    mockFindOneAndUpdate.mockResolvedValue(null);
+    mockFindById.mockResolvedValue(app);
+
+    await expect(updateManagedGitApp('app-1')).rejects.toThrow(
+      'An update is already running for app app-1'
+    );
+    expect(mockPrepareGitSourceForDeploy).not.toHaveBeenCalled();
+    expect(save).not.toHaveBeenCalled();
+    expect(app.operations).toHaveLength(1);
   });
 });
 

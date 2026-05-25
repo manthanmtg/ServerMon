@@ -134,8 +134,7 @@ export function deriveAppsPageViewModels<TApp extends AppsPageViewModelInput>(
     const isExpanded = expandedAppIds.has(app.id);
     const latestUpdateOperation = getLatestUpdateOperation(app);
     const isUpdatingThisApp = updatingId === app.id;
-    const hasRunningUpdateOperation =
-      latestUpdateOperation?.type === 'update' && latestUpdateOperation.status === 'running';
+    const hasRunningUpdateOperation = appHasRunningUpdateOperation(app);
 
     return {
       app,
@@ -385,6 +384,12 @@ function getLatestUpdateOperation(
   return [...app.operations].reverse().find((operation) => operation.type === 'update');
 }
 
+function appHasRunningUpdateOperation(app: Pick<ManagedAppDTO, 'operations'>): boolean {
+  return app.operations.some(
+    (operation) => operation.type === 'update' && operation.status === 'running'
+  );
+}
+
 function fieldClassName() {
   return 'min-h-[44px] w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-ring focus:ring-2 focus:ring-ring/20';
 }
@@ -435,6 +440,7 @@ export default function AppsPage() {
   const [notice, setNotice] = useState<ActionNotice | null>(null);
   const [updateLogAutoscroll, setUpdateLogAutoscroll] = useState(true);
   const liveUpdateLogEndRef = useRef<HTMLSpanElement | null>(null);
+  const updateRequestIdsRef = useRef<Set<string>>(new Set());
 
   const load = useCallback(async () => {
     try {
@@ -635,7 +641,13 @@ export default function AppsPage() {
   };
 
   const updateApp = async (appId: string) => {
-    const appName = apps.find((app) => app.id === appId)?.name ?? 'App';
+    const app = apps.find((item) => item.id === appId);
+    if (updateRequestIdsRef.current.has(appId) || (app && appHasRunningUpdateOperation(app))) {
+      return;
+    }
+
+    const appName = app?.name ?? 'App';
+    updateRequestIdsRef.current.add(appId);
     setUpdatingId(appId);
     setError(null);
     setNotice(null);
@@ -656,6 +668,7 @@ export default function AppsPage() {
       setError(err instanceof Error ? err.message : 'Update failed');
       await load();
     } finally {
+      updateRequestIdsRef.current.delete(appId);
       setUpdatingId(null);
     }
   };
@@ -1146,6 +1159,7 @@ export default function AppsPage() {
             hasRunningUpdateOperation,
             visibleOperations,
           } = viewModel;
+          const updateInProgress = isUpdatingThisApp || hasRunningUpdateOperation;
           return (
             <Card key={app.id}>
               <CardHeader>
@@ -1167,8 +1181,10 @@ export default function AppsPage() {
                         type="button"
                         size="sm"
                         variant="outline"
-                        onClick={() => updateApp(app.id)}
-                        loading={updatingId === app.id}
+                        onClick={() => {
+                          void updateApp(app.id);
+                        }}
+                        loading={updateInProgress}
                       >
                         <RefreshCw className="h-3.5 w-3.5" />
                         Update

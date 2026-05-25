@@ -388,6 +388,65 @@ describe('AppsPage', () => {
     expect(screen.getByRole('button', { name: /update/i })).toBeTruthy();
   });
 
+  it('shows the update action as loading and blocks clicks while a server-side update is running', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        apps: [
+          {
+            id: 'app-1',
+            name: 'Git Portal',
+            slug: 'git-portal',
+            templateId: 'nextjs',
+            sourceType: 'git',
+            git: {
+              url: 'https://github.com/acme/git-portal.git',
+              branch: 'main',
+              currentSha: 'abcdef123456',
+              autoUpdate: {
+                enabled: true,
+                intervalMinutes: 60,
+              },
+            },
+            domain: 'git.example.com',
+            port: 3010,
+            commands: {
+              install: 'pnpm install --frozen-lockfile',
+              build: 'pnpm build',
+              start: 'pnpm start',
+            },
+            envVars: {},
+            healthCheckPath: '/',
+            tlsEnabled: false,
+            status: 'running',
+            releases: [],
+            operations: [
+              {
+                id: 'update-1',
+                type: 'update',
+                status: 'running',
+                title: 'Manual update',
+                step: 'Building release',
+                startedAt: '2026-05-07T00:00:00.000Z',
+                logs: ['$ git fetch origin main'],
+              },
+            ],
+          },
+        ],
+      }),
+    } as Response);
+
+    render(<AppsPage />);
+    await screen.findByText('Git Portal');
+
+    const updateButton = screen.getByRole('button', { name: /update/i });
+    expect((updateButton as HTMLButtonElement).disabled).toBe(true);
+    expect(updateButton.querySelector('.animate-spin')).toBeTruthy();
+
+    fireEvent.click(updateButton);
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+  });
+
   it('shows a clear manual update result and latest auto-update state', async () => {
     const appBeforeUpdate = {
       id: 'app-1',

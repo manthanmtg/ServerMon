@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createLogger } from '@/lib/logger';
 import { getSession } from '@/lib/session';
-import { updateManagedGitApp } from '@/lib/apps/service';
+import { AppUpdateAlreadyRunningError, updateManagedGitApp } from '@/lib/apps/service';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,6 +26,10 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
     );
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Failed to update app';
+    if (error instanceof AppUpdateAlreadyRunningError) {
+      log.warn('App update already running', { appId: error.appId });
+      return NextResponse.json({ error: message }, { status: 409 });
+    }
     log.error('Failed to update app', { error: message });
     return NextResponse.json({ error: message }, { status: 500 });
   }
