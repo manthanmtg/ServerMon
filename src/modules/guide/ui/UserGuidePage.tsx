@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { ChangeEvent, useCallback, useMemo, useState } from 'react';
 import {
   BookOpen,
   Search,
@@ -89,10 +89,20 @@ export default function UserGuidePage() {
     [normalizedSearchQuery]
   );
 
-  const hasSearchQuery = normalizedSearchQuery.length > 0;
-  const hasFilteredModules = filteredModules.length > 0;
-  const visibleSelectedModule =
-    filteredModules.find((module) => module.id === selectedModuleId) ?? filteredModules[0] ?? null;
+  const hasSearchQuery = useMemo(() => normalizedSearchQuery.length > 0, [normalizedSearchQuery]);
+  const hasFilteredModules = useMemo(() => filteredModules.length > 0, [filteredModules]);
+  const visibleSelectedModule = useMemo(
+    () => filteredModules.find((module) => module.id === selectedModuleId) ?? filteredModules[0] ?? null,
+    [filteredModules, selectedModuleId]
+  );
+
+  const handleSearchChange = useCallback((event: ChangeEvent<HTMLInputElement>) => {
+    setSearchQuery(event.target.value);
+  }, []);
+
+  const handleSelectModule = useCallback((moduleId: string) => {
+    setSelectedModuleId(moduleId);
+  }, []);
 
   return (
     <div className="flex flex-col gap-6 animate-fade-in pb-12">
@@ -118,7 +128,7 @@ export default function UserGuidePage() {
               type="text"
               placeholder="Search guides..."
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={handleSearchChange}
               className="w-full pl-9 pr-4 py-2 bg-secondary/50 border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all font-medium"
             />
           </div>
@@ -131,7 +141,7 @@ export default function UserGuidePage() {
               filteredModules.map((module) => (
                 <button
                   key={module.id}
-                  onClick={() => setSelectedModuleId(module.id)}
+                  onClick={() => handleSelectModule(module.id)}
                   className={cn(
                     'flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium transition-all group',
                     selectedModuleId === module.id
