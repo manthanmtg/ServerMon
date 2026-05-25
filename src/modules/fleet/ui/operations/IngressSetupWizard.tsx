@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { motion } from 'framer-motion';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -326,7 +327,11 @@ function StepIndicator({ step }: { step: Step }) {
           className="flex items-center gap-1 text-xs"
           aria-current={i + 1 === step ? 'step' : undefined}
         >
-          <span
+          <motion.span
+            animate={{ scale: i + 1 === step ? 1.04 : 1 }}
+            transition={{ type: 'spring', stiffness: 260, damping: 20 }}
+            whileHover={{ scale: 1.01 }}
+            whileTap={{ scale: 0.99 }}
             className={`h-5 w-5 rounded-full flex items-center justify-center text-[10px] ${
               i + 1 <= step
                 ? 'bg-primary text-primary-foreground'
@@ -334,8 +339,10 @@ function StepIndicator({ step }: { step: Step }) {
             }`}
           >
             {i + 1 < step ? <Check className="h-3 w-3" /> : i + 1}
+          </motion.span>
+          <span className={i + 1 === step ? 'font-medium text-foreground' : 'text-muted-foreground'}>
+            {l}
           </span>
-          <span className={i + 1 === step ? 'text-foreground' : 'text-muted-foreground'}>{l}</span>
         </li>
       ))}
     </ol>
