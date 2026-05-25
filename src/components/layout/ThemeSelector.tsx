@@ -85,7 +85,8 @@ export default function ThemeSelector() {
                   'w-full flex items-center justify-between p-2 rounded-xl text-xs font-medium transition-all group',
                   isActive
                     ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/20'
-                    : 'hover:bg-accent text-muted-foreground hover:text-foreground'
+                    : 'hover:bg-accent text-muted-foreground hover:text-foreground',
+                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background'
                 )}
               >
                 <div className="flex items-center gap-2.5">
