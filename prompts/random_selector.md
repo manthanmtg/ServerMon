@@ -35,7 +35,13 @@ You are an autonomous improvement agent for the ServerMon project. Your job is t
 
 ```bash
 if [ "$((RANDOM % 25))" -eq 0 ]; then
-  printf '%s\n' prompts/prompts_optimizer.md
+  node -e 'const fs=require("fs"); const metadata=JSON.parse(fs.readFileSync("prompts/prompts_metadata.json","utf8")); const optimizer=Object.values(metadata.prompts).find((prompt)=>prompt.file==="prompts_optimizer.md"); process.exit(!(optimizer&&optimizer.enabled&&optimizer.autonomousSafe));'
+  optimizer_exit_code=$?
+  if [ $optimizer_exit_code -eq 0 ]; then
+    printf '%s\n' prompts/prompts_optimizer.md
+  else
+    node -e 'const fs=require("fs"); const metadata=JSON.parse(fs.readFileSync("prompts/prompts_metadata.json","utf8")); const candidates=Object.values(metadata.prompts).filter((prompt)=>prompt.enabled&&prompt.autonomousSafe&&prompt.file!=="prompts_optimizer.md"&&prompt.file!=="module_generator_prompt.md"&&prompt.category!=="selector").map((prompt)=>`prompts/${prompt.file}`).filter((p)=>fs.existsSync(p)).sort(); if(candidates.length===0){console.error("No eligible prompts found in prompts/prompts_metadata.json."); process.exit(1);} console.log(candidates[Math.floor(Math.random()*candidates.length)]);'
+  fi
 else
   node -e 'const fs=require("fs"); const metadata=JSON.parse(fs.readFileSync("prompts/prompts_metadata.json","utf8")); const candidates=Object.values(metadata.prompts).filter((prompt)=>prompt.enabled&&prompt.autonomousSafe&&prompt.file!=="prompts_optimizer.md"&&prompt.file!=="module_generator_prompt.md"&&prompt.category!=="selector").map((prompt)=>`prompts/${prompt.file}`).filter((p)=>fs.existsSync(p)).sort(); if(candidates.length===0){console.error("No eligible prompts found in prompts/prompts_metadata.json."); process.exit(1);} console.log(candidates[Math.floor(Math.random()*candidates.length)]);'
 fi
