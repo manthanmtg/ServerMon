@@ -241,9 +241,11 @@ function MemoryTopProcessesTable({
                   </td>
                   <td className="py-4 text-right">
                     <button
+                      type="button"
                       onClick={() => onKillProcess(proc.pid)}
-                      className="p-2 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-all opacity-0 group-hover:opacity-100"
+                      className="min-h-[44px] min-w-[44px] p-2 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-all opacity-0 group-hover:opacity-100"
                       title="Terminate Process"
+                      aria-label={`Terminate process ${proc.name}`}
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
