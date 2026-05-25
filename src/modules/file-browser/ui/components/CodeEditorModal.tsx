@@ -328,6 +328,7 @@ export default function CodeEditorModal({
             variant="ghost"
             size="icon"
             className="h-8 w-8"
+            aria-label="Undo (Cmd+Z)"
             onClick={handleUndo}
             title="Undo (Cmd+Z)"
           >
@@ -337,6 +338,7 @@ export default function CodeEditorModal({
             variant="ghost"
             size="icon"
             className="h-8 w-8"
+            aria-label="Redo (Cmd+Shift+Z)"
             onClick={handleRedo}
             title="Redo (Cmd+Shift+Z)"
           >
@@ -346,6 +348,7 @@ export default function CodeEditorModal({
             variant="ghost"
             size="icon"
             className="h-8 w-8"
+            aria-label="Find (Cmd+F)"
             onClick={handleSearch}
             title="Find (Cmd+F)"
           >
