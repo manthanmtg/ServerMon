@@ -100,7 +100,11 @@ export function TemplateDetail({ templateId, onBack, onInstall }: TemplateDetail
     return (
       <div className="text-center py-12">
         <p className="text-sm text-destructive">{error || 'Template not found'}</p>
-        <button onClick={onBack} className="text-sm text-primary mt-2 hover:underline">
+        <button
+          type="button"
+          onClick={onBack}
+          className="text-sm text-primary mt-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background rounded-sm"
+        >
           Go back
         </button>
       </div>
@@ -118,7 +122,8 @@ export function TemplateDetail({ templateId, onBack, onInstall }: TemplateDetail
     <div className="space-y-6">
       <button
         onClick={onBack}
-        className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+        type="button"
+        className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background rounded-sm"
       >
         <ArrowLeft className="w-4 h-4" />
         Back to catalog
@@ -210,8 +215,9 @@ export function TemplateDetail({ templateId, onBack, onInstall }: TemplateDetail
                       </div>
                     </div>
                     <button
+                      type="button"
                       onClick={() => onInstall(template, method)}
-                      className="px-3 py-1.5 text-xs font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+                      className="px-3 py-1.5 text-xs font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                     >
                       Install
                     </button>
