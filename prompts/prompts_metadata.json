@@ -142,14 +142,14 @@
       "category": "performance",
       "enabled": true,
       "autonomousSafe": true,
-      "totalSelected": 44,
+      "totalSelected": 45,
       "totalCompleted": 44,
-      "totalNoop": 0,
+      "totalNoop": 1,
       "totalFailed": 1,
-      "lastSelectedAt": "2026-05-24T19:02:28.868Z",
-      "lastOutcome": "completed",
+      "lastSelectedAt": "2026-05-25T01:00:43.485Z",
+      "lastOutcome": "noop",
       "updatedAt": "2026-05-24T18:47:06.107Z",
-      "lastCompletedAt": "2026-05-24T19:03:04.977Z"
+      "lastCompletedAt": "2026-05-25T01:11:41.385Z"
     },
     "project_guidelines_sync.md": {
       "id": "project-guidelines-sync",
@@ -328,5 +328,5 @@
       "updatedAt": "2026-05-24T16:56:00.287Z"
     }
   },
-  "updatedAt": "2026-05-24T21:16:01.429Z"
+  "updatedAt": "2026-05-25T01:11:41.385Z"
 }
