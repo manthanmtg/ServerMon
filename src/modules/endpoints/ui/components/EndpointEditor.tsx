@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { LoaderCircle, X, Terminal, Link, Braces, Sparkles } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import { cn } from '@/lib/utils';
@@ -40,16 +40,50 @@ interface EndpointEditorProps {
 
 export function EndpointEditor({ form, onUpdateForm, onRun, onSave }: EndpointEditorProps) {
   const [showBoilerplateConfirm, setShowBoilerplateConfirm] = useState(false);
+  const scriptLang = useMemo(() => form.scriptLang || 'python', [form.scriptLang]);
+  const envVarEntries = useMemo(() => Object.entries(form.envVars || {}), [form.envVars]);
+  const hasEnvVars = useMemo(() => envVarEntries.length > 0, [envVarEntries]);
 
-  const handleLoadBoilerplate = () => {
-    const lang = form.scriptLang || 'python';
+  const webhookMethods = useMemo(() => ['', ...METHODS], []);
+
+  const handleLoadBoilerplate = useCallback(() => {
     const method = (form.method as string) === 'POST' ? 'POST' : 'GET';
     const bp =
-      SCRIPT_BOILERPLATES[lang as ScriptLanguage][method] ||
-      SCRIPT_BOILERPLATES[lang as ScriptLanguage]['GET'];
+      SCRIPT_BOILERPLATES[scriptLang as ScriptLanguage][method] ||
+      SCRIPT_BOILERPLATES[scriptLang as ScriptLanguage]['GET'];
     onUpdateForm('scriptContent', bp.content);
     setShowBoilerplateConfirm(false);
-  };
+  }, [form.method, onUpdateForm, scriptLang]);
+
+  const addEnvVar = useCallback(() => {
+    onUpdateForm('envVars', { ...(form.envVars || {}), '': '' });
+  }, [form.envVars, onUpdateForm]);
+
+  const removeEnvVar = useCallback(
+    (index: number) => {
+      const entries = envVarEntries.filter((_, j) => j !== index);
+      onUpdateForm('envVars', Object.fromEntries(entries));
+    },
+    [envVarEntries, onUpdateForm]
+  );
+
+  const updateEnvVarKey = useCallback(
+    (index: number, value: string, existingValue: string) => {
+      const nextEntries = [...envVarEntries];
+      nextEntries[index] = [value.toUpperCase(), existingValue];
+      onUpdateForm('envVars', Object.fromEntries(nextEntries));
+    },
+    [envVarEntries, onUpdateForm]
+  );
+
+  const updateEnvVarValue = useCallback(
+    (index: number, key: string, value: string) => {
+      const nextEntries = [...envVarEntries];
+      nextEntries[index] = [key, value];
+      onUpdateForm('envVars', Object.fromEntries(nextEntries));
+    },
+    [envVarEntries, onUpdateForm]
+  );
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-500">
@@ -64,7 +98,7 @@ export function EndpointEditor({ form, onUpdateForm, onRun, onSave }: EndpointEd
                     onClick={() => onUpdateForm('scriptLang', lang as ScriptLanguage)}
                     className={cn(
                       'px-3 sm:px-4 py-1.5 rounded-lg text-[9px] sm:text-[10px] font-bold capitalize transition-all duration-300 whitespace-nowrap',
-                      form.scriptLang === lang
+                      scriptLang === lang
                         ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/20 scale-[1.02]'
                         : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
                     )}
@@ -115,17 +149,14 @@ export function EndpointEditor({ form, onUpdateForm, onRun, onSave }: EndpointEd
                 </label>
               </div>
               <button
-                onClick={() => {
-                  const vars = { ...(form.envVars || {}), '': '' };
-                  onUpdateForm('envVars', vars);
-                }}
+                onClick={addEnvVar}
                 className="text-[10px] font-bold text-primary hover:text-primary/80 bg-primary/10 px-3 py-1.5 rounded-xl border border-primary/20 transition-all hover:scale-105 active:scale-95"
               >
                 + ADD VARIABLE
               </button>
             </div>
             <div className="space-y-3">
-              {Object.entries(form.envVars || {}).map(([key, value], i) => (
+              {envVarEntries.map(([key, value], i) => (
                 <div
                   key={i}
                   className="flex items-center gap-3 p-2 bg-muted/10 rounded-2xl border border-border/30 group/var transition-colors hover:border-border/60 animate-in slide-in-from-left-4 duration-300"
@@ -136,9 +167,7 @@ export function EndpointEditor({ form, onUpdateForm, onRun, onSave }: EndpointEd
                       value={key}
                       placeholder="KEY (e.g. API_KEY)"
                       onChange={(e) => {
-                        const entries = Object.entries(form.envVars || {});
-                        entries[i] = [e.target.value.toUpperCase(), value];
-                        onUpdateForm('envVars', Object.fromEntries(entries));
+                        updateEnvVarKey(i, e.target.value, value);
                       }}
                       className="flex-1 h-10 px-4 rounded-xl border border-border/40 bg-background/50 text-[11px] font-mono font-bold outline-none focus:ring-2 focus:ring-primary/20 focus:bg-background transition-all"
                     />
@@ -148,18 +177,13 @@ export function EndpointEditor({ form, onUpdateForm, onRun, onSave }: EndpointEd
                       value={value}
                       placeholder="value"
                       onChange={(e) => {
-                        const entries = Object.entries(form.envVars || {});
-                        entries[i] = [key, e.target.value];
-                        onUpdateForm('envVars', Object.fromEntries(entries));
+                        updateEnvVarValue(i, key, e.target.value);
                       }}
                       className="flex-1 h-10 px-4 rounded-xl border border-border/40 bg-background/50 text-[11px] font-mono outline-none focus:ring-2 focus:ring-primary/20 focus:bg-background transition-all"
                     />
                   </div>
                   <button
-                    onClick={() => {
-                      const entries = Object.entries(form.envVars || {}).filter((_, j) => j !== i);
-                      onUpdateForm('envVars', Object.fromEntries(entries));
-                    }}
+                    onClick={() => removeEnvVar(i)}
                     className="p-2 text-muted-foreground/40 hover:text-destructive hover:bg-destructive/10 rounded-xl transition-all"
                     title="Remove variable"
                   >
@@ -167,7 +191,7 @@ export function EndpointEditor({ form, onUpdateForm, onRun, onSave }: EndpointEd
                   </button>
                 </div>
               ))}
-              {Object.keys(form.envVars || {}).length === 0 && (
+              {!hasEnvVars && (
                 <div className="text-center py-8 rounded-2xl border border-dashed border-border/40 text-muted-foreground/40 text-[10px] font-medium tracking-tight">
                   No custom environment variables defined
                 </div>
@@ -222,7 +246,7 @@ export function EndpointEditor({ form, onUpdateForm, onRun, onSave }: EndpointEd
               Upstream HTTP Method
             </label>
             <div className="flex flex-wrap gap-2">
-              {['', ...METHODS].map((m) => (
+              {webhookMethods.map((m) => (
                 <button
                   key={m}
                   onClick={() =>
