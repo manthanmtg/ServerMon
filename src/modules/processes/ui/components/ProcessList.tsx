@@ -44,6 +44,106 @@ interface ProcessListProps {
   onKillProcess: (pid: number, signal: string) => void;
 }
 
+interface ProcessListMobileViewProps {
+  processes: ProcessInfo[];
+  expandedPid: number | null;
+  killingPid: number | null;
+  onToggleExpanded: (pid: number) => void;
+  onKillProcess: (pid: number, signal: string) => void;
+}
+
+const ProcessListMobileView = React.memo(function ProcessListMobileView({
+  processes,
+  expandedPid,
+  killingPid,
+  onToggleExpanded,
+  onKillProcess,
+}: ProcessListMobileViewProps) {
+  return (
+    <div className="sm:hidden divide-y divide-border" role="list" aria-label="Processes">
+      {processes.map((process) => (
+        <ProcessCard
+          key={process.pid}
+          process={process}
+          isExpanded={expandedPid === process.pid}
+          isKilling={killingPid === process.pid}
+          onToggleExpand={onToggleExpanded}
+          onKill={onKillProcess}
+        />
+      ))}
+    </div>
+  );
+});
+
+ProcessListMobileView.displayName = 'ProcessListMobileView';
+
+interface ProcessListDesktopViewProps {
+  processes: ProcessInfo[];
+  sortField: ProcessSortField;
+  expandedPid: number | null;
+  killingPid: number | null;
+  onToggleExpanded: (pid: number) => void;
+  onToggleSort: (field: ProcessSortField) => void;
+  onKillProcess: (pid: number, signal: string) => void;
+}
+
+const ProcessListDesktopView = React.memo(function ProcessListDesktopView({
+  processes,
+  sortField,
+  expandedPid,
+  killingPid,
+  onToggleExpanded,
+  onToggleSort,
+  onKillProcess,
+}: ProcessListDesktopViewProps) {
+  return (
+    <div className="hidden sm:block overflow-x-auto">
+      <table className="w-full text-left min-w-[800px]" aria-label="Processes">
+        <caption className="sr-only">Processes</caption>
+        <thead>
+          <tr className="border-b border-border bg-secondary/50">
+            <th className="w-8 px-2" />
+            <SortHeader field="pid" currentSort={sortField} onSort={onToggleSort}>
+              PID
+            </SortHeader>
+            <SortHeader field="name" currentSort={sortField} onSort={onToggleSort}>
+              Process
+            </SortHeader>
+            <SortHeader field="user" currentSort={sortField} onSort={onToggleSort}>
+              User
+            </SortHeader>
+            <th className="px-3 py-2.5 text-xs font-medium text-muted-foreground">State</th>
+            <SortHeader field="cpu" className="text-right" currentSort={sortField} onSort={onToggleSort}>
+              CPU
+            </SortHeader>
+            <SortHeader field="mem" className="text-right" currentSort={sortField} onSort={onToggleSort}>
+              Memory
+            </SortHeader>
+            <th className="px-3 py-2.5 text-xs font-medium text-muted-foreground text-right">Uptime</th>
+            <th className="px-3 py-2.5 text-xs font-medium text-muted-foreground text-right w-20">
+              Actions
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {processes.map((process) => (
+            <ProcessRow
+              key={process.pid}
+              process={process}
+              isExpanded={expandedPid === process.pid}
+              isKilling={killingPid === process.pid}
+              onToggleExpand={onToggleExpanded}
+              onKill={onKillProcess}
+            />
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+});
+
+ProcessListDesktopView.displayName = 'ProcessListDesktopView';
+
 export const ProcessList = React.memo(function ProcessList({
   processes,
   sortField,
@@ -66,73 +166,22 @@ export const ProcessList = React.memo(function ProcessList({
 
   return (
     <div className="rounded-xl border border-border bg-card overflow-hidden">
-      <div className="sm:hidden divide-y divide-border" role="list" aria-label="Processes">
-        {processes.map((process) => (
-          <ProcessCard
-            key={process.pid}
-            process={process}
-            isExpanded={expandedPid === process.pid}
-            isKilling={killingPid === process.pid}
-            onToggleExpand={onToggleExpanded}
-            onKill={onKillProcess}
-          />
-        ))}
-      </div>
-
-      <div className="hidden sm:block overflow-x-auto">
-        <table className="w-full text-left min-w-[800px]" aria-label="Processes">
-          <caption className="sr-only">Processes</caption>
-          <thead>
-            <tr className="border-b border-border bg-secondary/50">
-              <th className="w-8 px-2" />
-              <SortHeader field="pid" currentSort={sortField} onSort={onToggleSort}>
-                PID
-              </SortHeader>
-              <SortHeader field="name" currentSort={sortField} onSort={onToggleSort}>
-                Process
-              </SortHeader>
-              <SortHeader field="user" currentSort={sortField} onSort={onToggleSort}>
-                User
-              </SortHeader>
-              <th className="px-3 py-2.5 text-xs font-medium text-muted-foreground">State</th>
-              <SortHeader
-                field="cpu"
-                className="text-right"
-                currentSort={sortField}
-                onSort={onToggleSort}
-              >
-                CPU
-              </SortHeader>
-              <SortHeader
-                field="mem"
-                className="text-right"
-                currentSort={sortField}
-                onSort={onToggleSort}
-              >
-                Memory
-              </SortHeader>
-              <th className="px-3 py-2.5 text-xs font-medium text-muted-foreground text-right">
-                Uptime
-              </th>
-              <th className="px-3 py-2.5 text-xs font-medium text-muted-foreground text-right w-20">
-                Actions
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {processes.map((process) => (
-              <ProcessRow
-                key={process.pid}
-                process={process}
-                isExpanded={expandedPid === process.pid}
-                isKilling={killingPid === process.pid}
-                onToggleExpand={onToggleExpanded}
-                onKill={onKillProcess}
-              />
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <ProcessListMobileView
+        processes={processes}
+        expandedPid={expandedPid}
+        killingPid={killingPid}
+        onToggleExpanded={onToggleExpanded}
+        onKillProcess={onKillProcess}
+      />
+      <ProcessListDesktopView
+        processes={processes}
+        sortField={sortField}
+        expandedPid={expandedPid}
+        killingPid={killingPid}
+        onToggleExpanded={onToggleExpanded}
+        onToggleSort={onToggleSort}
+        onKillProcess={onKillProcess}
+      />
 
       {footer}
     </div>
