@@ -8,6 +8,7 @@ import { PageSkeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/components/ui/toast';
 import { relativeTime } from '@/lib/utils';
 import type {
+  ServiceUnit,
   ServiceAlertSummary,
   ServiceTimerInfo,
   ServicesSnapshot,
@@ -19,6 +20,65 @@ import { ServicesChartsPanel } from './components/ServicesChartsPanel';
 import { ServicesTable } from './components/ServicesTable';
 
 type FilterStatus = 'all' | 'running' | 'failed' | 'inactive' | 'exited';
+
+const SERVICES_SNAPSHOT_TIMEOUT_MS = 8_000;
+
+function isObject(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object';
+}
+
+function isServicesSnapshot(value: unknown): value is ServicesSnapshot {
+  if (!isObject(value)) {
+    return false;
+  }
+
+  const candidate = value as Record<string, unknown>;
+  if (!['systemd', 'mock'].includes(candidate.source as string)) {
+    return false;
+  }
+
+  const summary = candidate.summary;
+  if (!isObject(summary)) {
+    return false;
+  }
+
+  const snapshot = summary as Record<string, unknown>;
+  const services = candidate.services;
+  const timers = candidate.timers;
+  const alerts = candidate.alerts;
+  const history = candidate.history;
+
+  const hasValidServices = Array.isArray(services) &&
+    services.every(
+      (service) =>
+        isObject(service) &&
+        typeof (service as ServiceUnit).name === 'string' &&
+        typeof (service as ServiceUnit).activeState === 'string'
+    );
+  const hasValidTimers = Array.isArray(timers) && timers.every((timer) => isObject(timer));
+  const hasValidAlerts = Array.isArray(alerts) && alerts.every((alert) => isObject(alert));
+  const hasValidHistory =
+    Array.isArray(history) &&
+    history.every((item) => isObject(item) && Array.isArray((item as Record<string, unknown>).services));
+
+  return (
+    typeof candidate.systemdAvailable === 'boolean' &&
+    typeof summary === 'object' &&
+    typeof snapshot.total === 'number' &&
+    typeof snapshot.running === 'number' &&
+    typeof snapshot.exited === 'number' &&
+    typeof snapshot.failed === 'number' &&
+    typeof snapshot.inactive === 'number' &&
+    typeof snapshot.enabled === 'number' &&
+    typeof snapshot.disabled === 'number' &&
+    typeof snapshot.healthScore === 'number' &&
+    hasValidServices &&
+    hasValidTimers &&
+    hasValidAlerts &&
+    hasValidHistory &&
+    typeof candidate.timestamp === 'string'
+  );
+}
 
 function futureTime(value: string): string {
   const diff = new Date(value).getTime() - Date.now();
@@ -253,12 +313,44 @@ export default function ServicesPage() {
   const normalizedSearch = useMemo(() => search.trim().toLowerCase(), [search]);
 
   const loadSnapshot = useCallback(async () => {
-    const response = await fetch('/api/modules/services', { cache: 'no-store' });
-    const data = await response.json();
-    if (!response.ok) {
-      throw new Error(data.error || 'Failed to fetch services data');
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => {
+      controller.abort();
+    }, SERVICES_SNAPSHOT_TIMEOUT_MS);
+
+    try {
+      const response = await fetch('/api/modules/services', {
+        cache: 'no-store',
+        signal: controller.signal,
+      });
+
+      let data: unknown;
+      try {
+        data = await response.json();
+      } catch {
+        throw new Error('Services snapshot response is not valid JSON');
+      }
+
+      if (!response.ok) {
+        const message =
+          isObject(data) && typeof data.error === 'string' ? data.error : `Request failed with ${response.status}`;
+        throw new Error(message);
+      }
+
+      if (!isServicesSnapshot(data)) {
+        throw new Error('Services snapshot response format is invalid');
+      }
+
+      setSnapshot(data);
+    } catch (error: unknown) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw new Error(`Services snapshot request timed out after ${SERVICES_SNAPSHOT_TIMEOUT_MS}ms`);
+      }
+
+      throw error;
+    } finally {
+      clearTimeout(timeoutId);
     }
-    setSnapshot(data);
   }, []);
 
   useEffect(() => {
