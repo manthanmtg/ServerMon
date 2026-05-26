@@ -113,11 +113,11 @@
       "autonomousSafe": true,
       "totalSelected": 34,
       "totalCompleted": 34,
-      "totalNoop": 0,
+      "totalNoop": 1,
       "totalFailed": 1,
       "lastSelectedAt": "2026-05-25T02:43:48.349Z",
-      "lastCompletedAt": "2026-05-25T02:44:03.039Z",
-      "lastOutcome": "completed",
+      "lastCompletedAt": "2026-05-26T01:06:03.733Z",
+      "lastOutcome": "noop",
       "updatedAt": "2026-05-24T18:33:56.860Z"
     },
     "module_generator_prompt.md": {
@@ -328,6 +328,6 @@
       "updatedAt": "2026-05-25T02:38:54.014Z"
     }
   },
-  "updatedAt": "2026-05-25T21:04:17.699Z",
+  "updatedAt": "2026-05-26T01:06:03.733Z",
   "stats": {}
 }
