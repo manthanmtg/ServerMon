@@ -31,13 +31,13 @@
       "category": "reliability",
       "enabled": true,
       "autonomousSafe": true,
-      "totalSelected": 41,
+      "totalSelected": 42,
       "totalCompleted": 41,
       "totalNoop": 0,
-      "totalFailed": 0,
-      "lastSelectedAt": "2026-05-25T03:02:49.186Z",
-      "lastCompletedAt": "2026-05-25T03:02:49.186Z",
-      "lastOutcome": "completed",
+      "totalFailed": 1,
+      "lastSelectedAt": "2026-05-29T05:01:10.497Z",
+      "lastCompletedAt": "2026-05-29T05:03:43.593Z",
+      "lastOutcome": "failed",
       "updatedAt": "2026-05-25T03:02:49.186Z"
     },
     "architecture_refactoring_agent.md": {
@@ -328,6 +328,6 @@
       "updatedAt": "2026-05-25T02:38:54.014Z"
     }
   },
-  "updatedAt": "2026-05-29T01:05:57.839Z",
+  "updatedAt": "2026-05-29T05:03:43.594Z",
   "stats": {}
 }
