@@ -302,14 +302,14 @@
       "category": "verification",
       "enabled": true,
       "autonomousSafe": true,
-      "totalSelected": 45,
+      "totalSelected": 46,
       "totalCompleted": 42,
-      "totalNoop": 3,
+      "totalNoop": 4,
       "totalFailed": 0,
       "lastOutcome": "noop",
-      "lastCompletedAt": "2026-05-28T21:01:37.928Z",
+      "lastCompletedAt": "2026-05-29T21:03:06.169Z",
       "updatedAt": "2026-05-24T18:25:00.553Z",
-      "lastSelectedAt": "2026-05-28T21:01:37.928Z"
+      "lastSelectedAt": "2026-05-29T21:00:57.096Z"
     },
     "visual_polish_artist_prompt.md": {
       "id": "visual-polish-artist-prompt",
@@ -328,6 +328,6 @@
       "updatedAt": "2026-05-25T02:38:54.014Z"
     }
   },
-  "updatedAt": "2026-05-29T05:03:43.594Z",
+  "updatedAt": "2026-05-29T21:03:06.169Z",
   "stats": {}
 }
