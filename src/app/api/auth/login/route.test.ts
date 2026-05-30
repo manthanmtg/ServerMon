@@ -225,6 +225,65 @@ describe('POST /api/auth/login', () => {
     expect(mockUserSave).toHaveBeenCalledOnce();
   });
 
+  it('returns 400 when username is empty string', async () => {
+    const req = makeRequest({ username: '', password: 'secret' });
+    const response = await POST(req as never);
+    const body = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(body.error).toBe('Invalid request body');
+  });
+
+  it('succeeds despite unexpected extra fields in request body', async () => {
+    mockFindOne.mockResolvedValue(makeUser());
+    vi.mocked(verifyPassword).mockResolvedValue(true);
+
+    const req = makeRequest({ username: 'admin', password: 'secret', extraField: 'hacker' });
+    const response = await POST(req as never);
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.success).toBe(true);
+  });
+
+  it('returns 500 when verifyPassword throws', async () => {
+    mockFindOne.mockResolvedValue(makeUser());
+    vi.mocked(verifyPassword).mockRejectedValue(new Error('Bcrypt error'));
+
+    const req = makeRequest({ username: 'admin', password: 'secret' });
+    const response = await POST(req as never);
+    const body = await response.json();
+
+    expect(response.status).toBe(500);
+    expect(body.error).toBe('Internal server error');
+  });
+
+  it('returns 500 when verifyTOTPToken throws', async () => {
+    mockFindOne.mockResolvedValue(makeUser({ totpEnabled: true, totpSecret: 'TOTP_SECRET' }));
+    vi.mocked(verifyPassword).mockResolvedValue(true);
+    vi.mocked(verifyTOTPToken).mockImplementation(() => { throw new Error('Crypto error'); });
+
+    const req = makeRequest({ username: 'admin', password: 'secret', totpToken: '123456' });
+    const response = await POST(req as never);
+    const body = await response.json();
+
+    expect(response.status).toBe(500);
+    expect(body.error).toBe('Internal server error');
+  });
+
+  it('succeeds when totpToken is provided but user.totpEnabled is false', async () => {
+    mockFindOne.mockResolvedValue(makeUser({ totpEnabled: false, totpSecret: 'TOTP_SECRET' }));
+    vi.mocked(verifyPassword).mockResolvedValue(true);
+
+    const req = makeRequest({ username: 'admin', password: 'secret', totpToken: 'unnecessary' });
+    const response = await POST(req as never);
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.success).toBe(true);
+    expect(verifyTOTPToken).not.toHaveBeenCalled();
+  });
+
   it('returns 500 on unexpected errors', async () => {
     mockFindOne.mockRejectedValue(new Error('Connection lost'));
 
