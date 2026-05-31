@@ -52,7 +52,9 @@ type HistoryRunRowProps = {
   onOpenRun: (run: AIRunnerRunDTO) => void;
   getRunDisplayName: (run: AIRunnerRunDTO) => string;
   getRunContextLabel: (run: AIRunnerRunDTO) => string;
-  getRunStatusVariant: (status: AIRunnerRunDTO['status']) => string;
+  getRunStatusVariant: (
+    status: AIRunnerRunDTO['status']
+  ) => 'success' | 'warning' | 'destructive' | 'default' | 'outline';
   promptMap: Record<string, { name: string }>;
 };
 

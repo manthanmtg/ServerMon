@@ -14,6 +14,9 @@ export interface IAIRunnerJob extends Document {
   agentProfileId: mongoose.Types.ObjectId;
   workspaceId?: mongoose.Types.ObjectId;
   workspaceBlocking?: boolean;
+  gitWorktreesEnabled?: boolean;
+  gitWorktreeBaseDir?: string;
+  worktreePath?: string;
   triggeredBy: AIRunnerTrigger;
   promptContent: string;
   workingDirectory: string;
@@ -66,6 +69,9 @@ const AIRunnerJobSchema = new Schema<IAIRunnerJob>(
     agentProfileId: { type: Schema.Types.ObjectId, ref: 'AIRunnerProfile', required: true },
     workspaceId: { type: Schema.Types.ObjectId, ref: 'AIRunnerWorkspace' },
     workspaceBlocking: { type: Boolean, default: false },
+    gitWorktreesEnabled: { type: Boolean, default: false },
+    gitWorktreeBaseDir: { type: String, trim: true, maxlength: 2000 },
+    worktreePath: { type: String, trim: true, maxlength: 2000 },
     triggeredBy: { type: String, required: true, enum: ['manual', 'schedule', 'autoflow'] },
     promptContent: { type: String, required: true, maxlength: 100_000 },
     workingDirectory: { type: String, required: true, trim: true, maxlength: 2000 },

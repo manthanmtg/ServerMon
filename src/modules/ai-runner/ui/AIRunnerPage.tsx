@@ -367,6 +367,8 @@ function emptyWorkspaceForm(path = ''): WorkspaceFormState {
     name: '',
     path,
     blocking: true,
+    isGitRepo: false,
+    gitWorktreesEnabled: true,
     enabled: true,
     notes: '',
   };
@@ -798,6 +800,34 @@ export default function AIRunnerPage() {
     },
     [activeTab, loadActiveRuns, loadLogs, loadMetadata, loadRuns, loadSchedules]
   );
+
+  useEffect(() => {
+    if (!workspaceModalOpen || !workspaceForm.path) return;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => {
+      fetch('/api/modules/ai-runner/workspaces/detect-git', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: workspaceForm.path }),
+        signal: controller.signal,
+      })
+        .then((res) => res.json())
+        .then((data) => {
+          if (data && typeof data.isGitRepo === 'boolean') {
+            setWorkspaceForm((prev) => ({
+              ...prev,
+              isGitRepo: data.isGitRepo,
+              gitWorktreesEnabled: prev.gitWorktreesEnabled ?? data.isGitRepo,
+            }));
+          }
+        })
+        .catch(() => {});
+    }, 400);
+    return () => {
+      clearTimeout(timeout);
+      controller.abort();
+    };
+  }, [workspaceModalOpen, workspaceForm.path]);
 
   // Initial load — runs once on mount. Abort any in-flight fetches on unmount.
   useEffect(() => {
@@ -1240,6 +1270,8 @@ export default function AIRunnerPage() {
       name: workspace.name,
       path: workspace.path,
       blocking: workspace.blocking,
+      isGitRepo: workspace.isGitRepo,
+      gitWorktreesEnabled: workspace.gitWorktreesEnabled,
       enabled: workspace.enabled,
       notes: workspace.notes ?? '',
     });
@@ -3769,9 +3801,13 @@ export default function AIRunnerPage() {
                               <Badge variant={workspace.enabled ? 'success' : 'warning'}>
                                 {workspace.enabled ? 'Enabled' : 'Disabled'}
                               </Badge>
-                              <Badge variant={workspace.blocking ? 'warning' : 'outline'}>
-                                {workspace.blocking ? 'Blocking' : 'Parallel allowed'}
-                              </Badge>
+                              {workspace.gitWorktreesEnabled ? (
+                                <Badge variant="success">Git Worktrees</Badge>
+                              ) : (
+                                <Badge variant={workspace.blocking ? 'warning' : 'outline'}>
+                                  {workspace.blocking ? 'Blocking' : 'Parallel allowed'}
+                                </Badge>
+                              )}
                             </div>
                             <p className="mt-2 break-all font-mono text-xs text-muted-foreground">
                               {workspace.path}
@@ -4704,7 +4740,15 @@ export default function AIRunnerPage() {
                         placeholder="ServerMon Repo"
                       />
                       <div className="space-y-1.5">
-                        <span className="block text-sm font-medium">Workspace Path</span>
+                        <div className="flex items-center justify-between">
+                          <span className="block text-sm font-medium">Workspace Path</span>
+                          {workspaceForm.path && (
+                            <span className="text-xs text-muted-foreground flex items-center gap-1.5">
+                              <span className={cn("h-2 w-2 rounded-full", workspaceForm.isGitRepo ? "bg-green-500" : "bg-zinc-300 dark:bg-zinc-700")} />
+                              {workspaceForm.isGitRepo ? 'Git repository detected' : 'Not a git repository'}
+                            </span>
+                          )}
+                        </div>
                         <input
                           list="runner-directories"
                           value={workspaceForm.path}
@@ -4718,26 +4762,52 @@ export default function AIRunnerPage() {
                           placeholder="/root/repos/ServerMon"
                         />
                       </div>
-                      <label className="flex items-start gap-3 rounded-xl border border-border/60 bg-secondary/10 p-4 text-sm">
-                        <input
-                          type="checkbox"
-                          checked={workspaceForm.blocking}
-                          onChange={(event) =>
-                            setWorkspaceForm((current) => ({
-                              ...current,
-                              blocking: event.target.checked,
-                            }))
-                          }
-                          className="mt-1"
-                        />
-                        <span>
-                          <span className="block font-medium">Blocking workspace</span>
-                          <span className="mt-1 block text-xs leading-5 text-muted-foreground">
-                            When enabled, only one active AI Runner job can dispatch in this
-                            workspace at a time.
+                      
+                      {workspaceForm.isGitRepo ? (
+                        <label className="flex items-start gap-3 rounded-xl border border-border/60 bg-secondary/10 p-4 text-sm">
+                          <input
+                            type="checkbox"
+                            checked={workspaceForm.gitWorktreesEnabled}
+                            onChange={(event) =>
+                              setWorkspaceForm((current) => ({
+                                ...current,
+                                gitWorktreesEnabled: event.target.checked,
+                              }))
+                            }
+                            className="mt-1"
+                          />
+                          <span>
+                            <span className="block font-medium">Enable git worktrees for parallel execution</span>
+                            <span className="mt-1 block text-xs leading-5 text-muted-foreground">
+                              Each AI Runner job will create a temporary git worktree from the current commit.
+                              Worktrees are automatically removed when the job finishes.
+                            </span>
                           </span>
-                        </span>
-                      </label>
+                        </label>
+                      ) : null}
+
+                      {(!workspaceForm.isGitRepo || !workspaceForm.gitWorktreesEnabled) && (
+                        <label className="flex items-start gap-3 rounded-xl border border-border/60 bg-secondary/10 p-4 text-sm">
+                          <input
+                            type="checkbox"
+                            checked={workspaceForm.blocking}
+                            onChange={(event) =>
+                              setWorkspaceForm((current) => ({
+                                ...current,
+                                blocking: event.target.checked,
+                              }))
+                            }
+                            className="mt-1"
+                          />
+                          <span>
+                            <span className="block font-medium">Blocking workspace</span>
+                            <span className="mt-1 block text-xs leading-5 text-muted-foreground">
+                              When enabled, only one active AI Runner job can dispatch in this
+                              workspace at a time.
+                            </span>
+                          </span>
+                        </label>
+                      )}
                       <label className="flex items-center gap-2 text-sm">
                         <input
                           type="checkbox"

@@ -52,6 +52,7 @@ export interface IAIRunnerRun extends Document {
   };
   recoveryState?: string;
   lastRecoveryError?: string;
+  worktreePath?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -122,6 +123,7 @@ const AIRunnerRunSchema = new Schema<IAIRunnerRun>(
     },
     recoveryState: { type: String, maxlength: 120 },
     lastRecoveryError: { type: String, maxlength: 10_000 },
+    worktreePath: { type: String, trim: true, maxlength: 2000 },
   },
   { timestamps: true }
 );

@@ -26,6 +26,7 @@ import {
 } from './shared';
 import { writeAIRunnerLogEntry } from './logs';
 import { getAIRunnerSettings } from './settings';
+import { createWorktree, removeWorktree } from './git-worktree';
 
 const log = createLogger('ai-runner:worker');
 
@@ -45,6 +46,7 @@ interface WorkerState {
   peakMemoryPercent: number;
   runId: string;
   startedAtMs: number;
+  worktreePath?: string;
 }
 
 export class AIRunnerWorker {
@@ -144,6 +146,7 @@ export class AIRunnerWorker {
       peakMemoryPercent: 0,
       runId: stringifyId(run._id),
       startedAtMs: now.getTime(),
+      worktreePath: undefined,
     };
 
     let terminateChild = () => false;
@@ -170,6 +173,7 @@ export class AIRunnerWorker {
         stderrPath: state.paths?.stderrPath,
         combinedPath: state.paths?.combinedPath,
         exitPath: state.paths?.exitPath,
+        worktreePath: state.worktreePath,
         executionRef: {
           pid: state.childPid || undefined,
           processGroupId: state.processGroupId,
@@ -191,6 +195,7 @@ export class AIRunnerWorker {
         stderrPath: state.paths?.stderrPath,
         combinedPath: state.paths?.combinedPath,
         exitPath: state.paths?.exitPath,
+        worktreePath: state.worktreePath,
         executionRef: {
           pid: state.childPid || undefined,
           processGroupId: state.processGroupId,
@@ -222,6 +227,7 @@ export class AIRunnerWorker {
               stderrPath: state.paths?.stderrPath,
               combinedPath: state.paths?.combinedPath,
               exitPath: state.paths?.exitPath,
+              worktreePath: state.worktreePath,
               executionRef: {
                 pid: state.childPid || undefined,
                 processGroupId: state.processGroupId,
@@ -244,6 +250,7 @@ export class AIRunnerWorker {
               stderrPath: state.paths?.stderrPath,
               combinedPath: state.paths?.combinedPath,
               exitPath: state.paths?.exitPath,
+              worktreePath: state.worktreePath,
               executionRef: {
                 pid: state.childPid || undefined,
                 processGroupId: state.processGroupId,
@@ -381,6 +388,17 @@ export class AIRunnerWorker {
           },
         });
       });
+
+      if (state.worktreePath) {
+        try {
+          await removeWorktree({
+            repoPath: job.workingDirectory,
+            worktreePath: state.worktreePath,
+          });
+        } catch (wtError) {
+          log.warn(`Failed to remove worktree ${state.worktreePath} in finalize`, wtError);
+        }
+      }
 
       const finishedAt = new Date();
       const durationSeconds = Math.max(0, Math.round((Date.now() - state.startedAtMs) / 1000));
@@ -582,12 +600,30 @@ export class AIRunnerWorker {
         createdAt: new Date().toISOString(),
       });
 
+      let effectiveCwd = job.workingDirectory;
+      if (job.gitWorktreesEnabled) {
+        const wt = await createWorktree({
+          repoPath: job.workingDirectory,
+          runId: stringifyId(run._id),
+          baseDir: job.gitWorktreeBaseDir,
+        });
+        effectiveCwd = wt.worktreePath;
+        state.worktreePath = wt.worktreePath;
+        
+        await Promise.all([
+          AIRunnerJob.findByIdAndUpdate(job._id, { $set: { worktreePath: wt.worktreePath } }),
+          AIRunnerRun.findByIdAndUpdate(run._id, { $set: { worktreePath: wt.worktreePath } }),
+        ]);
+        
+        runEnv.WORKING_DIR = effectiveCwd;
+      }
+
       const childExecution = await spawnDurableAIRunnerCommand({
         jobId: this.jobId,
         runId: stringifyId(run._id),
         shell: job.shell,
         command: job.command,
-        cwd: job.workingDirectory,
+        cwd: effectiveCwd,
         env: runEnv,
         paths,
         requiresTTY: job.requiresTTY,
@@ -668,6 +704,18 @@ export class AIRunnerWorker {
     } catch (error) {
       clearInterval(heartbeatHandle);
       clearTimeout(timeoutHandle);
+      
+      if (state.worktreePath) {
+        try {
+          await removeWorktree({
+            repoPath: job.workingDirectory,
+            worktreePath: state.worktreePath,
+          });
+        } catch (wtError) {
+          log.warn(`Failed to remove worktree ${state.worktreePath} on spawn error`, wtError);
+        }
+      }
+
       await Promise.all([
         AIRunnerJob.findByIdAndUpdate(job._id, {
           $set: {

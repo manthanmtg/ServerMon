@@ -4,6 +4,9 @@ export interface IAIRunnerWorkspace extends Document {
   name: string;
   path: string;
   blocking: boolean;
+  isGitRepo: boolean;
+  gitWorktreesEnabled: boolean;
+  gitWorktreeBaseDir?: string;
   enabled: boolean;
   notes?: string;
   createdAt: Date;
@@ -15,6 +18,9 @@ const AIRunnerWorkspaceSchema = new Schema<IAIRunnerWorkspace>(
     name: { type: String, required: true, trim: true, maxlength: 160 },
     path: { type: String, required: true, trim: true, maxlength: 2000, unique: true },
     blocking: { type: Boolean, default: true },
+    isGitRepo: { type: Boolean, default: false },
+    gitWorktreesEnabled: { type: Boolean, default: false },
+    gitWorktreeBaseDir: { type: String, trim: true, maxlength: 2000 },
     enabled: { type: Boolean, default: true },
     notes: { type: String, trim: true, maxlength: 1000 },
   },

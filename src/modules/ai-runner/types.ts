@@ -41,6 +41,9 @@ export interface AIRunnerWorkspaceDTO {
   name: string;
   path: string;
   blocking: boolean;
+  isGitRepo: boolean;
+  gitWorktreesEnabled: boolean;
+  gitWorktreeBaseDir?: string;
   enabled: boolean;
   notes?: string;
   createdAt: string;
@@ -351,6 +354,7 @@ export interface AIRunnerPortableWorkspace {
   name: string;
   path: string;
   blocking: boolean;
+  gitWorktreesEnabled?: boolean;
   enabled: boolean;
   notes?: string;
 }

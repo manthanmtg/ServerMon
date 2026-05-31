@@ -1411,6 +1411,8 @@ describe('AIRunnerPage', () => {
       name: 'ServerMon repo',
       path: '/root/repos/ServerMon',
       blocking: true,
+      isGitRepo: false,
+      gitWorktreesEnabled: false,
       enabled: true,
       createdAt: '2026-04-21T00:00:00.000Z',
       updatedAt: '2026-04-21T00:00:00.000Z',

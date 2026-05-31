@@ -52,8 +52,8 @@ function isServicesSnapshot(value: unknown): value is ServicesSnapshot {
     services.every(
       (service) =>
         isObject(service) &&
-        typeof (service as ServiceUnit).name === 'string' &&
-        typeof (service as ServiceUnit).activeState === 'string'
+        typeof (service as Record<string, unknown>).name === 'string' &&
+        typeof (service as Record<string, unknown>).activeState === 'string'
     );
   const hasValidTimers = Array.isArray(timers) && timers.every((timer) => isObject(timer));
   const hasValidAlerts = Array.isArray(alerts) && alerts.every((alert) => isObject(alert));
@@ -472,7 +472,7 @@ export default function ServicesPage() {
           row[`name${i}`] = s.name;
         }
       });
-      return row;
+      return row as any;
     });
   }, [snapshot]);
 

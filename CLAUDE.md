@@ -221,6 +221,7 @@ Concise map of major directories, commands, and key files. Update this section w
 - `src/lib/ai-agents/` — agent adapters (Claude Code, Codex, Gemini CLI) and session monitoring
 - `src/lib/ai-runner/` — automated task supervisor, watchdog, and worker orchestration
 - `src/lib/ai-runner/run-as-user.ts` — Run as user isolation and sudo-based execution logic
+- `src/lib/ai-runner/git-worktree.ts` — Ephemeral git worktree parallelism for safe concurrent repository executions
 - `src/lib/ai-runner/shared.ts` — profile mapping, template validation, and output buffering
 - `src/lib/endpoints/` — executors for custom API logic (scripts, webhooks, logic handlers)
 - `src/lib/certificates/`, `src/lib/ports/`, `src/lib/memory/`, `src/lib/security/` — service-layer logic for certificates, ports, memory monitoring, and security management

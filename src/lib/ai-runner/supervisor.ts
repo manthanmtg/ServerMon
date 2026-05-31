@@ -18,6 +18,7 @@ import { writeAIRunnerLogEntry } from './logs';
 import { spawnAIRunnerWorker } from './processes';
 import { enqueueRunRequest } from './queue';
 import { getAIRunnerSettings } from './settings';
+import { removeWorktree } from './git-worktree';
 import {
   DEFAULT_HEARTBEAT_STALE_MS,
   DEFAULT_LEASE_TTL_MS,
@@ -264,8 +265,9 @@ export class AIRunnerSupervisor {
   }
 
   private async isWorkspaceBlocked(
-    job: Pick<IAIRunnerJob, 'workspaceId' | 'workspaceBlocking' | '_id'>
+    job: Pick<IAIRunnerJob, 'workspaceId' | 'workspaceBlocking' | 'gitWorktreesEnabled' | '_id'>
   ): Promise<boolean> {
+    if (job.gitWorktreesEnabled) return false;
     if (!job.workspaceBlocking || !job.workspaceId) return false;
     const activeJob = await AIRunnerJob.findOne({
       _id: { $ne: job._id },
@@ -545,6 +547,20 @@ export class AIRunnerSupervisor {
           lastRunStatus: terminalStatus,
           lastRunAt: finishedAt,
         });
+      }
+
+      if (job.worktreePath && job.workingDirectory) {
+        try {
+          await removeWorktree({
+            repoPath: job.workingDirectory,
+            worktreePath: job.worktreePath,
+          });
+        } catch (wtError) {
+          log.warn(
+            `Failed to clean up worktree for stale job ${stringifyId(job._id)}`,
+            wtError
+          );
+        }
       }
 
       await writeAIRunnerLogEntry({

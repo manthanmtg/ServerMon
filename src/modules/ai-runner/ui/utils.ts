@@ -126,11 +126,12 @@ export interface RunnerInventoryCounts {
   enabledProfileCount: number;
   activeWorkspaceCount: number;
   blockingWorkspaceCount: number;
+  worktreeWorkspaceCount: number;
 }
 
 interface RunnerInventoryInput {
   profiles: Array<Pick<{ enabled: boolean }, 'enabled'>>;
-  workspaces: Array<Pick<{ enabled: boolean; blocking: boolean }, 'enabled' | 'blocking'>>;
+  workspaces: Array<Pick<{ enabled: boolean; blocking: boolean; gitWorktreesEnabled?: boolean }, 'enabled' | 'blocking' | 'gitWorktreesEnabled'>>;
 }
 
 export function deriveRunnerInventoryCounts({
@@ -140,6 +141,7 @@ export function deriveRunnerInventoryCounts({
   let enabledProfileCount = 0;
   let activeWorkspaceCount = 0;
   let blockingWorkspaceCount = 0;
+  let worktreeWorkspaceCount = 0;
 
   for (const profile of profiles) {
     if (profile.enabled) {
@@ -151,7 +153,9 @@ export function deriveRunnerInventoryCounts({
     if (workspace.enabled) {
       activeWorkspaceCount += 1;
     }
-    if (workspace.blocking) {
+    if (workspace.gitWorktreesEnabled) {
+      worktreeWorkspaceCount += 1;
+    } else if (workspace.blocking) {
       blockingWorkspaceCount += 1;
     }
   }
@@ -160,6 +164,7 @@ export function deriveRunnerInventoryCounts({
     enabledProfileCount,
     activeWorkspaceCount,
     blockingWorkspaceCount,
+    worktreeWorkspaceCount,
   };
 }
 

@@ -198,6 +198,11 @@ export function TemplateGallery({
     [onCreateFromTemplate]
   );
 
+  const clearFilters = useCallback(() => {
+    setFilterMethod('');
+    setFilterType('');
+  }, []);
+
   const resetFilters = useCallback(() => {
     setActiveCategory('all');
     clearFilters();
@@ -215,10 +220,6 @@ export function TemplateGallery({
     setFilterType((current) => (current === type ? '' : type));
   }, []);
 
-  const clearFilters = useCallback(() => {
-    setFilterMethod('');
-    setFilterType('');
-  }, []);
 
   return (
     <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center sm:p-6">

@@ -52,6 +52,8 @@ export interface AIRunnerResolvedExecution {
   profile: AIRunnerProfileDTO;
   workspaceId?: string;
   workspaceBlocking: boolean;
+  gitWorktreesEnabled: boolean;
+  gitWorktreeBaseDir?: string;
   promptContent: string;
   command: string;
   workingDirectory: string;
@@ -161,6 +163,9 @@ export function mapWorkspace(
     name: String(doc.name),
     path: String(doc.path),
     blocking: Boolean(doc.blocking),
+    isGitRepo: Boolean(doc.isGitRepo),
+    gitWorktreesEnabled: Boolean(doc.gitWorktreesEnabled),
+    gitWorktreeBaseDir: doc.gitWorktreeBaseDir ? String(doc.gitWorktreeBaseDir) : undefined,
     enabled: Boolean(doc.enabled),
     notes: doc.notes ? String(doc.notes) : undefined,
     createdAt: new Date(doc.createdAt as Date | string).toISOString(),

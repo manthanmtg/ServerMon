@@ -75,6 +75,7 @@ export const workspaceCreateSchema = z.object({
   name: z.string().trim().min(1).max(160),
   path: z.string().trim().min(1).max(2000),
   blocking: z.boolean().default(true),
+  gitWorktreesEnabled: z.boolean().default(false),
   enabled: z.boolean().default(true),
   notes: z.string().trim().max(1000).optional(),
 });

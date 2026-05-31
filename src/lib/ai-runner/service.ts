@@ -52,6 +52,7 @@ import {
   validateProfileTemplate,
 } from './shared';
 import { decodeStoredPromptAttachments, normalizeAttachmentRefs } from './attachments';
+import { isGitRepository } from './git-worktree';
 
 const execFileAsync = promisify(execFile);
 const RUN_LIST_PROJECTION = {
@@ -427,24 +428,54 @@ export class AIRunnerService {
   }
 
   async createWorkspace(
-    input: Omit<AIRunnerWorkspaceDTO, '_id' | 'createdAt' | 'updatedAt'>
+    input: Omit<AIRunnerWorkspaceDTO, '_id' | 'createdAt' | 'updatedAt' | 'isGitRepo'>
   ): Promise<AIRunnerWorkspaceDTO> {
     await ensureDirectoryExists(input.path);
     await connectDB();
-    const doc = await AIRunnerWorkspace.create(input);
+    const gitRepo = await isGitRepository(input.path);
+    const gitWorktreesEnabled =
+      typeof input.gitWorktreesEnabled === 'boolean'
+        ? input.gitWorktreesEnabled
+        : gitRepo;
+    const blocking = gitWorktreesEnabled ? false : input.blocking;
+    const doc = await AIRunnerWorkspace.create({
+      ...input,
+      isGitRepo: gitRepo,
+      gitWorktreesEnabled,
+      blocking,
+    });
     return mapWorkspace(doc);
   }
 
   async updateWorkspace(
     id: string,
-    input: Partial<Omit<AIRunnerWorkspaceDTO, '_id' | 'createdAt' | 'updatedAt'>>
+    input: Partial<Omit<AIRunnerWorkspaceDTO, '_id' | 'createdAt' | 'updatedAt' | 'isGitRepo'>>
   ): Promise<AIRunnerWorkspaceDTO | null> {
     if (input.path) {
       await ensureDirectoryExists(input.path);
     }
     await connectDB();
-    const doc = await AIRunnerWorkspace.findByIdAndUpdate(id, input, { new: true });
-    return doc ? mapWorkspace(doc) : null;
+    const existing = await AIRunnerWorkspace.findById(id);
+    if (!existing) return null;
+    const pathChanged = input.path && input.path !== existing.path;
+    let isGitRepo = existing.isGitRepo;
+    if (pathChanged) {
+      isGitRepo = await isGitRepository(input.path!);
+    }
+    const gitWorktreesEnabled =
+      typeof input.gitWorktreesEnabled === 'boolean'
+        ? input.gitWorktreesEnabled
+        : existing.gitWorktreesEnabled;
+    const blocking = gitWorktreesEnabled
+      ? false
+      : (input.blocking ?? existing.blocking);
+    Object.assign(existing, input, {
+      isGitRepo,
+      gitWorktreesEnabled,
+      blocking,
+    });
+    await existing.save();
+    return mapWorkspace(existing);
   }
 
   async deleteWorkspace(id: string, options: DeleteLinkedResourceOptions = {}): Promise<boolean> {
