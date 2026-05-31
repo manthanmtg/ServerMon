@@ -171,10 +171,15 @@ Concise map of major directories, commands, and key files. Update this section w
 - `pnpm build` — Next.js production build (`NODE_OPTIONS` enabled)
 - `pnpm start` — run production server
 - `pnpm lint` — ESLint over `src/`
+- `pnpm lint:fix` — ESLint fix over `src/`
 - `pnpm typecheck` — `tsc --noEmit` (`NODE_OPTIONS` enabled)
+- `pnpm clean` — Remove `.next` and `tsconfig.tsbuildinfo`
 - `pnpm check:release-contract` — validate required release artifact contracts
 - `pnpm release` — create and tag a new SemVer release (patch, minor, major)
 - `pnpm test` — Vitest unit/integration
+- `pnpm test:watch` — Vitest watch mode
+- `pnpm test:ui` — Vitest UI mode
+- `pnpm test:coverage` — Vitest coverage
 - `pnpm test:e2e` — Playwright end-to-end
 - `pnpm format` — Prettier write
 - `pnpm format:check` — Prettier check
