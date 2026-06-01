@@ -158,12 +158,12 @@
       "category": "documentation",
       "enabled": true,
       "autonomousSafe": true,
-      "totalSelected": 43,
-      "totalCompleted": 36,
+      "totalSelected": 44,
+      "totalCompleted": 37,
       "totalNoop": 6,
       "totalFailed": 1,
-      "lastSelectedAt": "2026-05-31T01:00:59.257Z",
-      "lastCompletedAt": "2026-05-31T01:02:29.439Z",
+      "lastSelectedAt": "2026-06-01T21:01:40.998Z",
+      "lastCompletedAt": "2026-06-01T21:03:42.879Z",
       "lastOutcome": "completed",
       "updatedAt": "2026-05-24T11:09:46.258Z"
     },
@@ -328,6 +328,6 @@
       "updatedAt": "2026-05-25T02:38:54.014Z"
     }
   },
-  "updatedAt": "2026-06-01T01:12:20.174Z",
+  "updatedAt": "2026-06-01T21:03:42.879Z",
   "stats": {}
 }

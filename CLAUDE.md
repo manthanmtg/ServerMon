@@ -336,10 +336,17 @@ Concise map of major directories, commands, and key files. Update this section w
 - `src/modules/memory/`, `src/lib/memory/` — Real-time memory pressure monitoring, swap usage, and OOM risk detection
 - `src/modules/guide/`, `src/modules/guide-registry.ts` — Interactive project walkthroughs and module documentation overlays
 
+### System Services & Firewall
+
+- `src/modules/services/`, `src/lib/services/` — System services module definition, UI, and service-layer logic for systemd service discovery, status monitoring, resource usage, and state control
+- `src/modules/firewall/`, `src/lib/firewall/` — Firewall module definition, UI, and service-layer logic for monitoring host firewall posture, default policies, and rule exposure
+- `src/app/api/modules/services/`, `src/app/api/modules/firewall/` — API routes for host system services and firewall management
+
 ### Users, Security & Settings
 
 - `src/models/` — Users & Settings models: User, BrandSettings, QuickAccessSettings, FileBrowserSettings, UpdateHistory, AnalyticsEvent
 - `src/modules/users/` — Users & Permissions module definition and UI for managing system users, SSH access, sudo privileges, and ServerMon web access controls
+- `src/modules/updates/`, `src/lib/updates/` — System Updates module definition, UI, and host-level update discovery, scheduling, and package manager integration
 - `src/app/api/modules/users/`, `src/app/api/modules/updates/`, `src/app/api/settings/` — API routes for users, system updates, and global settings (branding, quick-access)
 - `src/lib/passkey-utils.ts`, `src/lib/auth-utils.ts` — Utility functions for WebAuthn passkey registration/authentication and general JWT/session auth logic
 - `src/lib/analytics.ts` — Internal analytics event tracking and persistence logic
