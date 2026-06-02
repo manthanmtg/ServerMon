@@ -200,7 +200,7 @@ Concise map of major directories, commands, and key files. Update this section w
 ## `src/` Layout
 
 - `src/app/` — Next.js App Router pages + `api/` route handlers (dashboard, settings, fleet, ai-agents, ai-runner, apps, certificates, crons, databases, disk, docker, endpoints, env-vars, file-browser, firewall, guide, hardware, logs, memory, network, nginx, ports, processes, self-service, services, terminal, updates, users, security/system health, etc.)
-- `src/app/api/modules/` — feature-specific API routes (ai-runner, ai-agents, certificates, crons, disk, firewall, memory, nginx, ports, users, services, processes, security, etc.)
+- `src/app/api/modules/` — feature-specific API routes (ai-runner, ai-agents, apps, certificates, crons, databases, disk, docker, endpoints, env-vars, file-browser, firewall, hardware, memory, network, nginx, ports, processes, security, self-service, services, updates, users)
 - `src/app/api/auth/` — authentication handlers (login, logout, me, verify, passkey registration/auth)
 - `src/app/api/analytics/` — internal usage analytics and recent event history
 - `src/app/api/system/` — system-level actions (diagnostics, reboot, update history)
@@ -338,6 +338,7 @@ Concise map of major directories, commands, and key files. Update this section w
 
 ### System Services & Firewall
 
+- `src/models/ServiceAlert.ts` — persisted system service alerts and threshold metadata
 - `src/modules/services/`, `src/lib/services/` — System services module definition, UI, and service-layer logic for systemd service discovery, status monitoring, resource usage, and state control
 - `src/modules/firewall/`, `src/lib/firewall/` — Firewall module definition, UI, and service-layer logic for monitoring host firewall posture, default policies, and rule exposure
 - `src/app/api/modules/services/`, `src/app/api/modules/firewall/` — API routes for host system services and firewall management
