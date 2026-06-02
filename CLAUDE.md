@@ -290,8 +290,8 @@ Concise map of major directories, commands, and key files. Update this section w
 
 ### Self-Service & Custom Endpoints
 
-- `src/modules/self-service/` — Browse and install services/tools with fully managed provisioning (Nginx, SSL, systemd); logic in `engine/`, definitions in `templates/`
-- `src/modules/endpoints/` — Define and manage custom API endpoints with script handlers and webhook proxying
+- `src/modules/self-service/`, `src/app/api/modules/self-service/` — Browse and install services/tools with fully managed provisioning (Nginx, SSL, systemd); logic in `engine/`, definitions in `templates/`
+- `src/modules/endpoints/`, `src/app/api/modules/endpoints/` — Define and manage custom API endpoints with script handlers and webhook proxying
 - `src/lib/endpoints/` — Logic executors (script, logic, webhook) and token service for custom endpoints
 
 ### Apps
@@ -350,3 +350,4 @@ Concise map of major directories, commands, and key files. Update this section w
 - `src/app/api/modules/users/`, `src/app/api/modules/updates/`, `src/app/api/settings/` — API routes for users, system updates, and global settings (branding, quick-access)
 - `src/lib/passkey-utils.ts`, `src/lib/auth-utils.ts` — Utility functions for WebAuthn passkey registration/authentication and general JWT/session auth logic
 - `src/lib/analytics.ts` — Internal analytics event tracking and persistence logic
+  — Internal analytics event tracking and persistence logic
