@@ -49,11 +49,11 @@
       "autonomousSafe": true,
       "totalSelected": 33,
       "totalCompleted": 32,
-      "totalNoop": 0,
+      "totalNoop": 1,
       "totalFailed": 1,
       "lastSelectedAt": "2026-05-25T02:40:24.874Z",
-      "lastCompletedAt": "2026-05-29T01:05:57.839Z",
-      "lastOutcome": "failed",
+      "lastCompletedAt": "2026-06-03T21:05:41.703Z",
+      "lastOutcome": "noop",
       "updatedAt": "2026-05-24T08:05:40.642Z"
     },
     "build_verifier.md": {
@@ -328,6 +328,6 @@
       "updatedAt": "2026-05-25T02:38:54.014Z"
     }
   },
-  "updatedAt": "2026-06-03T01:12:04.237Z",
+  "updatedAt": "2026-06-03T21:05:41.703Z",
   "stats": {}
 }
