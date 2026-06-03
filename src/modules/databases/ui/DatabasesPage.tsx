@@ -76,7 +76,7 @@ export default function DatabasesPage() {
     }));
   };
 
-  const copyText = async (value: string, databaseId?: string) => {
+  const copyText = useCallback(async (value: string, databaseId?: string) => {
     await navigator.clipboard?.writeText(value);
     if (databaseId) {
       setCopiedConnectionId(databaseId);
@@ -84,16 +84,16 @@ export default function DatabasesPage() {
         setCopiedConnectionId((current) => (current === databaseId ? null : current));
       }, 2000);
     }
-  };
+  }, []);
 
-  const appendOperationLog = (databaseId: string, message: string) => {
+  const appendOperationLog = useCallback((databaseId: string, message: string) => {
     setOperationLogs((current) => ({
       ...current,
       [databaseId]: [...(current[databaseId] ?? []), `[UI] ${message}`].slice(-12),
     }));
-  };
+  }, []);
 
-  const toggleDatabaseExpanded = (databaseId: string) => {
+  const toggleDatabaseExpanded = useCallback((databaseId: string) => {
     setExpandedDatabaseIds((current) => {
       const next = new Set(current);
       if (next.has(databaseId)) {
@@ -103,9 +103,9 @@ export default function DatabasesPage() {
       }
       return next;
     });
-  };
+  }, []);
 
-  const pollDatabaseUntilDone = async (databaseId: string) => {
+  const pollDatabaseUntilDone = useCallback(async (databaseId: string) => {
     let sawDeploying = false;
     for (let attempt = 0; attempt < 60; attempt += 1) {
       await sleep(1500);
@@ -123,7 +123,7 @@ export default function DatabasesPage() {
       if (target.status === 'running' || target.status === 'failed') return;
       if (sawDeploying && target.status !== 'deploying') return;
     }
-  };
+  }, []);
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -152,7 +152,7 @@ export default function DatabasesPage() {
     }
   };
 
-  const deploy = async (database: ManagedDatabaseDTO) => {
+  const deploy = useCallback(async (database: ManagedDatabaseDTO) => {
     setWorkingId(database.id);
     setExpandedDatabaseIds((current) => new Set(current).add(database.id));
     setError(null);
@@ -183,9 +183,9 @@ export default function DatabasesPage() {
     } finally {
       setWorkingId(null);
     }
-  };
+  }, [appendOperationLog, pollDatabaseUntilDone]);
 
-  const action = async (database: ManagedDatabaseDTO, nextAction: DatabaseAction) => {
+  const action = useCallback(async (database: ManagedDatabaseDTO, nextAction: DatabaseAction) => {
     setWorkingId(database.id);
     setError(null);
     try {
@@ -203,7 +203,7 @@ export default function DatabasesPage() {
     } finally {
       setWorkingId(null);
     }
-  };
+  }, [load]);
 
   return (
     <div className="space-y-5">
