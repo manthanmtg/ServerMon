@@ -56,7 +56,9 @@ function formatDateTime(value: string | undefined): string {
   return new Date(value).toLocaleString();
 }
 
-export function DatabaseDeploymentCard({
+import { memo } from "react";
+
+export const DatabaseDeploymentCard = memo(function DatabaseDeploymentCard({
   database,
   isWorking,
   isExpanded,
@@ -314,4 +316,4 @@ export function DatabaseDeploymentCard({
       </CardContent>
     </Card>
   );
-}
+});
