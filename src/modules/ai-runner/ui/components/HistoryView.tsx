@@ -43,12 +43,12 @@ interface HistoryViewProps {
   promptMap: Record<string, { name: string }>;
 }
 
-type HistoryRunRowProps = {
+interface HistoryRunRowProps {
   run: AIRunnerRunDTO;
   isSelected: boolean;
   isFocused: boolean;
   profileMap: Record<string, AIRunnerProfileDTO>;
-  historyRowRefs: MutableRefObject<Record<string, HTMLTableRowElement | null>>;
+  onSetRef: (node: HTMLTableRowElement | null) => void;
   onOpenRun: (run: AIRunnerRunDTO) => void;
   getRunDisplayName: (run: AIRunnerRunDTO) => string;
   getRunContextLabel: (run: AIRunnerRunDTO) => string;
@@ -56,14 +56,14 @@ type HistoryRunRowProps = {
     status: AIRunnerRunDTO['status']
   ) => 'success' | 'warning' | 'destructive' | 'default' | 'outline';
   promptMap: Record<string, { name: string }>;
-};
+}
 
 const HistoryRunRow = memo(function HistoryRunRow({
   run,
   isSelected,
   isFocused,
   profileMap,
-  historyRowRefs,
+  onSetRef,
   onOpenRun,
   getRunDisplayName,
   getRunContextLabel,
@@ -73,9 +73,7 @@ const HistoryRunRow = memo(function HistoryRunRow({
   return (
     <tr
       key={run._id}
-      ref={(node) => {
-        historyRowRefs.current[run._id] = node;
-      }}
+      ref={onSetRef}
       tabIndex={-1}
       onClick={() => onOpenRun(run)}
       className={cn(
@@ -288,7 +286,11 @@ export function HistoryView({
                     isSelected={selectedRun?._id === run._id}
                     isFocused={focusedHistoryRunId === run._id}
                     profileMap={profileMap}
-                    historyRowRefs={historyRowRefs}
+                    onSetRef={(node) => {
+                      if (historyRowRefs.current) {
+                        historyRowRefs.current[run._id] = node;
+                      }
+                    }}
                     onOpenRun={openRunDetail}
                     getRunDisplayName={getRunDisplayName}
                     getRunContextLabel={getRunContextLabel}
