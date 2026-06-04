@@ -459,7 +459,7 @@ export default function ServicesPage() {
   const cpuHistory = useMemo(() => {
     if (!snapshot) return [];
     return snapshot.history.map((h) => {
-      const row: Record<string, number | string> = {
+      const row: { time: string; [key: string]: number | string } = {
         time: new Date(h.timestamp).toLocaleTimeString([], {
           hour: '2-digit',
           minute: '2-digit',
@@ -472,7 +472,7 @@ export default function ServicesPage() {
           row[`name${i}`] = s.name;
         }
       });
-      return row as any;
+      return row;
     });
   }, [snapshot]);
 

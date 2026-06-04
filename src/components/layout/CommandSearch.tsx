@@ -45,14 +45,15 @@ export default function CommandSearch({ isOpen, onClose, items }: CommandSearchP
     setSelectedIndex(0);
   }, []);
 
-  if (!isOpen) return null;
-
   const selectedItem = results[selectedIndex];
 
-  const selectItem = useCallback((item: CommandSearchItem) => {
-    router.push(item.href);
-    onClose();
-  }, [onClose, router]);
+  const selectItem = useCallback(
+    (item: CommandSearchItem) => {
+      router.push(item.href);
+      onClose();
+    },
+    [onClose, router]
+  );
 
   const handleResultMouseEnter = useCallback((event: MouseEvent<HTMLButtonElement>) => {
     const index = Number(event.currentTarget.dataset.index);
@@ -74,31 +75,33 @@ export default function CommandSearch({ isOpen, onClose, items }: CommandSearchP
 
   const handleKeyDown = useCallback(
     (event: KeyboardEvent<HTMLInputElement>) => {
-    if (event.key === 'Escape') {
-      event.preventDefault();
-      onClose();
-      return;
-    }
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        onClose();
+        return;
+      }
 
-    if (event.key === 'ArrowDown') {
-      event.preventDefault();
-      setSelectedIndex((current) => Math.min(current + 1, Math.max(results.length - 1, 0)));
-      return;
-    }
+      if (event.key === 'ArrowDown') {
+        event.preventDefault();
+        setSelectedIndex((current) => Math.min(current + 1, Math.max(results.length - 1, 0)));
+        return;
+      }
 
-    if (event.key === 'ArrowUp') {
-      event.preventDefault();
-      setSelectedIndex((current) => Math.max(current - 1, 0));
-      return;
-    }
+      if (event.key === 'ArrowUp') {
+        event.preventDefault();
+        setSelectedIndex((current) => Math.max(current - 1, 0));
+        return;
+      }
 
-    if (event.key === 'Enter' && selectedItem) {
-      event.preventDefault();
-      selectItem(selectedItem);
-    }
-  },
+      if (event.key === 'Enter' && selectedItem) {
+        event.preventDefault();
+        selectItem(selectedItem);
+      }
+    },
     [onClose, results, selectedItem, selectItem]
   );
+
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-[80] flex items-start justify-center bg-background/70 px-3 pt-[14vh] backdrop-blur-sm sm:px-6">

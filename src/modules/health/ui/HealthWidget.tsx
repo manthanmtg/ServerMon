@@ -47,14 +47,19 @@ export default function HealthWidget({ metric }: HealthWidgetProps) {
   const [internalHealth, setInternalHealth] = useState<HealthData>(() => toHealthData(metric));
   const [hasStreamData, setHasStreamData] = useState<boolean>(Boolean(metric));
 
-  useEffect(() => {
+  const [prevMetric, setPrevMetric] = useState(metric);
+  if (metric !== prevMetric) {
+    setPrevMetric(metric);
     if (metric) {
       setHasStreamData(true);
       setInternalHealth(toHealthData(metric));
-      return;
+    } else {
+      setHasStreamData(false);
     }
+  }
 
-    setHasStreamData(false);
+  useEffect(() => {
+    if (metric) return;
 
     const es = new EventSource('/api/metrics/stream');
     es.onmessage = (event) => {
