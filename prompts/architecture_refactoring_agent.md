@@ -20,7 +20,7 @@ Monolithic components (God objects) stifle agility, mask bugs, and inhibit testi
 
 ### 1. Preflight
 
-- Read `CLAUDE.md` and `AGENTS.md` first and follow the project conventions.
+- Read `CLAUDE.md` first and follow the project conventions.
 - Check `git status -sb` before editing. Leave unrelated changes untouched and stage only files changed by this run.
 - Search `issues_to_look/` for existing architecture or component decomposition notes. If the same issue is already recorded, no-op instead of duplicating it.
 
