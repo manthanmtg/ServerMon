@@ -1,5 +1,5 @@
 /** @vitest-environment node */
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { EventEmitter } from 'node:events';
 import { platformTriple, frpDownloadUrl, ensureBinary, resolveVersion } from './binary';
 
@@ -46,6 +46,19 @@ describe('frpDownloadUrl', () => {
 });
 
 describe('resolveVersion', () => {
+  let fakeTime = 1700000000000;
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    fakeTime += 2 * 60 * 60 * 1000; // increment by 2 hours each test to bust cache
+    vi.setSystemTime(fakeTime);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
   it('falls back when the GitHub latest release payload is malformed', async () => {
     const fetchImpl = vi.fn().mockResolvedValue({
       ok: true,
@@ -80,6 +93,75 @@ describe('resolveVersion', () => {
         signal: expect.any(AbortSignal),
       })
     );
+  });
+
+  it('returns the requested version if it is not "latest"', async () => {
+    const fetchImpl = vi.fn();
+    await expect(resolveVersion('0.58.0', fetchImpl as unknown as typeof fetch)).resolves.toBe('0.58.0');
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it('falls back when fetch throws an AbortError', async () => {
+    const fetchImpl = vi.fn().mockRejectedValue(new DOMException('AbortError', 'AbortError'));
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+
+    await expect(resolveVersion('latest', fetchImpl as unknown as typeof fetch)).resolves.toBe('0.61.2');
+    expect(warnSpy).toHaveBeenCalledWith(
+      'Failed to fetch latest FRP version, falling back to 0.61.2',
+      expect.objectContaining({ message: expect.stringContaining('GitHub latest release lookup timed out') })
+    );
+  });
+
+  it('falls back when fetch throws a generic Error', async () => {
+    const fetchImpl = vi.fn().mockRejectedValue(new Error('Network error'));
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+
+    await expect(resolveVersion('latest', fetchImpl as unknown as typeof fetch)).resolves.toBe('0.61.2');
+    expect(warnSpy).toHaveBeenCalledWith(
+      'Failed to fetch latest FRP version, falling back to 0.61.2',
+      expect.objectContaining({ message: 'Network error' })
+    );
+  });
+
+  it('falls back when response is not ok', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue({ ok: false, status: 500 });
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+
+    await expect(resolveVersion('latest', fetchImpl as unknown as typeof fetch)).resolves.toBe('0.61.2');
+    expect(warnSpy).toHaveBeenCalledWith(
+      'Failed to fetch latest FRP version, falling back to 0.61.2',
+      expect.objectContaining({ message: 'GitHub API error: 500' })
+    );
+  });
+
+  it('uses cached version if not expired', async () => {
+    const fetchImpl1 = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ tag_name: 'v0.62.1' }),
+    });
+    
+    // First call caches the result
+    await expect(resolveVersion('latest', fetchImpl1 as unknown as typeof fetch)).resolves.toBe('0.62.1');
+    expect(fetchImpl1).toHaveBeenCalledTimes(1);
+
+    // Advance time by 30 mins
+    vi.advanceTimersByTime(30 * 60 * 1000);
+
+    const fetchImpl2 = vi.fn();
+    // Second call uses cache
+    await expect(resolveVersion('latest', fetchImpl2 as unknown as typeof fetch)).resolves.toBe('0.62.1');
+    expect(fetchImpl2).not.toHaveBeenCalled();
+
+    // Advance time to expire cache
+    vi.advanceTimersByTime(31 * 60 * 1000);
+
+    const fetchImpl3 = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ tag_name: 'v0.62.2' }),
+    });
+    // Third call fetches again
+    await expect(resolveVersion('latest', fetchImpl3 as unknown as typeof fetch)).resolves.toBe('0.62.2');
+    expect(fetchImpl3).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -177,7 +259,7 @@ describe('ensureBinary', () => {
     expect(spawnImpl).not.toHaveBeenCalled();
   });
 
-  it('rejects when tar exits non-zero', async () => {
+  it('rejects when tar process throws an error', async () => {
     const tarball = Buffer.from('tar');
     const fetchImpl = vi.fn().mockResolvedValue({
       ok: true,
@@ -185,7 +267,7 @@ describe('ensureBinary', () => {
     });
     const spawnImpl = vi.fn((_cmd: string, _args: readonly string[]) => {
       const proc = new EventEmitter();
-      setImmediate(() => proc.emit('exit', 2));
+      setImmediate(() => proc.emit('error', new Error('spawn tar ENOENT')));
       return proc;
     });
     const fsImpl = {
@@ -201,6 +283,6 @@ describe('ensureBinary', () => {
         spawnImpl: spawnImpl as unknown as typeof import('node:child_process').spawn,
         fsImpl,
       })
-    ).rejects.toThrow(/tar exited with code 2/);
+    ).rejects.toThrow(/spawn tar ENOENT/);
   });
 });
