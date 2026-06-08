@@ -165,6 +165,11 @@ const formatUptime = (seconds: number) => {
   return `${mins}m ${Math.floor(seconds % 60)}s`;
 };
 
+const CPU_ICON = <Cpu className="w-4 h-4" />;
+const MEMORY_ICON = <MemoryStick className="w-4 h-4" />;
+const CLOCK_ICON = <Clock className="w-4 h-4" />;
+const ACTIVITY_ICON = <ActivityIcon className="w-4 h-4" />;
+
 function DashboardContent() {
   const { latest, history, connected } = useMetrics();
   const [pingLatency, setPingLatency] = React.useState<number | null>(null);
@@ -222,7 +227,7 @@ function DashboardContent() {
             label="CPU"
             value={latest ? `${latest.cpu.toFixed(1)}%` : '--'}
             subLabel={latest ? `${latest.cpuCores} Cores` : ''}
-            icon={<Cpu className="w-4 h-4" />}
+            icon={CPU_ICON}
             status={!latest ? 'loading' : latest.cpu > 80 ? 'warning' : 'normal'}
             historyData={cpuHistory}
           />
@@ -234,7 +239,7 @@ function DashboardContent() {
             subLabel={
               latest ? `${formatGB(latest.memUsed)} of ${formatGB(latest.memTotal)} GB` : ''
             }
-            icon={<MemoryStick className="w-4 h-4" />}
+            icon={MEMORY_ICON}
             status={!latest ? 'loading' : latest.memory > 80 ? 'warning' : 'normal'}
             historyData={memoryHistory}
             color="var(--accent)"
@@ -245,7 +250,7 @@ function DashboardContent() {
             label="Uptime"
             value={latest ? formatUptime(latest.uptime) : '--'}
             subLabel="System Online"
-            icon={<Clock className="w-4 h-4" />}
+            icon={CLOCK_ICON}
             status={!latest ? 'loading' : 'normal'}
             color="var(--success)"
           />
@@ -255,7 +260,7 @@ function DashboardContent() {
             label="Data Latency"
             value={connected ? `${dataLatency}ms` : '--'}
             subLabel={connected ? 'Stream Lag' : 'Reconnecting...'}
-            icon={<ActivityIcon className="w-4 h-4" />}
+            icon={ACTIVITY_ICON}
             status={!connected ? 'loading' : dataLatency > 200 ? 'warning' : 'normal'}
             historyData={latencyHistory}
             color="var(--info)"
@@ -266,7 +271,7 @@ function DashboardContent() {
             label="Ping"
             value={pingLatency !== null ? `${pingLatency}ms` : '--'}
             subLabel="Network RTT"
-            icon={<ActivityIcon className="w-4 h-4" />}
+            icon={ACTIVITY_ICON}
             status={pingLatency === null ? 'loading' : pingLatency > 150 ? 'warning' : 'normal'}
             historyData={pingHistory}
             color="var(--warning)"
