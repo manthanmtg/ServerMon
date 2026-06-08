@@ -17,6 +17,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Spinner } from '@/components/ui/spinner';
 import { formatBytes } from '@/lib/utils';
+import { useToast } from '@/components/ui/toast';
 import type { DiskSettings } from '../DiskSettingsModal';
 
 export interface ScanResult {
@@ -34,8 +35,18 @@ export function CapacityAnalysis({ settings }: CapacityAnalysisProps) {
   const [scanning, setScanning] = useState(false);
   const [scanResults, setScanResults] = useState<ScanResult[]>([]);
   const [scanPath, setScanPath] = useState('/');
+  const { toast } = useToast();
 
   async function runScan() {
+    if (!scanPath.trim()) {
+      toast({
+        title: 'Invalid Path',
+        description: 'Please enter a valid directory path to scan.',
+        variant: 'warning',
+      });
+      return;
+    }
+
     setScanning(true);
     try {
       const res = await fetch('/api/modules/disk/scan', {
@@ -43,10 +54,31 @@ export function CapacityAnalysis({ settings }: CapacityAnalysisProps) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ path: scanPath }),
       });
+
       const data = await res.json();
-      if (data.results) setScanResults(data.results);
+
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to analyze capacity');
+      }
+
+      if (data.results) {
+        setScanResults(data.results);
+
+        if (data.results.length === 0) {
+          toast({
+            title: 'Scan Complete',
+            description: 'No large files or directories found.',
+            variant: 'default',
+          });
+        }
+      }
     } catch (e) {
       console.error('Failed to scan', e);
+      toast({
+        title: 'Scan Failed',
+        description: e instanceof Error ? e.message : 'An unexpected error occurred during scan.',
+        variant: 'destructive',
+      });
     } finally {
       setScanning(false);
     }

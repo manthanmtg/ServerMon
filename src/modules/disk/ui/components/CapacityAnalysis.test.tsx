@@ -38,6 +38,7 @@ describe('CapacityAnalysis', () => {
 
   it('renders chart container after scanning', async () => {
     (global.fetch as Mock).mockResolvedValueOnce({
+      ok: true,
       json: async () => ({ results: mockResults }),
     });
 
@@ -67,6 +68,6 @@ describe('CapacityAnalysis', () => {
     });
 
     // Cleanup
-    resolveFetch!({ json: async () => ({ results: [] }) });
+    resolveFetch!({ ok: true, json: async () => ({ results: [] }) });
   });
 });
