@@ -111,14 +111,14 @@
       "category": "ui-quality",
       "enabled": true,
       "autonomousSafe": true,
-      "totalSelected": 36,
+      "totalSelected": 37,
       "totalCompleted": 34,
       "totalNoop": 3,
-      "totalFailed": 1,
-      "lastSelectedAt": "2026-06-04T01:04:33.883Z",
-      "lastCompletedAt": "2026-06-04T01:04:33.883Z",
-      "lastOutcome": "noop",
-      "updatedAt": "2026-05-24T18:33:56.860Z"
+      "totalFailed": 2,
+      "lastSelectedAt": "2026-06-09T21:04:50.980Z",
+      "lastCompletedAt": "2026-06-09T21:04:50.980Z",
+      "lastOutcome": "failed",
+      "updatedAt": "2026-06-09T21:04:50.980Z"
     },
     "module_generator_prompt.md": {
       "id": "module-generator-prompt",
@@ -328,6 +328,6 @@
       "updatedAt": "2026-05-25T02:38:54.014Z"
     }
   },
-  "updatedAt": "2026-06-09T01:04:01.956Z",
+  "updatedAt": "2026-06-09T21:04:50.980Z",
   "stats": {}
 }
