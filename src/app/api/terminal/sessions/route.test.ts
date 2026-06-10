@@ -117,7 +117,7 @@ describe('POST /api/terminal/sessions', () => {
   });
 
   it('uses default maxSessions of 8 when settings not found', async () => {
-    mockGetSession.mockResolvedValue(null);
+    mockGetSession.mockResolvedValue({ user: { username: 'admin' } });
     mockTerminalSettingsFindById.mockReturnValue({ lean: () => Promise.resolve(null) });
     mockSessionCountDocuments.mockResolvedValue(9);
     const res = await POST(new Request('http://localhost', { method: 'POST' }));
@@ -128,6 +128,7 @@ describe('POST /api/terminal/sessions', () => {
 describe('PUT /api/terminal/sessions', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockGetSession.mockResolvedValue({ user: { username: 'admin' } });
   });
 
   it('returns 400 when sessionId missing', async () => {
