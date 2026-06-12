@@ -222,13 +222,13 @@
       "category": "security",
       "enabled": true,
       "autonomousSafe": true,
-      "totalSelected": 33,
+      "totalSelected": 34,
       "totalCompleted": 32,
       "totalNoop": 0,
-      "totalFailed": 1,
-      "lastSelectedAt": "2026-06-10T21:01:05.774Z",
-      "lastCompletedAt": "2026-06-10T21:09:07.413Z",
-      "lastOutcome": "completed",
+      "totalFailed": 2,
+      "lastSelectedAt": "2026-06-12T21:01:02.556Z",
+      "lastCompletedAt": "2026-06-12T21:04:21.584Z",
+      "lastOutcome": "failed",
       "updatedAt": "2026-05-24T16:35:28.568Z"
     },
     "state_management_optimizer.md": {
@@ -328,6 +328,6 @@
       "updatedAt": "2026-05-25T02:38:54.014Z"
     }
   },
-  "updatedAt": "2026-06-12T01:14:15.499Z",
+  "updatedAt": "2026-06-12T21:01:02.556Z",
   "stats": {}
 }
