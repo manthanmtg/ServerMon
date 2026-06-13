@@ -304,10 +304,10 @@
       "autonomousSafe": true,
       "totalSelected": 50,
       "totalCompleted": 42,
-      "totalNoop": 8,
+      "totalNoop": 9,
       "totalFailed": 0,
       "lastOutcome": "noop",
-      "lastCompletedAt": "2026-06-11T21:02:24.791Z",
+      "lastCompletedAt": "2026-06-13T05:05:32.465Z",
       "updatedAt": "2026-05-24T18:25:00.553Z",
       "lastSelectedAt": "2026-06-11T21:01:08.542Z"
     },
@@ -328,6 +328,6 @@
       "updatedAt": "2026-05-25T02:38:54.014Z"
     }
   },
-  "updatedAt": "2026-06-13T01:09:18.910Z",
+  "updatedAt": "2026-06-13T05:05:32.465Z",
   "stats": {}
 }
