@@ -318,16 +318,16 @@
       "category": "ui-quality",
       "enabled": true,
       "autonomousSafe": true,
-      "totalSelected": 45,
+      "totalSelected": 46,
       "totalCompleted": 42,
-      "totalNoop": 2,
+      "totalNoop": 3,
       "totalFailed": 1,
-      "lastSelectedAt": "2026-06-15T05:01:15.550Z",
-      "lastCompletedAt": "2026-06-15T05:03:51.196Z",
-      "lastOutcome": "failed",
+      "lastSelectedAt": "2026-06-15T21:01:01.837Z",
+      "lastCompletedAt": "2026-06-15T21:03:08.786Z",
+      "lastOutcome": "noop",
       "updatedAt": "2026-05-25T02:38:54.014Z"
     }
   },
-  "updatedAt": "2026-06-15T05:03:51.196Z",
+  "updatedAt": "2026-06-15T21:03:08.786Z",
   "stats": {}
 }
