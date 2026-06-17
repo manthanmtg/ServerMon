@@ -31,12 +31,12 @@
       "category": "reliability",
       "enabled": true,
       "autonomousSafe": true,
-      "totalSelected": 43,
+      "totalSelected": 44,
       "totalCompleted": 41,
       "totalNoop": 0,
-      "totalFailed": 2,
-      "lastSelectedAt": "2026-06-04T05:01:04.003Z",
-      "lastCompletedAt": "2026-06-04T05:05:31.502Z",
+      "totalFailed": 3,
+      "lastSelectedAt": "2026-06-17T01:09:41.688Z",
+      "lastCompletedAt": "2026-06-17T01:09:41.688Z",
       "lastOutcome": "failed",
       "updatedAt": "2026-05-25T03:02:49.186Z"
     },
@@ -328,6 +328,6 @@
       "updatedAt": "2026-05-25T02:38:54.014Z"
     }
   },
-  "updatedAt": "2026-06-16T21:14:51.880Z",
+  "updatedAt": "2026-06-17T01:09:41.688Z",
   "stats": {}
 }
