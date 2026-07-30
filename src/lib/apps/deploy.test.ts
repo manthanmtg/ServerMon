@@ -2,7 +2,7 @@
 import { mkdir, mkdtemp, readFile, readlink, rm, symlink, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { defaultCommandRunner, deployNextJsApp } from './deploy';
 
 const tempDirs: string[] = [];
@@ -395,6 +395,65 @@ describe('deployNextJsApp', () => {
       'systemctl restart servermon-app-lifeos.service',
       'systemctl restart servermon-app-lifeos.service',
     ]);
+    await expect(readlink(path.join(dirs.root, 'lifeos', 'current'))).resolves.toBe(
+      previousRelease
+    );
+  });
+
+  it('aborts deployment commands and still restarts the previous service without the aborted signal', async () => {
+    const sourcePath = await createSourceRepo();
+    const dirs = await createDeployDirs();
+    const previousRelease = path.join(dirs.root, 'lifeos', 'releases', 'old-release');
+    await mkdir(path.join(previousRelease, 'source'), { recursive: true });
+    await writeFile(path.join(previousRelease, 'source', 'keep.txt'), 'old', 'utf8');
+    await symlink(previousRelease, path.join(dirs.root, 'lifeos', 'current'));
+
+    const controller = new AbortController();
+    const signals: Array<AbortSignal | undefined> = [];
+    const commands: string[] = [];
+    const commandRunner = vi.fn(async ({ command, signal }) => {
+      commands.push(command);
+      signals.push(signal);
+      if (command === 'nginx -t') {
+        controller.abort(new Error('Update timed out after 1 hour'));
+        return { code: 1, output: 'aborted' };
+      }
+      return { code: 0, output: 'ok' };
+    });
+
+    const result = await deployNextJsApp({
+      app: {
+        name: 'LifeOS',
+        slug: 'lifeos',
+        templateId: 'nextjs',
+        sourcePath,
+        domain: 'app.example.com',
+        port: 3010,
+        commands: {
+          install: 'pnpm install',
+          build: 'pnpm build',
+          start: 'pnpm start',
+        },
+        envVars: {},
+        healthCheckPath: '/',
+        status: 'running',
+        currentReleaseId: 'old-release',
+      },
+      appsRoot: dirs.root,
+      systemdDir: dirs.systemdDir,
+      nginxAvailableDir: dirs.nginxAvailableDir,
+      nginxEnabledDir: dirs.nginxEnabledDir,
+      releaseId: 'aborted-release',
+      commandRunner,
+      healthCheck: async () => ({ ok: true }),
+      signal: controller.signal,
+    });
+
+    expect(result.status).toBe('failed');
+    expect(result.error).toBe('Update timed out after 1 hour');
+    expect(commands.at(-1)).toBe('systemctl restart servermon-app-lifeos.service');
+    expect(signals.at(-1)).toBeUndefined();
+    expect(signals.slice(0, -1).every((signal) => signal === controller.signal)).toBe(true);
     await expect(readlink(path.join(dirs.root, 'lifeos', 'current'))).resolves.toBe(
       previousRelease
     );

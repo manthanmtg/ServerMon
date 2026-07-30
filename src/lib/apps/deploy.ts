@@ -25,6 +25,7 @@ import { getAppRoot, getReleaseRoot } from './paths';
 export interface CommandRunRequest {
   command: string;
   cwd?: string;
+  signal?: AbortSignal;
 }
 
 export interface CommandRunResult {
@@ -34,7 +35,8 @@ export interface CommandRunResult {
 
 export type CommandRunner = (request: CommandRunRequest) => Promise<CommandRunResult>;
 export type HealthCheck = (
-  url: string
+  url: string,
+  options?: { signal?: AbortSignal }
 ) => Promise<{ ok: boolean; status?: number; error?: string }>;
 
 export interface DeployNextJsAppOptions {
@@ -57,6 +59,7 @@ export interface DeployNextJsAppOptions {
   healthCheckIntervalMs?: number;
   commandRunner?: CommandRunner;
   healthCheck?: HealthCheck;
+  signal?: AbortSignal;
   onProgress?: (entry: string) => void | Promise<void>;
 }
 
@@ -102,20 +105,77 @@ function appCommandEnv(): NodeJS.ProcessEnv {
   return env;
 }
 
-export const defaultCommandRunner: CommandRunner = ({ command, cwd }) =>
+function abortMessage(signal?: AbortSignal): string {
+  const reason = signal?.reason;
+  if (reason instanceof Error) return reason.message;
+  if (typeof reason === 'string') return reason;
+  return 'Operation aborted';
+}
+
+function throwIfAborted(signal?: AbortSignal): void {
+  if (!signal?.aborted) return;
+  throw new Error(abortMessage(signal));
+}
+
+export const defaultCommandRunner: CommandRunner = ({ command, cwd, signal }) =>
   new Promise((resolve) => {
-    const child = spawn('/bin/sh', ['-lc', command], { cwd, env: appCommandEnv() });
+    if (signal?.aborted) {
+      resolve({ code: 1, output: abortMessage(signal) });
+      return;
+    }
+
+    const child = spawn('/bin/sh', ['-lc', command], {
+      cwd,
+      detached: true,
+      env: appCommandEnv(),
+    });
     const output: string[] = [];
+    let killTimer: ReturnType<typeof setTimeout> | undefined;
+
+    const killProcessGroup = (signalName: NodeJS.Signals) => {
+      if (!child.pid) return;
+      try {
+        process.kill(-child.pid, signalName);
+      } catch {
+        try {
+          child.kill(signalName);
+        } catch {
+          // Child already exited.
+        }
+      }
+    };
+
+    const abortHandler = () => {
+      killProcessGroup('SIGTERM');
+      killTimer = setTimeout(() => killProcessGroup('SIGKILL'), 5_000);
+    };
+
+    signal?.addEventListener('abort', abortHandler, { once: true });
+
+    const cleanup = () => {
+      signal?.removeEventListener('abort', abortHandler);
+      if (killTimer) clearTimeout(killTimer);
+    };
 
     child.stdout.on('data', (chunk: Buffer) => output.push(chunk.toString()));
     child.stderr.on('data', (chunk: Buffer) => output.push(chunk.toString()));
-    child.on('close', (code) => resolve({ code: code ?? 1, output: output.join('') }));
-    child.on('error', (error) => resolve({ code: 1, output: error.message }));
+    child.on('close', (code) => {
+      cleanup();
+      resolve({ code: code ?? 1, output: output.join('') });
+    });
+    child.on('error', (error) => {
+      cleanup();
+      resolve({ code: 1, output: error.message });
+    });
   });
 
-const defaultHealthCheck: HealthCheck = async (url) => {
+const defaultHealthCheck: HealthCheck = async (url, options) => {
   try {
-    const response = await fetch(url, { signal: AbortSignal.timeout(15_000) });
+    const timeoutSignal = AbortSignal.timeout(15_000);
+    const signal = options?.signal
+      ? AbortSignal.any([options.signal, timeoutSignal])
+      : timeoutSignal;
+    const response = await fetch(url, { signal });
     return { ok: response.ok, status: response.status };
   } catch (error: unknown) {
     return { ok: false, error: error instanceof Error ? error.message : 'Health check failed' };
@@ -171,10 +231,13 @@ async function runOrThrow(
   command: string,
   logs: string[],
   cwd?: string,
-  onProgress?: (entry: string) => void | Promise<void>
+  onProgress?: (entry: string) => void | Promise<void>,
+  signal?: AbortSignal
 ): Promise<void> {
+  throwIfAborted(signal);
   await pushLog(logs, `$ ${command}`, onProgress);
-  const result = await commandRunner({ command, cwd });
+  const result = await commandRunner({ command, cwd, signal });
+  throwIfAborted(signal);
   if (result.output.trim()) await pushLog(logs, result.output.trim(), onProgress);
   if (result.code !== 0) {
     throw new Error(`Command failed: ${command}\n${result.output}`.trim());
@@ -204,6 +267,7 @@ async function runCertbotOrThrow({
   retryAttempts,
   retryIntervalMs,
   onProgress,
+  signal,
 }: {
   commandRunner: CommandRunner;
   command: string;
@@ -211,12 +275,15 @@ async function runCertbotOrThrow({
   retryAttempts: number;
   retryIntervalMs: number;
   onProgress?: (entry: string) => void | Promise<void>;
+  signal?: AbortSignal;
 }): Promise<void> {
   const attempts = Math.max(1, retryAttempts);
 
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    throwIfAborted(signal);
     await pushLog(logs, `$ ${command}`, onProgress);
-    const result = await commandRunner({ command });
+    const result = await commandRunner({ command, signal });
+    throwIfAborted(signal);
     if (result.output.trim()) await pushLog(logs, result.output.trim(), onProgress);
     if (result.code === 0) return;
 
@@ -228,7 +295,7 @@ async function runCertbotOrThrow({
         }/${attempts})`,
         onProgress
       );
-      await sleep(retryIntervalMs);
+      await sleep(retryIntervalMs, signal);
       continue;
     }
 
@@ -258,8 +325,24 @@ function healthUrl(port: number, healthCheckPath?: string): string {
   return `http://127.0.0.1:${port}${normalizedPath}`;
 }
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+function sleep(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(new Error(abortMessage(signal)));
+      return;
+    }
+    const cleanup = () => signal?.removeEventListener('abort', abortHandler);
+    const timer = setTimeout(() => {
+      cleanup();
+      resolve();
+    }, ms);
+    const abortHandler = () => {
+      clearTimeout(timer);
+      cleanup();
+      reject(new Error(abortMessage(signal)));
+    };
+    signal?.addEventListener('abort', abortHandler, { once: true });
+  });
 }
 
 async function waitForHealthy({
@@ -269,6 +352,7 @@ async function waitForHealthy({
   attempts,
   intervalMs,
   onProgress,
+  signal,
 }: {
   url: string;
   healthCheck: HealthCheck;
@@ -276,11 +360,14 @@ async function waitForHealthy({
   attempts: number;
   intervalMs: number;
   onProgress?: (entry: string) => void | Promise<void>;
+  signal?: AbortSignal;
 }): Promise<void> {
   let lastFailure = 'Health check failed';
 
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
-    const checked = await healthCheck(url);
+    throwIfAborted(signal);
+    const checked = await healthCheck(url, { signal });
+    throwIfAborted(signal);
     if (checked.ok) {
       await pushLog(logs, 'Health check passed', onProgress);
       return;
@@ -294,7 +381,7 @@ async function waitForHealthy({
         `Health check attempt ${attempt}/${attempts} failed: ${lastFailure}`,
         onProgress
       );
-      await sleep(intervalMs);
+      await sleep(intervalMs, signal);
     }
   }
 
@@ -316,6 +403,7 @@ export async function deployNextJsApp({
   healthCheckIntervalMs = 2_000,
   commandRunner = defaultCommandRunner,
   healthCheck = defaultHealthCheck,
+  signal,
   onProgress,
 }: DeployNextJsAppOptions): Promise<DeployNextJsAppResult> {
   const logs: string[] = [];
@@ -356,8 +444,8 @@ export async function deployNextJsApp({
       'utf8'
     );
 
-    await runOrThrow(commandRunner, app.commands.install, logs, sourceRoot, onProgress);
-    await runOrThrow(commandRunner, app.commands.build, logs, sourceRoot, onProgress);
+    await runOrThrow(commandRunner, app.commands.install, logs, sourceRoot, onProgress, signal);
+    await runOrThrow(commandRunner, app.commands.build, logs, sourceRoot, onProgress, signal);
 
     await mkdir(systemdDir, { recursive: true });
     await mkdir(nginxAvailableDir, { recursive: true });
@@ -376,14 +464,22 @@ export async function deployNextJsApp({
     );
 
     await replaceSymlink(currentPath, releaseRoot);
-    await runOrThrow(commandRunner, 'systemctl daemon-reload', logs, undefined, onProgress);
-    await runOrThrow(commandRunner, `systemctl enable ${serviceName}`, logs, undefined, onProgress);
+    await runOrThrow(commandRunner, 'systemctl daemon-reload', logs, undefined, onProgress, signal);
+    await runOrThrow(
+      commandRunner,
+      `systemctl enable ${serviceName}`,
+      logs,
+      undefined,
+      onProgress,
+      signal
+    );
     await runOrThrow(
       commandRunner,
       `systemctl restart ${serviceName}`,
       logs,
       undefined,
-      onProgress
+      onProgress,
+      signal
     );
     serviceRestarted = true;
 
@@ -394,6 +490,7 @@ export async function deployNextJsApp({
       attempts: healthCheckAttempts,
       intervalMs: healthCheckIntervalMs,
       onProgress,
+      signal,
     });
 
     const nginxAvailablePath = path.join(nginxAvailableDir, app.domain);
@@ -411,8 +508,8 @@ export async function deployNextJsApp({
       'utf8'
     );
     await ensureNginxEnabled(nginxAvailablePath, nginxEnabledPath);
-    await runOrThrow(commandRunner, 'nginx -t', logs, undefined, onProgress);
-    await runOrThrow(commandRunner, 'nginx -s reload', logs, undefined, onProgress);
+    await runOrThrow(commandRunner, 'nginx -t', logs, undefined, onProgress, signal);
+    await runOrThrow(commandRunner, 'nginx -s reload', logs, undefined, onProgress, signal);
 
     if (app.tlsEnabled) {
       if (existingTlsCertificate) {
@@ -429,9 +526,10 @@ export async function deployNextJsApp({
           retryAttempts: certbotRetryAttempts,
           retryIntervalMs: certbotRetryIntervalMs,
           onProgress,
+          signal,
         });
-        await runOrThrow(commandRunner, 'nginx -t', logs, undefined, onProgress);
-        await runOrThrow(commandRunner, 'nginx -s reload', logs, undefined, onProgress);
+        await runOrThrow(commandRunner, 'nginx -t', logs, undefined, onProgress, signal);
+        await runOrThrow(commandRunner, 'nginx -s reload', logs, undefined, onProgress, signal);
       }
     }
 

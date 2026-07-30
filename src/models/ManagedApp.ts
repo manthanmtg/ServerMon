@@ -38,8 +38,9 @@ export interface IManagedApp extends Document {
   status: ManagedAppStatus;
   currentReleaseId?: string;
   operations: Array<
-    Omit<AppOperation, 'startedAt' | 'completedAt'> & {
+    Omit<AppOperation, 'startedAt' | 'deadlineAt' | 'completedAt'> & {
       startedAt: Date;
+      deadlineAt?: Date;
       completedAt?: Date;
     }
   >;
@@ -101,6 +102,7 @@ const OperationSchema = new Schema(
     title: { type: String, required: true },
     step: { type: String, required: true },
     startedAt: { type: Date, required: true },
+    deadlineAt: { type: Date },
     completedAt: { type: Date },
     releaseId: { type: String },
     commitSha: { type: String },

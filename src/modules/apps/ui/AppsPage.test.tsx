@@ -447,6 +447,65 @@ describe('AppsPage', () => {
     expect(global.fetch).toHaveBeenCalledTimes(1);
   });
 
+  it('enables the update action after a timed-out server-side update is reconciled as failed', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        apps: [
+          {
+            id: 'app-1',
+            name: 'Git Portal',
+            slug: 'git-portal',
+            templateId: 'nextjs',
+            sourceType: 'git',
+            git: {
+              url: 'https://github.com/acme/git-portal.git',
+              branch: 'main',
+              currentSha: 'abcdef123456',
+              autoUpdate: {
+                enabled: true,
+                intervalMinutes: 60,
+              },
+            },
+            domain: 'git.example.com',
+            port: 3010,
+            commands: {
+              install: 'pnpm install --frozen-lockfile',
+              build: 'pnpm build',
+              start: 'pnpm start',
+            },
+            envVars: {},
+            healthCheckPath: '/',
+            tlsEnabled: false,
+            status: 'running',
+            releases: [],
+            operations: [
+              {
+                id: 'update-timeout',
+                type: 'update',
+                status: 'failed',
+                title: 'Manual update',
+                step: 'Update timed out',
+                startedAt: '2026-05-07T00:00:00.000Z',
+                deadlineAt: '2026-05-07T01:00:00.000Z',
+                completedAt: '2026-05-07T01:00:00.000Z',
+                error: 'Update timed out after 1 hour',
+                logs: ['Update timed out after 1 hour'],
+              },
+            ],
+          },
+        ],
+      }),
+    } as Response);
+
+    render(<AppsPage />);
+    await screen.findByText('Git Portal');
+
+    const updateButton = screen.getByRole('button', { name: /update/i });
+    expect((updateButton as HTMLButtonElement).disabled).toBe(false);
+    expect(updateButton.querySelector('.animate-spin')).toBeFalsy();
+  });
+
   it('shows a clear manual update result and latest auto-update state', async () => {
     const appBeforeUpdate = {
       id: 'app-1',

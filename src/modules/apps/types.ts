@@ -28,6 +28,7 @@ export interface AppOperation {
   title: string;
   step: string;
   startedAt: string;
+  deadlineAt?: string;
   completedAt?: string;
   releaseId?: string;
   commitSha?: string;

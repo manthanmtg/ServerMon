@@ -1,7 +1,7 @@
 import connectDB from '@/lib/db';
 import { createLogger } from '@/lib/logger';
 import ManagedApp from '@/models/ManagedApp';
-import { updateManagedGitApp } from './service';
+import { reconcileStaleAppUpdateOperations, updateManagedGitApp } from './service';
 
 const log = createLogger('apps:auto-update');
 
@@ -30,6 +30,10 @@ export async function countDueGitAppAutoUpdates(before = new Date()): Promise<nu
 
 export async function runDueGitAppAutoUpdates(now = new Date()): Promise<GitAppAutoUpdateSummary> {
   await connectDB();
+  const recovered = await reconcileStaleAppUpdateOperations({ now });
+  if (recovered.modified > 0) {
+    log.warn('Recovered stale git app update operations before auto-update scan', recovered);
+  }
   const apps = await ManagedApp.find(dueGitAppAutoUpdateQuery(now)).lean<
     Array<{ _id: { toString: () => string } | string }>
   >();

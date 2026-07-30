@@ -4,6 +4,7 @@ import type { CommandRunner } from './deploy';
 export interface GitCommandOptions {
   commandRunner: CommandRunner;
   repositoryPath?: string;
+  signal?: AbortSignal;
 }
 
 export interface EnsureGitCheckoutOptions extends GitCommandOptions {
@@ -59,13 +60,27 @@ async function defaultPathExists(target: string): Promise<boolean> {
   }
 }
 
+function abortMessage(signal?: AbortSignal): string {
+  const reason = signal?.reason;
+  if (reason instanceof Error) return reason.message;
+  if (typeof reason === 'string') return reason;
+  return 'Operation aborted';
+}
+
+function throwIfAborted(signal?: AbortSignal): void {
+  if (!signal?.aborted) return;
+  throw new Error(abortMessage(signal));
+}
+
 async function runGitCommand(
-  { commandRunner, repositoryPath }: GitCommandOptions,
+  { commandRunner, repositoryPath, signal }: GitCommandOptions,
   command: string,
   logs?: string[]
 ): Promise<string> {
+  throwIfAborted(signal);
   logs?.push(`$ ${command}`);
-  const result = await commandRunner({ command, cwd: repositoryPath });
+  const result = await commandRunner({ command, cwd: repositoryPath, signal });
+  throwIfAborted(signal);
   if (result.output.trim()) logs?.push(result.output.trim());
   if (result.code !== 0) {
     throw new Error(`Git command failed: ${command}\n${result.output}`.trim());
@@ -78,6 +93,7 @@ export async function ensureGitCheckout({
   branch,
   repositoryPath,
   commandRunner,
+  signal,
   pathExists = defaultPathExists,
 }: EnsureGitCheckoutOptions): Promise<{ currentSha: string; cloned: boolean; logs: string[] }> {
   if (!isHttpsGitUrl(repoUrl)) throw new Error('Git URL must be an HTTPS URL');
@@ -86,7 +102,7 @@ export async function ensureGitCheckout({
 
   if (!(await pathExists(repositoryPath))) {
     await runGitCommand(
-      { commandRunner },
+      { commandRunner, signal },
       [
         'git clone',
         `--branch ${normalizedBranch}`,
@@ -97,7 +113,7 @@ export async function ensureGitCheckout({
       logs
     );
     const currentSha = await runGitCommand(
-      { commandRunner, repositoryPath },
+      { commandRunner, repositoryPath, signal },
       'git rev-parse HEAD',
       logs
     );
@@ -105,7 +121,7 @@ export async function ensureGitCheckout({
   }
 
   const existingOrigin = await runGitCommand(
-    { commandRunner, repositoryPath },
+    { commandRunner, repositoryPath, signal },
     'git config --get remote.origin.url',
     logs
   );
@@ -114,12 +130,12 @@ export async function ensureGitCheckout({
   }
 
   await runGitCommand(
-    { commandRunner, repositoryPath },
+    { commandRunner, repositoryPath, signal },
     `git fetch origin ${normalizedBranch}`,
     logs
   );
   const currentSha = await runGitCommand(
-    { commandRunner, repositoryPath },
+    { commandRunner, repositoryPath, signal },
     'git rev-parse HEAD',
     logs
   );
@@ -130,14 +146,16 @@ export async function getRemoteHeadSha({
   branch,
   repositoryPath,
   commandRunner,
+  signal,
 }: {
   branch: string;
   repositoryPath: string;
   commandRunner: CommandRunner;
+  signal?: AbortSignal;
 }): Promise<string> {
   const normalizedBranch = validateGitBranch(branch);
   const output = await runGitCommand(
-    { commandRunner, repositoryPath },
+    { commandRunner, repositoryPath, signal },
     `git ls-remote origin refs/heads/${normalizedBranch}`
   );
   const sha = output.split(/\s+/)[0];
@@ -150,6 +168,7 @@ export async function prepareGitSourceForDeploy({
   branch,
   repositoryPath,
   commandRunner,
+  signal,
   pathExists,
   updateToRemote = false,
 }: PrepareGitSourceOptions): Promise<PrepareGitSourceResult> {
@@ -158,21 +177,26 @@ export async function prepareGitSourceForDeploy({
     branch,
     repositoryPath,
     commandRunner,
+    signal,
     pathExists,
   });
   const logs = [...checkout.logs];
   const previousSha = checkout.currentSha;
-  const remoteSha = await getRemoteHeadSha({ branch, repositoryPath, commandRunner });
+  const remoteSha = await getRemoteHeadSha({ branch, repositoryPath, commandRunner, signal });
   let currentSha = previousSha;
   let changed = checkout.cloned || remoteSha !== previousSha;
 
   if (updateToRemote && remoteSha !== previousSha) {
     await runGitCommand(
-      { commandRunner, repositoryPath },
+      { commandRunner, repositoryPath, signal },
       `git reset --hard origin/${validateGitBranch(branch)}`,
       logs
     );
-    currentSha = await runGitCommand({ commandRunner, repositoryPath }, 'git rev-parse HEAD', logs);
+    currentSha = await runGitCommand(
+      { commandRunner, repositoryPath, signal },
+      'git rev-parse HEAD',
+      logs
+    );
     changed = currentSha !== previousSha;
   }
 

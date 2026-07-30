@@ -1,9 +1,15 @@
 /** @vitest-environment node */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { mockCountDocuments, mockFind, mockUpdateManagedGitApp } = vi.hoisted(() => ({
+const {
+  mockCountDocuments,
+  mockFind,
+  mockReconcileStaleAppUpdateOperations,
+  mockUpdateManagedGitApp,
+} = vi.hoisted(() => ({
   mockCountDocuments: vi.fn(),
   mockFind: vi.fn(),
+  mockReconcileStaleAppUpdateOperations: vi.fn(),
   mockUpdateManagedGitApp: vi.fn(),
 }));
 
@@ -11,7 +17,10 @@ vi.mock('@/lib/db', () => ({ default: vi.fn() }));
 vi.mock('@/models/ManagedApp', () => ({
   default: { countDocuments: mockCountDocuments, find: mockFind },
 }));
-vi.mock('./service', () => ({ updateManagedGitApp: mockUpdateManagedGitApp }));
+vi.mock('./service', () => ({
+  reconcileStaleAppUpdateOperations: mockReconcileStaleAppUpdateOperations,
+  updateManagedGitApp: mockUpdateManagedGitApp,
+}));
 vi.mock('@/lib/logger', () => ({
   createLogger: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }),
 }));
@@ -21,6 +30,7 @@ import { countDueGitAppAutoUpdates, runDueGitAppAutoUpdates } from './auto-updat
 describe('git app auto update runner', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockReconcileStaleAppUpdateOperations.mockResolvedValue({ matched: 0, modified: 0 });
   });
 
   it('counts due git apps for scheduler watchdog checks', async () => {
@@ -58,6 +68,21 @@ describe('git app auto update runner', () => {
     expect(mockUpdateManagedGitApp).toHaveBeenNthCalledWith(1, 'app-1', { trigger: 'auto' });
     expect(mockUpdateManagedGitApp).toHaveBeenNthCalledWith(2, 'app-2', { trigger: 'auto' });
     expect(result).toEqual({ checked: 2, updated: 0, unchanged: 2, failed: 0 });
+  });
+
+  it('reconciles stale update operations before finding due apps', async () => {
+    mockReconcileStaleAppUpdateOperations.mockResolvedValue({ matched: 1, modified: 1 });
+    mockFind.mockReturnValue({
+      lean: vi.fn().mockResolvedValue([]),
+    });
+    const now = new Date('2026-05-07T00:00:00.000Z');
+
+    await runDueGitAppAutoUpdates(now);
+
+    expect(mockReconcileStaleAppUpdateOperations).toHaveBeenCalledWith({ now });
+    expect(mockFind.mock.invocationCallOrder[0]).toBeGreaterThan(
+      mockReconcileStaleAppUpdateOperations.mock.invocationCallOrder[0]
+    );
   });
 
   it('continues when one app update fails', async () => {

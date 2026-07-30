@@ -33,6 +33,9 @@ const DEFAULT_NGINX_AVAILABLE_DIR = '/etc/nginx/sites-available';
 const DEFAULT_NGINX_ENABLED_DIR = '/etc/nginx/sites-enabled';
 const MAX_APP_OPERATIONS = 20;
 const MAX_OPERATION_LOGS = 200;
+export const APP_UPDATE_TIMEOUT_MS = 60 * 60_000;
+export const APP_UPDATE_TIMEOUT_ERROR = 'Update timed out after 1 hour';
+const APP_UPDATE_TIMEOUT_STEP = 'Update timed out';
 
 export class AppUpdateAlreadyRunningError extends Error {
   constructor(public readonly appId: string) {
@@ -235,6 +238,7 @@ interface ManagedAppDTORecord {
     title: string;
     step: string;
     startedAt: Date | string;
+    deadlineAt?: Date | string;
     completedAt?: Date | string;
     releaseId?: string;
     commitSha?: string;
@@ -265,6 +269,7 @@ function mapOperations(operations?: ManagedAppDTORecord['operations']): AppOpera
     title: operation.title,
     step: operation.step,
     startedAt: toIsoDate(operation.startedAt) ?? new Date(0).toISOString(),
+    deadlineAt: toIsoDate(operation.deadlineAt),
     completedAt: toIsoDate(operation.completedAt),
     releaseId: operation.releaseId,
     commitSha: operation.commitSha,
@@ -334,7 +339,7 @@ function resolveDeploySourcePath(app: IManagedApp): string {
   return getAppRepositoryRoot(app.slug);
 }
 
-async function prepareSource(app: IManagedApp, updateToRemote: boolean) {
+async function prepareSource(app: IManagedApp, updateToRemote: boolean, signal?: AbortSignal) {
   if ((app.sourceType ?? 'local') === 'local') {
     return {
       sourcePath: resolveDeploySourcePath(app),
@@ -352,6 +357,7 @@ async function prepareSource(app: IManagedApp, updateToRemote: boolean) {
     repositoryPath: getAppRepositoryRoot(app.slug),
     updateToRemote,
     commandRunner: defaultCommandRunner,
+    signal,
   });
   return prepared;
 }
@@ -359,7 +365,8 @@ async function prepareSource(app: IManagedApp, updateToRemote: boolean) {
 async function deployPreparedApp(
   app: IManagedApp,
   sourcePath: string,
-  onProgress?: (entry: string) => void | Promise<void>
+  onProgress?: (entry: string) => void | Promise<void>,
+  signal?: AbortSignal
 ): Promise<DeployNextJsAppResult> {
   return deployNextJsApp({
     app: {
@@ -383,6 +390,7 @@ async function deployPreparedApp(
       status: app.status,
       currentReleaseId: app.currentReleaseId,
     },
+    signal,
     onProgress,
   });
 }
@@ -541,6 +549,7 @@ interface StartAppOperationInput {
   step: string;
   releaseId?: string;
   commitSha?: string;
+  deadlineAt?: Date;
 }
 
 function createOperationId(type: AppOperationType): string {
@@ -549,13 +558,18 @@ function createOperationId(type: AppOperationType): string {
 
 function createAppOperation(input: StartAppOperationInput): IManagedApp['operations'][number] {
   const operationId = createOperationId(input.type);
+  const startedAt = new Date();
+  const deadlineAt =
+    input.deadlineAt ??
+    (input.type === 'update' ? new Date(startedAt.getTime() + APP_UPDATE_TIMEOUT_MS) : undefined);
   return {
     id: operationId,
     type: input.type,
     status: 'running',
     title: input.title,
     step: input.step,
-    startedAt: new Date(),
+    startedAt,
+    deadlineAt,
     releaseId: input.releaseId,
     commitSha: input.commitSha,
     logs: [],
@@ -566,6 +580,85 @@ function appHasRunningUpdateOperation(app: Pick<IManagedApp, 'operations'>): boo
   return (app.operations ?? []).some(
     (operation) => operation.type === 'update' && operation.status === 'running'
   );
+}
+
+export async function reconcileStaleAppUpdateOperations({
+  now = new Date(),
+  appId,
+}: { now?: Date; appId?: string } = {}): Promise<{ matched: number; modified: number }> {
+  await connectDB();
+  const staleStartedBefore = new Date(now.getTime() - APP_UPDATE_TIMEOUT_MS);
+  const timeoutLog = `${APP_UPDATE_TIMEOUT_ERROR}. Marked failed by ServerMon recovery at ${now.toISOString()}.`;
+  const query = {
+    ...(appId ? { _id: appId } : {}),
+    operations: {
+      $elemMatch: {
+        type: 'update',
+        status: 'running',
+        $or: [
+          { deadlineAt: { $lte: now } },
+          { deadlineAt: { $exists: false }, startedAt: { $lte: staleStartedBefore } },
+        ],
+      },
+    },
+  };
+  const result = await ManagedApp.updateMany(query, [
+    {
+      $set: {
+        operations: {
+          $map: {
+            input: '$operations',
+            as: 'operation',
+            in: {
+              $cond: [
+                {
+                  $and: [
+                    { $eq: ['$$operation.type', 'update'] },
+                    { $eq: ['$$operation.status', 'running'] },
+                    {
+                      $or: [
+                        { $lte: ['$$operation.deadlineAt', now] },
+                        {
+                          $and: [
+                            { $eq: [{ $type: '$$operation.deadlineAt' }, 'missing'] },
+                            { $lte: ['$$operation.startedAt', staleStartedBefore] },
+                          ],
+                        },
+                      ],
+                    },
+                  ],
+                },
+                {
+                  $mergeObjects: [
+                    '$$operation',
+                    {
+                      status: 'failed',
+                      step: APP_UPDATE_TIMEOUT_STEP,
+                      completedAt: now,
+                      error: APP_UPDATE_TIMEOUT_ERROR,
+                      logs: {
+                        $slice: [
+                          {
+                            $concatArrays: [{ $ifNull: ['$$operation.logs', []] }, [timeoutLog]],
+                          },
+                          -MAX_OPERATION_LOGS,
+                        ],
+                      },
+                    },
+                  ],
+                },
+                '$$operation',
+              ],
+            },
+          },
+        },
+      },
+    },
+  ]);
+  return {
+    matched: result.matchedCount ?? result.modifiedCount ?? 0,
+    modified: result.modifiedCount ?? 0,
+  };
 }
 
 function ensureAppOperation(app: IManagedApp, operation: IManagedApp['operations'][number]): void {
@@ -588,6 +681,7 @@ async function startExclusiveUpdateOperation(
   appId: string,
   input: Omit<StartAppOperationInput, 'type'>
 ): Promise<{ app: IManagedApp; operationId: string }> {
+  await reconcileStaleAppUpdateOperations({ appId });
   const operation = createAppOperation({ ...input, type: 'update' });
   const app = await ManagedApp.findOneAndUpdate(
     {
@@ -634,6 +728,27 @@ async function appendAppOperationLog(
 ): Promise<void> {
   const operation = app.operations?.find((item) => item.id === operationId);
   if (!operation) return;
+  if (operation.type === 'update' && operation.status === 'running') {
+    const result = await ManagedApp.updateOne(
+      {
+        _id: app._id,
+        operations: { $elemMatch: { id: operationId, status: 'running' } },
+      },
+      {
+        $set: { 'operations.$.step': step },
+        $push: {
+          'operations.$.logs': {
+            $each: [entry],
+            $slice: -MAX_OPERATION_LOGS,
+          },
+        },
+      }
+    );
+    if (result.modifiedCount !== 1) return;
+    operation.step = step;
+    operation.logs = [...(operation.logs ?? []), entry].slice(-MAX_OPERATION_LOGS);
+    return;
+  }
   operation.step = step;
   operation.logs = [...(operation.logs ?? []), entry].slice(-MAX_OPERATION_LOGS);
   await app.save();
@@ -650,17 +765,58 @@ async function completeAppOperation(
     releaseId?: string;
     commitSha?: string;
   }
-): Promise<void> {
+): Promise<boolean> {
   const operation = app.operations?.find((item) => item.id === operationId);
-  if (!operation) return;
+  if (!operation) return false;
+  const completedAt = new Date();
+
+  if (operation.type === 'update') {
+    const operationSet: Record<string, unknown> = {
+      'operations.$.status': input.status,
+      'operations.$.step': input.step,
+      'operations.$.completedAt': completedAt,
+    };
+    if (input.error !== undefined) operationSet['operations.$.error'] = input.error;
+    if (input.releaseId !== undefined) operationSet['operations.$.releaseId'] = input.releaseId;
+    if (input.commitSha !== undefined) operationSet['operations.$.commitSha'] = input.commitSha;
+    if (input.logs !== undefined) {
+      operationSet['operations.$.logs'] = input.logs.slice(-MAX_OPERATION_LOGS);
+    }
+
+    const result = await ManagedApp.updateOne(
+      {
+        _id: app._id,
+        operations: { $elemMatch: { id: operationId, status: 'running' } },
+      },
+      { $set: operationSet }
+    );
+    if (result.modifiedCount !== 1) return false;
+  }
+
   operation.status = input.status;
   operation.step = input.step;
-  operation.completedAt = new Date();
+  operation.completedAt = completedAt;
   operation.error = input.error;
   operation.releaseId = input.releaseId ?? operation.releaseId;
   operation.commitSha = input.commitSha ?? operation.commitSha;
   operation.logs = input.logs ? input.logs.slice(-MAX_OPERATION_LOGS) : operation.logs;
-  await app.save();
+  if (operation.type !== 'update') await app.save();
+  return true;
+}
+
+async function currentUpdateResult(appId: string, fallbackReleaseId?: string) {
+  const latestApp = await ManagedApp.findById(appId);
+  if (!latestApp) throw new Error('App not found');
+  const latestOperation = latestApp.operations
+    ?.filter((operation) => operation.type === 'update')
+    .at(-1);
+  return {
+    releaseId: latestApp.currentReleaseId ?? fallbackReleaseId ?? '',
+    status: 'failed' as const,
+    logs: latestOperation?.logs ?? [],
+    error: latestOperation?.error ?? 'Update operation already completed',
+    app: mapManagedAppToDTO(latestApp),
+  };
 }
 
 async function pathExists(target: string): Promise<boolean> {
@@ -940,137 +1096,155 @@ export async function updateManagedGitApp(
     title: trigger === 'auto' ? 'Auto update' : 'Manual update',
     step: 'Checking upstream repository',
   });
-  let source: Awaited<ReturnType<typeof prepareSource>>;
+  const timeoutController = new AbortController();
+  const timeout = setTimeout(() => {
+    timeoutController.abort(new Error(APP_UPDATE_TIMEOUT_ERROR));
+  }, APP_UPDATE_TIMEOUT_MS);
   try {
-    source = await prepareSource(app, true);
-    for (const entry of source.logs) {
-      await appendAppOperationLog(app, operationId, entry);
+    let source: Awaited<ReturnType<typeof prepareSource>>;
+    try {
+      source = await prepareSource(app, true, timeoutController.signal);
+      for (const entry of source.logs) {
+        await appendAppOperationLog(app, operationId, entry);
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Git update failed';
+      app.autoUpdate = {
+        ...app.autoUpdate,
+        lastRunAt: now,
+        lastStatus: 'failed',
+        lastError: message,
+        nextRunAt: app.autoUpdate?.enabled
+          ? nextAutoUpdateRun(app.autoUpdate.intervalMinutes, now)
+          : undefined,
+      };
+      const completed = await completeAppOperation(app, operationId, {
+        status: 'failed',
+        step: message === APP_UPDATE_TIMEOUT_ERROR ? APP_UPDATE_TIMEOUT_STEP : 'Git update failed',
+        error: message,
+        logs: [message],
+      });
+      if (!completed) return currentUpdateResult(appId, app.currentReleaseId);
+      await app.save();
+      throw error;
     }
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Git update failed';
-    app.autoUpdate = {
-      ...app.autoUpdate,
-      lastRunAt: now,
-      lastStatus: 'failed',
-      lastError: message,
-      nextRunAt: app.autoUpdate?.enabled
-        ? nextAutoUpdateRun(app.autoUpdate.intervalMinutes, now)
-        : undefined,
-    };
-    await completeAppOperation(app, operationId, {
-      status: 'failed',
-      step: 'Git update failed',
-      error: message,
-      logs: [message],
-    });
-    await app.save();
-    throw error;
-  }
-  app.gitCurrentSha = source.currentSha;
-  app.gitLastCheckedAt = now;
+    app.gitCurrentSha = source.currentSha;
+    app.gitLastCheckedAt = now;
 
-  if (!source.changed && app.currentReleaseId) {
-    app.autoUpdate = {
-      ...app.autoUpdate,
-      lastRunAt: now,
-      lastStatus: 'unchanged',
-      lastError: undefined,
-      nextRunAt: app.autoUpdate?.enabled
-        ? nextAutoUpdateRun(app.autoUpdate.intervalMinutes, now)
-        : undefined,
-    };
-    await completeAppOperation(app, operationId, {
-      status: 'unchanged',
-      step: 'No upstream changes found',
-      logs: [...source.logs, 'No upstream changes found.'],
-      releaseId: app.currentReleaseId,
-      commitSha: source.currentSha,
-    });
+    if (!source.changed && app.currentReleaseId) {
+      app.autoUpdate = {
+        ...app.autoUpdate,
+        lastRunAt: now,
+        lastStatus: 'unchanged',
+        lastError: undefined,
+        nextRunAt: app.autoUpdate?.enabled
+          ? nextAutoUpdateRun(app.autoUpdate.intervalMinutes, now)
+          : undefined,
+      };
+      const completed = await completeAppOperation(app, operationId, {
+        status: 'unchanged',
+        step: 'No upstream changes found',
+        logs: [...source.logs, 'No upstream changes found.'],
+        releaseId: app.currentReleaseId,
+        commitSha: source.currentSha,
+      });
+      if (!completed) return currentUpdateResult(appId, app.currentReleaseId);
+      await app.save();
+      return {
+        releaseId: app.currentReleaseId,
+        status: 'unchanged' as const,
+        logs: [...source.logs, 'No upstream changes found.'],
+        app: mapManagedAppToDTO(app),
+      };
+    }
+
+    const previousStatus = app.status;
+    const previousReleaseId = app.currentReleaseId;
+    if (!previousReleaseId) {
+      app.status = 'deploying';
+      await app.save();
+    }
+
+    const result = await deployPreparedApp(
+      app,
+      source.sourcePath,
+      (entry) => appendAppOperationLog(app, operationId, entry),
+      timeoutController.signal
+    );
+    result.logs.unshift(...source.logs);
+    const completedAt = new Date();
+    app.gitCurrentSha = source.currentSha;
+    app.gitLastUpdatedAt = completedAt;
+
+    if (result.status === 'active') {
+      app.releases = app.releases.map((release) =>
+        release.status === 'active' ? { ...release, status: 'superseded' } : release
+      );
+      app.currentReleaseId = result.releaseId;
+      app.status = 'running';
+      app.lastDeployedAt = completedAt;
+      app.releases.push({
+        id: result.releaseId,
+        status: 'active',
+        createdAt: completedAt,
+        activatedAt: completedAt,
+        logs: result.logs,
+      });
+      app.autoUpdate = {
+        ...app.autoUpdate,
+        lastRunAt: completedAt,
+        lastStatus: 'updated',
+        lastError: undefined,
+        nextRunAt: app.autoUpdate?.enabled
+          ? nextAutoUpdateRun(app.autoUpdate.intervalMinutes, completedAt)
+          : undefined,
+      };
+      const completed = await completeAppOperation(app, operationId, {
+        status: 'succeeded',
+        step: 'Update deployed',
+        logs: result.logs,
+        releaseId: result.releaseId,
+        commitSha: source.currentSha,
+      });
+      if (!completed) return currentUpdateResult(appId, previousReleaseId);
+    } else {
+      app.status = previousReleaseId ? previousStatus : 'failed';
+      app.releases.push({
+        id: result.releaseId,
+        status: 'failed',
+        createdAt: completedAt,
+        error: result.error,
+        logs: result.logs,
+      });
+      app.autoUpdate = {
+        ...app.autoUpdate,
+        lastRunAt: completedAt,
+        lastStatus: 'failed',
+        lastError: result.error,
+        nextRunAt: app.autoUpdate?.enabled
+          ? nextAutoUpdateRun(app.autoUpdate.intervalMinutes, completedAt)
+          : undefined,
+      };
+      const completed = await completeAppOperation(app, operationId, {
+        status: 'failed',
+        step:
+          result.error === APP_UPDATE_TIMEOUT_ERROR
+            ? APP_UPDATE_TIMEOUT_STEP
+            : 'Update deployment failed',
+        logs: result.logs,
+        error: result.error,
+        releaseId: result.releaseId,
+        commitSha: source.currentSha,
+      });
+      if (!completed) return currentUpdateResult(appId, previousReleaseId);
+    }
+
     await app.save();
     return {
-      releaseId: app.currentReleaseId,
-      status: 'unchanged' as const,
-      logs: [...source.logs, 'No upstream changes found.'],
+      ...result,
       app: mapManagedAppToDTO(app),
     };
+  } finally {
+    clearTimeout(timeout);
   }
-
-  const previousStatus = app.status;
-  const previousReleaseId = app.currentReleaseId;
-  if (!previousReleaseId) {
-    app.status = 'deploying';
-    await app.save();
-  }
-
-  const result = await deployPreparedApp(app, source.sourcePath, (entry) =>
-    appendAppOperationLog(app, operationId, entry)
-  );
-  result.logs.unshift(...source.logs);
-  const completedAt = new Date();
-  app.gitCurrentSha = source.currentSha;
-  app.gitLastUpdatedAt = completedAt;
-
-  if (result.status === 'active') {
-    app.releases = app.releases.map((release) =>
-      release.status === 'active' ? { ...release, status: 'superseded' } : release
-    );
-    app.currentReleaseId = result.releaseId;
-    app.status = 'running';
-    app.lastDeployedAt = completedAt;
-    app.releases.push({
-      id: result.releaseId,
-      status: 'active',
-      createdAt: completedAt,
-      activatedAt: completedAt,
-      logs: result.logs,
-    });
-    app.autoUpdate = {
-      ...app.autoUpdate,
-      lastRunAt: completedAt,
-      lastStatus: 'updated',
-      lastError: undefined,
-      nextRunAt: app.autoUpdate?.enabled
-        ? nextAutoUpdateRun(app.autoUpdate.intervalMinutes, completedAt)
-        : undefined,
-    };
-    await completeAppOperation(app, operationId, {
-      status: 'succeeded',
-      step: 'Update deployed',
-      logs: result.logs,
-      releaseId: result.releaseId,
-      commitSha: source.currentSha,
-    });
-  } else {
-    app.status = previousReleaseId ? previousStatus : 'failed';
-    app.releases.push({
-      id: result.releaseId,
-      status: 'failed',
-      createdAt: completedAt,
-      error: result.error,
-      logs: result.logs,
-    });
-    app.autoUpdate = {
-      ...app.autoUpdate,
-      lastRunAt: completedAt,
-      lastStatus: 'failed',
-      lastError: result.error,
-      nextRunAt: app.autoUpdate?.enabled
-        ? nextAutoUpdateRun(app.autoUpdate.intervalMinutes, completedAt)
-        : undefined,
-    };
-    await completeAppOperation(app, operationId, {
-      status: 'failed',
-      step: 'Update deployment failed',
-      logs: result.logs,
-      error: result.error,
-      releaseId: result.releaseId,
-      commitSha: source.currentSha,
-    });
-  }
-
-  await app.save();
-  return {
-    ...result,
-    app: mapManagedAppToDTO(app),
-  };
 }

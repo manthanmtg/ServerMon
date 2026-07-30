@@ -111,4 +111,29 @@ describe('apps git helpers', () => {
       changed: true,
     });
   });
+
+  it('passes abort signals to git command runner calls', async () => {
+    const controller = new AbortController();
+    const signals: Array<AbortSignal | undefined> = [];
+
+    await prepareGitSourceForDeploy({
+      repoUrl: 'https://github.com/acme/app.git',
+      branch: 'main',
+      repositoryPath: '/srv/servermon-apps/app/repository',
+      updateToRemote: false,
+      pathExists: async () => true,
+      signal: controller.signal,
+      commandRunner: async ({ command, signal }) => {
+        signals.push(signal);
+        if (command === 'git config --get remote.origin.url') {
+          return { code: 0, output: 'https://github.com/acme/app.git\n' };
+        }
+        if (command === 'git rev-parse HEAD') return { code: 0, output: 'abc123\n' };
+        return { code: 0, output: 'abc123\trefs/heads/main\n' };
+      },
+    });
+
+    expect(signals.length).toBeGreaterThan(0);
+    expect(signals.every((signal) => signal === controller.signal)).toBe(true);
+  });
 });
