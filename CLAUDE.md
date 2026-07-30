@@ -191,7 +191,8 @@ Concise map of major directories, commands, and key files. Update this section w
 - `e2e/` — Playwright end-to-end specs
 - `scripts/` — CLI helper scripts (installers, updates, macOS launchd, releases)
 - `public/` — static assets
-- `docs/` — plans and reference docs (superpowers plans/specs live under `docs/superpowers/`)
+- `docs/` — plans and reference docs (`docs/FUTURE_PLANS.md` is the prioritized
+  improvement roadmap; superpowers plans/specs live under `docs/superpowers/`)
 - `module_ideas/` — product specs per module (e.g. `fleet_management.md`)
 - `prompts/`, `manual_prompts/`, `issues_to_look/` — autonomous run prompts, prompt observability metadata (`prompts/prompts_metadata.json`), manual prompts, and investigation notes
 - `CLAUDE.md`, `README.md`, `PRD.md`, `DEPLOY.md`, `AGENTS.md`, `GO_LIVE.md` — project docs
