@@ -1,8 +1,14 @@
 import { NextResponse } from 'next/server';
 import { z, ZodError } from 'zod';
 import { createLogger } from '@/lib/logger';
-import { rollbackManagedApp } from '@/lib/apps/service';
-import { getSession } from '@/lib/session';
+import { enqueueAppOperation } from '@/lib/apps/application/enqueue-operation';
+import { ActiveAppOperationError } from '@/lib/apps/repositories/operation-repository';
+import {
+  acceptedCompatibilityOperationResponse,
+  requestedByFromSession,
+  requireAppsAdminSession,
+  unauthorizedResponse,
+} from '../../operation-route-helpers';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,11 +16,6 @@ const log = createLogger('api:apps:rollback');
 const RollbackSchema = z.object({
   releaseId: z.string().trim().min(1),
 });
-
-async function requireAdmin() {
-  const session = (await getSession()) as { user?: { role?: string } } | null;
-  return Boolean(session?.user?.role === 'admin');
-}
 
 function badRequest(error: unknown) {
   const message =
@@ -26,22 +27,26 @@ function badRequest(error: unknown) {
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    if (!(await requireAdmin())) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const session = await requireAppsAdminSession();
+    if (!session) return unauthorizedResponse();
 
     const parsed = RollbackSchema.safeParse(await request.json());
     if (!parsed.success) return badRequest(parsed.error);
 
     const { id } = await params;
-    const result = await rollbackManagedApp(id, parsed.data.releaseId);
-    return NextResponse.json(
-      { rollback: result },
-      { status: result.status === 'active' ? 200 : 500 }
-    );
+    const result = await enqueueAppOperation({
+      appId: id,
+      type: 'rollback',
+      targetReleaseId: parsed.data.releaseId,
+      requestedBy: requestedByFromSession(session),
+    });
+    return acceptedCompatibilityOperationResponse('rollback', result);
   } catch (error: unknown) {
     if (error instanceof ZodError) return badRequest(error);
     const message = error instanceof Error ? error.message : 'Failed to roll back app';
+    if (error instanceof ActiveAppOperationError) {
+      return NextResponse.json({ error: message }, { status: 409 });
+    }
     log.error('Failed to roll back app', { error: message });
     return NextResponse.json({ error: message }, { status: 500 });
   }

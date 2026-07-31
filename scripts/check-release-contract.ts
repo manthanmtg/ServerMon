@@ -297,6 +297,29 @@ function checkReleaseHelperContract(): void {
   requireContains(script, 'git push "$REMOTE" "$TAG"', 'release helper must push release tag');
 }
 
+function checkAppsWorkerContract(): void {
+  requireContains(
+    'package.json',
+    '"apps:worker": "NODE_ENV=production tsx src/workers/apps-worker.ts"',
+    'package script must expose Apps worker entry point'
+  );
+  requireContains(
+    'src/workers/apps-worker.ts',
+    'startAppsWorkerRunner',
+    'Apps worker entry point must start the queue runner'
+  );
+  requireContains(
+    'scripts/servermon-apps-worker.service',
+    'Description=ServerMon Apps deployment worker',
+    'Apps worker systemd unit must be packaged'
+  );
+  requireContains(
+    'scripts/servermon-apps-worker.service',
+    'ExecStart=/usr/local/bin/pnpm apps:worker',
+    'Apps worker systemd unit must run the package script'
+  );
+}
+
 function checkTestsCoverContracts(): void {
   requireContains(
     'src/lib/fleet/install-script.test.ts',
@@ -326,6 +349,7 @@ checkAgentUpdateContract();
 checkServerMonInstallUpdateContract();
 checkCiHardening();
 checkReleaseHelperContract();
+checkAppsWorkerContract();
 checkTestsCoverContracts();
 
 if (failures.length > 0) {

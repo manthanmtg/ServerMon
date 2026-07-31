@@ -1,0 +1,20 @@
+[Unit]
+Description=ServerMon Apps deployment worker
+After=network.target mongod.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=servermon
+Group=servermon
+WorkingDirectory=/opt/servermon
+EnvironmentFile=/etc/servermon/env
+ExecStart=/usr/local/bin/pnpm apps:worker
+Restart=always
+RestartSec=5
+KillMode=control-group
+KillSignal=SIGTERM
+TimeoutStopSec=45
+
+[Install]
+WantedBy=multi-user.target

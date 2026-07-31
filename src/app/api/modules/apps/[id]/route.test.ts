@@ -1,11 +1,13 @@
 /** @vitest-environment node */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { mockGetSession, mockDeleteManagedApp, mockUpdateManagedApp } = vi.hoisted(() => ({
-  mockGetSession: vi.fn(),
-  mockDeleteManagedApp: vi.fn(),
-  mockUpdateManagedApp: vi.fn(),
-}));
+const { mockGetSession, mockDeleteManagedApp, mockEnqueueAppOperation, mockUpdateManagedApp } =
+  vi.hoisted(() => ({
+    mockGetSession: vi.fn(),
+    mockDeleteManagedApp: vi.fn(),
+    mockEnqueueAppOperation: vi.fn(),
+    mockUpdateManagedApp: vi.fn(),
+  }));
 
 vi.mock('@/lib/session', () => ({ getSession: mockGetSession }));
 vi.mock('@/lib/apps/service', async (importOriginal) => {
@@ -16,6 +18,9 @@ vi.mock('@/lib/apps/service', async (importOriginal) => {
     updateManagedApp: mockUpdateManagedApp,
   };
 });
+vi.mock('@/lib/apps/application/enqueue-operation', () => ({
+  enqueueAppOperation: mockEnqueueAppOperation,
+}));
 vi.mock('@/lib/logger', () => ({
   createLogger: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }),
 }));
@@ -46,18 +51,37 @@ describe('/api/modules/apps/[id]', () => {
     expect(mockDeleteManagedApp).not.toHaveBeenCalled();
   });
 
-  it('deletes a managed app for admins', async () => {
-    mockGetSession.mockResolvedValue({ user: { role: 'admin' } });
-    mockDeleteManagedApp.mockResolvedValue({ id: 'app-1', logs: ['Removed managed app root'] });
+  it('enqueues managed app deletion for admins', async () => {
+    mockGetSession.mockResolvedValue({ user: { id: 'user-1', username: 'root', role: 'admin' } });
+    mockEnqueueAppOperation.mockResolvedValue({
+      operation: {
+        id: 'op_1',
+        appId: 'app-1',
+        type: 'delete',
+        status: 'queued',
+        phase: 'queued',
+        createdAt: '2026-07-31T05:00:00.000Z',
+      },
+      links: {
+        self: '/api/modules/apps/operations/op_1',
+        events: '/api/modules/apps/operations/op_1/events',
+        cancel: '/api/modules/apps/operations/op_1/cancel',
+      },
+    });
 
     const res = await DELETE(new Request('http://localhost'), {
       params: Promise.resolve({ id: 'app-1' }),
     });
 
-    expect(res.status).toBe(200);
-    expect(mockDeleteManagedApp).toHaveBeenCalledWith('app-1');
+    expect(res.status).toBe(202);
+    expect(mockDeleteManagedApp).not.toHaveBeenCalled();
+    expect(mockEnqueueAppOperation).toHaveBeenCalledWith({
+      appId: 'app-1',
+      type: 'delete',
+      requestedBy: { userId: 'user-1', username: 'root', role: 'admin' },
+    });
     await expect(res.json()).resolves.toEqual({
-      deletion: { id: 'app-1', logs: ['Removed managed app root'] },
+      deletion: { operationId: 'op_1', status: 'queued', phase: 'queued' },
     });
   });
 

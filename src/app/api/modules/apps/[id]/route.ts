@@ -2,12 +2,19 @@ import { NextResponse } from 'next/server';
 import { ZodError } from 'zod';
 import { createLogger } from '@/lib/logger';
 import { getSession } from '@/lib/session';
+import { enqueueAppOperation } from '@/lib/apps/application/enqueue-operation';
+import { ActiveAppOperationError } from '@/lib/apps/repositories/operation-repository';
 import {
   UpdateManagedAppSchema,
-  deleteManagedApp,
   getConfiguredPublicIp,
   updateManagedApp,
 } from '@/lib/apps/service';
+import {
+  acceptedCompatibilityOperationResponse,
+  requestedByFromSession,
+  requireAppsAdminSession,
+  unauthorizedResponse,
+} from '../operation-route-helpers';
 
 export const dynamic = 'force-dynamic';
 
@@ -48,15 +55,21 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
 export async function DELETE(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    if (!(await requireAdmin())) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const session = await requireAppsAdminSession();
+    if (!session) return unauthorizedResponse();
 
     const { id } = await params;
-    const result = await deleteManagedApp(id);
-    return NextResponse.json({ deletion: result });
+    const result = await enqueueAppOperation({
+      appId: id,
+      type: 'delete',
+      requestedBy: requestedByFromSession(session),
+    });
+    return acceptedCompatibilityOperationResponse('deletion', result);
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Failed to delete app';
+    if (error instanceof ActiveAppOperationError) {
+      return NextResponse.json({ error: message }, { status: 409 });
+    }
     log.error('Failed to delete app', { error: message });
     return NextResponse.json({ error: message }, { status: 500 });
   }

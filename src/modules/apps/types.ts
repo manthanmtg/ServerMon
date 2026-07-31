@@ -5,6 +5,30 @@ export type AppSourceType = 'local' | 'git';
 export type AppAutoUpdateStatus = 'idle' | 'updated' | 'unchanged' | 'failed';
 export type AppOperationType = 'deploy' | 'update' | 'rollback' | 'delete';
 export type AppOperationStatus = 'running' | 'succeeded' | 'failed' | 'unchanged';
+export type AppExecutionEngine = 'legacy' | 'v2';
+export type AppV2OperationStatus =
+  | 'queued'
+  | 'running'
+  | 'cancel_requested'
+  | 'succeeded'
+  | 'failed'
+  | 'cancelled'
+  | 'unchanged';
+export type AppV2OperationPhase =
+  | 'queued'
+  | 'claiming'
+  | 'preflight'
+  | 'source'
+  | 'install'
+  | 'build'
+  | 'stage'
+  | 'activate'
+  | 'health'
+  | 'routing'
+  | 'tls'
+  | 'finalize'
+  | 'cleanup'
+  | 'terminal';
 
 export interface AppCommands {
   install: string;
@@ -34,6 +58,40 @@ export interface AppOperation {
   commitSha?: string;
   error?: string;
   logs: string[];
+}
+
+export interface AcceptedAppOperation {
+  id: string;
+  appId: string;
+  type: AppOperationType;
+  status: AppV2OperationStatus;
+  phase: AppV2OperationPhase;
+  createdAt: string;
+  startedAt?: string;
+  completedAt?: string;
+  workerId?: string;
+  error?: string;
+}
+
+export interface AppOperationEventDTO {
+  operationId: string;
+  appId: string;
+  sequence: number;
+  type: 'created' | 'progress' | 'log' | 'warning' | 'error' | 'status';
+  status?: AppV2OperationStatus;
+  phase?: AppV2OperationPhase;
+  message: string;
+  details?: Record<string, unknown>;
+  createdAt: string;
+}
+
+export interface EnqueuedAppOperationResponse {
+  operation: AcceptedAppOperation;
+  links: {
+    self: string;
+    events: string;
+    cancel: string;
+  };
 }
 
 export interface AppLogEntry {

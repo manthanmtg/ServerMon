@@ -103,6 +103,8 @@ interface AppsPageViewModel<TApp extends AppsPageViewModelInput> {
 interface ActionResult {
   status?: string;
   releaseId?: string;
+  operationId?: string;
+  phase?: string;
   error?: string;
   logs: string[];
 }
@@ -349,6 +351,8 @@ function readActionResult(payload: unknown, key: string): ActionResult | null {
   return {
     status: typeof result.status === 'string' ? result.status : undefined,
     releaseId: typeof result.releaseId === 'string' ? result.releaseId : undefined,
+    operationId: typeof result.operationId === 'string' ? result.operationId : undefined,
+    phase: typeof result.phase === 'string' ? result.phase : undefined,
     error: typeof result.error === 'string' ? result.error : undefined,
     logs: Array.isArray(result.logs)
       ? result.logs.filter((line): line is string => typeof line === 'string')
@@ -357,6 +361,13 @@ function readActionResult(payload: unknown, key: string): ActionResult | null {
 }
 
 function updateNoticeFor(appName: string, result: ActionResult | null): ActionNotice {
+  if (result?.operationId && (result.status === 'queued' || result.status === 'running')) {
+    return {
+      tone: 'info',
+      title: `${appName} update queued.`,
+      detail: `Operation ${result.operationId} is ${result.phase ?? result.status}.`,
+    };
+  }
   if (result?.status === 'unchanged') {
     return {
       tone: 'info',
@@ -508,7 +519,10 @@ export default function AppsPage() {
 
   useEffect(() => {
     if (!updateLogAutoscroll || (!updatingId && activeOperations === 0)) return;
-    liveUpdateLogEndRef.current?.scrollIntoView({ block: 'end' });
+    const scrollIntoView = liveUpdateLogEndRef.current?.scrollIntoView;
+    if (typeof scrollIntoView === 'function') {
+      scrollIntoView.call(liveUpdateLogEndRef.current, { block: 'end' });
+    }
   }, [activeOperations, liveUpdateLogCount, liveUpdateStep, updateLogAutoscroll, updatingId]);
 
   const updateForm = <K extends keyof FormState>(key: K, value: FormState[K]) => {
@@ -1186,7 +1200,7 @@ export default function AppsPage() {
                         }}
                         loading={updateInProgress}
                       >
-                        <RefreshCw className="h-3.5 w-3.5" />
+                        {!updateInProgress && <RefreshCw className="h-3.5 w-3.5" />}
                         Update
                       </Button>
                     )}
@@ -1196,7 +1210,7 @@ export default function AppsPage() {
                       onClick={() => deployApp(app.id)}
                       loading={deployingId === app.id}
                     >
-                      <Play className="h-3.5 w-3.5" />
+                      {deployingId !== app.id && <Play className="h-3.5 w-3.5" />}
                       Deploy
                     </Button>
                     <Button

@@ -2,6 +2,7 @@ import mongoose, { Document, Model, Schema } from 'mongoose';
 import type {
   AppAutoUpdateStatus,
   AppCommands,
+  AppExecutionEngine,
   AppOperation,
   AppRelease,
   AppSourceType,
@@ -36,7 +37,13 @@ export interface IManagedApp extends Document {
   healthCheckPath: string;
   tlsEnabled: boolean;
   status: ManagedAppStatus;
+  configVersion: number;
+  executionEngine: AppExecutionEngine;
   currentReleaseId?: string;
+  activeReleaseId?: string;
+  deletingAt?: Date;
+  deletedAt?: Date;
+  migrationVersion: number;
   operations: Array<
     Omit<AppOperation, 'startedAt' | 'deadlineAt' | 'completedAt'> & {
       startedAt: Date;
@@ -144,7 +151,19 @@ const ManagedAppSchema = new Schema<IManagedApp>(
       default: 'draft',
       index: true,
     },
+    configVersion: { type: Number, required: true, default: 1, min: 1 },
+    executionEngine: {
+      type: String,
+      enum: ['legacy', 'v2'],
+      required: true,
+      default: 'legacy',
+      index: true,
+    },
     currentReleaseId: { type: String },
+    activeReleaseId: { type: String },
+    deletingAt: { type: Date },
+    deletedAt: { type: Date },
+    migrationVersion: { type: Number, required: true, default: 0, min: 0 },
     releases: { type: [ReleaseSchema], default: [] },
     operations: { type: [OperationSchema], default: [] },
     lastDeployedAt: { type: Date },

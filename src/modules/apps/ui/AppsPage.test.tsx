@@ -442,6 +442,7 @@ describe('AppsPage', () => {
     const updateButton = screen.getByRole('button', { name: /update/i });
     expect((updateButton as HTMLButtonElement).disabled).toBe(true);
     expect(updateButton.querySelector('.animate-spin')).toBeTruthy();
+    expect(updateButton.querySelectorAll('svg')).toHaveLength(0);
 
     fireEvent.click(updateButton);
     expect(global.fetch).toHaveBeenCalledTimes(1);
@@ -605,6 +606,80 @@ describe('AppsPage', () => {
     expect(screen.getByText('Last result')).toBeTruthy();
     expect(screen.getAllByText('Unchanged').length).toBeGreaterThan(0);
     expect(screen.getByText('Next check')).toBeTruthy();
+  });
+
+  it('shows a queued notice when update returns an accepted operation summary', async () => {
+    const appBeforeUpdate = {
+      id: 'app-1',
+      name: 'Git Portal',
+      slug: 'git-portal',
+      templateId: 'nextjs',
+      sourceType: 'git',
+      git: {
+        url: 'https://github.com/acme/git-portal.git',
+        branch: 'main',
+        currentSha: 'abcdef123456',
+        autoUpdate: {
+          enabled: true,
+          intervalMinutes: 60,
+        },
+      },
+      domain: 'git.example.com',
+      port: 3010,
+      commands: {
+        install: 'pnpm install --frozen-lockfile',
+        build: 'pnpm build',
+        start: 'pnpm start',
+      },
+      envVars: {},
+      healthCheckPath: '/',
+      tlsEnabled: false,
+      status: 'running',
+      operations: [],
+      releases: [],
+    };
+    const appAfterUpdate = {
+      ...appBeforeUpdate,
+      operations: [
+        {
+          id: 'op_1',
+          type: 'update',
+          status: 'running',
+          title: 'Manual update',
+          step: 'Queued',
+          startedAt: '2026-07-31T05:00:00.000Z',
+          logs: ['Operation queued'],
+        },
+      ],
+    };
+    global.fetch = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ apps: [appBeforeUpdate] }),
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          update: {
+            operationId: 'op_1',
+            status: 'queued',
+            phase: 'queued',
+          },
+        }),
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ apps: [appAfterUpdate] }),
+      } as Response);
+
+    render(<AppsPage />);
+    await screen.findByText('Git Portal');
+
+    fireEvent.click(screen.getByRole('button', { name: /update/i }));
+
+    expect(await screen.findByText('Git Portal update queued.')).toBeTruthy();
+    expect(screen.getByText('Operation op_1 is queued.')).toBeTruthy();
   });
 
   it('polls and autoscrolls live update operation logs while an update is running', async () => {

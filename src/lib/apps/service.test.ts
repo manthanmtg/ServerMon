@@ -260,6 +260,63 @@ describe('apps service helpers', () => {
     });
   });
 
+  it('maps active v2 operations into legacy operation rows during migration', () => {
+    const dto = mapManagedAppToDTO(
+      {
+        _id: { toString: () => 'app-id' },
+        name: 'LifeOS',
+        slug: 'lifeos',
+        templateId: 'nextjs',
+        sourceType: 'git',
+        gitUrl: 'https://github.com/acme/lifeos.git',
+        gitBranch: 'main',
+        domain: 'app.example.com',
+        port: 3010,
+        commands: { install: 'pnpm install', build: 'pnpm build', start: 'pnpm start' },
+        envVars: new Map(),
+        healthCheckPath: '/',
+        tlsEnabled: false,
+        status: 'running',
+        releases: [],
+        operations: [],
+        autoUpdate: {
+          enabled: true,
+          intervalMinutes: 60,
+        },
+      },
+      undefined,
+      undefined,
+      [
+        {
+          operationId: 'op_1',
+          appId: 'app-id',
+          type: 'update',
+          status: 'queued',
+          phase: 'queued',
+          title: 'Manual update',
+          createdAt: new Date('2026-07-31T05:00:00.000Z'),
+        },
+      ]
+    );
+
+    expect(dto.operations).toEqual([
+      {
+        id: 'op_1',
+        type: 'update',
+        status: 'running',
+        title: 'Manual update',
+        step: 'queued',
+        startedAt: '2026-07-31T05:00:00.000Z',
+        deadlineAt: undefined,
+        completedAt: undefined,
+        releaseId: undefined,
+        commitSha: undefined,
+        error: undefined,
+        logs: ['Operation queued in Apps worker'],
+      },
+    ]);
+  });
+
   it('deletes all managed host resources for an app', async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), 'servermon-delete-app-'));
     tempDirs.push(root);

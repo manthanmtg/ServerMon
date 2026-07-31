@@ -6,6 +6,7 @@
     "dev": "tsx watch src/server.ts",
     "build": "NODE_OPTIONS=--max-old-space-size=4096 next build",
     "start": "NODE_ENV=production tsx src/server.ts",
+    "apps:worker": "NODE_ENV=production tsx src/workers/apps-worker.ts",
     "lint": "eslint src/",
     "lint:fix": "eslint src/ --fix",
     "typecheck": "NODE_OPTIONS=--max-old-space-size=4096 tsc --noEmit",

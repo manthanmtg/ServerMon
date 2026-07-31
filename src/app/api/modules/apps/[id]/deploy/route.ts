@@ -1,31 +1,35 @@
 import { NextResponse } from 'next/server';
 import { createLogger } from '@/lib/logger';
-import { getSession } from '@/lib/session';
-import { deployManagedApp } from '@/lib/apps/service';
+import { enqueueAppOperation } from '@/lib/apps/application/enqueue-operation';
+import { ActiveAppOperationError } from '@/lib/apps/repositories/operation-repository';
+import {
+  acceptedCompatibilityOperationResponse,
+  requestedByFromSession,
+  requireAppsAdminSession,
+  unauthorizedResponse,
+} from '../../operation-route-helpers';
 
 export const dynamic = 'force-dynamic';
 
 const log = createLogger('api:apps:deploy');
 
-async function requireAdmin() {
-  const session = (await getSession()) as { user?: { role?: string } } | null;
-  return Boolean(session?.user?.role === 'admin');
-}
-
 export async function POST(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    if (!(await requireAdmin())) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const session = await requireAppsAdminSession();
+    if (!session) return unauthorizedResponse();
 
     const { id } = await params;
-    const result = await deployManagedApp(id);
-    return NextResponse.json(
-      { deployment: result },
-      { status: result.status === 'active' ? 200 : 500 }
-    );
+    const result = await enqueueAppOperation({
+      appId: id,
+      type: 'deploy',
+      requestedBy: requestedByFromSession(session),
+    });
+    return acceptedCompatibilityOperationResponse('deployment', result);
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Failed to deploy app';
+    if (error instanceof ActiveAppOperationError) {
+      return NextResponse.json({ error: message }, { status: 409 });
+    }
     log.error('Failed to deploy app', { error: message });
     return NextResponse.json({ error: message }, { status: 500 });
   }

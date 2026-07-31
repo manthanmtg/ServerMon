@@ -3,12 +3,15 @@ import { isIP } from 'node:net';
 import { access, readlink, rename, rm, symlink } from 'node:fs/promises';
 import path from 'node:path';
 import connectDB from '@/lib/db';
+import AppOperationModel from '@/models/AppOperation';
 import ManagedApp, { type IManagedApp } from '@/models/ManagedApp';
 import type {
   AppAutoUpdate,
   AppOperation,
   AppOperationStatus,
   AppOperationType,
+  AppV2OperationPhase,
+  AppV2OperationStatus,
   AppRuntimeSnapshot,
   AppTemplate,
   CreateManagedAppInput,
@@ -250,6 +253,21 @@ interface ManagedAppDTORecord {
   lastDeployedAt?: Date | string;
 }
 
+interface ActiveAppOperationDTORecord {
+  operationId: string;
+  appId: { toString: () => string } | string;
+  type: AppOperationType;
+  status: AppV2OperationStatus;
+  phase: AppV2OperationPhase;
+  title?: string;
+  createdAt?: Date | string;
+  startedAt?: Date | string;
+  completedAt?: Date | string;
+  releaseId?: string;
+  commitSha?: string;
+  error?: { message?: string } | string;
+}
+
 function mapAutoUpdate(value: ManagedAppDTORecord['autoUpdate']): AppAutoUpdate {
   return {
     enabled: Boolean(value?.enabled),
@@ -278,10 +296,36 @@ function mapOperations(operations?: ManagedAppDTORecord['operations']): AppOpera
   }));
 }
 
+function mapV2StatusToLegacyStatus(status: AppV2OperationStatus): AppOperationStatus {
+  if (status === 'succeeded' || status === 'failed' || status === 'unchanged') return status;
+  return 'running';
+}
+
+function mapActiveV2Operation(operation: ActiveAppOperationDTORecord): AppOperation {
+  const error = typeof operation.error === 'string' ? operation.error : operation.error?.message;
+  const step = operation.phase;
+
+  return {
+    id: operation.operationId,
+    type: operation.type,
+    status: mapV2StatusToLegacyStatus(operation.status),
+    title: operation.title ?? `${operation.type[0]?.toUpperCase() ?? ''}${operation.type.slice(1)}`,
+    step,
+    startedAt:
+      toIsoDate(operation.startedAt) ?? toIsoDate(operation.createdAt) ?? new Date(0).toISOString(),
+    completedAt: toIsoDate(operation.completedAt),
+    releaseId: operation.releaseId,
+    commitSha: operation.commitSha,
+    error,
+    logs: [`Operation ${step} in Apps worker`],
+  };
+}
+
 export function mapManagedAppToDTO(
   app: ManagedAppDTORecord,
   publicIp?: string,
-  runtime?: AppRuntimeSnapshot
+  runtime?: AppRuntimeSnapshot,
+  activeOperations: ActiveAppOperationDTORecord[] = []
 ): ManagedAppDTO {
   const sourceType = app.sourceType ?? 'local';
   return {
@@ -319,7 +363,7 @@ export function mapManagedAppToDTO(
       error: release.error,
       logs: release.logs,
     })),
-    operations: mapOperations(app.operations),
+    operations: [...mapOperations(app.operations), ...activeOperations.map(mapActiveV2Operation)],
     dns: publicIp ? buildDnsInstructions(app.domain, publicIp) : undefined,
     createdAt: toIsoDate(app.createdAt),
     updatedAt: toIsoDate(app.updatedAt),
@@ -397,11 +441,24 @@ async function deployPreparedApp(
 
 export async function listManagedApps(publicIp?: string): Promise<ManagedAppDTO[]> {
   await connectDB();
-  const apps = await ManagedApp.find({}).sort({ updatedAt: -1 }).lean<IManagedApp[]>();
+  const [apps, activeOperations] = await Promise.all([
+    ManagedApp.find({}).sort({ updatedAt: -1 }).lean<IManagedApp[]>(),
+    AppOperationModel.find({ active: true }).lean<ActiveAppOperationDTORecord[]>(),
+  ]);
+  const activeOperationsByAppId = new Map<string, ActiveAppOperationDTORecord[]>();
+  for (const operation of activeOperations) {
+    const appId = operation.appId.toString();
+    activeOperationsByAppId.set(appId, [...(activeOperationsByAppId.get(appId) ?? []), operation]);
+  }
   return Promise.all(
     apps.map(async (app) => {
       const runtime = await getManagedAppRuntime({ slug: app.slug });
-      return mapManagedAppToDTO(app, publicIp, runtime);
+      return mapManagedAppToDTO(
+        app,
+        publicIp,
+        runtime,
+        activeOperationsByAppId.get(app._id.toString()) ?? []
+      );
     })
   );
 }
