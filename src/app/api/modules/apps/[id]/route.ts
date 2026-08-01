@@ -3,7 +3,6 @@ import { ZodError } from 'zod';
 import { createLogger } from '@/lib/logger';
 import { getSession } from '@/lib/session';
 import { enqueueAppOperation } from '@/lib/apps/application/enqueue-operation';
-import { ActiveAppOperationError } from '@/lib/apps/repositories/operation-repository';
 import {
   UpdateManagedAppSchema,
   getConfiguredPublicIp,
@@ -11,6 +10,7 @@ import {
 } from '@/lib/apps/service';
 import {
   acceptedCompatibilityOperationResponse,
+  appOperationErrorResponse,
   requestedByFromSession,
   requireAppsAdminSession,
   unauthorizedResponse,
@@ -67,9 +67,8 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
     return acceptedCompatibilityOperationResponse('deletion', result);
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Failed to delete app';
-    if (error instanceof ActiveAppOperationError) {
-      return NextResponse.json({ error: message }, { status: 409 });
-    }
+    const operationResponse = appOperationErrorResponse(error);
+    if (operationResponse) return operationResponse;
     log.error('Failed to delete app', { error: message });
     return NextResponse.json({ error: message }, { status: 500 });
   }

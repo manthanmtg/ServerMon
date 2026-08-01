@@ -68,6 +68,7 @@ export interface AcceptedAppOperation {
   phase: AppV2OperationPhase;
   createdAt: string;
   startedAt?: string;
+  deadlineAt?: string;
   completedAt?: string;
   workerId?: string;
   error?: string;

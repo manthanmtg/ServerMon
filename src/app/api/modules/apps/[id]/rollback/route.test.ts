@@ -9,14 +9,19 @@ const { mockGetSession, mockRollbackManagedApp, mockEnqueueAppOperation } = vi.h
 
 vi.mock('@/lib/session', () => ({ getSession: mockGetSession }));
 vi.mock('@/lib/apps/service', () => ({ rollbackManagedApp: mockRollbackManagedApp }));
-vi.mock('@/lib/apps/application/enqueue-operation', () => ({
-  enqueueAppOperation: mockEnqueueAppOperation,
-}));
+vi.mock('@/lib/apps/application/enqueue-operation', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/apps/application/enqueue-operation')>();
+  return { ...actual, enqueueAppOperation: mockEnqueueAppOperation };
+});
 vi.mock('@/lib/logger', () => ({
   createLogger: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }),
 }));
 
 import { POST } from './route';
+import {
+  APPS_WORKER_UNAVAILABLE_MESSAGE,
+  AppsWorkerUnavailableError,
+} from '@/lib/apps/application/enqueue-operation';
 
 function makeRequest(body: unknown): Request {
   return new Request('http://localhost/api/modules/apps/app-1/rollback', {
@@ -87,5 +92,17 @@ describe('/api/modules/apps/[id]/rollback', () => {
 
     expect(res.status).toBe(400);
     expect(mockEnqueueAppOperation).not.toHaveBeenCalled();
+  });
+
+  it('returns 503 when the Apps worker is unavailable', async () => {
+    mockGetSession.mockResolvedValue({ user: { role: 'admin' } });
+    mockEnqueueAppOperation.mockRejectedValue(new AppsWorkerUnavailableError('not_running'));
+
+    const res = await POST(makeRequest({ releaseId: 'release-1' }), {
+      params: Promise.resolve({ id: 'app-1' }),
+    });
+
+    expect(res.status).toBe(503);
+    await expect(res.json()).resolves.toEqual({ error: APPS_WORKER_UNAVAILABLE_MESSAGE });
   });
 });

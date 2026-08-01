@@ -1,11 +1,18 @@
 import AppOperation from '@/models/AppOperation';
+import { createLogger } from '@/lib/logger';
 import type {
   AcceptedAppOperation,
   AppOperationType,
   AppV2OperationPhase,
   AppV2OperationStatus,
 } from '@/modules/apps/types';
+import { APPS_OPERATION_LEASE_MS } from '../config';
 import { appendAppOperationEvent } from './operation-event-repository';
+
+const log = createLogger('apps:operation-repository');
+
+export const WORKER_INTERRUPTED_CODE = 'WORKER_INTERRUPTED';
+export const WORKER_INTERRUPTED_MESSAGE = 'Apps worker stopped before operation completed';
 
 export class ActiveAppOperationError extends Error {
   constructor(readonly appId: string) {
@@ -37,6 +44,7 @@ interface ClaimNextAppOperationInput {
   workerId: string;
   now: Date;
   leaseExpiresAt: Date;
+  deadlineAt: Date;
 }
 
 interface RenewAppOperationLeaseInput {
@@ -49,6 +57,8 @@ interface RenewAppOperationLeaseInput {
 
 interface FinishAppOperationRecordInput {
   operationId: string;
+  workerId: string;
+  leaseGeneration: number;
   status: Extract<AppV2OperationStatus, 'succeeded' | 'failed' | 'cancelled' | 'unchanged'>;
   result?: Record<string, unknown>;
   error?: {
@@ -57,6 +67,11 @@ interface FinishAppOperationRecordInput {
     retryable: boolean;
     details?: Record<string, unknown>;
   };
+  now: Date;
+}
+
+interface RecoverExpiredAppOperationRecordInput {
+  currentWorkerId: string;
   now: Date;
 }
 
@@ -70,6 +85,7 @@ interface OperationRecord {
   createdAt?: Date;
   queuedAt?: Date;
   startedAt?: Date;
+  deadlineAt?: Date;
   completedAt?: Date;
   lease?: {
     workerId?: string;
@@ -78,7 +94,12 @@ interface OperationRecord {
   targetReleaseId?: string;
   configSnapshot?: Record<string, unknown>;
   error?: {
+    code?: string;
     message?: string;
+    details?: {
+      previousWorkerId?: string;
+      leaseGeneration?: number;
+    };
   };
 }
 
@@ -102,6 +123,7 @@ function toAcceptedOperation(record: OperationRecord): AcceptedAppOperation {
     phase: record.phase,
     createdAt: operationCreatedAt(record),
     startedAt: record.startedAt?.toISOString(),
+    deadlineAt: record.deadlineAt?.toISOString(),
     completedAt: record.completedAt?.toISOString(),
     workerId: record.lease?.workerId,
     error: record.error?.message,
@@ -197,6 +219,7 @@ export async function claimNextAppOperation(
         status: 'running',
         phase: 'claiming',
         startedAt: input.now,
+        deadlineAt: input.deadlineAt,
         'lease.workerId': input.workerId,
         'lease.expiresAt': input.leaseExpiresAt,
         'lease.renewedAt': input.now,
@@ -207,14 +230,21 @@ export async function claimNextAppOperation(
   )) as OperationRecord | null;
 
   if (!record) return null;
-  await appendAppOperationEvent({
-    operationId: record.operationId,
-    appId: record.appId.toString(),
-    type: 'status',
-    status: 'running',
-    phase: 'claiming',
-    message: 'Operation claimed by Apps worker',
-  });
+  try {
+    await appendAppOperationEvent({
+      operationId: record.operationId,
+      appId: record.appId.toString(),
+      type: 'status',
+      status: 'running',
+      phase: 'claiming',
+      message: 'Operation claimed by Apps worker',
+    });
+  } catch (error: unknown) {
+    log.error('Failed to append claimed Apps operation event', {
+      operationId: record.operationId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
   return toClaimedOperation(record);
 }
 
@@ -222,7 +252,8 @@ export async function renewAppOperationLease(input: RenewAppOperationLeaseInput)
   const result = await AppOperation.updateOne(
     {
       operationId: input.operationId,
-      status: 'running',
+      active: true,
+      status: { $in: ['running', 'cancel_requested'] },
       'lease.workerId': input.workerId,
       'lease.generation': input.leaseGeneration,
     },
@@ -234,7 +265,7 @@ export async function renewAppOperationLease(input: RenewAppOperationLeaseInput)
     }
   );
 
-  return result.modifiedCount === 1;
+  return result.matchedCount === 1;
 }
 
 export async function finishAppOperationRecord(
@@ -245,6 +276,8 @@ export async function finishAppOperationRecord(
       operationId: input.operationId,
       active: true,
       status: { $in: ['running', 'cancel_requested'] },
+      'lease.workerId': input.workerId,
+      'lease.generation': input.leaseGeneration,
     },
     {
       $set: {
@@ -269,5 +302,75 @@ export async function finishAppOperationRecord(
     message: input.error?.message ?? `Operation ${input.status}`,
     details: input.result,
   });
+  return toAcceptedOperation(record);
+}
+
+export async function recoverExpiredAppOperationRecord(
+  input: RecoverExpiredAppOperationRecordInput
+): Promise<AcceptedAppOperation | null> {
+  const staleStartedBefore = new Date(input.now.getTime() - APPS_OPERATION_LEASE_MS);
+  const record = (await AppOperation.findOneAndUpdate(
+    {
+      active: true,
+      status: { $in: ['running', 'cancel_requested'] },
+      'lease.workerId': { $ne: input.currentWorkerId },
+      $or: [
+        { 'lease.expiresAt': { $lte: input.now } },
+        {
+          'lease.expiresAt': { $exists: false },
+          startedAt: { $lte: staleStartedBefore },
+        },
+      ],
+    },
+    [
+      {
+        $set: {
+          status: 'failed',
+          phase: 'terminal',
+          active: false,
+          completedAt: input.now,
+          error: {
+            code: WORKER_INTERRUPTED_CODE,
+            message: WORKER_INTERRUPTED_MESSAGE,
+            retryable: false,
+            details: {
+              previousWorkerId: '$lease.workerId',
+              leaseGeneration: '$lease.generation',
+            },
+          },
+        },
+      },
+    ],
+    {
+      sort: { 'lease.expiresAt': 1, startedAt: 1, _id: 1 },
+      new: true,
+      lean: true,
+      updatePipeline: true,
+    }
+  )) as OperationRecord | null;
+
+  if (!record) return null;
+
+  try {
+    await appendAppOperationEvent({
+      operationId: record.operationId,
+      appId: record.appId.toString(),
+      type: 'error',
+      status: 'failed',
+      phase: 'terminal',
+      message: WORKER_INTERRUPTED_MESSAGE,
+      details: {
+        code: WORKER_INTERRUPTED_CODE,
+        previousWorkerId: record.lease?.workerId,
+        leaseGeneration: record.lease?.generation,
+      },
+    });
+  } catch (error: unknown) {
+    log.error('Failed to append recovered Apps operation event', {
+      operationId: record.operationId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+
   return toAcceptedOperation(record);
 }

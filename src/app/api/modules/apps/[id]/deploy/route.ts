@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server';
 import { createLogger } from '@/lib/logger';
 import { enqueueAppOperation } from '@/lib/apps/application/enqueue-operation';
-import { ActiveAppOperationError } from '@/lib/apps/repositories/operation-repository';
 import {
   acceptedCompatibilityOperationResponse,
+  appOperationErrorResponse,
   requestedByFromSession,
   requireAppsAdminSession,
   unauthorizedResponse,
@@ -27,9 +27,8 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
     return acceptedCompatibilityOperationResponse('deployment', result);
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Failed to deploy app';
-    if (error instanceof ActiveAppOperationError) {
-      return NextResponse.json({ error: message }, { status: 409 });
-    }
+    const operationResponse = appOperationErrorResponse(error);
+    if (operationResponse) return operationResponse;
     log.error('Failed to deploy app', { error: message });
     return NextResponse.json({ error: message }, { status: 500 });
   }

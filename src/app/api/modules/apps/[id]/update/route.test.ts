@@ -10,14 +10,19 @@ const { mockGetSession, mockUpdateManagedGitApp, mockEnqueueAppOperation } = vi.
 
 vi.mock('@/lib/session', () => ({ getSession: mockGetSession }));
 vi.mock('@/lib/apps/service', () => ({ updateManagedGitApp: mockUpdateManagedGitApp }));
-vi.mock('@/lib/apps/application/enqueue-operation', () => ({
-  enqueueAppOperation: mockEnqueueAppOperation,
-}));
+vi.mock('@/lib/apps/application/enqueue-operation', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/apps/application/enqueue-operation')>();
+  return { ...actual, enqueueAppOperation: mockEnqueueAppOperation };
+});
 vi.mock('@/lib/logger', () => ({
   createLogger: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }),
 }));
 
 import { POST } from './route';
+import {
+  APPS_WORKER_UNAVAILABLE_MESSAGE,
+  AppsWorkerUnavailableError,
+} from '@/lib/apps/application/enqueue-operation';
 
 describe('/api/modules/apps/[id]/update', () => {
   beforeEach(() => {
@@ -82,5 +87,17 @@ describe('/api/modules/apps/[id]/update', () => {
     await expect(res.json()).resolves.toEqual({
       error: 'An app operation is already active for app app-1',
     });
+  });
+
+  it('returns 503 when the Apps worker is unavailable', async () => {
+    mockGetSession.mockResolvedValue({ user: { role: 'admin' } });
+    mockEnqueueAppOperation.mockRejectedValue(new AppsWorkerUnavailableError('missing'));
+
+    const res = await POST(new Request('http://localhost'), {
+      params: Promise.resolve({ id: 'app-1' }),
+    });
+
+    expect(res.status).toBe(503);
+    await expect(res.json()).resolves.toEqual({ error: APPS_WORKER_UNAVAILABLE_MESSAGE });
   });
 });

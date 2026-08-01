@@ -6,15 +6,21 @@ const {
   mockFindById,
   mockCreateAppOperationRecord,
   mockFindAppOperationByIdempotencyKey,
+  mockGetAppsWorkerAvailability,
 } = vi.hoisted(() => ({
   mockConnectDB: vi.fn(),
   mockFindById: vi.fn(),
   mockCreateAppOperationRecord: vi.fn(),
   mockFindAppOperationByIdempotencyKey: vi.fn(),
+  mockGetAppsWorkerAvailability: vi.fn(),
 }));
 
 vi.mock('@/lib/db', () => ({
   default: mockConnectDB,
+}));
+
+vi.mock('@/lib/logger', () => ({
+  createLogger: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }),
 }));
 
 vi.mock('@/models/ManagedApp', () => ({
@@ -34,8 +40,12 @@ vi.mock('../repositories/operation-repository', async () => {
   };
 });
 
+vi.mock('../repositories/worker-heartbeat-repository', () => ({
+  getAppsWorkerAvailability: mockGetAppsWorkerAvailability,
+}));
+
 import { ActiveAppOperationError } from '../repositories/operation-repository';
-import { enqueueAppOperation } from './enqueue-operation';
+import { AppsWorkerUnavailableError, enqueueAppOperation } from './enqueue-operation';
 
 const appId = '64f000000000000000000001';
 
@@ -71,6 +81,11 @@ describe('enqueueAppOperation', () => {
     vi.clearAllMocks();
     mockConnectDB.mockResolvedValue(undefined);
     mockFindAppOperationByIdempotencyKey.mockResolvedValue(null);
+    mockGetAppsWorkerAvailability.mockResolvedValue({
+      available: true,
+      reason: 'healthy',
+      workerId: 'worker-1',
+    });
     mockCreateAppOperationRecord.mockResolvedValue({
       id: 'op_1',
       appId,
@@ -151,6 +166,7 @@ describe('enqueueAppOperation', () => {
 
     expect(mockFindAppOperationByIdempotencyKey).toHaveBeenCalledWith(appId, 'idem-1');
     expect(mockFindById).not.toHaveBeenCalled();
+    expect(mockGetAppsWorkerAvailability).not.toHaveBeenCalled();
     expect(mockCreateAppOperationRecord).not.toHaveBeenCalled();
     expect(result.operation.id).toBe('op_existing');
   });
@@ -161,6 +177,7 @@ describe('enqueueAppOperation', () => {
     await expect(enqueueAppOperation({ appId, type: 'update' })).rejects.toThrow(
       'Only git apps can be updated'
     );
+    expect(mockGetAppsWorkerAvailability).not.toHaveBeenCalled();
     expect(mockCreateAppOperationRecord).not.toHaveBeenCalled();
   });
 
@@ -169,6 +186,21 @@ describe('enqueueAppOperation', () => {
 
     await expect(enqueueAppOperation({ appId, type: 'rollback' })).rejects.toThrow(
       'Rollback target release is required'
+    );
+    expect(mockGetAppsWorkerAvailability).not.toHaveBeenCalled();
+    expect(mockCreateAppOperationRecord).not.toHaveBeenCalled();
+  });
+
+  it('rejects new work without creating a record when the worker is unavailable', async () => {
+    findByIdLean(appRecord());
+    mockGetAppsWorkerAvailability.mockResolvedValue({
+      available: false,
+      reason: 'stale',
+      workerId: 'worker-1',
+    });
+
+    await expect(enqueueAppOperation({ appId, type: 'update' })).rejects.toBeInstanceOf(
+      AppsWorkerUnavailableError
     );
     expect(mockCreateAppOperationRecord).not.toHaveBeenCalled();
   });

@@ -176,18 +176,19 @@ Step by step, the installer:
 | 2    | Installs Node.js 20 LTS and pnpm (skips if already present)                                             |
 | 3    | Installs MongoDB 7.0 and starts it (skipped with `--skip-mongo`)                                        |
 | 4    | Prepares a timestamped release in `/opt/servermon-releases/`, then runs `pnpm install` and `pnpm build` |
-| 5    | Generates `/etc/servermon/env` with JWT secret, creates systemd service, and links `/opt/servermon`     |
+| 5    | Generates `/etc/servermon/env`, links `/opt/servermon`, and creates the web and Apps worker services    |
 | 6    | _(optional)_ Installs Nginx, generates reverse proxy config, sets up SSL                                |
 
 Files created:
 
-| Path                                    | Purpose                                         |
-| --------------------------------------- | ----------------------------------------------- |
-| `/opt/servermon/`                       | Symlink to the active release                   |
-| `/opt/servermon-releases/`              | Timestamped application releases                |
-| `/etc/servermon/env`                    | Environment config (secrets, MongoDB URI, port) |
-| `/etc/systemd/system/servermon.service` | Systemd service unit                            |
-| `/etc/nginx/sites-available/servermon`  | Nginx config (if using Nginx)                   |
+| Path                                                | Purpose                                         |
+| --------------------------------------------------- | ----------------------------------------------- |
+| `/opt/servermon/`                                   | Symlink to the active release                   |
+| `/opt/servermon-releases/`                          | Timestamped application releases                |
+| `/etc/servermon/env`                                | Environment config (secrets, MongoDB URI, port) |
+| `/etc/systemd/system/servermon.service`             | Web UI and API systemd service                  |
+| `/etc/systemd/system/servermon-apps-worker.service` | Apps deployment worker systemd service          |
+| `/etc/nginx/sites-available/servermon`              | Nginx config (if using Nginx)                   |
 
 ---
 
@@ -219,7 +220,8 @@ The upgrade:
 - Preserves your MongoDB data
 - Builds a new timestamped release and repoints `/opt/servermon`
 - Removes old release directories according to `--keep-last-n-release` (default `2`)
-- Restarts the service
+- Stops the Apps worker before the web service and stable release switch
+- Starts and verifies both `servermon` and `servermon-apps-worker` before removing old releases
 
 Your admin account, TOTP configuration, and all data remain intact.
 
@@ -283,22 +285,34 @@ mongosh --eval 'use servermon; db.dropDatabase()'
 
 ## Managing the Service
 
-```bash
-# Check if ServerMon is running
-sudo systemctl status servermon
+The Linux installer manages two units. The web unit serves ServerMon; the Apps
+worker is the only supported consumer for queued deploy, update, rollback, and
+delete operations.
 
-# View live logs
+```bash
+# Check both required services
+sudo systemctl status servermon servermon-apps-worker
+
+# View web/API or Apps operation logs
 sudo journalctl -u servermon -f
+sudo journalctl -u servermon-apps-worker -f
 
 # Restart after config changes
-sudo systemctl restart servermon
+sudo systemctl restart servermon servermon-apps-worker
 
-# Stop the service
-sudo systemctl stop servermon
+# Stop safely: prevent new host mutations before stopping the web service
+sudo systemctl stop servermon-apps-worker servermon
 
-# Start the service
-sudo systemctl start servermon
+# Start the API first, then its operation consumer
+sudo systemctl start servermon servermon-apps-worker
 ```
+
+The worker writes a MongoDB heartbeat every five seconds. New Apps operations
+are accepted only while the newest heartbeat is fresh and `running`; otherwise
+the mutation endpoint returns `503` and creates no operation record. A worker
+that restarts after an interrupted operation waits for the old lease to expire,
+then marks that operation `failed` with `WORKER_INTERRUPTED` and releases its
+active lock. It never automatically replays uncertain host-side work.
 
 ### macOS launchd
 
@@ -350,30 +364,30 @@ sudo systemctl restart servermon
 
 Common optional controls:
 
-| Variable                        | Description                                                             | Default                           |
-| ------------------------------- | ----------------------------------------------------------------------- | --------------------------------- |
-| `LOG_LEVEL`                     | Structured log verbosity (`debug`, `info`, `warn`, `error`)             | `info`                            |
-| `SERVERMON_SLOW_REQUEST_MS`     | Slow request logging threshold                                          | `2000`                            |
-| `SERVERMON_REPO_DIR`            | Source checkout used by source-mode update actions                      | `/opt/servermon/repo`             |
-| `SERVERMON_INSTALL_MODE`        | Update mode, either `source` or `release`                               | `source`                          |
-| `SERVERMON_VERSION_TARGET`      | Release tag or `latest` for release-mode updates                        | `latest`                          |
-| `SERVERMON_RELEASE_BASE_URL`    | Custom release asset base URL                                           | GitHub Releases URL               |
-| `SERVERMON_SOURCE_REF`          | Git branch or ref used by source-mode updates                           | `main`                            |
-| `SERVERMON_APPS_ROOT`           | Host data root for managed app releases                                 | `/var/lib/servermon/apps`         |
-| `SERVERMON_DATABASES_ROOT`      | Host data root for managed database containers                          | `/var/lib/servermon/databases`    |
-| `SERVERMON_PUBLIC_HOST`         | Default public hostname for managed database connection URLs            | unset                             |
-| `SERVERMON_PUBLIC_IP`           | Default public IP fallback for managed database connections             | unset                             |
-| `PUBLIC_IP`                     | Legacy public IP fallback used when ServerMon-specific values are unset | unset                             |
-| `SERVERMON_AUTO_UPDATE_CONFIG`  | Server auto-update schedule config path                                 | `/etc/servermon/auto-update.json` |
-| `SERVERMON_NETWORK_MOCK`        | Set to `1` to use mocked network speedtest data                         | unset                             |
-| `SERVERMON_DOCKER_MOCK`         | Set to `1` to use mocked Docker data                                    | unset                             |
+| Variable                        | Description                                                              | Default                           |
+| ------------------------------- | ------------------------------------------------------------------------ | --------------------------------- |
+| `LOG_LEVEL`                     | Structured log verbosity (`debug`, `info`, `warn`, `error`)              | `info`                            |
+| `SERVERMON_SLOW_REQUEST_MS`     | Slow request logging threshold                                           | `2000`                            |
+| `SERVERMON_REPO_DIR`            | Source checkout used by source-mode update actions                       | `/opt/servermon/repo`             |
+| `SERVERMON_INSTALL_MODE`        | Update mode, either `source` or `release`                                | `source`                          |
+| `SERVERMON_VERSION_TARGET`      | Release tag or `latest` for release-mode updates                         | `latest`                          |
+| `SERVERMON_RELEASE_BASE_URL`    | Custom release asset base URL                                            | GitHub Releases URL               |
+| `SERVERMON_SOURCE_REF`          | Git branch or ref used by source-mode updates                            | `main`                            |
+| `SERVERMON_APPS_ROOT`           | Host data root for managed app releases                                  | `/var/lib/servermon/apps`         |
+| `SERVERMON_DATABASES_ROOT`      | Host data root for managed database containers                           | `/var/lib/servermon/databases`    |
+| `SERVERMON_PUBLIC_HOST`         | Default public hostname for managed database connection URLs             | unset                             |
+| `SERVERMON_PUBLIC_IP`           | Default public IP fallback for managed database connections              | unset                             |
+| `PUBLIC_IP`                     | Legacy public IP fallback used when ServerMon-specific values are unset  | unset                             |
+| `SERVERMON_AUTO_UPDATE_CONFIG`  | Server auto-update schedule config path                                  | `/etc/servermon/auto-update.json` |
+| `SERVERMON_NETWORK_MOCK`        | Set to `1` to use mocked network speedtest data                          | unset                             |
+| `SERVERMON_DOCKER_MOCK`         | Set to `1` to use mocked Docker data                                     | unset                             |
 | `AI_RUNNER_MAX_CONCURRENT_RUNS` | Set to a positive integer to cap concurrent AI Runner jobs (`3` default) | `3`                               |
-| `SERVERMON_FIREWALL_MOCK`       | Set to `1` to use mocked firewall posture data                          | unset                             |
+| `SERVERMON_FIREWALL_MOCK`       | Set to `1` to use mocked firewall posture data                           | unset                             |
 | `SERVERMON_SKIP_STARTUP_JOBS`   | Set to `1` to skip startup jobs (stale session cleanup and schedulers)   | `unset`                           |
-| `SERVERMON_BRANDING_MOCK`       | Set to `1` to use default branding without MongoDB                      | unset                             |
-| `WEBAUTHN_RP_ID`                | Override the passkey relying party ID                                   | request host                      |
-| `WEBAUTHN_ORIGIN`               | Override the expected passkey browser origin                            | request origin                    |
-| `AI_RUNNER_MAX_CONCURRENT_RUNS` | Maximum concurrently executing AI Runner jobs                           | `3`                               |
+| `SERVERMON_BRANDING_MOCK`       | Set to `1` to use default branding without MongoDB                       | unset                             |
+| `WEBAUTHN_RP_ID`                | Override the passkey relying party ID                                    | request host                      |
+| `WEBAUTHN_ORIGIN`               | Override the expected passkey browser origin                             | request origin                    |
+| `AI_RUNNER_MAX_CONCURRENT_RUNS` | Maximum concurrently executing AI Runner jobs                            | `3`                               |
 
 Fleet hub installs may also write these values:
 
@@ -475,6 +489,55 @@ sudo systemctl status mongod
 sudo lsof -i :8912
 ```
 
+### Apps Update stays unavailable or returns worker-unavailable `503`
+
+Check the separately supervised worker before retrying the Apps action:
+
+```bash
+sudo systemctl status servermon-apps-worker --no-pager
+sudo journalctl -u servermon-apps-worker -n 100 --no-pager
+sudo systemctl restart servermon-apps-worker
+sudo systemctl is-active servermon servermon-apps-worker
+```
+
+Expected behavior:
+
+- a missing, stale, `starting`, `draining`, `stopped`, or `failed` heartbeat
+  rejects new work with `503` and leaves the Update button usable;
+- queued work is safe for the restarted worker to claim because no host mutation
+  has started;
+- an expired running operation is terminally failed with
+  `WORKER_INTERRUPTED`, is not replayed, and disappears from the active UI
+  overlay on the next poll.
+
+After `WORKER_INTERRUPTED`, inspect the worker log and the managed app's current
+release, service, and Nginx state before retrying. The legacy executor may have
+completed only part of the host mutation.
+
+If an upgrade omitted or broke the worker unit, rerun the authoritative
+installer using the stored configuration:
+
+```bash
+cd /opt/servermon/repo
+sudo ./scripts/install.sh --use-existing-values
+sudo systemctl is-active servermon servermon-apps-worker
+```
+
+To roll ServerMon itself back to a retained known-good release, first identify
+the target explicitly, then stop both units before changing the stable symlink:
+
+```bash
+ls -1dt /opt/servermon-releases/*
+sudo systemctl stop servermon-apps-worker servermon
+sudo ln -sfn /opt/servermon-releases/<known-good-release> /opt/servermon
+sudo systemctl start servermon servermon-apps-worker
+sudo systemctl is-active servermon servermon-apps-worker
+```
+
+Do not delete or requeue an active Apps operation to force the button to unlock.
+Allow expired-lease recovery to make the durable record terminal, then inspect
+the host state and retry deliberately.
+
 ### Can't connect in the browser
 
 ```bash
@@ -575,6 +638,9 @@ All ServerMon logs go to journald with structured output (timestamps, log levels
 ```bash
 # Live log stream
 sudo journalctl -u servermon -f
+
+# Live Apps deployment worker logs
+sudo journalctl -u servermon-apps-worker -f
 
 # Last 50 lines
 sudo journalctl -u servermon -n 50 --no-pager

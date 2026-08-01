@@ -2,9 +2,9 @@ import { NextResponse } from 'next/server';
 import { z, ZodError } from 'zod';
 import { createLogger } from '@/lib/logger';
 import { enqueueAppOperation } from '@/lib/apps/application/enqueue-operation';
-import { ActiveAppOperationError } from '@/lib/apps/repositories/operation-repository';
 import {
   acceptedCompatibilityOperationResponse,
+  appOperationErrorResponse,
   requestedByFromSession,
   requireAppsAdminSession,
   unauthorizedResponse,
@@ -44,9 +44,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   } catch (error: unknown) {
     if (error instanceof ZodError) return badRequest(error);
     const message = error instanceof Error ? error.message : 'Failed to roll back app';
-    if (error instanceof ActiveAppOperationError) {
-      return NextResponse.json({ error: message }, { status: 409 });
-    }
+    const operationResponse = appOperationErrorResponse(error);
+    if (operationResponse) return operationResponse;
     log.error('Failed to roll back app', { error: message });
     return NextResponse.json({ error: message }, { status: 500 });
   }

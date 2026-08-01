@@ -4,6 +4,7 @@ import { enqueueAppOperation } from '@/lib/apps/application/enqueue-operation';
 import { ActiveAppOperationError } from '@/lib/apps/repositories/operation-repository';
 import {
   acceptedCompatibilityOperationResponse,
+  appOperationErrorResponse,
   requestedByFromSession,
   requireAppsAdminSession,
   unauthorizedResponse,
@@ -29,8 +30,9 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
     const message = error instanceof Error ? error.message : 'Failed to update app';
     if (error instanceof ActiveAppOperationError) {
       log.warn('App operation already running', { appId: error.appId });
-      return NextResponse.json({ error: message }, { status: 409 });
     }
+    const operationResponse = appOperationErrorResponse(error);
+    if (operationResponse) return operationResponse;
     log.error('Failed to update app', { error: message });
     return NextResponse.json({ error: message }, { status: 500 });
   }

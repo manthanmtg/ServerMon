@@ -448,7 +448,7 @@ describe('AppsPage', () => {
     expect(global.fetch).toHaveBeenCalledTimes(1);
   });
 
-  it('enables the update action after a timed-out server-side update is reconciled as failed', async () => {
+  it('enables the update action after an abandoned worker operation is recovered as failed', async () => {
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,
       json: async () => ({
@@ -482,16 +482,16 @@ describe('AppsPage', () => {
             releases: [],
             operations: [
               {
-                id: 'update-timeout',
+                id: 'update-worker-interrupted',
                 type: 'update',
                 status: 'failed',
                 title: 'Manual update',
-                step: 'Update timed out',
+                step: 'Apps worker stopped before operation completed',
                 startedAt: '2026-05-07T00:00:00.000Z',
                 deadlineAt: '2026-05-07T01:00:00.000Z',
                 completedAt: '2026-05-07T01:00:00.000Z',
-                error: 'Update timed out after 1 hour',
-                logs: ['Update timed out after 1 hour'],
+                error: 'Apps worker stopped before operation completed',
+                logs: ['Apps worker stopped before operation completed'],
               },
             ],
           },
@@ -680,6 +680,78 @@ describe('AppsPage', () => {
 
     expect(await screen.findByText('Git Portal update queued.')).toBeTruthy();
     expect(screen.getByText('Operation op_1 is queued.')).toBeTruthy();
+  });
+
+  it('clears update loading and does not poll when the worker rejects enqueue with 503', async () => {
+    vi.useFakeTimers();
+    const app = {
+      id: 'app-1',
+      name: 'Git Portal',
+      slug: 'git-portal',
+      templateId: 'nextjs',
+      sourceType: 'git',
+      git: {
+        url: 'https://github.com/acme/git-portal.git',
+        branch: 'main',
+        currentSha: 'abcdef123456',
+        autoUpdate: { enabled: true, intervalMinutes: 60 },
+      },
+      domain: 'git.example.com',
+      port: 3010,
+      commands: {
+        install: 'pnpm install --frozen-lockfile',
+        build: 'pnpm build',
+        start: 'pnpm start',
+      },
+      envVars: {},
+      healthCheckPath: '/',
+      tlsEnabled: false,
+      status: 'running',
+      operations: [],
+      releases: [],
+    };
+    const workerUnavailableMessage =
+      'Apps deployment worker is unavailable; retry after the service recovers';
+    global.fetch = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ apps: [app] }),
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 503,
+        json: async () => ({ error: workerUnavailableMessage }),
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ apps: [app] }),
+      } as Response);
+
+    try {
+      render(<AppsPage />);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+
+      fireEvent.click(screen.getByRole('button', { name: /update/i }));
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+
+      expect(screen.getByRole('alert').textContent).toContain(workerUnavailableMessage);
+      const updateButton = screen.getByRole('button', { name: /update/i });
+      expect((updateButton as HTMLButtonElement).disabled).toBe(false);
+      expect(updateButton.querySelector('.animate-spin')).toBeFalsy();
+      expect(global.fetch).toHaveBeenCalledTimes(3);
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(4_500);
+      });
+      expect(global.fetch).toHaveBeenCalledTimes(3);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('polls and autoscrolls live update operation logs while an update is running', async () => {

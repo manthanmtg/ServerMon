@@ -176,12 +176,22 @@ Open **http://localhost:8912** — the setup wizard will create your admin accou
 
 ## Managing the Service
 
+Linux installations run two ServerMon units: `servermon` serves the UI/API, and
+`servermon-apps-worker` performs Apps deploy, update, rollback, and delete jobs.
+The installer treats both as required services.
+
 ```bash
-sudo systemctl status servermon        # check status
-sudo journalctl -u servermon -f        # live logs
-sudo systemctl restart servermon       # restart after config changes
-sudo ./scripts/install.sh --uninstall  # remove completely
+sudo systemctl status servermon servermon-apps-worker         # check both services
+sudo journalctl -u servermon -f                               # UI/API logs
+sudo journalctl -u servermon-apps-worker -f                   # Apps operation logs
+sudo systemctl restart servermon servermon-apps-worker        # restart after config changes
+sudo ./scripts/install.sh --uninstall                         # remove completely
 ```
+
+If the Apps worker is not healthy, new Apps mutations fail with `503` instead
+of creating work that cannot be consumed. Check
+`journalctl -u servermon-apps-worker -n 100 --no-pager`, repair the worker, and
+retry the action.
 
 macOS `launchd`:
 
@@ -207,32 +217,32 @@ Runtime config lives in `/etc/servermon/env` (production) or `.env.local` (devel
 
 Common optional controls:
 
-| Variable                        | Description                                                     | Default                             |
-| ------------------------------- | --------------------------------------------------------------- | ----------------------------------- |
-| `SERVERMON_SLOW_REQUEST_MS`     | Slow request logging threshold                                  | `2000`                              |
-| `SERVERMON_REPO_DIR`            | Source checkout used by self-update actions                     | `/opt/servermon/repo`               |
-| `SERVERMON_INSTALL_MODE`        | Update mode for hub installs, either `source` or `release`      | `source`                            |
-| `SERVERMON_VERSION_TARGET`      | Release tag or `latest` for release-mode updates                | `latest`                            |
-| `SERVERMON_RELEASE_BASE_URL`    | Custom release asset base URL for release-mode updates          | GitHub Releases URL                 |
-| `SERVERMON_SOURCE_REF`          | Git branch or ref used by source-mode updates                   | `main`                              |
-| `SERVERMON_NETWORK_MOCK`        | Set to `1` to use mocked network speedtest data                 | unset                               |
-| `SERVERMON_DOCKER_MOCK`         | Set to `1` to use mocked Docker data                            | unset                               |
-| `SERVERMON_FIREWALL_MOCK`       | Set to `1` to use mocked firewall posture data                  | unset                               |
-| `SERVERMON_SKIP_STARTUP_JOBS`   | Set to `1` to skip startup jobs (stale session cleanup, schedulers) | unset                             |
-| `SERVERMON_BRANDING_MOCK`       | Set to `1` to use default branding without MongoDB              | unset                               |
-| `SERVERMON_DATABASES_ROOT`      | Host data root for managed database containers                  | `/var/lib/servermon/databases`      |
-| `SERVERMON_PUBLIC_HOST`         | Default public hostname for managed database connection strings | unset                               |
-| `SERVERMON_PUBLIC_IP`           | Default public IP fallback for managed database connections     | unset                               |
-| `SERVERMON_MONGO_EXPRESS_IMAGE` | Docker image used for MongoDB web explorers                     | `mongo-express:1.0.2-20-alpine3.19` |
-| `SERVERMON_PGWEB_IMAGE`         | Docker image used for PostgreSQL web explorers                  | `sosedoff/pgweb:0.16.2`             |
-| `SERVERMON_PHPMYADMIN_IMAGE`    | Docker image used for MySQL web explorers                       | `phpmyadmin:5.2.2-apache`           |
-| `SERVERMON_APPS_ROOT`           | Host data root for managed app releases                         | `/var/lib/servermon/apps`           |
-| `SERVERMON_UPDATES_MOCK`        | Set to `1` to use mocked system update data                     | unset                               |
-| `SERVERMON_AUTO_UPDATE_CONFIG`  | Server auto-update schedule config path                         | `/etc/servermon/auto-update.json`   |
-| `WEBAUTHN_RP_ID`                | Override the passkey relying party ID                           | request host                        |
-| `WEBAUTHN_ORIGIN`               | Override the expected passkey browser origin                    | request origin                      |
-| `AI_RUNNER_MAX_CONCURRENT_RUNS` | Maximum concurrently executing AI Runner jobs                   | `3`                                 |
-| `FLEET_HUB_PUBLIC_URL`          | Public hub URL used by fleet install scripts and pair callbacks | unset                               |
+| Variable                        | Description                                                         | Default                             |
+| ------------------------------- | ------------------------------------------------------------------- | ----------------------------------- |
+| `SERVERMON_SLOW_REQUEST_MS`     | Slow request logging threshold                                      | `2000`                              |
+| `SERVERMON_REPO_DIR`            | Source checkout used by self-update actions                         | `/opt/servermon/repo`               |
+| `SERVERMON_INSTALL_MODE`        | Update mode for hub installs, either `source` or `release`          | `source`                            |
+| `SERVERMON_VERSION_TARGET`      | Release tag or `latest` for release-mode updates                    | `latest`                            |
+| `SERVERMON_RELEASE_BASE_URL`    | Custom release asset base URL for release-mode updates              | GitHub Releases URL                 |
+| `SERVERMON_SOURCE_REF`          | Git branch or ref used by source-mode updates                       | `main`                              |
+| `SERVERMON_NETWORK_MOCK`        | Set to `1` to use mocked network speedtest data                     | unset                               |
+| `SERVERMON_DOCKER_MOCK`         | Set to `1` to use mocked Docker data                                | unset                               |
+| `SERVERMON_FIREWALL_MOCK`       | Set to `1` to use mocked firewall posture data                      | unset                               |
+| `SERVERMON_SKIP_STARTUP_JOBS`   | Set to `1` to skip startup jobs (stale session cleanup, schedulers) | unset                               |
+| `SERVERMON_BRANDING_MOCK`       | Set to `1` to use default branding without MongoDB                  | unset                               |
+| `SERVERMON_DATABASES_ROOT`      | Host data root for managed database containers                      | `/var/lib/servermon/databases`      |
+| `SERVERMON_PUBLIC_HOST`         | Default public hostname for managed database connection strings     | unset                               |
+| `SERVERMON_PUBLIC_IP`           | Default public IP fallback for managed database connections         | unset                               |
+| `SERVERMON_MONGO_EXPRESS_IMAGE` | Docker image used for MongoDB web explorers                         | `mongo-express:1.0.2-20-alpine3.19` |
+| `SERVERMON_PGWEB_IMAGE`         | Docker image used for PostgreSQL web explorers                      | `sosedoff/pgweb:0.16.2`             |
+| `SERVERMON_PHPMYADMIN_IMAGE`    | Docker image used for MySQL web explorers                           | `phpmyadmin:5.2.2-apache`           |
+| `SERVERMON_APPS_ROOT`           | Host data root for managed app releases                             | `/var/lib/servermon/apps`           |
+| `SERVERMON_UPDATES_MOCK`        | Set to `1` to use mocked system update data                         | unset                               |
+| `SERVERMON_AUTO_UPDATE_CONFIG`  | Server auto-update schedule config path                             | `/etc/servermon/auto-update.json`   |
+| `WEBAUTHN_RP_ID`                | Override the passkey relying party ID                               | request host                        |
+| `WEBAUTHN_ORIGIN`               | Override the expected passkey browser origin                        | request origin                      |
+| `AI_RUNNER_MAX_CONCURRENT_RUNS` | Maximum concurrently executing AI Runner jobs                       | `3`                                 |
+| `FLEET_HUB_PUBLIC_URL`          | Public hub URL used by fleet install scripts and pair callbacks     | unset                               |
 
 See [DEPLOY.md](DEPLOY.md#fleet-management-deployment) for the full fleet hub and agent environment variables.
 

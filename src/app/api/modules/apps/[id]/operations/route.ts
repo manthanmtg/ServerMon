@@ -2,8 +2,8 @@ import { NextResponse } from 'next/server';
 import { z, ZodError } from 'zod';
 import { createLogger } from '@/lib/logger';
 import { enqueueAppOperation } from '@/lib/apps/application/enqueue-operation';
-import { ActiveAppOperationError } from '@/lib/apps/repositories/operation-repository';
 import {
+  appOperationErrorResponse,
   badRequestResponse,
   requireAppsAdminSession,
   serverErrorResponse,
@@ -49,10 +49,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     );
   } catch (error: unknown) {
     if (error instanceof ZodError) return badRequestResponse(zodMessage(error));
+    const operationErrorResponse = appOperationErrorResponse(error);
+    if (operationErrorResponse) return operationErrorResponse;
     const message = error instanceof Error ? error.message : 'Failed to enqueue app operation';
-    if (error instanceof ActiveAppOperationError) {
-      return NextResponse.json({ error: message }, { status: 409 });
-    }
     log.error('Failed to enqueue app operation', { error: message });
     return serverErrorResponse(message);
   }

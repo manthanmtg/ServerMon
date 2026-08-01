@@ -1,4 +1,6 @@
 import { NextResponse } from 'next/server';
+import { AppsWorkerUnavailableError } from '@/lib/apps/application/enqueue-operation';
+import { ActiveAppOperationError } from '@/lib/apps/repositories/operation-repository';
 import { getSession } from '@/lib/session';
 import type { EnqueuedAppOperationResponse } from '@/modules/apps/types';
 
@@ -29,6 +31,16 @@ export function notFoundResponse(message: string) {
 
 export function serverErrorResponse(message: string) {
   return NextResponse.json({ error: message }, { status: 500 });
+}
+
+export function appOperationErrorResponse(error: unknown) {
+  if (error instanceof ActiveAppOperationError) {
+    return NextResponse.json({ error: error.message }, { status: 409 });
+  }
+  if (error instanceof AppsWorkerUnavailableError) {
+    return NextResponse.json({ error: error.message }, { status: 503 });
+  }
+  return null;
 }
 
 export function requestedByFromSession(session: AppsAdminSession) {

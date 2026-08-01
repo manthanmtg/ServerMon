@@ -35,6 +35,17 @@ function requireRegex(file: string, regex: RegExp, reason: string): void {
   }
 }
 
+function requireBefore(file: string, first: string, second: string, reason: string): void {
+  const text = read(file);
+  const firstIndex = text.lastIndexOf(first);
+  const secondIndex = text.indexOf(second);
+  if (firstIndex < 0 || secondIndex < 0 || firstIndex >= secondIndex) {
+    failures.push(
+      `${file}: expected ${JSON.stringify(first)} before ${JSON.stringify(second)} (${reason})`
+    );
+  }
+}
+
 function requireBashSyntax(file: string): void {
   try {
     execFileSync('bash', ['-n', path.join(root, file)], { stdio: 'pipe' });
@@ -317,6 +328,90 @@ function checkAppsWorkerContract(): void {
     'scripts/servermon-apps-worker.service',
     'ExecStart=/usr/local/bin/pnpm apps:worker',
     'Apps worker systemd unit must run the package script'
+  );
+
+  const install = 'scripts/install.sh';
+  requireContains(
+    install,
+    'APPS_WORKER_SERVICE_NAME="${SERVICE_NAME}-apps-worker"',
+    'installer must derive the Apps worker service name'
+  );
+  requireContains(
+    install,
+    'systemctl stop "$APPS_WORKER_SERVICE_NAME"',
+    'installer must stop the Apps worker before release switching and uninstall'
+  );
+  requireContains(
+    install,
+    'systemctl cat "$APPS_WORKER_SERVICE_NAME"',
+    'installer must detect an installed worker even when it is not active'
+  );
+  requireContains(
+    install,
+    'if ! systemctl stop "$APPS_WORKER_SERVICE_NAME"; then',
+    'installer must fail when the worker cannot be stopped safely'
+  );
+  requireContains(
+    install,
+    'Refusing to switch releases while the Apps worker is still active',
+    'installer must abort before relinking if the worker remains active'
+  );
+  requireBefore(
+    install,
+    'Refusing to switch releases while the Apps worker is still active',
+    'ln -sfn "$NEW_RELEASE_DIR" "$INSTALL_DIR"',
+    'worker stop verification must precede the stable release switch'
+  );
+  requireContains(
+    install,
+    'rm -f "/etc/systemd/system/${APPS_WORKER_SERVICE_NAME}.service"',
+    'uninstall must remove the Apps worker unit'
+  );
+  requireContains(
+    install,
+    'cat > "/etc/systemd/system/${APPS_WORKER_SERVICE_NAME}.service"',
+    'installer must render the Apps worker unit'
+  );
+  requireContains(
+    install,
+    'ExecStart=${PNPM_PATH} apps:worker',
+    'generated Apps worker unit must use the resolved pnpm path'
+  );
+  requireContains(
+    install,
+    'User=${SERVICE_USER}',
+    'generated Apps worker unit must use the resolved service user'
+  );
+  requireContains(
+    install,
+    'WorkingDirectory=${INSTALL_DIR}',
+    'generated Apps worker unit must use the stable install path'
+  );
+  requireContains(
+    install,
+    'EnvironmentFile=${CONFIG_DIR}/env',
+    'generated Apps worker unit must use the resolved environment file'
+  );
+  requireContains(
+    install,
+    'systemctl enable "$APPS_WORKER_SERVICE_NAME"',
+    'installer must enable the Apps worker'
+  );
+  requireContains(
+    install,
+    'systemctl start "$APPS_WORKER_SERVICE_NAME"',
+    'installer must start the Apps worker'
+  );
+  requireContains(
+    install,
+    'systemctl is-active --quiet "$APPS_WORKER_SERVICE_NAME"',
+    'installer must verify the Apps worker is active'
+  );
+  requireBefore(
+    install,
+    'systemctl is-active --quiet "$APPS_WORKER_SERVICE_NAME"',
+    'OLD_RELEASES=',
+    'worker verification must happen before old-release cleanup'
   );
 }
 

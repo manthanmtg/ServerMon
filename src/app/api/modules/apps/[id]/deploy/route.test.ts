@@ -9,14 +9,19 @@ const { mockGetSession, mockDeployManagedApp, mockEnqueueAppOperation } = vi.hoi
 
 vi.mock('@/lib/session', () => ({ getSession: mockGetSession }));
 vi.mock('@/lib/apps/service', () => ({ deployManagedApp: mockDeployManagedApp }));
-vi.mock('@/lib/apps/application/enqueue-operation', () => ({
-  enqueueAppOperation: mockEnqueueAppOperation,
-}));
+vi.mock('@/lib/apps/application/enqueue-operation', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/apps/application/enqueue-operation')>();
+  return { ...actual, enqueueAppOperation: mockEnqueueAppOperation };
+});
 vi.mock('@/lib/logger', () => ({
   createLogger: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }),
 }));
 
 import { POST } from './route';
+import {
+  APPS_WORKER_UNAVAILABLE_MESSAGE,
+  AppsWorkerUnavailableError,
+} from '@/lib/apps/application/enqueue-operation';
 
 describe('/api/modules/apps/[id]/deploy', () => {
   beforeEach(() => {
@@ -69,5 +74,17 @@ describe('/api/modules/apps/[id]/deploy', () => {
     await expect(res.json()).resolves.toEqual({
       deployment: { operationId: 'op_1', status: 'queued', phase: 'queued' },
     });
+  });
+
+  it('returns 503 when the Apps worker is unavailable', async () => {
+    mockGetSession.mockResolvedValue({ user: { role: 'admin' } });
+    mockEnqueueAppOperation.mockRejectedValue(new AppsWorkerUnavailableError('stale'));
+
+    const res = await POST(new Request('http://localhost'), {
+      params: Promise.resolve({ id: 'app-1' }),
+    });
+
+    expect(res.status).toBe(503);
+    await expect(res.json()).resolves.toEqual({ error: APPS_WORKER_UNAVAILABLE_MESSAGE });
   });
 });

@@ -45,6 +45,16 @@ describe('Apps v2 models', () => {
     expect(findIndex(indexes, { status: 1, active: 1, createdAt: 1 })).toBeDefined();
   });
 
+  it('accepts an explicitly enabled aggregation pipeline for atomic recovery updates', () => {
+    expect(() =>
+      AppOperation.findOneAndUpdate(
+        { active: true },
+        [{ $set: { active: false, status: 'failed' } }],
+        { updatePipeline: true }
+      )
+    ).not.toThrow();
+  });
+
   it('defines ordered operation event indexes with retention', () => {
     const indexes = AppOperationEvent.schema.indexes();
 

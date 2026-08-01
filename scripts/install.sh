@@ -22,6 +22,7 @@ RELEASES_DIR="/opt/servermon-releases"
 KEEP_RELEASES=2 # Number of releases to keep (can be changed here or via --keep-last-n-release)
 CONFIG_DIR="/etc/servermon"
 SERVICE_NAME="servermon"
+APPS_WORKER_SERVICE_NAME="${SERVICE_NAME}-apps-worker"
 SERVICE_USER="servermon"
 DEFAULT_PORT=8912
 DEFAULT_MONGO_URI="mongodb://localhost:27017/servermon"
@@ -203,8 +204,11 @@ if [ "$UNINSTALL" = "true" ]; then
         fi
     fi
 
+    systemctl stop "$APPS_WORKER_SERVICE_NAME" 2>/dev/null || true
+    systemctl disable "$APPS_WORKER_SERVICE_NAME" 2>/dev/null || true
     systemctl stop "$SERVICE_NAME" 2>/dev/null || true
     systemctl disable "$SERVICE_NAME" 2>/dev/null || true
+    rm -f "/etc/systemd/system/${APPS_WORKER_SERVICE_NAME}.service"
     rm -f "/etc/systemd/system/${SERVICE_NAME}.service"
     systemctl daemon-reload 2>/dev/null || true
 
@@ -737,7 +741,21 @@ fi
 SERVICE_WAS_ACTIVE="false"
 SERVICE_DOWNTIME_START_MS=""
 
-# Stop existing service during upgrade to switch to new release
+# Stop the installed worker in every state so it cannot mutate host state while
+# the stable release symlink changes underneath it.
+if systemctl cat "$APPS_WORKER_SERVICE_NAME" > /dev/null 2>&1; then
+    log_info "Stopping existing Apps worker for upgrade..."
+    if ! systemctl stop "$APPS_WORKER_SERVICE_NAME"; then
+        log_err "Failed to stop the Apps worker; the current release remains linked."
+        exit 1
+    fi
+    if systemctl is-active --quiet "$APPS_WORKER_SERVICE_NAME" 2>/dev/null; then
+        log_err "Refusing to switch releases while the Apps worker is still active."
+        exit 1
+    fi
+fi
+
+# Stop existing web service during upgrade to switch to new release
 if systemctl is-active --quiet "$SERVICE_NAME" 2>/dev/null; then
     SERVICE_WAS_ACTIVE="true"
     SERVICE_DOWNTIME_START_MS="$(date +%s%3N)"
@@ -802,15 +820,60 @@ SVCEOF
 
 log_info "Systemd service file created at /etc/systemd/system/${SERVICE_NAME}.service"
 
+cat > "/etc/systemd/system/${APPS_WORKER_SERVICE_NAME}.service" <<WORKEREOF
+[Unit]
+Description=ServerMon Apps deployment worker
+After=network.target$([ "$SKIP_MONGO_INSTALL" != "true" ] && echo " mongod.service")
+Wants=network-online.target
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=${SERVICE_USER}
+Group=${SERVICE_USER}
+WorkingDirectory=${INSTALL_DIR}
+EnvironmentFile=${CONFIG_DIR}/env
+ExecStart=${PNPM_PATH} apps:worker
+Restart=always
+RestartSec=5
+TimeoutStopSec=45
+KillMode=control-group
+KillSignal=SIGTERM
+FinalKillSignal=SIGKILL
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=servermon-apps-worker
+
+[Install]
+WantedBy=multi-user.target
+WORKEREOF
+
+log_info "Systemd service file created at /etc/systemd/system/${APPS_WORKER_SERVICE_NAME}.service"
+
 systemctl daemon-reload
 systemctl enable "$SERVICE_NAME" > /dev/null 2>&1
 log_info "Enabling ${SERVICE_NAME} service..."
-systemctl start "$SERVICE_NAME"
+systemctl enable "$APPS_WORKER_SERVICE_NAME" > /dev/null 2>&1
+log_info "Enabling ${APPS_WORKER_SERVICE_NAME} service..."
+systemctl start "$SERVICE_NAME" || true
 log_info "Starting ${SERVICE_NAME} service..."
+systemctl start "$APPS_WORKER_SERVICE_NAME" || true
+log_info "Starting ${APPS_WORKER_SERVICE_NAME} service..."
 
 sleep 2
+WEB_SERVICE_ACTIVE="false"
+APPS_WORKER_ACTIVE="false"
 if systemctl is-active --quiet "$SERVICE_NAME"; then
+    WEB_SERVICE_ACTIVE="true"
+fi
+if systemctl is-active --quiet "$APPS_WORKER_SERVICE_NAME"; then
+    APPS_WORKER_ACTIVE="true"
+fi
+
+if [ "$WEB_SERVICE_ACTIVE" = "true" ] && [ "$APPS_WORKER_ACTIVE" = "true" ]; then
     log "ServerMon service is running"
+    log "ServerMon Apps worker is running"
 
     if [ "$SERVICE_WAS_ACTIVE" = "true" ] && [ -n "$SERVICE_DOWNTIME_START_MS" ]; then
         SERVICE_DOWNTIME_END_MS="$(date +%s%3N)"
@@ -843,7 +906,14 @@ if systemctl is-active --quiet "$SERVICE_NAME"; then
         fi
     fi
 else
-    log_warn "Service may not have started. Check: journalctl -u ${SERVICE_NAME} -f"
+    [ "$WEB_SERVICE_ACTIVE" != "true" ] && log_err "ServerMon service failed to start"
+    [ "$APPS_WORKER_ACTIVE" != "true" ] && log_err "ServerMon Apps worker failed to start"
+    log_info "Check web status: systemctl status ${SERVICE_NAME} --no-pager"
+    log_info "Check web logs: journalctl -u ${SERVICE_NAME} -n 100 --no-pager"
+    log_info "Check worker status: systemctl status ${APPS_WORKER_SERVICE_NAME} --no-pager"
+    log_info "Check worker logs: journalctl -u ${APPS_WORKER_SERVICE_NAME} -n 100 --no-pager"
+    log_warn "Previous release directories were preserved for recovery."
+    exit 1
 fi
 
 # ── Step 6: Nginx + SSL (optional) ──────────────────────
@@ -981,9 +1051,10 @@ fi
 
 echo ""
 echo -e "  ${DIM}Useful commands:${NC}"
-echo -e "  ${DIM}  Status:   systemctl status ${SERVICE_NAME}${NC}"
-echo -e "  ${DIM}  Logs:     journalctl -u ${SERVICE_NAME} -f${NC}"
-echo -e "  ${DIM}  Restart:  systemctl restart ${SERVICE_NAME}${NC}"
+echo -e "  ${DIM}  Status:   systemctl status ${SERVICE_NAME} ${APPS_WORKER_SERVICE_NAME}${NC}"
+echo -e "  ${DIM}  Web logs: journalctl -u ${SERVICE_NAME} -f${NC}"
+echo -e "  ${DIM}  App logs: journalctl -u ${APPS_WORKER_SERVICE_NAME} -f${NC}"
+echo -e "  ${DIM}  Restart:  systemctl restart ${SERVICE_NAME} ${APPS_WORKER_SERVICE_NAME}${NC}"
 echo -e "  ${DIM}  Config:   ${CONFIG_DIR}/env${NC}"
 echo -e "  ${DIM}  Uninstall: sudo $0 --uninstall${NC}"
 echo ""

@@ -170,6 +170,7 @@ Concise map of major directories, commands, and key files. Update this section w
 - `pnpm dev` — run dev server via `src/server.ts`
 - `pnpm build` — Next.js production build (`NODE_OPTIONS` enabled)
 - `pnpm start` — run production server
+- `pnpm apps:worker` — run the separately supervised Apps deployment worker
 - `pnpm lint` — ESLint over `src/`
 - `pnpm lint:fix` — ESLint fix over `src/`
 - `pnpm typecheck` — `tsc --noEmit` (`NODE_OPTIONS` enabled)
@@ -297,11 +298,12 @@ Concise map of major directories, commands, and key files. Update this section w
 
 ### Apps
 
-- `src/modules/apps/` — Linux-first managed app deployment module; v1 supports explicit-command Next.js deployments with managed release copies, systemd service generation, Nginx routing, DNS guidance, and Apps UI/widget registration
-- `src/lib/apps/` — Apps deployment helpers for release paths, env masking, systemd/Nginx rendering, and the injectable deployment runner used by API routes
+- `src/modules/apps/` — Linux-first managed app deployment module with Apps UI/widget registration and compatibility views over durable queued operations
+- `src/lib/apps/` — Apps deployment helpers for release paths, env masking, systemd/Nginx rendering, operation enqueue/readiness, lease fencing, expired-operation recovery, and the worker runner
+- `src/lib/apps/worker/`, `src/workers/apps-worker.ts` — separately supervised Apps host-mutation consumer; renews fenced operation leases, drains on shutdown, and must be healthy before new mutations are accepted
 - `src/lib/apps/auto-update.ts`, `src/lib/apps/auto-update-scheduler.ts` — Git-based auto-update logic and background polling scheduler for managed apps
-- `src/models/ManagedApp.ts` — persisted app metadata, commands, masked env source values, status, current release, and deployment history
-- `src/app/api/modules/apps/` — Apps API routes for authenticated app list/create and deploy actions
+- `src/models/ManagedApp.ts`, `src/models/AppOperation.ts`, `src/models/AppOperationEvent.ts`, `src/models/AppsWorkerHeartbeat.ts` — persisted app state, durable operation ownership/events, and worker readiness
+- `src/app/api/modules/apps/` — authenticated Apps routes; asynchronous deploy/update/rollback/delete mutations return `503` without creating an operation when the worker heartbeat is unavailable
 - `src/app/apps/` — Apps module page route wrapped in `ProShell`
 
 ### Databases

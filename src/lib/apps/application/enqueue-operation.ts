@@ -1,5 +1,6 @@
 import { randomUUID } from 'crypto';
 import connectDB from '@/lib/db';
+import { createLogger } from '@/lib/logger';
 import ManagedApp from '@/models/ManagedApp';
 import type {
   AppCommands,
@@ -13,6 +14,19 @@ import {
   createAppOperationRecord,
   findAppOperationByIdempotencyKey,
 } from '../repositories/operation-repository';
+import { getAppsWorkerAvailability } from '../repositories/worker-heartbeat-repository';
+
+const log = createLogger('apps:enqueue-operation');
+
+export const APPS_WORKER_UNAVAILABLE_MESSAGE =
+  'Apps deployment worker is unavailable; retry after the service recovers';
+
+export class AppsWorkerUnavailableError extends Error {
+  constructor(readonly reason: 'missing' | 'stale' | 'not_running') {
+    super(APPS_WORKER_UNAVAILABLE_MESSAGE);
+    this.name = 'AppsWorkerUnavailableError';
+  }
+}
 
 interface RequestedBy {
   userId?: string;
@@ -119,6 +133,16 @@ export async function enqueueAppOperation(
   const app = (await ManagedApp.findById(input.appId).lean()) as ManagedAppQueueRecord | null;
   if (!app) throw new Error('App not found');
   validateOperationRequest(app, input);
+
+  const worker = await getAppsWorkerAvailability();
+  if (!worker.available) {
+    log.warn('Rejecting app operation because the Apps worker is unavailable', {
+      appId: input.appId,
+      operationType: input.type,
+      reason: worker.reason,
+    });
+    throw new AppsWorkerUnavailableError(worker.reason);
+  }
 
   const created = await createAppOperationRecord({
     operationId: input.operationIdFactory?.() ?? operationId(),
