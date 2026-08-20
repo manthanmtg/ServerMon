@@ -1,8 +1,9 @@
 'use client';
 
 import React, { memo, useEffect, useRef, useState } from 'react';
-import { AlertTriangle, Info, X } from 'lucide-react';
+import { AlertTriangle, Info } from 'lucide-react';
 import { Button } from './button';
+import { AlertDialog } from './AlertDialog';
 import { cn } from '@/lib/utils';
 
 interface ConfirmationModalProps {
@@ -32,20 +33,40 @@ function ConfirmationModal({
   variant = 'danger',
   isLoading = false,
 }: ConfirmationModalProps) {
-  const modalRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const [inputValue, setInputValue] = useState('');
+  const canConfirm = !isLoading && (!verificationText || inputValue === verificationText);
+
+  useEffect(() => {
+    setInputValue('');
+  }, [isOpen, verificationText]);
 
   useEffect(() => {
     if (!isOpen) return;
 
     function handleKeyDown(e: KeyboardEvent) {
-      if (e.key === 'Escape') onCancel();
-      if (e.key === 'Enter' && !isLoading) onConfirm();
+      if (e.key !== 'Enter' || !canConfirm || e.isComposing) return;
+      const target = e.target;
+      if (target instanceof HTMLElement) {
+        const tagName = target.tagName.toLowerCase();
+        if (
+          tagName === 'textarea' ||
+          tagName === 'select' ||
+          tagName === 'button' ||
+          tagName === 'a' ||
+          target.isContentEditable ||
+          Boolean(target.closest('[contenteditable]:not([contenteditable="false"])'))
+        ) {
+          return;
+        }
+      }
+      e.preventDefault();
+      onConfirm();
     }
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onCancel, onConfirm, isLoading]);
+  }, [canConfirm, isOpen, onConfirm]);
 
   if (!isOpen) return null;
 
@@ -71,114 +92,94 @@ function ConfirmationModal({
         : 'shadow-primary/20 hover:shadow-primary/30';
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-      {/* Backdrop */}
-      <div
-        className="absolute inset-0 bg-background/80 backdrop-blur-sm animate-in fade-in duration-300"
-        onClick={onCancel}
-      />
-
-      {/* Modal */}
-      <div
-        ref={modalRef}
-        className={cn(
-          'relative w-full max-w-md overflow-hidden rounded-3xl border border-border/50 bg-card/90 backdrop-blur-xl shadow-2xl animate-in fade-in zoom-in-95 slide-in-from-bottom-4 duration-300',
-          'before:absolute before:inset-0 before:bg-gradient-to-br before:from-white/5 before:to-transparent before:pointer-events-none'
-        )}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="modal-title"
-        aria-describedby="modal-message"
-      >
-        <div className="p-6">
-          <div className="flex items-start gap-4">
-            <div
-              className={cn(
-                'flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl',
-                iconBg,
-                iconColor
-              )}
-            >
-              <Icon className="h-6 w-6" />
-            </div>
-            <div className="flex-1 space-y-2 pt-1">
-              <h3 id="modal-title" className="text-lg font-bold tracking-tight text-foreground">
-                {title}
-              </h3>
-              <p id="modal-message" className="text-sm leading-relaxed text-muted-foreground">
-                {message}
-              </p>
-              {description && (
-                <div className="mt-2 p-3 rounded-xl bg-muted/40 border border-border/40">
-                  <p className="text-xs font-mono break-all text-foreground/80">{description}</p>
-                </div>
-              )}
-              {verificationText && (
-                <div className="mt-4 space-y-2">
-                  <p
-                    id="verification-instruction"
-                    className="text-[11px] font-medium text-muted-foreground tracking-wider"
-                  >
-                    Type{' '}
-                    <span className="text-foreground font-bold font-mono">
-                      &quot;{verificationText}&quot;
-                    </span>{' '}
-                    to confirm
-                  </p>
-                  <input
-                    type="text"
-                    aria-labelledby="verification-instruction"
-                    value={inputValue}
-                    onChange={(e) => setInputValue(e.target.value)}
-                    placeholder={verificationText}
-                    className="w-full h-11 px-4 rounded-xl border border-border/50 bg-background/50 text-sm font-mono outline-none focus:ring-2 focus:ring-primary/30 transition-all placeholder:opacity-30"
-                    autoFocus
-                    autoComplete="off"
-                    autoCorrect="off"
-                    autoCapitalize="off"
-                    spellCheck="false"
-                  />
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-
-        <div className="flex flex-col-reverse sm:flex-row items-center gap-3 p-6 pt-2 bg-muted/20">
-          <Button
-            variant="ghost"
-            onClick={onCancel}
-            disabled={isLoading}
-            className="w-full sm:w-auto h-11 px-6 rounded-xl font-medium"
-          >
-            {cancelLabel}
-          </Button>
-          <Button
-            variant={buttonVariant}
-            onClick={onConfirm}
-            loading={isLoading}
-            disabled={!!verificationText && inputValue !== verificationText}
-            className={cn(
-              'w-full sm:w-auto h-11 px-6 rounded-xl font-bold shadow-lg transition-all duration-300',
-              shadowColor,
-              !!verificationText &&
-                inputValue !== verificationText &&
-                'opacity-50 grayscale cursor-not-allowed shadow-none'
-            )}
-          >
-            {confirmLabel}
-          </Button>
-        </div>
-
-        <button
+    <AlertDialog
+      open={isOpen}
+      onOpenChange={(open) => {
+        if (!open) onCancel();
+      }}
+      title={title}
+      description={message}
+      closeLabel="Close"
+      dismissible={!isLoading}
+      initialFocusRef={verificationText ? inputRef : undefined}
+      cancel={
+        <Button
+          variant="ghost"
           onClick={onCancel}
-          className="absolute top-4 right-4 h-11 w-11 flex items-center justify-center rounded-full bg-card/90 text-muted-foreground transition-all duration-200 hover:bg-muted/60 hover:text-foreground active:scale-[0.95] active:bg-muted/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-          aria-label="Close"
+          disabled={isLoading}
+          className="h-11 w-full rounded-xl px-6 font-medium sm:w-auto"
         >
-          <X className="h-4 w-4" />
-        </button>
+          {cancelLabel}
+        </Button>
+      }
+      action={
+        <Button
+          variant={buttonVariant}
+          onClick={onConfirm}
+          loading={isLoading}
+          disabled={!canConfirm}
+          className={cn(
+            'h-11 w-full rounded-xl px-6 font-bold shadow-lg transition-all duration-300 sm:w-auto',
+            shadowColor,
+            !canConfirm && 'cursor-not-allowed opacity-50 grayscale shadow-none'
+          )}
+        >
+          {confirmLabel}
+        </Button>
+      }
+    >
+      <div
+        className={cn(
+          'relative flex items-start gap-4 rounded-2xl border border-border/40 bg-muted/20 p-4',
+          'before:pointer-events-none before:absolute before:inset-0 before:bg-gradient-to-br before:from-white/5 before:to-transparent'
+        )}
+      >
+        <div
+          className={cn(
+            'flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl',
+            iconBg,
+            iconColor
+          )}
+          aria-hidden="true"
+        >
+          <Icon className="h-6 w-6" />
+        </div>
+        <div className="min-w-0 flex-1 space-y-3 pt-1">
+          {description && (
+            <div className="rounded-xl border border-border/40 bg-muted/40 p-3">
+              <p className="break-all font-mono text-xs text-foreground/80">{description}</p>
+            </div>
+          )}
+          {verificationText && (
+            <div className="space-y-2">
+              <p
+                id="verification-instruction"
+                className="text-[11px] font-medium tracking-wider text-muted-foreground"
+              >
+                Type{' '}
+                <span className="font-mono font-bold text-foreground">
+                  &quot;{verificationText}&quot;
+                </span>{' '}
+                to confirm
+              </p>
+              <input
+                ref={inputRef}
+                type="text"
+                aria-labelledby="verification-instruction"
+                value={inputValue}
+                onChange={(event) => setInputValue(event.target.value)}
+                placeholder={verificationText}
+                className="h-11 w-full rounded-xl border border-border/50 bg-background/50 px-4 font-mono text-sm outline-none transition-all placeholder:opacity-30 focus:ring-2 focus:ring-primary/30"
+                autoComplete="off"
+                autoCorrect="off"
+                autoCapitalize="off"
+                spellCheck="false"
+              />
+            </div>
+          )}
+        </div>
       </div>
-    </div>
+    </AlertDialog>
   );
 }
 
