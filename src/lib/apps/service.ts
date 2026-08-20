@@ -659,7 +659,7 @@ export async function reconcileStaleAppUpdateOperations({
       },
     },
   };
-  const result = await ManagedApp.updateMany(query, [
+  const staleOperationUpdate = [
     {
       $set: {
         operations: {
@@ -711,7 +711,10 @@ export async function reconcileStaleAppUpdateOperations({
         },
       },
     },
-  ]);
+  ];
+  const result = await ManagedApp.updateMany(query, staleOperationUpdate, {
+    updatePipeline: true,
+  });
   return {
     matched: result.matchedCount ?? result.modifiedCount ?? 0,
     modified: result.modifiedCount ?? 0,

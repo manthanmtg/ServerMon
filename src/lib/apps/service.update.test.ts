@@ -133,7 +133,8 @@ describe('updateManagedGitApp', () => {
           }),
         },
       }),
-      expect.any(Array)
+      expect.any(Array),
+      { updatePipeline: true }
     );
   });
 

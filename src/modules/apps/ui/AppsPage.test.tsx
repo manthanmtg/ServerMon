@@ -1162,6 +1162,8 @@ describe('AppsPage', () => {
         await vi.advanceTimersByTimeAsync(0);
       });
       expect(screen.getByText('Git Portal')).toBeTruthy();
+      expect(screen.queryByLabelText('Follow inline update logs for Git Portal')).toBeNull();
+      expect(screen.queryByLabelText('Autoscroll inline update logs for Git Portal')).toBeNull();
 
       fireEvent.click(screen.getByRole('button', { name: /update/i }));
       await act(async () => {
@@ -1169,11 +1171,46 @@ describe('AppsPage', () => {
       });
 
       const liveLogs = screen.getByLabelText('Live update logs for Git Portal');
+      const follow = screen.getByLabelText('Follow inline update logs for Git Portal');
+      const autoscroll = screen.getByLabelText('Autoscroll inline update logs for Git Portal');
       expect(liveLogs.textContent).toContain('$ git fetch origin main');
       expect(liveLogs.textContent).toContain('$ pnpm build');
+      expect((follow as HTMLInputElement).checked).toBe(true);
+      expect((autoscroll as HTMLInputElement).checked).toBe(true);
       expect((screen.getByLabelText('Autoscroll update logs') as HTMLInputElement).checked).toBe(
         true
       );
+      expect((liveLogs as HTMLElement).scrollTop).toBe(240);
+
+      fireEvent.click(follow);
+      appDuringUpdate.operations[0].logs = [
+        '$ git fetch origin main',
+        '$ pnpm build',
+        'Compiling application',
+      ];
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1500);
+      });
+      expect(liveLogs.textContent).not.toContain('Compiling application');
+
+      fireEvent.click(follow);
+      expect(liveLogs.textContent).toContain('Compiling application');
+
+      (liveLogs as HTMLElement).scrollTop = 24;
+      fireEvent.click(autoscroll);
+      appDuringUpdate.operations[0].logs = [
+        '$ git fetch origin main',
+        '$ pnpm build',
+        'Compiling application',
+        'Creating optimized build',
+      ];
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1500);
+      });
+      expect(liveLogs.textContent).toContain('Creating optimized build');
+      expect((liveLogs as HTMLElement).scrollTop).toBe(24);
+
+      fireEvent.click(autoscroll);
       expect((liveLogs as HTMLElement).scrollTop).toBe(240);
 
       resolveUpdate({
