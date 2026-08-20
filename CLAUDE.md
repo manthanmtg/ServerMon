@@ -229,6 +229,7 @@ Concise map of major directories, commands, and key files. Update this section w
 - `src/lib/certificates/`, `src/lib/ports/`, `src/lib/memory/`, `src/lib/security/` — service-layer logic for certificates, ports, memory monitoring, and security management
 - `src/models/` — Mongoose schemas
 - `src/modules/` — feature modules (terminal, processes, logs, metrics, fleet, ai-agents, ai-runner, apps, certificates, crons, disk, firewall, health, nginx, network, hardware, self-service, endpoints, users, services, security, ports, memory, guide, etc.)
+- `src/modules/apps/ui/components/AppsOperationLogsDialog.tsx` — expanded live and historical Apps operation log viewer
 - `src/models/NetworkSpeedtestResult.ts`, `src/models/NetworkSpeedtestSettings.ts`, `src/models/NetworkAlert.ts`, `src/models/NetworkStatAggregate.ts` — persisted Network module data
 - `src/models/CustomEndpoint.ts`, `src/models/EndpointExecutionLog.ts` — persisted endpoint configuration and execution history
 - `src/lib/env-vars/` — stateless host environment variable helpers for OS target detection, shell env parsing, user-scope add/delete, and system-scope instructions

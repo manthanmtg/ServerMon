@@ -1,6 +1,10 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import AppsPage, { deriveAppsPageSummary, deriveAppsPageViewModels } from './AppsPage';
+import AppsPage, {
+  countLogicalActiveOperations,
+  deriveAppsPageSummary,
+  deriveAppsPageViewModels,
+} from './AppsPage';
 
 describe('AppsPage', () => {
   const writeText = vi.fn();
@@ -75,6 +79,15 @@ describe('AppsPage', () => {
         startedAt: '2026-05-23T05:03:00.000Z',
         logs: ['delete failed'],
       },
+      {
+        id: 'op_queue-1',
+        type: 'update' as const,
+        status: 'running' as const,
+        title: 'Manual update',
+        step: 'claiming',
+        startedAt: '2026-05-23T05:04:00.000Z',
+        logs: ['Operation claiming in Apps worker'],
+      },
     ];
 
     const [viewModel] = deriveAppsPageViewModels(
@@ -97,7 +110,7 @@ describe('AppsPage', () => {
       'rollback-1',
       'update-1',
     ]);
-    expect(viewModel.visibleOperations[2].isLiveUpdateOperation).toBe(true);
+    expect(viewModel.visibleOperations[2].isLiveOperation).toBe(true);
     expect(viewModel.visibleOperations[2].visibleLogs).toHaveLength(80);
     expect(viewModel.visibleOperations[2].visibleLogs[0]).toBe('update log 10');
     expect(operations.map((operation) => operation.id)).toEqual([
@@ -105,7 +118,35 @@ describe('AppsPage', () => {
       'update-1',
       'rollback-1',
       'delete-1',
+      'op_queue-1',
     ]);
+
+    const [allOperationsViewModel] = deriveAppsPageViewModels(
+      [{ id: 'app-1', name: 'Inventory Portal', operations }],
+      new Set(['app-1']),
+      'app-1',
+      new Set(['app-1'])
+    );
+    expect(allOperationsViewModel.visibleOperations.map((entry) => entry.operation.id)).toEqual([
+      'delete-1',
+      'rollback-1',
+      'update-1',
+      'deploy-1',
+    ]);
+  });
+
+  it('counts queue and execution rows for one deployment as one active operation', () => {
+    expect(
+      countLogicalActiveOperations([
+        {
+          operations: [
+            { id: 'deploy-1', type: 'deploy', status: 'running' },
+            { id: 'op_queue-1', type: 'deploy', status: 'running' },
+            { id: 'op_queue-2', type: 'update', status: 'running' },
+          ],
+        },
+      ])
+    ).toBe(2);
   });
 
   it('treats malformed app payloads as an empty list', async () => {
@@ -448,6 +489,293 @@ describe('AppsPage', () => {
     expect(global.fetch).toHaveBeenCalledTimes(1);
   });
 
+  it('shows the deploy action as loading and blocks clicks while a deployment is running', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        apps: [
+          {
+            id: 'app-1',
+            name: 'Inventory Portal',
+            slug: 'inventory-portal',
+            templateId: 'nextjs',
+            sourceType: 'local',
+            sourcePath: '/srv/apps/inventory-portal',
+            domain: 'inventory.example.com',
+            port: 3010,
+            commands: {
+              install: 'pnpm install --frozen-lockfile',
+              build: 'pnpm build',
+              start: 'pnpm start',
+            },
+            envVars: {},
+            healthCheckPath: '/',
+            tlsEnabled: false,
+            status: 'deploying',
+            releases: [],
+            operations: [
+              {
+                id: 'deploy-1',
+                type: 'deploy',
+                status: 'running',
+                title: 'Manual deploy',
+                step: 'Building release',
+                startedAt: '2026-08-20T03:30:00.000Z',
+                logs: ['$ pnpm build'],
+              },
+            ],
+          },
+        ],
+      }),
+    } as Response);
+
+    render(<AppsPage />);
+    await screen.findByText('Inventory Portal');
+
+    const deployButton = screen.getByRole('button', { name: 'Deployment in progress' });
+    expect((deployButton as HTMLButtonElement).disabled).toBe(true);
+    expect(deployButton.querySelector('.animate-spin')).toBeTruthy();
+    expect(screen.getByText('Deploying')).toBeTruthy();
+
+    fireEvent.click(deployButton);
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('opens live deployment logs after queuing a deployment', async () => {
+    const appBeforeDeploy = {
+      id: 'app-1',
+      name: 'Inventory Portal',
+      slug: 'inventory-portal',
+      templateId: 'nextjs',
+      sourceType: 'local',
+      sourcePath: '/srv/apps/inventory-portal',
+      domain: 'inventory.example.com',
+      port: 3010,
+      commands: {
+        install: 'pnpm install --frozen-lockfile',
+        build: 'pnpm build',
+        start: 'pnpm start',
+      },
+      envVars: {},
+      healthCheckPath: '/',
+      tlsEnabled: false,
+      status: 'running',
+      operations: [],
+      releases: [],
+    };
+    const appDuringDeploy = {
+      ...appBeforeDeploy,
+      status: 'deploying',
+      operations: [
+        {
+          id: 'deploy-1',
+          type: 'deploy',
+          status: 'running',
+          title: 'Manual deploy',
+          step: 'Building release',
+          startedAt: '2026-08-20T03:30:00.000Z',
+          logs: ['$ pnpm build', 'Creating an optimized production build'],
+        },
+        {
+          id: 'op_queue-1',
+          type: 'deploy',
+          status: 'running',
+          title: 'Manual deploy',
+          step: 'claiming',
+          startedAt: '2026-08-20T03:30:00.000Z',
+          logs: ['Operation claiming in Apps worker'],
+        },
+      ],
+    };
+    global.fetch = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ apps: [appBeforeDeploy] }),
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          deployment: {
+            operationId: 'op_queue-1',
+            status: 'queued',
+            phase: 'queued',
+            logs: [],
+          },
+        }),
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ apps: [appDuringDeploy] }),
+      } as Response);
+
+    render(<AppsPage />);
+    await screen.findByText('Inventory Portal');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Deploy' }));
+
+    const dialog = await screen.findByRole('dialog', { name: 'Deployment logs' });
+    expect(within(dialog).getByText('Live')).toBeTruthy();
+    const liveLogs = within(dialog).getByRole('log');
+    expect(liveLogs.textContent).toContain('$ pnpm build');
+    expect(liveLogs.textContent).toContain('Creating an optimized production build');
+    expect(liveLogs.textContent).not.toContain('Operation claiming in Apps worker');
+    expect(screen.queryByText('Operation claiming in Apps worker')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Collapse Inventory Portal' })).toBeTruthy();
+  });
+
+  it('keeps deployment actions locked when the first refresh after enqueue fails', async () => {
+    const app = {
+      id: 'app-1',
+      name: 'Inventory Portal',
+      slug: 'inventory-portal',
+      templateId: 'nextjs',
+      sourceType: 'local',
+      sourcePath: '/srv/apps/inventory-portal',
+      domain: 'inventory.example.com',
+      port: 3010,
+      commands: {
+        install: 'pnpm install --frozen-lockfile',
+        build: 'pnpm build',
+        start: 'pnpm start',
+      },
+      envVars: {},
+      healthCheckPath: '/',
+      tlsEnabled: false,
+      status: 'running',
+      operations: [],
+      releases: [],
+    };
+    global.fetch = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ apps: [app] }),
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          deployment: {
+            operationId: 'op_queue-1',
+            status: 'queued',
+            phase: 'queued',
+          },
+        }),
+      } as Response)
+      .mockRejectedValueOnce(new Error('Temporary refresh failure'));
+
+    render(<AppsPage />);
+    await screen.findByText('Inventory Portal');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Deploy' }));
+
+    expect(await screen.findByText('Inventory Portal deployment queued.')).toBeTruthy();
+    const deployButton = screen.getByRole('button', { name: 'Deployment in progress' });
+    expect((deployButton as HTMLButtonElement).disabled).toBe(true);
+    expect(deployButton.textContent).toContain('Deploying');
+    const logsDialog = screen.getByRole('dialog', { name: 'Deployment logs' });
+    expect(within(logsDialog).getByText('Starting')).toBeTruthy();
+    expect(
+      within(logsDialog).getByText('Deployment queued. Waiting for build output…')
+    ).toBeTruthy();
+  });
+
+  it('shows a terminal queue failure when execution logs never start', async () => {
+    vi.useFakeTimers();
+    const app = {
+      id: 'app-1',
+      name: 'Inventory Portal',
+      slug: 'inventory-portal',
+      templateId: 'nextjs',
+      sourceType: 'local',
+      sourcePath: '/srv/apps/inventory-portal',
+      domain: 'inventory.example.com',
+      port: 3010,
+      commands: {
+        install: 'pnpm install --frozen-lockfile',
+        build: 'pnpm build',
+        start: 'pnpm start',
+      },
+      envVars: {},
+      healthCheckPath: '/',
+      tlsEnabled: false,
+      status: 'running',
+      operations: [],
+      releases: [],
+    };
+    global.fetch = vi.fn((input: RequestInfo | URL) => {
+      const url = typeof input === 'string' ? input : input.toString();
+      if (url === '/api/modules/apps') {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({ apps: [app] }),
+        } as Response);
+      }
+      if (url === '/api/modules/apps/app-1/deploy') {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            deployment: {
+              operationId: 'op_queue-1',
+              status: 'queued',
+              phase: 'queued',
+            },
+          }),
+        } as Response);
+      }
+      if (url === '/api/modules/apps/operations/op_queue-1') {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            data: {
+              operation: {
+                id: 'op_queue-1',
+                appId: 'app-1',
+                type: 'deploy',
+                status: 'failed',
+                phase: 'terminal',
+                createdAt: '2026-08-20T03:30:00.000Z',
+                completedAt: '2026-08-20T03:30:02.000Z',
+                error: 'Worker lost its lease before execution started',
+              },
+            },
+          }),
+        } as Response);
+      }
+      return Promise.reject(new Error(`Unexpected fetch ${url}`));
+    });
+
+    try {
+      render(<AppsPage />);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      fireEvent.click(screen.getByRole('button', { name: 'Deploy' }));
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1_500);
+      });
+
+      expect(global.fetch).toHaveBeenCalledWith(
+        '/api/modules/apps/operations/op_queue-1',
+        expect.objectContaining({ cache: 'no-store' })
+      );
+      const dialog = screen.getByRole('dialog', { name: 'Deployment logs' });
+      expect(within(dialog).getByText('Failed')).toBeTruthy();
+      expect(
+        within(dialog).getByText('Worker lost its lease before execution started')
+      ).toBeTruthy();
+      expect(within(dialog).queryByText('Starting')).toBeNull();
+      expect((screen.getByRole('button', { name: 'Deploy' }) as HTMLButtonElement).disabled).toBe(
+        false
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('enables the update action after an abandoned worker operation is recovered as failed', async () => {
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,
@@ -606,6 +934,7 @@ describe('AppsPage', () => {
     expect(screen.getByText('Last result')).toBeTruthy();
     expect(screen.getAllByText('Unchanged').length).toBeGreaterThan(0);
     expect(screen.getByText('Next check')).toBeTruthy();
+    expect(screen.queryByRole('dialog', { name: 'Update logs' })).toBeNull();
   });
 
   it('shows a queued notice when update returns an accepted operation summary', async () => {
@@ -679,7 +1008,7 @@ describe('AppsPage', () => {
     fireEvent.click(screen.getByRole('button', { name: /update/i }));
 
     expect(await screen.findByText('Git Portal update queued.')).toBeTruthy();
-    expect(screen.getByText('Operation op_1 is queued.')).toBeTruthy();
+    expect(screen.getByText('Live logs are open and will update automatically.')).toBeTruthy();
   });
 
   it('clears update loading and does not poll when the worker rejects enqueue with 503', async () => {
@@ -756,11 +1085,13 @@ describe('AppsPage', () => {
 
   it('polls and autoscrolls live update operation logs while an update is running', async () => {
     vi.useFakeTimers();
-    const scrollIntoView = vi.fn();
-    const originalScrollIntoView = Element.prototype.scrollIntoView;
-    Object.defineProperty(Element.prototype, 'scrollIntoView', {
+    const originalScrollHeight = Object.getOwnPropertyDescriptor(
+      HTMLElement.prototype,
+      'scrollHeight'
+    );
+    Object.defineProperty(HTMLElement.prototype, 'scrollHeight', {
       configurable: true,
-      value: scrollIntoView,
+      get: () => 240,
     });
 
     const appBeforeUpdate = {
@@ -843,7 +1174,7 @@ describe('AppsPage', () => {
       expect((screen.getByLabelText('Autoscroll update logs') as HTMLInputElement).checked).toBe(
         true
       );
-      expect(scrollIntoView).toHaveBeenCalled();
+      expect((liveLogs as HTMLElement).scrollTop).toBe(240);
 
       resolveUpdate({
         ok: true,
@@ -859,13 +1190,10 @@ describe('AppsPage', () => {
         await vi.advanceTimersByTimeAsync(0);
       });
     } finally {
-      if (originalScrollIntoView) {
-        Object.defineProperty(Element.prototype, 'scrollIntoView', {
-          configurable: true,
-          value: originalScrollIntoView,
-        });
+      if (originalScrollHeight) {
+        Object.defineProperty(HTMLElement.prototype, 'scrollHeight', originalScrollHeight);
       } else {
-        delete (Element.prototype as { scrollIntoView?: unknown }).scrollIntoView;
+        delete (HTMLElement.prototype as { scrollHeight?: unknown }).scrollHeight;
       }
       vi.useRealTimers();
     }
@@ -920,6 +1248,33 @@ describe('AppsPage', () => {
               },
               operations: [
                 {
+                  id: 'deploy-oldest',
+                  type: 'deploy',
+                  status: 'succeeded',
+                  title: 'Manual deploy',
+                  step: 'Deployment completed',
+                  startedAt: '2026-05-03T12:00:00.000Z',
+                  logs: ['oldest deployment output'],
+                },
+                {
+                  id: 'update-old',
+                  type: 'update',
+                  status: 'unchanged',
+                  title: 'Manual update',
+                  step: 'No changes',
+                  startedAt: '2026-05-04T12:00:00.000Z',
+                  logs: ['no upstream changes'],
+                },
+                {
+                  id: 'deploy-recent',
+                  type: 'deploy',
+                  status: 'succeeded',
+                  title: 'Manual deploy',
+                  step: 'Deployment completed',
+                  startedAt: '2026-05-05T12:00:00.000Z',
+                  logs: ['recent deployment output'],
+                },
+                {
                   id: 'op-1',
                   type: 'update',
                   status: 'running',
@@ -965,8 +1320,22 @@ describe('AppsPage', () => {
     expect(screen.getByText('PID 4242')).toBeTruthy();
     expect(screen.getByText('2.5% CPU')).toBeTruthy();
     expect(screen.getByText('128 MB memory')).toBeTruthy();
-    expect(screen.getByText('Manual update')).toBeTruthy();
-    expect(screen.getByText('Running pnpm build')).toBeTruthy();
+    expect(screen.getAllByText('Update logs').length).toBeGreaterThan(0);
+    expect(screen.queryByText('Manual update')).toBeNull();
+    expect(screen.queryByText('Running pnpm build')).toBeNull();
+    expect(screen.queryByText('oldest deployment output')).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'View all operations (4)' }));
+    expect(screen.getByText('oldest deployment output')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Show recent operations' })).toBeTruthy();
+
+    fireEvent.click(
+      screen.getAllByRole('button', { name: 'Expand update logs for Git Portal' })[0]
+    );
+    const operationDialog = screen.getByRole('dialog', { name: 'Update logs' });
+    const expandedLiveLogs = within(operationDialog).getByRole('log');
+    expect(expandedLiveLogs.textContent).toContain('$ git fetch origin main');
+    expect(expandedLiveLogs.textContent).toContain('$ pnpm build');
 
     fireEvent.click(screen.getByRole('button', { name: 'Runtime logs for Git Portal' }));
 
@@ -1038,6 +1407,15 @@ describe('AppsPage', () => {
     expect(within(dialog).getByText('Failed')).toBeTruthy();
     expect(within(dialog).getByText('Command failed: pnpm build')).toBeTruthy();
     expect(within(dialog).getByText('build failed')).toBeTruthy();
+
+    fireEvent.click(
+      within(dialog).getByRole('button', {
+        name: 'Expand deployment logs for release-failed',
+      })
+    );
+    const logsDialog = screen.getByRole('dialog', { name: 'Deployment logs' });
+    expect(within(logsDialog).getByText('build failed')).toBeTruthy();
+    expect(within(logsDialog).getByText('Failed')).toBeTruthy();
   });
 
   it('rolls back to a selected release from deployment history', async () => {

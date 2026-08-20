@@ -1,5 +1,5 @@
 import React from 'react';
-import { XCircle, RotateCcw } from 'lucide-react';
+import { Maximize2, RotateCcw, XCircle } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ManagedAppDTO, AppRelease } from '../../types';
@@ -19,6 +19,7 @@ export interface AppsDeploymentHistoryDialogProps {
   historyApp: ManagedAppDTO;
   rollbackTarget: string | null;
   onClose: () => void;
+  onOpenLogs: (release: AppRelease) => void;
   onRollback: (appId: string, releaseId: string) => Promise<void>;
 }
 
@@ -26,6 +27,7 @@ export function AppsDeploymentHistoryDialog({
   historyApp,
   rollbackTarget,
   onClose,
+  onOpenLogs,
   onRollback,
 }: AppsDeploymentHistoryDialogProps) {
   return (
@@ -78,6 +80,17 @@ export function AppsDeploymentHistoryDialog({
                       </div>
                       <div className="flex flex-wrap items-center gap-2">
                         <Badge variant={status.variant}>{status.label}</Badge>
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="ghost"
+                          className="h-11 w-11"
+                          aria-label={`Expand deployment logs for ${release.id}`}
+                          title="Open deployment logs"
+                          onClick={() => onOpenLogs(release)}
+                        >
+                          <Maximize2 className="h-4 w-4" />
+                        </Button>
                         {canRollback && (
                           <Button
                             type="button"

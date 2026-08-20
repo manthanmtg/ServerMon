@@ -25,6 +25,7 @@ import {
   FileText,
   LoaderCircle,
   Lock,
+  Maximize2,
   Pencil,
   Play,
   Plus,
@@ -42,6 +43,8 @@ import type {
   AppAutoUpdateStatus,
   AppLogEntry,
   AppOperation,
+  AppOperationType,
+  AppRelease,
   AppSourceType,
   AppTemplateId,
   ManagedAppDTO,
@@ -49,6 +52,7 @@ import type {
 import { readManagedAppsList } from './appPayload';
 import { AppsRuntimeLogsDialog } from './AppsRuntimeLogsDialog';
 import { AppsDeploymentHistoryDialog } from './components/AppsDeploymentHistoryDialog';
+import { AppsOperationLogsDialog } from './components/AppsOperationLogsDialog';
 import { AppsSummaryCards } from './AppsSummaryCards';
 
 interface FormState {
@@ -87,7 +91,7 @@ type AppsPageViewModelInput = Pick<ManagedAppDTO, 'id' | 'operations'>;
 
 interface AppsPageVisibleOperation {
   operation: AppOperation;
-  isLiveUpdateOperation: boolean;
+  isLiveOperation: boolean;
   visibleLogs: string[];
 }
 
@@ -97,6 +101,8 @@ interface AppsPageViewModel<TApp extends AppsPageViewModelInput> {
   isUpdatingThisApp: boolean;
   latestUpdateOperation: AppOperation | undefined;
   hasRunningUpdateOperation: boolean;
+  hasRunningOperation: boolean;
+  operationCount: number;
   visibleOperations: AppsPageVisibleOperation[];
 }
 
@@ -115,6 +121,30 @@ interface ActionNotice {
   detail?: string;
 }
 
+interface OperationLogsTarget {
+  appId: string;
+  operationId?: string;
+  operationType: AppOperationType;
+  existingOperationIds?: string[];
+  operationSnapshot?: AppOperation;
+  queueOperationId?: string;
+}
+
+interface AcceptedOperationLock {
+  appId: string;
+  operationId: string;
+  operationType: AppOperationType;
+}
+
+interface TerminalQueueOperation {
+  id: string;
+  status: 'failed' | 'cancelled';
+  createdAt?: string;
+  startedAt?: string;
+  completedAt?: string;
+  error?: string;
+}
+
 export function deriveAppsPageSummary(apps: AppsPageSummaryInput[]): AppsPageSummary {
   return apps.reduce<AppsPageSummary>(
     (summary, app) => {
@@ -130,13 +160,16 @@ export function deriveAppsPageSummary(apps: AppsPageSummaryInput[]): AppsPageSum
 export function deriveAppsPageViewModels<TApp extends AppsPageViewModelInput>(
   apps: TApp[],
   expandedAppIds: ReadonlySet<string>,
-  updatingId: string | null
+  updatingId: string | null,
+  allOperationAppIds: ReadonlySet<string> = new Set()
 ): AppsPageViewModel<TApp>[] {
   return apps.map((app) => {
     const isExpanded = expandedAppIds.has(app.id);
     const latestUpdateOperation = getLatestUpdateOperation(app);
     const isUpdatingThisApp = updatingId === app.id;
     const hasRunningUpdateOperation = appHasRunningUpdateOperation(app);
+    const hasRunningOperation = appHasRunningOperation(app);
+    const userOperations = app.operations.filter((operation) => !isWorkerQueueOperation(operation));
 
     return {
       app,
@@ -144,27 +177,50 @@ export function deriveAppsPageViewModels<TApp extends AppsPageViewModelInput>(
       isUpdatingThisApp,
       latestUpdateOperation,
       hasRunningUpdateOperation,
+      hasRunningOperation,
+      operationCount: userOperations.length,
       visibleOperations: isExpanded
-        ? [...app.operations]
+        ? userOperations
             .reverse()
-            .slice(0, 3)
+            .slice(0, allOperationAppIds.has(app.id) ? undefined : 3)
             .map((operation) => {
-              const isLiveUpdateOperation =
-                operation.id === latestUpdateOperation?.id &&
-                operation.type === 'update' &&
-                operation.status === 'running';
+              const isLiveOperation = operation.status === 'running';
 
               return {
                 operation,
-                isLiveUpdateOperation,
+                isLiveOperation,
                 visibleLogs: operation.logs.slice(
-                  isLiveUpdateOperation ? -LIVE_OPERATION_LOG_LIMIT : -RECENT_OPERATION_LOG_LIMIT
+                  isLiveOperation ? -LIVE_OPERATION_LOG_LIMIT : -RECENT_OPERATION_LOG_LIMIT
                 ),
               };
             })
         : [],
     };
   });
+}
+
+export function countLogicalActiveOperations(
+  apps: Array<{
+    operations: Array<Pick<AppOperation, 'id' | 'type' | 'status'>>;
+  }>
+): number {
+  return apps.reduce((total, app) => {
+    const runningExecutions = app.operations.filter(
+      (operation) => operation.status === 'running' && !isWorkerQueueOperation(operation)
+    );
+    const executionTypes = new Set(runningExecutions.map((operation) => operation.type));
+    const queuedTypesWithoutExecution = new Set(
+      app.operations
+        .filter(
+          (operation) =>
+            operation.status === 'running' &&
+            isWorkerQueueOperation(operation) &&
+            !executionTypes.has(operation.type)
+        )
+        .map((operation) => operation.type)
+    );
+    return total + runningExecutions.length + queuedTypesWithoutExecution.size;
+  }, 0);
 }
 
 const initialForm: FormState = {
@@ -274,6 +330,14 @@ function appToForm(app: ManagedAppDTO): FormState {
 }
 
 function statusBadge(app: ManagedAppDTO) {
+  if (app.status === 'deploying') {
+    return (
+      <Badge variant="warning">
+        <LoaderCircle className="h-3 w-3 animate-spin" />
+        Deploying
+      </Badge>
+    );
+  }
   if (app.status === 'running') {
     return (
       <Badge variant="success">
@@ -324,6 +388,17 @@ function operationStatusBadge(operation: AppOperation) {
   return <Badge variant="success">Succeeded</Badge>;
 }
 
+function operationLogsTitle(type: AppOperationType) {
+  if (type === 'deploy') return 'Deployment logs';
+  if (type === 'update') return 'Update logs';
+  if (type === 'rollback') return 'Rollback logs';
+  return 'Removal logs';
+}
+
+function operationLogSubject(type: AppOperationType) {
+  return type === 'deploy' ? 'deployment' : type;
+}
+
 function autoUpdateStatusBadge(status?: AppAutoUpdateStatus) {
   if (status === 'failed') return <Badge variant="destructive">Failed</Badge>;
   if (status === 'updated') return <Badge variant="success">Updated</Badge>;
@@ -365,7 +440,7 @@ function updateNoticeFor(appName: string, result: ActionResult | null): ActionNo
     return {
       tone: 'info',
       title: `${appName} update queued.`,
-      detail: `Operation ${result.operationId} is ${result.phase ?? result.status}.`,
+      detail: 'Live logs are open and will update automatically.',
     };
   }
   if (result?.status === 'unchanged') {
@@ -389,16 +464,145 @@ function updateNoticeFor(appName: string, result: ActionResult | null): ActionNo
   };
 }
 
+function deploymentNoticeFor(appName: string, result: ActionResult | null): ActionNotice {
+  if (result?.operationId && (result.status === 'queued' || result.status === 'running')) {
+    return {
+      tone: 'info',
+      title: `${appName} deployment queued.`,
+      detail: 'Live logs are open and will update automatically.',
+    };
+  }
+  if (result?.status === 'active') {
+    return {
+      tone: 'success',
+      title: `${appName} deployed successfully.`,
+      detail: result.releaseId ? `Release ${result.releaseId} is now active.` : undefined,
+    };
+  }
+  return {
+    tone: 'info',
+    title: `${appName} deployment started.`,
+    detail: 'Live logs are open and will update automatically.',
+  };
+}
+
 function getLatestUpdateOperation(
   app: Pick<ManagedAppDTO, 'operations'>
 ): AppOperation | undefined {
-  return [...app.operations].reverse().find((operation) => operation.type === 'update');
+  return [...app.operations]
+    .reverse()
+    .find((operation) => operation.type === 'update' && !isWorkerQueueOperation(operation));
+}
+
+function isWorkerQueueOperation(operation: Pick<AppOperation, 'id'>): boolean {
+  // V2 queue rows describe worker coordination. The legacy operation created by
+  // the executor has the deploy/update logs users actually need to follow.
+  return operation.id.startsWith('op_');
+}
+
+function findOperationForLogs(
+  app: Pick<ManagedAppDTO, 'operations'> | undefined,
+  target: OperationLogsTarget | null
+): AppOperation | undefined {
+  if (!app || !target) return undefined;
+  if (target.operationSnapshot) return target.operationSnapshot;
+  if (target.operationId) {
+    return app.operations.find((operation) => operation.id === target.operationId);
+  }
+
+  const existingOperationIds = new Set(target.existingOperationIds ?? []);
+  return [...app.operations]
+    .reverse()
+    .find(
+      (operation) =>
+        operation.type === target.operationType &&
+        !isWorkerQueueOperation(operation) &&
+        !existingOperationIds.has(operation.id)
+    );
+}
+
+function releaseToLogOperation(release: AppRelease): AppOperation {
+  return {
+    id: `release-${release.id}`,
+    type: 'deploy',
+    status:
+      release.status === 'building'
+        ? 'running'
+        : release.status === 'failed'
+          ? 'failed'
+          : 'succeeded',
+    title: 'Deployment release',
+    step:
+      release.status === 'building'
+        ? 'Building release'
+        : release.status === 'failed'
+          ? 'Deployment failed'
+          : 'Deployment completed',
+    startedAt: release.createdAt,
+    completedAt: release.status === 'building' ? undefined : release.activatedAt,
+    releaseId: release.id,
+    error: release.error,
+    logs: release.logs,
+  };
 }
 
 function appHasRunningUpdateOperation(app: Pick<ManagedAppDTO, 'operations'>): boolean {
   return app.operations.some(
     (operation) => operation.type === 'update' && operation.status === 'running'
   );
+}
+
+function appHasRunningOperation(app: Pick<ManagedAppDTO, 'operations'>): boolean {
+  return app.operations.some((operation) => operation.status === 'running');
+}
+
+function isTerminalQueueStatus(status: unknown): boolean {
+  return (
+    status === 'succeeded' ||
+    status === 'failed' ||
+    status === 'cancelled' ||
+    status === 'unchanged'
+  );
+}
+
+function readTerminalQueueOperation(payload: unknown): TerminalQueueOperation | null {
+  if (!isRecord(payload) || !isRecord(payload.data) || !isRecord(payload.data.operation)) {
+    return null;
+  }
+  const operation = payload.data.operation;
+  if (operation.status !== 'failed' && operation.status !== 'cancelled') return null;
+  if (typeof operation.id !== 'string') return null;
+  return {
+    id: operation.id,
+    status: operation.status,
+    createdAt: typeof operation.createdAt === 'string' ? operation.createdAt : undefined,
+    startedAt: typeof operation.startedAt === 'string' ? operation.startedAt : undefined,
+    completedAt: typeof operation.completedAt === 'string' ? operation.completedAt : undefined,
+    error: typeof operation.error === 'string' ? operation.error : undefined,
+  };
+}
+
+function terminalQueueOperationToLogOperation(
+  operation: TerminalQueueOperation,
+  type: AppOperationType
+): AppOperation {
+  const subject = operationLogSubject(type);
+  return {
+    id: operation.id,
+    type,
+    status: 'failed',
+    title: `${subject} did not start`,
+    step:
+      operation.status === 'cancelled' ? 'Cancelled before execution' : 'Failed before execution',
+    startedAt: operation.startedAt ?? operation.createdAt ?? new Date().toISOString(),
+    completedAt: operation.completedAt,
+    error:
+      operation.error ??
+      (operation.status === 'cancelled'
+        ? `The ${subject} was cancelled before execution started.`
+        : `The ${subject} failed before build output became available.`),
+    logs: [],
+  };
 }
 
 function fieldClassName() {
@@ -432,6 +636,7 @@ export default function AppsPage() {
   const [form, setForm] = useState<FormState>(initialForm);
   const [formMode, setFormMode] = useState<'create' | 'edit' | null>(null);
   const [expandedAppIds, setExpandedAppIds] = useState<Set<string>>(() => new Set());
+  const [allOperationAppIds, setAllOperationAppIds] = useState<Set<string>>(() => new Set());
   const [revealedEnvVars, setRevealedEnvVars] = useState<Set<string>>(() => new Set());
   const [copiedTarget, setCopiedTarget] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -442,6 +647,10 @@ export default function AppsPage() {
   const [rollbackTarget, setRollbackTarget] = useState<string | null>(null);
   const [deleteCandidate, setDeleteCandidate] = useState<ManagedAppDTO | null>(null);
   const [historyApp, setHistoryApp] = useState<ManagedAppDTO | null>(null);
+  const [operationLogsTarget, setOperationLogsTarget] = useState<OperationLogsTarget | null>(null);
+  const [acceptedOperationLocks, setAcceptedOperationLocks] = useState<
+    Record<string, AcceptedOperationLock>
+  >({});
   const [runtimeLogsApp, setRuntimeLogsApp] = useState<ManagedAppDTO | null>(null);
   const [runtimeLogs, setRuntimeLogs] = useState<AppLogEntry[]>([]);
   const [runtimeLogsLoading, setRuntimeLogsLoading] = useState(false);
@@ -449,8 +658,11 @@ export default function AppsPage() {
   const [editingApp, setEditingApp] = useState<ManagedAppDTO | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<ActionNotice | null>(null);
-  const [updateLogAutoscroll, setUpdateLogAutoscroll] = useState(true);
-  const liveUpdateLogEndRef = useRef<HTMLSpanElement | null>(null);
+  const [operationLogAutoscroll, setOperationLogAutoscroll] = useState<Record<string, boolean>>({});
+  const liveOperationLogRefs = useRef<Map<string, HTMLPreElement>>(new Map());
+  const liveOperationLogLengths = useRef<Map<string, number>>(new Map());
+  const appsRef = useRef<ManagedAppDTO[]>([]);
+  const deployRequestIdsRef = useRef<Set<string>>(new Set());
   const updateRequestIdsRef = useRef<Set<string>>(new Set());
 
   const load = useCallback(async () => {
@@ -464,9 +676,13 @@ export default function AppsPage() {
         const error = data && typeof data === 'object' ? (data as { error?: unknown }).error : null;
         throw new Error(typeof error === 'string' ? error : 'Failed to load apps');
       }
-      setApps(readManagedAppsList(data));
+      const nextApps = readManagedAppsList(data);
+      appsRef.current = nextApps;
+      setApps(nextApps);
+      return true;
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to load apps');
+      return false;
     } finally {
       setLoading(false);
     }
@@ -477,53 +693,133 @@ export default function AppsPage() {
   }, [load]);
 
   const summary = useMemo(() => deriveAppsPageSummary(apps), [apps]);
-  const activeOperations = useMemo(
-    () =>
-      apps.reduce(
-        (count, app) =>
-          count + app.operations.filter((operation) => operation.status === 'running').length,
-        0
-      ),
-    [apps]
-  );
+  const activeOperations = useMemo(() => countLogicalActiveOperations(apps), [apps]);
 
-  const liveUpdateOperation = useMemo(() => {
-    if (updatingId) {
-      const app = apps.find((item) => item.id === updatingId);
-      return app ? getLatestUpdateOperation(app) : undefined;
-    }
-
-    for (const app of apps) {
-      const operation = getLatestUpdateOperation(app);
-      if (operation?.status === 'running') return operation;
-    }
-
-    return undefined;
-  }, [apps, updatingId]);
   const appViewModels = useMemo(
-    () => deriveAppsPageViewModels(apps, expandedAppIds, updatingId),
-    [apps, expandedAppIds, updatingId]
+    () => deriveAppsPageViewModels(apps, expandedAppIds, updatingId, allOperationAppIds),
+    [allOperationAppIds, apps, expandedAppIds, updatingId]
   );
-  const liveUpdateLogCount = liveUpdateOperation?.logs.length ?? 0;
-  const liveUpdateStep = liveUpdateOperation?.step;
+  const operationLogsApp = operationLogsTarget
+    ? apps.find((app) => app.id === operationLogsTarget.appId)
+    : undefined;
+  const selectedOperation = findOperationForLogs(operationLogsApp, operationLogsTarget);
+  const awaitingOperationLogs = Boolean(operationLogsTarget && !selectedOperation);
 
   useEffect(() => {
-    if (!updatingId && activeOperations === 0) return undefined;
-
-    const interval = setInterval(() => {
-      void load();
-    }, UPDATE_OPERATION_POLL_MS);
-
-    return () => clearInterval(interval);
-  }, [activeOperations, load, updatingId]);
-
-  useEffect(() => {
-    if (!updateLogAutoscroll || (!updatingId && activeOperations === 0)) return;
-    const scrollIntoView = liveUpdateLogEndRef.current?.scrollIntoView;
-    if (typeof scrollIntoView === 'function') {
-      scrollIntoView.call(liveUpdateLogEndRef.current, { block: 'end' });
+    const acceptedOperations = Object.values(acceptedOperationLocks);
+    if (
+      !deployingId &&
+      !updatingId &&
+      activeOperations === 0 &&
+      !awaitingOperationLogs &&
+      acceptedOperations.length === 0
+    ) {
+      return undefined;
     }
-  }, [activeOperations, liveUpdateLogCount, liveUpdateStep, updateLogAutoscroll, updatingId]);
+
+    let cancelled = false;
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+    const poll = async () => {
+      const appListLoaded = await load();
+
+      const terminalOperationIds = new Set<string>();
+      const terminalFailures: TerminalQueueOperation[] = [];
+      await Promise.all(
+        acceptedOperations.map(async (operation) => {
+          try {
+            const response = await resilientFetch(
+              `/api/modules/apps/operations/${operation.operationId}`,
+              { cache: 'no-store', timeout: 10000 }
+            );
+            const payload: unknown = await response.json();
+            const status =
+              isRecord(payload) && isRecord(payload.data) && isRecord(payload.data.operation)
+                ? payload.data.operation.status
+                : undefined;
+            if (response.ok && isTerminalQueueStatus(status)) {
+              terminalOperationIds.add(operation.operationId);
+              const terminalFailure = readTerminalQueueOperation(payload);
+              if (terminalFailure) terminalFailures.push(terminalFailure);
+            }
+          } catch {
+            // Keep the local action lock until a later poll confirms a terminal state.
+          }
+        })
+      );
+
+      if (!cancelled && appListLoaded && terminalOperationIds.size > 0) {
+        if (terminalFailures.length > 0) {
+          setOperationLogsTarget((current) => {
+            if (!current?.queueOperationId) return current;
+            const terminalFailure = terminalFailures.find(
+              (operation) => operation.id === current.queueOperationId
+            );
+            if (!terminalFailure) return current;
+            const latestApp = appsRef.current.find((app) => app.id === current.appId);
+            if (findOperationForLogs(latestApp, current)) return current;
+            return {
+              ...current,
+              operationSnapshot: terminalQueueOperationToLogOperation(
+                terminalFailure,
+                current.operationType
+              ),
+            };
+          });
+        }
+        setAcceptedOperationLocks((current) =>
+          Object.fromEntries(
+            Object.entries(current).filter(
+              ([, operation]) => !terminalOperationIds.has(operation.operationId)
+            )
+          )
+        );
+      }
+      if (!cancelled) {
+        timeout = setTimeout(() => void poll(), UPDATE_OPERATION_POLL_MS);
+      }
+    };
+
+    timeout = setTimeout(() => void poll(), UPDATE_OPERATION_POLL_MS);
+
+    return () => {
+      cancelled = true;
+      if (timeout) clearTimeout(timeout);
+    };
+  }, [
+    acceptedOperationLocks,
+    activeOperations,
+    awaitingOperationLogs,
+    deployingId,
+    load,
+    updatingId,
+  ]);
+
+  useEffect(() => {
+    const activeOperationIds = new Set<string>();
+    for (const app of apps) {
+      for (const operation of app.operations) {
+        if (operation.status !== 'running' || isWorkerQueueOperation(operation)) continue;
+        activeOperationIds.add(operation.id);
+        const previousLogLength = liveOperationLogLengths.current.get(operation.id);
+        liveOperationLogLengths.current.set(operation.id, operation.logs.length);
+        if (
+          previousLogLength === operation.logs.length ||
+          operationLogAutoscroll[operation.id] === false
+        ) {
+          continue;
+        }
+        const logContainer = liveOperationLogRefs.current.get(operation.id);
+        if (logContainer) {
+          logContainer.scrollTop = logContainer.scrollHeight;
+        }
+      }
+    }
+    for (const operationId of liveOperationLogLengths.current.keys()) {
+      if (!activeOperationIds.has(operationId)) {
+        liveOperationLogLengths.current.delete(operationId);
+      }
+    }
+  }, [apps, operationLogAutoscroll]);
 
   const updateForm = <K extends keyof FormState>(key: K, value: FormState[K]) => {
     setForm((current) => ({ ...current, [key]: value }));
@@ -549,6 +845,15 @@ export default function AppsPage() {
 
   const toggleAppExpanded = (appId: string) => {
     setExpandedAppIds((current) => {
+      const next = new Set(current);
+      if (next.has(appId)) next.delete(appId);
+      else next.add(appId);
+      return next;
+    });
+  };
+
+  const toggleAllOperations = (appId: string) => {
+    setAllOperationAppIds((current) => {
       const next = new Set(current);
       if (next.has(appId)) next.delete(appId);
       else next.add(appId);
@@ -635,28 +940,76 @@ export default function AppsPage() {
   };
 
   const deployApp = async (appId: string) => {
+    const app = apps.find((item) => item.id === appId);
+    if (
+      deployRequestIdsRef.current.has(appId) ||
+      Boolean(acceptedOperationLocks[appId]) ||
+      (app && (app.status === 'deploying' || appHasRunningOperation(app)))
+    ) {
+      return;
+    }
+
+    const appName = app?.name ?? 'App';
+    deployRequestIdsRef.current.add(appId);
     setDeployingId(appId);
     setError(null);
     setNotice(null);
+    expandApp(appId);
+    setOperationLogsTarget({
+      appId,
+      operationType: 'deploy',
+      existingOperationIds: app?.operations.map((operation) => operation.id) ?? [],
+    });
     try {
       const response = await resilientFetch(`/api/modules/apps/${appId}/deploy`, {
         method: 'POST',
         timeout: 60000,
       });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || data.deployment?.error || 'Deploy failed');
+      const data: unknown = await response.json();
+      const result = readActionResult(data, 'deployment');
+      if (!response.ok) {
+        throw new Error(readPayloadError(data) || result?.error || 'Deploy failed');
+      }
+      if (result?.operationId) {
+        setAcceptedOperationLocks((current) => ({
+          ...current,
+          [appId]: {
+            appId,
+            operationId: result.operationId as string,
+            operationType: 'deploy',
+          },
+        }));
+        setOperationLogsTarget((current) =>
+          current?.appId === appId && current.operationType === 'deploy'
+            ? { ...current, queueOperationId: result.operationId }
+            : current
+        );
+      } else {
+        setOperationLogsTarget((current) =>
+          current?.appId === appId && current.operationType === 'deploy' ? null : current
+        );
+      }
+      setNotice(deploymentNoticeFor(appName, result));
       await load();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Deploy failed');
+      setOperationLogsTarget((current) =>
+        current?.appId === appId && current.operationType === 'deploy' ? null : current
+      );
       await load();
     } finally {
+      deployRequestIdsRef.current.delete(appId);
       setDeployingId(null);
     }
   };
 
   const updateApp = async (appId: string) => {
     const app = apps.find((item) => item.id === appId);
-    if (updateRequestIdsRef.current.has(appId) || (app && appHasRunningUpdateOperation(app))) {
+    if (
+      updateRequestIdsRef.current.has(appId) ||
+      Boolean(acceptedOperationLocks[appId]) ||
+      (app && (app.status === 'deploying' || appHasRunningOperation(app)))
+    ) {
       return;
     }
 
@@ -666,6 +1019,11 @@ export default function AppsPage() {
     setError(null);
     setNotice(null);
     expandApp(appId);
+    setOperationLogsTarget({
+      appId,
+      operationType: 'update',
+      existingOperationIds: app?.operations.map((operation) => operation.id) ?? [],
+    });
     try {
       const response = await resilientFetch(`/api/modules/apps/${appId}/update`, {
         method: 'POST',
@@ -676,10 +1034,32 @@ export default function AppsPage() {
       if (!response.ok) {
         throw new Error(readPayloadError(data) || result?.error || 'Update failed');
       }
+      if (result?.operationId) {
+        setAcceptedOperationLocks((current) => ({
+          ...current,
+          [appId]: {
+            appId,
+            operationId: result.operationId as string,
+            operationType: 'update',
+          },
+        }));
+        setOperationLogsTarget((current) =>
+          current?.appId === appId && current.operationType === 'update'
+            ? { ...current, queueOperationId: result.operationId }
+            : current
+        );
+      } else {
+        setOperationLogsTarget((current) =>
+          current?.appId === appId && current.operationType === 'update' ? null : current
+        );
+      }
       setNotice(updateNoticeFor(appName, result));
       await load();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Update failed');
+      setOperationLogsTarget((current) =>
+        current?.appId === appId && current.operationType === 'update' ? null : current
+      );
       await load();
     } finally {
       updateRequestIdsRef.current.delete(appId);
@@ -1169,11 +1549,25 @@ export default function AppsPage() {
             app,
             isExpanded,
             isUpdatingThisApp,
-            latestUpdateOperation,
             hasRunningUpdateOperation,
+            hasRunningOperation,
+            operationCount,
             visibleOperations,
           } = viewModel;
           const updateInProgress = isUpdatingThisApp || hasRunningUpdateOperation;
+          const deployInProgress =
+            deployingId === app.id ||
+            app.status === 'deploying' ||
+            app.operations.some(
+              (operation) => operation.type === 'deploy' && operation.status === 'running'
+            );
+          const operationInProgress = hasRunningOperation || app.status === 'deploying';
+          const acceptedOperation = acceptedOperationLocks[app.id];
+          const acceptedDeployInProgress = acceptedOperation?.operationType === 'deploy';
+          const acceptedUpdateInProgress = acceptedOperation?.operationType === 'update';
+          const operationLocked = operationInProgress || Boolean(acceptedOperation);
+          const isDeployingThisApp = deployingId === app.id;
+          const showingAllOperations = allOperationAppIds.has(app.id);
           return (
             <Card key={app.id}>
               <CardHeader>
@@ -1198,20 +1592,38 @@ export default function AppsPage() {
                         onClick={() => {
                           void updateApp(app.id);
                         }}
-                        loading={updateInProgress}
+                        loading={updateInProgress || acceptedUpdateInProgress}
+                        disabled={operationLocked}
+                        aria-label={
+                          updateInProgress || acceptedUpdateInProgress
+                            ? 'Update in progress'
+                            : undefined
+                        }
+                        title="Fetch the latest Git branch and deploy it when changes are available"
                       >
-                        {!updateInProgress && <RefreshCw className="h-3.5 w-3.5" />}
-                        Update
+                        {!updateInProgress && !acceptedUpdateInProgress && (
+                          <RefreshCw className="h-3.5 w-3.5" />
+                        )}
+                        {updateInProgress || acceptedUpdateInProgress ? 'Updating…' : 'Update'}
                       </Button>
                     )}
                     <Button
                       type="button"
                       size="sm"
-                      onClick={() => deployApp(app.id)}
-                      loading={deployingId === app.id}
+                      onClick={() => void deployApp(app.id)}
+                      loading={deployInProgress || acceptedDeployInProgress}
+                      disabled={operationLocked}
+                      aria-label={
+                        deployInProgress || acceptedDeployInProgress
+                          ? 'Deployment in progress'
+                          : undefined
+                      }
+                      title="Build the configured source, activate a new release, and verify its health"
                     >
-                      {deployingId !== app.id && <Play className="h-3.5 w-3.5" />}
-                      Deploy
+                      {!deployInProgress && !acceptedDeployInProgress && (
+                        <Play className="h-3.5 w-3.5" />
+                      )}
+                      {deployInProgress || acceptedDeployInProgress ? 'Deploying…' : 'Deploy'}
                     </Button>
                     <Button
                       type="button"
@@ -1364,76 +1776,131 @@ export default function AppsPage() {
                             <RefreshCw className="h-4 w-4 text-primary" />
                             Operations
                           </div>
-                          {(isUpdatingThisApp || hasRunningUpdateOperation) && (
-                            <label className="flex min-h-[32px] items-center gap-2 text-xs text-muted-foreground">
-                              <input
-                                type="checkbox"
-                                aria-label="Autoscroll update logs"
-                                checked={updateLogAutoscroll}
-                                onChange={(event) => setUpdateLogAutoscroll(event.target.checked)}
-                                className="h-4 w-4 rounded border-input accent-primary"
-                              />
-                              Autoscroll
-                            </label>
-                          )}
                         </div>
-                        {isUpdatingThisApp && !latestUpdateOperation && (
-                          <div className="mb-2 rounded-md border border-dashed border-border px-3 py-4 text-xs text-muted-foreground">
-                            Waiting for update logs...
-                          </div>
-                        )}
-                        {app.operations.length > 0 ? (
-                          <div className="space-y-2">
-                            {visibleOperations.map(
-                              ({ operation, isLiveUpdateOperation, visibleLogs }) => {
-                                return (
-                                  <div
-                                    key={operation.id}
-                                    className="rounded-md bg-muted/30 p-2 text-xs"
-                                  >
-                                    <div className="flex items-start justify-between gap-2">
-                                      <div>
-                                        <div className="font-medium text-foreground">
-                                          {operation.title}
+                        {(isDeployingThisApp || isUpdatingThisApp) &&
+                          !app.operations.some((operation) => operation.status === 'running') && (
+                            <div className="mb-2 rounded-md border border-dashed border-border px-3 py-4 text-xs text-muted-foreground">
+                              {isDeployingThisApp
+                                ? 'Starting deployment and waiting for output…'
+                                : 'Checking for updates and waiting for output…'}
+                            </div>
+                          )}
+                        {visibleOperations.length > 0 ? (
+                          <div className="space-y-3">
+                            <div className="space-y-2">
+                              {visibleOperations.map(
+                                ({ operation, isLiveOperation, visibleLogs }) => {
+                                  const logsTitle = operationLogsTitle(operation.type);
+                                  return (
+                                    <div
+                                      key={operation.id}
+                                      className="rounded-md bg-muted/30 p-2 text-xs"
+                                    >
+                                      <div className="flex items-start justify-between gap-3">
+                                        <div className="min-w-0 py-1">
+                                          <div className="font-medium text-foreground">
+                                            {logsTitle}
+                                          </div>
+                                          <div className="mt-1 text-muted-foreground">
+                                            Started{' '}
+                                            {formatOptionalDate(operation.startedAt, 'recently')}
+                                          </div>
                                         </div>
-                                        <div className="mt-1 text-muted-foreground">
-                                          {operation.step}
+                                        <div className="flex shrink-0 items-center gap-2">
+                                          {isLiveOperation && (
+                                            <label className="flex min-h-11 items-center gap-2 text-muted-foreground">
+                                              <input
+                                                type="checkbox"
+                                                aria-label={`Autoscroll inline ${operationLogSubject(operation.type)} logs for ${app.name}`}
+                                                checked={
+                                                  operationLogAutoscroll[operation.id] !== false
+                                                }
+                                                onChange={(event) =>
+                                                  setOperationLogAutoscroll((current) => ({
+                                                    ...current,
+                                                    [operation.id]: event.target.checked,
+                                                  }))
+                                                }
+                                                className="h-4 w-4 rounded border-input accent-primary"
+                                              />
+                                              Follow
+                                            </label>
+                                          )}
+                                          {operationStatusBadge(operation)}
+                                          <Button
+                                            type="button"
+                                            size="icon"
+                                            variant="ghost"
+                                            className="h-11 w-11"
+                                            aria-label={`Expand ${logsTitle.toLowerCase()} for ${app.name}`}
+                                            title={`Open ${logsTitle.toLowerCase()}`}
+                                            onClick={() =>
+                                              setOperationLogsTarget({
+                                                appId: app.id,
+                                                operationId: operation.id,
+                                                operationType: operation.type,
+                                              })
+                                            }
+                                          >
+                                            <Maximize2 className="h-4 w-4" />
+                                          </Button>
                                         </div>
                                       </div>
-                                      {operationStatusBadge(operation)}
+                                      {operation.logs.length > 0 ? (
+                                        <pre
+                                          ref={(node) => {
+                                            if (node) {
+                                              liveOperationLogRefs.current.set(operation.id, node);
+                                            } else {
+                                              liveOperationLogRefs.current.delete(operation.id);
+                                            }
+                                          }}
+                                          aria-label={
+                                            isLiveOperation
+                                              ? `Live ${operationLogSubject(operation.type)} logs for ${app.name}`
+                                              : undefined
+                                          }
+                                          role={isLiveOperation ? 'log' : undefined}
+                                          className={`mt-2 overflow-auto whitespace-pre-wrap rounded bg-background/70 p-2 font-mono ${
+                                            isLiveOperation ? 'max-h-56' : 'max-h-24'
+                                          }`}
+                                        >
+                                          {visibleLogs.join('\n')}
+                                        </pre>
+                                      ) : isLiveOperation ? (
+                                        <div className="mt-2 rounded border border-dashed border-border px-3 py-4 text-muted-foreground">
+                                          Waiting for {operationLogSubject(operation.type)} output…
+                                        </div>
+                                      ) : null}
                                     </div>
-                                    {operation.logs.length > 0 ? (
-                                      <pre
-                                        aria-label={
-                                          isLiveUpdateOperation
-                                            ? `Live update logs for ${app.name}`
-                                            : undefined
-                                        }
-                                        role={isLiveUpdateOperation ? 'log' : undefined}
-                                        className={`mt-2 overflow-auto whitespace-pre-wrap rounded bg-background/70 p-2 font-mono ${
-                                          isLiveUpdateOperation ? 'max-h-56' : 'max-h-24'
-                                        }`}
-                                      >
-                                        {visibleLogs.join('\n')}
-                                        {isLiveUpdateOperation && (
-                                          <span ref={liveUpdateLogEndRef} />
-                                        )}
-                                      </pre>
-                                    ) : isLiveUpdateOperation ? (
-                                      <div className="mt-2 rounded border border-dashed border-border px-3 py-4 text-muted-foreground">
-                                        Waiting for update logs...
-                                      </div>
-                                    ) : null}
-                                  </div>
-                                );
-                              }
+                                  );
+                                }
+                              )}
+                            </div>
+                            {operationCount > 3 && (
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="ghost"
+                                className="w-full"
+                                aria-expanded={showingAllOperations}
+                                onClick={() => toggleAllOperations(app.id)}
+                              >
+                                {showingAllOperations
+                                  ? 'Show recent operations'
+                                  : `View all operations (${operationCount})`}
+                              </Button>
                             )}
                           </div>
-                        ) : !isUpdatingThisApp ? (
+                        ) : !isDeployingThisApp && !isUpdatingThisApp && !hasRunningOperation ? (
                           <div className="rounded-md border border-dashed border-border px-3 py-4 text-center text-xs text-muted-foreground">
                             No operations recorded yet.
                           </div>
-                        ) : null}
+                        ) : (
+                          <div className="rounded-md border border-dashed border-border px-3 py-4 text-xs text-muted-foreground">
+                            Waiting for operation output…
+                          </div>
+                        )}
                       </div>
                     </div>
 
@@ -1633,6 +2100,20 @@ export default function AppsPage() {
           historyApp={historyApp}
           rollbackTarget={rollbackTarget}
           onClose={() => setHistoryApp(null)}
+          onOpenLogs={(release) => {
+            const matchingOperation = [...historyApp.operations]
+              .reverse()
+              .find(
+                (operation) =>
+                  operation.releaseId === release.id && !isWorkerQueueOperation(operation)
+              );
+            setOperationLogsTarget({
+              appId: historyApp.id,
+              operationId: matchingOperation?.id,
+              operationType: 'deploy',
+              operationSnapshot: matchingOperation ? undefined : releaseToLogOperation(release),
+            });
+          }}
           onRollback={async (appId, releaseId) => {
             await rollbackApp(appId, releaseId);
           }}
@@ -1646,6 +2127,16 @@ export default function AppsPage() {
           loading={runtimeLogsLoading}
           error={runtimeLogsError}
           onClose={() => setRuntimeLogsApp(null)}
+        />
+      )}
+
+      {operationLogsTarget && operationLogsApp && (
+        <AppsOperationLogsDialog
+          appName={operationLogsApp.name}
+          operationType={operationLogsTarget.operationType}
+          operation={selectedOperation}
+          pendingState={operationLogsTarget.queueOperationId ? 'starting' : 'queueing'}
+          onClose={() => setOperationLogsTarget(null)}
         />
       )}
     </div>
