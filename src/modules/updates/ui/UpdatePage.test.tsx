@@ -241,7 +241,7 @@ describe('UpdatePage', () => {
     });
   });
 
-  it('labels the update log auto-scroll control with its pressed state', async () => {
+  it('provides independent live log controls and a synchronized full-screen view', async () => {
     global.fetch = vi.fn().mockImplementation((url: string, opts?: RequestInit) => {
       if (url === '/api/modules/updates/run' && opts?.method === 'POST') {
         return Promise.resolve({
@@ -287,21 +287,50 @@ describe('UpdatePage', () => {
       fireEvent.click(confirmButton);
     });
 
-    const autoScrollButton = await screen.findByRole('button', {
-      name: 'Disable update log auto-scroll',
-    });
-
-    expect(autoScrollButton.getAttribute('aria-pressed')).toBe('true');
+    const followButton = await screen.findByRole('button', { name: 'Follow live output' });
+    const autoScrollButton = screen.getByRole('button', { name: 'Autoscroll output' });
+    const wrapButton = screen.getByRole('button', { name: 'Wrap output' });
+    expect(followButton).toHaveAttribute('aria-pressed', 'true');
+    expect(autoScrollButton).toHaveAttribute('aria-pressed', 'true');
+    expect(wrapButton).toHaveAttribute('aria-pressed', 'true');
 
     await act(async () => {
       fireEvent.click(autoScrollButton);
     });
+    expect(autoScrollButton).toHaveAttribute('aria-pressed', 'false');
+    expect(followButton).toHaveAttribute('aria-pressed', 'true');
 
-    expect(
-      screen
-        .getByRole('button', { name: 'Enable update log auto-scroll' })
-        .getAttribute('aria-pressed')
-    ).toBe('false');
+    fireEvent.click(screen.getByRole('button', { name: 'Open logs full screen' }));
+    const dialog = screen.getByRole('dialog', { name: 'System update logs' });
+    expect(screen.getByRole('log', { name: 'System update logs output' })).toHaveTextContent(
+      'Installing nginx...'
+    );
+    expect(screen.getAllByRole('button', { name: 'Autoscroll output' }).at(-1)).toHaveAttribute(
+      'aria-pressed',
+      'false'
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Close System update logs' }));
+    expect(dialog).not.toBeInTheDocument();
+  });
+
+  it('locks both update actions while the submission request is pending', async () => {
+    global.fetch = vi.fn().mockImplementation((url: string, opts?: RequestInit) => {
+      if (url === '/api/modules/updates/run' && opts?.method === 'POST') {
+        return new Promise<Response>(() => {});
+      }
+      if (url === '/api/modules/updates/run') {
+        return Promise.resolve({ ok: true, json: async () => mockRunHistory } as Response);
+      }
+      return Promise.resolve({ ok: true, json: async () => mockSnapshot } as Response);
+    });
+
+    await renderPage();
+    fireEvent.click(screen.getAllByRole('button', { name: 'Update All' })[0]);
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm' }));
+
+    const pendingButtons = screen.getAllByRole('button', { name: 'Updating...' });
+    expect(pendingButtons).toHaveLength(2);
+    pendingButtons.forEach((button) => expect(button).toBeDisabled());
   });
 
   it('renders "System is Secure" when no updates are available', async () => {

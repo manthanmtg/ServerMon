@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ArrowDown,
   ArrowUp,
@@ -67,8 +67,6 @@ export default function CronsPage() {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [activeRun, setActiveRun] = useState<CronRunStatus | null>(null);
   const [runPolling, setRunPolling] = useState(false);
-  const [autoScroll, setAutoScroll] = useState(true);
-  const stdoutRef = useRef<HTMLPreElement | null>(null);
 
   // Confirmation states
   const [confirmRun, setConfirmRun] = useState<CronJob | null>(null);
@@ -143,18 +141,20 @@ export default function CronsPage() {
     if (!snapshot) return [];
 
     return snapshot.jobs.map((job) => {
-      const nextRunTimestamp =
-        job.nextRuns[0] ? Date.parse(job.nextRuns[0]) : Number.POSITIVE_INFINITY;
+      const nextRunTimestamp = job.nextRuns[0]
+        ? Date.parse(job.nextRuns[0])
+        : Number.POSITIVE_INFINITY;
 
       return {
         ...job,
-        nextRunTimestamp: Number.isFinite(nextRunTimestamp) ? nextRunTimestamp : Number.POSITIVE_INFINITY,
+        nextRunTimestamp: Number.isFinite(nextRunTimestamp)
+          ? nextRunTimestamp
+          : Number.POSITIVE_INFINITY,
       };
     });
   }, [snapshot]);
 
   const filteredJobs = useMemo(() => {
-    if (!snapshot) return [];
     let list = jobsWithNextRun;
 
     if (filterSource !== 'all') {
@@ -205,19 +205,29 @@ export default function CronsPage() {
     return sorted.map(({ nextRunTimestamp: _nextRunTimestamp, ...job }) => job);
   }, [jobsWithNextRun, filterSource, filterStatus, search, sortField, sortDir]);
 
-  const toggleSort = useCallback((field: SortField) => {
-    if (sortField === field) {
-      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
-    } else {
-      setSortField(field);
-      setSortDir(field === 'command' ? 'asc' : 'desc');
-    }
-  }, [sortField]);
+  const toggleSort = useCallback(
+    (field: SortField) => {
+      if (sortField === field) {
+        setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+      } else {
+        setSortField(field);
+        setSortDir(field === 'command' ? 'asc' : 'desc');
+      }
+    },
+    [sortField]
+  );
 
-  const renderSortIcon = useCallback((field: SortField) => {
-    if (sortField !== field) return <ArrowUpDown className="w-3 h-3 text-muted-foreground/50" />;
-    return sortDir === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />;
-  }, [sortDir, sortField]);
+  const renderSortIcon = useCallback(
+    (field: SortField) => {
+      if (sortField !== field) return <ArrowUpDown className="w-3 h-3 text-muted-foreground/50" />;
+      return sortDir === 'asc' ? (
+        <ArrowUp className="w-3 h-3" />
+      ) : (
+        <ArrowDown className="w-3 h-3" />
+      );
+    },
+    [sortDir, sortField]
+  );
 
   const toggleExpandedJob = useCallback((jobId: string) => {
     setExpandedJob((current) => (current === jobId ? null : jobId));
@@ -345,13 +355,6 @@ export default function CronsPage() {
     }, 1500);
     return () => window.clearInterval(interval);
   }, [runPolling, activeRun]);
-
-  // Auto-scroll stdout panel when new output arrives
-  useEffect(() => {
-    if (!autoScroll) return;
-    if (!stdoutRef.current) return;
-    stdoutRef.current.scrollTop = stdoutRef.current.scrollHeight;
-  }, [autoScroll, activeRun?.stdout, activeRun?.status]);
 
   async function handleCreateSubmit(data: {
     minute: string;
@@ -658,15 +661,7 @@ export default function CronsPage() {
       )}
 
       {/* Run Output modal */}
-      {activeRun && (
-        <RunOutputModal
-          activeRun={activeRun}
-          onClose={() => setActiveRun(null)}
-          autoScroll={autoScroll}
-          onToggleAutoScroll={() => setAutoScroll((prev) => !prev)}
-          stdoutRef={stdoutRef}
-        />
-      )}
+      {activeRun && <RunOutputModal activeRun={activeRun} onClose={() => setActiveRun(null)} />}
 
       {/* Create/Edit modal */}
       {modal && (

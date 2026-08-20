@@ -1,13 +1,12 @@
 'use client';
 
-import React, { useEffect, useState, useMemo, useRef, useCallback } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import {
   AlertTriangle,
   ArrowRight,
   Box,
   Boxes,
   CheckCircle2,
-  ChevronDown,
   Clock,
   Cpu,
   Download,
@@ -40,6 +39,10 @@ import { Badge } from '@/components/ui/badge';
 import { Spinner } from '@/components/ui/spinner';
 import { useToast } from '@/components/ui/toast';
 import ConfirmationModal from '@/components/ui/ConfirmationModal';
+import { OperationLogDialog } from '@/components/operations/OperationLogDialog';
+import { OperationLogViewer } from '@/components/operations/OperationLogViewer';
+import { useOperationLogControls } from '@/components/operations/useOperationLogControls';
+import type { OperationStatus } from '@/components/operations/operation-status';
 import { cn } from '@/lib/utils';
 import type { UpdateSnapshot } from '../types';
 import type { UpdateRunStatus } from '@/types/updates';
@@ -60,6 +63,12 @@ const RUN_COPY: Record<
   },
 };
 
+function updateRunOperationStatus(status: UpdateRunStatus['status']): OperationStatus {
+  if (status === 'completed') return 'succeeded';
+  if (status === 'skipped') return 'unchanged';
+  return status;
+}
+
 export default function UpdatePage() {
   const [snapshot, setSnapshot] = useState<UpdateSnapshot | null>(null);
   const [loading, setLoading] = useState(true);
@@ -74,8 +83,9 @@ export default function UpdatePage() {
   const [runHistory, setRunHistory] = useState<UpdateRunStatus[]>([]);
   const [showHistory, setShowHistory] = useState(false);
   const [selectedHistoryRun, setSelectedHistoryRun] = useState<UpdateRunStatus | null>(null);
-  const logContainerRef = useRef<HTMLDivElement>(null);
-  const [autoScroll, setAutoScroll] = useState(true);
+  const [activeLogDialogOpen, setActiveLogDialogOpen] = useState(false);
+  const [frozenActiveLog, setFrozenActiveLog] = useState('');
+  const logControls = useOperationLogControls(activeRun?.runId);
 
   const loadSnapshot = useCallback(
     async (force: boolean = false) => {
@@ -152,13 +162,6 @@ export default function UpdatePage() {
     return () => clearInterval(interval);
   }, [activeRunId, phase, loadSnapshot, loadRunHistory]);
 
-  // Auto-scroll log viewer (only within log container)
-  useEffect(() => {
-    if (autoScroll && logContainerRef.current) {
-      logContainerRef.current.scrollTop = logContainerRef.current.scrollHeight;
-    }
-  }, [activeRun?.logContent, autoScroll]);
-
   const handleCheckUpdates = () => {
     setChecking(true);
     loadSnapshot(true);
@@ -221,6 +224,11 @@ export default function UpdatePage() {
     setActiveRun(null);
   };
 
+  const handleFollowChange = (follow: boolean) => {
+    if (!follow) setFrozenActiveLog(activeRun?.logContent ?? '');
+    logControls.setFollow(follow);
+  };
+
   const historyData = useMemo(() => {
     if (!snapshot) return [];
     return [...snapshot.history].reverse().map((h) => ({
@@ -252,8 +260,9 @@ export default function UpdatePage() {
   const counts = snapshot?.counts || { security: 0, regular: 0, optional: 0, language: 0 };
   const totalUpdates = counts.security + counts.regular + counts.optional + counts.language;
 
-  const isRunning = phase === 'running' && activeRun?.status === 'running';
+  const isRunning = phase === 'running';
   const currentRunCopy = RUN_COPY[runType];
+  const displayedActiveLog = logControls.follow ? (activeRun?.logContent ?? '') : frozenActiveLog;
 
   return (
     <div className="space-y-6 container mx-auto py-6 animate-in fade-in duration-500">
@@ -427,43 +436,23 @@ export default function UpdatePage() {
             </div>
           )}
 
-          {/* Log Output */}
-          {activeRun.logContent && (
-            <div className="relative">
-              <div
-                ref={logContainerRef}
-                className="max-h-80 overflow-y-auto p-4 font-mono text-xs leading-relaxed scrollbar-none bg-gradient-to-b from-black/80 to-black/60"
-              >
-                <pre className="text-green-400/90 whitespace-pre-wrap break-all">
-                  {activeRun.logContent}
-                </pre>
-              </div>
-              {phase === 'running' && (
-                <button
-                  className={cn(
-                    'absolute bottom-3 right-3 p-1.5 rounded-lg bg-card/80 backdrop-blur border border-border/50 text-muted-foreground hover:text-foreground transition-all',
-                    autoScroll && 'text-primary'
-                  )}
-                  onClick={() => setAutoScroll(!autoScroll)}
-                  aria-label={
-                    autoScroll ? 'Disable update log auto-scroll' : 'Enable update log auto-scroll'
-                  }
-                  aria-pressed={autoScroll}
-                  title={autoScroll ? 'Disable auto-scroll' : 'Enable auto-scroll'}
-                >
-                  <ChevronDown className="w-4 h-4" />
-                </button>
-              )}
-            </div>
-          )}
-
-          {/* Waiting for output */}
-          {phase === 'running' && !activeRun.logContent && (
-            <div className="flex items-center justify-center gap-3 py-8 bg-black/90">
-              <Loader2 className="w-4 h-4 text-muted-foreground animate-spin" />
-              <span className="text-xs text-muted-foreground">Waiting for output...</span>
-            </div>
-          )}
+          <div className="p-4">
+            <OperationLogViewer
+              output={displayedActiveLog}
+              status={updateRunOperationStatus(activeRun.status)}
+              label="System update output"
+              follow={logControls.follow}
+              onFollowChange={handleFollowChange}
+              autoscroll={logControls.autoscroll}
+              onAutoscrollChange={logControls.setAutoscroll}
+              wrap={logControls.wrap}
+              onWrapChange={logControls.setWrap}
+              onRequestFullscreen={() => setActiveLogDialogOpen(true)}
+              emptyMessage="Waiting for update output…"
+              downloadableFilename={`system-update-${activeRun.runId}.log`}
+              maxHeightClassName="max-h-80"
+            />
+          </div>
         </Card>
       )}
 
@@ -538,28 +527,6 @@ export default function UpdatePage() {
                     </Badge>
                   </button>
                 ))}
-              </div>
-            )}
-
-            {/* Selected history run log */}
-            {selectedHistoryRun?.logContent && (
-              <div className="border-t border-border/50">
-                <div className="px-6 py-3 flex items-center justify-between bg-muted/20">
-                  <span className="text-xs font-medium text-muted-foreground">
-                    Log output for {new Date(selectedHistoryRun.startedAt).toLocaleString()}
-                  </span>
-                  <button
-                    className="text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
-                    onClick={() => setSelectedHistoryRun(null)}
-                  >
-                    Close
-                  </button>
-                </div>
-                <div className="max-h-[250px] overflow-auto bg-black/90 p-4 font-mono text-xs leading-relaxed">
-                  <pre className="text-green-400/90 whitespace-pre-wrap break-all">
-                    {selectedHistoryRun.logContent}
-                  </pre>
-                </div>
               </div>
             )}
           </CardContent>
@@ -956,6 +923,42 @@ export default function UpdatePage() {
           </Card>
         </div>
       </div>
+
+      {activeRun && (
+        <OperationLogDialog
+          open={activeLogDialogOpen}
+          onOpenChange={setActiveLogDialogOpen}
+          title="System update logs"
+          target={`PID ${activeRun.pid}`}
+          operationId={activeRun.runId}
+          startedAt={activeRun.startedAt}
+          status={updateRunOperationStatus(activeRun.status)}
+          output={displayedActiveLog}
+          follow={logControls.follow}
+          onFollowChange={handleFollowChange}
+          autoscroll={logControls.autoscroll}
+          onAutoscrollChange={logControls.setAutoscroll}
+          wrap={logControls.wrap}
+          onWrapChange={logControls.setWrap}
+          emptyMessage="Waiting for update output…"
+          downloadableFilename={`system-update-${activeRun.runId}.log`}
+        />
+      )}
+
+      {selectedHistoryRun && (
+        <OperationLogDialog
+          open
+          onOpenChange={(open) => !open && setSelectedHistoryRun(null)}
+          title="System update logs"
+          target={`PID ${selectedHistoryRun.pid}`}
+          operationId={selectedHistoryRun.runId}
+          startedAt={selectedHistoryRun.startedAt}
+          status={updateRunOperationStatus(selectedHistoryRun.status)}
+          output={selectedHistoryRun.logContent ?? ''}
+          emptyMessage="No output was captured for this update run."
+          downloadableFilename={`system-update-${selectedHistoryRun.runId}.log`}
+        />
+      )}
     </div>
   );
 }

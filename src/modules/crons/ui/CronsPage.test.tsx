@@ -138,7 +138,7 @@ describe('CronsPage', () => {
     });
     // Click confirm in modal
     const confirmBtn = await waitFor(() =>
-      within(screen.getByRole('dialog')).getByRole('button', { name: 'Disable' })
+      within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Disable' })
     );
     await act(async () => {
       fireEvent.click(confirmBtn);
@@ -159,7 +159,7 @@ describe('CronsPage', () => {
     });
     // Click confirm in modal
     const confirmBtn = await waitFor(() =>
-      within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete' })
+      within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Delete' })
     );
     await act(async () => {
       fireEvent.click(confirmBtn);
@@ -260,5 +260,57 @@ describe('CronsPage', () => {
       fireEvent.change(sourceSelect, { target: { value: 'user' } });
     });
     expect(screen.getByText('echo "hello"')).toBeDefined();
+  });
+
+  it('opens an accessible live run dialog with metadata and independent controls', async () => {
+    global.fetch = vi.fn().mockImplementation((url: string, options?: RequestInit) => {
+      if (url === '/api/modules/crons/job1/run' && options?.method === 'POST') {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            run: {
+              runId: 'run-1',
+              jobId: 'job1',
+              command: 'echo "hello"',
+              pid: 4242,
+              status: 'running',
+              exitCode: null,
+              stdout: 'hello',
+              stderr: '',
+              startedAt: '2026-08-20T03:30:00.000Z',
+            },
+          }),
+        } as Response);
+      }
+      if (url.includes('/run')) {
+        return Promise.resolve({ ok: true, json: async () => [] } as Response);
+      }
+      return Promise.resolve({ ok: true, json: async () => mockCronsSnapshot } as Response);
+    });
+
+    await renderPage();
+    const row = (await screen.findByText('echo "hello"')).closest('tr')!;
+    fireEvent.click(within(row).getByTitle('Run Now'));
+    fireEvent.click(
+      within(screen.getByRole('alertdialog', { name: 'Confirm Execution' })).getByRole('button', {
+        name: 'Run Now',
+      })
+    );
+
+    const dialog = await screen.findByRole('dialog', { name: 'Run output' });
+    expect(within(dialog).getByText('echo "hello"')).toBeVisible();
+    expect(within(dialog).getByText('PID 4242')).toBeVisible();
+    expect(within(dialog).getByRole('log', { name: 'Run output output' })).toHaveTextContent(
+      'hello'
+    );
+    expect(within(dialog).getByRole('button', { name: 'Follow live output' })).toHaveAttribute(
+      'aria-pressed',
+      'true'
+    );
+    expect(within(dialog).getByRole('button', { name: 'Autoscroll output' })).toHaveAttribute(
+      'aria-pressed',
+      'true'
+    );
+    expect(within(dialog).getByRole('button', { name: 'Run in Background' })).toBeVisible();
   });
 });

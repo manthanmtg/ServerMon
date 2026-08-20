@@ -1,6 +1,6 @@
 'use client';
 
-import type { ComponentProps } from 'react';
+import type { ComponentProps, ReactNode } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Dialog } from '@/components/ui/Dialog';
 import { OperationLogViewer } from './OperationLogViewer';
@@ -16,6 +16,8 @@ export interface OperationLogDialogProps extends Omit<
   target?: string;
   operationId?: string;
   startedAt?: string;
+  details?: ReactNode;
+  footer?: ReactNode;
 }
 
 export function OperationLogDialog({
@@ -25,6 +27,8 @@ export function OperationLogDialog({
   target,
   operationId,
   startedAt,
+  details,
+  footer,
   status,
   ...viewerProps
 }: OperationLogDialogProps) {
@@ -39,6 +43,7 @@ export function OperationLogDialog({
       title={title}
       size="fullscreen"
       closeLabel={`Close ${title}`}
+      footer={footer}
       description={
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
           {target && <span className="font-medium text-foreground">{target}</span>}
@@ -59,13 +64,16 @@ export function OperationLogDialog({
       }
       contentClassName="h-[min(94dvh,64rem)]"
     >
-      <OperationLogViewer
-        {...viewerProps}
-        status={status}
-        label={`${title} output`}
-        maxHeightClassName="max-h-none h-full"
-        className="flex h-full flex-col [&>div:last-child]:min-h-0 [&>div:last-child]:flex-1"
-      />
+      <div className="flex h-full min-h-0 flex-col gap-4">
+        {details}
+        <OperationLogViewer
+          {...viewerProps}
+          status={status}
+          label={`${title} output`}
+          maxHeightClassName="max-h-none h-full"
+          className="flex min-h-0 flex-1 flex-col [&>div:last-child]:min-h-0 [&>div:last-child]:flex-1"
+        />
+      </div>
     </Dialog>
   );
 }
