@@ -1,10 +1,19 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, act } from '@testing-library/react';
-import MemoryChartWidget from './MemoryChartWidget';
+import { act, render, screen } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+const { metricsState } = vi.hoisted(() => ({
+  metricsState: { history: [] as Array<{ cpu: number; memory: number; timestamp: string }> },
+}));
+
+vi.mock('@/lib/MetricsContext', () => ({
+  useMetrics: () => ({ history: metricsState.history, latest: null, connected: false }),
+}));
 
 vi.mock('recharts', () => ({
-  AreaChart: ({ children }: { children: React.ReactNode }) => (
-    <svg data-testid="area-chart">{children}</svg>
+  AreaChart: ({ children, data }: { children: React.ReactNode; data: unknown }) => (
+    <svg data-testid="area-chart" data-chart={JSON.stringify(data)}>
+      {children}
+    </svg>
   ),
   Area: () => null,
   XAxis: () => null,
@@ -14,51 +23,20 @@ vi.mock('recharts', () => ({
   ResponsiveContainer: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }));
 
-let lastInstance: FakeEventSource | null = null;
-
-class FakeEventSource {
-  static CONNECTING = 0;
-  static OPEN = 1;
-  static CLOSED = 2;
-  url: string;
-  onmessage: ((e: MessageEvent) => void) | null = null;
-  onerror: (() => void) | null = null;
-  close = vi.fn();
-
-  constructor(url: string) {
-    this.url = url;
-    // eslint-disable-next-line @typescript-eslint/no-this-alias
-    lastInstance = this;
-  }
-
-  emit(data: object) {
-    this.onmessage?.({ data: JSON.stringify(data) } as MessageEvent);
-  }
-
-  triggerError() {
-    this.onerror?.();
-  }
-}
+import MemoryChartWidget from './MemoryChartWidget';
 
 describe('MemoryChartWidget', () => {
   beforeEach(() => {
-    lastInstance = null;
-    vi.stubGlobal('EventSource', FakeEventSource);
+    metricsState.history = [];
   });
 
-  afterEach(() => {
-    vi.unstubAllGlobals();
-  });
-
-  it('shows waiting message when no data (uses EventSource internally)', async () => {
-    await act(async () => {
-      render(<MemoryChartWidget />);
-    });
+  it('shows a waiting message while shared metrics history is empty', async () => {
+    await act(async () => render(<MemoryChartWidget />));
     expect(screen.getByText('Waiting for data...')).toBeDefined();
   });
 
-  it('renders chart when externalData has entries', async () => {
-    await act(async () => {
+  it('renders external memory data', async () => {
+    await act(async () =>
       render(
         <MemoryChartWidget
           externalData={[
@@ -66,74 +44,28 @@ describe('MemoryChartWidget', () => {
             { memory: 75, timestamp: '12:00:05' },
           ]}
         />
-      );
-    });
+      )
+    );
     expect(screen.getByTestId('area-chart')).toBeDefined();
   });
 
-  it('shows waiting message when externalData is empty array', async () => {
-    await act(async () => {
-      render(<MemoryChartWidget externalData={[]} />);
-    });
+  it('consumes and bounds validated shared memory history', async () => {
+    metricsState.history = Array.from({ length: 35 }, (_, index) => ({
+      cpu: 0,
+      memory: index === 34 ? -5 : index * 2,
+      timestamp: `t${index}`,
+    }));
+
+    await act(async () => render(<MemoryChartWidget />));
+
+    const data = JSON.parse(screen.getByTestId('area-chart').getAttribute('data-chart') ?? '[]');
+    expect(data).toHaveLength(30);
+    expect(data.at(-1)).toEqual({ memory: 0, timestamp: 't34' });
+  });
+
+  it('keeps an explicitly empty external series empty', async () => {
+    metricsState.history = [{ cpu: 10, memory: 20, timestamp: 'shared' }];
+    await act(async () => render(<MemoryChartWidget externalData={[]} />));
     expect(screen.getByText('Waiting for data...')).toBeDefined();
-  });
-
-  it('creates an EventSource pointed at /api/metrics/stream', async () => {
-    await act(async () => {
-      render(<MemoryChartWidget />);
-    });
-    expect(lastInstance).not.toBeNull();
-    expect(lastInstance!.url).toBe('/api/metrics/stream');
-  });
-
-  it('does not create EventSource when externalData is provided', async () => {
-    await act(async () => {
-      render(<MemoryChartWidget externalData={[{ memory: 50, timestamp: 't1' }]} />);
-    });
-    expect(lastInstance).toBeNull();
-  });
-
-  it('renders chart after receiving SSE message', async () => {
-    await act(async () => {
-      render(<MemoryChartWidget />);
-    });
-    await act(async () => {
-      lastInstance!.emit({ memory: 65, timestamp: '12:00:00' });
-    });
-    expect(screen.getByTestId('area-chart')).toBeDefined();
-  });
-
-  it('closes EventSource on error', async () => {
-    await act(async () => {
-      render(<MemoryChartWidget />);
-    });
-    const es = lastInstance!;
-    await act(async () => {
-      es.triggerError();
-    });
-    expect(es.close).toHaveBeenCalled();
-  });
-
-  it('closes EventSource on unmount', async () => {
-    let unmount!: () => void;
-    await act(async () => {
-      ({ unmount } = render(<MemoryChartWidget />));
-    });
-    const es = lastInstance!;
-    unmount();
-    expect(es.close).toHaveBeenCalled();
-  });
-
-  it('keeps only last 30 data points', async () => {
-    await act(async () => {
-      render(<MemoryChartWidget />);
-    });
-    await act(async () => {
-      for (let i = 0; i < 35; i++) {
-        lastInstance!.emit({ memory: i * 2, timestamp: `t${i}` });
-      }
-    });
-    expect(screen.queryByText('Waiting for data...')).toBeNull();
-    expect(screen.getByTestId('area-chart')).toBeDefined();
   });
 });

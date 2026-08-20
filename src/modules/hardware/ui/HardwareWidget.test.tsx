@@ -51,7 +51,7 @@ describe('HardwareWidget', () => {
     vi.useRealTimers();
   });
 
-  it('shows loading spinner initially', () => {
+  it('shows loading spinner initially', async () => {
     let resolveFetch!: (v: Response) => void;
     global.fetch = vi.fn().mockImplementation(
       () =>
@@ -61,7 +61,7 @@ describe('HardwareWidget', () => {
     );
     render(<HardwareWidget />);
     expect(document.querySelector('.animate-spin')).toBeTruthy();
-    act(() => {
+    await act(async () => {
       resolveFetch({ ok: true, json: async () => mockSnapshot } as Response);
     });
   });

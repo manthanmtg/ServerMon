@@ -1,11 +1,11 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
 import { AlertTriangle, Ban, LoaderCircle, Shield, ShieldAlert, ShieldCheck } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import type { SecuritySnapshot } from '../types';
+import { useSharedJsonPollingQuery } from '@/lib/polling/useSharedJsonPollingQuery';
 
 function ScoreGauge({ score }: { score: number }) {
   const circumference = 2 * Math.PI * 18;
@@ -37,28 +37,12 @@ function ScoreGauge({ score }: { score: number }) {
 }
 
 export default function SecurityWidget() {
-  const [snapshot, setSnapshot] = useState<SecuritySnapshot | null>(null);
-  const [initialLoad, setInitialLoad] = useState(true);
-
-  const load = useCallback(async () => {
-    try {
-      const res = await fetch('/api/modules/security', { cache: 'no-store' });
-      if (res.ok) {
-        const data = await res.json();
-        setSnapshot(data);
-      }
-    } catch {
-      // silently ignore for widget
-    } finally {
-      setInitialLoad(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    load();
-    const interval = window.setInterval(load, 30000);
-    return () => window.clearInterval(interval);
-  }, [load]);
+  const { data: snapshot, loading: initialLoad } = useSharedJsonPollingQuery<SecuritySnapshot>({
+    key: 'security:checks',
+    url: '/api/modules/security',
+    intervalMs: 30_000,
+    staleTimeMs: 0,
+  });
 
   if (initialLoad && !snapshot) {
     return (

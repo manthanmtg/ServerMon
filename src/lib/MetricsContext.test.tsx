@@ -1,7 +1,25 @@
 import { render, screen, act } from '@testing-library/react';
 import React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+
+vi.mock('recharts', () => ({
+  AreaChart: ({ children, data }: { children: React.ReactNode; data: unknown }) => (
+    <svg data-testid="shared-area-chart" data-chart={JSON.stringify(data)}>
+      {children}
+    </svg>
+  ),
+  Area: () => null,
+  XAxis: () => null,
+  YAxis: () => null,
+  CartesianGrid: () => null,
+  Tooltip: () => null,
+  ResponsiveContainer: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+}));
+
 import { MetricsProvider, useMetrics, SystemMetric } from './MetricsContext';
+import CPUChartWidget from '@/modules/metrics/ui/CPUChartWidget';
+import MemoryChartWidget from '@/modules/metrics/ui/MemoryChartWidget';
+import HealthWidget from '@/modules/health/ui/HealthWidget';
 
 // ── EventSource mock ──────────────────────────────────────────────────────────
 
@@ -114,6 +132,26 @@ describe('MetricsContext', () => {
     expect(screen.getByTestId('connected').textContent).toBe('yes');
     expect(screen.getByTestId('cpu').textContent).toBe('42');
     expect(screen.getByTestId('history-len').textContent).toBe('1');
+  });
+
+  it('shares one EventSource across CPU, memory, and health consumers', async () => {
+    render(
+      <MetricsProvider>
+        <CPUChartWidget />
+        <MemoryChartWidget />
+        <HealthWidget />
+      </MetricsProvider>
+    );
+
+    expect(FakeEventSource).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      latestESInstance!.onmessage!({ data: JSON.stringify(makeMetric(42, 55)) } as MessageEvent);
+    });
+
+    expect(screen.getAllByTestId('shared-area-chart')).toHaveLength(2);
+    expect(screen.getByText('42.0%')).toBeDefined();
+    expect(screen.getByText('55.0%')).toBeDefined();
+    expect(FakeEventSource).toHaveBeenCalledTimes(1);
   });
 
   it('accumulates history up to MAX_HISTORY (60) entries', async () => {

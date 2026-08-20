@@ -1,8 +1,14 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, act } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { SystemMetric } from '@/lib/MetricsContext';
 
-const { mockUseReducedMotion } = vi.hoisted(() => ({
+const { metricsState, mockUseReducedMotion } = vi.hoisted(() => ({
+  metricsState: { latest: null as SystemMetric | null },
   mockUseReducedMotion: vi.fn(() => false),
+}));
+
+vi.mock('@/lib/MetricsContext', () => ({
+  useMetrics: () => ({ latest: metricsState.latest, history: [], connected: true }),
 }));
 
 vi.mock('framer-motion', async () => {
@@ -12,149 +18,61 @@ vi.mock('framer-motion', async () => {
 
 import HealthWidget from './HealthWidget';
 
-// Mock EventSource — must be a constructable function (not an arrow function)
-const mockEventSource = {
-  onmessage: null as ((event: MessageEvent) => void) | null,
-  onerror: null as (() => void) | null,
-  close: vi.fn(),
-};
-
-const MockEventSource = vi.fn(function (this: unknown) {
-  Object.assign(this as object, mockEventSource);
-  return mockEventSource;
-});
-
-vi.stubGlobal('EventSource', MockEventSource);
+function metric(cpu = 45.5, memory = 62.3, disk = 30.1): SystemMetric {
+  return {
+    timestamp: '2026-08-20T10:00:00.000Z',
+    serverTimestamp: '2026-08-20T10:00:00.000Z',
+    cpu,
+    memory,
+    cpuCores: 4,
+    memTotal: 8_000_000_000,
+    memUsed: 4_000_000_000,
+    uptime: 100,
+    swapTotal: 0,
+    swapUsed: 0,
+    swapFree: 0,
+    disks: [{ fs: '/', type: 'ext4', size: 100, used: 30, available: 70, use: disk, mount: '/' }],
+    io: null,
+  };
+}
 
 describe('HealthWidget', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
-    mockEventSource.onmessage = null;
-    mockEventSource.onerror = null;
-    mockEventSource.close.mockClear();
+    metricsState.latest = null;
     mockUseReducedMotion.mockReturnValue(false);
   });
 
-  it('renders CPU, Memory, and Disk labels', () => {
+  it('renders labels and empty values before shared metrics arrive', () => {
     render(<HealthWidget />);
     expect(screen.getByText('CPU')).toBeDefined();
     expect(screen.getByText('Memory')).toBeDefined();
     expect(screen.getByText('Disk')).toBeDefined();
+    expect(screen.getAllByText('—')).toHaveLength(3);
   });
 
-  it('renders initial empty values', () => {
+  it('renders CPU, memory, and disk from the shared metrics source', () => {
+    metricsState.latest = metric();
     render(<HealthWidget />);
-    const percentages = screen.getAllByText('—');
-    expect(percentages.length).toBe(3);
-  });
-
-  it('updates CPU value from SSE message', async () => {
-    render(<HealthWidget />);
-
-    await act(async () => {
-      if (mockEventSource.onmessage) {
-        mockEventSource.onmessage(
-          new MessageEvent('message', {
-            data: JSON.stringify({ cpu: 45.5, memory: 62.3, disks: [{ use: 30.1 }] }),
-          })
-        );
-      }
-    });
 
     expect(screen.getByText('45.5%')).toBeDefined();
     expect(screen.getByText('62.3%')).toBeDefined();
     expect(screen.getByText('30.1%')).toBeDefined();
   });
 
-  it('handles malformed SSE data gracefully', async () => {
-    render(<HealthWidget />);
-    await act(async () => {
-      if (mockEventSource.onmessage) {
-        mockEventSource.onmessage(new MessageEvent('message', { data: 'invalid json' }));
-      }
-    });
-    // Should still show initial values
-    const percentages = screen.getAllByText('—');
-    expect(percentages.length).toBe(3);
-  });
+  it('prefers an explicit metric while preserving the context fallback', () => {
+    metricsState.latest = metric(10, 20, 30);
+    const { rerender } = render(<HealthWidget metric={metric(72.4, 51.2, 63.5)} />);
 
-  it('closes EventSource on unmount', () => {
-    const { unmount } = render(<HealthWidget />);
-    unmount();
-    expect(mockEventSource.close).toHaveBeenCalled();
-  });
-
-  it('closes EventSource on SSE error', async () => {
-    render(<HealthWidget />);
-    await act(async () => {
-      if (mockEventSource.onerror) {
-        mockEventSource.onerror();
-      }
-    });
-    expect(mockEventSource.close).toHaveBeenCalled();
-  });
-
-  it('connects to the metrics stream endpoint', () => {
-    render(<HealthWidget />);
-    expect(MockEventSource).toHaveBeenCalledWith('/api/metrics/stream');
-  });
-
-  it('renders directly from a provided metric without opening another stream', () => {
-    render(
-      <HealthWidget
-        metric={{
-          cpu: 72.4,
-          memory: 51.2,
-          disks: [{ use: 63.5 }] as never,
-        }}
-      />
-    );
-
-    expect(MockEventSource).not.toHaveBeenCalled();
     expect(screen.getByText('72.4%')).toBeDefined();
-    expect(screen.getByText('51.2%')).toBeDefined();
-    expect(screen.getByText('63.5%')).toBeDefined();
+    rerender(<HealthWidget metric={null} />);
+    expect(screen.getByText('10.0%')).toBeDefined();
   });
 
   it('removes decorative infinite motion when reduced motion is preferred', () => {
     mockUseReducedMotion.mockReturnValue(true);
-
-    render(<HealthWidget metric={{ cpu: 10, memory: 20, disks: [{ use: 30 }] as never }} />);
+    render(<HealthWidget metric={metric(10, 20, 30)} />);
 
     expect(screen.queryByTestId('health-progress-shimmer')).toBeNull();
     expect(screen.getByText('10.0%')).toBeDefined();
-  });
-
-  it('uses partial updates - only updates provided fields', async () => {
-    render(<HealthWidget />);
-
-    // First update: all fields
-    await act(async () => {
-      if (mockEventSource.onmessage) {
-        mockEventSource.onmessage(
-          new MessageEvent('message', {
-            data: JSON.stringify({ cpu: 50, memory: 70 }),
-          })
-        );
-      }
-    });
-
-    expect(screen.getByText('50.0%')).toBeDefined();
-    expect(screen.getByText('70.0%')).toBeDefined();
-
-    // Second update: only cpu
-    await act(async () => {
-      if (mockEventSource.onmessage) {
-        mockEventSource.onmessage(
-          new MessageEvent('message', {
-            data: JSON.stringify({ cpu: 55 }),
-          })
-        );
-      }
-    });
-
-    // Memory should remain at 70 since it wasn't updated
-    expect(screen.getByText('55.0%')).toBeDefined();
-    expect(screen.getByText('70.0%')).toBeDefined();
   });
 });

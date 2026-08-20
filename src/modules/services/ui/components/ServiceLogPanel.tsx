@@ -1,9 +1,10 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { LoaderCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { OperationLogViewer } from '@/components/operations/OperationLogViewer';
+import { useSharedJsonPollingQuery } from '@/lib/polling/useSharedJsonPollingQuery';
 import type { ServiceLogEntry } from '../../types';
 
 interface ServiceLogPanelProps {
@@ -55,56 +56,17 @@ function parseServiceLogEntries(data: unknown): ServiceLogEntry[] {
 }
 
 export function ServiceLogPanel({ serviceName }: ServiceLogPanelProps) {
-  const [logs, setLogs] = useState<ServiceLogEntry[] | null>(null);
   const [follow, setFollow] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const mountedRef = useRef(true);
-  const requestControllerRef = useRef<AbortController | null>(null);
-
-  const loadLogs = useCallback(() => {
-    requestControllerRef.current?.abort();
-    const requestController = new AbortController();
-    requestControllerRef.current = requestController;
-
-    fetch(`/api/modules/services/${encodeURIComponent(serviceName)}/logs?lines=30`, {
-      cache: 'no-store',
-      signal: requestController.signal,
-    })
-      .then((r) => r.json())
-      .then((data: unknown) => {
-        const nextLogs = parseServiceLogEntries(data);
-        if (!mountedRef.current) return;
-
-        setLoadError(null);
-        setLogs(nextLogs);
-      })
-      .catch((error: unknown) => {
-        if (error instanceof DOMException && error.name === 'AbortError') return;
-        if (!mountedRef.current) return;
-
-        setLoadError('Unable to load service logs.');
-      })
-      .finally(() => {
-        if (!mountedRef.current) return;
-        if (requestControllerRef.current === requestController) {
-          requestControllerRef.current = null;
-        }
-      });
-  }, [serviceName]);
-
-  useEffect(() => {
-    mountedRef.current = true;
-    if (follow) loadLogs();
-    const interval = follow ? setInterval(loadLogs, 5000) : null;
-
-    return () => {
-      mountedRef.current = false;
-      requestControllerRef.current?.abort();
-      if (interval) clearInterval(interval);
-    };
-  }, [follow, loadLogs]);
-
-  const loading = logs === null;
+  const url = `/api/modules/services/${encodeURIComponent(serviceName)}/logs?lines=30`;
+  const { data, loading, error, refresh } = useSharedJsonPollingQuery<unknown>({
+    key: `services:logs:${serviceName}:30`,
+    url,
+    intervalMs: 5_000,
+    staleTimeMs: 0,
+    enabled: follow,
+  });
+  const logs = data === undefined ? null : parseServiceLogEntries(data);
+  const loadError = error ? 'Unable to load service logs.' : null;
 
   if (loadError && logs === null) {
     return (
@@ -114,7 +76,7 @@ export function ServiceLogPanel({ serviceName }: ServiceLogPanelProps) {
           type="button"
           size="sm"
           variant="outline"
-          onClick={() => void loadLogs()}
+          onClick={() => void refresh()}
           className="min-h-[44px]"
         >
           Retry
@@ -131,7 +93,7 @@ export function ServiceLogPanel({ serviceName }: ServiceLogPanelProps) {
     );
   }
 
-  const output = logs
+  const output = (logs ?? [])
     .map(
       (entry) =>
         `[${formatLogTimestamp(entry.timestamp)}] [${entry.priority.toUpperCase()}] [${entry.unit}] ${entry.message}`
@@ -139,16 +101,23 @@ export function ServiceLogPanel({ serviceName }: ServiceLogPanelProps) {
     .join('\n');
 
   return (
-    <OperationLogViewer
-      output={output}
-      status="running"
-      label={`${serviceName} service logs`}
-      follow={follow}
-      onFollowChange={setFollow}
-      error={loadError}
-      emptyMessage="No logs available."
-      downloadableFilename={`${serviceName}.log`}
-      maxHeightClassName="max-h-[240px]"
-    />
+    <div className="space-y-2">
+      <OperationLogViewer
+        output={output}
+        status="running"
+        label={`${serviceName} service logs`}
+        follow={follow}
+        onFollowChange={setFollow}
+        error={loadError}
+        emptyMessage="No logs available."
+        downloadableFilename={`${serviceName}.log`}
+        maxHeightClassName="max-h-[240px]"
+      />
+      {loadError && (
+        <Button type="button" size="sm" variant="outline" onClick={() => void refresh()}>
+          Retry
+        </Button>
+      )}
+    </div>
   );
 }

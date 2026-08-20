@@ -1,7 +1,7 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   AlertTriangle,
   CheckCircle,
@@ -19,6 +19,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { PageSkeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import type { FirewallCheck, FirewallRule, FirewallRuleAction, FirewallSnapshot } from '../types';
+import { useSharedJsonPollingQuery } from '@/lib/polling/useSharedJsonPollingQuery';
 
 type ActionFilter = 'all' | FirewallRuleAction;
 
@@ -108,37 +109,20 @@ function SummaryCard({
 }
 
 export default function FirewallPage() {
-  const [snapshot, setSnapshot] = useState<FirewallSnapshot | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
+  const {
+    data: snapshot,
+    loading,
+    refreshing,
+    error,
+    refresh,
+  } = useSharedJsonPollingQuery<FirewallSnapshot>({
+    key: 'firewall:rules',
+    url: '/api/modules/firewall',
+    intervalMs: 30_000,
+    staleTimeMs: 0,
+  });
   const [search, setSearch] = useState('');
   const [actionFilter, setActionFilter] = useState<ActionFilter>('all');
-  const [error, setError] = useState<string | null>(null);
-
-  const load = useCallback(async () => {
-    setError(null);
-    try {
-      const response = await fetch('/api/modules/firewall', { cache: 'no-store' });
-      if (!response.ok) {
-        throw new Error(`Failed to load firewall status (${response.status})`);
-      }
-      if (response.ok) {
-        const data: FirewallSnapshot = await response.json();
-        setSnapshot(data);
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load firewall data');
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    load();
-    const interval = window.setInterval(load, 30000);
-    return () => window.clearInterval(interval);
-  }, [load]);
 
   const filteredRules = useMemo(
     () => getFilteredFirewallRules(snapshot?.rules ?? [], actionFilter, search),
@@ -146,8 +130,7 @@ export default function FirewallPage() {
   );
 
   const handleRefresh = () => {
-    setRefreshing(true);
-    load();
+    void refresh();
   };
 
   if (loading && !snapshot) {
@@ -157,9 +140,12 @@ export default function FirewallPage() {
   return (
     <div className="space-y-6">
       {error && (
-        <div className="rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive" role="status">
+        <div
+          className="rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive"
+          role="status"
+        >
           <div className="mb-2 font-medium">Could not load firewall snapshot</div>
-          <p className="text-sm text-destructive/90">{error}</p>
+          <p className="text-sm text-destructive/90">{error.message}</p>
         </div>
       )}
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">

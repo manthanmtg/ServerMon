@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useState } from 'react';
 import {
   AlertTriangle,
   Calendar,
@@ -16,6 +16,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import type { CertificatesSnapshot } from '../types';
+import { useSharedJsonPollingQuery } from '@/lib/polling/useSharedJsonPollingQuery';
 
 interface RenewalResponse {
   success: boolean;
@@ -46,34 +47,22 @@ function expiryBg(days: number): string {
 }
 
 export default function CertificatesPage() {
-  const [snapshot, setSnapshot] = useState<CertificatesSnapshot | null>(null);
-  const [loading, setLoading] = useState(true);
+  const {
+    data: snapshot,
+    loading,
+    refresh,
+  } = useSharedJsonPollingQuery<CertificatesSnapshot>({
+    key: 'certificates:list',
+    url: '/api/modules/certificates',
+    intervalMs: 60_000,
+    staleTimeMs: 0,
+  });
   const [renewing, setRenewing] = useState<string | null>(null);
   const [renewResult, setRenewResult] = useState<{
     domain: string;
     success: boolean;
     output: string;
   } | null>(null);
-
-  const load = useCallback(async () => {
-    try {
-      const res = await fetch('/api/modules/certificates', { cache: 'no-store' });
-      if (res.ok) {
-        const data = await res.json();
-        setSnapshot(data);
-      }
-    } catch {
-      // ignore
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    load();
-    const interval = window.setInterval(load, 60000);
-    return () => window.clearInterval(interval);
-  }, [load]);
 
   const handleRenew = async (domain: string) => {
     setRenewing(domain);
@@ -89,7 +78,7 @@ export default function CertificatesPage() {
         ? data
         : { success: false, output: 'Invalid renewal response' };
       setRenewResult({ domain, ...result });
-      if (result.success) load();
+      if (result.success) void refresh();
     } catch {
       setRenewResult({ domain, success: false, output: 'Request failed' });
     } finally {
@@ -254,7 +243,7 @@ export default function CertificatesPage() {
                 {snapshot.source}
               </Badge>
               <button
-                onClick={load}
+                onClick={() => void refresh()}
                 aria-label="Refresh certificates"
                 className="h-8 w-8 flex items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
                 title="Refresh"

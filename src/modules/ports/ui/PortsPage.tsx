@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   Cable,
   Filter,
@@ -16,6 +16,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import type { PortsSnapshot } from '../types';
+import { useSharedJsonPollingQuery } from '@/lib/polling/useSharedJsonPollingQuery';
 import { PortAvailabilityChecker } from './PortAvailabilityChecker';
 
 type ProtocolFilter = 'all' | 'tcp' | 'udp';
@@ -109,9 +110,18 @@ function buildSearchableListeningPorts(listening: ListeningPort[]): SearchableLi
 }
 
 export default function PortsPage() {
-  const [snapshot, setSnapshot] = useState<PortsSnapshot | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const {
+    data: snapshot,
+    loading,
+    error,
+    refresh,
+  } = useSharedJsonPollingQuery<PortsSnapshot>({
+    key: 'ports:list',
+    url: '/api/modules/ports',
+    intervalMs: 10_000,
+    staleTimeMs: 0,
+  });
+  const loadError = error ? 'Unable to load ports data. Please try again.' : null;
   const [search, setSearch] = useState('');
   const [protocolFilter, setProtocolFilter] = useState<ProtocolFilter>('all');
 
@@ -120,28 +130,6 @@ export default function PortsPage() {
     [snapshot?.listening]
   );
   const normalizedSearch = useMemo(() => search.trim().toLowerCase(), [search]);
-
-  const load = useCallback(async () => {
-    setLoadError(null);
-    try {
-      const res = await fetch('/api/modules/ports', { cache: 'no-store' });
-      if (!res.ok) {
-        throw new Error('Unable to load ports data');
-      }
-      const data = await res.json();
-      setSnapshot(data);
-    } catch {
-      setLoadError('Unable to load ports data. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    load();
-    const interval = window.setInterval(load, 10000);
-    return () => window.clearInterval(interval);
-  }, [load]);
 
   const filtered = useMemo(
     () => getFilteredListeningPorts(preparedListening, protocolFilter, normalizedSearch),
@@ -164,7 +152,7 @@ export default function PortsPage() {
           <p className="text-sm mt-3 text-destructive">{loadError}</p>
           <button
             type="button"
-            onClick={load}
+            onClick={() => void refresh()}
             className="mt-4 inline-flex h-11 min-h-[44px] items-center justify-center rounded-lg bg-destructive px-4 text-sm font-medium text-destructive-foreground"
           >
             Retry
@@ -282,7 +270,7 @@ export default function PortsPage() {
                 ))}
               </div>
               <button
-                onClick={load}
+                onClick={() => void refresh()}
                 className="h-8 w-8 flex items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                 title="Refresh"
                 aria-label="Refresh listening ports"

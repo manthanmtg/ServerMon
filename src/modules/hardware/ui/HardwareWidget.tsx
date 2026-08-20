@@ -1,42 +1,19 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
 import { Cpu, LoaderCircle, MemoryStick, Thermometer } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { resilientFetch, safeJson } from '@/lib/fetch-utils';
 import { formatBytes } from '@/lib/utils';
 import type { HardwareSnapshot } from '../types';
+import { useSharedJsonPollingQuery } from '@/lib/polling/useSharedJsonPollingQuery';
 
 export default function HardwareWidget() {
-  const [snapshot, setSnapshot] = useState<HardwareSnapshot | null>(null);
-  const [initialLoad, setInitialLoad] = useState(true);
-
-  const load = useCallback(async () => {
-    try {
-      const res = await resilientFetch('/api/modules/hardware', {
-        cache: 'no-store',
-        timeout: 8000,
-        retries: 1,
-        retryDelay: 500,
-        retryOnStatuses: [502, 503, 504],
-      });
-      if (res.ok) {
-        const data = await safeJson<HardwareSnapshot>(res);
-        if (data) setSnapshot(data);
-      }
-    } catch {
-      // silently ignore for widget
-    } finally {
-      setInitialLoad(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    load();
-    const interval = window.setInterval(load, 30000);
-    return () => window.clearInterval(interval);
-  }, [load]);
+  const { data: snapshot, loading: initialLoad } = useSharedJsonPollingQuery<HardwareSnapshot>({
+    key: 'hardware:snapshot',
+    url: '/api/modules/hardware',
+    intervalMs: 15_000,
+    staleTimeMs: 0,
+  });
 
   if (initialLoad && !snapshot) {
     return (

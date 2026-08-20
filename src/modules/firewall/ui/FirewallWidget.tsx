@@ -1,11 +1,11 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
 import { AlertTriangle, LoaderCircle, LockKeyhole, Shield, ShieldCheck } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import type { FirewallSnapshot } from '../types';
+import { useSharedJsonPollingQuery } from '@/lib/polling/useSharedJsonPollingQuery';
 
 function scoreColor(score: number): string {
   if (score >= 85) return 'text-success';
@@ -14,28 +14,12 @@ function scoreColor(score: number): string {
 }
 
 export default function FirewallWidget() {
-  const [snapshot, setSnapshot] = useState<FirewallSnapshot | null>(null);
-  const [initialLoad, setInitialLoad] = useState(true);
-
-  const load = useCallback(async () => {
-    try {
-      const response = await fetch('/api/modules/firewall', { cache: 'no-store' });
-      if (response.ok) {
-        const data: FirewallSnapshot = await response.json();
-        setSnapshot(data);
-      }
-    } catch {
-      // Dashboard widgets stay quiet; the full page shows detailed failures.
-    } finally {
-      setInitialLoad(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    load();
-    const interval = window.setInterval(load, 30000);
-    return () => window.clearInterval(interval);
-  }, [load]);
+  const { data: snapshot, loading: initialLoad } = useSharedJsonPollingQuery<FirewallSnapshot>({
+    key: 'firewall:rules',
+    url: '/api/modules/firewall',
+    intervalMs: 30_000,
+    staleTimeMs: 0,
+  });
 
   if (initialLoad && !snapshot) {
     return (

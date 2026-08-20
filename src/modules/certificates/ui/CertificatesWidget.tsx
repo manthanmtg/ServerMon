@@ -1,35 +1,19 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
 import { AlertTriangle, CheckCircle, LoaderCircle, ShieldCheck, XCircle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import type { CertificatesSnapshot } from '../types';
+import { useSharedJsonPollingQuery } from '@/lib/polling/useSharedJsonPollingQuery';
 
 export default function CertificatesWidget() {
-  const [snapshot, setSnapshot] = useState<CertificatesSnapshot | null>(null);
-  const [initialLoad, setInitialLoad] = useState(true);
-
-  const load = useCallback(async () => {
-    try {
-      const res = await fetch('/api/modules/certificates', { cache: 'no-store' });
-      if (res.ok) {
-        const data = await res.json();
-        setSnapshot(data);
-      }
-    } catch {
-      // silently ignore for widget
-    } finally {
-      setInitialLoad(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    load();
-    const interval = window.setInterval(load, 60000);
-    return () => window.clearInterval(interval);
-  }, [load]);
+  const { data: snapshot, loading: initialLoad } = useSharedJsonPollingQuery<CertificatesSnapshot>({
+    key: 'certificates:list',
+    url: '/api/modules/certificates',
+    intervalMs: 60_000,
+    staleTimeMs: 0,
+  });
 
   if (initialLoad && !snapshot) {
     return (

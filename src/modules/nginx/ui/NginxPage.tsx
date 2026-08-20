@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useState } from 'react';
 import {
   CheckCircle,
   Globe,
@@ -18,6 +18,7 @@ import { PageSkeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import type { NginxSnapshot, NginxConfigTest, NginxVirtualHost } from '../types';
 import { NginxHostWizard } from './NginxHostWizard';
+import { useSharedJsonPollingQuery } from '@/lib/polling/useSharedJsonPollingQuery';
 
 function getDisplayVhostName(vhost: NginxVirtualHost): string {
   return (
@@ -35,8 +36,16 @@ function formatRedirect(code: number, target?: string): string {
 }
 
 export default function NginxPage() {
-  const [snapshot, setSnapshot] = useState<NginxSnapshot | null>(null);
-  const [loading, setLoading] = useState(true);
+  const {
+    data: snapshot,
+    loading,
+    refresh,
+  } = useSharedJsonPollingQuery<NginxSnapshot>({
+    key: 'nginx:hosts',
+    url: '/api/modules/nginx',
+    intervalMs: 15_000,
+    staleTimeMs: 0,
+  });
   const [testResult, setTestResult] = useState<NginxConfigTest | null>(null);
   const [testing, setTesting] = useState(false);
   const [reloading, setReloading] = useState(false);
@@ -44,26 +53,6 @@ export default function NginxPage() {
     null
   );
   const [expandedVhost, setExpandedVhost] = useState<string | null>(null);
-
-  const load = useCallback(async () => {
-    try {
-      const res = await fetch('/api/modules/nginx', { cache: 'no-store' });
-      if (res.ok) {
-        const data = await res.json();
-        setSnapshot(data);
-      }
-    } catch {
-      // ignore
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    load();
-    const interval = window.setInterval(load, 15000);
-    return () => window.clearInterval(interval);
-  }, [load]);
 
   const handleTest = async () => {
     setTesting(true);
@@ -91,7 +80,7 @@ export default function NginxPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Reload failed');
       setReloadResult(data);
-      if (data.success) load();
+      if (data.success) void refresh();
     } catch (err) {
       setReloadResult({
         success: false,
@@ -244,7 +233,7 @@ export default function NginxPage() {
               Reload Nginx
             </button>
             <button
-              onClick={load}
+              onClick={() => void refresh()}
               className="h-9 px-4 bg-secondary text-foreground border border-border rounded-lg text-sm font-medium hover:bg-accent transition-colors flex items-center gap-2"
             >
               <RefreshCw className="w-4 h-4" />
@@ -299,7 +288,7 @@ export default function NginxPage() {
         </CardContent>
       </Card>
 
-      <NginxHostWizard onCreated={load} />
+      <NginxHostWizard onCreated={() => void refresh()} />
 
       {/* Virtual Hosts */}
       <Card className="border-border/60">

@@ -1,12 +1,7 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import {
-  Ban,
-  Lock,
-  Shield,
-  User,
-} from 'lucide-react';
+import { useMemo } from 'react';
+import { Ban, Lock, Shield, User } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -14,33 +9,20 @@ import { PageSkeleton } from '@/components/ui/skeleton';
 import type { SecuritySnapshot } from '../types';
 import { SecurityChecksByCategory } from './SecurityChecksByCategory';
 import { SecurityScoreOverview } from './SecurityScoreOverview';
+import { useSharedJsonPollingQuery } from '@/lib/polling/useSharedJsonPollingQuery';
 
 export default function SecurityPage() {
-  const [snapshot, setSnapshot] = useState<SecuritySnapshot | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const load = useCallback(async () => {
-    setError(null);
-    try {
-      const res = await fetch('/api/modules/security', { cache: 'no-store' });
-      if (!res.ok) {
-        throw new Error(`Unable to load security data (HTTP ${res.status}).`);
-      }
-      const data = (await res.json()) as SecuritySnapshot;
-      setSnapshot(data);
-    } catch {
-      setError('Unable to load security status. Please retry.');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    load();
-    const interval = window.setInterval(load, 30000);
-    return () => window.clearInterval(interval);
-  }, [load]);
+  const {
+    data: snapshot,
+    loading,
+    error,
+    refresh,
+  } = useSharedJsonPollingQuery<SecuritySnapshot>({
+    key: 'security:checks',
+    url: '/api/modules/security',
+    intervalMs: 30_000,
+    staleTimeMs: 0,
+  });
 
   const checksByCategory = useMemo(() => {
     const grouped = new Map<string, SecuritySnapshot['checks']>();
@@ -68,9 +50,17 @@ export default function SecurityPage() {
           <CardContent className="flex items-center justify-between gap-3 py-4">
             <div className="space-y-1">
               <p className="text-sm font-semibold text-destructive">Security status unavailable</p>
-              <p className="text-sm text-muted-foreground">{error ?? 'Unable to load security status.'}</p>
+              <p className="text-sm text-muted-foreground">
+                Unable to load security status. Please retry.
+              </p>
             </div>
-            <Button type="button" variant="destructive" size="sm" onClick={load} className="shrink-0">
+            <Button
+              type="button"
+              variant="destructive"
+              size="sm"
+              onClick={() => void refresh()}
+              className="shrink-0"
+            >
               Retry
             </Button>
           </CardContent>
@@ -90,8 +80,8 @@ export default function SecurityPage() {
 
       <SecurityChecksByCategory
         checksByCategory={checksByCategory}
-        error={error}
-        onRefresh={load}
+        error={error?.message ?? null}
+        onRefresh={() => void refresh()}
       />
 
       {/* Fail2Ban */}

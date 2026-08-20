@@ -1,6 +1,6 @@
 'use client';
 
-import { type ReactNode, useCallback, useEffect, useState } from 'react';
+import { type ReactNode } from 'react';
 import {
   Cpu,
   HardDrive,
@@ -16,6 +16,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { cn, formatBytes } from '@/lib/utils';
 import type { HardwareSnapshot } from '../types';
+import { useSharedJsonPollingQuery } from '@/lib/polling/useSharedJsonPollingQuery';
 
 function formatUptime(seconds: number): string {
   const d = Math.floor(seconds / 86400);
@@ -58,11 +59,7 @@ type HardwareInfoRowProps = {
   valueClassName?: string;
 };
 
-function HardwareInfoRow({
-  label,
-  value,
-  valueClassName = 'font-medium',
-}: HardwareInfoRowProps) {
+function HardwareInfoRow({ label, value, valueClassName = 'font-medium' }: HardwareInfoRowProps) {
   return (
     <div className="flex justify-between">
       <span className="text-muted-foreground">{label}</span>
@@ -90,10 +87,7 @@ function HardwareInfoCard({
     <Card className="border-border/60">
       <CardHeader className="pb-2">
         <CardTitle
-          className={cn(
-            'flex items-center gap-2',
-            titleSize === 'base' ? 'text-base' : 'text-sm'
-          )}
+          className={cn('flex items-center gap-2', titleSize === 'base' ? 'text-base' : 'text-sm')}
         >
           {icon}
           {title}
@@ -105,28 +99,16 @@ function HardwareInfoCard({
 }
 
 export default function HardwarePage() {
-  const [snapshot, setSnapshot] = useState<HardwareSnapshot | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  const load = useCallback(async () => {
-    try {
-      const res = await fetch('/api/modules/hardware', { cache: 'no-store' });
-      if (res.ok) {
-        const data = await res.json();
-        setSnapshot(data);
-      }
-    } catch {
-      // ignore
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    load();
-    const interval = window.setInterval(load, 15000);
-    return () => window.clearInterval(interval);
-  }, [load]);
+  const {
+    data: snapshot,
+    loading,
+    refresh,
+  } = useSharedJsonPollingQuery<HardwareSnapshot>({
+    key: 'hardware:snapshot',
+    url: '/api/modules/hardware',
+    intervalMs: 15_000,
+    staleTimeMs: 0,
+  });
 
   if (loading && !snapshot) {
     return (
@@ -159,7 +141,7 @@ export default function HardwarePage() {
           </span>
         </div>
         <button
-          onClick={load}
+          onClick={() => void refresh()}
           aria-label="Refresh hardware snapshot"
           className="h-8 w-8 flex items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
           title="Refresh"
@@ -170,10 +152,7 @@ export default function HardwarePage() {
 
       {/* System / OS Info */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        <HardwareInfoCard
-          icon={<Monitor className="w-4 h-4 text-primary" />}
-          title="System"
-        >
+        <HardwareInfoCard icon={<Monitor className="w-4 h-4 text-primary" />} title="System">
           <HardwareInfoRow label="Hostname" value={snapshot.os.hostname} />
           <HardwareInfoRow label="Platform" value={snapshot.os.platform} />
           <HardwareInfoRow
@@ -231,7 +210,14 @@ export default function HardwarePage() {
           contentClassName="space-y-2 text-xs"
         >
           <HardwareInfoRow label="Total" value={formatBytes(snapshot.memory.total)} />
-          <HardwareInfoRow label="Used" value={<>{formatBytes(snapshot.memory.used)} ({memPct}%)</>} />
+          <HardwareInfoRow
+            label="Used"
+            value={
+              <>
+                {formatBytes(snapshot.memory.used)} ({memPct}%)
+              </>
+            }
+          />
           <HardwareInfoRow label="Available" value={formatBytes(snapshot.memory.available)} />
           {snapshot.memory.swaptotal > 0 && (
             <>

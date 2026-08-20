@@ -1,40 +1,24 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
 import { Cable, LoaderCircle, Radio, Server } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import type { PortsSnapshot } from '../types';
+import { useSharedJsonPollingQuery } from '@/lib/polling/useSharedJsonPollingQuery';
 
 export default function PortsWidget() {
-  const [snapshot, setSnapshot] = useState<PortsSnapshot | null>(null);
-  const [initialLoad, setInitialLoad] = useState(true);
-  const [loadError, setLoadError] = useState(false);
-
-  const load = useCallback(async () => {
-    setLoadError(false);
-
-    try {
-      const res = await fetch('/api/modules/ports', { cache: 'no-store' });
-      if (res.ok) {
-        const data = await res.json();
-        setSnapshot(data);
-      } else {
-        setLoadError(true);
-      }
-    } catch {
-      setLoadError(true);
-    } finally {
-      setInitialLoad(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    load();
-    const interval = window.setInterval(load, 15000);
-    return () => window.clearInterval(interval);
-  }, [load]);
+  const {
+    data: snapshot,
+    loading: initialLoad,
+    error,
+  } = useSharedJsonPollingQuery<PortsSnapshot>({
+    key: 'ports:list',
+    url: '/api/modules/ports',
+    intervalMs: 10_000,
+    staleTimeMs: 0,
+  });
+  const loadError = Boolean(error);
 
   if (initialLoad && !snapshot) {
     return (

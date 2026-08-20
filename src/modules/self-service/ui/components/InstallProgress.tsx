@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useState } from 'react';
 import {
   CheckCircle2,
   XCircle,
@@ -18,6 +18,7 @@ import { cn } from '@/lib/utils';
 import { OperationLogViewer } from '@/components/operations/OperationLogViewer';
 import type { OperationStatus } from '@/components/operations/operation-status';
 import type { InstallJob, StepStatusValue } from '../../types';
+import { useSharedJsonPollingQuery } from '@/lib/polling/useSharedJsonPollingQuery';
 
 const STATUS_CONFIG: Record<
   StepStatusValue,
@@ -58,32 +59,20 @@ interface InstallProgressProps {
 }
 
 export function InstallProgress({ jobId, onDone, onRollback }: InstallProgressProps) {
-  const [job, setJob] = useState<InstallJob | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [terminalJobId, setTerminalJobId] = useState<string | null>(null);
   const [expandedSteps, setExpandedSteps] = useState<Set<string>>(new Set());
-
-  const poll = useCallback(async () => {
-    try {
-      const res = await fetch(`/api/modules/self-service/install/${jobId}`, { cache: 'no-store' });
-      if (!res.ok) throw new Error('Failed to fetch job');
-      const data = await res.json();
-      setJob(data.job);
-
-      const runningStep = data.job.steps.find((s: { status: string }) => s.status === 'running');
-      if (runningStep) {
-        setExpandedSteps((prev) => new Set([...prev, runningStep.step]));
-      }
-    } catch (err: unknown) {
-      const e = err as { message?: string };
-      setError(e.message || 'Failed to fetch');
-    }
-  }, [jobId]);
-
-  useEffect(() => {
-    poll();
-    const interval = setInterval(poll, 2000);
-    return () => clearInterval(interval);
-  }, [poll]);
+  const terminal = terminalJobId === jobId;
+  const { data, error } = useSharedJsonPollingQuery<{ job: InstallJob }>({
+    key: `self-service:install:${jobId}`,
+    url: `/api/modules/self-service/install/${jobId}`,
+    intervalMs: 2_000,
+    staleTimeMs: 0,
+    enabled: !terminal,
+  });
+  const job = data?.job ?? null;
+  if (job && ['success', 'failed', 'cancelled'].includes(job.status) && !terminal) {
+    setTerminalJobId(jobId);
+  }
 
   const toggleStep = (step: string) => {
     setExpandedSteps((prev) => {
@@ -97,7 +86,7 @@ export function InstallProgress({ jobId, onDone, onRollback }: InstallProgressPr
   if (error && !job) {
     return (
       <div className="text-center py-12">
-        <p className="text-sm text-destructive">{error}</p>
+        <p className="text-sm text-destructive">{error.message}</p>
       </div>
     );
   }
@@ -156,7 +145,7 @@ export function InstallProgress({ jobId, onDone, onRollback }: InstallProgressPr
             {job.steps.map((step) => {
               const conf = STATUS_CONFIG[step.status];
               const StepIcon = conf.icon;
-              const isExpanded = expandedSteps.has(step.step);
+              const isExpanded = step.status === 'running' || expandedSteps.has(step.step);
               const hasLogs = step.logs.length > 0;
 
               return (

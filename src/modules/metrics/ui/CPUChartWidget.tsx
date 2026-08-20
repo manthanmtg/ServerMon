@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useMemo } from 'react';
 import {
   AreaChart,
   Area,
@@ -10,6 +10,7 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from 'recharts';
+import { useMetrics } from '@/lib/MetricsContext';
 
 interface CPUMetric {
   cpu: number;
@@ -37,31 +38,19 @@ interface Props {
 }
 
 export default function CPUChartWidget({ externalData }: Props) {
-  const [internalData, setInternalData] = useState<CPUMetric[]>([]);
-  const data = externalData || internalData;
-
-  useEffect(() => {
-    if (externalData) return;
-
-    const es = new EventSource('/api/metrics/stream');
-    es.onmessage = (event) => {
-      try {
-        const payload = JSON.parse(event.data);
-        if (!isCPUMetric(payload)) return;
-
-        const metric: CPUMetric = {
-          cpu: clampPercent(payload.cpu),
-          timestamp: payload.timestamp,
-        };
-
-        setInternalData((prev) => [...prev, metric].slice(-30));
-      } catch {
-        return;
-      }
-    };
-    es.onerror = () => es.close();
-    return () => es.close();
-  }, [externalData]);
+  const { history } = useMetrics();
+  const source = externalData ?? history;
+  const data = useMemo(
+    () =>
+      source
+        .filter(isCPUMetric)
+        .map((metric) => ({
+          cpu: clampPercent(metric.cpu),
+          timestamp: metric.timestamp,
+        }))
+        .slice(-30),
+    [source]
+  );
 
   if (data.length === 0) {
     return (

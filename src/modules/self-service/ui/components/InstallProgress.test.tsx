@@ -4,7 +4,7 @@ import type { InstallJob } from '../../types';
 import { InstallProgress } from './InstallProgress';
 
 const baseJob: InstallJob = {
-  id: 'job-1',
+  id: 'job-running',
   templateId: 'nginx',
   templateName: 'Nginx',
   methodId: 'package-manager',
@@ -40,7 +40,7 @@ describe('InstallProgress', () => {
     mockJob(baseJob);
 
     await act(async () =>
-      render(<InstallProgress jobId="job-1" onDone={vi.fn()} onRollback={vi.fn()} />)
+      render(<InstallProgress jobId="job-running" onDone={vi.fn()} onRollback={vi.fn()} />)
     );
 
     const output = await screen.findByRole('log', { name: 'Install service output' });
@@ -54,12 +54,13 @@ describe('InstallProgress', () => {
     const onDone = vi.fn();
     mockJob({
       ...baseJob,
+      id: 'job-success',
       status: 'success',
       steps: [{ ...baseJob.steps[0], status: 'success', logs: ['Install complete'] }],
     });
 
     await act(async () =>
-      render(<InstallProgress jobId="job-1" onDone={onDone} onRollback={vi.fn()} />)
+      render(<InstallProgress jobId="job-success" onDone={onDone} onRollback={vi.fn()} />)
     );
 
     fireEvent.click(await screen.findByRole('button', { name: /Install service/ }));
@@ -78,6 +79,7 @@ describe('InstallProgress', () => {
     const onRollback = vi.fn();
     mockJob({
       ...baseJob,
+      id: 'job-failed',
       status: 'failed',
       steps: [
         {
@@ -90,12 +92,12 @@ describe('InstallProgress', () => {
     });
 
     await act(async () =>
-      render(<InstallProgress jobId="job-1" onDone={vi.fn()} onRollback={onRollback} />)
+      render(<InstallProgress jobId="job-failed" onDone={vi.fn()} onRollback={onRollback} />)
     );
 
     fireEvent.click(await screen.findByRole('button', { name: /Install service/ }));
     expect(await screen.findByRole('alert')).toHaveTextContent('Install failed');
     fireEvent.click(screen.getByRole('button', { name: 'Rollback' }));
-    expect(onRollback).toHaveBeenCalledWith('job-1');
+    expect(onRollback).toHaveBeenCalledWith('job-failed');
   });
 });

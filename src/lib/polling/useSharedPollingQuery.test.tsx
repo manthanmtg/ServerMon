@@ -97,6 +97,28 @@ describe('useSharedPollingQuery', () => {
     expect(capturedSignal?.aborted).toBe(true);
   });
 
+  it('can refresh after an aborted fetcher ignores its abort signal', async () => {
+    const fetcher = vi
+      .fn()
+      .mockReturnValueOnce(new Promise<number>(() => {}))
+      .mockResolvedValueOnce(2);
+    const options = {
+      key: 'abort-ignored',
+      fetcher,
+      intervalMs: 1_000,
+      staleTimeMs: 0,
+    };
+
+    const first = render(<Harness name="first" options={options} />);
+    first.unmount();
+    const second = render(<Harness name="second" options={options} />);
+
+    expect(fetcher).toHaveBeenCalledTimes(2);
+    await act(async () => {});
+    expect(screen.getByTestId('second-data')).toHaveTextContent('2');
+    second.unmount();
+  });
+
   it('pauses while hidden and refreshes stale data when visible again', async () => {
     vi.useFakeTimers();
     setVisibility('hidden');

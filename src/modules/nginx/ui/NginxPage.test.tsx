@@ -348,12 +348,12 @@ describe('NginxPage', () => {
       render(<NginxPage />);
 
       // Advance enough for initial fetch and loading to finish
-      await vi.advanceTimersByTimeAsync(100);
+      await act(async () => vi.advanceTimersByTimeAsync(100));
 
       vi.mocked(global.fetch).mockClear();
 
       // Advance 15 seconds for polling
-      await vi.advanceTimersByTimeAsync(15010);
+      await act(async () => vi.advanceTimersByTimeAsync(16000));
       expect(global.fetch).toHaveBeenCalled();
 
       vi.useRealTimers();

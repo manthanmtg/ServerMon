@@ -163,7 +163,9 @@ function request<T>(entry: PollingEntry<T>, manual = false): Promise<void> {
       });
     } catch (error) {
       if (isAbortError(error) || controller.signal.aborted) {
-        emit(entry, { loading: false, refreshing: false });
+        if (entry.controller === controller) {
+          emit(entry, { loading: false, refreshing: false });
+        }
         return;
       }
 
@@ -175,9 +177,11 @@ function request<T>(entry: PollingEntry<T>, manual = false): Promise<void> {
         stale: true,
       });
     } finally {
-      if (entry.controller === controller) entry.controller = null;
-      entry.inFlight = null;
-      if (entry.activeCount > 0) schedule(entry);
+      if (entry.controller === controller) {
+        entry.controller = null;
+        entry.inFlight = null;
+        if (entry.activeCount > 0) schedule(entry);
+      }
     }
   })();
 
@@ -209,18 +213,24 @@ function activate<T>(entry: PollingEntry<T>): void {
   attachLifecycle(entry);
 
   const updatedAt = entry.snapshot.updatedAt;
-  const stale = updatedAt === null || Date.now() - updatedAt >= entry.config.staleTimeMs;
+  const age = updatedAt === null ? null : Date.now() - updatedAt;
+  const stale = age === null || age < 0 || age >= entry.config.staleTimeMs;
   if (stale) {
     emit(entry, { stale: true });
     void request(entry);
   } else {
-    schedule(entry, entry.config.staleTimeMs - (Date.now() - updatedAt));
+    schedule(entry, entry.config.staleTimeMs - age);
   }
 }
 
 function deactivate<T>(entry: PollingEntry<T>): void {
   clearSchedule(entry);
-  entry.controller?.abort();
+  const controller = entry.controller;
+  controller?.abort();
+  if (entry.controller === controller) {
+    entry.controller = null;
+    entry.inFlight = null;
+  }
   detachLifecycle(entry);
 }
 
@@ -271,12 +281,13 @@ function createEntry<T>(options: SharedPollingOptions<T>): PollingEntry<T> {
       if (entry.activeCount === 0) return;
 
       const updatedAt = entry.snapshot.updatedAt;
-      const stale = updatedAt === null || Date.now() - updatedAt >= entry.config.staleTimeMs;
+      const age = updatedAt === null ? null : Date.now() - updatedAt;
+      const stale = age === null || age < 0 || age >= entry.config.staleTimeMs;
       if (stale) {
         emit(entry, { stale: true });
         void request(entry);
       } else {
-        schedule(entry, entry.config.staleTimeMs - (Date.now() - updatedAt));
+        schedule(entry, entry.config.staleTimeMs - age);
       }
     },
   };
@@ -319,7 +330,7 @@ function subscribeEntry<T>(
   entry.subscriberCount += 1;
   if (enabled) {
     entry.activeCount += 1;
-    if (entry.activeCount === 1) activate(entry);
+    activate(entry);
   }
 
   return () => {

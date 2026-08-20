@@ -24,7 +24,7 @@ describe('NginxWidget', () => {
     vi.useRealTimers();
   });
 
-  it('shows loading spinner initially', () => {
+  it('shows loading spinner initially', async () => {
     let resolveFetch!: (v: Response) => void;
     global.fetch = vi.fn().mockImplementation(
       () =>
@@ -34,7 +34,7 @@ describe('NginxWidget', () => {
     );
     render(<NginxWidget />);
     expect(document.querySelector('.animate-spin')).toBeTruthy();
-    act(() => {
+    await act(async () => {
       resolveFetch({ ok: true, json: async () => mockSnapshot } as Response);
     });
   });
@@ -107,7 +107,7 @@ describe('NginxWidget', () => {
     });
     expect(global.fetch).toHaveBeenCalledTimes(1);
     await act(async () => {
-      vi.advanceTimersByTime(15001);
+      vi.advanceTimersByTime(16000);
     });
     expect(global.fetch).toHaveBeenCalledTimes(2);
   });

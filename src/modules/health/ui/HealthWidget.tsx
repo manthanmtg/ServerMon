@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { Cpu, MemoryStick, HardDrive } from 'lucide-react';
-import type { SystemMetric } from '@/lib/MetricsContext';
+import { useMetrics, type SystemMetric } from '@/lib/MetricsContext';
 import { motion, useReducedMotion } from 'framer-motion';
 
 interface HealthData {
@@ -57,43 +57,10 @@ interface HealthWidgetProps {
 
 export default function HealthWidget({ metric }: HealthWidgetProps) {
   const reducedMotion = useReducedMotion() ?? false;
-  const [internalHealth, setInternalHealth] = useState<HealthData>(() => toHealthData(metric));
-  const [hasStreamData, setHasStreamData] = useState<boolean>(Boolean(metric));
-
-  const [prevMetric, setPrevMetric] = useState(metric);
-  if (metric !== prevMetric) {
-    setPrevMetric(metric);
-    if (metric) {
-      setHasStreamData(true);
-      setInternalHealth(toHealthData(metric));
-    } else {
-      setHasStreamData(false);
-    }
-  }
-
-  useEffect(() => {
-    if (metric) return;
-
-    const es = new EventSource('/api/metrics/stream');
-    es.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        setHasStreamData(true);
-        setInternalHealth((prev) => ({
-          cpu: data.cpu ?? prev.cpu,
-          memory: data.memory ?? prev.memory,
-          disk: data.disks?.[0]?.use ?? prev.disk,
-        }));
-      } catch {
-        /* ignore */
-      }
-    };
-    es.onerror = () => es.close();
-    return () => es.close();
-  }, [metric]);
-
-  // Use prop if available, otherwise use stream data
-  const health = metric ? toHealthData(metric) : internalHealth;
+  const { latest } = useMetrics();
+  const resolvedMetric = metric ?? latest;
+  const hasStreamData = Boolean(resolvedMetric);
+  const health = toHealthData(resolvedMetric);
 
   const labelClass = hasStreamData ? 'text-muted-foreground' : 'text-muted-foreground/70';
 

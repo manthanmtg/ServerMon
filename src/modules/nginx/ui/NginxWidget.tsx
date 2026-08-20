@@ -1,38 +1,18 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
 import { CheckCircle, Globe, LoaderCircle, Lock, Server } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { resilientFetch } from '@/lib/fetch-utils';
 import type { NginxSnapshot } from '../types';
+import { useSharedJsonPollingQuery } from '@/lib/polling/useSharedJsonPollingQuery';
 
 export default function NginxWidget() {
-  const [snapshot, setSnapshot] = useState<NginxSnapshot | null>(null);
-  const [initialLoad, setInitialLoad] = useState(true);
-
-  const load = useCallback(async () => {
-    try {
-      const res = await resilientFetch('/api/modules/nginx', {
-        cache: 'no-store',
-        timeout: 5000,
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setSnapshot(data);
-      }
-    } catch {
-      // silently ignore for widget
-    } finally {
-      setInitialLoad(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    load();
-    const interval = window.setInterval(load, 15000);
-    return () => window.clearInterval(interval);
-  }, [load]);
+  const { data: snapshot, loading: initialLoad } = useSharedJsonPollingQuery<NginxSnapshot>({
+    key: 'nginx:hosts',
+    url: '/api/modules/nginx',
+    intervalMs: 15_000,
+    staleTimeMs: 0,
+  });
 
   if (initialLoad && !snapshot) {
     return (

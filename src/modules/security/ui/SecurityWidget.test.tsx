@@ -117,7 +117,7 @@ describe('SecurityWidget', () => {
     expect(global.fetch).toHaveBeenCalledTimes(1);
 
     await act(async () => {
-      vi.advanceTimersByTime(30001);
+      vi.advanceTimersByTime(32000);
     });
 
     expect(global.fetch).toHaveBeenCalledTimes(2);

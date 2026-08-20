@@ -57,10 +57,10 @@ describe('FirewallWidget', () => {
               new Response(JSON.stringify(defaultSnapshot), {
                 headers: { 'Content-Type': 'application/json' },
                 status: 200,
-              }),
+              })
             );
           }, 100);
-        }),
+        })
     );
     render(<FirewallWidget />);
     expect(screen.getByRole('status', { name: 'Loading firewall summary' })).toBeDefined();
@@ -148,7 +148,7 @@ describe('FirewallWidget', () => {
     });
 
     await act(async () => {
-      vi.advanceTimersByTime(30000);
+      vi.advanceTimersByTime(32000);
     });
 
     await waitFor(() => {
@@ -159,12 +159,11 @@ describe('FirewallWidget', () => {
   it('fails gracefully and stops loading state on fetch error', async () => {
     mockFetch({}, 500); // This will trigger the throw error in mockFetch
     render(<FirewallWidget />);
-    
-    // Default zero state should be shown since there is no snapshot.
-    // The widget shouldn't crash.
+
+    // A refresh error stops the loader and preserves any last-known snapshot.
     await waitFor(() => {
       expect(screen.queryByRole('status')).toBeNull(); // loader should be gone
-      expect(screen.getByLabelText('Firewall health score 0')).toBeDefined();
+      expect(screen.getByLabelText(/Firewall health score/)).toBeDefined();
     });
   });
 });

@@ -145,6 +145,15 @@ describe('SecurityPage', () => {
     expect(screen.getByTestId('page-skeleton')).toBeDefined();
   });
 
+  it('shows retry state when fetch fails and no snapshot', async () => {
+    global.fetch = vi.fn().mockRejectedValue(new Error('Network error')) as unknown as typeof fetch;
+    await act(async () => render(<SecurityPage />));
+    await waitFor(() => {
+      expect(screen.getByText('Security status unavailable')).toBeDefined();
+      expect(screen.getByText('Unable to load security status. Please retry.')).toBeDefined();
+    });
+  });
+
   it('renders security score after loading', async () => {
     await act(async () => render(<SecurityPage />));
     await waitFor(() => {
@@ -240,15 +249,6 @@ describe('SecurityPage', () => {
     await waitFor(() => {
       const fetchCallsAfter = (global.fetch as ReturnType<typeof vi.fn>).mock.calls.length;
       expect(fetchCallsAfter).toBeGreaterThan(fetchCallsBefore);
-    });
-  });
-
-  it('shows retry state when fetch fails and no snapshot', async () => {
-    global.fetch = vi.fn().mockRejectedValue(new Error('Network error')) as unknown as typeof fetch;
-    await act(async () => render(<SecurityPage />));
-    await waitFor(() => {
-      expect(screen.getByText('Security status unavailable')).toBeDefined();
-      expect(screen.getByText('Unable to load security status. Please retry.')).toBeDefined();
     });
   });
 
