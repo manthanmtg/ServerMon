@@ -60,4 +60,9 @@ describe('AutoscrollButton', () => {
   it('has correct displayName', () => {
     expect(AutoscrollButton.displayName).toBe('AutoscrollButton');
   });
+
+  it('provides a 44 pixel minimum pointer target', () => {
+    render(<AutoscrollButton enabled onToggle={vi.fn()} />);
+    expect(screen.getByRole('button')).toHaveClass('h-11');
+  });
 });

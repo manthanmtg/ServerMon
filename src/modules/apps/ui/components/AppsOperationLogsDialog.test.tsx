@@ -28,11 +28,11 @@ describe('AppsOperationLogsDialog', () => {
     const dialog = screen.getByRole('dialog', { name: 'Deployment logs' });
     expect(within(dialog).getByText('Succeeded')).toBeTruthy();
     expect(within(dialog).getByText('No logs were captured for this operation.')).toBeTruthy();
-    expect(within(dialog).queryByText('Live')).toBeNull();
-    expect(within(dialog).queryByText('Follow live output')).toBeNull();
+    expect(within(dialog).queryByRole('button', { name: 'Follow live output' })).toBeNull();
+    expect(within(dialog).queryByRole('button', { name: 'Autoscroll output' })).toBeNull();
   });
 
-  it('contains keyboard focus and restores it to the opener when closed', () => {
+  it('provides independent live controls and restores focus when closed', () => {
     const onClose = vi.fn();
     const opener = document.createElement('button');
     opener.textContent = 'Open logs';
@@ -57,17 +57,16 @@ describe('AppsOperationLogsDialog', () => {
     );
 
     const dialog = screen.getByRole('dialog', { name: 'Deployment logs' });
-    const followOutput = within(dialog).getByLabelText('Autoscroll deployment logs');
-    const closeButton = within(dialog).getByRole('button', { name: 'Close deployment logs' });
+    const followOutput = within(dialog).getByRole('button', { name: 'Follow live output' });
+    const autoscrollOutput = within(dialog).getByRole('button', { name: 'Autoscroll output' });
+    const closeButton = within(dialog).getByRole('button', { name: 'Close Deployment logs' });
     expect(dialog.contains(document.activeElement)).toBe(true);
-
-    closeButton.focus();
-    fireEvent.keyDown(window, { key: 'Tab' });
-    expect(document.activeElement).toBe(followOutput);
-
-    followOutput.focus();
-    fireEvent.keyDown(window, { key: 'Tab', shiftKey: true });
-    expect(document.activeElement).toBe(closeButton);
+    expect(closeButton).toBeVisible();
+    expect(followOutput).toHaveAttribute('aria-pressed', 'true');
+    expect(autoscrollOutput).toHaveAttribute('aria-pressed', 'true');
+    fireEvent.click(followOutput);
+    expect(followOutput).toHaveAttribute('aria-pressed', 'false');
+    expect(autoscrollOutput).toHaveAttribute('aria-pressed', 'true');
 
     fireEvent.keyDown(window, { key: 'Escape' });
     expect(onClose).toHaveBeenCalledOnce();

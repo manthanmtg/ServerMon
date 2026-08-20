@@ -1,4 +1,5 @@
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
+import { useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import type { AppLogEntry, ManagedAppDTO } from '../types';
 import { AppsRuntimeLogsDialog } from './AppsRuntimeLogsDialog';
@@ -29,5 +30,33 @@ describe('AppsRuntimeLogsDialog', () => {
     expect(within(dialog).getByText('server started')).toBeTruthy();
     expect(within(dialog).getByText('info')).toBeTruthy();
     expect(within(dialog).getByText('PID 4242')).toBeTruthy();
+  });
+
+  it('uses accessible dialog focus and restores the opener', () => {
+    function Harness() {
+      const [open, setOpen] = useState(false);
+      return (
+        <>
+          <button onClick={() => setOpen(true)}>Open runtime logs</button>
+          {open && (
+            <AppsRuntimeLogsDialog
+              app={app}
+              logs={[]}
+              loading={false}
+              error={null}
+              onClose={() => setOpen(false)}
+            />
+          )}
+        </>
+      );
+    }
+
+    render(<Harness />);
+    const opener = screen.getByRole('button', { name: 'Open runtime logs' });
+    opener.focus();
+    fireEvent.click(opener);
+    expect(screen.getByRole('dialog', { name: 'Runtime logs' })).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: 'Close Runtime logs' }));
+    expect(opener).toHaveFocus();
   });
 });

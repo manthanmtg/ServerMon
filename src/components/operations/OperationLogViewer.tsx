@@ -106,7 +106,7 @@ export function OperationLogViewer({
   };
 
   return (
-    <section className={cn('min-w-0 space-y-3', className)} aria-label={label}>
+    <section className={cn('min-w-0 space-y-3', className)}>
       <span className="sr-only" aria-live="polite">
         Status changed: {presentation.label}
       </span>

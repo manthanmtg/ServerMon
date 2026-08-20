@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 
 export interface OperationLogControlDefaults {
   follow?: boolean;
@@ -23,25 +23,26 @@ export function useOperationLogControls(
     autoscroll: defaults.autoscroll ?? true,
     wrap: defaults.wrap ?? true,
   };
-  const operationRef = useRef(operationId);
-  const [follow, setFollow] = useState(resolvedDefaults.follow);
-  const [autoscroll, setAutoscroll] = useState(resolvedDefaults.autoscroll);
-  const [wrap, setWrap] = useState(resolvedDefaults.wrap);
+  const [state, setState] = useState(() => ({
+    operationId,
+    ...resolvedDefaults,
+  }));
+  const resolvedState =
+    state.operationId === operationId ? state : { operationId, ...resolvedDefaults };
 
-  useEffect(() => {
-    if (operationRef.current === operationId) return;
-    operationRef.current = operationId;
-    setFollow(resolvedDefaults.follow);
-    setAutoscroll(resolvedDefaults.autoscroll);
-    setWrap(resolvedDefaults.wrap);
-  }, [operationId, resolvedDefaults.autoscroll, resolvedDefaults.follow, resolvedDefaults.wrap]);
+  const update = (changes: Partial<typeof resolvedDefaults>) => {
+    setState((current) => ({
+      ...(current.operationId === operationId ? current : { operationId, ...resolvedDefaults }),
+      ...changes,
+    }));
+  };
 
   return {
-    follow,
-    setFollow,
-    autoscroll,
-    setAutoscroll,
-    wrap,
-    setWrap,
+    follow: resolvedState.follow,
+    setFollow: (follow: boolean) => update({ follow }),
+    autoscroll: resolvedState.autoscroll,
+    setAutoscroll: (autoscroll: boolean) => update({ autoscroll }),
+    wrap: resolvedState.wrap,
+    setWrap: (wrap: boolean) => update({ wrap }),
   };
 }

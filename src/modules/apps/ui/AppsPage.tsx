@@ -25,7 +25,6 @@ import {
   FileText,
   LoaderCircle,
   Lock,
-  Maximize2,
   Pencil,
   Play,
   Plus,
@@ -39,6 +38,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import ConfirmationModal from '@/components/ui/ConfirmationModal';
+import { OperationLogViewer } from '@/components/operations/OperationLogViewer';
 import type {
   AppAutoUpdateStatus,
   AppLogEntry,
@@ -660,9 +660,8 @@ export default function AppsPage() {
   const [notice, setNotice] = useState<ActionNotice | null>(null);
   const [operationLogFollow, setOperationLogFollow] = useState<Record<string, boolean>>({});
   const [operationLogAutoscroll, setOperationLogAutoscroll] = useState<Record<string, boolean>>({});
+  const [operationLogWrap, setOperationLogWrap] = useState<Record<string, boolean>>({});
   const [operationLogSnapshots, setOperationLogSnapshots] = useState<Record<string, string[]>>({});
-  const liveOperationLogRefs = useRef<Map<string, HTMLPreElement>>(new Map());
-  const liveOperationLogLengths = useRef<Map<string, number>>(new Map());
   const appsRef = useRef<ManagedAppDTO[]>([]);
   const deployRequestIdsRef = useRef<Set<string>>(new Set());
   const updateRequestIdsRef = useRef<Set<string>>(new Set());
@@ -706,6 +705,17 @@ export default function AppsPage() {
     : undefined;
   const selectedOperation = findOperationForLogs(operationLogsApp, operationLogsTarget);
   const awaitingOperationLogs = Boolean(operationLogsTarget && !selectedOperation);
+  const selectedOperationFollow = selectedOperation
+    ? operationLogFollow[selectedOperation.id] !== false
+    : true;
+  const selectedOperationForDialog = selectedOperation
+    ? {
+        ...selectedOperation,
+        logs: selectedOperationFollow
+          ? selectedOperation.logs
+          : (operationLogSnapshots[selectedOperation.id] ?? selectedOperation.logs),
+      }
+    : undefined;
 
   useEffect(() => {
     const acceptedOperations = Object.values(acceptedOperationLocks);
@@ -796,34 +806,6 @@ export default function AppsPage() {
     updatingId,
   ]);
 
-  useEffect(() => {
-    const activeOperationIds = new Set<string>();
-    for (const app of apps) {
-      for (const operation of app.operations) {
-        if (operation.status !== 'running' || isWorkerQueueOperation(operation)) continue;
-        activeOperationIds.add(operation.id);
-        if (operationLogFollow[operation.id] === false) continue;
-        const previousLogLength = liveOperationLogLengths.current.get(operation.id);
-        liveOperationLogLengths.current.set(operation.id, operation.logs.length);
-        if (
-          previousLogLength === operation.logs.length ||
-          operationLogAutoscroll[operation.id] === false
-        ) {
-          continue;
-        }
-        const logContainer = liveOperationLogRefs.current.get(operation.id);
-        if (logContainer) {
-          logContainer.scrollTop = logContainer.scrollHeight;
-        }
-      }
-    }
-    for (const operationId of liveOperationLogLengths.current.keys()) {
-      if (!activeOperationIds.has(operationId)) {
-        liveOperationLogLengths.current.delete(operationId);
-      }
-    }
-  }, [apps, operationLogAutoscroll, operationLogFollow]);
-
   const updateForm = <K extends keyof FormState>(key: K, value: FormState[K]) => {
     setForm((current) => ({ ...current, [key]: value }));
   };
@@ -844,6 +826,19 @@ export default function AppsPage() {
       ...current,
       envVars: current.envVars.filter((row) => row.id !== id),
     }));
+  };
+
+  const updateOperationFollow = (operation: AppOperation, shouldFollow: boolean) => {
+    setOperationLogFollow((current) => ({
+      ...current,
+      [operation.id]: shouldFollow,
+    }));
+    setOperationLogSnapshots((current) => {
+      const next = { ...current };
+      if (shouldFollow) delete next[operation.id];
+      else next[operation.id] = [...operation.logs];
+      return next;
+    });
   };
 
   const toggleAppExpanded = (appId: string) => {
@@ -1798,7 +1793,9 @@ export default function AppsPage() {
                                     operationLogFollow[operation.id] !== false;
                                   const displayedLogs =
                                     isLiveOperation && !followingLiveOutput
-                                      ? (operationLogSnapshots[operation.id] ?? visibleLogs)
+                                      ? (operationLogSnapshots[operation.id] ?? visibleLogs).slice(
+                                          -LIVE_OPERATION_LOG_LIMIT
+                                        )
                                       : visibleLogs;
                                   return (
                                     <div
@@ -1816,110 +1813,46 @@ export default function AppsPage() {
                                           </div>
                                         </div>
                                         <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
-                                          {isLiveOperation && (
-                                            <div
-                                              role="group"
-                                              aria-label={`Live ${operationLogSubject(operation.type)} log controls for ${app.name}`}
-                                              className="flex flex-wrap items-center gap-3"
-                                            >
-                                              <label className="flex min-h-11 items-center gap-2 text-muted-foreground">
-                                                <input
-                                                  type="checkbox"
-                                                  aria-label={`Follow inline ${operationLogSubject(operation.type)} logs for ${app.name}`}
-                                                  checked={followingLiveOutput}
-                                                  onChange={(event) => {
-                                                    const shouldFollow = event.target.checked;
-                                                    setOperationLogFollow((current) => ({
-                                                      ...current,
-                                                      [operation.id]: shouldFollow,
-                                                    }));
-                                                    setOperationLogSnapshots((current) => ({
-                                                      ...current,
-                                                      [operation.id]: shouldFollow
-                                                        ? []
-                                                        : visibleLogs,
-                                                    }));
-                                                  }}
-                                                  className="h-4 w-4 rounded border-input accent-primary"
-                                                />
-                                                Follow
-                                              </label>
-                                              <label className="flex min-h-11 items-center gap-2 text-muted-foreground">
-                                                <input
-                                                  type="checkbox"
-                                                  aria-label={`Autoscroll inline ${operationLogSubject(operation.type)} logs for ${app.name}`}
-                                                  checked={
-                                                    operationLogAutoscroll[operation.id] !== false
-                                                  }
-                                                  onChange={(event) => {
-                                                    const shouldAutoscroll = event.target.checked;
-                                                    setOperationLogAutoscroll((current) => ({
-                                                      ...current,
-                                                      [operation.id]: shouldAutoscroll,
-                                                    }));
-                                                    if (shouldAutoscroll) {
-                                                      const logContainer =
-                                                        liveOperationLogRefs.current.get(
-                                                          operation.id
-                                                        );
-                                                      if (logContainer) {
-                                                        logContainer.scrollTop =
-                                                          logContainer.scrollHeight;
-                                                      }
-                                                    }
-                                                  }}
-                                                  className="h-4 w-4 rounded border-input accent-primary"
-                                                />
-                                                Auto-scroll
-                                              </label>
-                                            </div>
-                                          )}
                                           {operationStatusBadge(operation)}
-                                          <Button
-                                            type="button"
-                                            size="icon"
-                                            variant="ghost"
-                                            className="h-11 w-11"
-                                            aria-label={`Expand ${logsTitle.toLowerCase()} for ${app.name}`}
-                                            title={`Open ${logsTitle.toLowerCase()}`}
-                                            onClick={() =>
-                                              setOperationLogsTarget({
-                                                appId: app.id,
-                                                operationId: operation.id,
-                                                operationType: operation.type,
-                                              })
-                                            }
-                                          >
-                                            <Maximize2 className="h-4 w-4" />
-                                          </Button>
                                         </div>
                                       </div>
-                                      {displayedLogs.length > 0 ? (
-                                        <pre
-                                          ref={(node) => {
-                                            if (node) {
-                                              liveOperationLogRefs.current.set(operation.id, node);
-                                            } else {
-                                              liveOperationLogRefs.current.delete(operation.id);
-                                            }
-                                          }}
-                                          aria-label={
-                                            isLiveOperation
-                                              ? `Live ${operationLogSubject(operation.type)} logs for ${app.name}`
-                                              : undefined
-                                          }
-                                          role={isLiveOperation ? 'log' : undefined}
-                                          className={`mt-2 overflow-auto whitespace-pre-wrap rounded bg-background/70 p-2 font-mono ${
-                                            isLiveOperation ? 'max-h-56' : 'max-h-24'
-                                          }`}
-                                        >
-                                          {displayedLogs.join('\n')}
-                                        </pre>
-                                      ) : isLiveOperation ? (
-                                        <div className="mt-2 rounded border border-dashed border-border px-3 py-4 text-muted-foreground">
-                                          Waiting for {operationLogSubject(operation.type)} output…
-                                        </div>
-                                      ) : null}
+                                      <OperationLogViewer
+                                        className="mt-2"
+                                        output={displayedLogs}
+                                        status={operation.status}
+                                        label={`${isLiveOperation ? 'Live ' : ''}${operationLogSubject(operation.type)} logs for ${app.name}`}
+                                        follow={followingLiveOutput}
+                                        onFollowChange={(shouldFollow) =>
+                                          updateOperationFollow(operation, shouldFollow)
+                                        }
+                                        autoscroll={operationLogAutoscroll[operation.id] !== false}
+                                        onAutoscrollChange={(shouldAutoscroll) =>
+                                          setOperationLogAutoscroll((current) => ({
+                                            ...current,
+                                            [operation.id]: shouldAutoscroll,
+                                          }))
+                                        }
+                                        wrap={operationLogWrap[operation.id] !== false}
+                                        onWrapChange={(shouldWrap) =>
+                                          setOperationLogWrap((current) => ({
+                                            ...current,
+                                            [operation.id]: shouldWrap,
+                                          }))
+                                        }
+                                        onRequestFullscreen={() =>
+                                          setOperationLogsTarget({
+                                            appId: app.id,
+                                            operationId: operation.id,
+                                            operationType: operation.type,
+                                          })
+                                        }
+                                        emptyMessage={`Waiting for ${operationLogSubject(operation.type)} output…`}
+                                        error={operation.error}
+                                        downloadableFilename={`${app.slug}-${operation.type}-${operation.id}.log`}
+                                        maxHeightClassName={
+                                          isLiveOperation ? 'max-h-56' : 'max-h-24'
+                                        }
+                                      />
                                     </div>
                                   );
                                 }
@@ -2182,8 +2115,30 @@ export default function AppsPage() {
         <AppsOperationLogsDialog
           appName={operationLogsApp.name}
           operationType={operationLogsTarget.operationType}
-          operation={selectedOperation}
+          operation={selectedOperationForDialog}
           pendingState={operationLogsTarget.queueOperationId ? 'starting' : 'queueing'}
+          follow={selectedOperationFollow}
+          onFollowChange={(shouldFollow) => {
+            if (selectedOperation) updateOperationFollow(selectedOperation, shouldFollow);
+          }}
+          autoscroll={
+            selectedOperation ? operationLogAutoscroll[selectedOperation.id] !== false : true
+          }
+          onAutoscrollChange={(shouldAutoscroll) => {
+            if (!selectedOperation) return;
+            setOperationLogAutoscroll((current) => ({
+              ...current,
+              [selectedOperation.id]: shouldAutoscroll,
+            }));
+          }}
+          wrap={selectedOperation ? operationLogWrap[selectedOperation.id] !== false : true}
+          onWrapChange={(shouldWrap) => {
+            if (!selectedOperation) return;
+            setOperationLogWrap((current) => ({
+              ...current,
+              [selectedOperation.id]: shouldWrap,
+            }));
+          }}
           onClose={() => setOperationLogsTarget(null)}
         />
       )}

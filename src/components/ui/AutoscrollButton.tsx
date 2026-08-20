@@ -22,7 +22,7 @@ const AutoscrollButton = React.forwardRef<HTMLButtonElement, AutoscrollButtonPro
         onClick={() => onToggle(!enabled)}
         aria-pressed={enabled}
         className={cn(
-          'h-9 px-3 transition-all duration-200 active:scale-95 border-border/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70',
+          'h-11 px-3 transition-all duration-200 motion-reduce:transition-none motion-reduce:active:scale-100 active:scale-95 border-border/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70',
           enabled
             ? 'bg-primary/10 border-primary/40 text-primary shadow-sm shadow-primary/10'
             : 'bg-muted/30 hover:bg-muted/50 text-muted-foreground hover:text-foreground',

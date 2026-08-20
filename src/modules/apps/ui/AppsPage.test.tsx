@@ -615,12 +615,13 @@ describe('AppsPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Deploy' }));
 
     const dialog = await screen.findByRole('dialog', { name: 'Deployment logs' });
-    expect(within(dialog).getByText('Live')).toBeTruthy();
+    expect(within(dialog).getByText('Running')).toBeTruthy();
     const liveLogs = within(dialog).getByRole('log');
     expect(liveLogs.textContent).toContain('$ pnpm build');
     expect(liveLogs.textContent).toContain('Creating an optimized production build');
     expect(liveLogs.textContent).not.toContain('Operation claiming in Apps worker');
     expect(screen.queryByText('Operation claiming in Apps worker')).toBeNull();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Close Deployment logs' }));
     expect(screen.getByRole('button', { name: 'Collapse Inventory Portal' })).toBeTruthy();
   });
 
@@ -670,14 +671,15 @@ describe('AppsPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Deploy' }));
 
     expect(await screen.findByText('Inventory Portal deployment queued.')).toBeTruthy();
-    const deployButton = screen.getByRole('button', { name: 'Deployment in progress' });
-    expect((deployButton as HTMLButtonElement).disabled).toBe(true);
-    expect(deployButton.textContent).toContain('Deploying');
     const logsDialog = screen.getByRole('dialog', { name: 'Deployment logs' });
-    expect(within(logsDialog).getByText('Starting')).toBeTruthy();
+    expect(within(logsDialog).getByText('Queued')).toBeTruthy();
     expect(
       within(logsDialog).getByText('Deployment queued. Waiting for build output…')
     ).toBeTruthy();
+    fireEvent.click(within(logsDialog).getByRole('button', { name: 'Close Deployment logs' }));
+    const deployButton = screen.getByRole('button', { name: 'Deployment in progress' });
+    expect((deployButton as HTMLButtonElement).disabled).toBe(true);
+    expect(deployButton.textContent).toContain('Deploying');
   });
 
   it('shows a terminal queue failure when execution logs never start', async () => {
@@ -767,7 +769,8 @@ describe('AppsPage', () => {
       expect(
         within(dialog).getByText('Worker lost its lease before execution started')
       ).toBeTruthy();
-      expect(within(dialog).queryByText('Starting')).toBeNull();
+      expect(within(dialog).queryByText('Submitting')).toBeNull();
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Close Deployment logs' }));
       expect((screen.getByRole('button', { name: 'Deploy' }) as HTMLButtonElement).disabled).toBe(
         false
       );
@@ -1085,13 +1088,14 @@ describe('AppsPage', () => {
 
   it('polls and autoscrolls live update operation logs while an update is running', async () => {
     vi.useFakeTimers();
-    const originalScrollHeight = Object.getOwnPropertyDescriptor(
+    const originalScrollIntoView = Object.getOwnPropertyDescriptor(
       HTMLElement.prototype,
-      'scrollHeight'
+      'scrollIntoView'
     );
-    Object.defineProperty(HTMLElement.prototype, 'scrollHeight', {
+    const scrollIntoView = vi.fn();
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
       configurable: true,
-      get: () => 240,
+      value: scrollIntoView,
     });
 
     const appBeforeUpdate = {
@@ -1162,25 +1166,37 @@ describe('AppsPage', () => {
         await vi.advanceTimersByTimeAsync(0);
       });
       expect(screen.getByText('Git Portal')).toBeTruthy();
-      expect(screen.queryByLabelText('Follow inline update logs for Git Portal')).toBeNull();
-      expect(screen.queryByLabelText('Autoscroll inline update logs for Git Portal')).toBeNull();
+      expect(screen.queryByRole('button', { name: 'Follow live output' })).toBeNull();
+      expect(screen.queryByRole('button', { name: 'Autoscroll output' })).toBeNull();
 
       fireEvent.click(screen.getByRole('button', { name: /update/i }));
       await act(async () => {
         await vi.advanceTimersByTimeAsync(1500);
       });
 
+      const launchDialog = screen.getByRole('dialog', { name: 'Update logs' });
+      expect(
+        within(launchDialog).getByRole('button', { name: 'Follow live output' })
+      ).toHaveAttribute('aria-pressed', 'true');
+      expect(
+        within(launchDialog).getByRole('button', { name: 'Autoscroll output' })
+      ).toHaveAttribute('aria-pressed', 'true');
+      fireEvent.click(within(launchDialog).getByRole('button', { name: 'Close Update logs' }));
+
       const liveLogs = screen.getByLabelText('Live update logs for Git Portal');
-      const follow = screen.getByLabelText('Follow inline update logs for Git Portal');
-      const autoscroll = screen.getByLabelText('Autoscroll inline update logs for Git Portal');
+      const viewer = liveLogs.closest('section');
+      expect(viewer).not.toBeNull();
+      const follow = within(viewer as HTMLElement).getByRole('button', {
+        name: 'Follow live output',
+      });
+      const autoscroll = within(viewer as HTMLElement).getByRole('button', {
+        name: 'Autoscroll output',
+      });
       expect(liveLogs.textContent).toContain('$ git fetch origin main');
       expect(liveLogs.textContent).toContain('$ pnpm build');
-      expect((follow as HTMLInputElement).checked).toBe(true);
-      expect((autoscroll as HTMLInputElement).checked).toBe(true);
-      expect((screen.getByLabelText('Autoscroll update logs') as HTMLInputElement).checked).toBe(
-        true
-      );
-      expect((liveLogs as HTMLElement).scrollTop).toBe(240);
+      expect(follow).toHaveAttribute('aria-pressed', 'true');
+      expect(autoscroll).toHaveAttribute('aria-pressed', 'true');
+      expect(scrollIntoView).toHaveBeenCalled();
 
       fireEvent.click(follow);
       appDuringUpdate.operations[0].logs = [
@@ -1193,11 +1209,20 @@ describe('AppsPage', () => {
       });
       expect(liveLogs.textContent).not.toContain('Compiling application');
 
+      fireEvent.click(
+        within(viewer as HTMLElement).getByRole('button', { name: 'Open logs full screen' })
+      );
+      const operationDialog = screen.getByRole('dialog', { name: 'Update logs' });
+      expect(
+        within(operationDialog).getByRole('button', { name: 'Follow live output' })
+      ).toHaveAttribute('aria-pressed', 'false');
+      fireEvent.click(within(operationDialog).getByRole('button', { name: 'Close Update logs' }));
+
       fireEvent.click(follow);
       expect(liveLogs.textContent).toContain('Compiling application');
 
-      (liveLogs as HTMLElement).scrollTop = 24;
       fireEvent.click(autoscroll);
+      const callsBeforeDisabledUpdate = scrollIntoView.mock.calls.length;
       appDuringUpdate.operations[0].logs = [
         '$ git fetch origin main',
         '$ pnpm build',
@@ -1208,10 +1233,10 @@ describe('AppsPage', () => {
         await vi.advanceTimersByTimeAsync(1500);
       });
       expect(liveLogs.textContent).toContain('Creating optimized build');
-      expect((liveLogs as HTMLElement).scrollTop).toBe(24);
+      expect(scrollIntoView).toHaveBeenCalledTimes(callsBeforeDisabledUpdate);
 
       fireEvent.click(autoscroll);
-      expect((liveLogs as HTMLElement).scrollTop).toBe(240);
+      expect(scrollIntoView.mock.calls.length).toBeGreaterThan(callsBeforeDisabledUpdate);
 
       resolveUpdate({
         ok: true,
@@ -1227,10 +1252,10 @@ describe('AppsPage', () => {
         await vi.advanceTimersByTimeAsync(0);
       });
     } finally {
-      if (originalScrollHeight) {
-        Object.defineProperty(HTMLElement.prototype, 'scrollHeight', originalScrollHeight);
+      if (originalScrollIntoView) {
+        Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', originalScrollIntoView);
       } else {
-        delete (HTMLElement.prototype as { scrollHeight?: unknown }).scrollHeight;
+        delete (HTMLElement.prototype as { scrollIntoView?: unknown }).scrollIntoView;
       }
       vi.useRealTimers();
     }
@@ -1366,13 +1391,17 @@ describe('AppsPage', () => {
     expect(screen.getByText('oldest deployment output')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Show recent operations' })).toBeTruthy();
 
+    const liveUpdateLog = screen.getByRole('log', { name: 'Live update logs for Git Portal' });
     fireEvent.click(
-      screen.getAllByRole('button', { name: 'Expand update logs for Git Portal' })[0]
+      within(liveUpdateLog.closest('section') as HTMLElement).getByRole('button', {
+        name: 'Open logs full screen',
+      })
     );
     const operationDialog = screen.getByRole('dialog', { name: 'Update logs' });
     const expandedLiveLogs = within(operationDialog).getByRole('log');
     expect(expandedLiveLogs.textContent).toContain('$ git fetch origin main');
     expect(expandedLiveLogs.textContent).toContain('$ pnpm build');
+    fireEvent.click(within(operationDialog).getByRole('button', { name: 'Close Update logs' }));
 
     fireEvent.click(screen.getByRole('button', { name: 'Runtime logs for Git Portal' }));
 

@@ -30,6 +30,7 @@ export function OperationLogDialog({
 }: OperationLogDialogProps) {
   const presentation = getOperationStatusPresentation(status);
   const StatusIcon = presentation.icon;
+  const formattedStartedAt = startedAt ? new Date(startedAt).toLocaleString() : undefined;
 
   return (
     <Dialog
@@ -42,7 +43,7 @@ export function OperationLogDialog({
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
           {target && <span className="font-medium text-foreground">{target}</span>}
           {operationId && <span>Operation {operationId}</span>}
-          {startedAt && <time dateTime={startedAt}>{startedAt}</time>}
+          {startedAt && <time dateTime={startedAt}>{formattedStartedAt}</time>}
           <Badge variant={presentation.variant}>
             <StatusIcon
               className={
