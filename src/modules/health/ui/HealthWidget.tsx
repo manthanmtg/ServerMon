@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { Cpu, MemoryStick, HardDrive } from 'lucide-react';
 import type { SystemMetric } from '@/lib/MetricsContext';
-import { motion } from 'framer-motion';
+import { motion, useReducedMotion } from 'framer-motion';
 
 interface HealthData {
   cpu: number;
@@ -11,7 +11,15 @@ interface HealthData {
   disk: number;
 }
 
-function ProgressBar({ value, color }: { value: number; color: string }) {
+function ProgressBar({
+  value,
+  color,
+  reducedMotion,
+}: {
+  value: number;
+  color: string;
+  reducedMotion: boolean;
+}) {
   return (
     <div className="h-1.5 w-full bg-secondary/30 backdrop-blur-xs rounded-full overflow-hidden border border-white/5">
       <motion.div
@@ -20,12 +28,16 @@ function ProgressBar({ value, color }: { value: number; color: string }) {
         animate={{ width: `${Math.min(value, 100)}%` }}
         transition={{ duration: 1, ease: [0.16, 1, 0.3, 1] }}
       >
-        <motion.div
-          className="absolute inset-0 bg-white/20"
-          initial={{ x: '-100%' }}
-          animate={{ x: '100%' }}
-          transition={{ repeat: Infinity, duration: 2, ease: 'linear' }}
-        />
+        {!reducedMotion && (
+          <motion.div
+            data-testid="health-progress-shimmer"
+            className="absolute inset-0 bg-white/20"
+            initial={{ x: '-100%' }}
+            animate={{ x: '100%' }}
+            transition={{ repeat: Infinity, duration: 2, ease: 'linear' }}
+            aria-hidden="true"
+          />
+        )}
       </motion.div>
     </div>
   );
@@ -44,6 +56,7 @@ interface HealthWidgetProps {
 }
 
 export default function HealthWidget({ metric }: HealthWidgetProps) {
+  const reducedMotion = useReducedMotion() ?? false;
   const [internalHealth, setInternalHealth] = useState<HealthData>(() => toHealthData(metric));
   const [hasStreamData, setHasStreamData] = useState<boolean>(Boolean(metric));
 
@@ -127,7 +140,11 @@ export default function HealthWidget({ metric }: HealthWidgetProps) {
               {hasStreamData ? `${item.value.toFixed(1)}%` : '—'}
             </motion.span>
           </div>
-          <ProgressBar value={hasStreamData ? item.value : 0} color={item.color} />
+          <ProgressBar
+            value={hasStreamData ? item.value : 0}
+            color={item.color}
+            reducedMotion={reducedMotion}
+          />
         </motion.div>
       ))}
     </div>

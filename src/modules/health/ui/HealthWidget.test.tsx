@@ -1,5 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, act } from '@testing-library/react';
+
+const { mockUseReducedMotion } = vi.hoisted(() => ({
+  mockUseReducedMotion: vi.fn(() => false),
+}));
+
+vi.mock('framer-motion', async () => {
+  const actual = await vi.importActual<typeof import('framer-motion')>('framer-motion');
+  return { ...actual, useReducedMotion: mockUseReducedMotion };
+});
+
 import HealthWidget from './HealthWidget';
 
 // Mock EventSource — must be a constructable function (not an arrow function)
@@ -22,6 +32,7 @@ describe('HealthWidget', () => {
     mockEventSource.onmessage = null;
     mockEventSource.onerror = null;
     mockEventSource.close.mockClear();
+    mockUseReducedMotion.mockReturnValue(false);
   });
 
   it('renders CPU, Memory, and Disk labels', () => {
@@ -103,6 +114,15 @@ describe('HealthWidget', () => {
     expect(screen.getByText('72.4%')).toBeDefined();
     expect(screen.getByText('51.2%')).toBeDefined();
     expect(screen.getByText('63.5%')).toBeDefined();
+  });
+
+  it('removes decorative infinite motion when reduced motion is preferred', () => {
+    mockUseReducedMotion.mockReturnValue(true);
+
+    render(<HealthWidget metric={{ cpu: 10, memory: 20, disks: [{ use: 30 }] as never }} />);
+
+    expect(screen.queryByTestId('health-progress-shimmer')).toBeNull();
+    expect(screen.getByText('10.0%')).toBeDefined();
   });
 
   it('uses partial updates - only updates provided fields', async () => {
