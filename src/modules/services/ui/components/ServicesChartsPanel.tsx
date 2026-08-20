@@ -72,7 +72,9 @@ export function ServicesChartsPanel({
             <div className="flex items-center justify-between">
               <div>
                 <CardTitle>Top services by CPU</CardTitle>
-                <p className="text-sm text-muted-foreground">Horizontal bar chart of the busiest services.</p>
+                <p className="text-sm text-muted-foreground">
+                  Horizontal bar chart of the busiest services.
+                </p>
               </div>
               <Badge variant="outline">Top 10</Badge>
             </div>
@@ -111,7 +113,9 @@ export function ServicesChartsPanel({
             <div className="flex items-center justify-between">
               <div>
                 <CardTitle>Top services by memory</CardTitle>
-                <p className="text-sm text-muted-foreground">Memory consumption of the heaviest services.</p>
+                <p className="text-sm text-muted-foreground">
+                  Memory consumption of the heaviest services.
+                </p>
               </div>
               <Badge variant="outline">Top 10</Badge>
             </div>

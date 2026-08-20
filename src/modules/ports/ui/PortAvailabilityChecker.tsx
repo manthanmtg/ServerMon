@@ -25,7 +25,10 @@ export function PortAvailabilityChecker() {
     setCheckError(null);
 
     try {
-      const res = await fetch(`/api/modules/ports/check?port=${port}`, signal ? { signal } : undefined);
+      const res = await fetch(
+        `/api/modules/ports/check?port=${port}`,
+        signal ? { signal } : undefined
+      );
       if (res.ok) {
         const data: PortCheckResult = await res.json();
         setCheckResult(data);
@@ -70,7 +73,7 @@ export function PortAvailabilityChecker() {
       controller.abort();
       window.clearTimeout(timeoutId);
     };
-  }, [checkPort]);
+  }, [checkPort, runCheck]);
 
   return (
     <Card className="border-border/60">

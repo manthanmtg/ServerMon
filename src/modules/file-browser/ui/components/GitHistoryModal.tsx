@@ -118,7 +118,11 @@ export default function GitHistoryModal({ root, onClose }: Props) {
       setError(message);
       setCommits([]);
       setSelectedHash(null);
-      toast({ title: 'Failed to load commit history', description: message, variant: 'destructive' });
+      toast({
+        title: 'Failed to load commit history',
+        description: message,
+        variant: 'destructive',
+      });
       console.error('Failed to fetch git logs', err);
     } finally {
       setLoading(false);
@@ -139,7 +143,11 @@ export default function GitHistoryModal({ root, onClose }: Props) {
         setDiff(result);
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Failed to fetch commit diff';
-        toast({ title: 'Failed to load commit diff', description: message, variant: 'destructive' });
+        toast({
+          title: 'Failed to load commit diff',
+          description: message,
+          variant: 'destructive',
+        });
         setDiff(null);
         console.error('Failed to fetch diff', err);
       } finally {

@@ -1,7 +1,15 @@
 'use client';
 
 import { memo, type ReactNode } from 'react';
-import { CheckCircle, AlertTriangle, Info, RefreshCw, SkipForward, ShieldCheck, XCircle } from 'lucide-react';
+import {
+  CheckCircle,
+  AlertTriangle,
+  Info,
+  RefreshCw,
+  SkipForward,
+  ShieldCheck,
+  XCircle,
+} from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import type { SecurityCheck } from '../types';
@@ -71,46 +79,46 @@ export const SecurityChecksByCategory = memo(function SecurityChecksByCategory({
           <EmptyChecksState />
         ) : (
           Array.from(checksByCategory.entries()).map(([category, checks]) => (
-          <div key={category}>
-            <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
-              {category}
-            </h3>
-            <div className="space-y-1.5">
-              {checks.map((check) => (
-                <div
-                  key={check.id}
-                  className="flex items-center gap-3 p-2.5 rounded-lg hover:bg-accent/30 transition-colors"
-                >
-                  {statusIcon[check.status]}
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium">{check.title}</p>
-                    <p className="text-xs text-muted-foreground truncate">{check.details}</p>
+            <div key={category}>
+              <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
+                {category}
+              </h3>
+              <div className="space-y-1.5">
+                {checks.map((check) => (
+                  <div
+                    key={check.id}
+                    className="flex items-center gap-3 p-2.5 rounded-lg hover:bg-accent/30 transition-colors"
+                  >
+                    {statusIcon[check.status]}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium">{check.title}</p>
+                      <p className="text-xs text-muted-foreground truncate">{check.details}</p>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <Badge variant="secondary" className="text-[10px]">
+                        {check.severity}
+                      </Badge>
+                      <Badge
+                        variant={
+                          check.status === 'pass'
+                            ? 'success'
+                            : check.status === 'fail'
+                              ? 'destructive'
+                              : check.status === 'warn'
+                                ? 'warning'
+                                : 'secondary'
+                        }
+                        className="text-[10px]"
+                      >
+                        {statusLabel[check.status]}
+                      </Badge>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <Badge variant="secondary" className="text-[10px]">
-                      {check.severity}
-                    </Badge>
-                    <Badge
-                      variant={
-                        check.status === 'pass'
-                          ? 'success'
-                          : check.status === 'fail'
-                            ? 'destructive'
-                            : check.status === 'warn'
-                              ? 'warning'
-                              : 'secondary'
-                      }
-                      className="text-[10px]"
-                    >
-                      {statusLabel[check.status]}
-                    </Badge>
-                  </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
-          </div>
-        ))
-      )}
+          ))
+        )}
       </CardContent>
     </Card>
   );

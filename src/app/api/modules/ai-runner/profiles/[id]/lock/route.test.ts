@@ -1,5 +1,6 @@
 /** @vitest-environment node */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { NextRequest } from 'next/server';
 
 const { mockGetSession, mockLockProfile, mockLogError } = vi.hoisted(() => ({
   mockGetSession: vi.fn(),
@@ -25,13 +26,13 @@ import { POST } from './route';
 
 function makeRequest(body: unknown, options: { method?: string; body?: string } = {}) {
   if (typeof options.body === 'string') {
-    return new Request('http://localhost/api/modules/ai-runner/profiles/p1/lock', {
+    return new NextRequest('http://localhost/api/modules/ai-runner/profiles/p1/lock', {
       method: options.method ?? 'POST',
       body: options.body,
     });
   }
 
-  return new Request('http://localhost/api/modules/ai-runner/profiles/p1/lock', {
+  return new NextRequest('http://localhost/api/modules/ai-runner/profiles/p1/lock', {
     method: options.method ?? 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(body),
@@ -125,7 +126,10 @@ describe('POST /api/modules/ai-runner/profiles/[id]/lock', () => {
     });
 
     expect(response.status).toBe(400);
-    expect(mockLogError).toHaveBeenCalledWith('Failed to update AI runner profile lock', expect.any(Error));
+    expect(mockLogError).toHaveBeenCalledWith(
+      'Failed to update AI runner profile lock',
+      expect.any(Error)
+    );
     expect(await response.json()).toEqual({ error: 'db unavailable' });
   });
 

@@ -5,9 +5,9 @@
 
 ## Issue
 
-The `pnpm test` and `pnpm check` commands are currently failing on `main`. 
+The `pnpm test` and `pnpm check` commands are currently failing on `main`.
 
-`pnpm test` has ~30 failing test files out-of-the-box (e.g. `src/lib/fleet/backup.test.ts`, `src/models/Node.test.ts`, `src/lib/ai-runner/logs.test.ts`) primarily due to mock configuration issues with `node:` core modules not being correctly set up in the Vitest environment. 
+`pnpm test` has ~30 failing test files out-of-the-box (e.g. `src/lib/fleet/backup.test.ts`, `src/models/Node.test.ts`, `src/lib/ai-runner/logs.test.ts`) primarily due to mock configuration issues with `node:` core modules not being correctly set up in the Vitest environment.
 
 `pnpm typecheck` also fails with 45 errors in 14 files related to type mismatch in mocks and responses.
 

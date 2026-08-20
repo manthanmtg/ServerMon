@@ -15,4 +15,5 @@ I did not find a confidently provable dead-code item with low ambiguity that cou
 No code changes were made. This run is logged here and stops per the No-Op Protocol.
 
 Suggested follow-up:
+
 - Revisit with additional dependency usage tooling or deeper import graph analysis before making removals.

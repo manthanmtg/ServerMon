@@ -256,8 +256,8 @@ describe('ServicesPage', () => {
       fireEvent.click(expandButton);
     });
 
-    await waitFor(() => expect(screen.queryByText(/Recent logs/i)).not.toBeNull());
-    expect(screen.getByText('Test log')).toBeDefined();
+    const log = await screen.findByRole('log', { name: 'nginx.service service logs' });
+    expect(log).toHaveTextContent('Test log');
 
     expect(global.fetch).toHaveBeenCalledWith(
       expect.stringContaining('/api/modules/services/nginx.service/logs'),
@@ -311,9 +311,7 @@ describe('ServicesPage', () => {
     vi.mocked(global.fetch).mockImplementation((url) => {
       const urlString = url.toString();
       if (urlString.includes('/action')) {
-        return Promise.resolve(
-          mockFetchResponse({ error: 'Action failed' }, { status: 500 })
-        );
+        return Promise.resolve(mockFetchResponse({ error: 'Action failed' }, { status: 500 }));
       }
       return Promise.resolve(mockFetchResponse(mockSnapshot));
     });
@@ -353,7 +351,8 @@ describe('ServicesPage', () => {
       fireEvent.click(expandButton);
     });
 
-    await waitFor(() => expect(screen.queryByText(/No logs available/i)).not.toBeNull());
+    expect(await screen.findByText('Unable to load service logs.')).toBeDefined();
+    expect(screen.getByRole('button', { name: 'Retry' })).toBeDefined();
   });
 
   it('renders systemd unavailable message', async () => {

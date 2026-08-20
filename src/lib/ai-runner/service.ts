@@ -434,9 +434,7 @@ export class AIRunnerService {
     await connectDB();
     const gitRepo = await isGitRepository(input.path);
     const gitWorktreesEnabled =
-      typeof input.gitWorktreesEnabled === 'boolean'
-        ? input.gitWorktreesEnabled
-        : gitRepo;
+      typeof input.gitWorktreesEnabled === 'boolean' ? input.gitWorktreesEnabled : gitRepo;
     const blocking = gitWorktreesEnabled ? false : input.blocking;
     const doc = await AIRunnerWorkspace.create({
       ...input,
@@ -466,9 +464,7 @@ export class AIRunnerService {
       typeof input.gitWorktreesEnabled === 'boolean'
         ? input.gitWorktreesEnabled
         : existing.gitWorktreesEnabled;
-    const blocking = gitWorktreesEnabled
-      ? false
-      : (input.blocking ?? existing.blocking);
+    const blocking = gitWorktreesEnabled ? false : (input.blocking ?? existing.blocking);
     Object.assign(existing, input, {
       isGitRepo,
       gitWorktreesEnabled,

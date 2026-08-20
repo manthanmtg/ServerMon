@@ -122,7 +122,11 @@ function GitActionBar({
           onClick={() => doAction('discard-all', {}, 'Discarded all changes')}
           title="Discard all changes"
         >
-          {busy === 'discard-all' ? <LoaderCircle className="w-3 h-3 animate-spin" /> : <RotateCcw className="w-3 h-3" />}
+          {busy === 'discard-all' ? (
+            <LoaderCircle className="w-3 h-3 animate-spin" />
+          ) : (
+            <RotateCcw className="w-3 h-3" />
+          )}
           <span className="hidden sm:inline ml-1">Reset</span>
         </Button>
       )}
@@ -140,7 +144,11 @@ function GitActionBar({
         onClick={() => doAction('fetch', {}, 'Fetched')}
         className="flex items-center gap-1.5 rounded-xl border border-border/60 bg-background px-3 py-1.5 font-bold text-[10px] uppercase tracking-wider text-muted-foreground transition-all hover:bg-accent hover:text-foreground hover:shadow-sm active:scale-95 disabled:opacity-50"
       >
-        {busy === 'fetch' ? <LoaderCircle className="w-3.5 h-3.5 animate-spin" /> : <RefreshCcw className="w-3.5 h-3.5" />}
+        {busy === 'fetch' ? (
+          <LoaderCircle className="w-3.5 h-3.5 animate-spin" />
+        ) : (
+          <RefreshCcw className="w-3.5 h-3.5" />
+        )}
         Fetch
       </button>
       {behind > 0 && (
@@ -150,7 +158,11 @@ function GitActionBar({
           onClick={() => doAction('pull', {}, 'Pulled')}
           className="flex items-center gap-1.5 rounded-xl border border-border/60 bg-background px-3 py-1.5 font-bold text-[10px] uppercase tracking-wider text-muted-foreground transition-all hover:bg-accent hover:text-foreground hover:shadow-sm active:scale-95 disabled:opacity-50"
         >
-          {busy === 'pull' ? <LoaderCircle className="w-3.5 h-3.5 animate-spin" /> : <ArrowDown className="w-3.5 h-3.5" />}
+          {busy === 'pull' ? (
+            <LoaderCircle className="w-3.5 h-3.5 animate-spin" />
+          ) : (
+            <ArrowDown className="w-3.5 h-3.5" />
+          )}
           Pull
         </button>
       )}
@@ -168,21 +180,25 @@ function GitActionBar({
         <GitCommit className="w-3.5 h-3.5" />
         Commit
         {stagedCount > 0 && (
-          <span className="bg-primary-foreground/20 rounded-md px-1 text-[9px]">
-            {stagedCount}
-          </span>
+          <span className="bg-primary-foreground/20 rounded-md px-1 text-[9px]">{stagedCount}</span>
         )}
       </button>
     </div>
   );
 }
 
-function GitCommitForm({ commitMsg, onCommitMsgChange, onSubmit, onCancel, isBusy }: GitCommitFormProps) {
+function GitCommitForm({
+  commitMsg,
+  onCommitMsgChange,
+  onSubmit,
+  onCancel,
+  isBusy,
+}: GitCommitFormProps) {
   return (
-      <form
-        onSubmit={onSubmit}
-        className="flex items-center gap-2 px-4 pb-3 animate-in fade-in slide-in-from-top-1 duration-150"
-      >
+    <form
+      onSubmit={onSubmit}
+      className="flex items-center gap-2 px-4 pb-3 animate-in fade-in slide-in-from-top-1 duration-150"
+    >
       <GitCommit className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
       <input
         type="text"
@@ -239,7 +255,10 @@ function GitBranchSwitcher({
           {branch}
         </span>
         <ChevronDown
-          className={cn('w-3 h-3 text-muted-foreground transition-transform shrink-0', showBranches && 'rotate-180')}
+          className={cn(
+            'w-3 h-3 text-muted-foreground transition-transform shrink-0',
+            showBranches && 'rotate-180'
+          )}
         />
       </button>
 
@@ -297,7 +316,11 @@ function GitBranchSwitcher({
                           disabled={Boolean(busy)}
                           onClick={async () => {
                             setShowBranches(false);
-                            await doAction('checkout', { branch: localName }, `Switched to ${localName}`);
+                            await doAction(
+                              'checkout',
+                              { branch: localName },
+                              `Switched to ${localName}`
+                            );
                           }}
                           className="flex items-center gap-2 w-full rounded-lg px-2.5 py-2 text-left hover:bg-accent text-muted-foreground transition-colors disabled:cursor-wait disabled:opacity-50"
                         >
@@ -362,11 +385,7 @@ function GitStatusSection({
 
       <div className="max-h-32 overflow-y-auto">
         {files.map((f) => (
-          <FileStatusRow
-            key={`s-${f.path}`}
-            file={f}
-            actions={getActions(f)}
-          />
+          <FileStatusRow key={`s-${f.path}`} file={f} actions={getActions(f)} />
         ))}
       </div>
     </div>

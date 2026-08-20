@@ -102,7 +102,9 @@ export default function SetupPage() {
       });
 
       if (!response.ok) {
-        throw new Error(getErrorMessage(payload, `Failed to start setup (HTTP ${response.status})`));
+        throw new Error(
+          getErrorMessage(payload, `Failed to start setup (HTTP ${response.status})`)
+        );
       }
 
       if (typeof payload?.secret !== 'string' || typeof payload.qrCode !== 'string') {
@@ -125,11 +127,14 @@ export default function SetupPage() {
     setError('');
 
     try {
-      const { response, payload } = await fetchWithTimeout<SetupCompleteResponse>('/api/setup/complete', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password, totpSecret, totpToken }),
-      });
+      const { response, payload } = await fetchWithTimeout<SetupCompleteResponse>(
+        '/api/setup/complete',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, password, totpSecret, totpToken }),
+        }
+      );
 
       if (!response.ok) {
         throw new Error(

@@ -131,7 +131,12 @@ export interface RunnerInventoryCounts {
 
 interface RunnerInventoryInput {
   profiles: Array<Pick<{ enabled: boolean }, 'enabled'>>;
-  workspaces: Array<Pick<{ enabled: boolean; blocking: boolean; gitWorktreesEnabled?: boolean }, 'enabled' | 'blocking' | 'gitWorktreesEnabled'>>;
+  workspaces: Array<
+    Pick<
+      { enabled: boolean; blocking: boolean; gitWorktreesEnabled?: boolean },
+      'enabled' | 'blocking' | 'gitWorktreesEnabled'
+    >
+  >;
 }
 
 export function deriveRunnerInventoryCounts({

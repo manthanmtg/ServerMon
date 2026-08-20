@@ -29,11 +29,13 @@ export function getTemplateById(id: string): InstallTemplate | undefined {
   return templateMap.get(id);
 }
 
-export function searchTemplates(opts: {
-  query?: string;
-  category?: TemplateCategory;
-  tags?: string[];
-} = {}): InstallTemplate[] {
+export function searchTemplates(
+  opts: {
+    query?: string;
+    category?: TemplateCategory;
+    tags?: string[];
+  } = {}
+): InstallTemplate[] {
   let results = allTemplates;
 
   if (opts.category) {

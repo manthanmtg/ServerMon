@@ -35,10 +35,7 @@ describe('POST /api/modules/disk/scan', () => {
       (
         _cmd: string,
         _args: string[],
-        callback: (
-          err: Error | null,
-          result: { stdout: string; stderr: string } | null
-        ) => void
+        callback: (err: Error | null, result: { stdout: string; stderr: string } | null) => void
       ) => {
         callback(null, { stdout: '1024\t/var/log\n512\t/var/cache\n', stderr: '' });
       }
@@ -85,10 +82,7 @@ describe('POST /api/modules/disk/scan', () => {
       (
         _cmd: string,
         _args: string[],
-        callback: (
-          err: Error | null,
-          result: { stdout: string; stderr: string } | null
-        ) => void
+        callback: (err: Error | null, result: { stdout: string; stderr: string } | null) => void
       ) => {
         callback(null, { stdout: '2048\t/var/log\n1024\t/var/cache\n', stderr: '' });
       }
@@ -106,16 +100,12 @@ describe('POST /api/modules/disk/scan', () => {
       (
         _cmd: string,
         _args: string[],
-        callback: (
-          err: Error | null,
-          result: { stdout: string; stderr: string } | null
-        ) => void
+        callback: (err: Error | null, result: { stdout: string; stderr: string } | null) => void
       ) => {
         callback(null, { stdout: '100\t/bin\n', stderr: '' });
       }
     );
     const res = await POST(makeRequest({}));
-    const json = await res.json();
     expect(res.status).toBe(200);
   });
 
@@ -124,10 +114,7 @@ describe('POST /api/modules/disk/scan', () => {
       (
         _cmd: string,
         _args: string[],
-        callback: (
-          err: Error | null,
-          result: { stdout: string; stderr: string } | null
-        ) => void
+        callback: (err: Error | null, result: { stdout: string; stderr: string } | null) => void
       ) => {
         callback(new Error('exec failed'), null);
       }

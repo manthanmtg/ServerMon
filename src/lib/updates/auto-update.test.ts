@@ -414,13 +414,15 @@ function mockExecFile(
   fn: (command: string, args: readonly string[], callback: ExecFileCallback) => void
 ): void {
   vi.mocked(execFile).mockImplementation((command, args, callbackOrOptions, callback) => {
-    const resolvedCallback =
-      typeof callbackOrOptions === 'function' ? callbackOrOptions : callback;
+    const childProcess = null as unknown as ReturnType<typeof execFile>;
+    const resolvedCallback = typeof callbackOrOptions === 'function' ? callbackOrOptions : callback;
 
-    if (!resolvedCallback) return;
+    if (!resolvedCallback) return childProcess;
 
     if (Array.isArray(args)) {
-      fn(command, args, resolvedCallback);
+      fn(command, args, resolvedCallback as unknown as ExecFileCallback);
     }
+
+    return childProcess;
   });
 }

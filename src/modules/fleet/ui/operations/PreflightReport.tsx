@@ -127,7 +127,9 @@ export function PreflightReport() {
                         <td className="py-2 pr-2 text-xs max-w-[30ch] break-words">
                           {r.detail ?? '—'}
                         </td>
-                        <td className="py-2 pr-2 text-xs max-w-[30ch] break-words">{r.fix ?? '—'}</td>
+                        <td className="py-2 pr-2 text-xs max-w-[30ch] break-words">
+                          {r.fix ?? '—'}
+                        </td>
                       </tr>
                     ))}
                   </tbody>

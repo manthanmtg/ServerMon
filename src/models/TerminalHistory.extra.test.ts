@@ -30,7 +30,7 @@ vi.mock('mongoose', async () => {
     // Expose for tests
     mockSchema._getPreSave = () => preSaveCallback;
     return this;
-  }) as MockSchemaConstructor;
+  }) as unknown as MockSchemaConstructor;
 
   mockSchema.Types = {
     ObjectId: 'ObjectId',
@@ -57,7 +57,7 @@ vi.mock('mongoose', async () => {
 
 async function getSchemaConstructorAsync(): Promise<MockSchemaConstructor> {
   const mongoose = await import('mongoose');
-  return mongoose.default.Schema as MockSchemaConstructor;
+  return mongoose.default.Schema as unknown as MockSchemaConstructor;
 }
 
 describe('TerminalHistory — pre-save hook', () => {

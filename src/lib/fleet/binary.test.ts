@@ -97,7 +97,9 @@ describe('resolveVersion', () => {
 
   it('returns the requested version if it is not "latest"', async () => {
     const fetchImpl = vi.fn();
-    await expect(resolveVersion('0.58.0', fetchImpl as unknown as typeof fetch)).resolves.toBe('0.58.0');
+    await expect(resolveVersion('0.58.0', fetchImpl as unknown as typeof fetch)).resolves.toBe(
+      '0.58.0'
+    );
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 
@@ -105,10 +107,14 @@ describe('resolveVersion', () => {
     const fetchImpl = vi.fn().mockRejectedValue(new DOMException('AbortError', 'AbortError'));
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
 
-    await expect(resolveVersion('latest', fetchImpl as unknown as typeof fetch)).resolves.toBe('0.61.2');
+    await expect(resolveVersion('latest', fetchImpl as unknown as typeof fetch)).resolves.toBe(
+      '0.61.2'
+    );
     expect(warnSpy).toHaveBeenCalledWith(
       'Failed to fetch latest FRP version, falling back to 0.61.2',
-      expect.objectContaining({ message: expect.stringContaining('GitHub latest release lookup timed out') })
+      expect.objectContaining({
+        message: expect.stringContaining('GitHub latest release lookup timed out'),
+      })
     );
   });
 
@@ -116,7 +122,9 @@ describe('resolveVersion', () => {
     const fetchImpl = vi.fn().mockRejectedValue(new Error('Network error'));
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
 
-    await expect(resolveVersion('latest', fetchImpl as unknown as typeof fetch)).resolves.toBe('0.61.2');
+    await expect(resolveVersion('latest', fetchImpl as unknown as typeof fetch)).resolves.toBe(
+      '0.61.2'
+    );
     expect(warnSpy).toHaveBeenCalledWith(
       'Failed to fetch latest FRP version, falling back to 0.61.2',
       expect.objectContaining({ message: 'Network error' })
@@ -127,7 +135,9 @@ describe('resolveVersion', () => {
     const fetchImpl = vi.fn().mockResolvedValue({ ok: false, status: 500 });
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
 
-    await expect(resolveVersion('latest', fetchImpl as unknown as typeof fetch)).resolves.toBe('0.61.2');
+    await expect(resolveVersion('latest', fetchImpl as unknown as typeof fetch)).resolves.toBe(
+      '0.61.2'
+    );
     expect(warnSpy).toHaveBeenCalledWith(
       'Failed to fetch latest FRP version, falling back to 0.61.2',
       expect.objectContaining({ message: 'GitHub API error: 500' })
@@ -139,9 +149,11 @@ describe('resolveVersion', () => {
       ok: true,
       json: async () => ({ tag_name: 'v0.62.1' }),
     });
-    
+
     // First call caches the result
-    await expect(resolveVersion('latest', fetchImpl1 as unknown as typeof fetch)).resolves.toBe('0.62.1');
+    await expect(resolveVersion('latest', fetchImpl1 as unknown as typeof fetch)).resolves.toBe(
+      '0.62.1'
+    );
     expect(fetchImpl1).toHaveBeenCalledTimes(1);
 
     // Advance time by 30 mins
@@ -149,7 +161,9 @@ describe('resolveVersion', () => {
 
     const fetchImpl2 = vi.fn();
     // Second call uses cache
-    await expect(resolveVersion('latest', fetchImpl2 as unknown as typeof fetch)).resolves.toBe('0.62.1');
+    await expect(resolveVersion('latest', fetchImpl2 as unknown as typeof fetch)).resolves.toBe(
+      '0.62.1'
+    );
     expect(fetchImpl2).not.toHaveBeenCalled();
 
     // Advance time to expire cache
@@ -160,7 +174,9 @@ describe('resolveVersion', () => {
       json: async () => ({ tag_name: 'v0.62.2' }),
     });
     // Third call fetches again
-    await expect(resolveVersion('latest', fetchImpl3 as unknown as typeof fetch)).resolves.toBe('0.62.2');
+    await expect(resolveVersion('latest', fetchImpl3 as unknown as typeof fetch)).resolves.toBe(
+      '0.62.2'
+    );
     expect(fetchImpl3).toHaveBeenCalledTimes(1);
   });
 });

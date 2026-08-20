@@ -2,17 +2,12 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, CheckCircle, Clock, RefreshCcw, Timer } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { PageSkeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/components/ui/toast';
 import { relativeTime } from '@/lib/utils';
-import type {
-  ServiceUnit,
-  ServiceAlertSummary,
-  ServiceTimerInfo,
-  ServicesSnapshot,
-} from '../types';
+import type { ServiceAlertSummary, ServiceTimerInfo, ServicesSnapshot } from '../types';
 import type { ServiceAction, ServicesSortDir, ServicesSortField } from './components/ServicesTable';
 import { ServicesViewTabs, type ViewTab } from './components/ServicesViewTabs';
 import { ServicesSummaryGrid } from './components/ServicesSummaryGrid';
@@ -48,7 +43,8 @@ function isServicesSnapshot(value: unknown): value is ServicesSnapshot {
   const alerts = candidate.alerts;
   const history = candidate.history;
 
-  const hasValidServices = Array.isArray(services) &&
+  const hasValidServices =
+    Array.isArray(services) &&
     services.every(
       (service) =>
         isObject(service) &&
@@ -59,7 +55,9 @@ function isServicesSnapshot(value: unknown): value is ServicesSnapshot {
   const hasValidAlerts = Array.isArray(alerts) && alerts.every((alert) => isObject(alert));
   const hasValidHistory =
     Array.isArray(history) &&
-    history.every((item) => isObject(item) && Array.isArray((item as Record<string, unknown>).services));
+    history.every(
+      (item) => isObject(item) && Array.isArray((item as Record<string, unknown>).services)
+    );
 
   return (
     typeof candidate.systemdAvailable === 'boolean' &&
@@ -140,9 +138,7 @@ function ServicesTimersPanel({ timers = [] }: ServicesTimersPanelProps) {
                       <span className="text-xs">{futureTime(timer.nextRun)}</span>
                     </div>
                   </td>
-                  <td className="py-3 px-5 text-xs text-muted-foreground">
-                    {timer.lastRun}
-                  </td>
+                  <td className="py-3 px-5 text-xs text-muted-foreground">{timer.lastRun}</td>
                 </tr>
               ))
             )}
@@ -333,7 +329,9 @@ export default function ServicesPage() {
 
       if (!response.ok) {
         const message =
-          isObject(data) && typeof data.error === 'string' ? data.error : `Request failed with ${response.status}`;
+          isObject(data) && typeof data.error === 'string'
+            ? data.error
+            : `Request failed with ${response.status}`;
         throw new Error(message);
       }
 
@@ -344,7 +342,9 @@ export default function ServicesPage() {
       setSnapshot(data);
     } catch (error: unknown) {
       if (error instanceof Error && error.name === 'AbortError') {
-        throw new Error(`Services snapshot request timed out after ${SERVICES_SNAPSHOT_TIMEOUT_MS}ms`);
+        throw new Error(
+          `Services snapshot request timed out after ${SERVICES_SNAPSHOT_TIMEOUT_MS}ms`
+        );
       }
 
       throw error;
@@ -546,7 +546,7 @@ export default function ServicesPage() {
     return <PageSkeleton statCards={3} />;
   }
 
-      return (
+  return (
     <div className="space-y-6" data-testid="services-page">
       <ServicesHeroSection
         snapshot={snapshot}

@@ -109,17 +109,9 @@ export default function NetworkWidget() {
         : 'Unavailable'
       : stats?.iface || 'Network';
 
-  const downloadText = isLoading || loadError
-    ? '—'
-    : stats
-      ? formatBytes(stats.rx)
-      : '0 B';
+  const downloadText = isLoading || loadError ? '—' : stats ? formatBytes(stats.rx) : '0 B';
 
-  const uploadText = isLoading || loadError
-    ? '—'
-    : stats
-      ? formatBytes(stats.tx)
-      : '0 B';
+  const uploadText = isLoading || loadError ? '—' : stats ? formatBytes(stats.tx) : '0 B';
 
   return (
     <div className="space-y-4">

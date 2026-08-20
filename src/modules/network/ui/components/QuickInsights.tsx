@@ -6,27 +6,27 @@ import { formatBytes } from '@/lib/utils';
 import type { NetworkSnapshot } from '../../types';
 
 const toneClasses: Record<string, { icon: string; glow: string; hover: string }> = {
-    primary: {
-      icon: 'text-primary',
-      glow: 'bg-primary/12',
-      hover: 'hover:border-primary/45 hover:bg-muted/50',
-    },
-    success: {
-      icon: 'text-success',
-      glow: 'bg-success/12',
-      hover: 'hover:border-success/45 hover:bg-muted/50',
-    },
-    accent: {
-      icon: 'text-accent',
-      glow: 'bg-accent/12',
-      hover: 'hover:border-accent/45 hover:bg-muted/50',
-    },
-    destructive: {
-      icon: 'text-destructive',
-      glow: 'bg-destructive/12',
-      hover: 'hover:border-destructive/45 hover:bg-muted/50',
-    },
-  };
+  primary: {
+    icon: 'text-primary',
+    glow: 'bg-primary/12',
+    hover: 'hover:border-primary/45 hover:bg-muted/50',
+  },
+  success: {
+    icon: 'text-success',
+    glow: 'bg-success/12',
+    hover: 'hover:border-success/45 hover:bg-muted/50',
+  },
+  accent: {
+    icon: 'text-accent',
+    glow: 'bg-accent/12',
+    hover: 'hover:border-accent/45 hover:bg-muted/50',
+  },
+  destructive: {
+    icon: 'text-destructive',
+    glow: 'bg-destructive/12',
+    hover: 'hover:border-destructive/45 hover:bg-muted/50',
+  },
+};
 
 export const QuickInsights = memo(({ snapshot }: { snapshot: NetworkSnapshot | null }) => {
   const metrics = useMemo(() => {
@@ -82,12 +82,17 @@ export const QuickInsights = memo(({ snapshot }: { snapshot: NetworkSnapshot | n
               whileHover={{ y: -2 }}
               className={`group relative overflow-hidden rounded-2xl border border-border/40 bg-muted/30 p-4 transition-all duration-200 ${Tone.hover}`}
             >
-              <div className={`pointer-events-none absolute inset-x-3 -top-4 h-12 rounded-full blur-2xl opacity-0 ${Tone.glow} transition-opacity group-hover:opacity-100`} />
+              <div
+                className={`pointer-events-none absolute inset-x-3 -top-4 h-12 rounded-full blur-2xl opacity-0 ${Tone.glow} transition-opacity group-hover:opacity-100`}
+              />
               <Icon className={`relative h-5 w-5 ${Tone.icon} mb-2`} />
               <p className="relative text-xs text-muted-foreground font-medium uppercase tracking-wider">
                 {metric.label}
               </p>
-              <p className="relative text-xl font-bold mt-1 tabular-nums tracking-tight" aria-live="polite">
+              <p
+                className="relative text-xl font-bold mt-1 tabular-nums tracking-tight"
+                aria-live="polite"
+              >
                 {metric.value}
               </p>
             </motion.div>

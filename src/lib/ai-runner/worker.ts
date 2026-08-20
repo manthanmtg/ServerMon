@@ -609,12 +609,12 @@ export class AIRunnerWorker {
         });
         effectiveCwd = wt.worktreePath;
         state.worktreePath = wt.worktreePath;
-        
+
         await Promise.all([
           AIRunnerJob.findByIdAndUpdate(job._id, { $set: { worktreePath: wt.worktreePath } }),
           AIRunnerRun.findByIdAndUpdate(run._id, { $set: { worktreePath: wt.worktreePath } }),
         ]);
-        
+
         runEnv.WORKING_DIR = effectiveCwd;
       }
 
@@ -704,7 +704,7 @@ export class AIRunnerWorker {
     } catch (error) {
       clearInterval(heartbeatHandle);
       clearTimeout(timeoutHandle);
-      
+
       if (state.worktreePath) {
         try {
           await removeWorktree({

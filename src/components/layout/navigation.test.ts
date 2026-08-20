@@ -34,7 +34,9 @@ describe('navigation configuration', () => {
 
     expect(allTopLevelItems.length).toBeGreaterThan(20);
     expect(allTopLevelItems.every((item) => item.label.trim().length > 0)).toBe(true);
-    expect(allTopLevelItems.every((item) => item.href.startsWith('/') && item.href.length > 1)).toBe(true);
+    expect(
+      allTopLevelItems.every((item) => item.href.startsWith('/') && item.href.length > 1)
+    ).toBe(true);
   });
 
   it('defines unique top-level navigation labels', () => {
@@ -52,7 +54,9 @@ describe('navigation configuration', () => {
   });
 
   it('does not reuse hrefs between main and footer navigation', () => {
-    const topLevelHrefs = new Set(navGroups.flatMap((group) => group.items.map((item) => item.href)));
+    const topLevelHrefs = new Set(
+      navGroups.flatMap((group) => group.items.map((item) => item.href))
+    );
     const footerHrefs = footerNavItems.map((item) => item.href);
 
     expect(footerHrefs.every((href) => !topLevelHrefs.has(href))).toBe(true);
@@ -63,7 +67,10 @@ describe('navigation configuration', () => {
 
     expect(
       allItems.every(
-        (item) => item.icon && typeof item.icon === 'object' && Object.prototype.hasOwnProperty.call(item.icon, 'render')
+        (item) =>
+          item.icon &&
+          typeof item.icon === 'object' &&
+          Object.prototype.hasOwnProperty.call(item.icon, 'render')
       )
     ).toBe(true);
   });

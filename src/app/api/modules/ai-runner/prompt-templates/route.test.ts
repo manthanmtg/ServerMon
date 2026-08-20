@@ -1,16 +1,23 @@
 /** @vitest-environment node */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { NextRequest } from 'next/server';
 import { ZodError } from 'zod';
 
-const { mockRequireSession, mockListPromptTemplates, mockCreatePromptTemplate, mockParseBody, mockZodErrorResponse, mockLogError } =
-  vi.hoisted(() => ({
-    mockRequireSession: vi.fn(),
-    mockListPromptTemplates: vi.fn(),
-    mockCreatePromptTemplate: vi.fn(),
-    mockParseBody: vi.fn(),
-    mockZodErrorResponse: vi.fn(),
-    mockLogError: vi.fn(),
-  }));
+const {
+  mockRequireSession,
+  mockListPromptTemplates,
+  mockCreatePromptTemplate,
+  mockParseBody,
+  mockZodErrorResponse,
+  mockLogError,
+} = vi.hoisted(() => ({
+  mockRequireSession: vi.fn(),
+  mockListPromptTemplates: vi.fn(),
+  mockCreatePromptTemplate: vi.fn(),
+  mockParseBody: vi.fn(),
+  mockZodErrorResponse: vi.fn(),
+  mockLogError: vi.fn(),
+}));
 
 vi.mock('@/lib/ai-runner/service', () => ({
   getAIRunnerService: () => ({
@@ -43,7 +50,9 @@ describe('AI Runner prompt templates route', () => {
   });
 
   it('returns unauthorized for GET when session is missing', async () => {
-    mockRequireSession.mockResolvedValue(new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 }));
+    mockRequireSession.mockResolvedValue(
+      new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 })
+    );
 
     const response = await GET();
 
@@ -72,15 +81,24 @@ describe('AI Runner prompt templates route', () => {
 
     const response = await GET();
 
-    expect(mockLogError).toHaveBeenCalledWith('Failed to list AI runner prompt templates', expect.any(Error));
+    expect(mockLogError).toHaveBeenCalledWith(
+      'Failed to list AI runner prompt templates',
+      expect.any(Error)
+    );
     expect(response.status).toBe(500);
     expect(await response.json()).toEqual({ error: 'Failed to list prompt templates' });
   });
 
   it('returns unauthorized for POST when session is missing', async () => {
-    mockRequireSession.mockResolvedValue(new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 }));
+    mockRequireSession.mockResolvedValue(
+      new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 })
+    );
 
-    const response = await POST(new Request('http://localhost/api/modules/ai-runner/prompt-templates', { method: 'POST' }));
+    const response = await POST(
+      new NextRequest('http://localhost/api/modules/ai-runner/prompt-templates', {
+        method: 'POST',
+      })
+    );
 
     expect(response.status).toBe(401);
     expect(await response.json()).toEqual({ error: 'Unauthorized' });
@@ -95,11 +113,13 @@ describe('AI Runner prompt templates route', () => {
     mockParseBody.mockResolvedValue(body);
     mockCreatePromptTemplate.mockResolvedValue(created);
 
-    const response = await POST(new Request('http://localhost/api/modules/ai-runner/prompt-templates', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(body),
-    }));
+    const response = await POST(
+      new NextRequest('http://localhost/api/modules/ai-runner/prompt-templates', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+    );
 
     expect(mockParseBody).toHaveBeenCalledWith(expect.any(Request), expect.anything());
     expect(mockCreatePromptTemplate).toHaveBeenCalledWith(body);
@@ -113,20 +133,23 @@ describe('AI Runner prompt templates route', () => {
       {
         code: 'invalid_type',
         expected: 'string',
-        received: 'undefined',
         path: ['name'],
         message: 'Required',
       },
     ]);
-    const zodErrorResponse = new Response(JSON.stringify({ error: 'Validation failed' }), { status: 400 });
+    const zodErrorResponse = new Response(JSON.stringify({ error: 'Validation failed' }), {
+      status: 400,
+    });
     mockParseBody.mockRejectedValue(parseError);
     mockZodErrorResponse.mockReturnValue(zodErrorResponse);
 
-    const response = await POST(new Request('http://localhost/api/modules/ai-runner/prompt-templates', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ name: '' }),
-    }));
+    const response = await POST(
+      new NextRequest('http://localhost/api/modules/ai-runner/prompt-templates', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ name: '' }),
+      })
+    );
 
     expect(mockZodErrorResponse).toHaveBeenCalledWith(parseError);
     expect(response.status).toBe(400);
@@ -140,11 +163,13 @@ describe('AI Runner prompt templates route', () => {
     mockParseBody.mockResolvedValue({ name: 'Template 1', content: 'do work' });
     mockCreatePromptTemplate.mockRejectedValue(new Error('failed to write'));
 
-    const response = await POST(new Request('http://localhost/api/modules/ai-runner/prompt-templates', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ name: 'Template 1', content: 'do work' }),
-    }));
+    const response = await POST(
+      new NextRequest('http://localhost/api/modules/ai-runner/prompt-templates', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ name: 'Template 1', content: 'do work' }),
+      })
+    );
 
     expect(response.status).toBe(400);
     expect(mockLogError).toHaveBeenCalledWith(

@@ -100,9 +100,7 @@ const MobileLogCard = memo(function MobileLogCard({ log }: { log: SearchableLogE
           <div className="flex items-center gap-2 mt-1">
             <span className="text-xs text-muted-foreground capitalize">{log.moduleId}</span>
             <span className="text-muted-foreground/30">·</span>
-            <span className="text-xs text-muted-foreground">
-              {log.displayTime}
-            </span>
+            <span className="text-xs text-muted-foreground">{log.displayTime}</span>
           </div>
         </div>
       </div>

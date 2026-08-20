@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useId, useRef, useState, type ReactNode, type RefObject } from 'react';
+import { useId, useRef, useSyncExternalStore, type ReactNode, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import { Button } from './button';
@@ -31,6 +31,8 @@ const sizeClasses = {
   fullscreen: 'h-[min(94dvh,64rem)] max-w-[min(96vw,96rem)]',
 };
 
+const subscribeToClient = () => () => undefined;
+
 function textLabel(value: ReactNode) {
   return typeof value === 'string' ? value : 'dialog';
 }
@@ -50,13 +52,15 @@ export function Dialog({
   contentClassName,
   role = 'dialog',
 }: DialogProps) {
-  const [mounted, setMounted] = useState(false);
+  const mounted = useSyncExternalStore(
+    subscribeToClient,
+    () => true,
+    () => false
+  );
   const contentRef = useRef<HTMLDivElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const titleId = useId();
   const descriptionId = useId();
-
-  useEffect(() => setMounted(true), []);
 
   useOverlayAccessibility({
     open: open && mounted,

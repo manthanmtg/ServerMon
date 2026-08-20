@@ -604,23 +604,26 @@ export default function FileBrowserPage() {
     return () => window.clearInterval(interval);
   }, [autoRefreshLogs, loadPreview, preview?.kind, selectedEntry]);
 
-  const navigate = useCallback((nextPath: string, recordHistory = true) => {
-    router.replace(`/file-browser?path=${encodeURIComponent(nextPath)}`);
-    if (!recordHistory) {
-      void loadListing(nextPath, false);
-      return;
-    }
+  const navigate = useCallback(
+    (nextPath: string, recordHistory = true) => {
+      router.replace(`/file-browser?path=${encodeURIComponent(nextPath)}`);
+      if (!recordHistory) {
+        void loadListing(nextPath, false);
+        return;
+      }
 
-    setHistory((current) => {
-      const trimmed = current.slice(0, historyIndexRef.current + 1);
-      return [...trimmed, nextPath];
-    });
-    setHistoryIndex((current) => {
-      const next = current + 1;
-      historyIndexRef.current = next;
-      return next;
-    });
-  }, [router, loadListing]);
+      setHistory((current) => {
+        const trimmed = current.slice(0, historyIndexRef.current + 1);
+        return [...trimmed, nextPath];
+      });
+      setHistoryIndex((current) => {
+        const next = current + 1;
+        historyIndexRef.current = next;
+        return next;
+      });
+    },
+    [router, loadListing]
+  );
 
   const refresh = useCallback(() => {
     void loadListing(currentPath);

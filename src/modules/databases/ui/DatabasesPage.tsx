@@ -152,58 +152,64 @@ export default function DatabasesPage() {
     }
   };
 
-  const deploy = useCallback(async (database: ManagedDatabaseDTO) => {
-    setWorkingId(database.id);
-    setExpandedDatabaseIds((current) => new Set(current).add(database.id));
-    setError(null);
-    setDatabases((current) =>
-      current.map((item) =>
-        item.id === database.id
-          ? {
-              ...item,
-              status: 'deploying',
-            }
-          : item
-      )
-    );
-    setOperationLogs((current) => ({
-      ...current,
-      [database.id]: DEPLOY_PROGRESS_MESSAGES.map((message) => `[UI] ${message}`),
-    }));
-    try {
-      const response = await fetch(`/api/modules/databases/${database.id}/deploy`, {
-        method: 'POST',
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Failed to queue database deploy');
-      appendOperationLog(database.id, 'Deployment accepted. Watching backend status and logs.');
-      await pollDatabaseUntilDone(database.id);
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to deploy database');
-    } finally {
-      setWorkingId(null);
-    }
-  }, [appendOperationLog, pollDatabaseUntilDone]);
+  const deploy = useCallback(
+    async (database: ManagedDatabaseDTO) => {
+      setWorkingId(database.id);
+      setExpandedDatabaseIds((current) => new Set(current).add(database.id));
+      setError(null);
+      setDatabases((current) =>
+        current.map((item) =>
+          item.id === database.id
+            ? {
+                ...item,
+                status: 'deploying',
+              }
+            : item
+        )
+      );
+      setOperationLogs((current) => ({
+        ...current,
+        [database.id]: DEPLOY_PROGRESS_MESSAGES.map((message) => `[UI] ${message}`),
+      }));
+      try {
+        const response = await fetch(`/api/modules/databases/${database.id}/deploy`, {
+          method: 'POST',
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Failed to queue database deploy');
+        appendOperationLog(database.id, 'Deployment accepted. Watching backend status and logs.');
+        await pollDatabaseUntilDone(database.id);
+      } catch (err: unknown) {
+        setError(err instanceof Error ? err.message : 'Failed to deploy database');
+      } finally {
+        setWorkingId(null);
+      }
+    },
+    [appendOperationLog, pollDatabaseUntilDone]
+  );
 
-  const action = useCallback(async (database: ManagedDatabaseDTO, nextAction: DatabaseAction) => {
-    setWorkingId(database.id);
-    setError(null);
-    try {
-      const response = await resilientFetch(`/api/modules/databases/${database.id}/action`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: nextAction }),
-        timeout: 15_000,
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Failed to update database');
-      await load();
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to update database');
-    } finally {
-      setWorkingId(null);
-    }
-  }, [load]);
+  const action = useCallback(
+    async (database: ManagedDatabaseDTO, nextAction: DatabaseAction) => {
+      setWorkingId(database.id);
+      setError(null);
+      try {
+        const response = await resilientFetch(`/api/modules/databases/${database.id}/action`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: nextAction }),
+          timeout: 15_000,
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Failed to update database');
+        await load();
+      } catch (err: unknown) {
+        setError(err instanceof Error ? err.message : 'Failed to update database');
+      } finally {
+        setWorkingId(null);
+      }
+    },
+    [load]
+  );
 
   return (
     <div className="space-y-5">

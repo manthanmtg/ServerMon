@@ -69,7 +69,11 @@ async function resolveWorkspace(input: {
     enabled: true,
   });
   if (!workspace) {
-    return { workingDirectory: input.workingDirectory, blocking: false, gitWorktreesEnabled: false };
+    return {
+      workingDirectory: input.workingDirectory,
+      blocking: false,
+      gitWorktreesEnabled: false,
+    };
   }
 
   return {

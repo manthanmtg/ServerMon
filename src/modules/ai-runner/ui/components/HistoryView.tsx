@@ -31,7 +31,7 @@ interface HistoryViewProps {
   profileMap: Record<string, AIRunnerProfileDTO>;
   schedules: AIRunnerScheduleDTO[];
   filteredHistoryRuns: AIRunnerRunDTO[];
-  historyRowRefs: React.MutableRefObject<Record<string, HTMLTableRowElement | null>>;
+  historyRowRefs: MutableRefObject<Record<string, HTMLTableRowElement | null>>;
   openRunDetail: (run: AIRunnerRunDTO) => void;
   selectedRun: AIRunnerRunDTO | null;
   focusedHistoryRunId: string | null;
@@ -113,7 +113,9 @@ const HistoryRunRow = memo(function HistoryRunRow({
       <td className="px-4 py-3 align-top">
         <div>
           <p>{formatDateTime(run.startedAt ?? run.queuedAt)}</p>
-          <p className="text-xs text-muted-foreground">{formatRelative(run.startedAt ?? run.queuedAt)}</p>
+          <p className="text-xs text-muted-foreground">
+            {formatRelative(run.startedAt ?? run.queuedAt)}
+          </p>
         </div>
       </td>
       <td className="px-4 py-3 align-top">{formatDuration(run.durationSeconds)}</td>

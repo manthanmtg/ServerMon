@@ -17,7 +17,11 @@ export default function FleetPoliciesPage() {
   return (
     <ProShell title="Fleet" subtitle="Policies">
       <div className="space-y-4">
-        <div role="tablist" aria-label="Policy views" className="flex gap-1 border-b border-border overflow-x-auto">
+        <div
+          role="tablist"
+          aria-label="Policy views"
+          className="flex gap-1 border-b border-border overflow-x-auto"
+        >
           {tabs.map((t) => (
             <button
               key={t.id}

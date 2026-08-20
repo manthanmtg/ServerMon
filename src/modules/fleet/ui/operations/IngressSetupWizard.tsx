@@ -340,7 +340,9 @@ function StepIndicator({ step }: { step: Step }) {
           >
             {i + 1 < step ? <Check className="h-3 w-3" /> : i + 1}
           </motion.span>
-          <span className={i + 1 === step ? 'font-medium text-foreground' : 'text-muted-foreground'}>
+          <span
+            className={i + 1 === step ? 'font-medium text-foreground' : 'text-muted-foreground'}
+          >
             {l}
           </span>
         </li>

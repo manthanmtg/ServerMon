@@ -5,12 +5,6 @@ import { servicesService } from './service';
 import connectDB from '@/lib/db';
 import ServiceAlert from '@/models/ServiceAlert';
 
-type ExecFileCallback = (
-  error: Error | null,
-  stdout: string | Buffer,
-  stderr: string | Buffer
-) => void;
-
 // Mock child_process
 vi.mock('node:child_process', () => ({
   execFile: vi.fn(),
@@ -47,9 +41,8 @@ describe('servicesService', () => {
   });
 
   const mockExec = (outputs: Record<string, string | Error>) => {
-    vi.mocked(execFile).mockImplementation(
-      (command, args = [], _options, callback?: ExecFileCallback) => {
-      const fullCmd = `${command} ${args.join(' ')}`;
+    vi.mocked(execFile).mockImplementation((command, args, _options, callback) => {
+      const fullCmd = `${command} ${(args ?? []).join(' ')}`;
       for (const [key, value] of Object.entries(outputs)) {
         if (fullCmd.includes(key)) {
           if (value instanceof Error) {
@@ -137,12 +130,10 @@ describe('servicesService', () => {
     });
 
     it('should fallback to mock data if systemd is unavailable', async () => {
-      vi.mocked(execFile).mockImplementation(
-        (_command, _args = [], _options, callback?: ExecFileCallback) => {
-          callback?.(new Error('command not found'), '', '');
-          return null as never;
-        }
-      );
+      vi.mocked(execFile).mockImplementation((_command, _args, _options, callback) => {
+        callback?.(new Error('command not found'), '', '');
+        return null as never;
+      });
 
       vi.resetModules();
       const { servicesService: FreshService } = await import('./service');

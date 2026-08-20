@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json();
     const result = requestSchema.safeParse(body);
-    
+
     if (!result.success) {
       return NextResponse.json(
         { error: 'Invalid input', issues: result.error.issues },
@@ -28,9 +28,6 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ isGitRepo });
   } catch (_error) {
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

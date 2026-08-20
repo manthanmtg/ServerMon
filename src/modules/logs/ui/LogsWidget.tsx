@@ -25,7 +25,11 @@ interface LogResponse {
 }
 
 function parseLogEntries(payload: unknown): LogEntry[] {
-  if (!payload || typeof payload !== 'object' || !('events' in (payload as Record<string, unknown>))) {
+  if (
+    !payload ||
+    typeof payload !== 'object' ||
+    !('events' in (payload as Record<string, unknown>))
+  ) {
     return [];
   }
 

@@ -5,6 +5,7 @@ Prompt: `test-corrector`
 Run slug: `auto/test-corrector-20260524-1900`
 
 ## Summary
+
 I fixed the first five failing tests in this run. The following blockers remain and exceed the 5-fix limit.
 
 ## Blockers to resolve
@@ -22,4 +23,5 @@ I fixed the first five failing tests in this run. The following blockers remain 
    - Mocked response contract does not match current route payload shape.
 
 ## Proposed next step
+
 - Investigate the three files above in a follow-up `test_corrector` cycle and update tests or minimal mocks so they pass.

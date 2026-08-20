@@ -12,23 +12,23 @@ const log = createLogger('api:terminal:settings');
 const settingsSchema = z.object({
   idleTimeoutMinutes: z.preprocess(
     (value) => (typeof value === 'string' || typeof value === 'number' ? Number(value) : value),
-    z.number().int().min(1).max(1440).optional(),
+    z.number().int().min(1).max(1440).optional()
   ),
   maxSessions: z.preprocess(
     (value) => (typeof value === 'string' || typeof value === 'number' ? Number(value) : value),
-    z.number().int().min(1).max(20).optional(),
+    z.number().int().min(1).max(20).optional()
   ),
   fontSize: z.preprocess(
     (value) => (typeof value === 'string' || typeof value === 'number' ? Number(value) : value),
-    z.number().int().min(10).max(24).optional(),
+    z.number().int().min(10).max(24).optional()
   ),
   loginAsUser: z.preprocess(
     (value) => (typeof value === 'string' ? value.trim() : value),
-    z.string().max(128).optional(),
+    z.string().max(128).optional()
   ),
   defaultDirectory: z.preprocess(
     (value) => (typeof value === 'string' ? value.trim() : value),
-    z.string().max(1024).optional(),
+    z.string().max(1024).optional()
   ),
 });
 

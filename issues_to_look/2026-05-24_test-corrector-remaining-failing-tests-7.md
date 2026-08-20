@@ -5,6 +5,7 @@ Prompt: `test-corrector`
 Run slug: `auto/test-corrector-20260524-1206`
 
 ## Summary
+
 I fixed the first five failing tests in this run. The following blockers still fail and should be handled in the next `test_corrector` cycle.
 
 ## Blockers to resolve
@@ -28,4 +29,3 @@ I fixed the first five failing tests in this run. The following blockers still f
 5. `src/app/fleet/install/route.test.ts`
    - 4 failures
    - Status/error assertion contract around the install endpoint responses remains outdated for current behavior.
-

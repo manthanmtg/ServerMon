@@ -102,7 +102,9 @@ describe('POST /api/system/reboot', () => {
     await Promise.resolve();
 
     expect(res.status).toBe(200);
-    expect(mockLogger.error).toHaveBeenCalledWith('Failed to execute reboot command: reboot command failed');
+    expect(mockLogger.error).toHaveBeenCalledWith(
+      'Failed to execute reboot command: reboot command failed'
+    );
     expect(res.status).toBe(200);
     const json = await res.json();
     expect(json.status).toBe('success');

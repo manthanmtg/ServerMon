@@ -2,6 +2,7 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 
 import { ComposeExecutor } from './compose-executor';
+import type { ExecutorPayload } from './executor';
 
 const mockExecute = vi.fn();
 
@@ -34,7 +35,7 @@ vi.mock('./shell-executor', () => ({
 import { mkdir, writeFile } from 'node:fs/promises';
 import { ShellExecutor } from './shell-executor';
 
-function makePayload(overrides: Record<string, string | undefined> = {}) {
+function makePayload(overrides: Partial<ExecutorPayload> = {}): ExecutorPayload {
   return {
     method: 'docker-compose',
     composeContent: 'version: "3"',

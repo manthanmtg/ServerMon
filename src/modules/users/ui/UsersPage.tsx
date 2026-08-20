@@ -39,69 +39,86 @@ export default function UsersPage() {
     fetchData();
   }, [fetchData]);
 
-  const handleDeleteUser = useCallback(async (type: UsersTab, identifier: string) => {
-    if (!confirm(`Are you sure you want to delete this ${type} user?`)) return;
+  const handleDeleteUser = useCallback(
+    async (type: UsersTab, identifier: string) => {
+      if (!confirm(`Are you sure you want to delete this ${type} user?`)) return;
 
-    try {
-      const url =
-        type === 'web'
-          ? `/api/modules/users?type=web&id=${identifier}`
-          : `/api/modules/users?type=os&username=${identifier}`;
+      try {
+        const url =
+          type === 'web'
+            ? `/api/modules/users?type=web&id=${identifier}`
+            : `/api/modules/users?type=os&username=${identifier}`;
 
-      const res = await fetch(url, { method: 'DELETE' });
-      if (res.ok) {
-        toast({
-          title: 'User Deleted',
-          description: 'User has been removed successfully',
-          variant: 'success',
+        const res = await fetch(url, { method: 'DELETE' });
+        if (res.ok) {
+          toast({
+            title: 'User Deleted',
+            description: 'User has been removed successfully',
+            variant: 'success',
+          });
+          fetchData();
+        } else {
+          const data = await res.json();
+          throw new Error(data.error);
+        }
+      } catch (err: unknown) {
+        const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+        toast({ title: 'Action Failed', description: errorMessage, variant: 'destructive' });
+      }
+    },
+    [fetchData, toast]
+  );
+
+  const handleToggleSudo = useCallback(
+    async (username: string, current: boolean) => {
+      try {
+        const res = await fetch('/api/modules/users', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type: 'os', username, sudo: !current }),
         });
-        fetchData();
-      } else {
-        const data = await res.json();
-        throw new Error(data.error);
-      }
-    } catch (err: unknown) {
-      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
-      toast({ title: 'Action Failed', description: errorMessage, variant: 'destructive' });
-    }
-  }, [fetchData, toast]);
-
-  const handleToggleSudo = useCallback(async (username: string, current: boolean) => {
-    try {
-      const res = await fetch('/api/modules/users', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: 'os', username, sudo: !current }),
-      });
-      if (res.ok) {
+        if (res.ok) {
+          toast({
+            title: 'Success',
+            description: `Sudo privileges ${!current ? 'granted' : 'revoked'}`,
+            variant: 'success',
+          });
+          fetchData();
+        }
+      } catch (_err: unknown) {
         toast({
-          title: 'Success',
-          description: `Sudo privileges ${!current ? 'granted' : 'revoked'}`,
-          variant: 'success',
+          title: 'Error',
+          description: 'Failed to update privileges',
+          variant: 'destructive',
         });
-        fetchData();
       }
-    } catch (_err: unknown) {
-      toast({ title: 'Error', description: 'Failed to update privileges', variant: 'destructive' });
-    }
-  }, [fetchData, toast]);
+    },
+    [fetchData, toast]
+  );
 
-  const handleUpdateRole = useCallback(async (id: string, current: WebUser['role']) => {
-    const newRole = current === 'admin' ? 'user' : 'admin';
-    try {
-      const res = await fetch('/api/modules/users', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: 'web', id, role: newRole }),
-      });
-      if (res.ok) {
-        toast({ title: 'Success', description: `Role updated to ${newRole}`, variant: 'success' });
-        fetchData();
+  const handleUpdateRole = useCallback(
+    async (id: string, current: WebUser['role']) => {
+      const newRole = current === 'admin' ? 'user' : 'admin';
+      try {
+        const res = await fetch('/api/modules/users', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type: 'web', id, role: newRole }),
+        });
+        if (res.ok) {
+          toast({
+            title: 'Success',
+            description: `Role updated to ${newRole}`,
+            variant: 'success',
+          });
+          fetchData();
+        }
+      } catch (_err: unknown) {
+        toast({ title: 'Error', description: 'Failed to update user', variant: 'destructive' });
       }
-    } catch (_err: unknown) {
-      toast({ title: 'Error', description: 'Failed to update user', variant: 'destructive' });
-    }
-  }, [fetchData, toast]);
+    },
+    [fetchData, toast]
+  );
 
   const normalizedSearchQuery = useMemo(() => searchQuery.toLowerCase(), [searchQuery]);
   const filteredUsers = useMemo(() => {

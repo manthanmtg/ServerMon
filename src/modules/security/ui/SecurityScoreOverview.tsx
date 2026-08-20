@@ -1,14 +1,6 @@
 'use client';
 
-import {
-  AlertTriangle,
-  Ban,
-  CheckCircle,
-  Lock,
-  Shield,
-  ShieldAlert,
-  ShieldCheck,
-} from 'lucide-react';
+import { AlertTriangle, Ban, CheckCircle, Shield, ShieldAlert, ShieldCheck } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import type { SecuritySnapshot } from '../types';
@@ -20,7 +12,8 @@ interface SecurityScoreGaugeProps {
 function SecurityScoreGauge({ score }: SecurityScoreGaugeProps) {
   const circumference = 2 * Math.PI * 40;
   const offset = circumference - (score / 100) * circumference;
-  const color = score >= 80 ? 'var(--success)' : score >= 60 ? 'var(--warning)' : 'var(--destructive)';
+  const color =
+    score >= 80 ? 'var(--success)' : score >= 60 ? 'var(--warning)' : 'var(--destructive)';
 
   return (
     <div className="relative w-28 h-28">

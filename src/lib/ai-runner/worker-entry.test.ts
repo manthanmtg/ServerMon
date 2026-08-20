@@ -1,7 +1,7 @@
 /** @vitest-environment node */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const workerRunMock = vi.fn<[], Promise<void>>();
+const workerRunMock = vi.fn<() => Promise<void>>();
 
 const workerCtorMock = vi.fn(function (this: { run: () => Promise<void> }) {
   this.run = workerRunMock;
@@ -64,7 +64,7 @@ describe('ai-runner worker entrypoint', () => {
       expect.objectContaining({
         event: 'worker.entry_started',
         data: expect.objectContaining({ jobId: 'job-abc' }),
-      }),
+      })
     );
   });
 
@@ -79,7 +79,7 @@ describe('ai-runner worker entrypoint', () => {
       expect.objectContaining({
         event: 'worker.entry_started',
         data: expect.objectContaining({ jobId: 'job-env-123' }),
-      }),
+      })
     );
   });
 
@@ -93,7 +93,7 @@ describe('ai-runner worker entrypoint', () => {
     expect(writeAIRunnerLogEntryMock).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({ jobId: 'job-argv' }),
-      }),
+      })
     );
   });
 
@@ -110,7 +110,7 @@ describe('ai-runner worker entrypoint', () => {
           error: 'AI Runner worker requires a job id',
           jobId: undefined,
         }),
-      }),
+      })
     );
   });
 
@@ -128,7 +128,7 @@ describe('ai-runner worker entrypoint', () => {
           error: 'boom',
           jobId: 'job-failure',
         }),
-      }),
+      })
     );
   });
 });

@@ -20,8 +20,13 @@ interface ConfirmationModalProps {
   isLoading?: boolean;
 }
 
-function ConfirmationModal({
-  isOpen,
+function ConfirmationModal({ isOpen, ...props }: ConfirmationModalProps) {
+  if (!isOpen) return null;
+
+  return <ConfirmationModalContent key={props.verificationText ?? ''} {...props} isOpen />;
+}
+
+function ConfirmationModalContent({
   onConfirm,
   onCancel,
   title,
@@ -38,12 +43,6 @@ function ConfirmationModal({
   const canConfirm = !isLoading && (!verificationText || inputValue === verificationText);
 
   useEffect(() => {
-    setInputValue('');
-  }, [isOpen, verificationText]);
-
-  useEffect(() => {
-    if (!isOpen) return;
-
     function handleKeyDown(e: KeyboardEvent) {
       if (e.key !== 'Enter' || !canConfirm || e.isComposing) return;
       const target = e.target;
@@ -66,9 +65,7 @@ function ConfirmationModal({
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [canConfirm, isOpen, onConfirm]);
-
-  if (!isOpen) return null;
+  }, [canConfirm, onConfirm]);
 
   const Icon = variant === 'danger' ? AlertTriangle : Info;
   const iconColor =
@@ -93,7 +90,7 @@ function ConfirmationModal({
 
   return (
     <AlertDialog
-      open={isOpen}
+      open
       onOpenChange={(open) => {
         if (!open) onCancel();
       }}

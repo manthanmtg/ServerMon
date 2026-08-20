@@ -57,9 +57,7 @@ describe('QuickAccessSettings', () => {
   });
 
   it('offers every primary navigation item for pinning', () => {
-    const quickAccessHrefs = navGroups.flatMap((group) =>
-      group.items.map((item) => item.href)
-    );
+    const quickAccessHrefs = navGroups.flatMap((group) => group.items.map((item) => item.href));
     const navHrefs = navGroups.flatMap((group) => group.items.map((item) => item.href));
 
     expect(quickAccessHrefs).toEqual(navHrefs);

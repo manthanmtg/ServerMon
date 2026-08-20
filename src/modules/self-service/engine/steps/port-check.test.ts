@@ -70,8 +70,7 @@ describe('runPortCheck', () => {
         'Checking if port 22 is available...',
         'Port 22 is already in use. Choose a different port or stop the conflicting service.',
       ],
-      error:
-        'Port 22 is already in use. Choose a different port or stop the conflicting service.',
+      error: 'Port 22 is already in use. Choose a different port or stop the conflicting service.',
     });
     expect(lines).toEqual([
       'Checking if port 22 is available...',
@@ -104,10 +103,7 @@ describe('runPortCheck', () => {
 
     await runPortCheck(4000, onLog);
 
-    expect(lines).toEqual([
-      'Checking if port 4000 is available...',
-      'Port 4000 is available.',
-    ]);
+    expect(lines).toEqual(['Checking if port 4000 is available...', 'Port 4000 is available.']);
     expect(lines[1]).toMatch(/Port 4000 is available\./);
   });
 });

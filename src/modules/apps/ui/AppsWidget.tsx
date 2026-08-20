@@ -110,17 +110,17 @@ export default function AppsWidget() {
                 whileTap={{ scale: 0.99 }}
                 className="flex items-center gap-2 rounded-md px-2 py-1.5 text-xs transition-colors hover:bg-muted/70"
               >
-              {app.status === 'running' ? (
-                <CheckCircle2 className="h-3 w-3 shrink-0 text-success" />
-              ) : app.status === 'failed' ? (
-                <XCircle className="h-3 w-3 shrink-0 text-destructive" />
-              ) : (
-                <Clock className="h-3 w-3 shrink-0 text-muted-foreground" />
-              )}
-              <span className="min-w-0 flex-1 truncate">{app.name}</span>
-              <Badge variant="outline" className="max-w-[90px] truncate text-[9px]">
-                {app.domain}
-              </Badge>
+                {app.status === 'running' ? (
+                  <CheckCircle2 className="h-3 w-3 shrink-0 text-success" />
+                ) : app.status === 'failed' ? (
+                  <XCircle className="h-3 w-3 shrink-0 text-destructive" />
+                ) : (
+                  <Clock className="h-3 w-3 shrink-0 text-muted-foreground" />
+                )}
+                <span className="min-w-0 flex-1 truncate">{app.name}</span>
+                <Badge variant="outline" className="max-w-[90px] truncate text-[9px]">
+                  {app.domain}
+                </Badge>
               </motion.div>
             ))}
           </AnimatePresence>

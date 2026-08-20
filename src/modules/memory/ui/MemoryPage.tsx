@@ -135,10 +135,7 @@ function MemoryStatusSummary({
   );
 }
 
-function MemoryTopProcessesTable({
-  topProcs,
-  onKillProcess,
-}: MemoryTopProcessesProps) {
+function MemoryTopProcessesTable({ topProcs, onKillProcess }: MemoryTopProcessesProps) {
   return (
     <div className="p-6 rounded-3xl bg-card border border-border shadow-md">
       <div className="flex items-center justify-between mb-8">
@@ -211,13 +208,13 @@ function MemoryTopProcessesTable({
                       {proc.user}
                     </span>
                   </td>
-                  <td className="py-4 text-xs font-mono text-muted-foreground text-right">{proc.pid}</td>
+                  <td className="py-4 text-xs font-mono text-muted-foreground text-right">
+                    {proc.pid}
+                  </td>
                   <td className="py-4 px-4 min-w-[160px]">
                     <div className="space-y-1.5">
                       <div className="flex justify-between items-center text-[10px] font-bold px-0.5">
-                        <span
-                          className={cn(proc.mem > 5 ? 'text-primary' : 'text-emerald-500')}
-                        >
+                        <span className={cn(proc.mem > 5 ? 'text-primary' : 'text-emerald-500')}>
                           {proc.mem.toFixed(1)}%
                         </span>
                       </div>
@@ -472,12 +469,12 @@ export default function MemoryPage() {
                   Internal allocation analysis
                 </p>
               </div>
-            <button
-              onClick={fetchData}
-              aria-label="Refresh memory breakdown"
-              disabled={isRefreshing}
-              className="p-2.5 rounded-xl bg-primary/5 text-primary hover:bg-primary/10 transition-colors disabled:opacity-50"
-            >
+              <button
+                onClick={fetchData}
+                aria-label="Refresh memory breakdown"
+                disabled={isRefreshing}
+                className="p-2.5 rounded-xl bg-primary/5 text-primary hover:bg-primary/10 transition-colors disabled:opacity-50"
+              >
                 <RefreshCcw className={cn('w-4 h-4', isRefreshing && 'animate-spin')} />
               </button>
             </div>
@@ -548,10 +545,7 @@ export default function MemoryPage() {
           </div>
         </div>
 
-        <MemoryTopProcessesTable
-          topProcs={topProcs}
-          onKillProcess={handleKillProcess}
-        />
+        <MemoryTopProcessesTable topProcs={topProcs} onKillProcess={handleKillProcess} />
       </motion.div>
     </ProShell>
   );

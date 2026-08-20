@@ -1,5 +1,11 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { CACHE_TTL_MS, cachedResult, cacheTimestamp, setCacheResult, _resetCacheForTest } from './cache';
+import {
+  CACHE_TTL_MS,
+  cachedResult,
+  cacheTimestamp,
+  setCacheResult,
+  _resetCacheForTest,
+} from './cache';
 
 describe('disk health cache', () => {
   beforeEach(() => {

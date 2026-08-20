@@ -220,7 +220,6 @@ export function TemplateGallery({
     setFilterType((current) => (current === type ? '' : type));
   }, []);
 
-
   return (
     <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center sm:p-6">
       <div

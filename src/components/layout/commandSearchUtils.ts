@@ -91,8 +91,7 @@ function scoreCandidate(
   if (label === normalizedQuery) score = 9_500 + (item.priority ?? 0);
   else if (label.startsWith(normalizedQuery)) {
     score = 9_000 + (item.priority ?? 0) * 11 - (label.length - normalizedQuery.length);
-  }
-  else if (searchText.includes(normalizedQuery)) {
+  } else if (searchText.includes(normalizedQuery)) {
     score = 7_000 - searchText.indexOf(normalizedQuery);
   } else if (labelCompact.startsWith(compactQuery)) {
     score = 6_000 - (labelCompact.length - compactQuery.length);
@@ -212,10 +211,12 @@ export function rankCommandSearchItems(
   }
 
   return items
-    .map((item): ScoredSearchItem => ({
-      item,
-      score: scoreCandidate(item, normalizedQuery, compactQuery),
-    }))
+    .map(
+      (item): ScoredSearchItem => ({
+        item,
+        score: scoreCandidate(item, normalizedQuery, compactQuery),
+      })
+    )
     .filter(({ score }) => score > 0)
     .sort((left, right) => {
       if (right.score !== left.score) return right.score - left.score;

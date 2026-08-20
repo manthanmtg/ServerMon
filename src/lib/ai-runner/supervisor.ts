@@ -556,10 +556,7 @@ export class AIRunnerSupervisor {
             worktreePath: job.worktreePath,
           });
         } catch (wtError) {
-          log.warn(
-            `Failed to clean up worktree for stale job ${stringifyId(job._id)}`,
-            wtError
-          );
+          log.warn(`Failed to clean up worktree for stale job ${stringifyId(job._id)}`, wtError);
         }
       }
 

@@ -19,6 +19,7 @@ The following lint errors were reported:
 ## Why this run was held back
 
 This run was not safe for a single, narrow autonomous slice:
+
 - Fixing these issues requires touching 10 different files, which violates the `build_verifier` rule: "If a fix requires touching more than 3 files or changing more than 30 lines, log it to `issues_to_look/` instead."
 - A minimal single-file fix would not satisfy a green `pnpm check` result.
 

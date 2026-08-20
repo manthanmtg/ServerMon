@@ -74,8 +74,6 @@ export default function UserGuidePage() {
     moduleGuides[0]?.id || null
   );
 
-
-
   const normalizedSearchQuery = useMemo(() => searchQuery.toLowerCase(), [searchQuery]);
 
   const filteredModules = useMemo(
@@ -92,7 +90,10 @@ export default function UserGuidePage() {
   const hasSearchQuery = useMemo(() => normalizedSearchQuery.length > 0, [normalizedSearchQuery]);
   const hasFilteredModules = useMemo(() => filteredModules.length > 0, [filteredModules]);
   const visibleSelectedModule = useMemo(
-    () => filteredModules.find((module) => module.id === selectedModuleId) ?? filteredModules[0] ?? null,
+    () =>
+      filteredModules.find((module) => module.id === selectedModuleId) ??
+      filteredModules[0] ??
+      null,
     [filteredModules, selectedModuleId]
   );
 

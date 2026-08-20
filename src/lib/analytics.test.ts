@@ -20,11 +20,12 @@ const { mockSave, mockLean, mockFind, mockConnectDB } = vi.hoisted(() => {
 vi.mock('@/lib/db', () => ({ default: mockConnectDB }));
 
 vi.mock('@/models/AnalyticsEvent', () => {
-  const MockAnalyticsEvent = vi.fn(function MockAnalyticsEvent(this: { save: typeof mockSave }) {
-    this.save = mockSave;
-  });
-
-  MockAnalyticsEvent.find = mockFind;
+  const MockAnalyticsEvent = Object.assign(
+    vi.fn(function MockAnalyticsEvent(this: { save: typeof mockSave }) {
+      this.save = mockSave;
+    }),
+    { find: mockFind }
+  );
 
   return { default: MockAnalyticsEvent };
 });
@@ -192,8 +193,12 @@ describe('AnalyticsService', () => {
       expect(chain.limit).toHaveBeenCalledWith(3);
       expect(chain.lean).toHaveBeenCalledOnce();
       expect(mockFind).toHaveBeenCalledWith({ moduleId: 'db' });
-      expect(chain.sort.mock.invocationCallOrder[0]).toBeLessThan(chain.limit.mock.invocationCallOrder[0]);
-      expect(chain.limit.mock.invocationCallOrder[0]).toBeLessThan(chain.lean.mock.invocationCallOrder[0]);
+      expect(chain.sort.mock.invocationCallOrder[0]).toBeLessThan(
+        chain.limit.mock.invocationCallOrder[0]
+      );
+      expect(chain.limit.mock.invocationCallOrder[0]).toBeLessThan(
+        chain.lean.mock.invocationCallOrder[0]
+      );
     });
 
     it('uses an empty filter by default', async () => {

@@ -261,7 +261,9 @@ describe('POST /api/auth/login', () => {
   it('returns 500 when verifyTOTPToken throws', async () => {
     mockFindOne.mockResolvedValue(makeUser({ totpEnabled: true, totpSecret: 'TOTP_SECRET' }));
     vi.mocked(verifyPassword).mockResolvedValue(true);
-    vi.mocked(verifyTOTPToken).mockImplementation(() => { throw new Error('Crypto error'); });
+    vi.mocked(verifyTOTPToken).mockImplementation(() => {
+      throw new Error('Crypto error');
+    });
 
     const req = makeRequest({ username: 'admin', password: 'secret', totpToken: '123456' });
     const response = await POST(req as never);

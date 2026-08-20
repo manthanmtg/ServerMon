@@ -1,11 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import {
-  getAllTemplates,
-  getTemplateById,
-  searchTemplates,
-  toListItem,
-} from './templates/index';
+import { getAllTemplates, getTemplateById, searchTemplates, toListItem } from './templates/index';
 
 describe('self-service templates index', () => {
   it('returns all templates through getAllTemplates', () => {

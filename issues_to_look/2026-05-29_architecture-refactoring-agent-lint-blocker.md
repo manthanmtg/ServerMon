@@ -5,9 +5,10 @@
 
 ## Issue
 
-While attempting to extract the Status Grid from `src/modules/updates/ui/UpdatePage.tsx` into a separate `UpdateStatusGrid.tsx` component, the mandatory verification step (`pnpm check`) failed. 
+While attempting to extract the Status Grid from `src/modules/updates/ui/UpdatePage.tsx` into a separate `UpdateStatusGrid.tsx` component, the mandatory verification step (`pnpm check`) failed.
 
 The failure was not caused by the refactoring itself, but by preexisting lint and type errors in the codebase:
+
 - `react-hooks/rules-of-hooks` errors in `src/components/layout/CommandSearch.tsx`
 - `react-hooks/immutability` error in `src/modules/ai-runner/ui/components/HistoryView.tsx`
 - `react-hooks/set-state-in-effect` errors in `src/modules/ai-runner/ui/components/RunDetailDrawer.tsx`

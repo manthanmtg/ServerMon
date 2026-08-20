@@ -33,8 +33,8 @@ function exec(
         return;
       }
       resolve({
-        stdout: typeof stdout === 'string' ? stdout : stdout.toString(),
-        stderr: typeof stderr === 'string' ? stderr : stderr.toString(),
+        stdout,
+        stderr,
       });
     });
   });

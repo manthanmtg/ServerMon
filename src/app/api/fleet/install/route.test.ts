@@ -6,7 +6,9 @@ const { mockNodeFind, mockVerifyToken } = vi.hoisted(() => ({
   mockNodeFind: vi.fn(),
   mockVerifyToken: vi.fn(),
 }));
-const makeNodeQuery = (value: Array<{ _id: string; pairingTokenHash: string; pairingTokenPrefix: string }>) => ({
+const makeNodeQuery = (
+  value: Array<{ _id: string; pairingTokenHash: string; pairingTokenPrefix: string }>
+) => ({
   select: vi.fn().mockReturnThis(),
   lean: vi.fn().mockResolvedValue(value),
 });

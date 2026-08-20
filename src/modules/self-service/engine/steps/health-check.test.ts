@@ -27,7 +27,7 @@ describe('runHealthCheck', () => {
 
   it('succeeds on first attempt with command', async () => {
     vi.mocked(detectCommand).mockResolvedValueOnce({ found: true, output: '' });
-    
+
     const onLog = vi.fn();
     const result = await runHealthCheck({ command: 'echo OK' }, onLog);
 
@@ -39,13 +39,17 @@ describe('runHealthCheck', () => {
 
   it('succeeds on first attempt with url', async () => {
     vi.mocked(detectCommand).mockResolvedValueOnce({ found: true, output: '200' });
-    
+
     const onLog = vi.fn();
     const result = await runHealthCheck({ url: 'http://localhost' }, onLog);
 
     expect(result.success).toBe(true);
-    expect(detectCommand).toHaveBeenCalledWith('curl -sf -o /dev/null -w "%{http_code}" http://localhost');
-    expect(onLog).toHaveBeenCalledWith(expect.stringContaining('Health check passed on attempt 1 (HTTP 200)'));
+    expect(detectCommand).toHaveBeenCalledWith(
+      'curl -sf -o /dev/null -w "%{http_code}" http://localhost'
+    );
+    expect(onLog).toHaveBeenCalledWith(
+      expect.stringContaining('Health check passed on attempt 1 (HTTP 200)')
+    );
   });
 
   it('retries on failure and succeeds on subsequent attempt', async () => {
@@ -54,11 +58,11 @@ describe('runHealthCheck', () => {
       .mockResolvedValueOnce({ found: true, output: '200' });
 
     const onLog = vi.fn();
-    
+
     const promise = runHealthCheck({ url: 'http://localhost' }, onLog);
-    
+
     await vi.runAllTimersAsync();
-    
+
     const result = await promise;
 
     expect(result.success).toBe(true);
@@ -71,11 +75,11 @@ describe('runHealthCheck', () => {
     vi.mocked(detectCommand).mockResolvedValue({ found: false, output: '' });
 
     const onLog = vi.fn();
-    
+
     const promise = runHealthCheck({ command: 'failing-cmd' }, onLog);
-    
+
     await vi.runAllTimersAsync();
-    
+
     const result = await promise;
 
     expect(result.success).toBe(false);

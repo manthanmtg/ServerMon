@@ -11,7 +11,7 @@ vi.mock('@/lib/session', () => ({
 vi.mock('next/server', () => {
   const jsonMock = vi.fn();
   return {
-  NextResponse: {
+    NextResponse: {
       json: jsonMock,
     },
   };
@@ -30,7 +30,9 @@ describe('ai-runner _shared utils', () => {
     it('returns 401 response if no session exists', async () => {
       vi.mocked(getSession).mockResolvedValueOnce(null);
       const unauthorizedResponse = new Response(null, { status: 401 });
-      vi.mocked(NextResponse.json).mockReturnValueOnce(unauthorizedResponse);
+      vi.mocked(NextResponse.json).mockReturnValueOnce(
+        unauthorizedResponse as unknown as NextResponse
+      );
 
       const response = await requireSession();
 

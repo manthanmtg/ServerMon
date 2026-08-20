@@ -59,10 +59,10 @@ export const CronJobRow = memo(function CronJobRow({
       >
         <td className="py-3 px-4">
           <motion.button
-              type="button"
-              aria-expanded={isExpanded}
-              aria-label={`${isExpanded ? 'Hide' : 'Show'} next runs for ${job.command}`}
-              onClick={() => onToggleExpand(job.id)}
+            type="button"
+            aria-expanded={isExpanded}
+            aria-label={`${isExpanded ? 'Hide' : 'Show'} next runs for ${job.command}`}
+            onClick={() => onToggleExpand(job.id)}
             whileHover={{ scale: 1.1 }}
             whileTap={{ scale: 0.9 }}
             className="p-1.5 rounded hover:bg-accent transition-colors flex items-center justify-center min-h-[44px] min-w-[44px] sm:min-h-[32px] sm:min-w-[32px]"

@@ -281,6 +281,7 @@ describe('ai-runner queue', () => {
       command: 'cmd',
       workingDirectory: '/dir',
       workspaceBlocking: false,
+      gitWorktreesEnabled: false,
       timeoutMinutes: 10,
       maxAttempts: 2,
       triggeredBy: 'manual' as const,

@@ -1,5 +1,6 @@
 /** @vitest-environment node */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { NextRequest } from 'next/server';
 
 const { mockGetSession, mockValidateProfileTemplate } = vi.hoisted(() => ({
   mockGetSession: vi.fn(),
@@ -33,8 +34,8 @@ vi.mock('@/lib/ai-runner/service', () => ({
 
 import { POST } from './route';
 
-function makeRequest(body: unknown): Request {
-  return new Request('http://localhost/api/modules/ai-runner/profiles/validate', {
+function makeRequest(body: unknown): NextRequest {
+  return new NextRequest('http://localhost/api/modules/ai-runner/profiles/validate', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(body),
@@ -107,7 +108,9 @@ describe('POST /api/modules/ai-runner/profiles/validate', () => {
   });
 
   it('returns 400 for invalid username format', async () => {
-    const response = await POST(makeRequest({ invocationTemplate: 'echo hi', runAsUser: 'bad user!' }));
+    const response = await POST(
+      makeRequest({ invocationTemplate: 'echo hi', runAsUser: 'bad user!' })
+    );
     expect(response.status).toBe(400);
     const json = await response.json();
     expect(json.error).toContain('Run as user must be a valid OS username');
@@ -123,7 +126,7 @@ describe('POST /api/modules/ai-runner/profiles/validate', () => {
 
   it('returns 500 when request JSON parsing fails', async () => {
     const response = await POST(
-      new Request('http://localhost/api/modules/ai-runner/profiles/validate', {
+      new NextRequest('http://localhost/api/modules/ai-runner/profiles/validate', {
         method: 'POST',
         body: 'not-json',
       })

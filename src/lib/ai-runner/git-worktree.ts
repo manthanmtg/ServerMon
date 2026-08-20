@@ -45,11 +45,10 @@ export async function isGitRepository(dirPath: string): Promise<boolean> {
   }
 
   try {
-    const { stdout } = await execFileAsync(
-      'git',
-      ['rev-parse', '--is-inside-work-tree'],
-      { cwd: dirPath, timeout: 5_000 }
-    );
+    const { stdout } = await execFileAsync('git', ['rev-parse', '--is-inside-work-tree'], {
+      cwd: dirPath,
+      timeout: 5_000,
+    });
     return stdout.trim() === 'true';
   } catch {
     return false;
@@ -60,11 +59,10 @@ export async function isGitRepository(dirPath: string): Promise<boolean> {
  * Get the HEAD commit SHA for the repository at `repoPath`.
  */
 export async function getHeadCommit(repoPath: string): Promise<string> {
-  const { stdout } = await execFileAsync(
-    'git',
-    ['rev-parse', 'HEAD'],
-    { cwd: repoPath, timeout: 5_000 }
-  );
+  const { stdout } = await execFileAsync('git', ['rev-parse', 'HEAD'], {
+    cwd: repoPath,
+    timeout: 5_000,
+  });
   return stdout.trim();
 }
 
@@ -102,11 +100,9 @@ export async function createWorktree(options: {
 
   const commit = await getHeadCommit(options.repoPath);
 
-  await execFileAsync(
-    'git',
-    ['worktree', 'add', '--detach', worktreePath, commit],
-    { cwd: options.repoPath }
-  );
+  await execFileAsync('git', ['worktree', 'add', '--detach', worktreePath, commit], {
+    cwd: options.repoPath,
+  });
 
   log.info(`Created git worktree at ${worktreePath} (commit ${commit.slice(0, 8)})`);
 
@@ -125,11 +121,9 @@ export async function removeWorktree(options: {
   worktreePath: string;
 }): Promise<void> {
   try {
-    await execFileAsync(
-      'git',
-      ['worktree', 'remove', '--force', options.worktreePath],
-      { cwd: options.repoPath }
-    );
+    await execFileAsync('git', ['worktree', 'remove', '--force', options.worktreePath], {
+      cwd: options.repoPath,
+    });
     log.info(`Removed git worktree at ${options.worktreePath}`);
     return;
   } catch (error) {
@@ -146,11 +140,7 @@ export async function removeWorktree(options: {
   }
 
   try {
-    await execFileAsync(
-      'git',
-      ['worktree', 'prune'],
-      { cwd: options.repoPath }
-    );
+    await execFileAsync('git', ['worktree', 'prune'], { cwd: options.repoPath });
     log.info(`Pruned stale worktrees for ${options.repoPath}`);
   } catch (pruneError) {
     log.warn(`git worktree prune failed for ${options.repoPath}`, pruneError);

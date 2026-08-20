@@ -2,7 +2,7 @@
 
 ## Issue
 
-The `pnpm check` command is failing due to formatting drift, ESLint warnings, and extensive TypeScript type errors across 14 files. 
+The `pnpm check` command is failing due to formatting drift, ESLint warnings, and extensive TypeScript type errors across 14 files.
 
 ## Details
 

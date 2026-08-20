@@ -113,13 +113,25 @@ const ProcessListDesktopView = React.memo(function ProcessListDesktopView({
               User
             </SortHeader>
             <th className="px-3 py-2.5 text-xs font-medium text-muted-foreground">State</th>
-            <SortHeader field="cpu" className="text-right" currentSort={sortField} onSort={onToggleSort}>
+            <SortHeader
+              field="cpu"
+              className="text-right"
+              currentSort={sortField}
+              onSort={onToggleSort}
+            >
               CPU
             </SortHeader>
-            <SortHeader field="mem" className="text-right" currentSort={sortField} onSort={onToggleSort}>
+            <SortHeader
+              field="mem"
+              className="text-right"
+              currentSort={sortField}
+              onSort={onToggleSort}
+            >
               Memory
             </SortHeader>
-            <th className="px-3 py-2.5 text-xs font-medium text-muted-foreground text-right">Uptime</th>
+            <th className="px-3 py-2.5 text-xs font-medium text-muted-foreground text-right">
+              Uptime
+            </th>
             <th className="px-3 py-2.5 text-xs font-medium text-muted-foreground text-right w-20">
               Actions
             </th>

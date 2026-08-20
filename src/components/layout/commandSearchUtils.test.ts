@@ -227,7 +227,9 @@ describe('commandSearchUtils', () => {
       },
     ]);
 
-    expect(items).toContainEqual(expect.objectContaining({ id: 'nav-home', href: '/', group: 'System' }));
+    expect(items).toContainEqual(
+      expect.objectContaining({ id: 'nav-home', href: '/', group: 'System' })
+    );
     expect(items).toContainEqual(
       expect.objectContaining({ id: 'overview-home', href: '/', label: 'Root > Overview' })
     );

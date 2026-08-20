@@ -4744,8 +4744,17 @@ export default function AIRunnerPage() {
                           <span className="block text-sm font-medium">Workspace Path</span>
                           {workspaceForm.path && (
                             <span className="text-xs text-muted-foreground flex items-center gap-1.5">
-                              <span className={cn("h-2 w-2 rounded-full", workspaceForm.isGitRepo ? "bg-green-500" : "bg-zinc-300 dark:bg-zinc-700")} />
-                              {workspaceForm.isGitRepo ? 'Git repository detected' : 'Not a git repository'}
+                              <span
+                                className={cn(
+                                  'h-2 w-2 rounded-full',
+                                  workspaceForm.isGitRepo
+                                    ? 'bg-green-500'
+                                    : 'bg-zinc-300 dark:bg-zinc-700'
+                                )}
+                              />
+                              {workspaceForm.isGitRepo
+                                ? 'Git repository detected'
+                                : 'Not a git repository'}
                             </span>
                           )}
                         </div>
@@ -4762,7 +4771,7 @@ export default function AIRunnerPage() {
                           placeholder="/root/repos/ServerMon"
                         />
                       </div>
-                      
+
                       {workspaceForm.isGitRepo ? (
                         <label className="flex items-start gap-3 rounded-xl border border-border/60 bg-secondary/10 p-4 text-sm">
                           <input
@@ -4777,10 +4786,13 @@ export default function AIRunnerPage() {
                             className="mt-1"
                           />
                           <span>
-                            <span className="block font-medium">Enable git worktrees for parallel execution</span>
+                            <span className="block font-medium">
+                              Enable git worktrees for parallel execution
+                            </span>
                             <span className="mt-1 block text-xs leading-5 text-muted-foreground">
-                              Each AI Runner job will create a temporary git worktree from the current commit.
-                              Worktrees are automatically removed when the job finishes.
+                              Each AI Runner job will create a temporary git worktree from the
+                              current commit. Worktrees are automatically removed when the job
+                              finishes.
                             </span>
                           </span>
                         </label>

@@ -5,6 +5,7 @@ Prompt: `test-corrector`
 Run slug: `auto/test-corrector-20260524-1145` (approx.)
 
 ## Summary
+
 I fixed 5 small failing tests in this run and intentionally logged the remaining blockers for follow-up.
 
 ## Blockers to resolve
@@ -40,6 +41,7 @@ I fixed 5 small failing tests in this run and intentionally logged the remaining
    - Multiple status/error assertions failing around install script route responses.
 
 ## Proposed next fix approach
+
 - Decide whether auth checks in these docker route handlers should consistently use request-bound session retrieval and apply the same fix across affected handlers.
 - Align fleet page tests with current accessible role/label semantics.
 - Update self-service compose test mocks so callbacks are wrapped with callable functions.

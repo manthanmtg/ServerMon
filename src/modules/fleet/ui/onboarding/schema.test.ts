@@ -107,8 +107,12 @@ describe('OnboardingFormSchema', () => {
     const result = OnboardingFormSchema.safeParse(base);
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error.issues.some((i) => i.path.join('.') === 'frpcConfig.heartbeatInterval')).toBe(true);
-      expect(result.error.issues.some((i) => i.path.join('.') === 'frpcConfig.heartbeatTimeout')).toBe(true);
+      expect(
+        result.error.issues.some((i) => i.path.join('.') === 'frpcConfig.heartbeatInterval')
+      ).toBe(true);
+      expect(
+        result.error.issues.some((i) => i.path.join('.') === 'frpcConfig.heartbeatTimeout')
+      ).toBe(true);
     }
   });
 
@@ -131,7 +135,9 @@ describe('OnboardingFormSchema', () => {
     if (!badPort.success) {
       expect(
         badPort.error.issues.some(
-          (i) => i.path.join('.') === 'proxyRules.0.name' || i.path.join('.') === 'proxyRules.0.localPort'
+          (i) =>
+            i.path.join('.') === 'proxyRules.0.name' ||
+            i.path.join('.') === 'proxyRules.0.localPort'
         )
       ).toBe(true);
     }
