@@ -1,7 +1,7 @@
 'use client';
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge, type BadgeVariant } from '@/components/ui/badge';
+import { Badge } from '@/components/ui/badge';
 import { Spinner } from '@/components/ui/spinner';
 import { Button } from '@/components/ui/button';
 import { deriveNodeTransition, lastSeenLabel } from '@/lib/fleet/status';
@@ -9,7 +9,7 @@ import type { TunnelStatus } from '@/lib/fleet/enums';
 import type { ReconcileReport } from '@/lib/fleet/reconcile';
 import { useFleetStream } from '../lib/useFleetStream';
 import { useToast } from '@/components/ui/toast';
-import { AutoscrollButton } from '@/components/ui/AutoscrollButton';
+import { OperationLogViewer } from '@/components/operations/OperationLogViewer';
 
 interface Node {
   _id: string;
@@ -45,12 +45,6 @@ interface AgentUpdateLogEvent {
   eventType: string;
   message: string;
   metadata?: { commandId?: unknown };
-}
-
-function logLevelVariant(level: string): BadgeVariant {
-  if (level === 'error') return 'destructive';
-  if (level === 'warn') return 'warning';
-  return 'outline';
 }
 
 function isAgentUpdateEvent(event: AgentUpdateLogEvent): boolean {
@@ -427,61 +421,37 @@ const AgentUpdateLogsPanel = memo(function AgentUpdateLogsPanel({
   error: string | null;
   polling: boolean;
 }) {
-  const [autoscroll, setAutoscroll] = useState(true);
-  const scrollRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    if (!autoscroll) return;
-    const el = scrollRef.current;
-    if (!el) return;
-    el.scrollTop = el.scrollHeight;
-  }, [autoscroll, logs]);
+  const lastEvent = logs.at(-1);
+  const status = polling
+    ? 'running'
+    : lastEvent?.eventType === 'agent.update.succeeded'
+      ? 'succeeded'
+      : lastEvent?.eventType === 'agent.update.failed'
+        ? 'failed'
+        : 'queued';
+  const output = logs
+    .map((event) => {
+      const time = event.createdAt ? new Date(event.createdAt).toLocaleTimeString() : '--:--:--';
+      return `[${time}] [${event.level.toUpperCase()}] ${event.eventType}\n${event.message}`;
+    })
+    .join('\n');
 
   return (
     <div className="rounded-lg border border-border bg-muted/20">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-3 py-2">
         <div className="text-sm font-medium">Agent update logs</div>
-        <div className="flex flex-wrap items-center justify-end gap-2">
-          <Badge variant={polling ? 'default' : 'outline'}>{polling ? 'running' : 'idle'}</Badge>
-          <AutoscrollButton
-            enabled={autoscroll}
-            onToggle={setAutoscroll}
-            aria-label="Agent update log autoscroll"
-            className="h-8 px-2"
-          />
-        </div>
+        <Badge variant={polling ? 'default' : 'outline'}>{polling ? 'running' : 'complete'}</Badge>
       </div>
-      <div ref={scrollRef} className="max-h-72 overflow-auto p-3">
-        {error && (
-          <div
-            role="alert"
-            className="mb-2 rounded border border-destructive/30 bg-destructive/5 p-2 text-xs text-destructive"
-          >
-            {error}
-          </div>
-        )}
-        {logs.length === 0 ? (
-          <div className="font-mono text-xs text-muted-foreground">Waiting for agent output...</div>
-        ) : (
-          <div className="space-y-2">
-            {logs.map((event) => (
-              <div key={event._id} className="grid gap-1 text-xs md:grid-cols-[7rem_5rem_1fr]">
-                <div className="font-mono text-muted-foreground">
-                  {event.createdAt ? new Date(event.createdAt).toLocaleTimeString() : '--:--:--'}
-                </div>
-                <div>
-                  <Badge variant={logLevelVariant(event.level)}>{event.level}</Badge>
-                </div>
-                <div className="min-w-0">
-                  <div className="font-mono text-muted-foreground">{event.eventType}</div>
-                  <div className="mt-0.5 whitespace-pre-wrap break-words font-mono text-foreground">
-                    {event.message}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
+      <div className="p-3">
+        <OperationLogViewer
+          output={output}
+          status={status}
+          label="Agent update output"
+          error={error}
+          emptyMessage="Waiting for agent output..."
+          downloadableFilename="agent-update.log"
+          maxHeightClassName="max-h-72"
+        />
       </div>
     </div>
   );

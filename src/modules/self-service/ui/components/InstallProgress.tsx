@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState, useRef } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   CheckCircle2,
   XCircle,
@@ -15,6 +15,8 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
+import { OperationLogViewer } from '@/components/operations/OperationLogViewer';
+import type { OperationStatus } from '@/components/operations/operation-status';
 import type { InstallJob, StepStatusValue } from '../../types';
 
 const STATUS_CONFIG: Record<
@@ -41,6 +43,14 @@ const JOB_STATUS_CONFIG: Record<string, { color: string; label: string }> = {
   'rolling-back': { color: 'bg-warning/10 text-warning', label: 'Rolling Back' },
 };
 
+const STEP_OPERATION_STATUS: Record<StepStatusValue, OperationStatus> = {
+  pending: 'queued',
+  running: 'running',
+  success: 'succeeded',
+  failed: 'failed',
+  skipped: 'unchanged',
+};
+
 interface InstallProgressProps {
   jobId: string;
   onDone: () => void;
@@ -51,7 +61,6 @@ export function InstallProgress({ jobId, onDone, onRollback }: InstallProgressPr
   const [job, setJob] = useState<InstallJob | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [expandedSteps, setExpandedSteps] = useState<Set<string>>(new Set());
-  const logEndRef = useRef<HTMLDivElement>(null);
 
   const poll = useCallback(async () => {
     try {
@@ -75,10 +84,6 @@ export function InstallProgress({ jobId, onDone, onRollback }: InstallProgressPr
     const interval = setInterval(poll, 2000);
     return () => clearInterval(interval);
   }, [poll]);
-
-  useEffect(() => {
-    logEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [job]);
 
   const toggleStep = (step: string) => {
     setExpandedSteps((prev) => {
@@ -203,10 +208,15 @@ export function InstallProgress({ jobId, onDone, onRollback }: InstallProgressPr
                         transition={{ duration: 0.2, ease: 'easeOut' }}
                         className="overflow-hidden"
                       >
-                        <div className="px-3 pb-2 max-h-48 overflow-y-auto bg-muted/30">
-                          <pre className="text-[10px] font-mono leading-relaxed text-muted-foreground whitespace-pre-wrap">
-                            {step.logs.join('\n')}
-                          </pre>
+                        <div className="border-t border-border bg-muted/20 p-3">
+                          <OperationLogViewer
+                            output={step.logs}
+                            status={STEP_OPERATION_STATUS[step.status]}
+                            label={`${step.label} output`}
+                            error={step.error}
+                            downloadableFilename={`${job.templateName}-${step.step}.log`}
+                            maxHeightClassName="max-h-48"
+                          />
                         </div>
                       </motion.div>
                     )}
@@ -215,7 +225,6 @@ export function InstallProgress({ jobId, onDone, onRollback }: InstallProgressPr
               );
             })}
           </div>
-          <div ref={logEndRef} />
         </CardContent>
       </Card>
 

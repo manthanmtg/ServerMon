@@ -372,8 +372,10 @@ describe('NodeServerMonPanel', () => {
       expect(screen.getByText(/Installing dependencies/)).toBeDefined();
     });
 
-    const autoscroll = screen.getByRole('button', { name: 'Install log autoscroll' });
+    const autoscroll = screen.getByRole('button', { name: 'Autoscroll output' });
     expect(autoscroll).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: 'Follow live output' })).toBeDefined();
+    expect(screen.getByRole('button', { name: 'Wrap output' })).toBeDefined();
 
     await act(async () => {
       fireEvent.click(autoscroll);

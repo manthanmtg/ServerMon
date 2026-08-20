@@ -1,13 +1,13 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { ExternalLink, RefreshCcw, RotateCw, Server } from 'lucide-react';
-import { Badge, type BadgeVariant } from '@/components/ui/badge';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Spinner } from '@/components/ui/spinner';
-import { AutoscrollButton } from '@/components/ui/AutoscrollButton';
+import { OperationLogViewer } from '@/components/operations/OperationLogViewer';
 import { useToast } from '@/components/ui/toast';
 
 interface ServerMonStatus {
@@ -74,12 +74,6 @@ function publicRouteUrl(route: ServerMonRoute): string {
 function statusVariant(status: string): 'default' | 'outline' | 'secondary' | 'destructive' {
   if (status === 'running' || status === 'healthy' || status === 'active') return 'default';
   if (status === 'failed' || status === 'unhealthy' || status === 'down') return 'destructive';
-  return 'outline';
-}
-
-function logLevelVariant(level: string): BadgeVariant {
-  if (level === 'error') return 'destructive';
-  if (level === 'warn') return 'warning';
   return 'outline';
 }
 
@@ -569,61 +563,37 @@ function InstallLogsPanel({
   error: string | null;
   polling: boolean;
 }) {
-  const [autoscroll, setAutoscroll] = useState(true);
-  const scrollRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    if (!autoscroll) return;
-    const el = scrollRef.current;
-    if (!el) return;
-    el.scrollTop = el.scrollHeight;
-  }, [autoscroll, logs]);
+  const lastEvent = logs.at(-1);
+  const status = polling
+    ? 'running'
+    : lastEvent?.eventType === 'servermon.install.succeeded'
+      ? 'succeeded'
+      : lastEvent?.eventType === 'servermon.install.failed'
+        ? 'failed'
+        : 'queued';
+  const output = logs
+    .map((event) => {
+      const time = event.createdAt ? new Date(event.createdAt).toLocaleTimeString() : '--:--:--';
+      return `[${time}] [${event.level.toUpperCase()}] ${event.eventType}\n${event.message}`;
+    })
+    .join('\n');
 
   return (
     <div className="rounded-lg border border-border bg-muted/20">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-3 py-2">
         <div className="text-sm font-medium">Install logs</div>
-        <div className="flex flex-wrap items-center justify-end gap-2">
-          <Badge variant={polling ? 'default' : 'outline'}>{polling ? 'running' : 'idle'}</Badge>
-          <AutoscrollButton
-            enabled={autoscroll}
-            onToggle={setAutoscroll}
-            aria-label="Install log autoscroll"
-            className="h-8 px-2"
-          />
-        </div>
+        <Badge variant={polling ? 'default' : 'outline'}>{polling ? 'running' : 'complete'}</Badge>
       </div>
-      <div ref={scrollRef} className="max-h-72 overflow-auto p-3">
-        {error && (
-          <div
-            role="alert"
-            className="mb-2 rounded border border-destructive/30 bg-destructive/5 p-2 text-xs text-destructive"
-          >
-            {error}
-          </div>
-        )}
-        {logs.length === 0 ? (
-          <div className="font-mono text-xs text-muted-foreground">Waiting for agent output...</div>
-        ) : (
-          <div className="space-y-2">
-            {logs.map((event) => (
-              <div key={event._id} className="grid gap-1 text-xs md:grid-cols-[7rem_5rem_1fr]">
-                <div className="font-mono text-muted-foreground">
-                  {event.createdAt ? new Date(event.createdAt).toLocaleTimeString() : '--:--:--'}
-                </div>
-                <div>
-                  <Badge variant={logLevelVariant(event.level)}>{event.level}</Badge>
-                </div>
-                <div className="min-w-0">
-                  <div className="font-mono text-muted-foreground">{event.eventType}</div>
-                  <div className="mt-0.5 whitespace-pre-wrap break-words font-mono text-foreground">
-                    {event.message}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
+      <div className="p-3">
+        <OperationLogViewer
+          output={output}
+          status={status}
+          label="ServerMon install output"
+          error={error}
+          emptyMessage="Waiting for agent output..."
+          downloadableFilename="servermon-install.log"
+          maxHeightClassName="max-h-72"
+        />
       </div>
     </div>
   );

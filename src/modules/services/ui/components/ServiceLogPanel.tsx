@@ -1,24 +1,13 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Activity, LoaderCircle, RotateCcw } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
+import { LoaderCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { cn } from '@/lib/utils';
+import { OperationLogViewer } from '@/components/operations/OperationLogViewer';
 import type { ServiceLogEntry } from '../../types';
 
 interface ServiceLogPanelProps {
   serviceName: string;
-}
-
-function logPriorityVariant(
-  priority: ServiceLogEntry['priority'],
-): 'destructive' | 'warning' | 'default' | 'secondary' {
-  if (priority === 'emerg' || priority === 'alert' || priority === 'crit' || priority === 'err')
-    return 'destructive';
-  if (priority === 'warning') return 'warning';
-  if (priority === 'notice') return 'default';
-  return 'secondary';
 }
 
 function formatLogTimestamp(timestamp: string): string {
@@ -67,9 +56,8 @@ function parseServiceLogEntries(data: unknown): ServiceLogEntry[] {
 
 export function ServiceLogPanel({ serviceName }: ServiceLogPanelProps) {
   const [logs, setLogs] = useState<ServiceLogEntry[] | null>(null);
-  const [autoScroll, setAutoScroll] = useState(true);
+  const [follow, setFollow] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const logContainerRef = useRef<HTMLDivElement>(null);
   const mountedRef = useRef(true);
   const requestControllerRef = useRef<AbortController | null>(null);
 
@@ -106,31 +94,17 @@ export function ServiceLogPanel({ serviceName }: ServiceLogPanelProps) {
 
   useEffect(() => {
     mountedRef.current = true;
-    loadLogs();
-    const interval = setInterval(loadLogs, 5000);
+    if (follow) loadLogs();
+    const interval = follow ? setInterval(loadLogs, 5000) : null;
 
     return () => {
       mountedRef.current = false;
       requestControllerRef.current?.abort();
-      clearInterval(interval);
+      if (interval) clearInterval(interval);
     };
-  }, [loadLogs]);
-
-  useEffect(() => {
-    if (autoScroll && logContainerRef.current) {
-      logContainerRef.current.scrollTop = logContainerRef.current.scrollHeight;
-    }
-  }, [logs, autoScroll]);
+  }, [follow, loadLogs]);
 
   const loading = logs === null;
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-4">
-        <LoaderCircle className="h-4 w-4 animate-spin text-muted-foreground" />
-      </div>
-    );
-  }
 
   if (loadError && logs === null) {
     return (
@@ -149,57 +123,32 @@ export function ServiceLogPanel({ serviceName }: ServiceLogPanelProps) {
     );
   }
 
-  if (!loading && logs.length === 0) {
-    return <p className="text-xs text-muted-foreground py-2">No logs available.</p>;
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-4">
+        <LoaderCircle className="h-4 w-4 animate-spin text-muted-foreground" />
+      </div>
+    );
   }
 
+  const output = logs
+    .map(
+      (entry) =>
+        `[${formatLogTimestamp(entry.timestamp)}] [${entry.priority.toUpperCase()}] [${entry.unit}] ${entry.message}`
+    )
+    .join('\n');
+
   return (
-    <div className="space-y-2">
-      <div className="flex items-center justify-between">
-        <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-          <Activity className="w-3 h-3" /> Recent logs
-        </p>
-        <button
-          type="button"
-          aria-pressed={autoScroll}
-          onClick={() => setAutoScroll(!autoScroll)}
-          className={cn(
-            'flex min-h-8 items-center gap-1.5 rounded-lg border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider shadow-sm transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background active:scale-[0.98]',
-            autoScroll
-              ? 'border-primary/25 bg-primary/10 text-primary shadow-[0_0_0_1px_color-mix(in_oklab,var(--primary)_12%,transparent)] hover:bg-primary/15'
-              : 'border-border/60 bg-muted/50 text-muted-foreground hover:border-border hover:bg-muted hover:text-foreground'
-          )}
-        >
-          <RotateCcw
-            className={cn('w-3 h-3 transition-transform', autoScroll && 'animate-spin-slow')}
-          />
-          {autoScroll ? 'Autoscroll: ON' : 'Autoscroll: OFF'}
-        </button>
-      </div>
-      <div
-        ref={logContainerRef}
-        className="max-h-[240px] overflow-y-auto space-y-1 font-mono text-xs custom-scrollbar scroll-smooth p-2 rounded-xl bg-black/20 border border-border/40"
-      >
-        {logs.map((entry, i) => (
-          <div
-            key={`${entry.timestamp}-${entry.priority}-${entry.unit}-${i}`}
-            className="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-2 py-1 sm:py-0.5 border-b border-border/10 last:border-0 sm:border-0"
-          >
-            <div className="flex items-center gap-2 shrink-0">
-              <Badge
-                variant={logPriorityVariant(entry.priority)}
-                className="shrink-0 text-[10px] px-1.5 py-0 min-w-[48px] justify-center"
-              >
-                {entry.priority}
-              </Badge>
-              <span className="text-muted-foreground text-[10px] sm:text-xs shrink-0 sm:w-[140px]">
-                {formatLogTimestamp(entry.timestamp)}
-              </span>
-            </div>
-            <span className="text-foreground break-words sm:break-all">{entry.message}</span>
-          </div>
-        ))}
-      </div>
-    </div>
+    <OperationLogViewer
+      output={output}
+      status="running"
+      label={`${serviceName} service logs`}
+      follow={follow}
+      onFollowChange={setFollow}
+      error={loadError}
+      emptyMessage="No logs available."
+      downloadableFilename={`${serviceName}.log`}
+      maxHeightClassName="max-h-[240px]"
+    />
   );
 }

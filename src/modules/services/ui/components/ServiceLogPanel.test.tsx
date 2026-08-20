@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ServiceLogPanel } from './ServiceLogPanel';
 
@@ -26,7 +26,15 @@ describe('ServiceLogPanel', () => {
   it('fetches and renders recent service logs', async () => {
     render(<ServiceLogPanel serviceName="nginx.service" />);
 
-    await waitFor(() => expect(screen.getByText('Started nginx')).toBeDefined());
+    await waitFor(() =>
+      expect(screen.getByRole('log', { name: 'nginx.service service logs' })).toHaveTextContent(
+        'Started nginx'
+      )
+    );
+
+    expect(screen.getByRole('button', { name: 'Follow live output' })).toBeDefined();
+    expect(screen.getByRole('button', { name: 'Autoscroll output' })).toBeDefined();
+    expect(screen.getByRole('button', { name: 'Wrap output' })).toBeDefined();
 
     expect(global.fetch).toHaveBeenCalledWith('/api/modules/services/nginx.service/logs?lines=30', {
       cache: 'no-store',
@@ -69,9 +77,29 @@ describe('ServiceLogPanel', () => {
 
     render(<ServiceLogPanel serviceName="nginx.service" />);
 
-    await waitFor(() => expect(screen.getByText('Restarted nginx')).toBeDefined());
+    await waitFor(() =>
+      expect(screen.getByRole('log', { name: 'nginx.service service logs' })).toHaveTextContent(
+        'Restarted nginx'
+      )
+    );
 
     expect(screen.queryByText('Malformed timestamp')).toBeNull();
     expect(screen.queryByText('Malformed priority')).toBeNull();
+  });
+
+  it('offers a retry when the initial request fails', async () => {
+    vi.mocked(global.fetch)
+      .mockRejectedValueOnce(new Error('network down'))
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ logs: [] }),
+      } as Response);
+
+    render(<ServiceLogPanel serviceName="nginx.service" />);
+
+    const retry = await screen.findByRole('button', { name: 'Retry' });
+    fireEvent.click(retry);
+
+    await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(2));
   });
 });

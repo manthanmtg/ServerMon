@@ -359,6 +359,36 @@ describe('EndpointsPage', () => {
     });
   });
 
+  it('uses the shared output viewer for executable endpoint stdout', async () => {
+    await renderPage();
+    await waitFor(() => screen.getByText('Test Endpoint'));
+    await act(async () => {
+      fireEvent.click(screen.getAllByTestId('endpoint-list-item')[0]);
+    });
+
+    await waitFor(() => screen.getByTestId('endpoint-detail'));
+    vi.mocked(global.fetch).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        statusCode: 200,
+        headers: {},
+        body: '{"ok":true}',
+        duration: 18,
+        stdout: 'script started\nscript complete',
+      }),
+    } as Response);
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('test-endpoint-button'));
+    });
+
+    const output = await screen.findByRole('log', { name: 'Endpoint execution output' });
+    expect(output).toHaveTextContent('script started');
+    expect(screen.getByRole('button', { name: 'Wrap output' })).toBeDefined();
+    expect(screen.getByRole('button', { name: 'Copy logs' })).toBeDefined();
+    expect(screen.queryByRole('button', { name: 'Autoscroll output' })).toBeNull();
+  });
+
   it('manages methods and status codes', async () => {
     await renderPage();
     await waitFor(() => screen.getByText('Test Endpoint'));
