@@ -25,7 +25,7 @@ const baseRun: AIRunnerRunDTO = {
 };
 
 describe('RunDetailDrawer', () => {
-  it('shows a single output pane with autoscroll controls', () => {
+  it('shows a single accessible live output pane with independent controls', () => {
     render(
       <RunDetailDrawer
         run={baseRun}
@@ -43,15 +43,23 @@ describe('RunDetailDrawer', () => {
       />
     );
 
-    expect(screen.getByText('Captured output')).toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: 'Test run' })).toBeVisible();
     expect(screen.getByText('raw output')).toBeInTheDocument();
     expect(screen.queryByText('Clean output')).not.toBeInTheDocument();
     expect(screen.queryByText('Raw output')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Autoscroll:/i })).toBeInTheDocument();
+    expect(screen.getByRole('log', { name: 'AI run output' })).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Follow live output' })).toHaveAttribute(
+      'aria-pressed',
+      'true'
+    );
+    expect(screen.getByRole('button', { name: 'Autoscroll output' })).toHaveAttribute(
+      'aria-pressed',
+      'true'
+    );
   });
 
-  it('toggles autoscroll state from the output toolbar', () => {
-    render(
+  it('resets output preferences when a different run opens', () => {
+    const { rerender } = render(
       <RunDetailDrawer
         run={baseRun}
         historyDetailSection="output"
@@ -68,11 +76,32 @@ describe('RunDetailDrawer', () => {
       />
     );
 
-    const toggle = screen.getByRole('button', { name: /Autoscroll:/i });
-    expect(toggle).toHaveTextContent('Autoscroll: ON');
+    const toggle = screen.getByRole('button', { name: 'Autoscroll output' });
+    expect(toggle).toHaveAttribute('aria-pressed', 'true');
 
     fireEvent.click(toggle);
-    expect(toggle).toHaveTextContent('Autoscroll: OFF');
+    expect(toggle).toHaveAttribute('aria-pressed', 'false');
+
+    rerender(
+      <RunDetailDrawer
+        run={{ ...baseRun, _id: 'run-2' }}
+        historyDetailSection="output"
+        onSectionChange={vi.fn()}
+        onClose={vi.fn()}
+        onRerun={vi.fn()}
+        onKill={vi.fn()}
+        onOpenPrompt={vi.fn()}
+        onOpenSchedule={vi.fn()}
+        getRunDisplayName={() => 'Second run'}
+        profileName="Codex"
+        promptSourceName="Inline prompt"
+        scheduleName="Not scheduled"
+      />
+    );
+    expect(screen.getByRole('button', { name: 'Autoscroll output' })).toHaveAttribute(
+      'aria-pressed',
+      'true'
+    );
   });
 
   it('keeps section tabs and run actions in separate toolbar rows', () => {
@@ -102,13 +131,14 @@ describe('RunDetailDrawer', () => {
     expect(actionRow).toHaveClass('justify-end');
   });
 
-  it('presents the drawer panel with the shared enter animation treatment', () => {
+  it('uses the shared right-side drawer and closes on Escape', () => {
+    const onClose = vi.fn();
     render(
       <RunDetailDrawer
         run={baseRun}
         historyDetailSection="summary"
         onSectionChange={vi.fn()}
-        onClose={vi.fn()}
+        onClose={onClose}
         onRerun={vi.fn()}
         onKill={vi.fn()}
         onOpenPrompt={vi.fn()}
@@ -120,18 +150,10 @@ describe('RunDetailDrawer', () => {
       />
     );
 
-    expect(screen.getByLabelText('Close run detail')).toHaveClass(
-      'bg-background/80',
-      'animate-in',
-      'fade-in',
-      'duration-300'
-    );
-    expect(screen.getByLabelText('Run detail panel')).toHaveClass(
-      'animate-in',
-      'fade-in',
-      'slide-in-from-right-4',
-      'duration-300'
-    );
+    expect(screen.getByRole('dialog', { name: 'Test run' })).toHaveClass('right-0');
+    expect(screen.getByRole('button', { name: 'Close Test run' })).toHaveFocus();
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(onClose).toHaveBeenCalledOnce();
   });
 
   it('locks body scrolling while the drawer is open and restores it on close', () => {
