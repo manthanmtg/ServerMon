@@ -74,9 +74,9 @@ export default function LogsWidget() {
 
         const payload = (await safeJson<LogResponse>(res)) as LogResponse | null;
         const parsedEvents = parseLogEntries(payload);
+        const events = payload?.events;
 
-        if (payload === null || !Array.isArray(payload.events)) {
-          setLogs([]);
+        if (!Array.isArray(events) || (events.length > 0 && parsedEvents.length === 0)) {
           setLoadFailed(true);
           return;
         }
@@ -153,6 +153,11 @@ export default function LogsWidget() {
 
   return (
     <div className="space-y-4">
+      {loadFailed && (
+        <p role="status" className="text-xs text-warning">
+          Showing last activity
+        </p>
+      )}
       <div className="space-y-2">
         {logs.map((log) => {
           const config = severityConfig[log.severity] || severityConfig.info;
