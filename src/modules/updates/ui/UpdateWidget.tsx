@@ -21,13 +21,11 @@ export default function UpdateWidget() {
         });
         const data = parseUpdateSnapshot(await safeJson<unknown>(res));
         if (!active || !data || !res.ok) {
-          setSnapshot(null);
           return;
         }
         setSnapshot(data);
       } catch {
         /* ignore */
-        if (active) setSnapshot(null);
       }
     };
 

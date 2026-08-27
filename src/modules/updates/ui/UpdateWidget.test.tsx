@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, waitFor, act } from '@testing-library/react';
 import UpdateWidget from './UpdateWidget';
 
@@ -16,6 +16,10 @@ describe('UpdateWidget', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     global.fetch = vi.fn();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it('renders nothing initially when snapshot is null', () => {
@@ -73,6 +77,32 @@ describe('UpdateWidget', () => {
 
     // Reboot badge
     expect(screen.getByText('Reboot')).toBeDefined();
+  });
+
+  it('retains the last verified snapshot when a refresh response is invalid', async () => {
+    vi.useFakeTimers();
+    vi.mocked(global.fetch)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => mockSnapshot,
+      } as Response)
+      .mockResolvedValue({
+        ok: false,
+        json: async () => null,
+      } as Response);
+
+    await act(async () => {
+      render(<UpdateWidget />);
+    });
+    expect(screen.getByText('Updates')).toBeInTheDocument();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3600000);
+    });
+
+    expect(screen.getByText('Updates')).toBeInTheDocument();
+    expect(screen.getByText('Security')).toBeInTheDocument();
+    expect(screen.getByText('2')).toBeInTheDocument();
   });
 
   it('handles fetch errors silently', async () => {
