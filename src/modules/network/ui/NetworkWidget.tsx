@@ -81,7 +81,6 @@ export default function NetworkWidget() {
         }
         if (mounted) {
           setLoadError(true);
-          setStats(null);
           setIsEmpty(false);
         }
       } finally {
@@ -103,15 +102,11 @@ export default function NetworkWidget() {
 
   const displayedInterface = isLoading
     ? 'Loading…'
-    : loadError
-      ? isEmpty
-        ? 'No interfaces'
-        : 'Unavailable'
-      : stats?.iface || 'Network';
+    : stats?.iface || (isEmpty ? 'No interfaces' : 'Unavailable');
 
-  const downloadText = isLoading || loadError ? '—' : stats ? formatBytes(stats.rx) : '0 B';
+  const downloadText = isLoading || !stats ? '—' : formatBytes(stats.rx);
 
-  const uploadText = isLoading || loadError ? '—' : stats ? formatBytes(stats.tx) : '0 B';
+  const uploadText = isLoading || !stats ? '—' : formatBytes(stats.tx);
 
   return (
     <div className="space-y-4">
@@ -138,7 +133,7 @@ export default function NetworkWidget() {
           </div>
           {loadError && !isLoading && (
             <span className="text-[10px] text-destructive">
-              {isEmpty ? 'No interface data' : 'Data unavailable'}
+              {isEmpty ? 'No interface data' : stats ? 'Showing last reading' : 'Data unavailable'}
             </span>
           )}
         </div>

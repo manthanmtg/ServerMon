@@ -92,6 +92,33 @@ describe('NetworkWidget', () => {
     await waitFor(() => expect(screen.getByText('eth0')).toBeDefined());
   });
 
+  it('retains the last verified network stats when a later poll fails', async () => {
+    vi.useFakeTimers();
+    global.fetch = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => mockNetworkData,
+      })
+      .mockRejectedValue(new Error('Network request failed'));
+
+    await act(async () => {
+      render(<NetworkWidget />);
+    });
+
+    expect(screen.getByText('eth0')).toBeInTheDocument();
+    expect(screen.getByText('1 MiB/s')).toBeInTheDocument();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5251);
+    });
+
+    expect(screen.getByText('eth0')).toBeInTheDocument();
+    expect(screen.getByText('1 MiB/s')).toBeInTheDocument();
+    expect(screen.getByText('512 KiB/s')).toBeInTheDocument();
+    expect(screen.getByText('Showing last reading')).toBeInTheDocument();
+  });
+
   it.each([
     {
       name: 'wireless interface containing lo',
