@@ -258,6 +258,38 @@ describe('EndpointsPage', () => {
     });
   });
 
+  it('selects an endpoint without scrolling the page when Space is pressed', async () => {
+    await renderPage();
+    await waitFor(() => screen.getByText('Test Endpoint'));
+    const item = screen.getAllByTestId('endpoint-list-item')[0];
+    const event = new KeyboardEvent('keydown', { bubbles: true, cancelable: true, key: ' ' });
+
+    await act(async () => {
+      item.dispatchEvent(event);
+    });
+
+    expect(event.defaultPrevented).toBe(true);
+    await waitFor(() => {
+      expect(screen.getByTestId('endpoint-detail')).toBeDefined();
+      expect(screen.getByPlaceholderText('Endpoint name...')).toHaveValue('Test Endpoint');
+    });
+  });
+
+  it('selects an endpoint when Enter is pressed', async () => {
+    await renderPage();
+    await waitFor(() => screen.getByText('Test Endpoint'));
+    const item = screen.getAllByTestId('endpoint-list-item')[0];
+
+    await act(async () => {
+      fireEvent.keyDown(item, { key: 'Enter' });
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('endpoint-detail')).toBeDefined();
+      expect(screen.getByPlaceholderText('Endpoint name...')).toHaveValue('Test Endpoint');
+    });
+  });
+
   it('switches between detail tabs', async () => {
     await renderPage();
     await waitFor(() => screen.getByText('Test Endpoint'));

@@ -263,6 +263,7 @@ export function EndpointList({
                 onClick={() => onSelect(ep)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
                     onSelect(ep);
                   }
                 }}
