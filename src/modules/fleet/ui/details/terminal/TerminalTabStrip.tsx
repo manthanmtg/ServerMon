@@ -58,6 +58,8 @@ export function TerminalTabStrip({
             aria-label={`Activate terminal tab ${tab.label}`}
             onClick={() => onSetActiveTabId(tab.sessionId)}
             onKeyDown={(event) => {
+              if (event.target !== event.currentTarget) return;
+
               if (event.key === 'Enter' || event.key === ' ') {
                 event.preventDefault();
                 onSetActiveTabId(tab.sessionId);
