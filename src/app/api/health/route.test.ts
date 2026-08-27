@@ -75,10 +75,8 @@ describe('GET /api/health', () => {
     expect(body.metrics).toBeNull();
   });
 
-  it('reports the correct database status when the DB is disconnected', async () => {
-    // readyState 0 = disconnected — the route reports 'disconnected' but still
-    // returns 200 because disconnected !== error (the healthy check is
-    // `dbStatus !== 'error' && latest !== null`).
+  it('returns 503 with degraded status when the DB is disconnected', async () => {
+    // A readiness endpoint must not report healthy when a required dependency is unavailable.
     mockMongoose.connection.readyState = 0;
     vi.mocked(metricsService.getCurrent).mockReturnValue({
       cpu: 10,
@@ -99,8 +97,8 @@ describe('GET /api/health', () => {
     const response = await GET();
     const body = await response.json();
 
-    // The health logic is: healthy = dbStatus !== 'error' && latest !== null
-    // So disconnected (not error) + has metrics = still 200/ok
+    expect(response.status).toBe(503);
+    expect(body.status).toBe('degraded');
     expect(body.database).toBe('disconnected');
   });
 
@@ -207,7 +205,7 @@ describe('GET /api/health', () => {
     expect(body.sseConnections).toBe(0);
   });
 
-  it('treats non-connected DB states as disconnected but still healthy with metrics', async () => {
+  it('returns degraded health for a connecting database even when metrics are available', async () => {
     mockMongoose.connection.readyState = 2;
     vi.mocked(metricsService.getCurrent).mockReturnValue({
       cpu: 45,
@@ -228,8 +226,8 @@ describe('GET /api/health', () => {
     const response = await GET();
     const body = await response.json();
 
-    expect(response.status).toBe(200);
-    expect(body.status).toBe('ok');
+    expect(response.status).toBe(503);
+    expect(body.status).toBe('degraded');
     expect(body.database).toBe('disconnected');
   });
 
