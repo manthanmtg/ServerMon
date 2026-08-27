@@ -74,6 +74,14 @@ const mockFetchResponse = (payload: unknown, init?: Omit<ResponseInit, 'headers'
     ...init,
   });
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((resolvePromise) => {
+    resolve = resolvePromise;
+  });
+  return { promise, resolve };
+}
+
 describe('ServicesPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -275,6 +283,56 @@ describe('ServicesPage', () => {
       fireEvent.click(refreshButton);
     });
     expect(global.fetch).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps the newest snapshot when refresh responses finish out of order', async () => {
+    const staleResponse = deferred<Response>();
+    const freshResponse = deferred<Response>();
+    const staleSnapshot = {
+      ...mockSnapshot,
+      services: [
+        { ...mockSnapshot.services[0], description: 'Stale snapshot' },
+        mockSnapshot.services[1],
+      ],
+    };
+    const freshSnapshot = {
+      ...mockSnapshot,
+      services: [
+        { ...mockSnapshot.services[0], description: 'Fresh snapshot' },
+        mockSnapshot.services[1],
+      ],
+    };
+    let snapshotRequests = 0;
+
+    vi.mocked(global.fetch).mockImplementation((url) => {
+      if (url.toString().endsWith('/api/modules/services')) {
+        snapshotRequests += 1;
+        if (snapshotRequests === 1) return Promise.resolve(mockFetchResponse(mockSnapshot));
+        if (snapshotRequests === 2) return staleResponse.promise;
+        return freshResponse.promise;
+      }
+      return Promise.resolve(mockFetchResponse({ status: 'ok' }));
+    });
+
+    await act(async () => {
+      renderPage();
+    });
+    await screen.findByText('Nginx HTTP Server');
+
+    const refreshButton = screen.getByRole('button', { name: 'Refresh now' });
+    fireEvent.click(refreshButton);
+    fireEvent.click(refreshButton);
+
+    await act(async () => {
+      freshResponse.resolve(mockFetchResponse(freshSnapshot));
+    });
+    expect(await screen.findByText('Fresh snapshot')).toBeDefined();
+
+    await act(async () => {
+      staleResponse.resolve(mockFetchResponse(staleSnapshot));
+    });
+    expect(screen.getByText('Fresh snapshot')).toBeDefined();
+    expect(screen.queryByText('Stale snapshot')).toBeNull();
   });
 
   it('handles empty services list', async () => {

@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, CheckCircle, Clock, RefreshCcw, Timer } from 'lucide-react';
 import { Card, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -306,9 +306,11 @@ export default function ServicesPage() {
   const [expandedService, setExpandedService] = useState<string | null>(null);
   const [pendingAction, setPendingAction] = useState<string | null>(null);
   const [viewTab, setViewTab] = useState<ViewTab>('services');
+  const snapshotRequestSequence = useRef(0);
   const normalizedSearch = useMemo(() => search.trim().toLowerCase(), [search]);
 
   const loadSnapshot = useCallback(async () => {
+    const requestSequence = ++snapshotRequestSequence.current;
     const controller = new AbortController();
     const timeoutId = window.setTimeout(() => {
       controller.abort();
@@ -339,7 +341,9 @@ export default function ServicesPage() {
         throw new Error('Services snapshot response format is invalid');
       }
 
-      setSnapshot(data);
+      if (requestSequence === snapshotRequestSequence.current) {
+        setSnapshot(data);
+      }
     } catch (error: unknown) {
       if (error instanceof Error && error.name === 'AbortError') {
         throw new Error(
