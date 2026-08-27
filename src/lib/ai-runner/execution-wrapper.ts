@@ -57,6 +57,17 @@ export async function runAIRunnerExecutionWrapper(launchPath: string | undefined
     stdio: ['ignore', 'pipe', 'pipe'],
   }) as ChildProcessByStdio<null, Readable, Readable>;
 
+  child.stdout?.on('data', (chunk: Buffer | string) => {
+    const text = chunk.toString();
+    stdout.write(text);
+    combined.write(text);
+  });
+  child.stderr?.on('data', (chunk: Buffer | string) => {
+    const text = chunk.toString();
+    stderr.write(text);
+    combined.write(text);
+  });
+
   let childExitCode: number | null = null;
   let childSignal: NodeJS.Signals | null = null;
   let hasExited = false;
@@ -104,17 +115,6 @@ export async function runAIRunnerExecutionWrapper(launchPath: string | undefined
       2
     )}\n`
   );
-
-  child.stdout?.on('data', (chunk: Buffer | string) => {
-    const text = chunk.toString();
-    stdout.write(text);
-    combined.write(text);
-  });
-  child.stderr?.on('data', (chunk: Buffer | string) => {
-    const text = chunk.toString();
-    stderr.write(text);
-    combined.write(text);
-  });
 
   if (!hasExited) {
     await exitPromise;
