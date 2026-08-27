@@ -1,9 +1,9 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Settings2, Check, X } from 'lucide-react';
+import { Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Dialog } from '@/components/ui/Dialog';
 import { Spinner } from '@/components/ui/spinner';
 import { cn } from '@/lib/utils';
 
@@ -17,111 +17,145 @@ interface Props {
   onSaved: (next: DiskSettings) => void;
 }
 
+const saveErrorMessage = 'Failed to save disk settings';
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function isDiskSettings(value: unknown): value is DiskSettings {
+  return isRecord(value) && (value.unitSystem === 'binary' || value.unitSystem === 'decimal');
+}
+
 export default function DiskSettingsModal({ settings, onClose, onSaved }: Props) {
   const [localSettings, setLocalSettings] = useState<DiskSettings>(settings);
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const handleSave = async (unitSystem: 'binary' | 'decimal') => {
-    const next = { ...localSettings, unitSystem };
-    setLocalSettings(next);
+    if (saving || unitSystem === localSettings.unitSystem) return;
+
+    setSaveError(null);
     setSaving(true);
     try {
       const res = await fetch('/api/modules/disk/settings', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(next),
+        body: JSON.stringify({ ...localSettings, unitSystem }),
       });
-      const data = await res.json();
-      if (data.settings) {
-        onSaved(data.settings);
+      const data: unknown = await res.json().catch(() => null);
+      if (!res.ok) {
+        const error =
+          isRecord(data) && typeof data.error === 'string' ? data.error : saveErrorMessage;
+        throw new Error(error);
       }
-    } catch (err) {
-      console.error('Failed to save disk settings:', err);
+      const nextSettings = isRecord(data) ? data.settings : undefined;
+      if (!isDiskSettings(nextSettings)) {
+        throw new Error(saveErrorMessage);
+      }
+
+      setLocalSettings(nextSettings);
+      onSaved(nextSettings);
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : saveErrorMessage);
     } finally {
       setSaving(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm animate-in fade-in duration-200">
-      <Card className="w-full max-w-md shadow-2xl border-primary/20 bg-card/95 backdrop-blur">
-        <CardHeader className="flex flex-row items-center justify-between pb-2">
-          <div className="flex items-center gap-2">
-            <Settings2 className="w-4 h-4 text-primary" />
-            <CardTitle className="text-lg">Disk Settings</CardTitle>
-          </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={onClose}
-            className="h-8 w-8 rounded-full"
-            aria-label="Close settings"
-          >
-            <X className="w-4 h-4" />
-          </Button>
-        </CardHeader>
-        <CardContent className="space-y-6 pt-4">
-          <div className="space-y-4">
-            <div className="space-y-1">
-              <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-                Storage Units
-              </p>
-              <p className="text-xs text-muted-foreground">
-                Choose how storage capacity and usage are calculated.
-              </p>
-            </div>
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+      title="Disk Settings"
+      description="Choose how storage capacity and usage are calculated."
+      size="sm"
+      dismissible={!saving}
+      closeLabel="Close disk settings"
+      contentClassName="animate-slide-up"
+      footer={
+        <Button variant="outline" onClick={onClose} disabled={saving}>
+          Cancel
+        </Button>
+      }
+    >
+      <fieldset className="space-y-3">
+        <legend className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
+          Storage Units
+        </legend>
+        <div className="grid grid-cols-1 gap-3">
+          {(
+            [
+              {
+                unitSystem: 'binary',
+                label: 'Binary (base 1024)',
+                units: 'GiB, MiB, KiB',
+              },
+              {
+                unitSystem: 'decimal',
+                label: 'Decimal (base 1000)',
+                units: 'GB, MB, KB',
+              },
+            ] as const
+          ).map(({ unitSystem, label, units }) => {
+            const isSelected = localSettings.unitSystem === unitSystem;
 
-            <div className="grid grid-cols-1 gap-3">
-              <button
-                onClick={() => handleSave('binary')}
+            return (
+              <label
+                key={unitSystem}
                 className={cn(
-                  'relative p-4 rounded-xl border-2 text-left transition-all group',
-                  localSettings.unitSystem === 'binary'
+                  'relative block min-h-[44px] cursor-pointer rounded-xl border-2 p-4 text-left transition-colors focus-within:outline-none focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 focus-within:ring-offset-background',
+                  isSelected
                     ? 'border-primary bg-primary/5'
-                    : 'border-border/50 hover:border-primary/30'
+                    : 'border-border/50 hover:border-primary/30',
+                  saving && 'cursor-not-allowed opacity-70'
                 )}
               >
-                <div className="flex justify-between items-start mb-1">
-                  <p className="text-sm font-bold">Binary (base 1024)</p>
-                  {localSettings.unitSystem === 'binary' && (
-                    <Check className="w-4 h-4 text-primary" />
-                  )}
-                </div>
-                <p className="text-[11px] text-muted-foreground uppercase tracking-wider">
-                  GiB, MiB, KiB
-                </p>
-              </button>
+                <input
+                  type="radio"
+                  name="disk-unit-system"
+                  value={unitSystem}
+                  checked={isSelected}
+                  disabled={saving}
+                  onChange={() => handleSave(unitSystem)}
+                  className="sr-only"
+                />
+                <span className="flex items-start justify-between gap-4">
+                  <span>
+                    <span className="block text-sm font-bold text-foreground">{label}</span>
+                    <span className="mt-1 block text-[11px] uppercase tracking-wider text-muted-foreground">
+                      {units}
+                    </span>
+                  </span>
+                  {isSelected && <Check aria-hidden="true" className="h-4 w-4 text-primary" />}
+                </span>
+              </label>
+            );
+          })}
+        </div>
+      </fieldset>
 
-              <button
-                onClick={() => handleSave('decimal')}
-                className={cn(
-                  'relative p-4 rounded-xl border-2 text-left transition-all group',
-                  localSettings.unitSystem === 'decimal'
-                    ? 'border-primary bg-primary/5'
-                    : 'border-border/50 hover:border-primary/30'
-                )}
-              >
-                <div className="flex justify-between items-start mb-1">
-                  <p className="text-sm font-bold">Decimal (base 1000)</p>
-                  {localSettings.unitSystem === 'decimal' && (
-                    <Check className="w-4 h-4 text-primary" />
-                  )}
-                </div>
-                <p className="text-[11px] text-muted-foreground uppercase tracking-wider">
-                  GB, MB, KB
-                </p>
-              </button>
-            </div>
-          </div>
+      {saveError && (
+        <div
+          role="alert"
+          className="mt-4 rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-foreground"
+        >
+          <p className="font-medium">Unable to save disk settings</p>
+          <p className="mt-1 text-muted-foreground">{saveError} Try selecting a unit again.</p>
+        </div>
+      )}
 
-          {saving && (
-            <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground animate-pulse py-2">
-              <Spinner className="w-3 h-3" />
-              Saving...
-            </div>
-          )}
-        </CardContent>
-      </Card>
-    </div>
+      {saving && (
+        <div
+          aria-live="polite"
+          className="flex items-center gap-2 pt-4 text-xs text-muted-foreground"
+        >
+          <Spinner className="h-3 w-3" />
+          Saving disk settings...
+        </div>
+      )}
+    </Dialog>
   );
 }
