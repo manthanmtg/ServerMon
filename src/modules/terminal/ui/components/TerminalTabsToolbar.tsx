@@ -61,13 +61,24 @@ export const TerminalTabsToolbar = React.memo(function TerminalTabsToolbar({
         {tabs.map((tab) => (
           <div
             key={tab.sessionId}
+            role="button"
+            tabIndex={0}
+            aria-label={`Activate terminal tab ${tab.label}`}
             className={cn(
-              'group flex items-center gap-1.5 pl-3 pr-1.5 h-9 rounded-lg text-xs font-medium transition-colors cursor-pointer shrink-0 min-w-0',
+              'group flex h-9 min-w-0 shrink-0 cursor-pointer items-center gap-1.5 rounded-lg pl-3 pr-1.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
               tab.sessionId === activeTabId
                 ? 'bg-primary text-primary-foreground'
                 : 'bg-secondary text-muted-foreground hover:text-foreground hover:bg-accent'
             )}
             onClick={() => onSelectTab(tab.sessionId)}
+            onKeyDown={(event) => {
+              if (event.target !== event.currentTarget) return;
+
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                onSelectTab(tab.sessionId);
+              }
+            }}
           >
             <span
               className={cn(

@@ -92,4 +92,34 @@ describe('TerminalTabsToolbar', () => {
     expect(screen.getByRole('button', { name: 'Rename Terminal 1' })).toBeDefined();
     expect(screen.getByRole('button', { name: 'Close Terminal 1' })).toBeDefined();
   });
+
+  it.each(['Enter', ' '])('activates a terminal tab with the %s key', (key) => {
+    const onSelectTab = vi.fn();
+
+    render(
+      <TerminalTabsToolbar
+        tabs={tabs}
+        activeTabId="sess-1"
+        editingTabId={null}
+        editLabel=""
+        onEditLabelChange={vi.fn()}
+        onCommitRename={vi.fn()}
+        editInputRef={{ current: null }}
+        onSelectTab={onSelectTab}
+        onAddTab={vi.fn()}
+        onStartRename={vi.fn()}
+        onCloseTab={vi.fn()}
+        onShowResetConfirm={vi.fn()}
+        onShowSavedCommands={vi.fn()}
+        onShowHistory={vi.fn()}
+        onShowSettings={vi.fn()}
+      />
+    );
+
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Activate terminal tab Terminal 2' }), {
+      key,
+    });
+
+    expect(onSelectTab).toHaveBeenCalledWith('sess-2');
+  });
 });
