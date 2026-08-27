@@ -74,8 +74,14 @@ const HistoryRunRow = memo(function HistoryRunRow({
     <tr
       key={run._id}
       ref={onSetRef}
-      tabIndex={-1}
+      tabIndex={0}
       onClick={() => onOpenRun(run)}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          onOpenRun(run);
+        }
+      }}
       className={cn(
         'cursor-pointer border-b border-border/40 transition-colors hover:bg-accent/30 focus:outline-none focus:ring-2 focus:ring-ring/40',
         isSelected && 'bg-primary/5',
