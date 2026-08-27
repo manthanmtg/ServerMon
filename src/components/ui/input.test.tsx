@@ -31,4 +31,34 @@ describe('Input Component', () => {
     render(<Input className="custom-class" />);
     expect(screen.getByRole('textbox').className).toContain('custom-class');
   });
+
+  it('exposes validation errors to assistive technology', () => {
+    render(<Input label="Route name" error="Route name is required" />);
+
+    const input = screen.getByRole('textbox', { name: 'Route name' });
+    const error = screen.getByRole('alert');
+
+    expect(input).toHaveAttribute('aria-invalid', 'true');
+    expect(input).toHaveAttribute('aria-describedby', error.id);
+    expect(input).toHaveAccessibleDescription('Route name is required');
+    expect(error).toHaveTextContent('Route name is required');
+  });
+
+  it('preserves existing descriptions when an error is present', () => {
+    render(
+      <>
+        <p id="route-name-help">Use lowercase letters and hyphens.</p>
+        <Input
+          label="Route name"
+          error="Route name is required"
+          aria-describedby="route-name-help"
+        />
+      </>
+    );
+
+    expect(screen.getByRole('textbox', { name: 'Route name' })).toHaveAttribute(
+      'aria-describedby',
+      'route-name-help route-name-error'
+    );
+  });
 });
