@@ -99,6 +99,15 @@ describe('Button component', () => {
     expect(handleClick).not.toHaveBeenCalled();
   });
 
+  it('exposes its in-progress state to assistive technologies', () => {
+    render(<Button loading>Save changes</Button>);
+
+    expect(screen.getByRole('button', { name: 'Save changes' })).toHaveAttribute(
+      'aria-busy',
+      'true'
+    );
+  });
+
   it('renders children alongside loading spinner', () => {
     render(<Button loading>Saving...</Button>);
     const button = screen.getByRole('button', { name: /saving\.\.\./i });
