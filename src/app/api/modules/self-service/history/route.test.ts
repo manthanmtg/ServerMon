@@ -2,8 +2,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { GET } from './route';
 
-const { mockGetAllJobs, mockLogError } = vi.hoisted(() => ({
+const { mockGetAllJobs, mockGetSession, mockLogError } = vi.hoisted(() => ({
   mockGetAllJobs: vi.fn(),
+  mockGetSession: vi.fn(),
   mockLogError: vi.fn(),
 }));
 
@@ -15,9 +16,24 @@ vi.mock('@/lib/logger', () => ({
   createLogger: () => ({ info: vi.fn(), warn: vi.fn(), error: mockLogError, debug: vi.fn() }),
 }));
 
+vi.mock('@/lib/session', () => ({
+  getSession: mockGetSession,
+}));
+
 describe('GET /api/modules/self-service/history', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockGetSession.mockResolvedValue({ user: { role: 'admin' } });
+  });
+
+  it('rejects non-administrators before disclosing installation history', async () => {
+    mockGetSession.mockResolvedValue({ user: { role: 'user' } });
+
+    const response = await GET();
+
+    expect(response.status).toBe(401);
+    await expect(response.json()).resolves.toEqual({ error: 'Unauthorized' });
+    expect(mockGetAllJobs).not.toHaveBeenCalled();
   });
 
   it('returns all jobs when successful', async () => {

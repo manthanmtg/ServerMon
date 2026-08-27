@@ -2,8 +2,9 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { NextRequest } from 'next/server';
 
-const { mockCreateJob, mockLogger } = vi.hoisted(() => ({
+const { mockCreateJob, mockGetSession, mockLogger } = vi.hoisted(() => ({
   mockCreateJob: vi.fn(),
+  mockGetSession: vi.fn(),
   mockLogger: { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() },
 }));
 
@@ -13,6 +14,10 @@ vi.mock('@/lib/logger', () => ({
 
 vi.mock('@/modules/self-service/engine/job-manager', () => ({
   createJob: mockCreateJob,
+}));
+
+vi.mock('@/lib/session', () => ({
+  getSession: mockGetSession,
 }));
 
 import { POST } from './route';
@@ -28,6 +33,19 @@ function makeRequest(body: unknown): NextRequest {
 describe('POST /api/modules/self-service/install', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockGetSession.mockResolvedValue({ user: { role: 'admin' } });
+  });
+
+  it('rejects unauthenticated requests before creating a host installation job', async () => {
+    mockGetSession.mockResolvedValue(null);
+
+    const res = await POST(
+      makeRequest({ templateId: 'node', methodId: 'apt', config: { version: '20' } })
+    );
+
+    expect(res.status).toBe(401);
+    await expect(res.json()).resolves.toEqual({ error: 'Unauthorized' });
+    expect(mockCreateJob).not.toHaveBeenCalled();
   });
 
   it('returns 400 when templateId is missing', async () => {

@@ -2,9 +2,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { NextRequest } from 'next/server';
 
-const { mockGetJob, mockCancelJob, mockLogger } = vi.hoisted(() => ({
+const { mockGetJob, mockCancelJob, mockGetSession, mockLogger } = vi.hoisted(() => ({
   mockGetJob: vi.fn(),
   mockCancelJob: vi.fn(),
+  mockGetSession: vi.fn(),
   mockLogger: { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() },
 }));
 
@@ -15,6 +16,10 @@ vi.mock('@/lib/logger', () => ({
 vi.mock('@/modules/self-service/engine/job-manager', () => ({
   getJob: mockGetJob,
   cancelJob: mockCancelJob,
+}));
+
+vi.mock('@/lib/session', () => ({
+  getSession: mockGetSession,
 }));
 
 import { GET, DELETE } from './route';
@@ -34,7 +39,20 @@ const mockJob = {
 };
 
 describe('GET /api/modules/self-service/install/[jobId]', () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockGetSession.mockResolvedValue({ user: { role: 'admin' } });
+  });
+
+  it('rejects non-administrators before disclosing job details', async () => {
+    mockGetSession.mockResolvedValue({ user: { role: 'user' } });
+
+    const res = await GET(new NextRequest('http://localhost'), makeContext('job-1'));
+
+    expect(res.status).toBe(401);
+    await expect(res.json()).resolves.toEqual({ error: 'Unauthorized' });
+    expect(mockGetJob).not.toHaveBeenCalled();
+  });
 
   it('returns 200 with job when found', async () => {
     mockGetJob.mockReturnValue(mockJob);
@@ -62,7 +80,20 @@ describe('GET /api/modules/self-service/install/[jobId]', () => {
 });
 
 describe('DELETE /api/modules/self-service/install/[jobId]', () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockGetSession.mockResolvedValue({ user: { role: 'admin' } });
+  });
+
+  it('rejects unauthenticated requests before cancelling a job', async () => {
+    mockGetSession.mockResolvedValue(null);
+
+    const res = await DELETE(new NextRequest('http://localhost'), makeContext('job-1'));
+
+    expect(res.status).toBe(401);
+    await expect(res.json()).resolves.toEqual({ error: 'Unauthorized' });
+    expect(mockCancelJob).not.toHaveBeenCalled();
+  });
 
   it('returns 200 when cancellation succeeds', async () => {
     mockCancelJob.mockReturnValue({ success: true });
