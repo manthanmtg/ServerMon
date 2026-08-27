@@ -144,6 +144,14 @@ const mockSnapshot = {
   timestamp: new Date().toISOString(),
 };
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((resolvePromise) => {
+    resolve = resolvePromise;
+  });
+  return { promise, resolve };
+}
+
 describe('DockerPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -433,6 +441,48 @@ describe('DockerPage', () => {
       fireEvent.click(refreshButton);
     });
     expect(global.fetch).toHaveBeenCalledTimes(2); // Initial + Manual
+  });
+
+  it('keeps the newest snapshot when refresh responses finish out of order', async () => {
+    const staleResponse = deferred<Response>();
+    const freshResponse = deferred<Response>();
+    const staleSnapshot = {
+      ...mockSnapshot,
+      containers: [{ ...mockSnapshot.containers[0], name: 'stale-container' }],
+    };
+    const freshSnapshot = {
+      ...mockSnapshot,
+      containers: [{ ...mockSnapshot.containers[0], name: 'fresh-container' }],
+    };
+    let snapshotRequests = 0;
+
+    vi.mocked(global.fetch).mockImplementation(() => {
+      snapshotRequests += 1;
+      if (snapshotRequests === 1) {
+        return Promise.resolve({ ok: true, json: async () => mockSnapshot } as Response);
+      }
+      if (snapshotRequests === 2) return staleResponse.promise;
+      return freshResponse.promise;
+    });
+
+    await renderPage();
+    await screen.findByTestId('docker-containers-table');
+
+    const refreshButton = screen.getByRole('button', { name: 'Refresh now' });
+    fireEvent.click(refreshButton);
+    fireEvent.click(refreshButton);
+    const containersTable = screen.getByTestId('docker-containers-table');
+
+    await act(async () => {
+      freshResponse.resolve({ ok: true, json: async () => freshSnapshot } as Response);
+    });
+    expect(await within(containersTable).findByText('fresh-container')).toBeInTheDocument();
+
+    await act(async () => {
+      staleResponse.resolve({ ok: true, json: async () => staleSnapshot } as Response);
+    });
+    expect(within(containersTable).getByText('fresh-container')).toBeInTheDocument();
+    expect(within(containersTable).queryByText('stale-container')).toBeNull();
   });
 
   it('terminal presets change command', async () => {

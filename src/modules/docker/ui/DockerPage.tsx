@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Database } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { PageSkeleton } from '@/components/ui/skeleton';
@@ -47,8 +47,10 @@ export default function DockerPage() {
   const [terminalCommand, setTerminalCommand] = useState('docker ps -a\n');
   const [sessionId] = useState(() => `docker-${crypto.randomUUID()}`);
   const [pendingActionId, setPendingActionId] = useState<string | null>(null);
+  const snapshotRequestSequence = useRef(0);
 
   const loadSnapshot = useCallback(async () => {
+    const requestSequence = ++snapshotRequestSequence.current;
     const controller = new AbortController();
     const timeoutId = window.setTimeout(() => {
       controller.abort();
@@ -63,8 +65,10 @@ export default function DockerPage() {
       if (!response.ok) {
         throw new Error(data.error || 'Failed to fetch docker data');
       }
-      setSnapshot(data);
-      setSelectedContainerId((currentId) => currentId || data.containers[0]?.id || null);
+      if (requestSequence === snapshotRequestSequence.current) {
+        setSnapshot(data);
+        setSelectedContainerId((currentId) => currentId || data.containers[0]?.id || null);
+      }
     } catch (error: unknown) {
       const isAbortError = error instanceof DOMException && error.name === 'AbortError';
       toast({
