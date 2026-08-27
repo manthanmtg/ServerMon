@@ -21,7 +21,7 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
     ref
   ) => {
     const generatedId = useId();
-    const inputId = id || label?.toLowerCase().replace(/\s+/g, '-') || generatedId;
+    const inputId = id ?? generatedId;
     const errorId = `${inputId}-error`;
     const describedBy = [ariaDescribedBy, error ? errorId : undefined].filter(Boolean).join(' ');
     return (

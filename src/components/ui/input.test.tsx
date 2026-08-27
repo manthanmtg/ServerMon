@@ -56,9 +56,26 @@ describe('Input Component', () => {
       </>
     );
 
-    expect(screen.getByRole('textbox', { name: 'Route name' })).toHaveAttribute(
-      'aria-describedby',
-      'route-name-help route-name-error'
+    const input = screen.getByRole('textbox', { name: 'Route name' });
+    const error = screen.getByRole('alert');
+
+    expect(input).toHaveAttribute('aria-describedby', `route-name-help ${error.id}`);
+  });
+
+  it('assigns unique label and error associations to inputs with the same label', () => {
+    render(
+      <>
+        <Input label="Shortcut" error="First shortcut is required" />
+        <Input label="Shortcut" error="Second shortcut is required" />
+      </>
     );
+
+    const [firstInput, secondInput] = screen.getAllByRole('textbox');
+    const [firstError, secondError] = screen.getAllByRole('alert');
+
+    expect(firstInput.id).not.toBe(secondInput.id);
+    expect(firstError.id).not.toBe(secondError.id);
+    expect(firstInput).toHaveAttribute('aria-describedby', firstError.id);
+    expect(secondInput).toHaveAttribute('aria-describedby', secondError.id);
   });
 });
