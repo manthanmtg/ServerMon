@@ -62,7 +62,7 @@ describe('SetupPage', () => {
       fireEvent.click(screen.getByText('Continue'));
     });
 
-    expect(screen.getByText('Passwords do not match')).toBeDefined();
+    expect(screen.getByRole('alert')).toHaveTextContent('Passwords do not match');
   });
 
   it('shows error when password is too short', async () => {

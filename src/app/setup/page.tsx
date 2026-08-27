@@ -203,7 +203,10 @@ export default function SetupPage() {
         {/* Card */}
         <div className="rounded-xl border border-border bg-card p-6">
           {error && (
-            <div className="mb-4 p-3 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive text-sm flex items-center gap-2">
+            <div
+              role="alert"
+              className="mb-4 p-3 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive text-sm flex items-center gap-2"
+            >
               <Shield className="w-4 h-4 shrink-0" />
               {error}
             </div>
