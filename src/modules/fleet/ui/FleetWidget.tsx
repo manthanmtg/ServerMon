@@ -28,7 +28,10 @@ export default function FleetWidget() {
         const res = await fetch('/api/fleet/nodes?limit=200');
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
-        if (!cancelled) setNodes(data.nodes ?? []);
+        if (!cancelled) {
+          setNodes(data.nodes ?? []);
+          setError(null);
+        }
       } catch (e: unknown) {
         if (!cancelled) setError((e as Error).message);
       }

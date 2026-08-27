@@ -38,6 +38,7 @@ describe('FleetWidget', () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
   });
@@ -119,5 +120,32 @@ describe('FleetWidget', () => {
     await waitFor(() => {
       expect(screen.getByText(/HTTP 500/)).toBeDefined();
     });
+  });
+
+  it('clears a transient poll error after the next poll succeeds', async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValueOnce({ ok: false, status: 503, json: async () => ({}) })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({ nodes: mockNodes, total: mockNodes.length }),
+        })
+    );
+
+    await act(async () => {
+      render(<FleetWidget />);
+    });
+
+    expect(screen.getByText('HTTP 503')).toBeInTheDocument();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10_000);
+    });
+
+    expect(screen.queryByText('HTTP 503')).not.toBeInTheDocument();
+    expect(screen.getByText('Total').parentElement).toHaveTextContent('3');
   });
 });
