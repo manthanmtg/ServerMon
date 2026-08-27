@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import React from 'react';
 import GitHistoryModal from './GitHistoryModal';
@@ -63,6 +63,10 @@ describe('GitHistoryModal', () => {
     });
   });
 
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it('exposes modal controls with accessible names and keyboard-reachable actions', async () => {
     render(<GitHistoryModal root="/repo" onClose={vi.fn()} />);
 
@@ -105,5 +109,37 @@ describe('GitHistoryModal', () => {
       })
     ).toBeNull();
     expect(screen.getByText('Showing 1 commits')).toBeDefined();
+  });
+
+  it('keeps the last verified commits visible when a refreshed history request fails', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    vi.mocked(global.fetch)
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({ success: true, result: commits }),
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 503,
+        json: async () => ({ error: 'Git service is temporarily unavailable' }),
+      } as Response);
+
+    render(<GitHistoryModal root="/repo" onClose={vi.fn()} />);
+
+    await screen.findByRole('button', {
+      name: /view commit abcdef1: Improve terminal rendering/i,
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Show commits from 7 Days' }));
+
+    await screen.findByText('Git service is temporarily unavailable');
+
+    expect(
+      screen.getByRole('button', {
+        name: /view commit abcdef1: Improve terminal rendering/i,
+      })
+    ).toBeDefined();
+    expect(screen.getByText('Showing 2 commits')).toBeDefined();
   });
 });

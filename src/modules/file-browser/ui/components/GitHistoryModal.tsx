@@ -116,8 +116,6 @@ export default function GitHistoryModal({ root, onClose }: Props) {
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to fetch commit history';
       setError(message);
-      setCommits([]);
-      setSelectedHash(null);
       toast({
         title: 'Failed to load commit history',
         description: message,
