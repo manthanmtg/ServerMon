@@ -36,6 +36,29 @@ describe('TerminalSettingsModal', () => {
     expect(screen.getByText('Terminal Settings')).toBeDefined();
   });
 
+  it('presents the settings in a labelled dialog with labelled fields', () => {
+    render(
+      <TerminalSettingsModal settings={defaultSettings} onClose={onClose} onSaved={onSaved} />
+    );
+
+    expect(screen.getByRole('dialog', { name: 'Terminal Settings' })).toBeDefined();
+    expect(screen.getByRole('spinbutton', { name: 'Idle timeout' })).toBeDefined();
+    expect(screen.getByRole('spinbutton', { name: 'Max sessions' })).toBeDefined();
+    expect(screen.getByRole('spinbutton', { name: 'Font size' })).toBeDefined();
+    expect(screen.getByRole('textbox', { name: 'Login as user' })).toBeDefined();
+    expect(screen.getByRole('textbox', { name: 'Default directory' })).toBeDefined();
+  });
+
+  it('moves keyboard focus into the settings dialog and closes with Escape', () => {
+    render(
+      <TerminalSettingsModal settings={defaultSettings} onClose={onClose} onSaved={onSaved} />
+    );
+
+    expect(screen.getByRole('button', { name: 'Close terminal settings dialog' })).toHaveFocus();
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
   it('renders all setting fields with current values', () => {
     render(
       <TerminalSettingsModal settings={defaultSettings} onClose={onClose} onSaved={onSaved} />
@@ -70,9 +93,7 @@ describe('TerminalSettingsModal', () => {
     render(
       <TerminalSettingsModal settings={defaultSettings} onClose={onClose} onSaved={onSaved} />
     );
-    // Click the outer div which has onClick={onClose}
-    const backdrop = document.querySelector('.fixed.inset-0') as HTMLElement;
-    fireEvent.click(backdrop);
+    fireEvent.mouseDown(screen.getByTestId('dialog-backdrop'));
     expect(onClose).toHaveBeenCalled();
   });
 
