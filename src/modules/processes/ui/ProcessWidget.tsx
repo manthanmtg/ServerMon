@@ -1,12 +1,12 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { RefreshCw, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { SkeletonCard, SkeletonTable } from '@/components/ui/skeleton';
 import { useToast } from '@/components/ui/toast';
-import { resilientFetch } from '@/lib/fetch-utils';
+import { isAbortError, resilientFetch } from '@/lib/fetch-utils';
 import { ProcessList } from './components/ProcessList';
 import { ProcessSummaryGrid } from './components/ProcessSummaryGrid';
 import type { ProcessInfo, ProcessSortField, ProcessSummary } from './types';
@@ -21,6 +21,9 @@ export default function ProcessWidget() {
   const [expandedPid, setExpandedPid] = useState<number | null>(null);
   const [killingPid, setKillingPid] = useState<number | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const activeRequestRef = useRef<AbortController | null>(null);
+  const requestSequence = useRef(0);
+  const postKillRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -30,15 +33,31 @@ export default function ProcessWidget() {
     return () => clearTimeout(timer);
   }, [search]);
 
+  useEffect(() => {
+    return () => {
+      if (postKillRefreshTimerRef.current !== null) {
+        clearTimeout(postKillRefreshTimerRef.current);
+        postKillRefreshTimerRef.current = null;
+      }
+    };
+  }, [search, sortField]);
+
   const fetchProcs = useCallback(
     async (isManual = false, showError = isManual) => {
-      if (isManual) setRefreshing(true);
+      activeRequestRef.current?.abort();
+      const controller = new AbortController();
+      activeRequestRef.current = controller;
+      const requestId = ++requestSequence.current;
+      const isCurrentRequest = () =>
+        !controller.signal.aborted && requestId === requestSequence.current;
+
+      setRefreshing(isManual);
       try {
         const res = await resilientFetch(
           `/api/modules/processes?limit=50&sort=${sortField}&search=${encodeURIComponent(
             debouncedSearch
           )}`,
-          { timeout: 8000 }
+          { timeout: 8000, signal: controller.signal }
         );
         const data = await res.json();
         if (!res.ok) {
@@ -48,9 +67,11 @@ export default function ProcessWidget() {
               : `Failed to load processes (${res.status})`;
           throw new Error(message);
         }
+        if (!isCurrentRequest()) return;
         setProcesses(data.processes || []);
         setSummary(data.summary || null);
       } catch (err) {
+        if (isAbortError(err) || !isCurrentRequest()) return;
         if (showError) {
           toast({
             title: err instanceof Error ? err.message : 'Failed to load processes',
@@ -58,8 +79,9 @@ export default function ProcessWidget() {
           });
         }
       } finally {
+        if (!isCurrentRequest()) return;
         setLoading(false);
-        if (isManual) setRefreshing(false);
+        setRefreshing(false);
       }
     },
     [sortField, debouncedSearch, toast]
@@ -68,7 +90,11 @@ export default function ProcessWidget() {
   useEffect(() => {
     fetchProcs(false, true);
     const interval = setInterval(() => fetchProcs(), 5000);
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      activeRequestRef.current?.abort();
+      activeRequestRef.current = null;
+    };
   }, [fetchProcs]);
 
   const killProcess = useCallback(
@@ -84,7 +110,13 @@ export default function ProcessWidget() {
         const data = await res.json();
         if (!res.ok) throw new Error(data.error);
         toast({ title: `Sent ${signal} to PID ${pid}`, variant: 'success' });
-        setTimeout(() => fetchProcs(), 1000);
+        if (postKillRefreshTimerRef.current !== null) {
+          clearTimeout(postKillRefreshTimerRef.current);
+        }
+        postKillRefreshTimerRef.current = setTimeout(() => {
+          postKillRefreshTimerRef.current = null;
+          void fetchProcs();
+        }, 1000);
       } catch (err) {
         toast({
           title: err instanceof Error ? err.message : 'Failed to kill process',

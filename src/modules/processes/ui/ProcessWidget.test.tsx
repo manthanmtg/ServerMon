@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { act, render, screen, fireEvent, waitFor } from '@testing-library/react';
 import ProcessWidget from './ProcessWidget';
 import { ToastProvider } from '@/components/ui/toast';
 
@@ -44,6 +44,24 @@ const mockSummary = {
   memUsed: 4 * 1024 * 1024 * 1024,
   memPercent: 25.0,
 };
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((resolvePromise) => {
+    resolve = resolvePromise;
+  });
+  return { promise, resolve };
+}
+
+function processSnapshot(name: string, pid: number, total: number): Response {
+  return {
+    ok: true,
+    json: async () => ({
+      processes: [{ ...mockProcs[0], name, pid, command: `${name} --serve` }],
+      summary: { ...mockSummary, total },
+    }),
+  } as Response;
+}
 
 describe('ProcessWidget', () => {
   beforeEach(() => {
@@ -215,20 +233,96 @@ describe('ProcessWidget', () => {
 
   it('polling works', async () => {
     vi.useFakeTimers();
+    await act(async () => {
+      render(
+        <ToastProvider>
+          <ProcessWidget />
+        </ToastProvider>
+      );
+      await vi.advanceTimersByTimeAsync(0);
+    });
+
+    vi.clearAllMocks();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5000);
+    });
+    expect(global.fetch).toHaveBeenCalled();
+  });
+
+  it('keeps the newest polling snapshot when an older request resolves later', async () => {
+    vi.useFakeTimers();
+    const staleResponse = deferred<Response>();
+    const freshResponse = deferred<Response>();
+    global.fetch = vi
+      .fn()
+      .mockImplementationOnce(() => staleResponse.promise)
+      .mockImplementationOnce(() => freshResponse.promise);
+
     render(
       <ToastProvider>
         <ProcessWidget />
       </ToastProvider>
     );
 
-    // Initial fetch
-    await vi.advanceTimersByTimeAsync(0);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5000);
+    });
 
-    vi.clearAllMocks();
+    await act(async () => {
+      freshResponse.resolve(processSnapshot('fresh-agent', 303, 1));
+    });
+    expect(screen.getAllByText('fresh-agent').length).toBeGreaterThan(0);
 
-    // Advance 5 seconds for polling
-    await vi.advanceTimersByTimeAsync(5000);
-    expect(global.fetch).toHaveBeenCalled();
+    await act(async () => {
+      staleResponse.resolve(processSnapshot('stale-agent', 404, 999));
+    });
+    expect(screen.getAllByText('fresh-agent').length).toBeGreaterThan(0);
+    expect(screen.queryByText('stale-agent')).not.toBeInTheDocument();
+  });
+
+  it('does not apply a stale sort from a delayed process refresh', async () => {
+    vi.useFakeTimers();
+    global.fetch = vi.fn().mockImplementation((_url: string, options?: RequestInit) => {
+      if (options?.method === 'POST') {
+        return Promise.resolve({ ok: true, json: async () => ({}) } as Response);
+      }
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({ processes: mockProcs, summary: mockSummary }),
+      } as Response);
+    });
+
+    await act(async () => {
+      render(
+        <ToastProvider>
+          <ProcessWidget />
+        </ToastProvider>
+      );
+      await vi.advanceTimersByTimeAsync(0);
+    });
+
+    fireEvent.click(screen.getAllByLabelText(/Expand details for process node \(101\)/i)[0]);
+    await act(async () => {
+      fireEvent.click(
+        screen.getAllByRole('button', { name: /Send SIGTERM to process node \(101\)/i })[0]
+      );
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Sort by Memory' }));
+    });
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1000);
+    });
+
+    const processRequests = (global.fetch as ReturnType<typeof vi.fn>).mock.calls
+      .map(([url]) => url)
+      .filter(
+        (url): url is string => typeof url === 'string' && url.startsWith('/api/modules/processes?')
+      );
+    expect(processRequests.at(-1)).toContain('sort=mem');
   });
 
   it('handles fetch error gracefully', async () => {
