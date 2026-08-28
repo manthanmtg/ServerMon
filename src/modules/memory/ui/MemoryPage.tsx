@@ -14,6 +14,7 @@ import {
 } from 'recharts';
 import {
   Activity,
+  AlertTriangle,
   Zap,
   Database,
   Trash2,
@@ -329,20 +330,41 @@ export default function MemoryPage() {
   const { toast } = useToast();
   const [detailedStats, setDetailedStats] = useState<MemoryStats | null>(null);
   const [topProcs, setTopProcs] = useState<MemoryProcess[]>([]);
-  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(true);
+  const [detailsLoadFailed, setDetailsLoadFailed] = useState(false);
 
   const fetchData = useCallback(async () => {
     setIsRefreshing(true);
     try {
-      const [statsRes, procsRes] = await Promise.all([
-        fetch('/api/modules/memory/stats'),
-        fetch('/api/modules/memory/processes?limit=15'),
+      const statsRequest = fetch('/api/modules/memory/stats').then(
+        async (response): Promise<MemoryStats> => {
+          if (!response.ok) throw new Error('Failed to fetch memory stats');
+          return response.json();
+        }
+      );
+      const processesRequest = fetch('/api/modules/memory/processes?limit=15').then(
+        async (response): Promise<MemoryProcess[]> => {
+          if (!response.ok) throw new Error('Failed to fetch memory processes');
+          return response.json();
+        }
+      );
+      const [statsResult, processesResult] = await Promise.allSettled([
+        statsRequest,
+        processesRequest,
       ]);
 
-      if (statsRes.ok) setDetailedStats(await statsRes.json());
-      if (procsRes.ok) setTopProcs(await procsRes.json());
-    } catch (_err: unknown) {
-      console.error('Failed to fetch memory data');
+      if (statsResult.status === 'fulfilled') {
+        setDetailedStats(statsResult.value);
+        setDetailsLoadFailed(false);
+      } else {
+        setDetailsLoadFailed(true);
+      }
+
+      if (processesResult.status === 'fulfilled') {
+        setTopProcs(processesResult.value);
+      }
+    } catch {
+      setDetailsLoadFailed(true);
     } finally {
       setIsRefreshing(false);
     }
@@ -479,69 +501,102 @@ export default function MemoryPage() {
               </button>
             </div>
 
-            <div className="space-y-4">
-              {breakdownRows.map((item) => {
-                const ratio = ((item.value || 0) / (item.total || 1)) * 100;
-                return (
-                  <div key={item.label} className="space-y-1.5">
-                    <div className="flex justify-between text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
-                      <span>{item.label}</span>
-                      <span className="text-foreground">{formatBytes(item.value || 0)}</span>
-                    </div>
-                    <div className="h-2 rounded-full bg-accent/30 overflow-hidden">
-                      <motion.div
-                        initial={{ width: 0 }}
-                        animate={{ width: `${ratio}%` }}
-                        transition={{ duration: 1, ease: 'easeOut' }}
-                        className={cn('h-full', item.color)}
-                      />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            <div className="mt-8 pt-6 border-t border-border/50">
-              <h4 className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest mb-4">
-                Swap Utilization
-              </h4>
-              {detailedStats && detailedStats.swaptotal > 0 ? (
-                <div className="p-4 rounded-2xl bg-accent/20 border border-border/30">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="text-sm font-bold tracking-tight">
-                      {((detailedStats.swapused / detailedStats.swaptotal) * 100).toFixed(1)}% Used
-                    </div>
-                    <div className="text-[11px] font-medium text-muted-foreground">
-                      {formatBytes(detailedStats.swapused)} / {formatBytes(detailedStats.swaptotal)}
-                    </div>
-                  </div>
-                  <div className="h-3 rounded-full bg-background overflow-hidden p-0.5 border border-border/50">
-                    <motion.div
-                      initial={{ width: 0 }}
-                      animate={{
-                        width: `${(detailedStats.swapused / detailedStats.swaptotal) * 100}%`,
-                      }}
-                      transition={{ duration: 1.2, ease: 'easeOut' }}
-                      className="h-full rounded-full bg-warning"
-                    />
+            {!detailedStats ? (
+              detailsLoadFailed ? (
+                <div
+                  role="alert"
+                  className="flex gap-3 rounded-2xl border border-destructive/20 bg-destructive/5 p-4"
+                >
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
+                  <div className="space-y-1">
+                    <p className="text-sm font-bold text-foreground">
+                      Unable to load memory details
+                    </p>
+                    <p className="text-xs leading-relaxed text-muted-foreground">
+                      Retrying automatically. Use refresh to try again now.
+                    </p>
                   </div>
                 </div>
               ) : (
-                <div className="p-4 rounded-2xl bg-amber-500/5 border border-amber-500/10">
-                  <div className="flex gap-3">
-                    <Terminal className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
-                    <div className="space-y-1">
-                      <p className="text-sm font-bold text-amber-600">Swap is Disabled</p>
-                      <p className="text-xs text-muted-foreground leading-relaxed">
-                        Swap space is 0B. This usually means swap is disabled on this system, which
-                        is common in cloud instances and containerized environments to ensure
-                        predictable performance.
-                      </p>
-                    </div>
-                  </div>
+                <div role="status" className="py-12 text-center text-sm text-muted-foreground">
+                  Loading memory details…
                 </div>
-              )}
-            </div>
+              )
+            ) : (
+              <>
+                {detailsLoadFailed && (
+                  <p role="status" className="mb-4 flex items-center gap-1.5 text-xs text-warning">
+                    <AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />
+                    Showing the last memory reading while retrying.
+                  </p>
+                )}
+                <div className="space-y-4">
+                  {breakdownRows.map((item) => {
+                    const ratio = ((item.value || 0) / (item.total || 1)) * 100;
+                    return (
+                      <div key={item.label} className="space-y-1.5">
+                        <div className="flex justify-between text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                          <span>{item.label}</span>
+                          <span className="text-foreground">{formatBytes(item.value || 0)}</span>
+                        </div>
+                        <div className="h-2 rounded-full bg-accent/30 overflow-hidden">
+                          <motion.div
+                            initial={{ width: 0 }}
+                            animate={{ width: `${ratio}%` }}
+                            transition={{ duration: 1, ease: 'easeOut' }}
+                            className={cn('h-full', item.color)}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div className="mt-8 pt-6 border-t border-border/50">
+                  <h4 className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest mb-4">
+                    Swap Utilization
+                  </h4>
+                  {detailedStats.swaptotal > 0 ? (
+                    <div className="p-4 rounded-2xl bg-accent/20 border border-border/30">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="text-sm font-bold tracking-tight">
+                          {((detailedStats.swapused / detailedStats.swaptotal) * 100).toFixed(1)}%
+                          {' Used'}
+                        </div>
+                        <div className="text-[11px] font-medium text-muted-foreground">
+                          {formatBytes(detailedStats.swapused)} /{' '}
+                          {formatBytes(detailedStats.swaptotal)}
+                        </div>
+                      </div>
+                      <div className="h-3 rounded-full bg-background overflow-hidden p-0.5 border border-border/50">
+                        <motion.div
+                          initial={{ width: 0 }}
+                          animate={{
+                            width: `${(detailedStats.swapused / detailedStats.swaptotal) * 100}%`,
+                          }}
+                          transition={{ duration: 1.2, ease: 'easeOut' }}
+                          className="h-full rounded-full bg-warning"
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-4 rounded-2xl bg-amber-500/5 border border-amber-500/10">
+                      <div className="flex gap-3">
+                        <Terminal className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+                        <div className="space-y-1">
+                          <p className="text-sm font-bold text-amber-600">Swap is Disabled</p>
+                          <p className="text-xs text-muted-foreground leading-relaxed">
+                            Swap space is 0B. This usually means swap is disabled on this system,
+                            which is common in cloud instances and containerized environments to
+                            ensure predictable performance.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
           </div>
         </div>
 

@@ -142,6 +142,39 @@ describe('MemoryPage', () => {
     });
   });
 
+  it('does not report swap as disabled when memory details cannot be loaded', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      json: async () => ({ error: 'Memory service unavailable' }),
+    });
+
+    await renderWithToast(<MemoryPage />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent('Unable to load memory details');
+    });
+    expect(screen.queryByText('Swap is Disabled')).toBeNull();
+  });
+
+  it('keeps valid memory statistics when the process list cannot be loaded', async () => {
+    global.fetch = vi.fn().mockImplementation((url: string) => {
+      if (url.includes('/stats')) {
+        return Promise.resolve({ ok: true, json: async () => mockDetailedStats });
+      }
+      return Promise.resolve({
+        ok: false,
+        json: async () => ({ error: 'Processes service unavailable' }),
+      });
+    });
+
+    await renderWithToast(<MemoryPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('25.0% Used')).toBeDefined();
+    });
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
   it('renders top memory-consuming processes', async () => {
     await renderWithToast(<MemoryPage />);
     await waitFor(() => {
