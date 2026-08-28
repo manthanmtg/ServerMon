@@ -36,13 +36,6 @@ export async function runAIRunnerExecutionWrapper(launchPath: string | undefined
   }
 
   const launch = JSON.parse(await readFile(launchPath, 'utf8')) as DurableLaunchFile;
-  const startedAt = new Date();
-  await appendWrapperLog(launch.paths, `starting job ${launch.jobId}`);
-
-  const stdout = createWriteStream(launch.paths.stdoutPath, { flags: 'a' });
-  const stderr = createWriteStream(launch.paths.stderrPath, { flags: 'a' });
-  const combined = createWriteStream(launch.paths.combinedPath, { flags: 'a' });
-
   const launchArgs = buildRunAsUserLaunchArgs({
     shell: launch.shell,
     command: launch.command,
@@ -50,6 +43,13 @@ export async function runAIRunnerExecutionWrapper(launchPath: string | undefined
     runAsUser: launch.runAsUser,
     runAsUserAuthMode: launch.runAsUserAuthMode,
   });
+  const startedAt = new Date();
+  await appendWrapperLog(launch.paths, `starting job ${launch.jobId}`);
+
+  const stdout = createWriteStream(launch.paths.stdoutPath, { flags: 'a' });
+  const stderr = createWriteStream(launch.paths.stderrPath, { flags: 'a' });
+  const combined = createWriteStream(launch.paths.combinedPath, { flags: 'a' });
+
   const child = spawn(launchArgs[0], launchArgs.slice(1), {
     cwd: launch.cwd,
     env: launch.env,

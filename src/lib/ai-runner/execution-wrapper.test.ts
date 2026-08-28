@@ -1,5 +1,5 @@
 /** @vitest-environment node */
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { access, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -199,12 +199,18 @@ describe('ai-runner execution wrapper', () => {
   });
 
   it('throws an error synchronously if runAsUserAuthMode is unsupported', async () => {
-    const { launchPath } = await writeLaunchFile({
+    const { launchPath, paths } = await writeLaunchFile({
       runAsUser: 'root',
       runAsUserAuthMode: 'invalid-mode',
     });
     await expect(runAIRunnerExecutionWrapper(launchPath)).rejects.toThrow(
       'Unsupported run as user auth mode'
+    );
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    await Promise.all(
+      [paths.stdoutPath, paths.stderrPath, paths.combinedPath].map((artifactPath) =>
+        expect(access(artifactPath)).rejects.toThrow(/ENOENT/)
+      )
     );
   });
 
