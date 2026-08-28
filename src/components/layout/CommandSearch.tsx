@@ -2,13 +2,14 @@
 
 import {
   useCallback,
-  useEffect,
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
   type KeyboardEvent,
   type MouseEvent,
 } from 'react';
+import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import { ArrowUpDown, CornerDownLeft, Search, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -17,6 +18,7 @@ import {
   rankCommandSearchItems,
   type CommandSearchItem,
 } from './commandSearchUtils';
+import { useOverlayAccessibility } from '@/components/ui/overlay/useOverlayAccessibility';
 
 interface CommandSearchProps {
   isOpen: boolean;
@@ -24,9 +26,17 @@ interface CommandSearchProps {
   items?: CommandSearchItem[];
 }
 
+const subscribeToClient = () => () => undefined;
+
 export default function CommandSearch({ isOpen, onClose, items }: CommandSearchProps) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const mounted = useSyncExternalStore(
+    subscribeToClient,
+    () => true,
+    () => false
+  );
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
   const searchItems = useMemo(() => items ?? buildGlobalSearchItems(), [items]);
@@ -35,10 +45,12 @@ export default function CommandSearch({ isOpen, onClose, items }: CommandSearchP
     [query, searchItems]
   );
 
-  useEffect(() => {
-    if (!isOpen) return;
-    inputRef.current?.focus();
-  }, [isOpen]);
+  useOverlayAccessibility({
+    open: isOpen && mounted,
+    containerRef: dialogRef,
+    initialFocusRef: inputRef,
+    onEscape: onClose,
+  });
 
   const handleQueryChange = useCallback((value: string) => {
     setQuery(value);
@@ -75,12 +87,6 @@ export default function CommandSearch({ isOpen, onClose, items }: CommandSearchP
 
   const handleKeyDown = useCallback(
     (event: KeyboardEvent<HTMLInputElement>) => {
-      if (event.key === 'Escape') {
-        event.preventDefault();
-        onClose();
-        return;
-      }
-
       if (event.key === 'ArrowDown') {
         event.preventDefault();
         setSelectedIndex((current) => Math.min(current + 1, Math.max(results.length - 1, 0)));
@@ -98,13 +104,16 @@ export default function CommandSearch({ isOpen, onClose, items }: CommandSearchP
         selectItem(selectedItem);
       }
     },
-    [onClose, results, selectedItem, selectItem]
+    [results, selectedItem, selectItem]
   );
 
-  if (!isOpen) return null;
+  if (!mounted || !isOpen) return null;
 
-  return (
-    <div className="fixed inset-0 z-[80] flex items-start justify-center bg-background/70 px-3 pt-[14vh] backdrop-blur-sm sm:px-6">
+  return createPortal(
+    <div
+      data-overlay-root
+      className="fixed inset-0 z-[80] flex items-start justify-center bg-background/70 px-3 pt-[14vh] backdrop-blur-sm sm:px-6"
+    >
       <button
         type="button"
         aria-label="Close search"
@@ -112,6 +121,7 @@ export default function CommandSearch({ isOpen, onClose, items }: CommandSearchP
         onClick={onClose}
       />
       <div
+        ref={dialogRef}
         className="relative w-full max-w-2xl overflow-hidden rounded-lg border border-border bg-popover text-popover-foreground shadow-2xl"
         role="dialog"
         aria-modal="true"
@@ -198,6 +208,7 @@ export default function CommandSearch({ isOpen, onClose, items }: CommandSearchP
           </span>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

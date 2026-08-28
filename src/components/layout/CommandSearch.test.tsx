@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react';
+import { useState } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import CommandSearch from './CommandSearch';
 
@@ -36,7 +37,7 @@ describe('CommandSearch', () => {
     fireEvent.keyDown(screen.getByRole('combobox'), { key: 'Enter' });
 
     expect(mockPush).toHaveBeenCalledWith('/ai-runner?tab=history');
-    expect(onClose).toHaveBeenCalled();
+    expect(onClose).toHaveBeenCalledTimes(1);
   });
 
   it('closes on Escape', () => {
@@ -45,6 +46,37 @@ describe('CommandSearch', () => {
 
     fireEvent.keyDown(screen.getByRole('combobox'), { key: 'Escape' });
 
-    expect(onClose).toHaveBeenCalled();
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('isolates the page and restores the trigger after closing', () => {
+    function SearchHarness() {
+      const [isOpen, setIsOpen] = useState(false);
+
+      return (
+        <main data-testid="search-page">
+          <button type="button" onClick={() => setIsOpen(true)}>
+            Open search
+          </button>
+          <CommandSearch isOpen={isOpen} onClose={() => setIsOpen(false)} />
+        </main>
+      );
+    }
+
+    render(<SearchHarness />);
+
+    const trigger = screen.getByRole('button', { name: 'Open search' });
+    trigger.focus();
+    fireEvent.click(trigger);
+
+    expect(screen.getByRole('combobox')).toHaveFocus();
+    expect(document.body.style.overflow).toBe('hidden');
+    expect(screen.getByTestId('search-page').closest('[inert]')).not.toBeNull();
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Close search' })[1]!);
+
+    expect(screen.queryByRole('combobox')).toBeNull();
+    expect(document.body.style.overflow).toBe('');
+    expect(trigger).toHaveFocus();
   });
 });
