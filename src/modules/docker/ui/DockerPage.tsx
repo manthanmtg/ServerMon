@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Database } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
+import ConfirmationModal from '@/components/ui/ConfirmationModal';
 import { PageSkeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/components/ui/toast';
 import dynamic from 'next/dynamic';
@@ -28,6 +29,23 @@ const DockerTerminal = dynamic(
 
 const DOCKER_SNAPSHOT_TIMEOUT_MS = 8000;
 
+type DockerAssetType = 'images' | 'volumes' | 'networks';
+
+type DockerRemovalTarget =
+  | {
+      kind: 'container';
+      id: string;
+      name: string;
+      resourceLabel: 'container';
+    }
+  | {
+      kind: 'asset';
+      id: string;
+      name: string;
+      resourceLabel: 'image' | 'volume' | 'network';
+      assetType: DockerAssetType;
+    };
+
 export function selectDockerContainer(
   containers: DockerSnapshot['containers'],
   selectedContainerId: string | null
@@ -47,6 +65,8 @@ export default function DockerPage() {
   const [terminalCommand, setTerminalCommand] = useState('docker ps -a\n');
   const [sessionId] = useState(() => `docker-${crypto.randomUUID()}`);
   const [pendingActionId, setPendingActionId] = useState<string | null>(null);
+  const [removalTarget, setRemovalTarget] = useState<DockerRemovalTarget | null>(null);
+  const [removing, setRemoving] = useState(false);
   const snapshotRequestSequence = useRef(0);
 
   const loadSnapshot = useCallback(async () => {
@@ -156,8 +176,6 @@ export default function DockerPage() {
 
   const runAction = useCallback(
     async (containerId: string, action: 'start' | 'stop' | 'restart' | 'remove') => {
-      if (action === 'remove' && !window.confirm('Are you sure you want to remove this container?'))
-        return;
       setPendingActionId(containerId);
       try {
         const response = await fetch(`/api/modules/docker/${containerId}/action`, {
@@ -186,8 +204,7 @@ export default function DockerPage() {
   );
 
   const deleteAsset = useCallback(
-    async (id: string, type: 'images' | 'volumes' | 'networks') => {
-      if (!window.confirm(`Are you sure you want to remove this ${type.slice(0, -1)}?`)) return;
+    async (id: string, type: DockerAssetType) => {
       const url = `/api/modules/docker/${type}/${id}`;
       try {
         const response = await fetch(url, { method: 'DELETE' });
@@ -207,6 +224,75 @@ export default function DockerPage() {
     },
     [loadSnapshot, toast]
   );
+
+  const requestContainerRemoval = useCallback(
+    (id: string) => {
+      const container = snapshot?.containers.find((item) => item.id === id);
+      if (!container) return;
+
+      setRemovalTarget({
+        kind: 'container',
+        id: container.id,
+        name: container.name,
+        resourceLabel: 'container',
+      });
+    },
+    [snapshot]
+  );
+
+  const requestAssetRemoval = useCallback(
+    (id: string, assetType: DockerAssetType) => {
+      if (assetType === 'images') {
+        const image = snapshot?.images.find((item) => item.id === id);
+        setRemovalTarget({
+          kind: 'asset',
+          id,
+          name: image ? `${image.repository}:${image.tag}` : id,
+          resourceLabel: 'image',
+          assetType,
+        });
+        return;
+      }
+
+      if (assetType === 'volumes') {
+        const volume = snapshot?.volumes.find((item) => item.name === id);
+        setRemovalTarget({
+          kind: 'asset',
+          id,
+          name: volume?.name ?? id,
+          resourceLabel: 'volume',
+          assetType,
+        });
+        return;
+      }
+
+      const network = snapshot?.networks.find((item) => item.id === id);
+      setRemovalTarget({
+        kind: 'asset',
+        id,
+        name: network?.name ?? id,
+        resourceLabel: 'network',
+        assetType,
+      });
+    },
+    [snapshot]
+  );
+
+  const confirmRemoval = useCallback(async () => {
+    if (!removalTarget || removing) return;
+
+    setRemoving(true);
+    try {
+      if (removalTarget.kind === 'container') {
+        await runAction(removalTarget.id, 'remove');
+      } else {
+        await deleteAsset(removalTarget.id, removalTarget.assetType);
+      }
+    } finally {
+      setRemoving(false);
+      setRemovalTarget(null);
+    }
+  }, [deleteAsset, removalTarget, removing, runAction]);
 
   const handleLogs = useCallback((id: string, name: string) => {
     setSelectedContainerId(id);
@@ -249,7 +335,13 @@ export default function DockerPage() {
           expandedId={expandedId}
           pendingActionId={pendingActionId}
           onExpand={setExpandedId}
-          onAction={runAction}
+          onAction={(id, action) => {
+            if (action === 'remove') {
+              requestContainerRemoval(id);
+              return;
+            }
+            void runAction(id, action);
+          }}
           onLogs={handleLogs}
           onExec={handleExec}
         />
@@ -258,7 +350,7 @@ export default function DockerPage() {
           images={snapshot?.images || []}
           volumes={snapshot?.volumes || []}
           networks={snapshot?.networks || []}
-          onDelete={deleteAsset}
+          onDelete={requestAssetRemoval}
         />
 
         <DockerTerminal
@@ -292,6 +384,26 @@ export default function DockerPage() {
           </Card>
         )}
       </div>
+
+      <ConfirmationModal
+        isOpen={removalTarget !== null}
+        title={
+          removalTarget
+            ? `Remove ${removalTarget.resourceLabel} ${removalTarget.name}?`
+            : 'Remove Docker resource?'
+        }
+        message={
+          removalTarget?.resourceLabel === 'volume'
+            ? 'This permanently removes the volume and the data stored in it. This cannot be undone.'
+            : 'This action cannot be undone.'
+        }
+        confirmLabel={removalTarget ? `Remove ${removalTarget.resourceLabel}` : 'Remove'}
+        cancelLabel={removalTarget ? `Keep ${removalTarget.resourceLabel}` : 'Cancel'}
+        variant="danger"
+        isLoading={removing}
+        onConfirm={() => void confirmRemoval()}
+        onCancel={() => setRemovalTarget(null)}
+      />
     </div>
   );
 }

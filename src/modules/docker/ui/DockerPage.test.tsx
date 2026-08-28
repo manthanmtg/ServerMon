@@ -161,8 +161,6 @@ describe('DockerPage', () => {
         json: async () => mockSnapshot,
       })
     );
-    // Mock window.confirm
-    vi.spyOn(window, 'confirm').mockReturnValue(true);
   });
 
   afterEach(() => {
@@ -334,20 +332,26 @@ describe('DockerPage', () => {
     );
   });
 
-  it('triggers container action: remove', async () => {
+  it('requires an in-app confirmation before removing a container', async () => {
     await renderPage();
     await waitFor(() => screen.getByText('Docker operations center'));
 
     const tableContainer = screen.getByTestId('docker-containers-table');
-    const removeButtons = within(tableContainer)
-      .getAllByRole('button')
-      .filter((b) => b.querySelector('svg.lucide-trash2') || b.innerHTML.includes('lucide-trash2'));
-
-    await act(async () => {
-      fireEvent.click(removeButtons[0]);
+    const removeButton = within(tableContainer).getByRole('button', {
+      name: 'Remove container web-server',
     });
 
-    expect(window.confirm).toHaveBeenCalledWith('Are you sure you want to remove this container?');
+    await act(async () => {
+      fireEvent.click(removeButton);
+    });
+
+    expect(screen.getByRole('alertdialog')).toHaveTextContent('Remove container web-server?');
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Remove container' }));
+    });
+
     expect(global.fetch).toHaveBeenCalledWith(
       '/api/modules/docker/container-1/action',
       expect.objectContaining({
@@ -355,6 +359,25 @@ describe('DockerPage', () => {
         body: JSON.stringify({ action: 'remove' }),
       })
     );
+  });
+
+  it('leaves a container untouched when its removal is cancelled', async () => {
+    await renderPage();
+    await waitFor(() => screen.getByText('Docker operations center'));
+
+    const tableContainer = screen.getByTestId('docker-containers-table');
+    await act(async () => {
+      fireEvent.click(
+        within(tableContainer).getByRole('button', { name: 'Remove container web-server' })
+      );
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Keep container' }));
+    });
+
+    expect(screen.queryByRole('alertdialog')).toBeNull();
+    expect(global.fetch).toHaveBeenCalledTimes(1);
   });
 
   it('triggers container logs and exec commands', async () => {
@@ -396,20 +419,23 @@ describe('DockerPage', () => {
     );
   });
 
-  it('triggers asset deletion (image)', async () => {
+  it('does not remove an asset until its confirmation is accepted', async () => {
     await renderPage();
     await waitFor(() => screen.getByTestId('docker-images-table'));
 
     const imageTable = screen.getByTestId('docker-images-table');
-    const deleteButton = within(imageTable)
-      .getAllByRole('button')
-      .find((b) => b.innerHTML.includes('lucide-trash2'));
-    if (!deleteButton) throw new Error('Delete button not found');
+    const deleteButton = within(imageTable).getByRole('button', { name: 'Delete image nginx' });
     await act(async () => {
       fireEvent.click(deleteButton);
     });
 
-    expect(window.confirm).toHaveBeenCalled();
+    expect(screen.getByRole('alertdialog')).toHaveTextContent('Remove image nginx:latest?');
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Remove image' }));
+    });
+
     expect(global.fetch).toHaveBeenCalledWith(
       '/api/modules/docker/images/image-1',
       expect.objectContaining({ method: 'DELETE' })
