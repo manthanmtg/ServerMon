@@ -4,6 +4,7 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { Save, X, Undo2, Redo2, Search, WrapText, Copy, Check, LoaderCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import ConfirmationModal from '@/components/ui/ConfirmationModal';
 import { cn } from '@/lib/utils';
 
 import {
@@ -203,6 +204,7 @@ export default function CodeEditorModal({
   const [wordWrap, setWordWrap] = useState(false);
   const [copied, setCopied] = useState(false);
   const [dirty, setDirty] = useState(false);
+  const [showDiscardConfirmation, setShowDiscardConfirmation] = useState(false);
   const [cursorInfo, setCursorInfo] = useState({ line: 1, col: 1 });
 
   const handleSave = useCallback(() => {
@@ -212,8 +214,23 @@ export default function CodeEditorModal({
 
   useEffect(() => {
     setDirty(false);
+    setShowDiscardConfirmation(false);
     setCursorInfo({ line: 1, col: 1 });
   }, [content]);
+
+  const handleCloseRequest = () => {
+    if (saving) return;
+    if (dirty) {
+      setShowDiscardConfirmation(true);
+      return;
+    }
+    onClose();
+  };
+
+  const handleDiscardChanges = () => {
+    setShowDiscardConfirmation(false);
+    onClose();
+  };
 
   useEffect(() => {
     if (!containerRef.current || loading) return;
@@ -390,7 +407,10 @@ export default function CodeEditorModal({
             variant="ghost"
             size="icon"
             className="h-8 w-8 text-muted-foreground hover:text-foreground"
-            onClick={onClose}
+            aria-label="Close editor"
+            title="Close editor"
+            onClick={handleCloseRequest}
+            disabled={saving}
           >
             <X className="h-4 w-4" />
           </Button>
@@ -428,6 +448,16 @@ export default function CodeEditorModal({
           <span className="opacity-50">Cmd+F to search</span>
         </div>
       </div>
+
+      <ConfirmationModal
+        isOpen={showDiscardConfirmation}
+        onConfirm={handleDiscardChanges}
+        onCancel={() => setShowDiscardConfirmation(false)}
+        title="Discard unsaved changes?"
+        message="Your edits have not been saved. Discard them and close the editor?"
+        confirmLabel="Discard changes"
+        cancelLabel="Keep editing"
+      />
     </div>
   );
 }

@@ -5,6 +5,8 @@ import { ToastProvider } from '@/components/ui/toast';
 
 // ── Hoisted mock references ────────────────────────────────────────────────────
 
+const mockEditorUpdateListener = vi.hoisted(() => vi.fn<(listener: unknown) => unknown>(() => []));
+
 const { mockEditorViewDestroy, mockEditorViewFocus, MockEditorView } = vi.hoisted(() => {
   const mockEditorViewDestroy = vi.fn();
   const mockEditorViewFocus = vi.fn();
@@ -36,7 +38,7 @@ const { mockEditorViewDestroy, mockEditorViewFocus, MockEditorView } = vi.hoiste
     theme: ReturnType<typeof vi.fn>;
   } & ReturnType<typeof vi.fn>;
 
-  MockEditorView.updateListener = { of: vi.fn(() => []) };
+  MockEditorView.updateListener = { of: mockEditorUpdateListener };
   MockEditorView.lineWrapping = [];
   MockEditorView.theme = vi.fn(() => []);
 
@@ -394,6 +396,49 @@ describe('CodeEditorModal', () => {
     const xButton = allButtons[allButtons.length - 1];
     fireEvent.click(xButton);
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('asks before discarding unsaved editor changes', () => {
+    const onCloseMock = vi.fn();
+    render(<CodeEditorModal {...defaultProps} onClose={onCloseMock} />);
+
+    const updateListener = mockEditorUpdateListener.mock.calls.at(-1)?.[0] as
+      | ((update: {
+          docChanged: boolean;
+          selectionSet: boolean;
+          state: {
+            selection: { main: { head: number } };
+            doc: { lineAt: (pos: number) => unknown };
+          };
+        }) => void)
+      | undefined;
+    expect(updateListener).toBeDefined();
+
+    act(() => {
+      updateListener?.({
+        docChanged: true,
+        selectionSet: false,
+        state: {
+          selection: { main: { head: 0 } },
+          doc: { lineAt: () => ({ number: 1, from: 0 }) },
+        },
+      });
+    });
+
+    expect(screen.getByText('Modified')).toBeDefined();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close editor' }));
+
+    expect(onCloseMock).not.toHaveBeenCalled();
+    expect(screen.getByRole('alertdialog')).toHaveAccessibleName('Discard unsaved changes?');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Keep editing' }));
+    expect(onCloseMock).not.toHaveBeenCalled();
+    expect(screen.queryByRole('alertdialog')).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close editor' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Discard changes' }));
+    expect(onCloseMock).toHaveBeenCalledTimes(1);
   });
 
   // ── Toolbar buttons ───────────────────────────────────────────────────────────
