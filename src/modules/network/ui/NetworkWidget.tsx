@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { ArrowDown, ArrowUp, Network } from 'lucide-react';
 import { isAbortError, safeJson, resilientFetch } from '@/lib/fetch-utils';
@@ -36,12 +36,16 @@ export default function NetworkWidget() {
   const [loadError, setLoadError] = useState(false);
   const [isEmpty, setIsEmpty] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const requestSequence = useRef(0);
 
   useEffect(() => {
     let mounted = true;
     const controller = new AbortController();
 
     const fetchStats = async () => {
+      const currentRequest = ++requestSequence.current;
+      const isCurrentRequest = () => mounted && currentRequest === requestSequence.current;
+
       try {
         const res = await resilientFetch('/api/modules/network', {
           timeout: 4000,
@@ -61,7 +65,7 @@ export default function NetworkWidget() {
         }
 
         if (data.stats.length === 0) {
-          if (mounted) {
+          if (isCurrentRequest()) {
             setLoadError(true);
             setStats(null);
             setIsEmpty(true);
@@ -69,7 +73,7 @@ export default function NetworkWidget() {
           return;
         }
 
-        if (mounted) {
+        if (isCurrentRequest()) {
           const primary = data.stats.find((s) => !isLoopbackInterface(s.iface)) || data.stats[0];
           setLoadError(false);
           setStats({ rx: primary.rx_sec, tx: primary.tx_sec, iface: primary.iface });
@@ -79,12 +83,12 @@ export default function NetworkWidget() {
         if (!mounted || isAbortError(error)) {
           return;
         }
-        if (mounted) {
+        if (isCurrentRequest()) {
           setLoadError(true);
           setIsEmpty(false);
         }
       } finally {
-        if (mounted) {
+        if (isCurrentRequest()) {
           setIsLoading(false);
         }
       }

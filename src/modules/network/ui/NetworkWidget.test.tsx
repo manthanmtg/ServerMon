@@ -11,6 +11,22 @@ const mockNetworkData = {
   source: 'live',
 };
 
+const mockFetchResponse = (payload: unknown, init?: ResponseInit) =>
+  new Response(JSON.stringify(payload), {
+    headers: { 'content-type': 'application/json' },
+    ...init,
+  });
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+  return { promise, resolve, reject };
+}
+
 describe('NetworkWidget', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -117,6 +133,79 @@ describe('NetworkWidget', () => {
     expect(screen.getByText('1 MiB/s')).toBeInTheDocument();
     expect(screen.getByText('512 KiB/s')).toBeInTheDocument();
     expect(screen.getByText('Showing last reading')).toBeInTheDocument();
+  });
+
+  it('keeps the newest network reading when an older poll succeeds later', async () => {
+    vi.useFakeTimers();
+    const staleResponse = deferred<Response>();
+    const freshResponse = deferred<Response>();
+    global.fetch = vi
+      .fn()
+      .mockImplementationOnce(() => staleResponse.promise)
+      .mockImplementationOnce(() => freshResponse.promise);
+
+    const { unmount } = render(<NetworkWidget />);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5000);
+    });
+
+    await act(async () => {
+      freshResponse.resolve(
+        mockFetchResponse({
+          ...mockNetworkData,
+          stats: [{ ...mockNetworkData.stats[0], iface: 'fresh0' }],
+        })
+      );
+    });
+    expect(screen.getByText('fresh0')).toBeInTheDocument();
+
+    await act(async () => {
+      staleResponse.resolve(
+        mockFetchResponse({
+          ...mockNetworkData,
+          stats: [{ ...mockNetworkData.stats[0], iface: 'stale0' }],
+        })
+      );
+    });
+
+    expect(screen.getByText('fresh0')).toBeInTheDocument();
+    expect(screen.queryByText('stale0')).toBeNull();
+    unmount();
+  });
+
+  it('ignores an older poll failure after a newer reading succeeds', async () => {
+    vi.useFakeTimers();
+    const staleResponse = deferred<Response>();
+    const freshResponse = deferred<Response>();
+    global.fetch = vi
+      .fn()
+      .mockImplementationOnce(() => staleResponse.promise)
+      .mockImplementationOnce(() => freshResponse.promise)
+      .mockRejectedValueOnce(new Error('Stale retry failed'));
+
+    const { unmount } = render(<NetworkWidget />);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5000);
+    });
+
+    await act(async () => {
+      freshResponse.resolve(
+        mockFetchResponse({
+          ...mockNetworkData,
+          stats: [{ ...mockNetworkData.stats[0], iface: 'fresh0' }],
+        })
+      );
+    });
+    expect(screen.getByText('fresh0')).toBeInTheDocument();
+
+    await act(async () => {
+      staleResponse.reject(new Error('Stale request failed'));
+      await vi.advanceTimersByTimeAsync(250);
+    });
+
+    expect(screen.getByText('fresh0')).toBeInTheDocument();
+    expect(screen.queryByText('Showing last reading')).toBeNull();
+    unmount();
   });
 
   it.each([
