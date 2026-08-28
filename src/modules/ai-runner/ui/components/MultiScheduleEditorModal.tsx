@@ -1,9 +1,9 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { FileJson, Upload, X } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { FileJson, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Dialog } from '@/components/ui/Dialog';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/components/ui/toast';
@@ -273,192 +273,18 @@ export function MultiScheduleEditorModal({
   };
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 p-4 backdrop-blur-sm"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="multi-schedule-editor-title"
-    >
-      <motion.div
-        initial={{ opacity: 0, scale: 0.985, y: 10 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        transition={{ duration: 0.2, ease: 'easeOut' }}
-        className="flex max-h-[90vh] w-full max-w-6xl flex-col overflow-hidden rounded-[24px] border border-border bg-card shadow-2xl"
-      >
-        <div className="flex items-start justify-between gap-4 border-b border-border/60 px-6 py-5">
-          <div>
-            <h2 id="multi-schedule-editor-title" className="text-xl font-semibold tracking-tight">
-              Multi Schedule Editor
-            </h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Edit cron cadence, timeout, and retries across existing schedules.
-            </p>
-          </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onClose}
-            aria-label="Close multi schedule editor"
-          >
-            <X className="h-4 w-4" />
-          </Button>
-        </div>
-
-        <div className="flex-1 space-y-4 overflow-y-auto px-6 py-5">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex flex-wrap gap-2">
-              <Badge variant="outline">{schedules.length} schedules</Badge>
-              <Badge variant={dirtyRows.length > 0 ? 'warning' : 'outline'}>
-                {dirtyRows.length} changed
-              </Badge>
-            </div>
-            <Button variant="outline" onClick={() => setCsvOpen((current) => !current)}>
-              <FileJson className="h-4 w-4" />
-              Import CSV
-            </Button>
-          </div>
-
-          {csvOpen ? (
-            <div className="rounded-[16px] border border-border/70 bg-muted/20 p-4">
-              <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
-                <div>
-                  <label className="text-sm font-medium" htmlFor="multi-schedule-csv">
-                    CSV schedule updates
-                  </label>
-                  <textarea
-                    id="multi-schedule-csv"
-                    aria-label="CSV schedule updates"
-                    className="mt-2 min-h-40 w-full rounded-lg border border-input bg-background px-3 py-2 font-mono text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                    value={csvText}
-                    onChange={(event) => setCsvText(event.target.value)}
-                    placeholder={
-                      'name,cronExpression,timeout,retries\nNightly cleanup,0 2 * * *,45,1'
-                    }
-                  />
-                </div>
-                <div className="text-sm text-muted-foreground">
-                  <p className="font-medium text-foreground">Accepted formats</p>
-                  <pre className="mt-2 overflow-x-auto rounded-lg bg-background p-3 text-xs">
-                    {'name,cronExpression,timeout,retries\nNightly cleanup,0 2 * * *,45,1'}
-                  </pre>
-                  <pre className="mt-2 overflow-x-auto rounded-lg bg-background p-3 text-xs">
-                    {'id,cronExpression,timeout,retries\n665...,*/30 * * * *,30,0'}
-                  </pre>
-                  <Button className="mt-3 w-full" onClick={applyCsv}>
-                    <Upload className="h-4 w-4" />
-                    Apply CSV
-                  </Button>
-                </div>
-              </div>
-              {csvErrors.length > 0 ? (
-                <div className="mt-3 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-                  {csvErrors.map((error) => (
-                    <p key={error}>{error}</p>
-                  ))}
-                </div>
-              ) : null}
-            </div>
-          ) : null}
-
-          <div className="overflow-x-auto rounded-[16px] border border-border/70">
-            <table className="min-w-full divide-y divide-border/70 text-sm">
-              <thead className="bg-muted/30 text-left text-xs uppercase text-muted-foreground">
-                <tr>
-                  <th className="px-4 py-3 font-medium">Schedule</th>
-                  <th className="px-4 py-3 font-medium">Prompt</th>
-                  <th className="px-4 py-3 font-medium">Profile</th>
-                  <th className="px-4 py-3 font-medium">Workspace</th>
-                  <th className="px-4 py-3 font-medium">Next launch</th>
-                  <th className="px-4 py-3 font-medium">Cron</th>
-                  <th className="px-4 py-3 font-medium">Timeout</th>
-                  <th className="px-4 py-3 font-medium">Retries</th>
-                  <th className="px-4 py-3 font-medium">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border/70">
-                {schedules.map((schedule) => {
-                  const row = draftMap[schedule._id];
-                  if (!row) return null;
-                  const rowDirty = dirtyRowIds.has(schedule._id);
-                  const rowError = localErrors[schedule._id] ?? serverErrorMap[schedule._id];
-                  return (
-                    <tr key={schedule._id} className={cn(rowDirty && 'bg-warning/5')}>
-                      <td className="min-w-48 px-4 py-3 align-top">
-                        <p className="font-medium">{schedule.name}</p>
-                        <p className="mt-1 font-mono text-xs text-muted-foreground">
-                          {schedule._id}
-                        </p>
-                      </td>
-                      <td className="min-w-40 px-4 py-3 align-top">
-                        {promptNames[schedule.promptId] ?? 'Unknown prompt'}
-                      </td>
-                      <td className="min-w-40 px-4 py-3 align-top">
-                        {profileNames[schedule.agentProfileId] ?? 'Unknown profile'}
-                      </td>
-                      <td className="min-w-56 px-4 py-3 align-top">
-                        <p className="font-medium">
-                          {schedule.workspaceId
-                            ? (workspaceNames[schedule.workspaceId] ?? 'Unknown workspace')
-                            : 'Custom path'}
-                        </p>
-                        <p className="mt-1 font-mono text-xs leading-5 text-muted-foreground break-all">
-                          {schedule.workingDirectory || 'No directory'}
-                        </p>
-                      </td>
-                      <td className="min-w-40 px-4 py-3 align-top">
-                        {formatScheduleDate(schedule.nextRunTime)}
-                      </td>
-                      <td className="min-w-56 px-4 py-3 align-top">
-                        <Input
-                          aria-label={`${schedule.name} cron expression`}
-                          value={row.cronExpression}
-                          onChange={(event) =>
-                            updateDraft(schedule._id, 'cronExpression', event.target.value)
-                          }
-                        />
-                      </td>
-                      <td className="min-w-28 px-4 py-3 align-top">
-                        <Input
-                          type="number"
-                          min={1}
-                          max={24 * 60}
-                          aria-label={`${schedule.name} timeout`}
-                          value={row.timeout}
-                          onChange={(event) =>
-                            updateDraft(schedule._id, 'timeout', event.target.value)
-                          }
-                        />
-                      </td>
-                      <td className="min-w-28 px-4 py-3 align-top">
-                        <Input
-                          type="number"
-                          min={0}
-                          max={9}
-                          aria-label={`${schedule.name} retries`}
-                          value={row.retries}
-                          onChange={(event) =>
-                            updateDraft(schedule._id, 'retries', event.target.value)
-                          }
-                        />
-                      </td>
-                      <td className="min-w-40 px-4 py-3 align-top">
-                        {rowError ? (
-                          <span className="text-xs font-medium text-destructive">{rowError}</span>
-                        ) : rowDirty ? (
-                          <Badge variant="warning">Changed</Badge>
-                        ) : (
-                          <Badge variant="outline">Current</Badge>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        <div className="flex flex-col gap-3 border-t border-border/60 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+      title="Multi Schedule Editor"
+      description="Edit cron cadence, timeout, and retries across existing schedules."
+      size="xl"
+      closeLabel="Close multi schedule editor"
+      contentClassName="max-h-[90vh] rounded-[24px]"
+      footer={
+        <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-muted-foreground">
             Save validates every changed row before applying updates.
           </p>
@@ -471,7 +297,159 @@ export function MultiScheduleEditorModal({
             </Button>
           </div>
         </div>
-      </motion.div>
-    </div>
+      }
+    >
+      <div className="space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap gap-2">
+            <Badge variant="outline">{schedules.length} schedules</Badge>
+            <Badge variant={dirtyRows.length > 0 ? 'warning' : 'outline'}>
+              {dirtyRows.length} changed
+            </Badge>
+          </div>
+          <Button variant="outline" onClick={() => setCsvOpen((current) => !current)}>
+            <FileJson className="h-4 w-4" />
+            Import CSV
+          </Button>
+        </div>
+
+        {csvOpen ? (
+          <div className="rounded-[16px] border border-border/70 bg-muted/20 p-4">
+            <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
+              <div>
+                <label className="text-sm font-medium" htmlFor="multi-schedule-csv">
+                  CSV schedule updates
+                </label>
+                <textarea
+                  id="multi-schedule-csv"
+                  aria-label="CSV schedule updates"
+                  className="mt-2 min-h-40 w-full rounded-lg border border-input bg-background px-3 py-2 font-mono text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  value={csvText}
+                  onChange={(event) => setCsvText(event.target.value)}
+                  placeholder={
+                    'name,cronExpression,timeout,retries\nNightly cleanup,0 2 * * *,45,1'
+                  }
+                />
+              </div>
+              <div className="text-sm text-muted-foreground">
+                <p className="font-medium text-foreground">Accepted formats</p>
+                <pre className="mt-2 overflow-x-auto rounded-lg bg-background p-3 text-xs">
+                  {'name,cronExpression,timeout,retries\nNightly cleanup,0 2 * * *,45,1'}
+                </pre>
+                <pre className="mt-2 overflow-x-auto rounded-lg bg-background p-3 text-xs">
+                  {'id,cronExpression,timeout,retries\n665...,*/30 * * * *,30,0'}
+                </pre>
+                <Button className="mt-3 w-full" onClick={applyCsv}>
+                  <Upload className="h-4 w-4" />
+                  Apply CSV
+                </Button>
+              </div>
+            </div>
+            {csvErrors.length > 0 ? (
+              <div className="mt-3 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                {csvErrors.map((error) => (
+                  <p key={error}>{error}</p>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+
+        <div className="overflow-x-auto rounded-[16px] border border-border/70">
+          <table className="min-w-full divide-y divide-border/70 text-sm">
+            <thead className="bg-muted/30 text-left text-xs uppercase text-muted-foreground">
+              <tr>
+                <th className="px-4 py-3 font-medium">Schedule</th>
+                <th className="px-4 py-3 font-medium">Prompt</th>
+                <th className="px-4 py-3 font-medium">Profile</th>
+                <th className="px-4 py-3 font-medium">Workspace</th>
+                <th className="px-4 py-3 font-medium">Next launch</th>
+                <th className="px-4 py-3 font-medium">Cron</th>
+                <th className="px-4 py-3 font-medium">Timeout</th>
+                <th className="px-4 py-3 font-medium">Retries</th>
+                <th className="px-4 py-3 font-medium">Status</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border/70">
+              {schedules.map((schedule) => {
+                const row = draftMap[schedule._id];
+                if (!row) return null;
+                const rowDirty = dirtyRowIds.has(schedule._id);
+                const rowError = localErrors[schedule._id] ?? serverErrorMap[schedule._id];
+                return (
+                  <tr key={schedule._id} className={cn(rowDirty && 'bg-warning/5')}>
+                    <td className="min-w-48 px-4 py-3 align-top">
+                      <p className="font-medium">{schedule.name}</p>
+                      <p className="mt-1 font-mono text-xs text-muted-foreground">{schedule._id}</p>
+                    </td>
+                    <td className="min-w-40 px-4 py-3 align-top">
+                      {promptNames[schedule.promptId] ?? 'Unknown prompt'}
+                    </td>
+                    <td className="min-w-40 px-4 py-3 align-top">
+                      {profileNames[schedule.agentProfileId] ?? 'Unknown profile'}
+                    </td>
+                    <td className="min-w-56 px-4 py-3 align-top">
+                      <p className="font-medium">
+                        {schedule.workspaceId
+                          ? (workspaceNames[schedule.workspaceId] ?? 'Unknown workspace')
+                          : 'Custom path'}
+                      </p>
+                      <p className="mt-1 font-mono text-xs leading-5 text-muted-foreground break-all">
+                        {schedule.workingDirectory || 'No directory'}
+                      </p>
+                    </td>
+                    <td className="min-w-40 px-4 py-3 align-top">
+                      {formatScheduleDate(schedule.nextRunTime)}
+                    </td>
+                    <td className="min-w-56 px-4 py-3 align-top">
+                      <Input
+                        aria-label={`${schedule.name} cron expression`}
+                        value={row.cronExpression}
+                        onChange={(event) =>
+                          updateDraft(schedule._id, 'cronExpression', event.target.value)
+                        }
+                      />
+                    </td>
+                    <td className="min-w-28 px-4 py-3 align-top">
+                      <Input
+                        type="number"
+                        min={1}
+                        max={24 * 60}
+                        aria-label={`${schedule.name} timeout`}
+                        value={row.timeout}
+                        onChange={(event) =>
+                          updateDraft(schedule._id, 'timeout', event.target.value)
+                        }
+                      />
+                    </td>
+                    <td className="min-w-28 px-4 py-3 align-top">
+                      <Input
+                        type="number"
+                        min={0}
+                        max={9}
+                        aria-label={`${schedule.name} retries`}
+                        value={row.retries}
+                        onChange={(event) =>
+                          updateDraft(schedule._id, 'retries', event.target.value)
+                        }
+                      />
+                    </td>
+                    <td className="min-w-40 px-4 py-3 align-top">
+                      {rowError ? (
+                        <span className="text-xs font-medium text-destructive">{rowError}</span>
+                      ) : rowDirty ? (
+                        <Badge variant="warning">Changed</Badge>
+                      ) : (
+                        <Badge variant="outline">Current</Badge>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </Dialog>
   );
 }
