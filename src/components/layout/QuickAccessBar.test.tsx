@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, act, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, act, waitFor } from '@testing-library/react';
 import QuickAccessBar from './QuickAccessBar';
 
 // ── Mocks ─────────────────────────────────────────────────────────────────────
@@ -164,7 +164,7 @@ describe('QuickAccessBar', () => {
     });
   });
 
-  it('shows settings link when fetch fails', async () => {
+  it('shows a recovery state when fetch fails', async () => {
     global.fetch = vi.fn().mockRejectedValue(new Error('Network error'));
 
     await act(async () => {
@@ -172,11 +172,12 @@ describe('QuickAccessBar', () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByText(/Pin modules in Settings/)).toBeDefined();
+      expect(screen.getByRole('alert')).toHaveTextContent('Quick Access is unavailable');
+      expect(screen.getByRole('button', { name: /retry quick access/i })).toBeEnabled();
     });
   });
 
-  it('shows settings link when the API request times out', async () => {
+  it('shows a recovery state when the API request times out', async () => {
     vi.useFakeTimers();
     global.fetch = vi.fn((_input: RequestInfo | URL, init?: RequestInit) => {
       return new Promise<Response>((_resolve, reject) => {
@@ -192,10 +193,10 @@ describe('QuickAccessBar', () => {
       await vi.advanceTimersByTimeAsync(5000);
     });
 
-    expect(screen.getByText(/Pin modules in Settings/)).toBeDefined();
+    expect(screen.getByRole('alert')).toHaveTextContent('Quick Access is unavailable');
   });
 
-  it('shows settings link when API returns null items field', async () => {
+  it('shows a recovery state when API returns an invalid items payload', async () => {
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,
       json: async () => ({}),
@@ -206,8 +207,55 @@ describe('QuickAccessBar', () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByText(/Pin modules in Settings/)).toBeDefined();
+      expect(screen.getByRole('alert')).toHaveTextContent('Quick Access is unavailable');
     });
+  });
+
+  it('shows a recovery state when API returns malformed shortcut entries', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ items: [{ id: 'terminal' }] }),
+    });
+
+    render(<QuickAccessBar />);
+
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('Quick Access is unavailable');
+    expect(screen.queryByText(/Pin modules in Settings/)).toBeNull();
+  });
+
+  it('shows a recovery state instead of the empty configuration prompt for an HTTP error', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 503,
+      json: async () => ({ error: 'Service unavailable' }),
+    } as Response);
+
+    render(<QuickAccessBar />);
+
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('Quick Access is unavailable');
+    expect(alert).toHaveTextContent('Try again to load your pinned modules');
+    expect(screen.queryByText(/Pin modules in Settings/)).toBeNull();
+  });
+
+  it('retries loading pinned shortcuts after a failed request', async () => {
+    global.fetch = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('Network unavailable'))
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ items: [makeItem('terminal', 'Terminal', '/terminal')] }),
+      } as Response);
+
+    render(<QuickAccessBar />);
+
+    fireEvent.click(await screen.findByRole('button', { name: /retry quick access/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('link', { name: 'Terminal' })).toHaveAttribute('href', '/terminal');
+    });
+    expect(screen.queryByRole('alert')).toBeNull();
   });
 
   it('uses a fallback icon for unrecognised module ids', async () => {
