@@ -40,7 +40,7 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
           <input
             ref={ref}
             id={inputId}
-            className={`flex h-10 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/40 focus:border-ring disabled:cursor-not-allowed disabled:opacity-50 transition-colors ${icon ? 'pl-10' : ''} ${error ? 'border-destructive focus:ring-destructive/40' : ''} ${className || ''}`}
+            className={`flex h-10 min-h-11 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/40 focus:border-ring disabled:cursor-not-allowed disabled:opacity-50 transition-colors sm:min-h-0 ${icon ? 'pl-10' : ''} ${error ? 'border-destructive focus:ring-destructive/40' : ''} ${className || ''}`}
             {...props}
             aria-describedby={describedBy || undefined}
             aria-invalid={error ? true : ariaInvalid}

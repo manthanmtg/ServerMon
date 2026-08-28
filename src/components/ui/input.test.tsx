@@ -32,6 +32,14 @@ describe('Input Component', () => {
     expect(screen.getByRole('textbox').className).toContain('custom-class');
   });
 
+  it('uses a 44px minimum touch target on mobile while preserving compact desktop inputs', () => {
+    render(<Input />);
+
+    const input = screen.getByRole('textbox');
+    expect(input.className).toContain('min-h-11');
+    expect(input.className).toContain('sm:min-h-0');
+  });
+
   it('exposes validation errors to assistive technology', () => {
     render(<Input label="Route name" error="Route name is required" />);
 

@@ -14,6 +14,10 @@ describe('Button component', () => {
     const button = screen.getByRole('button', { name: /default/i });
     expect(button.className).toContain('bg-primary');
     expect(button.className).toContain('h-9');
+    expect(button.className).toContain('min-h-11');
+    expect(button.className).toContain('min-w-11');
+    expect(button.className).toContain('sm:min-h-0');
+    expect(button.className).toContain('sm:min-w-0');
   });
 
   it('applies custom className correctly', () => {
@@ -41,11 +45,23 @@ describe('Button component', () => {
     let button = screen.getByRole('button', { name: /small/i });
     expect(button.className).toContain('h-8');
     expect(button.className).toContain('px-3');
+    expect(button.className).toContain('min-h-11');
+    expect(button.className).toContain('min-w-11');
 
     rerender(<Button size="lg">Large</Button>);
     button = screen.getByRole('button', { name: /large/i });
     expect(button.className).toContain('h-11');
     expect(button.className).toContain('px-6');
+  });
+
+  it('gives icon buttons a 44px mobile touch target', () => {
+    render(<Button size="icon" aria-label="Open settings" />);
+
+    const button = screen.getByRole('button', { name: 'Open settings' });
+    expect(button.className).toContain('min-h-11');
+    expect(button.className).toContain('min-w-11');
+    expect(button.className).toContain('sm:min-h-0');
+    expect(button.className).toContain('sm:min-w-0');
   });
 
   it('handles standard HTML button props', () => {

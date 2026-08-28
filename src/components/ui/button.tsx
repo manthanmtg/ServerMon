@@ -18,10 +18,10 @@ const variantStyles: Record<ButtonVariant, string> = {
 };
 
 const sizeStyles: Record<ButtonSize, string> = {
-  sm: 'h-8 px-3 text-xs gap-1.5 rounded-md',
-  default: 'h-9 px-4 text-sm gap-2 rounded-lg',
+  sm: 'h-8 min-h-11 min-w-11 px-3 text-xs gap-1.5 rounded-md sm:min-h-0 sm:min-w-0',
+  default: 'h-9 min-h-11 min-w-11 px-4 text-sm gap-2 rounded-lg sm:min-h-0 sm:min-w-0',
   lg: 'h-11 px-6 text-sm gap-2 rounded-lg',
-  icon: 'h-9 w-9 rounded-lg',
+  icon: 'h-9 w-9 min-h-11 min-w-11 rounded-lg sm:min-h-0 sm:min-w-0',
 };
 
 const Button = forwardRef<HTMLButtonElement, ButtonProps>(
