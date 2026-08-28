@@ -1,5 +1,7 @@
+import { useRef } from 'react';
 import { Terminal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Dialog } from '@/components/ui/Dialog';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 
@@ -35,14 +37,34 @@ export function EnvVarsAddModal({
   onSave,
   onCancel,
 }: EnvVarsAddModalProps) {
+  const nameInputRef = useRef<HTMLInputElement>(null);
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 p-4">
-      <div className="w-full max-w-lg rounded-lg border border-border bg-card p-5 shadow-xl space-y-4">
-        <div>
-          <h2 className="text-lg font-semibold">Add variable</h2>
-          <p className="text-sm text-muted-foreground">{scopeText(scope)}</p>
-        </div>
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open) onCancel();
+      }}
+      title="Add variable"
+      description={scopeText(scope)}
+      size="sm"
+      closeLabel="Close add variable dialog"
+      initialFocusRef={nameInputRef}
+      footer={
+        <>
+          <Button type="button" variant="outline" onClick={onCancel}>
+            Cancel
+          </Button>
+          <Button type="button" onClick={onSave} loading={saving}>
+            <Terminal className="h-4 w-4" />
+            Save variable
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-4">
         <Input
+          ref={nameInputRef}
           id="env-var-name"
           label="Name"
           value={keyName}
@@ -54,11 +76,12 @@ export function EnvVarsAddModal({
           value={value}
           onChange={(event) => onValueChange(event.target.value)}
         />
-        <div className="grid grid-cols-2 gap-2">
+        <div role="group" aria-label="Variable scope" className="grid grid-cols-2 gap-2">
           {(['user', 'system'] as const).map((choice) => (
             <button
               key={choice}
               type="button"
+              aria-pressed={scope === choice}
               onClick={() => onScopeChange(choice)}
               className={cn(
                 'min-h-[44px] rounded-lg border px-3 text-sm font-semibold capitalize',
@@ -71,16 +94,7 @@ export function EnvVarsAddModal({
             </button>
           ))}
         </div>
-        <div className="flex items-center justify-end gap-2">
-          <Button type="button" variant="outline" onClick={onCancel}>
-            Cancel
-          </Button>
-          <Button type="button" onClick={onSave} loading={saving}>
-            <Terminal className="h-4 w-4" />
-            Save variable
-          </Button>
-        </div>
       </div>
-    </div>
+    </Dialog>
   );
 }
