@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { CheckCircle, LoaderCircle, Search, XCircle } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -18,62 +18,85 @@ export function PortAvailabilityChecker() {
   const [checkResult, setCheckResult] = useState<PortCheckResult | null>(null);
   const [checking, setChecking] = useState(false);
   const [checkError, setCheckError] = useState<string | null>(null);
+  const activeCheckRef = useRef<AbortController | null>(null);
+  const pendingCheckRef = useRef<number | null>(null);
 
-  const runCheck = useCallback(async (port: number, signal?: AbortSignal) => {
+  const runCheck = useCallback(async (port: number) => {
+    activeCheckRef.current?.abort();
+    const controller = new AbortController();
+    activeCheckRef.current = controller;
+    const { signal } = controller;
+
     setChecking(true);
     setCheckResult(null);
     setCheckError(null);
 
     try {
-      const res = await fetch(
-        `/api/modules/ports/check?port=${port}`,
-        signal ? { signal } : undefined
-      );
+      const res = await fetch(`/api/modules/ports/check?port=${port}`, { signal });
       if (res.ok) {
         const data: PortCheckResult = await res.json();
-        setCheckResult(data);
-      } else {
+        if (!signal.aborted && activeCheckRef.current === controller) {
+          setCheckResult(data);
+        }
+      } else if (!signal.aborted && activeCheckRef.current === controller) {
         setCheckError('The port check service returned an unexpected response.');
       }
     } catch (error) {
       if (error instanceof DOMException && error.name === 'AbortError') {
         return;
       }
-      if (signal?.aborted) {
+      if (signal.aborted || activeCheckRef.current !== controller) {
         return;
       }
       setCheckError('Unable to check port availability. Please try again.');
     } finally {
-      if (!signal?.aborted) {
+      if (!signal.aborted && activeCheckRef.current === controller) {
         setChecking(false);
       }
     }
   }, []);
 
-  const handleCheckPort = async () => {
+  const handleCheckPort = () => {
     if (!isValidPortValue(checkPort)) return;
+    if (pendingCheckRef.current !== null) {
+      window.clearTimeout(pendingCheckRef.current);
+      pendingCheckRef.current = null;
+    }
     const port = parseInt(checkPort, 10);
-    await runCheck(port);
+    void runCheck(port);
   };
 
   useEffect(() => {
+    activeCheckRef.current?.abort();
+    activeCheckRef.current = null;
+    setChecking(false);
+
     if (!isValidPortValue(checkPort)) {
       setCheckResult(null);
       setCheckError(null);
       return;
     }
 
-    const controller = new AbortController();
-    const timeoutId = window.setTimeout(async () => {
+    setCheckResult(null);
+    setCheckError(null);
+    const timeoutId = window.setTimeout(() => {
+      pendingCheckRef.current = null;
       const port = parseInt(checkPort, 10);
-      await runCheck(port, controller.signal);
+      void runCheck(port);
     }, 400);
+    pendingCheckRef.current = timeoutId;
 
     return () => {
-      controller.abort();
       window.clearTimeout(timeoutId);
+      if (pendingCheckRef.current === timeoutId) {
+        pendingCheckRef.current = null;
+      }
     };
   }, [checkPort, runCheck]);
+
+  useEffect(() => {
+    return () => activeCheckRef.current?.abort();
+  }, []);
 
   return (
     <Card className="border-border/60">
