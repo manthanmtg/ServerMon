@@ -62,10 +62,29 @@ describe('UsersWidget', () => {
     render(<UsersWidget />);
 
     expect(screen.getByRole('status', { name: 'Loading user statistics' })).toBeDefined();
+    expect(screen.getByText('Loading user data')).toBeDefined();
+    expect(screen.queryByText('User data loaded')).not.toBeInTheDocument();
   });
 
-  it('handles fetch failure gracefully', async () => {
-    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+  it('aborts user-statistics requests when the widget unmounts', async () => {
+    const signals: AbortSignal[] = [];
+    global.fetch = vi.fn((_input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+      if (init?.signal) signals.push(init.signal);
+      return new Promise(() => {});
+    });
+
+    const { unmount } = render(<UsersWidget />);
+
+    await waitFor(() => {
+      expect(signals).toHaveLength(2);
+    });
+
+    unmount();
+
+    expect(signals.every((signal) => signal.aborted)).toBe(true);
+  });
+
+  it('makes unavailable user statistics explicit instead of reporting access as secure', async () => {
     global.fetch = vi.fn().mockRejectedValue(new Error('Network error'));
 
     await act(async () => {
@@ -73,30 +92,30 @@ describe('UsersWidget', () => {
     });
 
     await waitFor(() => {
-      expect(consoleSpy).toHaveBeenCalledWith('Failed to fetch user stats');
+      expect(screen.getByRole('alert')).toHaveTextContent('User statistics unavailable');
     });
 
-    // Initial stats should be 0
-    const zeros = screen.getAllByText('0');
-    expect(zeros.length).toBeGreaterThanOrEqual(3);
-
-    consoleSpy.mockRestore();
+    expect(screen.queryByText('Access Secure')).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Open Users & Permissions' })).toHaveAttribute(
+      'href',
+      '/users'
+    );
   });
 
-  it('renders correctly even if responses are not ok', async () => {
+  it('treats unsuccessful user API responses as unavailable data', async () => {
     global.fetch = vi.fn().mockImplementation(() => Promise.resolve({ ok: false }));
 
     await act(async () => {
       render(<UsersWidget />);
     });
 
-    // Should still render the UI with 0 counts
-    expect(screen.getByText('Users & Access')).toBeDefined();
-    const zeros = screen.getAllByText('0');
-    expect(zeros.length).toBeGreaterThanOrEqual(3);
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent('User statistics unavailable');
+    });
+    expect(screen.queryByText('Access Secure')).not.toBeInTheDocument();
   });
 
-  it('treats malformed user payloads as empty lists', async () => {
+  it('treats malformed user payloads as unavailable data', async () => {
     global.fetch = vi.fn().mockImplementation((url: string) => {
       if (url.includes('type=os')) {
         return Promise.resolve({
@@ -118,11 +137,8 @@ describe('UsersWidget', () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByText('1', { selector: '.text-emerald-600' })).toBeDefined();
+      expect(screen.getByRole('alert')).toHaveTextContent('User statistics unavailable');
     });
-
-    const osUsersLabel = screen.getByText('OS Users');
-    const osUsersCount = osUsersLabel.parentElement?.parentElement?.firstElementChild;
-    expect(osUsersCount?.textContent).toBe('0');
+    expect(screen.queryByText('User data loaded')).not.toBeInTheDocument();
   });
 });
