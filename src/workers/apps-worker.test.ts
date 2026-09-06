@@ -35,6 +35,9 @@ function createRunnerHandle(
 function baseDependencies() {
   const runner = createRunnerHandle();
   return {
+    migrate: vi.fn().mockResolvedValue(undefined),
+    startScheduler: vi.fn(),
+    stopScheduler: vi.fn(),
     connectDB: vi.fn().mockResolvedValue(undefined),
     upsertHeartbeat: vi.fn().mockResolvedValue(undefined),
     markStopped: vi.fn().mockResolvedValue(undefined),

@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { isIP } from 'node:net';
-import { access, readlink, rename, rm, symlink } from 'node:fs/promises';
+import { access, readFile, readlink, rename, rm, symlink } from 'node:fs/promises';
 import path from 'node:path';
 import connectDB from '@/lib/db';
 import AppOperationModel from '@/models/AppOperation';
@@ -29,6 +29,7 @@ import {
 import { getAppRepositoryRoot, getAppRoot, getReleaseRoot } from './paths';
 import { isHttpsGitUrl, prepareGitSourceForDeploy } from './git';
 import { getManagedAppLogs, getManagedAppRuntime } from './runtime';
+import { shouldDeployCommit } from './domain/auto-update-policy';
 
 const DOMAIN_PATTERN = /^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$/;
 const DEFAULT_SYSTEMD_DIR = '/etc/systemd/system';
@@ -157,9 +158,7 @@ export function normalizeCreateManagedAppInput(input: CreateManagedAppData) {
     autoUpdate: {
       enabled: input.sourceType === 'git' ? input.autoUpdate.enabled : false,
       intervalMinutes: input.autoUpdate.intervalMinutes,
-      ...(input.sourceType === 'git' && input.autoUpdate.enabled
-        ? { nextRunAt: nextAutoUpdateRun(input.autoUpdate.intervalMinutes) }
-        : {}),
+      ...(input.sourceType === 'git' && input.autoUpdate.enabled ? { nextRunAt: new Date() } : {}),
     },
   };
 }
@@ -208,9 +207,20 @@ interface ManagedAppDTORecord {
   gitUrl?: string;
   gitBranch?: string;
   gitCurrentSha?: string;
+  gitDeployedSha?: string;
   gitLastCheckedAt?: Date | string;
   gitLastUpdatedAt?: Date | string;
   autoUpdate?: {
+    scheduleGeneration?: number;
+    consecutiveFailures?: number;
+    lastAttemptAt?: Date;
+    lastCheckCompletedAt?: Date;
+    lastSuccessfulDeployAt?: Date;
+    lastOperationId?: string;
+    lastScheduledFor?: Date;
+    retryAt?: Date;
+    observedRemoteSha?: string;
+    pauseReason?: 'rollback';
     enabled: boolean;
     intervalMinutes: number;
     nextRunAt?: Date | string;
@@ -235,6 +245,8 @@ interface ManagedAppDTORecord {
     logs: string[];
   }>;
   operations?: Array<{
+    queueOperationId?: string;
+    trigger?: 'auto' | 'manual';
     id: string;
     type: AppOperationType;
     status: AppOperationStatus;
@@ -254,6 +266,7 @@ interface ManagedAppDTORecord {
 }
 
 interface ActiveAppOperationDTORecord {
+  trigger?: 'auto' | 'manual';
   operationId: string;
   appId: { toString: () => string } | string;
   type: AppOperationType;
@@ -270,6 +283,16 @@ interface ActiveAppOperationDTORecord {
 
 function mapAutoUpdate(value: ManagedAppDTORecord['autoUpdate']): AppAutoUpdate {
   return {
+    scheduleGeneration: value?.scheduleGeneration ?? 0,
+    consecutiveFailures: value?.consecutiveFailures ?? 0,
+    lastAttemptAt: toIsoDate(value?.lastAttemptAt),
+    lastCheckCompletedAt: toIsoDate(value?.lastCheckCompletedAt),
+    lastSuccessfulDeployAt: toIsoDate(value?.lastSuccessfulDeployAt),
+    lastOperationId: value?.lastOperationId,
+    lastScheduledFor: toIsoDate(value?.lastScheduledFor),
+    retryAt: toIsoDate(value?.retryAt),
+    observedRemoteSha: value?.observedRemoteSha,
+    pauseReason: value?.pauseReason,
     enabled: Boolean(value?.enabled),
     intervalMinutes: value?.intervalMinutes ?? 60,
     nextRunAt: toIsoDate(value?.nextRunAt),
@@ -282,6 +305,8 @@ function mapAutoUpdate(value: ManagedAppDTORecord['autoUpdate']): AppAutoUpdate 
 function mapOperations(operations?: ManagedAppDTORecord['operations']): AppOperation[] {
   return (operations ?? []).map((operation) => ({
     id: operation.id,
+    queueOperationId: operation.queueOperationId,
+    trigger: operation.trigger,
     type: operation.type,
     status: operation.status,
     title: operation.title,
@@ -341,9 +366,19 @@ export function mapManagedAppToDTO(
             url: app.gitUrl,
             branch: app.gitBranch ?? 'main',
             currentSha: app.gitCurrentSha,
+            deployedSha: app.gitDeployedSha,
             lastCheckedAt: toIsoDate(app.gitLastCheckedAt),
             lastUpdatedAt: toIsoDate(app.gitLastUpdatedAt),
-            autoUpdate: mapAutoUpdate(app.autoUpdate),
+            autoUpdate: {
+              ...mapAutoUpdate(app.autoUpdate),
+              operationStatus: activeOperations.find((operation) => operation.type === 'update')
+                ?.status,
+              operationPhase: activeOperations.find((operation) => operation.type === 'update')
+                ?.phase,
+              ...(activeOperations.some((operation) => operation.type !== 'update')
+                ? { blockReason: 'operation_active' as const }
+                : {}),
+            },
           }
         : undefined,
     domain: app.domain,
@@ -410,7 +445,9 @@ async function deployPreparedApp(
   app: IManagedApp,
   sourcePath: string,
   onProgress?: (entry: string) => void | Promise<void>,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  assertOwnership?: () => Promise<void>,
+  commitSha?: string
 ): Promise<DeployNextJsAppResult> {
   return deployNextJsApp({
     app: {
@@ -435,6 +472,8 @@ async function deployPreparedApp(
       currentReleaseId: app.currentReleaseId,
     },
     signal,
+    assertOwnership,
+    commitSha,
     onProgress,
   });
 }
@@ -507,7 +546,33 @@ export async function updateManagedApp(
   app.envVars = new Map(Object.entries(next.envVars)) as IManagedApp['envVars'];
   app.healthCheckPath = next.healthCheckPath;
   app.tlsEnabled = next.tlsEnabled;
-  app.autoUpdate = next.autoUpdate;
+  const sourceChanged =
+    previousSourceType !== next.sourceType ||
+    previousGitUrl !== next.gitUrl ||
+    previousGitBranch !== next.gitBranch;
+  const scheduleChanged =
+    sourceChanged ||
+    app.autoUpdate.enabled !== next.autoUpdate.enabled ||
+    app.autoUpdate.intervalMinutes !== next.autoUpdate.intervalMinutes;
+  if (scheduleChanged) {
+    const enabledBefore = app.autoUpdate.enabled;
+    app.autoUpdate.enabled = next.autoUpdate.enabled;
+    app.autoUpdate.intervalMinutes = next.autoUpdate.intervalMinutes;
+    app.autoUpdate.scheduleGeneration = (app.autoUpdate.scheduleGeneration ?? 0) + 1;
+    app.autoUpdate.retryAt = undefined;
+    app.autoUpdate.pauseReason = undefined;
+    app.autoUpdate.lastOperationId = undefined;
+    if (next.autoUpdate.enabled) {
+      const due =
+        !enabledBefore || sourceChanged
+          ? Date.now()
+          : (app.autoUpdate.lastCheckCompletedAt?.getTime() ?? Date.now()) +
+            next.autoUpdate.intervalMinutes * 60_000;
+      app.autoUpdate.nextRunAt = new Date(Math.max(Date.now(), due));
+    } else app.autoUpdate.nextRunAt = undefined;
+    if (sourceChanged) app.autoUpdate.observedRemoteSha = undefined;
+  }
+  app.configVersion = (app.configVersion ?? 1) + 1;
 
   if (
     next.sourceType !== 'git' ||
@@ -521,6 +586,11 @@ export async function updateManagedApp(
   }
 
   await app.save();
+  if (scheduleChanged)
+    await AppOperationModel.updateMany(
+      { appId, trigger: 'auto', status: 'queued', active: true },
+      { $set: { active: false, status: 'cancelled', phase: 'terminal', completedAt: new Date() } }
+    );
   return mapManagedAppToDTO(app, publicIp);
 }
 
@@ -601,6 +671,8 @@ export async function deleteManagedApp(appId: string) {
 }
 
 interface StartAppOperationInput {
+  queueOperationId?: string;
+  trigger?: 'auto' | 'manual';
   type: AppOperationType;
   title: string;
   step: string;
@@ -621,6 +693,8 @@ function createAppOperation(input: StartAppOperationInput): IManagedApp['operati
     (input.type === 'update' ? new Date(startedAt.getTime() + APP_UPDATE_TIMEOUT_MS) : undefined);
   return {
     id: operationId,
+    queueOperationId: input.queueOperationId,
+    trigger: input.trigger,
     type: input.type,
     status: 'running',
     title: input.title,
@@ -741,7 +815,7 @@ async function startExclusiveUpdateOperation(
   appId: string,
   input: Omit<StartAppOperationInput, 'type'>
 ): Promise<{ app: IManagedApp; operationId: string }> {
-  await reconcileStaleAppUpdateOperations({ appId });
+  if (!input.queueOperationId) await reconcileStaleAppUpdateOperations({ appId });
   const operation = createAppOperation({ ...input, type: 'update' });
   const app = await ManagedApp.findOneAndUpdate(
     {
@@ -910,6 +984,65 @@ function rollbackHealthUrl(port: number, healthCheckPath?: string): string {
 
 export interface UpdateManagedGitAppOptions {
   trigger?: 'manual' | 'auto';
+  signal?: AbortSignal;
+  assertOwnership?: () => Promise<void>;
+  durableOperationId?: string;
+}
+
+/** A successful activation manifest survives a crash before the MongoDB final save. */
+export async function reconcileActiveAppRelease(appId: string): Promise<void> {
+  const app = await ManagedApp.findById(appId);
+  if (!app) return;
+  let manifest: unknown;
+  try {
+    const target = await readlink(path.join(getAppRoot(app.slug), 'current'));
+    const root = path.resolve(getAppRoot(app.slug), target);
+    if (path.dirname(root) !== path.resolve(getAppRoot(app.slug), 'releases')) return;
+    manifest = JSON.parse(await readFile(path.join(root, 'success.json'), 'utf8'));
+    if (
+      !manifest ||
+      typeof manifest !== 'object' ||
+      !('releaseId' in manifest) ||
+      manifest.releaseId !== path.basename(root)
+    )
+      return;
+  } catch {
+    return;
+  }
+  if (
+    !manifest ||
+    typeof manifest !== 'object' ||
+    !('releaseId' in manifest) ||
+    typeof manifest.releaseId !== 'string' ||
+    !('commitSha' in manifest) ||
+    typeof manifest.commitSha !== 'string'
+  )
+    return;
+  if (app.currentReleaseId === manifest.releaseId && app.gitDeployedSha === manifest.commitSha)
+    return;
+  const now = new Date();
+  app.releases = app.releases.map((release) => ({
+    ...release,
+    status:
+      release.id === manifest.releaseId
+        ? 'active'
+        : release.status === 'active'
+          ? 'superseded'
+          : release.status,
+  })) as IManagedApp['releases'];
+  if (!app.releases.some((release) => release.id === manifest.releaseId))
+    app.releases.push({
+      id: manifest.releaseId,
+      commitSha: manifest.commitSha,
+      status: 'active',
+      createdAt: now,
+      activatedAt: now,
+      logs: ['Recovered successful activation manifest'],
+    });
+  app.currentReleaseId = manifest.releaseId;
+  app.gitDeployedSha = manifest.commitSha;
+  app.status = 'running';
+  await app.save();
 }
 
 const defaultRollbackHealthCheck: HealthCheck = async (url) => {
@@ -922,6 +1055,8 @@ const defaultRollbackHealthCheck: HealthCheck = async (url) => {
 };
 
 export interface RollbackManagedAppOptions {
+  signal?: AbortSignal;
+  assertOwnership?: () => Promise<void>;
   commandRunner?: CommandRunner;
   healthCheck?: HealthCheck;
   appsRoot?: string;
@@ -934,6 +1069,8 @@ export async function rollbackManagedApp(
     commandRunner = defaultCommandRunner,
     healthCheck = defaultRollbackHealthCheck,
     appsRoot,
+    signal,
+    assertOwnership,
   }: RollbackManagedAppOptions = {}
 ) {
   await connectDB();
@@ -964,11 +1101,13 @@ export async function rollbackManagedApp(
   const previousCurrentTarget = await readCurrentTarget(currentPath);
 
   try {
+    signal?.throwIfAborted();
+    await assertOwnership?.();
     await replaceSymlink(currentPath, releaseRoot);
     const restartCommand = `systemctl restart ${serviceName}`;
     logs.push(`$ ${restartCommand}`);
     await appendAppOperationLog(app, operationId, `$ ${restartCommand}`);
-    const restart = await commandRunner({ command: restartCommand });
+    const restart = await commandRunner({ command: restartCommand, signal });
     if (restart.output.trim()) {
       logs.push(restart.output.trim());
       await appendAppOperationLog(app, operationId, restart.output.trim());
@@ -987,12 +1126,19 @@ export async function rollbackManagedApp(
     await appendAppOperationLog(app, operationId, 'Health check passed');
 
     const now = new Date();
+    await assertOwnership?.();
     app.releases = app.releases.map((release) => ({
       ...release,
       status: release.id === releaseId ? 'active' : 'superseded',
       ...(release.id === releaseId ? { activatedAt: now } : {}),
     })) as IManagedApp['releases'];
     app.currentReleaseId = releaseId;
+    app.gitDeployedSha = targetRelease.commitSha;
+    app.autoUpdate.enabled = false;
+    app.autoUpdate.pauseReason = 'rollback';
+    app.autoUpdate.scheduleGeneration = (app.autoUpdate.scheduleGeneration ?? 0) + 1;
+    app.autoUpdate.nextRunAt = undefined;
+    app.autoUpdate.retryAt = undefined;
     app.status = 'running';
     app.lastDeployedAt = now;
     await completeAppOperation(app, operationId, {
@@ -1009,6 +1155,7 @@ export async function rollbackManagedApp(
       app: mapManagedAppToDTO(app),
     };
   } catch (error: unknown) {
+    if (signal?.aborted) throw error;
     const message = error instanceof Error ? error.message : 'Rollback failed';
     if (previousCurrentTarget) {
       await replaceSymlink(currentPath, previousCurrentTarget);
@@ -1037,7 +1184,10 @@ export async function rollbackManagedApp(
   }
 }
 
-export async function deployManagedApp(appId: string) {
+export async function deployManagedApp(
+  appId: string,
+  { signal, assertOwnership }: UpdateManagedGitAppOptions = {}
+) {
   await connectDB();
   const app = await ManagedApp.findById(appId);
   if (!app) throw new Error('App not found');
@@ -1052,7 +1202,7 @@ export async function deployManagedApp(appId: string) {
 
   let source: Awaited<ReturnType<typeof prepareSource>>;
   try {
-    source = await prepareSource(app, (app.sourceType ?? 'local') === 'git');
+    source = await prepareSource(app, (app.sourceType ?? 'local') === 'git', signal);
     for (const entry of source.logs) {
       await appendAppOperationLog(app, operationId, entry);
     }
@@ -1069,6 +1219,9 @@ export async function deployManagedApp(appId: string) {
     throw error;
   }
   const result = await deployNextJsApp({
+    signal,
+    assertOwnership,
+    commitSha: source.currentSha,
     app: {
       name: app.name,
       slug: app.slug,
@@ -1095,6 +1248,8 @@ export async function deployManagedApp(appId: string) {
   result.logs.unshift(...source.logs);
 
   const now = new Date();
+  signal?.throwIfAborted();
+  await assertOwnership?.();
   if ((app.sourceType ?? 'local') === 'git') {
     app.gitCurrentSha = source.currentSha;
     app.gitLastCheckedAt = now;
@@ -1104,10 +1259,12 @@ export async function deployManagedApp(appId: string) {
       release.status === 'active' ? { ...release, status: 'superseded' } : release
     );
     app.currentReleaseId = result.releaseId;
+    app.gitDeployedSha = source.currentSha;
     app.status = 'running';
     app.lastDeployedAt = now;
     app.releases.push({
       id: result.releaseId,
+      commitSha: source.currentSha,
       status: 'active',
       createdAt: now,
       activatedAt: now,
@@ -1148,36 +1305,49 @@ export async function deployManagedApp(appId: string) {
 
 export async function updateManagedGitApp(
   appId: string,
-  { trigger = 'manual' }: UpdateManagedGitAppOptions = {}
+  {
+    trigger = 'manual',
+    signal,
+    assertOwnership,
+    durableOperationId,
+  }: UpdateManagedGitAppOptions = {}
 ) {
   await connectDB();
   const now = new Date();
   const { app, operationId } = await startExclusiveUpdateOperation(appId, {
+    queueOperationId: durableOperationId,
+    trigger,
     title: trigger === 'auto' ? 'Auto update' : 'Manual update',
     step: 'Checking upstream repository',
   });
   const timeoutController = new AbortController();
+  const executionSignal = signal
+    ? AbortSignal.any([signal, timeoutController.signal])
+    : timeoutController.signal;
   const timeout = setTimeout(() => {
     timeoutController.abort(new Error(APP_UPDATE_TIMEOUT_ERROR));
   }, APP_UPDATE_TIMEOUT_MS);
   try {
     let source: Awaited<ReturnType<typeof prepareSource>>;
     try {
-      source = await prepareSource(app, true, timeoutController.signal);
+      await assertOwnership?.();
+      source = await prepareSource(app, true, executionSignal);
       for (const entry of source.logs) {
         await appendAppOperationLog(app, operationId, entry);
       }
     } catch (error) {
+      signal?.throwIfAborted();
       const message = error instanceof Error ? error.message : 'Git update failed';
-      app.autoUpdate = {
-        ...app.autoUpdate,
-        lastRunAt: now,
-        lastStatus: 'failed',
-        lastError: message,
-        nextRunAt: app.autoUpdate?.enabled
-          ? nextAutoUpdateRun(app.autoUpdate.intervalMinutes, now)
-          : undefined,
-      };
+      if (!durableOperationId)
+        app.autoUpdate = {
+          ...app.autoUpdate,
+          lastRunAt: now,
+          lastStatus: 'failed',
+          lastError: message,
+          nextRunAt: app.autoUpdate?.enabled
+            ? nextAutoUpdateRun(app.autoUpdate.intervalMinutes, now)
+            : undefined,
+        };
       const completed = await completeAppOperation(app, operationId, {
         status: 'failed',
         step: message === APP_UPDATE_TIMEOUT_ERROR ? APP_UPDATE_TIMEOUT_STEP : 'Git update failed',
@@ -1190,17 +1360,27 @@ export async function updateManagedGitApp(
     }
     app.gitCurrentSha = source.currentSha;
     app.gitLastCheckedAt = now;
+    if (durableOperationId)
+      await ManagedApp.updateOne(
+        { _id: app._id },
+        { $set: { 'autoUpdate.observedRemoteSha': source.currentSha } }
+      );
 
-    if (!source.changed && app.currentReleaseId) {
-      app.autoUpdate = {
-        ...app.autoUpdate,
-        lastRunAt: now,
-        lastStatus: 'unchanged',
-        lastError: undefined,
-        nextRunAt: app.autoUpdate?.enabled
-          ? nextAutoUpdateRun(app.autoUpdate.intervalMinutes, now)
-          : undefined,
-      };
+    if (
+      source.currentSha &&
+      !shouldDeployCommit(source.currentSha, app.gitDeployedSha) &&
+      app.currentReleaseId
+    ) {
+      if (!durableOperationId)
+        app.autoUpdate = {
+          ...app.autoUpdate,
+          lastRunAt: now,
+          lastStatus: 'unchanged',
+          lastError: undefined,
+          nextRunAt: app.autoUpdate?.enabled
+            ? nextAutoUpdateRun(app.autoUpdate.intervalMinutes, now)
+            : undefined,
+        };
       const completed = await completeAppOperation(app, operationId, {
         status: 'unchanged',
         step: 'No upstream changes found',
@@ -1225,14 +1405,23 @@ export async function updateManagedGitApp(
       await app.save();
     }
 
+    if (durableOperationId)
+      await AppOperationModel.updateOne(
+        { operationId: durableOperationId, active: true, status: 'running' },
+        { $set: { phase: 'build' } }
+      );
     const result = await deployPreparedApp(
       app,
       source.sourcePath,
       (entry) => appendAppOperationLog(app, operationId, entry),
-      timeoutController.signal
+      executionSignal,
+      assertOwnership,
+      source.currentSha
     );
     result.logs.unshift(...source.logs);
     const completedAt = new Date();
+    signal?.throwIfAborted();
+    await assertOwnership?.();
     app.gitCurrentSha = source.currentSha;
     app.gitLastUpdatedAt = completedAt;
 
@@ -1241,24 +1430,27 @@ export async function updateManagedGitApp(
         release.status === 'active' ? { ...release, status: 'superseded' } : release
       );
       app.currentReleaseId = result.releaseId;
+      app.gitDeployedSha = source.currentSha;
       app.status = 'running';
       app.lastDeployedAt = completedAt;
       app.releases.push({
         id: result.releaseId,
+        commitSha: source.currentSha,
         status: 'active',
         createdAt: completedAt,
         activatedAt: completedAt,
         logs: result.logs,
       });
-      app.autoUpdate = {
-        ...app.autoUpdate,
-        lastRunAt: completedAt,
-        lastStatus: 'updated',
-        lastError: undefined,
-        nextRunAt: app.autoUpdate?.enabled
-          ? nextAutoUpdateRun(app.autoUpdate.intervalMinutes, completedAt)
-          : undefined,
-      };
+      if (!durableOperationId)
+        app.autoUpdate = {
+          ...app.autoUpdate,
+          lastRunAt: completedAt,
+          lastStatus: 'updated',
+          lastError: undefined,
+          nextRunAt: app.autoUpdate?.enabled
+            ? nextAutoUpdateRun(app.autoUpdate.intervalMinutes, completedAt)
+            : undefined,
+        };
       const completed = await completeAppOperation(app, operationId, {
         status: 'succeeded',
         step: 'Update deployed',
@@ -1276,15 +1468,16 @@ export async function updateManagedGitApp(
         error: result.error,
         logs: result.logs,
       });
-      app.autoUpdate = {
-        ...app.autoUpdate,
-        lastRunAt: completedAt,
-        lastStatus: 'failed',
-        lastError: result.error,
-        nextRunAt: app.autoUpdate?.enabled
-          ? nextAutoUpdateRun(app.autoUpdate.intervalMinutes, completedAt)
-          : undefined,
-      };
+      if (!durableOperationId)
+        app.autoUpdate = {
+          ...app.autoUpdate,
+          lastRunAt: completedAt,
+          lastStatus: 'failed',
+          lastError: result.error,
+          nextRunAt: app.autoUpdate?.enabled
+            ? nextAutoUpdateRun(app.autoUpdate.intervalMinutes, completedAt)
+            : undefined,
+        };
       const completed = await completeAppOperation(app, operationId, {
         status: 'failed',
         step:

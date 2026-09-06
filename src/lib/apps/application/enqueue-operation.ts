@@ -35,6 +35,9 @@ interface RequestedBy {
 }
 
 interface EnqueueAppOperationInput {
+  trigger?: 'auto' | 'manual';
+  scheduledFor?: Date;
+  scheduleGeneration?: number;
   appId: string;
   type: AppOperationType;
   idempotencyKey?: string;
@@ -44,6 +47,7 @@ interface EnqueueAppOperationInput {
 }
 
 interface ManagedAppQueueRecord {
+  autoUpdate?: { scheduleGeneration?: number };
   _id: { toString: () => string } | string;
   name: string;
   slug: string;
@@ -149,7 +153,10 @@ export async function enqueueAppOperation(
     appId: app._id.toString(),
     appSlug: app.slug,
     type: input.type,
-    title: titleForOperation(input.type),
+    title: input.trigger === 'auto' ? 'Auto update' : titleForOperation(input.type),
+    trigger: input.trigger ?? 'manual',
+    scheduledFor: input.scheduledFor,
+    scheduleGeneration: input.scheduleGeneration ?? app.autoUpdate?.scheduleGeneration ?? 0,
     configSnapshot: snapshotAppConfig(app),
     requestedBy: input.requestedBy,
     idempotencyKey: input.idempotencyKey,

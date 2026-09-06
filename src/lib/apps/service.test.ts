@@ -219,7 +219,7 @@ describe('apps service helpers', () => {
       OPENAI_API_KEY: 'sk-secret',
     });
     expect(dto.sourceType).toBe('git');
-    expect(dto.git).toEqual({
+    expect(dto.git).toMatchObject({
       url: 'https://github.com/acme/lifeos.git',
       branch: 'main',
       currentSha: 'abcdef123456',

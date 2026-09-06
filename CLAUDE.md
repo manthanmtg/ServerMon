@@ -303,6 +303,8 @@ Concise map of major directories, commands, and key files. Update this section w
 - `src/lib/apps/` — Apps deployment helpers for release paths, env masking, systemd/Nginx rendering, operation enqueue/readiness, lease fencing, expired-operation recovery, and the worker runner
 - `src/lib/apps/worker/`, `src/workers/apps-worker.ts` — separately supervised Apps host-mutation consumer; renews fenced operation leases, drains on shutdown, and must be healthy before new mutations are accepted
 - `src/lib/apps/auto-update.ts`, `src/lib/apps/auto-update-scheduler.ts` — Git-based auto-update logic and background polling scheduler for managed apps
+- `src/modules/apps/ui/components/AutoUpdateStatus.tsx` — visible automatic-update state, attempt/check/deploy timestamps, and worker/scheduler health
+- `docs/apps-auto-update.md` — automatic update behavior, status meanings, troubleshooting, and rollout verification
 - `src/models/ManagedApp.ts`, `src/models/AppOperation.ts`, `src/models/AppOperationEvent.ts`, `src/models/AppsWorkerHeartbeat.ts` — persisted app state, durable operation ownership/events, and worker readiness
 - `src/app/api/modules/apps/` — authenticated Apps routes; asynchronous deploy/update/rollback/delete mutations return `503` without creating an operation when the worker heartbeat is unavailable
 - `src/app/apps/` — Apps module page route wrapped in `ProShell`

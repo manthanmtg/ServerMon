@@ -5,6 +5,11 @@ export type AppsWorkerHeartbeatStatus = 'starting' | 'running' | 'draining' | 's
 export interface IAppsWorkerHeartbeat extends Document {
   _id: mongoose.Types.ObjectId;
   workerId: string;
+  lastScanStartedAt?: Date;
+  lastScanCompletedAt?: Date;
+  lastSuccessfulScanAt?: Date;
+  lastScanError?: string;
+  scanCounts?: Record<string, number>;
   status: AppsWorkerHeartbeatStatus;
   hostname: string;
   pid: number;
@@ -22,6 +27,11 @@ export interface IAppsWorkerHeartbeat extends Document {
 const AppsWorkerHeartbeatSchema = new Schema<IAppsWorkerHeartbeat>(
   {
     workerId: { type: String, required: true, trim: true },
+    lastScanStartedAt: Date,
+    lastScanCompletedAt: Date,
+    lastSuccessfulScanAt: Date,
+    lastScanError: String,
+    scanCounts: { type: Schema.Types.Mixed },
     status: {
       type: String,
       enum: ['starting', 'running', 'draining', 'stopped', 'failed'],

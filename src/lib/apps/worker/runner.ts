@@ -29,6 +29,11 @@ export interface AppOperationExecutorResult {
   };
 }
 
+export interface AppExecutionContext {
+  signal: AbortSignal;
+  assertOwnership: () => Promise<void>;
+}
+
 export interface CurrentAppOperation {
   operationId: string;
   leaseGeneration: number;
@@ -56,7 +61,10 @@ export interface RunAppsWorkerOnceOptions {
   claimNextAppOperation?: typeof claimNextAppOperation;
   renewAppOperationLease?: typeof renewAppOperationLease;
   finishAppOperationRecord?: typeof finishAppOperationRecord;
-  execute?: (operation: ClaimedAppOperation) => Promise<AppOperationExecutorResult>;
+  execute?: (
+    operation: ClaimedAppOperation,
+    context: AppExecutionContext
+  ) => Promise<AppOperationExecutorResult>;
   onCurrentOperationChange?: (operation: CurrentAppOperation | null) => void;
 }
 
@@ -100,6 +108,23 @@ export async function runAppsWorkerOnce({
   onCurrentOperationChange?.(currentOperation);
 
   let leaseLost = false;
+  const controller = new AbortController();
+  let confirmedExpiry = leaseExpiresAt(startedAt).getTime();
+  const operationDeadline = new Date(operation.deadlineAt ?? deadlineAt(startedAt)).getTime();
+  const loseLease = () => {
+    leaseLost = true;
+    controller.abort(
+      new AppOperationLeaseLostError(operation.id, workerId, operation.leaseGeneration)
+    );
+  };
+  const expiryTimer = setInterval(
+    () => {
+      if (now().getTime() >= confirmedExpiry) loseLease();
+      else if (now().getTime() >= operationDeadline)
+        controller.abort(new Error('Apps operation deadline exceeded'));
+    },
+    Math.min(renewIntervalMs, 1000)
+  );
   let renewalInFlight: Promise<void> | null = null;
 
   const renewLease = () => {
@@ -115,13 +140,13 @@ export async function runAppsWorkerOnce({
           leaseExpiresAt: leaseExpiresAt(renewedAt),
         });
         if (!renewed) {
-          leaseLost = true;
+          loseLease();
           log.warn('Apps operation lease was lost', {
             operationId: operation.id,
             workerId,
             leaseGeneration: operation.leaseGeneration,
           });
-        }
+        } else confirmedExpiry = leaseExpiresAt(renewedAt).getTime();
       } catch (error: unknown) {
         log.warn('Apps operation lease renewal failed; will retry', {
           operationId: operation.id,
@@ -140,7 +165,25 @@ export async function runAppsWorkerOnce({
   try {
     let result: AppOperationExecutorResult;
     try {
-      result = await execute(operation);
+      result = await execute(operation, {
+        signal: controller.signal,
+        assertOwnership: async () => {
+          controller.signal.throwIfAborted();
+          if (now().getTime() >= confirmedExpiry) loseLease();
+          controller.signal.throwIfAborted();
+          const checkedAt = now();
+          const owned = await renew({
+            operationId: operation.id,
+            workerId,
+            leaseGeneration: operation.leaseGeneration,
+            now: checkedAt,
+            leaseExpiresAt: leaseExpiresAt(checkedAt),
+          });
+          if (!owned) loseLease();
+          else confirmedExpiry = leaseExpiresAt(checkedAt).getTime();
+          controller.signal.throwIfAborted();
+        },
+      });
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Apps worker operation failed';
       log.error('Apps worker operation failed', { operationId: operation.id, error: message });
@@ -177,6 +220,7 @@ export async function runAppsWorkerOnce({
 
     return { claimed: true, operationId: operation.id, status: result.status };
   } finally {
+    clearInterval(expiryTimer);
     clearInterval(renewalTimer);
     const pendingRenewal = renewalInFlight;
     if (pendingRenewal) await pendingRenewal;

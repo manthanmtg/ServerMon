@@ -20,9 +20,21 @@ export interface IManagedApp extends Document {
   gitUrl?: string;
   gitBranch?: string;
   gitCurrentSha?: string;
+  gitDeployedSha?: string;
   gitLastCheckedAt?: Date;
   gitLastUpdatedAt?: Date;
   autoUpdate: {
+    scheduleGeneration?: number;
+    consecutiveFailures?: number;
+    lastAttemptAt?: Date;
+    lastCheckCompletedAt?: Date;
+    lastSuccessfulDeployAt?: Date;
+    lastOperationId?: string;
+    lastProjectedOperationId?: string;
+    lastScheduledFor?: Date;
+    retryAt?: Date;
+    observedRemoteSha?: string;
+    pauseReason?: 'rollback';
     enabled: boolean;
     intervalMinutes: number;
     nextRunAt?: Date;
@@ -64,6 +76,7 @@ export interface IManagedApp extends Document {
 
 const ReleaseSchema = new Schema(
   {
+    commitSha: { type: String },
     id: { type: String, required: true },
     status: {
       type: String,
@@ -80,6 +93,17 @@ const ReleaseSchema = new Schema(
 
 const AutoUpdateSchema = new Schema(
   {
+    scheduleGeneration: { type: Number, default: 0 },
+    consecutiveFailures: { type: Number, default: 0 },
+    lastAttemptAt: Date,
+    lastCheckCompletedAt: Date,
+    lastSuccessfulDeployAt: Date,
+    lastOperationId: String,
+    lastProjectedOperationId: String,
+    lastScheduledFor: Date,
+    retryAt: Date,
+    observedRemoteSha: String,
+    pauseReason: { type: String, enum: ['rollback'] },
     enabled: { type: Boolean, required: true, default: false },
     intervalMinutes: { type: Number, required: true, min: 5, max: 10080, default: 60 },
     nextRunAt: { type: Date },
@@ -95,6 +119,8 @@ const AutoUpdateSchema = new Schema(
 
 const OperationSchema = new Schema(
   {
+    queueOperationId: String,
+    trigger: { type: String, enum: ['auto', 'manual'] },
     id: { type: String, required: true },
     type: {
       type: String,
@@ -129,6 +155,7 @@ const ManagedAppSchema = new Schema<IManagedApp>(
     gitUrl: { type: String, trim: true },
     gitBranch: { type: String, trim: true },
     gitCurrentSha: { type: String, trim: true },
+    gitDeployedSha: { type: String, trim: true },
     gitLastCheckedAt: { type: Date },
     gitLastUpdatedAt: { type: Date },
     autoUpdate: {
@@ -170,6 +197,13 @@ const ManagedAppSchema = new Schema<IManagedApp>(
   },
   { timestamps: true }
 );
+
+ManagedAppSchema.index({
+  sourceType: 1,
+  'autoUpdate.enabled': 1,
+  'autoUpdate.nextRunAt': 1,
+  _id: 1,
+});
 
 const ManagedApp: Model<IManagedApp> =
   (mongoose.models.ManagedApp as Model<IManagedApp>) ||

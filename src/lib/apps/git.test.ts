@@ -55,7 +55,7 @@ describe('apps git helpers', () => {
 
     expect(commands).toEqual([
       'git config --get remote.origin.url',
-      'git fetch origin main',
+      'git fetch origin +refs/heads/main:refs/servermon/candidate',
       'git rev-parse HEAD',
     ]);
     expect(result).toMatchObject({ currentSha: 'abc123', cloned: false });
@@ -95,15 +95,16 @@ describe('apps git helpers', () => {
         if (command === 'git rev-parse HEAD') {
           return { code: 0, output: reset ? 'def456\n' : 'abc123\n' };
         }
-        if (command === 'git ls-remote origin refs/heads/main') {
-          return { code: 0, output: 'def456\trefs/heads/main\n' };
+        if (command === 'git rev-parse refs/servermon/candidate') {
+          return { code: 0, output: 'def456\n' };
         }
-        if (command === 'git reset --hard origin/main') reset = true;
+        if (command === "git reset --hard 'def456'") reset = true;
         return { code: 0, output: '' };
       },
     });
 
-    expect(commands).toContain('git reset --hard origin/main');
+    expect(commands).toContain("git reset --hard 'def456'");
+    expect(commands.some((command) => command.includes('ls-remote'))).toBe(false);
     expect(result).toMatchObject({
       sourcePath: '/srv/servermon-apps/app/repository',
       previousSha: 'abc123',

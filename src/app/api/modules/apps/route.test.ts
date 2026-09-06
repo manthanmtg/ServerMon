@@ -8,6 +8,13 @@ const { mockGetSession, mockListManagedApps, mockCreateManagedApp } = vi.hoisted
 }));
 
 vi.mock('@/lib/session', () => ({ getSession: mockGetSession }));
+vi.mock('@/lib/apps/repositories/worker-heartbeat-repository', () => ({
+  getAppsAutomationHealth: vi.fn().mockResolvedValue({
+    serverTime: '2026-09-06T12:00:00Z',
+    worker: { status: 'missing' },
+    scheduler: { status: 'unavailable' },
+  }),
+}));
 vi.mock('@/lib/apps/service', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/apps/service')>();
   return {

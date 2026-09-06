@@ -933,8 +933,8 @@ describe('AppsPage', () => {
 
     expect(await screen.findByText('Git Portal is already up to date.')).toBeTruthy();
     expect(screen.getByText('No upstream changes found.')).toBeTruthy();
-    expect(screen.getByText('Last auto update')).toBeTruthy();
-    expect(screen.getByText('Last result')).toBeTruthy();
+    expect(screen.getByText('Last attempt')).toBeTruthy();
+    expect(screen.getByText('Last successful check')).toBeTruthy();
     expect(screen.getAllByText('Unchanged').length).toBeGreaterThan(0);
     expect(screen.getByText('Next check')).toBeTruthy();
     expect(screen.queryByRole('dialog', { name: 'Update logs' })).toBeNull();

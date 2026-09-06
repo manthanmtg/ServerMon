@@ -8,6 +8,10 @@ import type {
 export interface IAppOperation extends Document {
   _id: mongoose.Types.ObjectId;
   operationId: string;
+  trigger?: 'auto' | 'manual';
+  scheduledFor?: Date;
+  scheduleGeneration?: number;
+  autoUpdateProjectedAt?: Date;
   appId: mongoose.Types.ObjectId;
   appSlug: string;
   type: AppOperationType;
@@ -81,6 +85,10 @@ const OperationErrorSchema = new Schema(
 const AppOperationSchema = new Schema<IAppOperation>(
   {
     operationId: { type: String, required: true, trim: true },
+    trigger: { type: String, enum: ['auto', 'manual'], default: 'manual' },
+    scheduledFor: Date,
+    scheduleGeneration: Number,
+    autoUpdateProjectedAt: Date,
     appId: { type: Schema.Types.ObjectId, ref: 'ManagedApp', required: true },
     appSlug: { type: String, required: true, trim: true },
     type: {

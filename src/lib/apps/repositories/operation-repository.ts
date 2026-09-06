@@ -1,4 +1,5 @@
 import AppOperation from '@/models/AppOperation';
+import AppsWorkerHeartbeat from '@/models/AppsWorkerHeartbeat';
 import { createLogger } from '@/lib/logger';
 import type {
   AcceptedAppOperation,
@@ -28,6 +29,9 @@ interface RequestedBy {
 }
 
 interface CreateAppOperationRecordInput {
+  trigger?: 'auto' | 'manual';
+  scheduledFor?: Date;
+  scheduleGeneration?: number;
   operationId: string;
   appId: string;
   appSlug: string;
@@ -76,6 +80,9 @@ interface RecoverExpiredAppOperationRecordInput {
 }
 
 interface OperationRecord {
+  trigger?: 'auto' | 'manual';
+  scheduledFor?: Date;
+  scheduleGeneration?: number;
   operationId: string;
   appId: { toString: () => string } | string;
   appSlug: string;
@@ -117,6 +124,9 @@ function operationCreatedAt(record: OperationRecord): string {
 function toAcceptedOperation(record: OperationRecord): AcceptedAppOperation {
   return {
     id: record.operationId,
+    trigger: record.trigger ?? 'manual',
+    scheduledFor: record.scheduledFor?.toISOString(),
+    scheduleGeneration: record.scheduleGeneration,
     appId: record.appId.toString(),
     type: record.type,
     status: record.status,
@@ -159,6 +169,9 @@ export async function createAppOperationRecord(
   try {
     const created = (await AppOperation.create({
       operationId: input.operationId,
+      trigger: input.trigger ?? 'manual',
+      scheduledFor: input.scheduledFor,
+      scheduleGeneration: input.scheduleGeneration,
       appId: input.appId,
       appSlug: input.appSlug,
       type: input.type,
@@ -184,6 +197,10 @@ export async function createAppOperationRecord(
 
     return toAcceptedOperation(created);
   } catch (error: unknown) {
+    if (isDuplicateKeyError(error) && input.idempotencyKey) {
+      const existing = await findAppOperationByIdempotencyKey(input.appId, input.idempotencyKey);
+      if (existing) return existing;
+    }
     if (isDuplicateKeyError(error) && duplicateKeyIncludes(error, 'active')) {
       throw new ActiveAppOperationError(input.appId);
     }
@@ -314,6 +331,7 @@ export async function recoverExpiredAppOperationRecord(
       active: true,
       status: { $in: ['running', 'cancel_requested'] },
       'lease.workerId': { $ne: input.currentWorkerId },
+      'error.code': { $ne: 'RECOVERY_REQUIRED' },
       $or: [
         { 'lease.expiresAt': { $lte: input.now } },
         {
@@ -327,11 +345,12 @@ export async function recoverExpiredAppOperationRecord(
         $set: {
           status: 'failed',
           phase: 'terminal',
-          active: false,
+          active: true,
           completedAt: input.now,
           error: {
-            code: WORKER_INTERRUPTED_CODE,
-            message: WORKER_INTERRUPTED_MESSAGE,
+            code: 'RECOVERY_REQUIRED',
+            message:
+              'Recovery required: stop the previous worker and its child processes, inspect the active release, then release the operation lock',
             retryable: false,
             details: {
               previousWorkerId: '$lease.workerId',
@@ -350,6 +369,24 @@ export async function recoverExpiredAppOperationRecord(
   )) as OperationRecord | null;
 
   if (!record) return null;
+
+  // A graceful stopped heartbeat is written only after the executor drains. A stale heartbeat,
+  // missing PID or expired lease cannot prove that detached host commands have stopped.
+  const stoppedWorker = await AppsWorkerHeartbeat.exists({
+    workerId: record.lease?.workerId,
+    status: 'stopped',
+  });
+  if (stoppedWorker)
+    await AppOperation.updateOne(
+      { operationId: record.operationId, active: true, 'error.code': 'RECOVERY_REQUIRED' },
+      {
+        $set: {
+          active: false,
+          'error.code': WORKER_INTERRUPTED_CODE,
+          'error.message': WORKER_INTERRUPTED_MESSAGE,
+        },
+      }
+    );
 
   try {
     await appendAppOperationEvent({

@@ -79,6 +79,7 @@ describe('updateManagedGitApp', () => {
       gitUrl: 'https://github.com/acme/git-portal.git',
       gitBranch: 'main',
       gitCurrentSha: 'old-sha',
+      gitDeployedSha: 'old-sha',
       autoUpdate: { enabled: true, intervalMinutes: 60 },
       domain: 'git.example.com',
       port: 3010,
@@ -151,6 +152,7 @@ describe('updateManagedGitApp', () => {
       gitUrl: 'https://github.com/acme/git-portal.git',
       gitBranch: 'main',
       gitCurrentSha: 'old-sha',
+      gitDeployedSha: 'old-sha',
       autoUpdate: { enabled: true, intervalMinutes: 60 },
       domain: 'git.example.com',
       port: 3010,
@@ -228,6 +230,7 @@ describe('updateManagedGitApp', () => {
       gitUrl: 'https://github.com/acme/git-portal.git',
       gitBranch: 'main',
       gitCurrentSha: 'old-sha',
+      gitDeployedSha: 'old-sha',
       autoUpdate: { enabled: true, intervalMinutes: 60 },
       domain: 'git.example.com',
       port: 3010,
@@ -314,6 +317,7 @@ describe('updateManagedGitApp', () => {
       gitUrl: 'https://github.com/acme/git-portal.git',
       gitBranch: 'main',
       gitCurrentSha: 'old-sha',
+      gitDeployedSha: 'old-sha',
       autoUpdate: {
         enabled: true,
         intervalMinutes: 60,
@@ -377,6 +381,25 @@ describe('updateManagedGitApp', () => {
       lastError: 'Command failed: pnpm build',
     });
     expect(savedStatuses).not.toContain('deploying');
+    expect(app.gitDeployedSha).toBe('old-sha');
+    // The checkout already contains B after its failed build. B must still be deployed.
+    mockPrepareGitSourceForDeploy.mockResolvedValue({
+      sourcePath: '/tmp/source',
+      currentSha: 'new-sha',
+      remoteSha: 'new-sha',
+      changed: false,
+      logs: [],
+    });
+    mockDeployNextJsApp.mockResolvedValue({
+      releaseId: 'successful-retry',
+      status: 'active',
+      logs: [],
+    });
+    expect((await updateManagedGitApp('app-1')).status).toBe('active');
+    expect(app.gitDeployedSha).toBe('new-sha');
+    expect(mockDeployNextJsApp).toHaveBeenCalledTimes(2);
+    expect((await updateManagedGitApp('app-1')).status).toBe('unchanged');
+    expect(mockDeployNextJsApp).toHaveBeenCalledTimes(2);
   });
 
   it('records scheduled updates separately from manual update clicks', async () => {
@@ -392,6 +415,7 @@ describe('updateManagedGitApp', () => {
       gitUrl: 'https://github.com/acme/git-portal.git',
       gitBranch: 'main',
       gitCurrentSha: 'old-sha',
+      gitDeployedSha: 'old-sha',
       autoUpdate: {
         enabled: true,
         intervalMinutes: 60,

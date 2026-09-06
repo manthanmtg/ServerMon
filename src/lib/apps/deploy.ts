@@ -40,6 +40,8 @@ export type HealthCheck = (
 ) => Promise<{ ok: boolean; status?: number; error?: string }>;
 
 export interface DeployNextJsAppOptions {
+  assertOwnership?: () => Promise<void>;
+  commitSha?: string;
   app: Omit<CreateManagedAppInput, 'sourcePath'> & {
     sourcePath: string;
     slug: string;
@@ -160,6 +162,7 @@ export const defaultCommandRunner: CommandRunner = ({ command, cwd, signal }) =>
     child.stdout.on('data', (chunk: Buffer) => output.push(chunk.toString()));
     child.stderr.on('data', (chunk: Buffer) => output.push(chunk.toString()));
     child.on('close', (code) => {
+      if (signal?.aborted) killProcessGroup('SIGKILL');
       cleanup();
       resolve({ code: code ?? 1, output: output.join('') });
     });
@@ -405,6 +408,8 @@ export async function deployNextJsApp({
   healthCheck = defaultHealthCheck,
   signal,
   onProgress,
+  assertOwnership,
+  commitSha,
 }: DeployNextJsAppOptions): Promise<DeployNextJsAppResult> {
   const logs: string[] = [];
   const appRoot = getAppRoot(app.slug, appsRoot);
@@ -436,6 +441,7 @@ export async function deployNextJsApp({
           domain: app.domain,
           port: app.port,
           releaseId,
+          commitSha,
           createdAt: new Date().toISOString(),
         },
         null,
@@ -448,6 +454,8 @@ export async function deployNextJsApp({
     await runOrThrow(commandRunner, app.commands.build, logs, sourceRoot, onProgress, signal);
 
     await mkdir(systemdDir, { recursive: true });
+    signal?.throwIfAborted();
+    await assertOwnership?.();
     await mkdir(nginxAvailableDir, { recursive: true });
     await mkdir(nginxEnabledDir, { recursive: true });
 
@@ -494,6 +502,8 @@ export async function deployNextJsApp({
     });
 
     const nginxAvailablePath = path.join(nginxAvailableDir, app.domain);
+    signal?.throwIfAborted();
+    await assertOwnership?.();
     const nginxEnabledPath = path.join(nginxEnabledDir, app.domain);
     const existingTlsCertificate = app.tlsEnabled
       ? await hasLetsEncryptCertificate(app.domain, letsencryptLiveDir)
@@ -533,8 +543,17 @@ export async function deployNextJsApp({
       }
     }
 
+    signal?.throwIfAborted();
+    await assertOwnership?.();
+    await writeFile(
+      path.join(releaseRoot, 'success.json'),
+      JSON.stringify({ releaseId, commitSha, completedAt: new Date().toISOString() }),
+      'utf8'
+    );
     return { releaseId, status: 'active', logs };
   } catch (error: unknown) {
+    // Ownership loss forbids compensating host mutations too. Recovery inspects the current release.
+    if (signal?.aborted) throw error;
     if (previousCurrentTarget) {
       await replaceSymlink(currentPath, previousCurrentTarget);
       if (serviceRestarted) {

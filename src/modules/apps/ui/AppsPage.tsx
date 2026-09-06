@@ -40,7 +40,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import ConfirmationModal from '@/components/ui/ConfirmationModal';
 import { OperationLogViewer } from '@/components/operations/OperationLogViewer';
 import type {
-  AppAutoUpdateStatus,
+  AppsAutomationHealth,
   AppLogEntry,
   AppOperation,
   AppOperationType,
@@ -50,10 +50,12 @@ import type {
   ManagedAppDTO,
 } from '../types';
 import { readManagedAppsList } from './appPayload';
+import { readAutomationHealth } from './automationHealth';
 import { AppsRuntimeLogsDialog } from './AppsRuntimeLogsDialog';
 import { AppsDeploymentHistoryDialog } from './components/AppsDeploymentHistoryDialog';
 import { AppsOperationLogsDialog } from './components/AppsOperationLogsDialog';
 import { AppsSummaryCards } from './AppsSummaryCards';
+import { AutoUpdateStatus, AutomationHealthNotice } from './components/AutoUpdateStatus';
 
 interface FormState {
   templateId: AppTemplateId;
@@ -138,7 +140,7 @@ interface AcceptedOperationLock {
 
 interface TerminalQueueOperation {
   id: string;
-  status: 'failed' | 'cancelled';
+  status: 'failed' | 'cancelled' | 'succeeded' | 'unchanged';
   createdAt?: string;
   startedAt?: string;
   completedAt?: string;
@@ -399,14 +401,6 @@ function operationLogSubject(type: AppOperationType) {
   return type === 'deploy' ? 'deployment' : type;
 }
 
-function autoUpdateStatusBadge(status?: AppAutoUpdateStatus) {
-  if (status === 'failed') return <Badge variant="destructive">Failed</Badge>;
-  if (status === 'updated') return <Badge variant="success">Updated</Badge>;
-  if (status === 'unchanged') return <Badge variant="secondary">Unchanged</Badge>;
-  if (status === 'idle') return <Badge variant="secondary">Idle</Badge>;
-  return <Badge variant="secondary">Never run</Badge>;
-}
-
 function formatOptionalDate(value: string | undefined, fallback: string) {
   return value ? new Date(value).toLocaleString() : fallback;
 }
@@ -505,6 +499,12 @@ function findOperationForLogs(
   target: OperationLogsTarget | null
 ): AppOperation | undefined {
   if (!app || !target) return undefined;
+  if (target.queueOperationId) {
+    const execution = app.operations.find(
+      (operation) => operation.queueOperationId === target.queueOperationId
+    );
+    if (execution) return execution;
+  }
   if (target.operationSnapshot) return target.operationSnapshot;
   if (target.operationId) {
     return app.operations.find((operation) => operation.id === target.operationId);
@@ -570,7 +570,13 @@ function readTerminalQueueOperation(payload: unknown): TerminalQueueOperation | 
     return null;
   }
   const operation = payload.data.operation;
-  if (operation.status !== 'failed' && operation.status !== 'cancelled') return null;
+  if (
+    operation.status !== 'failed' &&
+    operation.status !== 'cancelled' &&
+    operation.status !== 'succeeded' &&
+    operation.status !== 'unchanged'
+  )
+    return null;
   if (typeof operation.id !== 'string') return null;
   return {
     id: operation.id,
@@ -587,21 +593,28 @@ function terminalQueueOperationToLogOperation(
   type: AppOperationType
 ): AppOperation {
   const subject = operationLogSubject(type);
+  const successful = operation.status === 'succeeded' || operation.status === 'unchanged';
   return {
     id: operation.id,
     type,
-    status: 'failed',
-    title: `${subject} did not start`,
-    step:
-      operation.status === 'cancelled' ? 'Cancelled before execution' : 'Failed before execution',
+    status: successful ? (operation.status === 'unchanged' ? 'unchanged' : 'succeeded') : 'failed',
+    title: successful ? `${subject} completed` : `${subject} did not start`,
+    step: successful
+      ? 'Completed'
+      : operation.status === 'cancelled'
+        ? 'Cancelled before execution'
+        : 'Failed before execution',
     startedAt: operation.startedAt ?? operation.createdAt ?? new Date().toISOString(),
     completedAt: operation.completedAt,
-    error:
-      operation.error ??
-      (operation.status === 'cancelled'
-        ? `The ${subject} was cancelled before execution started.`
-        : `The ${subject} failed before build output became available.`),
-    logs: [],
+    error: successful
+      ? undefined
+      : (operation.error ??
+        (operation.status === 'cancelled'
+          ? `The ${subject} was cancelled before execution started.`
+          : `The ${subject} failed before build output became available.`)),
+    logs: successful
+      ? ['Operation completed. Detailed execution logs are no longer retained.']
+      : [],
   };
 }
 
@@ -657,6 +670,9 @@ export default function AppsPage() {
   const [runtimeLogsError, setRuntimeLogsError] = useState<string | null>(null);
   const [editingApp, setEditingApp] = useState<ManagedAppDTO | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [automationHealth, setAutomationHealth] = useState<AppsAutomationHealth>();
+  const [snapshotUnavailable, setSnapshotUnavailable] = useState(false);
+  const [snapshotError, setSnapshotError] = useState<string | null>(null);
   const [notice, setNotice] = useState<ActionNotice | null>(null);
   const [operationLogFollow, setOperationLogFollow] = useState<Record<string, boolean>>({});
   const [operationLogAutoscroll, setOperationLogAutoscroll] = useState<Record<string, boolean>>({});
@@ -680,9 +696,14 @@ export default function AppsPage() {
       const nextApps = readManagedAppsList(data);
       appsRef.current = nextApps;
       setApps(nextApps);
+      setAutomationHealth(readAutomationHealth(data));
+      setSnapshotUnavailable(false);
+      setSnapshotError(null);
       return true;
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to load apps');
+      setSnapshotUnavailable(true);
+      setAutomationHealth(undefined);
+      setSnapshotError(err instanceof Error ? err.message : 'Failed to load apps');
       return false;
     } finally {
       setLoading(false);
@@ -704,6 +725,8 @@ export default function AppsPage() {
     ? apps.find((app) => app.id === operationLogsTarget.appId)
     : undefined;
   const selectedOperation = findOperationForLogs(operationLogsApp, operationLogsTarget);
+  const selectedOperationId = selectedOperation?.id;
+  const selectedOperationStatus = selectedOperation?.status;
   const awaitingOperationLogs = Boolean(operationLogsTarget && !selectedOperation);
   const selectedOperationFollow = selectedOperation
     ? operationLogFollow[selectedOperation.id] !== false
@@ -719,15 +742,25 @@ export default function AppsPage() {
 
   useEffect(() => {
     const acceptedOperations = Object.values(acceptedOperationLocks);
+    const watchedQueueId = operationLogsTarget?.queueOperationId;
     if (
+      watchedQueueId &&
+      (!selectedOperationId || selectedOperationStatus === 'running') &&
+      !acceptedOperations.some((operation) => operation.operationId === watchedQueueId)
+    ) {
+      acceptedOperations.push({
+        appId: operationLogsTarget.appId,
+        operationId: watchedQueueId,
+        operationType: operationLogsTarget.operationType,
+      });
+    }
+    const idle =
       !deployingId &&
       !updatingId &&
       activeOperations === 0 &&
       !awaitingOperationLogs &&
-      acceptedOperations.length === 0
-    ) {
-      return undefined;
-    }
+      acceptedOperations.length === 0;
+    const pollInterval = idle ? 15_000 : UPDATE_OPERATION_POLL_MS;
 
     let cancelled = false;
     let timeout: ReturnType<typeof setTimeout> | undefined;
@@ -743,6 +776,36 @@ export default function AppsPage() {
               `/api/modules/apps/operations/${operation.operationId}`,
               { cache: 'no-store', timeout: 10000 }
             );
+            if ((response.status === 404 || response.status === 410) && !cancelled) {
+              terminalOperationIds.add(operation.operationId);
+              if (appListLoaded)
+                setAcceptedOperationLocks((current) =>
+                  Object.fromEntries(
+                    Object.entries(current).filter(
+                      ([, lock]) => lock.operationId !== operation.operationId
+                    )
+                  )
+                );
+              setOperationLogsTarget((current) =>
+                current?.queueOperationId === operation.operationId
+                  ? {
+                      ...current,
+                      operationSnapshot: {
+                        id: operation.operationId,
+                        type: operation.operationType,
+                        status: 'failed',
+                        title: 'Operation history unavailable',
+                        step: 'Logs unavailable',
+                        startedAt: new Date().toISOString(),
+                        error:
+                          'Operation history is unavailable or expired. This does not establish whether the deployment succeeded.',
+                        logs: [],
+                      },
+                    }
+                  : current
+              );
+              return;
+            }
             const payload: unknown = await response.json();
             const status =
               isRecord(payload) && isRecord(payload.data) && isRecord(payload.data.operation)
@@ -787,11 +850,11 @@ export default function AppsPage() {
         );
       }
       if (!cancelled) {
-        timeout = setTimeout(() => void poll(), UPDATE_OPERATION_POLL_MS);
+        timeout = setTimeout(() => void poll(), pollInterval);
       }
     };
 
-    timeout = setTimeout(() => void poll(), UPDATE_OPERATION_POLL_MS);
+    timeout = setTimeout(() => void poll(), pollInterval);
 
     return () => {
       cancelled = true;
@@ -803,6 +866,9 @@ export default function AppsPage() {
     awaitingOperationLogs,
     deployingId,
     load,
+    operationLogsTarget,
+    selectedOperationId,
+    selectedOperationStatus,
     updatingId,
   ]);
 
@@ -1140,12 +1206,12 @@ export default function AppsPage() {
 
   return (
     <div className="space-y-6">
-      {error && (
+      {(error || snapshotError) && (
         <div
           role="alert"
           className="rounded-lg border border-destructive/20 bg-destructive/5 px-4 py-3 text-sm text-destructive"
         >
-          {error}
+          {error || snapshotError}
         </div>
       )}
 
@@ -1164,6 +1230,9 @@ export default function AppsPage() {
       )}
 
       <AppsSummaryCards summary={summary} activeOperations={activeOperations} />
+      {apps.some((app) => app.git?.autoUpdate.enabled) && !snapshotUnavailable && (
+        <AutomationHealthNotice health={automationHealth} />
+      )}
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
@@ -1363,8 +1432,8 @@ export default function AppsPage() {
                           Auto update from upstream
                         </span>
                         <span className="block text-xs leading-5 text-muted-foreground">
-                          ServerMon checks the git branch on schedule and deploys only when upstream
-                          changes are available.
+                          The first check starts immediately after saving. Later checks deploy
+                          upstream changes on this interval. Daily means every 24 hours.
                         </span>
                       </span>
                     </label>
@@ -1602,7 +1671,9 @@ export default function AppsPage() {
                         {!updateInProgress && !acceptedUpdateInProgress && (
                           <RefreshCw className="h-3.5 w-3.5" />
                         )}
-                        {updateInProgress || acceptedUpdateInProgress ? 'Updating…' : 'Update'}
+                        {updateInProgress || acceptedUpdateInProgress
+                          ? 'Updating…'
+                          : 'Check for updates now'}
                       </Button>
                     )}
                     <Button
@@ -1683,6 +1754,22 @@ export default function AppsPage() {
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
+                {app.sourceType === 'git' && app.git && (
+                  <AutoUpdateStatus
+                    git={app.git}
+                    health={automationHealth}
+                    snapshotUnavailable={snapshotUnavailable}
+                    onOpenLogs={(operationId) => {
+                      setOperationLogsTarget({
+                        appId: app.id,
+                        operationType: 'update',
+                        operationId,
+                        queueOperationId: operationId,
+                      });
+                    }}
+                    now={automationHealth ? new Date(automationHealth.serverTime) : undefined}
+                  />
+                )}
                 <div className="grid gap-3 text-sm md:grid-cols-3">
                   <div className="rounded-lg bg-muted/40 p-3">
                     <div className="text-xs text-muted-foreground">Public URL</div>
@@ -1806,6 +1893,15 @@ export default function AppsPage() {
                                         <div className="min-w-0 py-1">
                                           <div className="font-medium text-foreground">
                                             {logsTitle}
+                                            {operation.type === 'update' && (
+                                              <span className="ml-2 text-xs text-muted-foreground">
+                                                {operation.trigger === 'auto'
+                                                  ? 'Automatic'
+                                                  : operation.trigger === 'manual'
+                                                    ? 'Manual'
+                                                    : 'Trigger unknown'}
+                                              </span>
+                                            )}
                                           </div>
                                           <div className="mt-1 text-muted-foreground">
                                             Started{' '}
@@ -1886,7 +1982,7 @@ export default function AppsPage() {
                     </div>
 
                     {app.sourceType === 'git' && app.git && (
-                      <div className="grid gap-3 text-sm md:grid-cols-4">
+                      <div className="grid gap-3 text-sm md:grid-cols-3">
                         <div className="rounded-lg border border-border p-3">
                           <div className="text-xs text-muted-foreground">Repository</div>
                           <div className="mt-1 truncate font-medium">{app.git.url}</div>
@@ -1896,42 +1992,9 @@ export default function AppsPage() {
                           <div className="mt-1 font-medium">{app.git.branch}</div>
                         </div>
                         <div className="rounded-lg border border-border p-3">
-                          <div className="text-xs text-muted-foreground">Commit</div>
+                          <div className="text-xs text-muted-foreground">Checkout commit</div>
                           <div className="mt-1 font-mono font-medium">
                             {app.git.currentSha?.slice(0, 7) || 'Not fetched'}
-                          </div>
-                        </div>
-                        <div className="rounded-lg border border-border p-3">
-                          <div className="text-xs text-muted-foreground">Auto update</div>
-                          <div className="mt-1 font-medium">
-                            {app.git.autoUpdate.enabled
-                              ? `${app.git.autoUpdate.intervalMinutes} min`
-                              : 'Off'}
-                          </div>
-                        </div>
-                        <div className="rounded-lg border border-border p-3">
-                          <div className="text-xs text-muted-foreground">Last auto update</div>
-                          <div className="mt-1 font-medium">
-                            {formatOptionalDate(app.git.autoUpdate.lastRunAt, 'Never run')}
-                          </div>
-                        </div>
-                        <div className="rounded-lg border border-border p-3">
-                          <div className="text-xs text-muted-foreground">Last result</div>
-                          <div className="mt-1">
-                            {autoUpdateStatusBadge(app.git.autoUpdate.lastStatus)}
-                          </div>
-                          {app.git.autoUpdate.lastError && (
-                            <div className="mt-2 text-xs leading-5 text-destructive">
-                              {app.git.autoUpdate.lastError}
-                            </div>
-                          )}
-                        </div>
-                        <div className="rounded-lg border border-border p-3">
-                          <div className="text-xs text-muted-foreground">Next check</div>
-                          <div className="mt-1 font-medium">
-                            {app.git.autoUpdate.enabled
-                              ? formatOptionalDate(app.git.autoUpdate.nextRunAt, 'Pending schedule')
-                              : 'Not scheduled'}
                           </div>
                         </div>
                       </div>

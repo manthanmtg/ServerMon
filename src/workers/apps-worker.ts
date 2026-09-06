@@ -12,12 +12,20 @@ import {
   upsertAppsWorkerHeartbeat,
 } from '@/lib/apps/repositories/worker-heartbeat-repository';
 import { AppsWorkerRunnerHandle, startAppsWorkerRunner } from '@/lib/apps/worker/runner';
+import { migrateAppsAutoUpdate } from '@/lib/apps/auto-update';
+import {
+  startGitAppAutoUpdateScheduler,
+  stopGitAppAutoUpdateScheduler,
+} from '@/lib/apps/auto-update-scheduler';
 
 const log = createLogger('apps:worker');
 
 type ShutdownReason = 'signal' | 'fatal';
 
 export interface AppsWorkerProcessDependencies {
+  migrate: typeof migrateAppsAutoUpdate;
+  startScheduler: typeof startGitAppAutoUpdateScheduler;
+  stopScheduler: typeof stopGitAppAutoUpdateScheduler;
   connectDB: typeof connectDB;
   upsertHeartbeat: typeof upsertAppsWorkerHeartbeat;
   markStopped: typeof markAppsWorkerStopped;
@@ -41,6 +49,9 @@ export interface AppsWorkerProcessHandle {
 function defaultDependencies(): AppsWorkerProcessDependencies {
   const host = getHostname();
   return {
+    migrate: migrateAppsAutoUpdate,
+    startScheduler: startGitAppAutoUpdateScheduler,
+    stopScheduler: stopGitAppAutoUpdateScheduler,
     connectDB,
     upsertHeartbeat: upsertAppsWorkerHeartbeat,
     markStopped: markAppsWorkerStopped,
@@ -140,6 +151,7 @@ export async function runAppsWorkerProcess(
     if (shutdownPromise) return shutdownPromise;
 
     shutdownPromise = (async () => {
+      dependencies.stopScheduler();
       if (heartbeatTimer) {
         clearInterval(heartbeatTimer);
         heartbeatTimer = null;
@@ -180,6 +192,7 @@ export async function runAppsWorkerProcess(
 
   try {
     await dependencies.connectDB();
+    await dependencies.migrate();
     await dependencies.upsertHeartbeat(heartbeatInput('starting'));
 
     runner = dependencies.startRunner(workerId, {
@@ -189,6 +202,7 @@ export async function runAppsWorkerProcess(
     });
 
     await dependencies.upsertHeartbeat(heartbeatInput('running'));
+    dependencies.startScheduler({ workerId });
     heartbeatTimer = setInterval(() => {
       startPeriodicHeartbeat();
     }, dependencies.heartbeatIntervalMs);

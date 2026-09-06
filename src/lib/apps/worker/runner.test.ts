@@ -132,7 +132,13 @@ describe('runAppsWorkerOnce', () => {
       leaseExpiresAt,
       deadlineAt,
     });
-    expect(execute).toHaveBeenCalledWith(claimedOperation());
+    expect(execute).toHaveBeenCalledWith(
+      claimedOperation(),
+      expect.objectContaining({
+        signal: expect.any(AbortSignal),
+        assertOwnership: expect.any(Function),
+      })
+    );
     expect(finishAppOperationRecord).toHaveBeenCalledWith({
       operationId: 'op_1',
       workerId: 'worker-1',

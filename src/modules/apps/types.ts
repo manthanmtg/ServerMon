@@ -37,6 +37,7 @@ export interface AppCommands {
 }
 
 export interface AppRelease {
+  commitSha?: string;
   id: string;
   status: 'building' | 'active' | 'failed' | 'superseded';
   createdAt: string;
@@ -46,6 +47,8 @@ export interface AppRelease {
 }
 
 export interface AppOperation {
+  queueOperationId?: string;
+  trigger?: 'auto' | 'manual';
   id: string;
   type: AppOperationType;
   status: AppOperationStatus;
@@ -61,6 +64,9 @@ export interface AppOperation {
 }
 
 export interface AcceptedAppOperation {
+  trigger?: 'auto' | 'manual';
+  scheduleGeneration?: number;
+  scheduledFor?: string;
   id: string;
   appId: string;
   type: AppOperationType;
@@ -129,6 +135,7 @@ export interface ManagedAppDTO {
     url: string;
     branch: string;
     currentSha?: string;
+    deployedSha?: string;
     lastCheckedAt?: string;
     lastUpdatedAt?: string;
     autoUpdate: AppAutoUpdate;
@@ -151,12 +158,52 @@ export interface ManagedAppDTO {
 }
 
 export interface AppAutoUpdate {
+  scheduleGeneration?: number;
+  lastAttemptAt?: string;
+  lastCheckCompletedAt?: string;
+  lastSuccessfulDeployAt?: string;
+  lastOperationId?: string;
+  lastScheduledFor?: string;
+  consecutiveFailures?: number;
+  retryAt?: string;
+  observedRemoteSha?: string;
+  pauseReason?: 'rollback';
+  operationStatus?: AppV2OperationStatus;
+  operationPhase?: AppV2OperationPhase;
+  blockReason?:
+    | 'worker_unavailable'
+    | 'scheduler_stale'
+    | 'operation_active'
+    | 'retry_backoff'
+    | 'disabled'
+    | 'paused_after_rollback';
   enabled: boolean;
   intervalMinutes: number;
   nextRunAt?: string;
   lastRunAt?: string;
   lastStatus?: AppAutoUpdateStatus;
   lastError?: string;
+}
+
+export interface AppsAutomationHealth {
+  serverTime: string;
+  worker: {
+    status: 'healthy' | 'missing' | 'stale' | 'not_running';
+    workerId?: string;
+    lastSeenAt?: string;
+  };
+  scheduler: {
+    status: 'healthy' | 'starting' | 'stale' | 'error' | 'unavailable';
+    lastScanStartedAt?: string;
+    lastScanCompletedAt?: string;
+    lastSuccessfulScanAt?: string;
+    lastError?: string;
+    checked?: number;
+    queued?: number;
+    busy?: number;
+    blocked?: number;
+    failedToQueue?: number;
+  };
 }
 
 export interface AppTemplate {

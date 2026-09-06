@@ -400,7 +400,7 @@ describe('deployNextJsApp', () => {
     );
   });
 
-  it('aborts deployment commands and still restarts the previous service without the aborted signal', async () => {
+  it('stops host mutations after an abort instead of compensating without ownership', async () => {
     const sourcePath = await createSourceRepo();
     const dirs = await createDeployDirs();
     const previousRelease = path.join(dirs.root, 'lifeos', 'releases', 'old-release');
@@ -447,15 +447,13 @@ describe('deployNextJsApp', () => {
       commandRunner,
       healthCheck: async () => ({ ok: true }),
       signal: controller.signal,
-    });
+    }).catch((error: unknown) => error);
 
-    expect(result.status).toBe('failed');
-    expect(result.error).toBe('Update timed out after 1 hour');
-    expect(commands.at(-1)).toBe('systemctl restart servermon-app-lifeos.service');
-    expect(signals.at(-1)).toBeUndefined();
-    expect(signals.slice(0, -1).every((signal) => signal === controller.signal)).toBe(true);
+    expect(result).toBeInstanceOf(Error);
+    expect(commands.at(-1)).toBe('nginx -t');
+    expect(signals.every((signal) => signal === controller.signal)).toBe(true);
     await expect(readlink(path.join(dirs.root, 'lifeos', 'current'))).resolves.toBe(
-      previousRelease
+      path.join(dirs.root, 'lifeos', 'releases', 'aborted-release')
     );
   });
 

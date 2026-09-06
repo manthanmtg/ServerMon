@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { ZodError } from 'zod';
 import { createLogger } from '@/lib/logger';
 import { getSession } from '@/lib/session';
+import { getAppsAutomationHealth } from '@/lib/apps/repositories/worker-heartbeat-repository';
 import {
   CreateManagedAppSchema,
   createManagedApp,
@@ -33,7 +34,8 @@ export async function GET() {
     }
 
     const apps = await listManagedApps(getConfiguredPublicIp());
-    return NextResponse.json({ apps });
+    const health = await getAppsAutomationHealth();
+    return NextResponse.json({ apps, health });
   } catch (error: unknown) {
     log.error('Failed to list apps', error);
     return NextResponse.json({ error: 'Failed to list apps' }, { status: 500 });

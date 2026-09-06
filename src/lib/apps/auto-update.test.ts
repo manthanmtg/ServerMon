@@ -1,100 +1,88 @@
 /** @vitest-environment node */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-
-const {
-  mockCountDocuments,
-  mockFind,
-  mockReconcileStaleAppUpdateOperations,
-  mockUpdateManagedGitApp,
-} = vi.hoisted(() => ({
-  mockCountDocuments: vi.fn(),
-  mockFind: vi.fn(),
-  mockReconcileStaleAppUpdateOperations: vi.fn(),
-  mockUpdateManagedGitApp: vi.fn(),
+const mocks = vi.hoisted(() => ({
+  find: vi.fn(),
+  count: vi.fn(),
+  update: vi.fn(),
+  enqueue: vi.fn(),
 }));
-
 vi.mock('@/lib/db', () => ({ default: vi.fn() }));
 vi.mock('@/models/ManagedApp', () => ({
-  default: { countDocuments: mockCountDocuments, find: mockFind },
+  default: { find: mocks.find, countDocuments: mocks.count, updateOne: mocks.update },
 }));
-vi.mock('./service', () => ({
-  reconcileStaleAppUpdateOperations: mockReconcileStaleAppUpdateOperations,
-  updateManagedGitApp: mockUpdateManagedGitApp,
+vi.mock('@/models/AppOperation', () => ({
+  default: { find: () => ({ sort: () => ({ limit: () => ({ lean: async () => [] }) }) }) },
 }));
-vi.mock('@/lib/logger', () => ({
-  createLogger: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }),
+vi.mock('./application/enqueue-operation', async (original) => ({
+  ...(await original<typeof import('./application/enqueue-operation')>()),
+  enqueueAppOperation: mocks.enqueue,
 }));
-
 import { countDueGitAppAutoUpdates, runDueGitAppAutoUpdates } from './auto-update';
+import { ActiveAppOperationError } from './repositories/operation-repository';
+import { AppsWorkerUnavailableError } from './application/enqueue-operation';
 
-describe('git app auto update runner', () => {
+describe('durable automatic scheduling', () => {
+  const now = new Date('2026-09-06T12:00:00Z');
   beforeEach(() => {
     vi.clearAllMocks();
-    mockReconcileStaleAppUpdateOperations.mockResolvedValue({ matched: 0, modified: 0 });
+    mocks.update.mockResolvedValue({ matchedCount: 1 });
   });
-
-  it('counts due git apps for scheduler watchdog checks', async () => {
-    mockCountDocuments.mockResolvedValue(3);
-
-    const result = await countDueGitAppAutoUpdates(new Date('2026-05-07T00:03:00.000Z'));
-
-    expect(mockCountDocuments).toHaveBeenCalledWith({
-      sourceType: 'git',
-      'autoUpdate.enabled': true,
-      $or: [
-        { 'autoUpdate.nextRunAt': { $exists: false } },
-        { 'autoUpdate.nextRunAt': { $lte: new Date('2026-05-07T00:03:00.000Z') } },
-      ],
+  function apps(ids: string[]) {
+    mocks.find.mockReturnValue({
+      sort: () => ({
+        limit: () => ({
+          lean: async () =>
+            ids.map((_id) => ({
+              _id,
+              autoUpdate: { enabled: true, scheduleGeneration: 2, nextRunAt: now },
+            })),
+        }),
+      }),
     });
-    expect(result).toBe(3);
-  });
-
-  it('updates due git apps with auto update enabled', async () => {
-    mockFind.mockReturnValue({
-      lean: vi.fn().mockResolvedValue([{ _id: 'app-1' }, { _id: 'app-2' }]),
-    });
-    mockUpdateManagedGitApp.mockResolvedValue({ status: 'unchanged' });
-
-    const result = await runDueGitAppAutoUpdates(new Date('2026-05-07T00:00:00.000Z'));
-
-    expect(mockFind).toHaveBeenCalledWith({
-      sourceType: 'git',
-      'autoUpdate.enabled': true,
-      $or: [
-        { 'autoUpdate.nextRunAt': { $exists: false } },
-        { 'autoUpdate.nextRunAt': { $lte: new Date('2026-05-07T00:00:00.000Z') } },
-      ],
-    });
-    expect(mockUpdateManagedGitApp).toHaveBeenNthCalledWith(1, 'app-1', { trigger: 'auto' });
-    expect(mockUpdateManagedGitApp).toHaveBeenNthCalledWith(2, 'app-2', { trigger: 'auto' });
-    expect(result).toEqual({ checked: 2, updated: 0, unchanged: 2, failed: 0 });
-  });
-
-  it('reconciles stale update operations before finding due apps', async () => {
-    mockReconcileStaleAppUpdateOperations.mockResolvedValue({ matched: 1, modified: 1 });
-    mockFind.mockReturnValue({
-      lean: vi.fn().mockResolvedValue([]),
-    });
-    const now = new Date('2026-05-07T00:00:00.000Z');
-
-    await runDueGitAppAutoUpdates(now);
-
-    expect(mockReconcileStaleAppUpdateOperations).toHaveBeenCalledWith({ now });
-    expect(mockFind.mock.invocationCallOrder[0]).toBeGreaterThan(
-      mockReconcileStaleAppUpdateOperations.mock.invocationCallOrder[0]
+  }
+  it('includes missing and null legacy deadlines', async () => {
+    mocks.count.mockResolvedValue(2);
+    expect(await countDueGitAppAutoUpdates(now)).toBe(2);
+    expect(mocks.count).toHaveBeenCalledWith(
+      expect.objectContaining({
+        $or: [{ 'autoUpdate.nextRunAt': null }, { 'autoUpdate.nextRunAt': { $lte: now } }],
+      })
     );
   });
-
-  it('continues when one app update fails', async () => {
-    mockFind.mockReturnValue({
-      lean: vi.fn().mockResolvedValue([{ _id: 'app-1' }, { _id: 'app-2' }]),
+  it('queues one stable occurrence and only records its id against the same deadline', async () => {
+    apps(['a']);
+    mocks.enqueue.mockResolvedValue({ operation: { id: 'op_a' } });
+    expect(await runDueGitAppAutoUpdates(now)).toEqual({
+      checked: 1,
+      queued: 1,
+      busy: 0,
+      blocked: 0,
+      failedToQueue: 0,
     });
-    mockUpdateManagedGitApp
-      .mockResolvedValueOnce({ status: 'active' })
-      .mockRejectedValueOnce(new Error('build failed'));
-
-    const result = await runDueGitAppAutoUpdates(new Date('2026-05-07T00:00:00.000Z'));
-
-    expect(result).toEqual({ checked: 2, updated: 1, unchanged: 0, failed: 1 });
+    expect(mocks.enqueue).toHaveBeenCalledWith(
+      expect.objectContaining({
+        trigger: 'auto',
+        idempotencyKey: 'auto:a:2:2026-09-06T12:00:00.000Z',
+      })
+    );
+    expect(mocks.update).toHaveBeenCalledWith(
+      expect.objectContaining({ 'autoUpdate.nextRunAt': now, 'autoUpdate.scheduleGeneration': 2 }),
+      expect.any(Object)
+    );
+  });
+  it('defers busy and unavailable apps without recording attempts or advancing deadlines', async () => {
+    apps(['a', 'b', 'c']);
+    mocks.enqueue
+      .mockRejectedValueOnce(new ActiveAppOperationError('a'))
+      .mockRejectedValueOnce(new AppsWorkerUnavailableError('missing'))
+      .mockRejectedValueOnce(new Error('database error'));
+    expect(await runDueGitAppAutoUpdates(now)).toEqual({
+      checked: 3,
+      queued: 0,
+      busy: 1,
+      blocked: 1,
+      failedToQueue: 1,
+    });
+    expect(mocks.update).not.toHaveBeenCalled();
   });
 });

@@ -25,6 +25,9 @@ vi.mock('@/models/AppOperation', () => ({
     updateOne: mockUpdateOne,
   },
 }));
+vi.mock('@/models/AppsWorkerHeartbeat', () => ({
+  default: { exists: vi.fn().mockResolvedValue(null) },
+}));
 
 vi.mock('./operation-event-repository', () => ({
   appendAppOperationEvent: mockAppendAppOperationEvent,
@@ -317,7 +320,7 @@ describe('operation repository', () => {
     expect(mockAppendAppOperationEvent).not.toHaveBeenCalled();
   });
 
-  it('atomically fails one expired operation owned by a different worker', async () => {
+  it('atomically fails an expired operation while retaining its lock until executor shutdown is proven', async () => {
     const now = new Date('2026-07-31T05:04:00.000Z');
     const staleStartedBefore = new Date('2026-07-31T05:03:30.000Z');
     mockFindOneAndUpdate.mockResolvedValue(
@@ -346,6 +349,7 @@ describe('operation repository', () => {
         active: true,
         status: { $in: ['running', 'cancel_requested'] },
         'lease.workerId': { $ne: 'new-worker' },
+        'error.code': { $ne: 'RECOVERY_REQUIRED' },
         $or: [
           { 'lease.expiresAt': { $lte: now } },
           {
@@ -359,11 +363,12 @@ describe('operation repository', () => {
           $set: {
             status: 'failed',
             phase: 'terminal',
-            active: false,
+            active: true,
             completedAt: now,
             error: {
-              code: WORKER_INTERRUPTED_CODE,
-              message: WORKER_INTERRUPTED_MESSAGE,
+              code: 'RECOVERY_REQUIRED',
+              message:
+                'Recovery required: stop the previous worker and its child processes, inspect the active release, then release the operation lock',
               retryable: false,
               details: {
                 previousWorkerId: '$lease.workerId',

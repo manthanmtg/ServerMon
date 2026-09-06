@@ -54,6 +54,9 @@ function readOperations(value: unknown): ManagedAppDTO['operations'] {
         type: type as ManagedAppDTO['operations'][number]['type'],
         status: status as ManagedAppDTO['operations'][number]['status'],
         title,
+        trigger: item.trigger === 'auto' || item.trigger === 'manual' ? item.trigger : undefined,
+        queueOperationId:
+          typeof item.queueOperationId === 'string' ? item.queueOperationId : undefined,
         step,
         startedAt,
         completedAt: typeof item.completedAt === 'string' ? item.completedAt : undefined,

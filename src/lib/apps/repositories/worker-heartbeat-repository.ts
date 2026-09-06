@@ -1,5 +1,58 @@
 import AppsWorkerHeartbeat, { AppsWorkerHeartbeatStatus } from '@/models/AppsWorkerHeartbeat';
 import { APPS_WORKER_OFFLINE_MS } from '../config';
+import type { AppsAutomationHealth } from '@/modules/apps/types';
+
+export async function recordSchedulerScan(
+  workerId: string,
+  values: {
+    lastScanStartedAt?: Date;
+    lastScanCompletedAt?: Date;
+    lastSuccessfulScanAt?: Date;
+    lastScanError?: string;
+    scanCounts?: Record<string, number>;
+  }
+): Promise<void> {
+  await AppsWorkerHeartbeat.updateOne({ workerId, status: 'running' }, { $set: values });
+}
+
+export async function getAppsAutomationHealth(now = new Date()): Promise<AppsAutomationHealth> {
+  const record = await AppsWorkerHeartbeat.findOne({}).sort({ lastSeenAt: -1 }).lean();
+  const worker = !record
+    ? 'missing'
+    : record.lastSeenAt.getTime() < now.getTime() - APPS_WORKER_OFFLINE_MS
+      ? 'stale'
+      : record.status !== 'running'
+        ? 'not_running'
+        : 'healthy';
+  const scheduler =
+    worker !== 'healthy'
+      ? 'unavailable'
+      : record?.lastScanError
+        ? 'error'
+        : !record?.lastScanCompletedAt
+          ? now.getTime() - record!.startedAt.getTime() <= 150_000
+            ? 'starting'
+            : 'stale'
+          : now.getTime() - record.lastScanCompletedAt.getTime() > 150_000
+            ? 'stale'
+            : 'healthy';
+  return {
+    serverTime: now.toISOString(),
+    worker: {
+      status: worker,
+      workerId: record?.workerId,
+      lastSeenAt: record?.lastSeenAt.toISOString(),
+    },
+    scheduler: {
+      status: scheduler,
+      lastScanStartedAt: record?.lastScanStartedAt?.toISOString(),
+      lastScanCompletedAt: record?.lastScanCompletedAt?.toISOString(),
+      lastSuccessfulScanAt: record?.lastSuccessfulScanAt?.toISOString(),
+      lastError: record?.lastScanError || undefined,
+      ...record?.scanCounts,
+    },
+  };
+}
 
 interface UpsertAppsWorkerHeartbeatInput {
   workerId: string;

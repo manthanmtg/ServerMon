@@ -121,3 +121,69 @@ test('renders the Apps module and opens deployment history', async ({ page }) =>
   await expect(dialog.getByText('Command failed: pnpm build')).toBeVisible();
   await expect(dialog.getByText('build failed', { exact: true })).toBeVisible();
 });
+
+test('explains overdue automatic checks and opens linked logs on a narrow screen', async ({
+  page,
+  context,
+}) => {
+  const automaticApp = {
+    ...appFixture,
+    sourceType: 'git',
+    git: {
+      url: 'https://example.com/inventory.git',
+      branch: 'main',
+      deployedSha: 'abcdef123',
+      autoUpdate: {
+        enabled: true,
+        intervalMinutes: 1440,
+        nextRunAt: '2026-09-06T12:00:00Z',
+        lastOperationId: 'op_auto',
+        lastStatus: 'failed',
+        lastError: 'Build failed: missing build prerequisite',
+      },
+    },
+    operations: [
+      {
+        id: 'update-auto',
+        queueOperationId: 'op_auto',
+        trigger: 'auto',
+        type: 'update',
+        status: 'failed',
+        title: 'Auto update',
+        step: 'Build failed',
+        startedAt: '2026-09-06T11:00:00Z',
+        logs: ['Build failed: missing build prerequisite'],
+      },
+    ],
+  };
+  await context.route('**/api/modules/apps', (route) =>
+    route.fulfill({
+      json: {
+        apps: [automaticApp],
+        health: {
+          serverTime: '2026-09-06T12:03:00Z',
+          worker: { status: 'healthy', lastSeenAt: '2026-09-06T12:03:00Z' },
+          scheduler: { status: 'healthy', lastSuccessfulScanAt: '2026-09-06T12:03:00Z' },
+        },
+      },
+    })
+  );
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/apps');
+  const status = page.getByRole('region', { name: 'Automatic updates' });
+  await expect(status.getByText('Overdue', { exact: true })).toBeVisible();
+  await expect(status.getByText('Failed', { exact: true })).toBeVisible();
+  await expect(status.getByText('abcdef1', { exact: true })).toBeVisible();
+  await expect(status.getByText(/No attempt has started/)).toBeVisible();
+  const openLogs = status.getByRole('button', { name: 'View latest update logs' });
+  await openLogs.focus();
+  await page.keyboard.press('Enter');
+  const dialog = page.getByRole('dialog', { name: 'Update logs' });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByRole('log')).toContainText('missing build prerequisite');
+  await page.keyboard.press('Escape');
+  await expect(dialog).toBeHidden();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
+    true
+  );
+});

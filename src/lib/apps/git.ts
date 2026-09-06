@@ -1,5 +1,6 @@
 import { access } from 'node:fs/promises';
 import type { CommandRunner } from './deploy';
+import { redactOperationMessage } from './domain/redaction';
 
 export interface GitCommandOptions {
   commandRunner: CommandRunner;
@@ -78,12 +79,14 @@ async function runGitCommand(
   logs?: string[]
 ): Promise<string> {
   throwIfAborted(signal);
-  logs?.push(`$ ${command}`);
+  logs?.push(redactOperationMessage(`$ ${command}`));
   const result = await commandRunner({ command, cwd: repositoryPath, signal });
   throwIfAborted(signal);
-  if (result.output.trim()) logs?.push(result.output.trim());
+  if (result.output.trim()) logs?.push(redactOperationMessage(result.output.trim()));
   if (result.code !== 0) {
-    throw new Error(`Git command failed: ${command}\n${result.output}`.trim());
+    throw new Error(
+      redactOperationMessage(`Git command failed: ${command}\n${result.output}`.trim())
+    );
   }
   return result.output.trim();
 }
@@ -131,7 +134,7 @@ export async function ensureGitCheckout({
 
   await runGitCommand(
     { commandRunner, repositoryPath, signal },
-    `git fetch origin ${normalizedBranch}`,
+    `git fetch origin +refs/heads/${normalizedBranch}:refs/servermon/candidate`,
     logs
   );
   const currentSha = await runGitCommand(
@@ -182,14 +185,24 @@ export async function prepareGitSourceForDeploy({
   });
   const logs = [...checkout.logs];
   const previousSha = checkout.currentSha;
-  const remoteSha = await getRemoteHeadSha({ branch, repositoryPath, commandRunner, signal });
+  // Always fetch explicitly: single-branch clones may not track a newly configured branch.
+  await runGitCommand(
+    { commandRunner, repositoryPath, signal },
+    `git fetch origin +refs/heads/${validateGitBranch(branch)}:refs/servermon/candidate`,
+    logs
+  );
+  const remoteSha = await runGitCommand(
+    { commandRunner, repositoryPath, signal },
+    'git rev-parse refs/servermon/candidate',
+    logs
+  );
   let currentSha = previousSha;
   let changed = checkout.cloned || remoteSha !== previousSha;
 
   if (updateToRemote && remoteSha !== previousSha) {
     await runGitCommand(
       { commandRunner, repositoryPath, signal },
-      `git reset --hard origin/${validateGitBranch(branch)}`,
+      `git reset --hard ${shellQuote(remoteSha)}`,
       logs
     );
     currentSha = await runGitCommand(

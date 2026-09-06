@@ -16,8 +16,6 @@ import { getRuntimeDiagnostics } from './lib/runtime-diagnostics';
 import { handleRequestWithDiagnostics } from './lib/server-request-diagnostics';
 import { startLocalAutoUpdateScheduler } from './lib/updates/auto-update-scheduler';
 import { startNetworkSpeedtestScheduler } from './lib/network/speedtest-scheduler';
-import { startGitAppAutoUpdateScheduler } from './lib/apps/auto-update-scheduler';
-import { reconcileStaleAppUpdateOperations } from './lib/apps/service';
 import { startDatabaseExplorerCleanupScheduler } from './lib/databases/explorer-scheduler';
 import type { HubWsAdapter } from './lib/fleet/hubTtyBridge';
 import type { AgentStatus } from './lib/fleet/agentClient';
@@ -181,18 +179,6 @@ if (process.env.FLEET_AGENT_MODE === 'true') {
       ensureAIRunnerSupervisor();
       startAIRunnerSupervisorWatchdog();
       startLocalAutoUpdateScheduler();
-      try {
-        const recoveredUpdates = await reconcileStaleAppUpdateOperations();
-        if (recoveredUpdates.modified > 0) {
-          log.warn(
-            'Recovered stale app update operations before scheduler startup',
-            recoveredUpdates
-          );
-        }
-      } catch (error) {
-        log.error('Failed to recover stale app update operations before scheduler startup', error);
-      }
-      startGitAppAutoUpdateScheduler();
       startNetworkSpeedtestScheduler();
       startDatabaseExplorerCleanupScheduler();
     }
