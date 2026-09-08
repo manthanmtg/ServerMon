@@ -13,6 +13,7 @@ import type {
   AppV2OperationPhase,
   AppV2OperationStatus,
   AppRuntimeSnapshot,
+  AppStageUpdate,
   AppTemplate,
   CreateManagedAppInput,
   ManagedAppDTO,
@@ -447,6 +448,7 @@ async function deployPreparedApp(
   onProgress?: (entry: string) => void | Promise<void>,
   signal?: AbortSignal,
   assertOwnership?: () => Promise<void>,
+  reportStage?: (update: AppStageUpdate) => Promise<void>,
   commitSha?: string
 ): Promise<DeployNextJsAppResult> {
   return deployNextJsApp({
@@ -475,6 +477,7 @@ async function deployPreparedApp(
     assertOwnership,
     commitSha,
     onProgress,
+    reportStage,
   });
 }
 
@@ -986,6 +989,7 @@ export interface UpdateManagedGitAppOptions {
   trigger?: 'manual' | 'auto';
   signal?: AbortSignal;
   assertOwnership?: () => Promise<void>;
+  reportStage?: (update: AppStageUpdate) => Promise<void>;
   durableOperationId?: string;
 }
 
@@ -1057,6 +1061,8 @@ const defaultRollbackHealthCheck: HealthCheck = async (url) => {
 export interface RollbackManagedAppOptions {
   signal?: AbortSignal;
   assertOwnership?: () => Promise<void>;
+  reportStage?: (update: AppStageUpdate) => Promise<void>;
+  durableOperationId?: string;
   commandRunner?: CommandRunner;
   healthCheck?: HealthCheck;
   appsRoot?: string;
@@ -1071,6 +1077,8 @@ export async function rollbackManagedApp(
     appsRoot,
     signal,
     assertOwnership,
+    reportStage,
+    durableOperationId,
   }: RollbackManagedAppOptions = {}
 ) {
   await connectDB();
@@ -1088,6 +1096,7 @@ export async function rollbackManagedApp(
   }
 
   const operationId = await startAppOperation(app, {
+    queueOperationId: durableOperationId,
     type: 'rollback',
     title: 'Rollback',
     step: `Rolling back to ${releaseId}`,
@@ -1100,7 +1109,10 @@ export async function rollbackManagedApp(
   const serviceName = toSystemdServiceName(app.slug);
   const previousCurrentTarget = await readCurrentTarget(currentPath);
 
+  const stage = (update: AppStageUpdate) => reportStage?.(update);
+
   try {
+    await stage({ phase: 'activate', state: 'started', message: 'Activating selected release' });
     signal?.throwIfAborted();
     await assertOwnership?.();
     await replaceSymlink(currentPath, releaseRoot);
@@ -1115,7 +1127,9 @@ export async function rollbackManagedApp(
     if (restart.code !== 0) {
       throw new Error(`Command failed: ${restartCommand}\n${restart.output}`.trim());
     }
+    await stage({ phase: 'activate', state: 'completed', message: 'Release activated' });
 
+    await stage({ phase: 'health', state: 'started', message: 'Checking rolled-back release' });
     const checked = await healthCheck(rollbackHealthUrl(app.port, app.healthCheckPath));
     if (!checked.ok) {
       throw new Error(
@@ -1124,6 +1138,7 @@ export async function rollbackManagedApp(
     }
     logs.push('Health check passed');
     await appendAppOperationLog(app, operationId, 'Health check passed');
+    await stage({ phase: 'health', state: 'completed', message: 'Health check passed' });
 
     const now = new Date();
     await assertOwnership?.();
@@ -1157,6 +1172,9 @@ export async function rollbackManagedApp(
   } catch (error: unknown) {
     if (signal?.aborted) throw error;
     const message = error instanceof Error ? error.message : 'Rollback failed';
+    await Promise.resolve(stage({ phase: 'health', state: 'failed', message })).catch(
+      () => undefined
+    );
     if (previousCurrentTarget) {
       await replaceSymlink(currentPath, previousCurrentTarget);
       const restoreCommand = `systemctl restart ${serviceName}`;
@@ -1186,13 +1204,14 @@ export async function rollbackManagedApp(
 
 export async function deployManagedApp(
   appId: string,
-  { signal, assertOwnership }: UpdateManagedGitAppOptions = {}
+  { signal, assertOwnership, reportStage, durableOperationId }: UpdateManagedGitAppOptions = {}
 ) {
   await connectDB();
   const app = await ManagedApp.findById(appId);
   if (!app) throw new Error('App not found');
 
   const operationId = await startAppOperation(app, {
+    queueOperationId: durableOperationId,
     type: 'deploy',
     title: 'Manual deploy',
     step: 'Preparing deployment',
@@ -1244,6 +1263,7 @@ export async function deployManagedApp(
       currentReleaseId: app.currentReleaseId,
     },
     onProgress: (entry) => appendAppOperationLog(app, operationId, entry),
+    reportStage,
   });
   result.logs.unshift(...source.logs);
 
@@ -1309,6 +1329,7 @@ export async function updateManagedGitApp(
     trigger = 'manual',
     signal,
     assertOwnership,
+    reportStage,
     durableOperationId,
   }: UpdateManagedGitAppOptions = {}
 ) {
@@ -1405,17 +1426,13 @@ export async function updateManagedGitApp(
       await app.save();
     }
 
-    if (durableOperationId)
-      await AppOperationModel.updateOne(
-        { operationId: durableOperationId, active: true, status: 'running' },
-        { $set: { phase: 'build' } }
-      );
     const result = await deployPreparedApp(
       app,
       source.sourcePath,
       (entry) => appendAppOperationLog(app, operationId, entry),
       executionSignal,
       assertOwnership,
+      reportStage,
       source.currentSha
     );
     result.logs.unshift(...source.logs);

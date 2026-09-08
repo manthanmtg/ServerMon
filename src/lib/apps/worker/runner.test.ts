@@ -151,6 +151,32 @@ describe('runAppsWorkerOnce', () => {
     expect(result).toEqual({ claimed: true, operationId: 'op_1', status: 'succeeded' });
   });
 
+  it('binds stage reports to the claimed worker lease', async () => {
+    const operation = claimedOperation();
+    const recordAppOperationStage = vi.fn().mockResolvedValue(true);
+    claimNextAppOperation.mockResolvedValue(operation);
+    execute.mockImplementation(async (_operation, context) => {
+      await context.reportStage({
+        phase: 'build',
+        state: 'started',
+        message: 'Building application',
+      });
+      return { status: 'succeeded' };
+    });
+
+    await runAppsWorkerOnce({ ...options(), recordAppOperationStage });
+
+    expect(recordAppOperationStage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        operationId: operation.id,
+        appId: operation.appId,
+        workerId: 'worker-1',
+        leaseGeneration: operation.leaseGeneration,
+        update: { phase: 'build', state: 'started', message: 'Building application' },
+      })
+    );
+  });
+
   it('marks executor errors as failed with stable error details and the same fence', async () => {
     claimNextAppOperation.mockResolvedValue(claimedOperation());
     execute.mockRejectedValue(new Error('Build failed'));

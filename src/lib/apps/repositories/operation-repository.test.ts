@@ -47,6 +47,7 @@ import {
   finishAppOperationRecord,
   recoverExpiredAppOperationRecord,
   renewAppOperationLease,
+  recordAppOperationStage,
 } from './operation-repository';
 
 const createdAt = new Date('2026-07-31T05:00:00.000Z');
@@ -262,6 +263,41 @@ describe('operation repository', () => {
         now: new Date('2026-07-31T05:01:30.000Z'),
       })
     ).resolves.toBe(false);
+  });
+
+  it('records a fenced stage event without extending the lease', async () => {
+    const now = new Date('2026-07-31T05:02:30.000Z');
+    mockUpdateOne.mockResolvedValue({ matchedCount: 1, modifiedCount: 1 });
+
+    const recorded = await recordAppOperationStage({
+      operationId: 'op_1',
+      appId,
+      workerId: 'worker-1',
+      leaseGeneration: 2,
+      update: { phase: 'build', state: 'started', message: 'Building application' },
+      now,
+    });
+
+    expect(recorded).toBe(true);
+    expect(mockUpdateOne).toHaveBeenCalledWith(
+      expect.objectContaining({
+        operationId: 'op_1',
+        active: true,
+        'lease.workerId': 'worker-1',
+        'lease.generation': 2,
+      }),
+      { $set: { phase: 'build' } }
+    );
+    expect(mockAppendAppOperationEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        operationId: 'op_1',
+        appId,
+        type: 'progress',
+        phase: 'build',
+        message: 'Building application',
+        details: { stageState: 'started' },
+      })
+    );
   });
 
   it('finishes an active operation and clears the active lock', async () => {

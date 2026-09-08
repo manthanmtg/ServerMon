@@ -13,6 +13,7 @@ import {
 } from 'node:fs/promises';
 import path from 'node:path';
 import type { CreateManagedAppInput } from '@/modules/apps/types';
+import type { AppStageUpdate } from '@/modules/apps/types';
 import {
   buildNginxConfig,
   buildSystemdUnit,
@@ -63,6 +64,7 @@ export interface DeployNextJsAppOptions {
   healthCheck?: HealthCheck;
   signal?: AbortSignal;
   onProgress?: (entry: string) => void | Promise<void>;
+  reportStage?: (update: AppStageUpdate) => Promise<void>;
 }
 
 export interface DeployNextJsAppResult {
@@ -408,6 +410,7 @@ export async function deployNextJsApp({
   healthCheck = defaultHealthCheck,
   signal,
   onProgress,
+  reportStage,
   assertOwnership,
   commitSha,
 }: DeployNextJsAppOptions): Promise<DeployNextJsAppResult> {
@@ -419,8 +422,14 @@ export async function deployNextJsApp({
   const serviceName = toSystemdServiceName(app.slug);
   const previousCurrentTarget = await readCurrentTarget(currentPath);
   let serviceRestarted = false;
+  let activeStage: AppStageUpdate['phase'] = 'stage';
+  const stage = async (update: AppStageUpdate) => {
+    if (update.state === 'started') activeStage = update.phase;
+    await reportStage?.(update);
+  };
 
   try {
+    await stage({ phase: 'stage', state: 'started', message: 'Preparing release' });
     await pushLog(logs, `Creating release ${releaseId}`, onProgress);
     await mkdir(sourceRoot, { recursive: true });
     await cp(app.sourcePath, sourceRoot, {
@@ -449,10 +458,16 @@ export async function deployNextJsApp({
       )}\n`,
       'utf8'
     );
+    await stage({ phase: 'stage', state: 'completed', message: 'Release prepared' });
 
+    await stage({ phase: 'install', state: 'started', message: 'Installing dependencies' });
     await runOrThrow(commandRunner, app.commands.install, logs, sourceRoot, onProgress, signal);
+    await stage({ phase: 'install', state: 'completed', message: 'Dependencies installed' });
+    await stage({ phase: 'build', state: 'started', message: 'Building application' });
     await runOrThrow(commandRunner, app.commands.build, logs, sourceRoot, onProgress, signal);
+    await stage({ phase: 'build', state: 'completed', message: 'Application built' });
 
+    await stage({ phase: 'activate', state: 'started', message: 'Activating release' });
     await mkdir(systemdDir, { recursive: true });
     signal?.throwIfAborted();
     await assertOwnership?.();
@@ -490,7 +505,9 @@ export async function deployNextJsApp({
       signal
     );
     serviceRestarted = true;
+    await stage({ phase: 'activate', state: 'completed', message: 'Release activated' });
 
+    await stage({ phase: 'health', state: 'started', message: 'Checking application health' });
     await waitForHealthy({
       url: healthUrl(app.port, app.healthCheckPath),
       healthCheck,
@@ -500,7 +517,9 @@ export async function deployNextJsApp({
       onProgress,
       signal,
     });
+    await stage({ phase: 'health', state: 'completed', message: 'Health check passed' });
 
+    await stage({ phase: 'routing', state: 'started', message: 'Updating routing' });
     const nginxAvailablePath = path.join(nginxAvailableDir, app.domain);
     signal?.throwIfAborted();
     await assertOwnership?.();
@@ -520,8 +539,10 @@ export async function deployNextJsApp({
     await ensureNginxEnabled(nginxAvailablePath, nginxEnabledPath);
     await runOrThrow(commandRunner, 'nginx -t', logs, undefined, onProgress, signal);
     await runOrThrow(commandRunner, 'nginx -s reload', logs, undefined, onProgress, signal);
+    await stage({ phase: 'routing', state: 'completed', message: 'Routing updated' });
 
     if (app.tlsEnabled) {
+      await stage({ phase: 'tls', state: 'started', message: 'Configuring TLS' });
       if (existingTlsCertificate) {
         await pushLog(
           logs,
@@ -541,8 +562,12 @@ export async function deployNextJsApp({
         await runOrThrow(commandRunner, 'nginx -t', logs, undefined, onProgress, signal);
         await runOrThrow(commandRunner, 'nginx -s reload', logs, undefined, onProgress, signal);
       }
+      await stage({ phase: 'tls', state: 'completed', message: 'TLS configured' });
+    } else {
+      await stage({ phase: 'tls', state: 'skipped', message: 'TLS is disabled' });
     }
 
+    await stage({ phase: 'finalize', state: 'started', message: 'Finalizing deployment' });
     signal?.throwIfAborted();
     await assertOwnership?.();
     await writeFile(
@@ -550,10 +575,17 @@ export async function deployNextJsApp({
       JSON.stringify({ releaseId, commitSha, completedAt: new Date().toISOString() }),
       'utf8'
     );
+    await stage({ phase: 'finalize', state: 'completed', message: 'Deployment finalized' });
     return { releaseId, status: 'active', logs };
   } catch (error: unknown) {
     // Ownership loss forbids compensating host mutations too. Recovery inspects the current release.
     if (signal?.aborted) throw error;
+    const message = error instanceof Error ? error.message : 'Deployment failed';
+    try {
+      await stage({ phase: activeStage, state: 'failed', message });
+    } catch {
+      // Stage telemetry must never obscure the deployment failure or recovery path.
+    }
     if (previousCurrentTarget) {
       await replaceSymlink(currentPath, previousCurrentTarget);
       if (serviceRestarted) {
@@ -569,7 +601,6 @@ export async function deployNextJsApp({
       await unlink(currentPath).catch(() => undefined);
     }
 
-    const message = error instanceof Error ? error.message : 'Deployment failed';
     await pushLog(logs, `ERROR: ${message}`, onProgress);
     return { releaseId, status: 'failed', logs, error: message };
   }

@@ -53,7 +53,9 @@ export async function executeLegacyAppOperation(
     };
   }
   if (operation.type === 'deploy') {
-    return resultFromDeployment(await deployManagedApp(operation.appId, context));
+    return resultFromDeployment(
+      await deployManagedApp(operation.appId, { ...context, durableOperationId: operation.id })
+    );
   }
 
   if (operation.type === 'update') {
@@ -85,7 +87,10 @@ export async function executeLegacyAppOperation(
       throw new Error('Rollback target release is required');
     }
     return resultFromDeployment(
-      await rollbackManagedApp(operation.appId, operation.targetReleaseId, context)
+      await rollbackManagedApp(operation.appId, operation.targetReleaseId, {
+        ...context,
+        durableOperationId: operation.id,
+      })
     );
   }
 

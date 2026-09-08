@@ -30,6 +30,12 @@ export type AppV2OperationPhase =
   | 'cleanup'
   | 'terminal';
 
+export interface AppStageUpdate {
+  phase: Exclude<AppV2OperationPhase, 'queued' | 'claiming' | 'terminal'>;
+  state: 'started' | 'completed' | 'failed' | 'skipped';
+  message: string;
+}
+
 export interface AppCommands {
   install: string;
   build: string;

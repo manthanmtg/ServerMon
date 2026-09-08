@@ -10,7 +10,7 @@ Automatic updates check the configured Git branch and deploy a new release when 
 - A failed deployment retains the current release and remains eligible for retry even if upstream has no newer commit.
 - Disabling prevents queued automatic work from starting. A deployment already executing is allowed to finish.
 - Rolling back pauses automatic updates so the next check does not undo the rollback. Enable the setting again to resume.
-- **Check for updates now** queues a manual check and deploys any changes. It bypasses the scheduled wait.
+- **Check & deploy** queues a manual check and deploys any changes. It bypasses the scheduled wait.
 
 ## Read the status
 

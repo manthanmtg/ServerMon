@@ -136,7 +136,7 @@ export function AutoUpdateStatus({
       </div>
       <p className="mt-2 text-xs leading-5 text-muted-foreground">{detail}</p>
       <p className="mt-1 text-xs text-muted-foreground">
-        “Check for updates now” also deploys available changes.
+        “Check & deploy” fetches the branch and deploys available changes.
       </p>
       {label === 'Blocked' &&
         state.operationStatus &&

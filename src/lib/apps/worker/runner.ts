@@ -11,7 +11,9 @@ import {
   finishAppOperationRecord,
   recoverExpiredAppOperationRecord,
   renewAppOperationLease,
+  recordAppOperationStage,
 } from '../repositories/operation-repository';
+import type { AppStageUpdate } from '@/modules/apps/types';
 import { executeLegacyAppOperation } from './legacy-executor';
 
 const log = createLogger('apps:worker:runner');
@@ -32,6 +34,7 @@ export interface AppOperationExecutorResult {
 export interface AppExecutionContext {
   signal: AbortSignal;
   assertOwnership: () => Promise<void>;
+  reportStage: (update: AppStageUpdate) => Promise<void>;
 }
 
 export interface CurrentAppOperation {
@@ -60,6 +63,7 @@ export interface RunAppsWorkerOnceOptions {
   recoverExpiredAppOperationRecord?: typeof recoverExpiredAppOperationRecord;
   claimNextAppOperation?: typeof claimNextAppOperation;
   renewAppOperationLease?: typeof renewAppOperationLease;
+  recordAppOperationStage?: typeof recordAppOperationStage;
   finishAppOperationRecord?: typeof finishAppOperationRecord;
   execute?: (
     operation: ClaimedAppOperation,
@@ -82,6 +86,7 @@ export async function runAppsWorkerOnce({
   recoverExpiredAppOperationRecord: recover = recoverExpiredAppOperationRecord,
   claimNextAppOperation: claim = claimNextAppOperation,
   renewAppOperationLease: renew = renewAppOperationLease,
+  recordAppOperationStage: recordStage = recordAppOperationStage,
   finishAppOperationRecord: finish = finishAppOperationRecord,
   execute = executeLegacyAppOperation,
   onCurrentOperationChange,
@@ -181,6 +186,18 @@ export async function runAppsWorkerOnce({
           });
           if (!owned) loseLease();
           else confirmedExpiry = leaseExpiresAt(checkedAt).getTime();
+          controller.signal.throwIfAborted();
+        },
+        reportStage: async (update) => {
+          controller.signal.throwIfAborted();
+          const recorded = await recordStage({
+            operationId: operation.id,
+            appId: operation.appId,
+            workerId,
+            leaseGeneration: operation.leaseGeneration,
+            update,
+          });
+          if (!recorded) loseLease();
           controller.signal.throwIfAborted();
         },
       });

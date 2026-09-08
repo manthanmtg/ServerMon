@@ -10,23 +10,11 @@ import {
   useState,
 } from 'react';
 import {
-  Activity,
-  ChevronDown,
-  ChevronUp,
-  CheckCircle2,
-  Copy,
-  Eye,
-  EyeOff,
-  ExternalLink,
   FolderOpen,
   GitBranch,
-  Globe2,
-  History,
-  FileText,
   LoaderCircle,
   Lock,
   Pencil,
-  Play,
   Plus,
   RefreshCw,
   Rocket,
@@ -34,11 +22,9 @@ import {
   XCircle,
 } from 'lucide-react';
 import { resilientFetch } from '@/lib/fetch-utils';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import ConfirmationModal from '@/components/ui/ConfirmationModal';
-import { OperationLogViewer } from '@/components/operations/OperationLogViewer';
 import type {
   AppsAutomationHealth,
   AppLogEntry,
@@ -55,7 +41,11 @@ import { AppsRuntimeLogsDialog } from './AppsRuntimeLogsDialog';
 import { AppsDeploymentHistoryDialog } from './components/AppsDeploymentHistoryDialog';
 import { AppsOperationLogsDialog } from './components/AppsOperationLogsDialog';
 import { AppsSummaryCards } from './AppsSummaryCards';
-import { AutoUpdateStatus, AutomationHealthNotice } from './components/AutoUpdateStatus';
+import { AutomationHealthNotice } from './components/AutoUpdateStatus';
+import { AppsCollectionToolbar, type AppsCollectionView } from './components/AppsCollectionToolbar';
+import { AppCard } from './components/AppCard';
+import { AppWorkspace, type AppWorkspaceTab } from './components/AppWorkspace';
+import { filterApps, type AppsCollectionFilter } from './appPresentation';
 
 interface FormState {
   templateId: AppTemplateId;
@@ -331,78 +321,8 @@ function appToForm(app: ManagedAppDTO): FormState {
   };
 }
 
-function statusBadge(app: ManagedAppDTO) {
-  if (app.status === 'deploying') {
-    return (
-      <Badge variant="warning">
-        <LoaderCircle className="h-3 w-3 animate-spin" />
-        Deploying
-      </Badge>
-    );
-  }
-  if (app.status === 'running') {
-    return (
-      <Badge variant="success">
-        <CheckCircle2 className="h-3 w-3" />
-        Running
-      </Badge>
-    );
-  }
-  if (app.status === 'failed') {
-    return (
-      <Badge variant="destructive">
-        <XCircle className="h-3 w-3" />
-        Failed
-      </Badge>
-    );
-  }
-  return <Badge variant="secondary">{app.status}</Badge>;
-}
-
-function formatBytes(bytes?: number) {
-  if (!bytes || bytes <= 0) return '0 B';
-  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
-  let value = bytes;
-  let unitIndex = 0;
-  while (value >= 1024 && unitIndex < units.length - 1) {
-    value /= 1024;
-    unitIndex += 1;
-  }
-  const precision = value >= 10 || unitIndex === 0 ? 0 : 1;
-  return `${value.toFixed(precision)} ${units[unitIndex]}`;
-}
-
-function formatUptime(seconds?: number) {
-  if (!seconds || seconds <= 0) return 'Not running';
-  if (seconds < 60) return `${seconds}s`;
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes}m`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ${minutes % 60}m`;
-  const days = Math.floor(hours / 24);
-  return `${days}d ${hours % 24}h`;
-}
-
-function operationStatusBadge(operation: AppOperation) {
-  if (operation.status === 'running') return <Badge variant="warning">Running</Badge>;
-  if (operation.status === 'failed') return <Badge variant="destructive">Failed</Badge>;
-  if (operation.status === 'unchanged') return <Badge variant="secondary">Unchanged</Badge>;
-  return <Badge variant="success">Succeeded</Badge>;
-}
-
-function operationLogsTitle(type: AppOperationType) {
-  if (type === 'deploy') return 'Deployment logs';
-  if (type === 'update') return 'Update logs';
-  if (type === 'rollback') return 'Rollback logs';
-  return 'Removal logs';
-}
-
 function operationLogSubject(type: AppOperationType) {
   return type === 'deploy' ? 'deployment' : type;
-}
-
-function formatOptionalDate(value: string | undefined, fallback: string) {
-  return value ? new Date(value).toLocaleString() : fallback;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -477,6 +397,15 @@ function deploymentNoticeFor(appName: string, result: ActionResult | null): Acti
     tone: 'info',
     title: `${appName} deployment started.`,
     detail: 'Live logs are open and will update automatically.',
+  };
+}
+
+function queuedOperationNotice(appName: string, action: string): ActionNotice {
+  return {
+    tone: 'info',
+    title: `${appName} ${action} queued.`,
+    detail:
+      'The operation will continue in the background and its status will refresh automatically.',
   };
 }
 
@@ -648,10 +577,6 @@ export default function AppsPage() {
   const [apps, setApps] = useState<ManagedAppDTO[]>([]);
   const [form, setForm] = useState<FormState>(initialForm);
   const [formMode, setFormMode] = useState<'create' | 'edit' | null>(null);
-  const [expandedAppIds, setExpandedAppIds] = useState<Set<string>>(() => new Set());
-  const [allOperationAppIds, setAllOperationAppIds] = useState<Set<string>>(() => new Set());
-  const [revealedEnvVars, setRevealedEnvVars] = useState<Set<string>>(() => new Set());
-  const [copiedTarget, setCopiedTarget] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [deployingId, setDeployingId] = useState<string | null>(null);
@@ -678,6 +603,11 @@ export default function AppsPage() {
   const [operationLogAutoscroll, setOperationLogAutoscroll] = useState<Record<string, boolean>>({});
   const [operationLogWrap, setOperationLogWrap] = useState<Record<string, boolean>>({});
   const [operationLogSnapshots, setOperationLogSnapshots] = useState<Record<string, string[]>>({});
+  const [collectionQuery, setCollectionQuery] = useState('');
+  const [collectionFilter, setCollectionFilter] = useState<AppsCollectionFilter>('all');
+  const [collectionView, setCollectionView] = useState<AppsCollectionView>('grid');
+  const [workspaceAppId, setWorkspaceAppId] = useState<string | null>(null);
+  const [workspaceTab, setWorkspaceTab] = useState<AppWorkspaceTab>('overview');
   const appsRef = useRef<ManagedAppDTO[]>([]);
   const deployRequestIdsRef = useRef<Set<string>>(new Set());
   const updateRequestIdsRef = useRef<Set<string>>(new Set());
@@ -714,13 +644,51 @@ export default function AppsPage() {
     load();
   }, [load]);
 
+  useEffect(() => {
+    try {
+      const storedView = window.localStorage.getItem('servermon.apps.view.v1');
+      if (storedView === 'grid' || storedView === 'list') setCollectionView(storedView);
+    } catch {
+      // Browser privacy settings may disallow local preference storage.
+    }
+  }, []);
+
+  const updateCollectionView = (view: AppsCollectionView) => {
+    setCollectionView(view);
+    try {
+      window.localStorage.setItem('servermon.apps.view.v1', view);
+    } catch {
+      // The in-memory preference remains usable when persistence is unavailable.
+    }
+  };
+
   const summary = useMemo(() => deriveAppsPageSummary(apps), [apps]);
   const activeOperations = useMemo(() => countLogicalActiveOperations(apps), [apps]);
-
-  const appViewModels = useMemo(
-    () => deriveAppsPageViewModels(apps, expandedAppIds, updatingId, allOperationAppIds),
-    [allOperationAppIds, apps, expandedAppIds, updatingId]
+  const busyAppIds = useMemo(
+    () =>
+      new Set([
+        ...Object.keys(acceptedOperationLocks),
+        ...(deployingId ? [deployingId] : []),
+        ...(updatingId ? [updatingId] : []),
+      ]),
+    [acceptedOperationLocks, deployingId, updatingId]
   );
+  const visibleApps = useMemo(
+    () =>
+      filterApps(apps, {
+        query: collectionQuery,
+        filter: collectionFilter,
+        snapshotUnavailable,
+        busyAppIds,
+      }),
+    [apps, busyAppIds, collectionFilter, collectionQuery, snapshotUnavailable]
+  );
+  const workspaceApp = workspaceAppId ? apps.find((app) => app.id === workspaceAppId) : undefined;
+
+  useEffect(() => {
+    if (workspaceAppId && !workspaceApp && !snapshotUnavailable) setWorkspaceAppId(null);
+  }, [snapshotUnavailable, workspaceApp, workspaceAppId]);
+
   const operationLogsApp = operationLogsTarget
     ? apps.find((app) => app.id === operationLogsTarget.appId)
     : undefined;
@@ -907,49 +875,9 @@ export default function AppsPage() {
     });
   };
 
-  const toggleAppExpanded = (appId: string) => {
-    setExpandedAppIds((current) => {
-      const next = new Set(current);
-      if (next.has(appId)) next.delete(appId);
-      else next.add(appId);
-      return next;
-    });
-  };
-
-  const toggleAllOperations = (appId: string) => {
-    setAllOperationAppIds((current) => {
-      const next = new Set(current);
-      if (next.has(appId)) next.delete(appId);
-      else next.add(appId);
-      return next;
-    });
-  };
-
-  const expandApp = (appId: string) => {
-    setExpandedAppIds((current) => {
-      if (current.has(appId)) return current;
-      const next = new Set(current);
-      next.add(appId);
-      return next;
-    });
-  };
-
-  const toggleEnvValue = (appId: string, key: string) => {
-    const token = `${appId}:${key}`;
-    setRevealedEnvVars((current) => {
-      const next = new Set(current);
-      if (next.has(token)) next.delete(token);
-      else next.add(token);
-      return next;
-    });
-  };
-
-  const copyToClipboard = async (value: string, token: string) => {
-    await navigator.clipboard?.writeText(value);
-    setCopiedTarget(token);
-    window.setTimeout(() => {
-      setCopiedTarget((current) => (current === token ? null : current));
-    }, 1200);
+  const openWorkspace = (appId: string, tab: AppWorkspaceTab = 'overview') => {
+    setWorkspaceAppId(appId);
+    setWorkspaceTab(tab);
   };
 
   const submitAppForm = async (event: FormEvent<HTMLFormElement>) => {
@@ -1018,7 +946,6 @@ export default function AppsPage() {
     setDeployingId(appId);
     setError(null);
     setNotice(null);
-    expandApp(appId);
     setOperationLogsTarget({
       appId,
       operationType: 'deploy',
@@ -1082,7 +1009,6 @@ export default function AppsPage() {
     setUpdatingId(appId);
     setError(null);
     setNotice(null);
-    expandApp(appId);
     setOperationLogsTarget({
       appId,
       operationType: 'update',
@@ -1132,6 +1058,8 @@ export default function AppsPage() {
   };
 
   const rollbackApp = async (appId: string, releaseId: string) => {
+    const app = apps.find((item) => item.id === appId);
+    if (!app || acceptedOperationLocks[appId] || appHasRunningOperation(app)) return;
     const token = `${appId}:${releaseId}`;
     setRollbackTarget(token);
     setError(null);
@@ -1143,8 +1071,18 @@ export default function AppsPage() {
         body: JSON.stringify({ releaseId }),
         timeout: 60000,
       });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || data.rollback?.error || 'Rollback failed');
+      const data: unknown = await response.json();
+      const result = readActionResult(data, 'rollback');
+      if (!response.ok)
+        throw new Error(readPayloadError(data) || result?.error || 'Rollback failed');
+      if (result?.operationId) {
+        const operationId = result.operationId;
+        setAcceptedOperationLocks((current) => ({
+          ...current,
+          [appId]: { appId, operationId, operationType: 'rollback' },
+        }));
+        setNotice(queuedOperationNotice(app.name, 'rollback'));
+      }
       await load();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Rollback failed');
@@ -1176,16 +1114,27 @@ export default function AppsPage() {
 
   const deleteApp = async () => {
     if (!deleteCandidate) return;
-    setDeletingId(deleteCandidate.id);
+    const app = deleteCandidate;
+    if (acceptedOperationLocks[app.id] || appHasRunningOperation(app)) return;
+    setDeletingId(app.id);
     setError(null);
     setNotice(null);
     try {
-      const response = await resilientFetch(`/api/modules/apps/${deleteCandidate.id}`, {
+      const response = await resilientFetch(`/api/modules/apps/${app.id}`, {
         method: 'DELETE',
         timeout: 10000,
       });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Delete failed');
+      const data: unknown = await response.json();
+      const result = readActionResult(data, 'deletion');
+      if (!response.ok) throw new Error(readPayloadError(data) || result?.error || 'Delete failed');
+      if (result?.operationId) {
+        const operationId = result.operationId;
+        setAcceptedOperationLocks((current) => ({
+          ...current,
+          [app.id]: { appId: app.id, operationId, operationType: 'delete' },
+        }));
+        setNotice(queuedOperationNotice(app.name, 'removal'));
+      }
       setDeleteCandidate(null);
       await load();
     } catch (err: unknown) {
@@ -1610,517 +1559,108 @@ export default function AppsPage() {
         </div>
       )}
 
-      <div className="space-y-3">
-        {appViewModels.map((viewModel) => {
-          const {
-            app,
-            isExpanded,
-            isUpdatingThisApp,
-            hasRunningUpdateOperation,
-            hasRunningOperation,
-            operationCount,
-            visibleOperations,
-          } = viewModel;
-          const updateInProgress = isUpdatingThisApp || hasRunningUpdateOperation;
-          const deployInProgress =
-            deployingId === app.id ||
-            app.status === 'deploying' ||
-            app.operations.some(
-              (operation) => operation.type === 'deploy' && operation.status === 'running'
+      <AppsCollectionToolbar
+        query={collectionQuery}
+        filter={collectionFilter}
+        view={collectionView}
+        resultCount={visibleApps.length}
+        totalCount={apps.length}
+        onQueryChange={setCollectionQuery}
+        onFilterChange={setCollectionFilter}
+        onViewChange={updateCollectionView}
+      />
+
+      {visibleApps.length > 0 ? (
+        <div
+          className={
+            collectionView === 'grid'
+              ? '@container grid gap-4 [@min-width:960px]:grid-cols-2'
+              : 'space-y-3'
+          }
+        >
+          {visibleApps.map((app) => {
+            const acceptedOperation = acceptedOperationLocks[app.id];
+            const hasRunningOperation = appHasRunningOperation(app);
+            const busy =
+              hasRunningOperation || app.status === 'deploying' || Boolean(acceptedOperation);
+            return (
+              <AppCard
+                key={app.id}
+                app={app}
+                view={collectionView}
+                snapshotUnavailable={snapshotUnavailable}
+                automationHealth={automationHealth}
+                busy={busy}
+                deploying={
+                  deployingId === app.id ||
+                  acceptedOperation?.operationType === 'deploy' ||
+                  app.status === 'deploying' ||
+                  app.operations.some(
+                    (operation) => operation.type === 'deploy' && operation.status === 'running'
+                  )
+                }
+                updating={
+                  updatingId === app.id ||
+                  acceptedOperation?.operationType === 'update' ||
+                  app.operations.some(
+                    (operation) => operation.type === 'update' && operation.status === 'running'
+                  )
+                }
+                now={automationHealth ? new Date(automationHealth.serverTime) : new Date()}
+                onOpenWorkspace={(tab) => openWorkspace(app.id, tab)}
+                onDeploy={() => void deployApp(app.id)}
+                onUpdate={() => void updateApp(app.id)}
+              />
             );
-          const operationInProgress = hasRunningOperation || app.status === 'deploying';
-          const acceptedOperation = acceptedOperationLocks[app.id];
-          const acceptedDeployInProgress = acceptedOperation?.operationType === 'deploy';
-          const acceptedUpdateInProgress = acceptedOperation?.operationType === 'update';
-          const operationLocked = operationInProgress || Boolean(acceptedOperation);
-          const isDeployingThisApp = deployingId === app.id;
-          const showingAllOperations = allOperationAppIds.has(app.id);
-          return (
-            <Card key={app.id}>
-              <CardHeader>
-                <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                  <div className="min-w-0">
-                    <CardTitle className="flex items-center gap-2">
-                      <Globe2 className="h-4 w-4 shrink-0 text-primary" />
-                      <span className="truncate">{app.name}</span>
-                    </CardTitle>
-                    <CardDescription className="mt-1 truncate">
-                      {app.sourceType === 'git' ? app.git?.url : app.sourcePath}
-                    </CardDescription>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    {statusBadge(app)}
-                    <Badge variant="outline">{app.sourceType === 'git' ? 'Git' : 'Local'}</Badge>
-                    {app.sourceType === 'git' && (
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        onClick={() => {
-                          void updateApp(app.id);
-                        }}
-                        loading={updateInProgress || acceptedUpdateInProgress}
-                        disabled={operationLocked}
-                        aria-label={
-                          updateInProgress || acceptedUpdateInProgress
-                            ? 'Update in progress'
-                            : undefined
-                        }
-                        title="Fetch the latest Git branch and deploy it when changes are available"
-                      >
-                        {!updateInProgress && !acceptedUpdateInProgress && (
-                          <RefreshCw className="h-3.5 w-3.5" />
-                        )}
-                        {updateInProgress || acceptedUpdateInProgress
-                          ? 'Updating…'
-                          : 'Check for updates now'}
-                      </Button>
-                    )}
-                    <Button
-                      type="button"
-                      size="sm"
-                      onClick={() => void deployApp(app.id)}
-                      loading={deployInProgress || acceptedDeployInProgress}
-                      disabled={operationLocked}
-                      aria-label={
-                        deployInProgress || acceptedDeployInProgress
-                          ? 'Deployment in progress'
-                          : undefined
-                      }
-                      title="Build the configured source, activate a new release, and verify its health"
-                    >
-                      {!deployInProgress && !acceptedDeployInProgress && (
-                        <Play className="h-3.5 w-3.5" />
-                      )}
-                      {deployInProgress || acceptedDeployInProgress ? 'Deploying…' : 'Deploy'}
-                    </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      aria-label={`Edit ${app.name}`}
-                      onClick={() => startEditing(app)}
-                    >
-                      <Pencil className="h-3.5 w-3.5" />
-                      Edit
-                    </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      aria-label={`Deployment history for ${app.name}`}
-                      onClick={() => setHistoryApp(app)}
-                    >
-                      <History className="h-3.5 w-3.5" />
-                      History
-                    </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      aria-label={`Runtime logs for ${app.name}`}
-                      onClick={() => void openRuntimeLogs(app)}
-                    >
-                      <FileText className="h-3.5 w-3.5" />
-                      Logs
-                    </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      aria-expanded={isExpanded}
-                      aria-label={`${isExpanded ? 'Collapse' : 'Expand'} ${app.name}`}
-                      onClick={() => toggleAppExpanded(app.id)}
-                    >
-                      {isExpanded ? (
-                        <ChevronUp className="h-3.5 w-3.5" />
-                      ) : (
-                        <ChevronDown className="h-3.5 w-3.5" />
-                      )}
-                      {isExpanded ? 'Less' : 'More'}
-                    </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="destructive"
-                      aria-label={`Delete ${app.name}`}
-                      onClick={() => setDeleteCandidate(app)}
-                      loading={deletingId === app.id}
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                      Delete
-                    </Button>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {app.sourceType === 'git' && app.git && (
-                  <AutoUpdateStatus
-                    git={app.git}
-                    health={automationHealth}
-                    snapshotUnavailable={snapshotUnavailable}
-                    onOpenLogs={(operationId) => {
-                      setOperationLogsTarget({
-                        appId: app.id,
-                        operationType: 'update',
-                        operationId,
-                        queueOperationId: operationId,
-                      });
-                    }}
-                    now={automationHealth ? new Date(automationHealth.serverTime) : undefined}
-                  />
-                )}
-                <div className="grid gap-3 text-sm md:grid-cols-3">
-                  <div className="rounded-lg bg-muted/40 p-3">
-                    <div className="text-xs text-muted-foreground">Public URL</div>
-                    <a
-                      href={`https://${app.domain}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="mt-1 flex min-w-0 items-center gap-1 font-medium text-primary"
-                    >
-                      <span className="truncate">{app.domain}</span>
-                      <ExternalLink className="h-3 w-3 shrink-0" />
-                    </a>
-                  </div>
-                  <div className="rounded-lg bg-muted/40 p-3">
-                    <div className="text-xs text-muted-foreground">Local port</div>
-                    <div className="mt-1 font-medium">127.0.0.1:{app.port}</div>
-                  </div>
-                  <div className="rounded-lg bg-muted/40 p-3">
-                    <div className="text-xs text-muted-foreground">Current release</div>
-                    <div className="mt-1 truncate font-medium">
-                      {app.currentReleaseId || 'Not deployed'}
-                    </div>
-                  </div>
-                </div>
+          })}
+        </div>
+      ) : apps.length === 0 ? (
+        <Card>
+          <CardContent className="py-12 text-center text-sm text-muted-foreground">
+            Create your first app to start managing deployments from ServerMon.
+          </CardContent>
+        </Card>
+      ) : (
+        <Card>
+          <CardContent className="py-12 text-center text-sm text-muted-foreground">
+            No apps match the current search or filter.{' '}
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              onClick={() => {
+                setCollectionQuery('');
+                setCollectionFilter('all');
+              }}
+            >
+              Clear filters
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
-                {isExpanded && (
-                  <div className="space-y-4 border-t border-border pt-4">
-                    <div className="grid gap-3 lg:grid-cols-[1.1fr_0.9fr]">
-                      <div className="rounded-lg border border-border p-3">
-                        <div className="mb-3 flex items-center justify-between gap-2">
-                          <div className="flex items-center gap-2 text-sm font-medium">
-                            <Activity className="h-4 w-4 text-primary" />
-                            Runtime
-                          </div>
-                          {app.runtime?.available ? (
-                            <Badge variant="success">{app.runtime.activeState || 'active'}</Badge>
-                          ) : (
-                            <Badge variant="warning">Unavailable</Badge>
-                          )}
-                        </div>
-                        {app.runtime?.available ? (
-                          <div className="grid gap-2 text-xs sm:grid-cols-2">
-                            <div className="rounded-md bg-muted/30 p-2">
-                              <div className="text-muted-foreground">Service</div>
-                              <div className="mt-1 truncate font-mono">
-                                {app.runtime.serviceName}
-                              </div>
-                            </div>
-                            <div className="rounded-md bg-muted/30 p-2">
-                              <div className="text-muted-foreground">Process</div>
-                              <div className="mt-1 font-medium">PID {app.runtime.mainPid || 0}</div>
-                            </div>
-                            <div className="rounded-md bg-muted/30 p-2">
-                              <div className="text-muted-foreground">CPU</div>
-                              <div className="mt-1 font-medium">
-                                {(app.runtime.cpuPercent ?? 0).toFixed(1)}% CPU
-                              </div>
-                            </div>
-                            <div className="rounded-md bg-muted/30 p-2">
-                              <div className="text-muted-foreground">Memory</div>
-                              <div className="mt-1 font-medium">
-                                {formatBytes(app.runtime.memoryBytes)} memory
-                              </div>
-                            </div>
-                            <div className="rounded-md bg-muted/30 p-2">
-                              <div className="text-muted-foreground">Uptime</div>
-                              <div className="mt-1 font-medium">
-                                {formatUptime(app.runtime.uptimeSeconds)}
-                              </div>
-                            </div>
-                            <div className="rounded-md bg-muted/30 p-2">
-                              <div className="text-muted-foreground">Restarts</div>
-                              <div className="mt-1 font-medium">
-                                {app.runtime.restartCount ?? 0}
-                              </div>
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="rounded-md border border-dashed border-border px-3 py-4 text-xs text-muted-foreground">
-                            {app.runtime?.error ||
-                              'Runtime inspection is not available for this app.'}
-                          </div>
-                        )}
-                      </div>
-
-                      <div className="rounded-lg border border-border p-3">
-                        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                          <div className="flex items-center gap-2 text-sm font-medium">
-                            <RefreshCw className="h-4 w-4 text-primary" />
-                            Operations
-                          </div>
-                        </div>
-                        {(isDeployingThisApp || isUpdatingThisApp) &&
-                          !app.operations.some((operation) => operation.status === 'running') && (
-                            <div className="mb-2 rounded-md border border-dashed border-border px-3 py-4 text-xs text-muted-foreground">
-                              {isDeployingThisApp
-                                ? 'Starting deployment and waiting for output…'
-                                : 'Checking for updates and waiting for output…'}
-                            </div>
-                          )}
-                        {visibleOperations.length > 0 ? (
-                          <div className="space-y-3">
-                            <div className="space-y-2">
-                              {visibleOperations.map(
-                                ({ operation, isLiveOperation, visibleLogs }) => {
-                                  const logsTitle = operationLogsTitle(operation.type);
-                                  const followingLiveOutput =
-                                    operationLogFollow[operation.id] !== false;
-                                  const displayedLogs =
-                                    isLiveOperation && !followingLiveOutput
-                                      ? (operationLogSnapshots[operation.id] ?? visibleLogs).slice(
-                                          -LIVE_OPERATION_LOG_LIMIT
-                                        )
-                                      : visibleLogs;
-                                  return (
-                                    <div
-                                      key={operation.id}
-                                      className="rounded-md bg-muted/30 p-2 text-xs"
-                                    >
-                                      <div className="flex flex-wrap items-start justify-between gap-3">
-                                        <div className="min-w-0 py-1">
-                                          <div className="font-medium text-foreground">
-                                            {logsTitle}
-                                            {operation.type === 'update' && (
-                                              <span className="ml-2 text-xs text-muted-foreground">
-                                                {operation.trigger === 'auto'
-                                                  ? 'Automatic'
-                                                  : operation.trigger === 'manual'
-                                                    ? 'Manual'
-                                                    : 'Trigger unknown'}
-                                              </span>
-                                            )}
-                                          </div>
-                                          <div className="mt-1 text-muted-foreground">
-                                            Started{' '}
-                                            {formatOptionalDate(operation.startedAt, 'recently')}
-                                          </div>
-                                        </div>
-                                        <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
-                                          {operationStatusBadge(operation)}
-                                        </div>
-                                      </div>
-                                      <OperationLogViewer
-                                        className="mt-2"
-                                        output={displayedLogs}
-                                        status={operation.status}
-                                        label={`${isLiveOperation ? 'Live ' : ''}${operationLogSubject(operation.type)} logs for ${app.name}`}
-                                        follow={followingLiveOutput}
-                                        onFollowChange={(shouldFollow) =>
-                                          updateOperationFollow(operation, shouldFollow)
-                                        }
-                                        autoscroll={operationLogAutoscroll[operation.id] !== false}
-                                        onAutoscrollChange={(shouldAutoscroll) =>
-                                          setOperationLogAutoscroll((current) => ({
-                                            ...current,
-                                            [operation.id]: shouldAutoscroll,
-                                          }))
-                                        }
-                                        wrap={operationLogWrap[operation.id] !== false}
-                                        onWrapChange={(shouldWrap) =>
-                                          setOperationLogWrap((current) => ({
-                                            ...current,
-                                            [operation.id]: shouldWrap,
-                                          }))
-                                        }
-                                        onRequestFullscreen={() =>
-                                          setOperationLogsTarget({
-                                            appId: app.id,
-                                            operationId: operation.id,
-                                            operationType: operation.type,
-                                          })
-                                        }
-                                        emptyMessage={`Waiting for ${operationLogSubject(operation.type)} output…`}
-                                        error={operation.error}
-                                        downloadableFilename={`${app.slug}-${operation.type}-${operation.id}.log`}
-                                        maxHeightClassName={
-                                          isLiveOperation ? 'max-h-56' : 'max-h-24'
-                                        }
-                                      />
-                                    </div>
-                                  );
-                                }
-                              )}
-                            </div>
-                            {operationCount > 3 && (
-                              <Button
-                                type="button"
-                                size="sm"
-                                variant="ghost"
-                                className="w-full"
-                                aria-expanded={showingAllOperations}
-                                onClick={() => toggleAllOperations(app.id)}
-                              >
-                                {showingAllOperations
-                                  ? 'Show recent operations'
-                                  : `View all operations (${operationCount})`}
-                              </Button>
-                            )}
-                          </div>
-                        ) : !isDeployingThisApp && !isUpdatingThisApp && !hasRunningOperation ? (
-                          <div className="rounded-md border border-dashed border-border px-3 py-4 text-center text-xs text-muted-foreground">
-                            No operations recorded yet.
-                          </div>
-                        ) : (
-                          <div className="rounded-md border border-dashed border-border px-3 py-4 text-xs text-muted-foreground">
-                            Waiting for operation output…
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    {app.sourceType === 'git' && app.git && (
-                      <div className="grid gap-3 text-sm md:grid-cols-3">
-                        <div className="rounded-lg border border-border p-3">
-                          <div className="text-xs text-muted-foreground">Repository</div>
-                          <div className="mt-1 truncate font-medium">{app.git.url}</div>
-                        </div>
-                        <div className="rounded-lg border border-border p-3">
-                          <div className="text-xs text-muted-foreground">Branch</div>
-                          <div className="mt-1 font-medium">{app.git.branch}</div>
-                        </div>
-                        <div className="rounded-lg border border-border p-3">
-                          <div className="text-xs text-muted-foreground">Checkout commit</div>
-                          <div className="mt-1 font-mono font-medium">
-                            {app.git.currentSha?.slice(0, 7) || 'Not fetched'}
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    <div className="rounded-lg border border-border bg-muted/20 p-3 text-xs">
-                      <div className="mb-2 font-medium">TLS</div>
-                      <code>
-                        {app.tlsEnabled
-                          ? `Certbot-managed HTTPS requested for ${app.domain}.`
-                          : 'HTTP only. Enable SSL before deploying to request HTTPS.'}
-                      </code>
-                    </div>
-
-                    <div className="rounded-lg border border-border bg-muted/20 p-3 text-xs">
-                      <div className="mb-2 font-medium">DNS</div>
-                      <code>
-                        {app.dns?.summary ||
-                          `Create A record for ${app.domain} pointing at this server public IP.`}
-                      </code>
-                    </div>
-
-                    <div className="rounded-lg border border-border p-3">
-                      <div className="mb-2 text-xs font-medium text-muted-foreground">
-                        Environment variables
-                      </div>
-                      {Object.entries(app.envVars).length > 0 ? (
-                        <div className="space-y-2">
-                          {Object.entries(app.envVars).map(([key, value]) => {
-                            const token = `${app.id}:${key}`;
-                            const keyCopyToken = `${token}:key`;
-                            const valueCopyToken = `${token}:value`;
-                            const isRevealed = revealedEnvVars.has(token);
-
-                            return (
-                              <div
-                                key={key}
-                                className="grid gap-2 rounded-md bg-muted/30 p-2 text-xs sm:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)_36px]"
-                              >
-                                <button
-                                  type="button"
-                                  className="flex min-h-9 items-center gap-2 rounded px-2 text-left font-medium text-foreground transition-colors hover:bg-background focus:outline-none focus:ring-2 focus:ring-ring/20"
-                                  title="Copy key"
-                                  onClick={() => void copyToClipboard(key, keyCopyToken)}
-                                >
-                                  <Copy className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                                  <span className="truncate">{key}</span>
-                                  {copiedTarget === keyCopyToken && (
-                                    <span className="ml-auto text-[10px] text-success">Copied</span>
-                                  )}
-                                </button>
-                                {isRevealed ? (
-                                  <button
-                                    type="button"
-                                    className="flex min-h-9 items-center gap-2 rounded px-2 text-left font-mono text-foreground transition-colors hover:bg-background focus:outline-none focus:ring-2 focus:ring-ring/20"
-                                    title="Copy value"
-                                    onClick={() => void copyToClipboard(value, valueCopyToken)}
-                                  >
-                                    <Copy className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                                    <span className="truncate">{value || '(empty)'}</span>
-                                    {copiedTarget === valueCopyToken && (
-                                      <span className="ml-auto font-sans text-[10px] text-success">
-                                        Copied
-                                      </span>
-                                    )}
-                                  </button>
-                                ) : (
-                                  <div className="flex min-h-9 items-center rounded px-2 font-mono text-muted-foreground">
-                                    <span className="truncate">••••••••••••</span>
-                                  </div>
-                                )}
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="icon"
-                                  aria-label={`${isRevealed ? 'Hide' : 'Show'} ${key}`}
-                                  onClick={() => toggleEnvValue(app.id, key)}
-                                >
-                                  {isRevealed ? (
-                                    <EyeOff className="h-4 w-4" />
-                                  ) : (
-                                    <Eye className="h-4 w-4" />
-                                  )}
-                                </Button>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      ) : (
-                        <div className="rounded-md border border-dashed border-border px-3 py-4 text-center text-xs text-muted-foreground">
-                          No environment variables configured.
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="grid gap-3 lg:grid-cols-2">
-                      <div className="rounded-lg border border-border p-3">
-                        <div className="mb-2 text-xs font-medium text-muted-foreground">
-                          Commands
-                        </div>
-                        <pre className="whitespace-pre-wrap text-xs">{`${app.commands.install}\n${app.commands.build}\n${app.commands.start}`}</pre>
-                      </div>
-                      <div className="rounded-lg border border-border p-3">
-                        <div className="mb-2 text-xs font-medium text-muted-foreground">
-                          Latest logs
-                        </div>
-                        <pre className="max-h-40 overflow-auto whitespace-pre-wrap text-xs">
-                          {app.releases.at(-1)?.logs.join('\n') || 'No deployments yet.'}
-                        </pre>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          );
-        })}
-
-        {apps.length === 0 && (
-          <Card>
-            <CardContent className="py-12 text-center text-sm text-muted-foreground">
-              Create your first app to start managing deployments from ServerMon.
-            </CardContent>
-          </Card>
-        )}
-      </div>
+      {workspaceApp && (
+        <AppWorkspace
+          key={`${workspaceApp.id}:${workspaceTab}`}
+          app={workspaceApp}
+          initialTab={workspaceTab}
+          snapshotUnavailable={snapshotUnavailable}
+          automationHealth={automationHealth}
+          onClose={() => setWorkspaceAppId(null)}
+          onEdit={() => startEditing(workspaceApp)}
+          onDelete={() => setDeleteCandidate(workspaceApp)}
+          onOpenRuntimeLogs={() => void openRuntimeLogs(workspaceApp)}
+          onOpenHistory={() => setHistoryApp(workspaceApp)}
+          onOpenOperationLogs={(operationId) =>
+            setOperationLogsTarget({
+              appId: workspaceApp.id,
+              operationId,
+              operationType: 'update',
+              queueOperationId: operationId,
+            })
+          }
+        />
+      )}
 
       <ConfirmationModal
         isOpen={Boolean(deleteCandidate)}

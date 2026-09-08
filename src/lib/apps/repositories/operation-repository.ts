@@ -4,6 +4,7 @@ import { createLogger } from '@/lib/logger';
 import type {
   AcceptedAppOperation,
   AppOperationType,
+  AppStageUpdate,
   AppV2OperationPhase,
   AppV2OperationStatus,
 } from '@/modules/apps/types';
@@ -77,6 +78,15 @@ interface FinishAppOperationRecordInput {
 interface RecoverExpiredAppOperationRecordInput {
   currentWorkerId: string;
   now: Date;
+}
+
+interface RecordAppOperationStageInput {
+  operationId: string;
+  appId: string;
+  workerId: string;
+  leaseGeneration: number;
+  update: AppStageUpdate;
+  now?: Date;
 }
 
 interface OperationRecord {
@@ -283,6 +293,45 @@ export async function renewAppOperationLease(input: RenewAppOperationLeaseInput)
   );
 
   return result.matchedCount === 1;
+}
+
+/**
+ * Stage records are advisory progress evidence. The fence prevents an obsolete
+ * worker from overwriting the current phase, but does not renew ownership or
+ * change an operation's terminal state.
+ */
+export async function recordAppOperationStage(
+  input: RecordAppOperationStageInput
+): Promise<boolean> {
+  const result = await AppOperation.updateOne(
+    {
+      operationId: input.operationId,
+      active: true,
+      status: { $in: ['running', 'cancel_requested'] },
+      'lease.workerId': input.workerId,
+      'lease.generation': input.leaseGeneration,
+    },
+    { $set: { phase: input.update.phase } }
+  );
+  if (result.matchedCount !== 1) return false;
+
+  try {
+    await appendAppOperationEvent({
+      operationId: input.operationId,
+      appId: input.appId,
+      type: 'progress',
+      phase: input.update.phase,
+      message: input.update.message,
+      details: { stageState: input.update.state },
+    });
+  } catch (error: unknown) {
+    log.error('Failed to append Apps operation stage event', {
+      operationId: input.operationId,
+      phase: input.update.phase,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+  return true;
 }
 
 export async function finishAppOperationRecord(

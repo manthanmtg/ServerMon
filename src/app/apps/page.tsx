@@ -5,7 +5,7 @@ import AppsPage from '@/modules/apps/ui/AppsPage';
 
 export default function AppsRoute() {
   return (
-    <ProShell title="Apps" subtitle="Deploy local Next.js apps with managed releases">
+    <ProShell title="Apps" subtitle="Deploy and manage application releases">
       <AppsPage />
     </ProShell>
   );

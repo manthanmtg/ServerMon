@@ -61,6 +61,7 @@ describe('deployNextJsApp', () => {
     const dirs = await createDeployDirs();
     const commands: string[] = [];
     const progress: string[] = [];
+    const stages: string[] = [];
 
     const result = await deployNextJsApp({
       app: {
@@ -93,9 +94,29 @@ describe('deployNextJsApp', () => {
       onProgress: (entry) => {
         progress.push(entry);
       },
+      reportStage: async (update) => {
+        stages.push(`${update.phase}:${update.state}`);
+      },
     });
 
     expect(result.status).toBe('active');
+    expect(stages).toEqual([
+      'stage:started',
+      'stage:completed',
+      'install:started',
+      'install:completed',
+      'build:started',
+      'build:completed',
+      'activate:started',
+      'activate:completed',
+      'health:started',
+      'health:completed',
+      'routing:started',
+      'routing:completed',
+      'tls:skipped',
+      'finalize:started',
+      'finalize:completed',
+    ]);
     expect(commands).toEqual([
       'pnpm install --frozen-lockfile',
       'pnpm build',
