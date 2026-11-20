@@ -728,6 +728,7 @@ export class AIRunnerService {
     autoflowMode?: 'sequential' | 'parallel';
     artifactBaseDir?: string;
     maxConcurrentRuns?: number;
+    historyRetentionDays?: number;
     mongoRetentionDays?: number;
     artifactRetentionDays?: number;
   }): Promise<AIRunnerSettingsDTO> {

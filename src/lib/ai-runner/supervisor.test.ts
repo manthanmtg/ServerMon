@@ -3,6 +3,7 @@ import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { AIRunnerSupervisor } from './supervisor';
 import connectDB from '@/lib/db';
 import AIRunnerJob from '@/models/AIRunnerJob';
+import AIRunnerAutoflow from '@/models/AIRunnerAutoflow';
 import AIRunnerRun from '@/models/AIRunnerRun';
 import AIRunnerSchedule from '@/models/AIRunnerSchedule';
 import AIRunnerSupervisorLease from '@/models/AIRunnerSupervisorLease';
@@ -28,6 +29,7 @@ vi.mock('@/lib/db', () => ({
 }));
 
 vi.mock('@/models/AIRunnerJob');
+vi.mock('@/models/AIRunnerAutoflow');
 vi.mock('@/models/AIRunnerRun');
 vi.mock('@/models/AIRunnerSchedule');
 vi.mock('@/models/AIRunnerSupervisorLease');
@@ -86,7 +88,17 @@ describe('AIRunnerSupervisor', () => {
       artifactBaseDir: '/tmp/servermon-ai-runner',
       maxConcurrentRuns: 2,
       mongoRetentionDays: 30,
+      historyRetentionDays: 90,
       artifactRetentionDays: 90,
+    });
+    (AIRunnerAutoflow.find as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
+      distinct: vi.fn().mockResolvedValue([]),
+    });
+    (AIRunnerJob.deleteMany as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
+      deletedCount: 1,
+    });
+    (AIRunnerRun.deleteMany as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
+      deletedCount: 1,
     });
     (isAIRunnerExecutionAlive as unknown as ReturnType<typeof vi.fn>).mockReturnValue(false);
     (enqueueRunRequest as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
@@ -465,13 +477,19 @@ describe('AIRunnerSupervisor', () => {
   });
 
   describe('cleanupRetainedHistory', () => {
-    it('purges old terminal run logs without deleting run or job history', async () => {
+    it('purges logs and prunes only old terminal run history', async () => {
       vi.setSystemTime(new Date('2026-05-07T03:00:00.000Z'));
-      (AIRunnerRun.find as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
-        select: vi.fn().mockReturnValue({
-          lean: vi.fn().mockResolvedValue([{ _id: 'active-run' }]),
-        }),
-      });
+      (AIRunnerRun.find as unknown as ReturnType<typeof vi.fn>)
+        .mockReturnValueOnce({
+          select: vi
+            .fn()
+            .mockReturnValue({ lean: vi.fn().mockResolvedValue([{ _id: 'active-run' }]) }),
+        })
+        .mockReturnValueOnce({
+          select: vi
+            .fn()
+            .mockReturnValue({ lean: vi.fn().mockResolvedValue([{ _id: 'old-run' }]) }),
+        });
       (cleanupAIRunnerArtifacts as unknown as ReturnType<typeof vi.fn>).mockResolvedValue([]);
 
       await (
@@ -495,8 +513,18 @@ describe('AIRunnerSupervisor', () => {
           },
         }
       );
-      expect(AIRunnerRun.deleteMany).not.toHaveBeenCalled();
-      expect(AIRunnerJob.deleteMany).not.toHaveBeenCalled();
+      expect(AIRunnerRun.deleteMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          finishedAt: { $lt: new Date('2026-02-06T03:00:00.000Z') },
+          status: { $in: ['completed', 'failed', 'timeout', 'killed', 'skipped'] },
+          autoflowId: { $nin: [] },
+          _id: { $in: ['old-run'] },
+        })
+      );
+      expect(AIRunnerJob.deleteMany).toHaveBeenCalledWith({
+        runId: { $in: ['old-run'] },
+        status: { $in: ['completed', 'failed', 'canceled'] },
+      });
       expect(cleanupAIRunnerArtifacts).toHaveBeenCalledWith({
         baseDir: '/tmp/servermon-ai-runner',
         retentionDays: 90,

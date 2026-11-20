@@ -146,6 +146,7 @@ const MAX_PROMPT_ATTACHMENT_BYTES = 5 * 1024 * 1024;
 const MAX_PROMPT_ATTACHMENTS_TOTAL_BYTES = 10 * 1024 * 1024;
 const MAX_AUTOFLOW_ITEMS = 100;
 const MAX_AUTOFLOW_ITEM_NAME_LENGTH = 160;
+const DEFAULT_HISTORY_RETENTION_DAYS = 90;
 const DEFAULT_MONGO_RETENTION_DAYS = 30;
 const DEFAULT_ARTIFACT_RETENTION_DAYS = 90;
 const DEFAULT_MAX_CONCURRENT_RUNS = 3;
@@ -187,6 +188,7 @@ type LinkedDeleteTarget =
 interface StorageSettingsFormState {
   artifactBaseDir: string;
   maxConcurrentRuns: string;
+  historyRetentionDays: string;
   mongoRetentionDays: string;
   artifactRetentionDays: string;
 }
@@ -197,6 +199,7 @@ function storageSettingsFormFromSettings(
   return {
     artifactBaseDir: settings?.artifactBaseDir ?? '',
     maxConcurrentRuns: String(settings?.maxConcurrentRuns ?? DEFAULT_MAX_CONCURRENT_RUNS),
+    historyRetentionDays: String(settings?.historyRetentionDays ?? DEFAULT_HISTORY_RETENTION_DAYS),
     mongoRetentionDays: String(settings?.mongoRetentionDays ?? DEFAULT_MONGO_RETENTION_DAYS),
     artifactRetentionDays: String(
       settings?.artifactRetentionDays ?? DEFAULT_ARTIFACT_RETENTION_DAYS
@@ -210,6 +213,9 @@ function defaultStorageSettingsFormFromSettings(
   return {
     artifactBaseDir: settings?.defaultArtifactBaseDir ?? settings?.artifactBaseDir ?? '',
     maxConcurrentRuns: String(settings?.defaultMaxConcurrentRuns ?? DEFAULT_MAX_CONCURRENT_RUNS),
+    historyRetentionDays: String(
+      settings?.defaultHistoryRetentionDays ?? DEFAULT_HISTORY_RETENTION_DAYS
+    ),
     mongoRetentionDays: String(settings?.defaultMongoRetentionDays ?? DEFAULT_MONGO_RETENTION_DAYS),
     artifactRetentionDays: String(
       settings?.defaultArtifactRetentionDays ?? DEFAULT_ARTIFACT_RETENTION_DAYS
@@ -1545,6 +1551,12 @@ export default function AIRunnerPage() {
         });
         if (response.ok) {
           detail = await response.json();
+        } else if (response.status === 404) {
+          toast({
+            title: 'Run history unavailable',
+            description: 'This run may have been removed by history retention.',
+            variant: 'destructive',
+          });
         }
       } catch {
         /* history list refresh below is enough for recent runs */
@@ -1560,7 +1572,7 @@ export default function AIRunnerPage() {
         });
       }
     },
-    [loadRuns]
+    [loadRuns, toast]
   );
 
   useEffect(() => {
@@ -2227,6 +2239,7 @@ export default function AIRunnerPage() {
   const saveStorageSettings = async () => {
     const artifactBaseDir = storageSettingsForm.artifactBaseDir.trim();
     const maxConcurrentRuns = parseMaxConcurrentRuns(storageSettingsForm.maxConcurrentRuns);
+    const historyRetentionDays = parseRetentionDays(storageSettingsForm.historyRetentionDays);
     const mongoRetentionDays = parseRetentionDays(storageSettingsForm.mongoRetentionDays);
     const artifactRetentionDays = parseRetentionDays(storageSettingsForm.artifactRetentionDays);
 
@@ -2248,7 +2261,11 @@ export default function AIRunnerPage() {
       return;
     }
 
-    if (mongoRetentionDays === null || artifactRetentionDays === null) {
+    if (
+      historyRetentionDays === null ||
+      mongoRetentionDays === null ||
+      artifactRetentionDays === null
+    ) {
       toast({
         title: 'Retention days are invalid',
         description: `Use whole numbers from ${MIN_RETENTION_DAYS} to ${MAX_RETENTION_DAYS}.`,
@@ -2265,6 +2282,7 @@ export default function AIRunnerPage() {
         body: JSON.stringify({
           artifactBaseDir,
           maxConcurrentRuns,
+          historyRetentionDays,
           mongoRetentionDays,
           artifactRetentionDays,
         }),
@@ -3694,6 +3712,27 @@ export default function AIRunnerPage() {
                           setStorageSettingsForm((current) => ({
                             ...current,
                             maxConcurrentRuns: event.target.value,
+                          }))
+                        }
+                      />
+                    </label>
+
+                    <label className="block space-y-2">
+                      <LabelWithHint
+                        label="Run history retention days"
+                        hint="Permanently deletes finished run records and their associated jobs after this many days. Active runs are kept."
+                      />
+                      <Input
+                        aria-label="Run history retention days"
+                        type="number"
+                        min={MIN_RETENTION_DAYS}
+                        max={MAX_RETENTION_DAYS}
+                        inputMode="numeric"
+                        value={storageSettingsForm.historyRetentionDays}
+                        onChange={(event) =>
+                          setStorageSettingsForm((current) => ({
+                            ...current,
+                            historyRetentionDays: event.target.value,
                           }))
                         }
                       />

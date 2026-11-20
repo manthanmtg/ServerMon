@@ -132,10 +132,12 @@ export interface AIRunnerSettingsDTO {
   autoflowMode: 'sequential' | 'parallel';
   artifactBaseDir: string;
   maxConcurrentRuns: number;
+  historyRetentionDays: number;
   mongoRetentionDays: number;
   artifactRetentionDays: number;
   defaultArtifactBaseDir: string;
   defaultMaxConcurrentRuns: number;
+  defaultHistoryRetentionDays: number;
   defaultMongoRetentionDays: number;
   defaultArtifactRetentionDays: number;
   updatedAt?: string;

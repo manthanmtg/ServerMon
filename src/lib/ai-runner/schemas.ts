@@ -206,6 +206,7 @@ export const settingsUpdateSchema = z.object({
   autoflowMode: autoflowModeSchema.optional(),
   artifactBaseDir: z.string().trim().min(1).max(2000).optional(),
   maxConcurrentRuns: z.number().int().min(1).max(MAX_CONCURRENT_RUNS_CAP).optional(),
+  historyRetentionDays: z.number().int().min(1).max(3650).optional(),
   mongoRetentionDays: z.number().int().min(1).max(3650).optional(),
   artifactRetentionDays: z.number().int().min(1).max(3650).optional(),
 });

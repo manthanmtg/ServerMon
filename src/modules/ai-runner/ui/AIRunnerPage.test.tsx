@@ -118,6 +118,8 @@ const mockRunnerSettings: AIRunnerSettingsDTO = {
   artifactRetentionDays: 90,
   defaultArtifactBaseDir: '/tmp/servermon-ai-runner-default',
   defaultMaxConcurrentRuns: 3,
+  defaultHistoryRetentionDays: 90,
+  historyRetentionDays: 90,
   defaultMongoRetentionDays: 30,
   defaultArtifactRetentionDays: 90,
 };
@@ -784,6 +786,7 @@ describe('AIRunnerPage', () => {
       '/tmp/servermon-ai-runner'
     );
     expect(screen.getByLabelText('Max concurrent runs')).toHaveValue(3);
+    expect(screen.getByLabelText('Run history retention days')).toHaveValue(90);
     expect(screen.getByLabelText('AI Runner logs retention days')).toHaveValue(30);
     expect(screen.getByLabelText('Artifact retention days')).toHaveValue(90);
 
@@ -793,6 +796,9 @@ describe('AIRunnerPage', () => {
       });
       fireEvent.change(screen.getByLabelText('Max concurrent runs'), {
         target: { value: '5' },
+      });
+      fireEvent.change(screen.getByLabelText('Run history retention days'), {
+        target: { value: '45' },
       });
       fireEvent.change(screen.getByLabelText('AI Runner logs retention days'), {
         target: { value: '14' },
@@ -818,6 +824,7 @@ describe('AIRunnerPage', () => {
           body: JSON.stringify({
             artifactBaseDir: '/mnt/ai-runner-artifacts',
             maxConcurrentRuns: 5,
+            historyRetentionDays: 45,
             mongoRetentionDays: 14,
             artifactRetentionDays: 120,
           }),
@@ -833,6 +840,7 @@ describe('AIRunnerPage', () => {
       '/tmp/servermon-ai-runner-default'
     );
     expect(screen.getByLabelText('Max concurrent runs')).toHaveValue(3);
+    expect(screen.getByLabelText('Run history retention days')).toHaveValue(90);
     expect(screen.getByLabelText('AI Runner logs retention days')).toHaveValue(30);
     expect(screen.getByLabelText('Artifact retention days')).toHaveValue(90);
   });

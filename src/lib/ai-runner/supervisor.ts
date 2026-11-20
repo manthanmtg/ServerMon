@@ -752,6 +752,25 @@ export class AIRunnerSupervisor {
       });
     }
 
+    // Keep runs referenced by an in-progress AutoFlow until the flow finishes.
+    const runningAutoflowIds = await AIRunnerAutoflow.find({ status: 'running' }).distinct('_id');
+    const historyFilter = {
+      status: { $in: [...TERMINAL_RUN_STATUSES] },
+      finishedAt: {
+        $lt: new Date(now.getTime() - settings.historyRetentionDays * 24 * 60 * 60 * 1000),
+      },
+      autoflowId: { $nin: runningAutoflowIds },
+    };
+    const expiredRuns = await AIRunnerRun.find(historyFilter).select('_id').lean();
+    const expiredIds = expiredRuns.map((run) => run._id);
+    if (expiredIds.length > 0) {
+      await AIRunnerJob.deleteMany({
+        runId: { $in: expiredIds },
+        status: { $in: ['completed', 'failed', 'canceled'] },
+      });
+      await AIRunnerRun.deleteMany({ ...historyFilter, _id: { $in: expiredIds } });
+    }
+
     const deletedArtifacts = await cleanupAIRunnerArtifacts({
       baseDir: settings.artifactBaseDir,
       retentionDays: settings.artifactRetentionDays,

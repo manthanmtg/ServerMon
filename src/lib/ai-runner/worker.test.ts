@@ -187,6 +187,8 @@ const mockSettings = {
   artifactRetentionDays: 90,
   defaultArtifactBaseDir: '/tmp/servermon-ai-runner',
   defaultMaxConcurrentRuns: 2,
+  defaultHistoryRetentionDays: 90,
+  historyRetentionDays: 90,
   defaultMongoRetentionDays: 30,
   defaultArtifactRetentionDays: 90,
 };
