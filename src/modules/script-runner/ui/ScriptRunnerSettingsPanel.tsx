@@ -3,13 +3,31 @@
 import { useId, useState, type FormEvent } from 'react';
 import { Activity, Check, Circle, FolderOpen, Save, Settings2, SquareTerminal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { SCRIPT_RUNTIMES, type ScriptLanguage, type ScriptRunnerDefaults } from '../types';
+import {
+  MAX_HISTORY_RETENTION_DAYS,
+  MAX_HISTORY_RUNS,
+  SCRIPT_RUNTIMES,
+  type ScriptLanguage,
+  type ScriptRunnerDefaults,
+} from '../types';
 import { errorMessage, runnerRequest } from './client';
 
 const numericFields = [
   { name: 'defaultTimeoutSeconds', label: 'Default timeout', unit: 'Seconds', max: 86_400 },
   { name: 'maxConcurrentRuns', label: 'Max concurrent runs', unit: 'Runs', max: 8 },
   { name: 'logRetentionDays', label: 'Log retention', unit: 'Days', max: 365 },
+  {
+    name: 'historyRetentionDays',
+    label: 'Run history retention',
+    unit: 'Days',
+    max: MAX_HISTORY_RETENTION_DAYS,
+  },
+  {
+    name: 'maxHistoryRuns',
+    label: 'Max completed runs to keep',
+    unit: 'Runs',
+    max: MAX_HISTORY_RUNS,
+  },
 ] as const;
 
 export default function ScriptRunnerSettingsPanel({
@@ -143,8 +161,9 @@ export default function ScriptRunnerSettingsPanel({
             ))}
           </div>
           <p className="sr-muted">
-            Log retention starts when a run finishes. Its history remains available after the output
-            expires.
+            Log retention starts when a run finishes. The worker also removes completed runs and
+            their logs when they exceed the history age or count limit. History age is measured from
+            when the run was queued.
           </p>
           {error && (
             <p className="sr-error" role="alert">

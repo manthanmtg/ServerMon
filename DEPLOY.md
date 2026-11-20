@@ -237,7 +237,9 @@ Use **Run defaults** to save a script's working directory, arguments, timeout, a
 
 Create reusable variables and secrets in **Scripts → Env Vars**. Link them to a saved script under **Workspace → Run defaults** or attach them to a single launch. An inline value with the same name takes precedence. A new launch uses the library value at queue time. **Run again** reuses the original linked values, even after a library update. Unlink a variable from its saved scripts before deleting it.
 
-Script Runner stores output under `/var/lib/servermon/script-runner`, with up to 8 MiB of capture per run. **Scripts → Settings** controls log cleanup, which defaults to three days after completion. Scripts and run history remain available after logs expire.
+Use **Scripts → Schedules** to add a recurring run to a saved script. Choose an interval in five-minute increments. Scheduled runs use the latest saved script and linked variables. The worker queues one occurrence after downtime and skips a scheduled occurrence if the script's previous scheduled run is still queued or running. Pause or delete the schedule to stop future occurrences.
+
+Script Runner stores output under `/var/lib/servermon/script-runner`, with up to 8 MiB of capture per run. In **Scripts → Settings**, log retention defaults to three days after completion. Completed run history defaults to the newest 500 runs within 30 days of queueing. When a run ages out or falls past the count limit, the worker removes its history and any remaining output. Queued and running scripts are excluded from pruning.
 
 ```bash
 systemctl status servermon-script-runner-worker

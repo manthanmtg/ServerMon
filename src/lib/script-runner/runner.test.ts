@@ -4,7 +4,7 @@ import { join, resolve } from 'node:path';
 import { spawn } from 'node:child_process';
 import { afterEach, describe, expect, it } from 'vitest';
 import { captureOutput, readOutput } from './output';
-import { launchInput, retentionInput } from './schemas';
+import { defaultsPatchInput, launchInput, retentionInput, scheduleInput } from './schemas';
 import { encodeLaunch, parseUnit } from './systemd';
 
 const temporary: string[] = [];
@@ -14,6 +14,21 @@ afterEach(async () => {
 });
 
 describe('Script Runner', () => {
+  it('accepts five-minute schedule increments and bounded history settings', () => {
+    expect(scheduleInput.parse({ intervalMinutes: 5, enabled: true })).toEqual({
+      intervalMinutes: 5,
+      enabled: true,
+    });
+    for (const intervalMinutes of [0, 4, 6, 7.5, 525_605]) {
+      expect(scheduleInput.safeParse({ intervalMinutes, enabled: true }).success).toBe(false);
+    }
+    expect(defaultsPatchInput.parse({ historyRetentionDays: 30, maxHistoryRuns: 500 })).toEqual({
+      historyRetentionDays: 30,
+      maxHistoryRuns: 500,
+    });
+    expect(defaultsPatchInput.safeParse({ maxHistoryRuns: 0 }).success).toBe(false);
+  });
+
   it('validates absolute working directories and preserves literal arguments', () => {
     const draft = { title: 'Check', source: 'echo hi', cwd: '/tmp/a b', args: ['x; echo bad', ''] };
     expect(launchInput.parse(draft)).toMatchObject(draft);

@@ -2,6 +2,10 @@ export const DEFAULT_CWD = '/var/lib/servermon-script';
 export const DEFAULT_TIMEOUT_SECONDS = 900;
 export const DEFAULT_RETENTION_DAYS = 3;
 export const DEFAULT_MAX_CONCURRENT_RUNS = 2;
+export const SCHEDULE_MINUTES_STEP = 5;
+export const SCHEDULE_MAX_MINUTES = 365 * 24 * 60;
+export const MAX_HISTORY_RUNS = 10_000;
+export const MAX_HISTORY_RETENTION_DAYS = 3650;
 export const MAX_SCRIPT_FOLDER_LENGTH = 64;
 export const RUNNER_USER = 'servermon-script';
 export const SCRIPT_LANGUAGES = ['bash', 'python', 'node'] as const;
@@ -39,6 +43,8 @@ export interface ScriptRunnerDefaults {
   defaultTimeoutSeconds: number;
   maxConcurrentRuns: number;
   logRetentionDays: number;
+  historyRetentionDays: number;
+  maxHistoryRuns: number;
 }
 
 export const SCRIPT_RUNNER_DEFAULTS: ScriptRunnerDefaults = {
@@ -46,7 +52,22 @@ export const SCRIPT_RUNNER_DEFAULTS: ScriptRunnerDefaults = {
   defaultTimeoutSeconds: DEFAULT_TIMEOUT_SECONDS,
   maxConcurrentRuns: DEFAULT_MAX_CONCURRENT_RUNS,
   logRetentionDays: DEFAULT_RETENTION_DAYS,
+  historyRetentionDays: 30,
+  maxHistoryRuns: 500,
 };
+
+export interface ScheduleInput {
+  intervalMinutes: number;
+  enabled: boolean;
+}
+
+export interface ScriptSchedule extends ScheduleInput {
+  scriptId: string;
+  nextRunAt?: string;
+  lastAttemptAt?: string;
+  lastOutcome?: 'pending' | 'queued' | 'skipped' | 'failed';
+  lastError?: string;
+}
 
 export type RunStatus =
   | 'queued'
@@ -89,6 +110,7 @@ export interface ScriptRun {
   status: RunStatus;
   language: ScriptLanguage;
   requestedBy: string;
+  scheduledFor?: string;
   createdAt: string;
   startedAt?: string;
   finishedAt?: string;
@@ -112,6 +134,7 @@ export interface RunnerOverview extends ScriptRunnerDefaults {
   active: ScriptRun[];
   history: ScriptRun[];
   nextHistoryCursor?: string;
+  oldestHistory?: Pick<ScriptRun, 'id' | 'createdAt'>;
   recentDirectories: string[];
   online: boolean;
   supported: boolean;

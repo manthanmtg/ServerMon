@@ -6,6 +6,10 @@ import {
   MAX_ENV_VALUE_LENGTH,
   MAX_ENV_VARS,
   MAX_SCRIPT_FOLDER_LENGTH,
+  MAX_HISTORY_RETENTION_DAYS,
+  MAX_HISTORY_RUNS,
+  SCHEDULE_MAX_MINUTES,
+  SCHEDULE_MINUTES_STEP,
   SCRIPT_LANGUAGES,
 } from '@/modules/script-runner/types';
 
@@ -92,8 +96,19 @@ export const runRequestInput = z.union([
   z.strictObject({ id: runIdInput.optional(), scriptId: runIdInput }),
 ]);
 export const retentionInput = z.object({ logRetentionDays: z.number().int().min(1).max(365) });
+export const scheduleInput = z.strictObject({
+  intervalMinutes: z
+    .number()
+    .int()
+    .min(SCHEDULE_MINUTES_STEP)
+    .max(SCHEDULE_MAX_MINUTES)
+    .multipleOf(SCHEDULE_MINUTES_STEP, 'Enter an interval in five-minute increments.'),
+  enabled: z.boolean(),
+});
 export const defaultsPatchInput = retentionInput
   .extend({
+    historyRetentionDays: z.number().int().min(1).max(MAX_HISTORY_RETENTION_DAYS),
+    maxHistoryRuns: z.number().int().min(1).max(MAX_HISTORY_RUNS),
     defaultWorkingDirectory: directoryInput,
     defaultTimeoutSeconds: timeoutInput,
     maxConcurrentRuns: z.number().int().min(1).max(8),

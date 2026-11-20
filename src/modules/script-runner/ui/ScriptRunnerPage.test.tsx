@@ -6,6 +6,7 @@ import {
   type RunnerOverview,
   type SavedScript,
   type ScriptRun,
+  type ScriptSchedule,
 } from '../types';
 import ScriptRunnerPage from './ScriptRunnerPage';
 
@@ -142,6 +143,75 @@ it('runs a saved script by ID and opens its console', async () => {
   const submitted = fetchRunner.mock.calls.find(([url]) => url.endsWith('/runs'))?.[1];
   expect(JSON.parse(String(submitted?.body))).toEqual({ scriptId, id: expect.any(String) });
   expect(screen.queryByRole('dialog', { name: 'Configure run' })).not.toBeInTheDocument();
+});
+
+it('creates, pauses, resumes, and deletes a saved script schedule', async () => {
+  const scriptId = '27ac89d0-0704-4662-9770-e143d2a47d3c';
+  overview.scripts = [{ ...completed, id: scriptId, updatedAt: completed.createdAt }];
+  let schedule: ScriptSchedule | undefined;
+  const fetchRunner = vi.fn(async (url: string, options?: RequestInit) => {
+    if (url.endsWith('/schedules')) return Response.json(schedule ? [schedule] : []);
+    if (url.endsWith(`/schedules/${scriptId}`)) {
+      if (options?.method === 'DELETE') {
+        schedule = undefined;
+        return Response.json({ deleted: true });
+      }
+      const { intervalMinutes, enabled } = JSON.parse(String(options?.body));
+      schedule = {
+        scriptId,
+        intervalMinutes,
+        enabled,
+        nextRunAt: enabled ? active.createdAt : undefined,
+      };
+      return Response.json(schedule);
+    }
+    return Response.json(overview);
+  });
+  vi.stubGlobal('fetch', fetchRunner);
+
+  render(<ScriptRunnerPage />);
+  await screen.findByText('Worker online');
+  fireEvent.click(screen.getByRole('button', { name: 'Schedules' }));
+  await screen.findByText('No schedules yet.');
+  fireEvent.click(screen.getByRole('button', { name: 'Add schedule' }));
+  expect(screen.getByLabelText('Saved script')).toHaveValue(scriptId);
+  fireEvent.change(screen.getByLabelText('Interval in minutes'), { target: { value: '15' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Save schedule' }));
+  expect(await screen.findByText('Every 15 minutes · Enabled')).toBeVisible();
+  expect(screen.getByText(/^Next run/)).toBeVisible();
+
+  fireEvent.click(screen.getByRole('button', { name: 'Pause Host snapshot schedule' }));
+  expect(await screen.findByText('Every 15 minutes · Paused')).toBeVisible();
+  fireEvent.click(screen.getByRole('button', { name: 'Resume Host snapshot schedule' }));
+  expect(await screen.findByText('Every 15 minutes · Enabled')).toBeVisible();
+  fireEvent.click(screen.getByRole('button', { name: 'Delete Host snapshot schedule' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Delete schedule' }));
+  expect(await screen.findByText('No schedules yet.')).toBeVisible();
+  expect(schedule).toBeUndefined();
+});
+
+it('saves the history age and count limits together', async () => {
+  const fetchRunner = vi.fn(async (url: string, options?: RequestInit) => {
+    if (url.endsWith('/settings')) {
+      expect(options?.method).toBe('PATCH');
+      expect(JSON.parse(String(options?.body))).toEqual({
+        historyRetentionDays: 14,
+        maxHistoryRuns: 75,
+      });
+      overview = { ...overview, historyRetentionDays: 14, maxHistoryRuns: 75 };
+    }
+    return Response.json(overview);
+  });
+  vi.stubGlobal('fetch', fetchRunner);
+  render(<ScriptRunnerPage />);
+  await screen.findByText('Worker online');
+  fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
+  fireEvent.change(screen.getByLabelText('Run history retention'), { target: { value: '14' } });
+  fireEvent.change(screen.getByLabelText('Max completed runs to keep'), {
+    target: { value: '75' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'Save settings' }));
+  expect(await screen.findByText('Settings saved.')).toBeVisible();
 });
 
 describe('Script Runner console selection', () => {

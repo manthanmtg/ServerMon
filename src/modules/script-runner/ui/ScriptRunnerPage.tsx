@@ -8,6 +8,7 @@ import {
   ArrowUpRight,
   Bookmark,
   Braces,
+  CalendarClock,
   Circle,
   Clock3,
   FileCode2,
@@ -46,6 +47,7 @@ import LaunchDialog from './LaunchDialog';
 import SavedScriptsPanel, { OpenSavedScriptDialog } from './SavedScriptsPanel';
 import ScriptRunnerOverviewPanel from './ScriptRunnerOverviewPanel';
 import ScriptRunnerSettingsPanel from './ScriptRunnerSettingsPanel';
+import ScriptSchedulesPanel from './ScriptSchedulesPanel';
 import RunConfiguration, { validConfiguration } from './RunConfiguration';
 import RunConsole, { elapsed, RunBadge } from './RunConsole';
 import RunnerDialog from './RunnerDialog';
@@ -102,6 +104,7 @@ const views = [
   { id: 'overview', label: 'Overview', icon: LayoutDashboard },
   { id: 'workspace', label: 'Workspace', icon: Braces },
   { id: 'saved', label: 'Saved Scripts', icon: Bookmark },
+  { id: 'schedules', label: 'Schedules', icon: CalendarClock },
   { id: 'environment', label: 'Env Vars', icon: KeyRound },
   { id: 'runs', label: 'Runs', icon: Activity },
   { id: 'settings', label: 'Settings', icon: Settings2 },
@@ -123,6 +126,14 @@ function mergeHistory(recent: ScriptRun[], cached: ScriptRun[]): ScriptRun[] {
   for (const run of recent) byId.set(run.id, run);
   return Array.from(byId.values()).sort(
     (a, b) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id)
+  );
+}
+
+function isRetained(run: ScriptRun, oldest: RunnerOverview['oldestHistory']) {
+  return (
+    !!oldest &&
+    (run.createdAt > oldest.createdAt ||
+      (run.createdAt === oldest.createdAt && run.id >= oldest.id))
   );
 }
 
@@ -190,6 +201,7 @@ function RunList({
                   <span>
                     <strong>{run.title}</strong>
                     <small title={run.cwd}>
+                      {run.scheduledFor && 'Scheduled · '}
                       {SCRIPT_RUNTIMES[run.language ?? 'bash'].label} · {run.cwd}
                     </small>
                   </span>
@@ -296,9 +308,12 @@ export default function ScriptRunnerPage() {
           setDraft(configureUntouched);
           setBaseline(configureUntouched);
         }
-        setMore((current) =>
-          current ? { ...current, history: mergeHistory(result.history, current.history) } : current
-        );
+        setMore((current) => {
+          if (!current || !result.nextHistoryCursor) return null;
+          const history = current.history.filter((run) => isRetained(run, result.oldestHistory));
+          if (current.next && !history.some(({ id }) => id === current.next)) return null;
+          return { ...current, history: mergeHistory(result.history, history) };
+        });
         setOverviewError('');
       }
     } catch (error) {
@@ -334,7 +349,9 @@ export default function ScriptRunnerPage() {
   const selected = selection
     ? (history.find((run) => run.id === selection.id) ??
       (isActiveRun(selection.status) ? active.find((run) => run.id === selection.id) : undefined) ??
-      selection)
+      (isActiveRun(selection.status) || isRetained(selection, overview?.oldestHistory)
+        ? selection
+        : null))
     : null;
   const displayedHistory =
     selected && !isActiveRun(selected.status) && !history.some(({ id }) => id === selected.id)
@@ -573,7 +590,12 @@ export default function ScriptRunnerPage() {
     try {
       const result = await runnerRequest<RunnerOverview>(`?before=${encodeURIComponent(cursor)}`);
       setMore((previous) => ({
-        history: mergeHistory(previous?.history ?? overview?.history ?? [], result.history),
+        history: mergeHistory(
+          result.history,
+          (previous?.history ?? overview?.history ?? []).filter((run) =>
+            isRetained(run, result.oldestHistory)
+          )
+        ),
         next: result.nextHistoryCursor,
       }));
     } catch (error) {
@@ -660,6 +682,8 @@ export default function ScriptRunnerPage() {
           onChanged={() => void refresh()}
         />
       )}
+
+      {view === 'schedules' && <ScriptSchedulesPanel scripts={scripts} online={hasOnlineWorker} />}
 
       {view === 'settings' && (
         <ScriptRunnerSettingsPanel

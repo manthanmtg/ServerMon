@@ -327,6 +327,12 @@ Concise map of major directories, commands, and key files. Update this section w
 - `src/modules/env-vars/` — EnvVars module definition and UI for managing host-level environment variables (stateless, bypassing MongoDB)
 - `docs/ai-runner-module.md` — technical architecture for automation runner
 
+### Script Runner
+
+- `src/lib/script-runner/` — shared run queue, Linux worker, recurring schedule dispatch, and log and history pruning
+- `src/models/ScriptRunner.ts` — saved scripts with schedule state, run snapshots, variables, and worker settings
+- `src/app/api/modules/script-runner/` and `src/modules/script-runner/` — administrator-only script, schedule, run, variable, and settings endpoints and views
+
 ### Crons Module
 
 - `src/lib/crons/service.ts` — cron discovery, schedule calculation, create/update/delete actions, manual run tracking, and mock-mode support for tests and non-host environments

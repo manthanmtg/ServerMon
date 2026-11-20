@@ -5,6 +5,7 @@ import {
   type ScriptDraft,
   type ScriptLanguage,
   type ScriptRunnerDefaults,
+  type ScriptSchedule,
 } from '@/modules/script-runner/types';
 
 type StoredDraft = Omit<ScriptDraft, 'language' | 'env' | 'folder' | 'envVarIds'> & {
@@ -18,6 +19,18 @@ export interface ScriptRecord extends StoredDraft {
   _id: string;
   host: string;
   updatedAt: Date;
+  schedule?: ScheduleRecord;
+}
+
+export interface ScheduleRecord extends Pick<
+  ScriptSchedule,
+  'intervalMinutes' | 'enabled' | 'lastOutcome' | 'lastError'
+> {
+  requestedBy: string;
+  nextRunAt?: Date;
+  lastAttemptAt?: Date;
+  pendingRunId?: string;
+  pendingScheduledFor?: Date;
 }
 
 export interface RunRecord extends StoredDraft {
@@ -26,6 +39,7 @@ export interface RunRecord extends StoredDraft {
   host: string;
   scriptId?: string;
   requestedBy: string;
+  scheduledFor?: Date;
   status: RunStatus | 'queued_linked';
   createdAt: Date;
   startedAt?: Date;
@@ -62,12 +76,29 @@ const draft = {
   timeoutSeconds: { type: Number, required: true },
 };
 
+const scheduleSchema = new Schema<ScheduleRecord>(
+  {
+    intervalMinutes: { type: Number, required: true },
+    enabled: { type: Boolean, required: true },
+    requestedBy: { type: String, required: true },
+    nextRunAt: Date,
+    lastAttemptAt: Date,
+    lastOutcome: String,
+    lastError: String,
+    pendingRunId: String,
+    pendingScheduledFor: Date,
+  },
+  { _id: false }
+);
+
 const scriptSchema = new Schema<ScriptRecord>(
-  { ...draft, folder: String, envVarIds: [String] },
+  { ...draft, folder: String, envVarIds: [String], schedule: scheduleSchema },
   { timestamps: true, versionKey: false }
 );
 scriptSchema.index({ host: 1, envVarIds: 1 });
 scriptSchema.index({ host: 1, title: 1, _id: 1 });
+scriptSchema.index({ host: 1, 'schedule.enabled': 1, 'schedule.nextRunAt': 1 });
+scriptSchema.index({ host: 1, 'schedule.enabled': 1, 'schedule.lastOutcome': 1 });
 
 const runSchema = new Schema<RunRecord>(
   {
@@ -75,6 +106,7 @@ const runSchema = new Schema<RunRecord>(
     scriptId: String,
     linkedEnvironmentSeal: { type: String, select: false },
     requestedBy: { type: String, required: true },
+    scheduledFor: Date,
     status: { type: String, required: true },
     createdAt: { type: Date, required: true },
     startedAt: Date,
@@ -91,11 +123,14 @@ const runSchema = new Schema<RunRecord>(
 runSchema.index({ host: 1, status: 1, createdAt: 1, _id: 1 });
 runSchema.index({ host: 1, createdAt: -1, _id: -1 });
 runSchema.index({ host: 1, logsPurgedAt: 1, finishedAt: 1 });
+runSchema.index({ host: 1, scriptId: 1, status: 1, scheduledFor: 1 });
 
 const settingsSchema = new Schema<SettingsRecord>(
   {
     _id: { type: String, required: true },
     logRetentionDays: Number,
+    historyRetentionDays: Number,
+    maxHistoryRuns: Number,
     maxConcurrentRuns: Number,
     defaultTimeoutSeconds: Number,
     defaultWorkingDirectory: String,

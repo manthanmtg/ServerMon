@@ -48,6 +48,7 @@ export function runResponse(run: RunRecord): ScriptRun {
     timeoutSeconds: run.timeoutSeconds,
     status: run.status === 'queued_linked' ? 'queued' : run.status,
     requestedBy: run.requestedBy,
+    scheduledFor: run.scheduledFor?.toISOString(),
     createdAt: run.createdAt.toISOString(),
     startedAt: run.startedAt?.toISOString(),
     finishedAt: run.finishedAt?.toISOString(),
@@ -96,6 +97,9 @@ export function runnerDefaults(
       settings?.defaultTimeoutSeconds ?? SCRIPT_RUNNER_DEFAULTS.defaultTimeoutSeconds,
     maxConcurrentRuns: settings?.maxConcurrentRuns ?? SCRIPT_RUNNER_DEFAULTS.maxConcurrentRuns,
     logRetentionDays: settings?.logRetentionDays ?? SCRIPT_RUNNER_DEFAULTS.logRetentionDays,
+    historyRetentionDays:
+      settings?.historyRetentionDays ?? SCRIPT_RUNNER_DEFAULTS.historyRetentionDays,
+    maxHistoryRuns: settings?.maxHistoryRuns ?? SCRIPT_RUNNER_DEFAULTS.maxHistoryRuns,
   };
 }
 
@@ -131,37 +135,41 @@ export async function overview(before?: string): Promise<RunnerOverview> {
     ? await ScriptRunnerRun.findOne({ _id: before, host: runnerHost }).select('createdAt').lean()
     : null;
   const terminal = { host: runnerHost, status: { $nin: ACTIVE_STATUSES } };
-  const [scripts, active, history, settings, recentRuns, variables] = await Promise.all([
-    ScriptRunnerScript.find({ host: runnerHost })
-      .select('title language cwd folder updatedAt')
-      .sort({ title: 1 })
-      .lean(),
-    ScriptRunnerRun.find({ host: runnerHost, status: { $in: ACTIVE_STATUSES } })
-      .sort({ createdAt: 1, _id: 1 })
-      .lean(),
-    ScriptRunnerRun.find({
-      ...terminal,
-      ...(cursor && {
-        $or: [
-          { createdAt: { $lt: cursor.createdAt } },
-          { createdAt: cursor.createdAt, _id: { $lt: cursor._id } },
-        ],
-      }),
-    })
-      .sort({ createdAt: -1, _id: -1 })
-      .limit(historySize + 1)
-      .lean(),
-    runnerSettings(),
-    ScriptRunnerRun.find({ host: runnerHost })
-      .select('cwd')
-      .sort({ createdAt: -1 })
-      .limit(60)
-      .lean(),
-    ScriptRunnerVariable.find({ host: runnerHost })
-      .select('key secret updatedAt')
-      .sort({ key: 1 })
-      .lean(),
-  ]);
+  const [scripts, active, history, settings, recentRuns, variables, oldestHistory] =
+    await Promise.all([
+      ScriptRunnerScript.find({ host: runnerHost })
+        .select('title language cwd folder updatedAt')
+        .sort({ title: 1 })
+        .lean(),
+      ScriptRunnerRun.find({ host: runnerHost, status: { $in: ACTIVE_STATUSES } })
+        .sort({ createdAt: 1, _id: 1 })
+        .lean(),
+      before && !cursor
+        ? []
+        : ScriptRunnerRun.find({
+            ...terminal,
+            ...(cursor && {
+              $or: [
+                { createdAt: { $lt: cursor.createdAt } },
+                { createdAt: cursor.createdAt, _id: { $lt: cursor._id } },
+              ],
+            }),
+          })
+            .sort({ createdAt: -1, _id: -1 })
+            .limit(historySize + 1)
+            .lean(),
+      runnerSettings(),
+      ScriptRunnerRun.find({ host: runnerHost })
+        .select('cwd')
+        .sort({ createdAt: -1 })
+        .limit(60)
+        .lean(),
+      ScriptRunnerVariable.find({ host: runnerHost })
+        .select('key secret updatedAt')
+        .sort({ key: 1 })
+        .lean(),
+      ScriptRunnerRun.findOne(terminal).sort({ createdAt: 1, _id: 1 }).select('createdAt').lean(),
+    ]);
   const capabilities = workerCapabilities(settings);
   const online = workerOnline(settings?.workerSeenAt);
   return {
@@ -171,6 +179,9 @@ export async function overview(before?: string): Promise<RunnerOverview> {
     active: active.map(runResponse),
     history: history.slice(0, historySize).map(runResponse),
     nextHistoryCursor: history.length > historySize ? history[historySize - 1]._id : undefined,
+    oldestHistory: oldestHistory
+      ? { id: oldestHistory._id, createdAt: oldestHistory.createdAt.toISOString() }
+      : undefined,
     recentDirectories: [...new Set(recentRuns.map((run) => run.cwd))].slice(0, 6),
     online,
     supported,

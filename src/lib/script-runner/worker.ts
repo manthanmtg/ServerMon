@@ -4,19 +4,12 @@ import { setTimeout as delay } from 'node:timers/promises';
 import connectDB from '@/lib/db';
 import { createLogger } from '@/lib/logger';
 import { ScriptRunnerRun, ScriptRunnerSettings, type RunRecord } from '@/models/ScriptRunner';
-import { DEFAULT_MAX_CONCURRENT_RUNS, DEFAULT_RETENTION_DAYS } from '@/modules/script-runner/types';
+import { DEFAULT_MAX_CONCURRENT_RUNS } from '@/modules/script-runner/types';
+import { pruneRuns } from './retention';
+import { enqueueDueSchedules } from './schedules';
 import { captureOutput } from './output';
 import { combineLaunchEnvironment, openEnvironment } from './environment';
-import {
-  ACTIVE_STATUSES,
-  QUEUED_STATUSES,
-  findRun,
-  outputPath,
-  resultPath,
-  runnerHost,
-  runnerSettings,
-  supported,
-} from './store';
+import { QUEUED_STATUSES, findRun, outputPath, resultPath, runnerHost, supported } from './store';
 import {
   encodeLaunch,
   forgetUnit,
@@ -32,7 +25,7 @@ const TICK_MS = 750;
 const HEARTBEAT_MS = 5000;
 const CLEANUP_MS = 60_000;
 const PROBE_MS = 60_000;
-const DAY_MS = 86_400_000;
+const SCHEDULE_POLL_MS = 5000;
 
 type TerminalResult = Pick<RunRecord, 'exitCode' | 'signal' | 'message' | 'outputTruncated'> & {
   status: Exclude<RunRecord['status'], 'queued' | 'queued_linked' | 'running'>;
@@ -193,30 +186,6 @@ async function recoverRun(run: RunRecord) {
   );
 }
 
-async function cleanExpiredLogs(now: number) {
-  const settings = await runnerSettings();
-  const days = settings?.logRetentionDays ?? DEFAULT_RETENTION_DAYS;
-  const expired = await ScriptRunnerRun.find({
-    host: runnerHost,
-    status: { $nin: ACTIVE_STATUSES },
-    finishedAt: { $lte: new Date(now - days * DAY_MS) },
-    logsPurgedAt: null,
-  })
-    .sort({ finishedAt: 1 })
-    .limit(250)
-    .select('_id')
-    .lean();
-  for (const run of expired) {
-    await rm(outputPath(run._id), { force: true });
-    await rm(resultPath(run._id), { force: true });
-    await rm(`${resultPath(run._id)}.tmp`, { force: true });
-    await findRun(run._id).updateOne(
-      { logsPurgedAt: null },
-      { $set: { logsPurgedAt: new Date() } }
-    );
-  }
-}
-
 export async function runWorker(signal: AbortSignal) {
   if (!supported) throw new Error('Script Runner requires Linux and systemd.');
   await connectDB();
@@ -226,6 +195,7 @@ export async function runWorker(signal: AbortSignal) {
   let nextHeartbeat = 0;
   let maxConcurrentRuns = DEFAULT_MAX_CONCURRENT_RUNS;
   let nextCleanup = 0;
+  let nextSchedulePoll = 0;
   let nextProbe = Date.now() + PROBE_MS;
 
   async function tick() {
@@ -296,9 +266,16 @@ export async function runWorker(signal: AbortSignal) {
         .finally(() => tasks.delete(run._id));
     }
 
-    if (Date.now() >= nextCleanup) {
+    if (!signal.aborted && Date.now() >= nextSchedulePoll) {
+      nextSchedulePoll = Date.now() + SCHEDULE_POLL_MS;
+      await enqueueDueSchedules(new Date(), signal).catch((error) =>
+        log.error('Script Runner could not check schedules', error)
+      );
+    }
+
+    if (!signal.aborted && Date.now() >= nextCleanup) {
       nextCleanup = Date.now() + CLEANUP_MS;
-      await cleanExpiredLogs(Date.now());
+      if (await pruneRuns(Date.now())) nextCleanup = Date.now() + SCHEDULE_POLL_MS;
     }
   }
 
