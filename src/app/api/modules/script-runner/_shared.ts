@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { isObjectIdOrHexString } from 'mongoose';
 import User from '@/models/User';
 import { EnvironmentKeyError } from '@/lib/script-runner/environment';
+import { LinkedVariableError } from '@/lib/script-runner/variables';
 import connectDB from '@/lib/db';
 import { createLogger } from '@/lib/logger';
 import { getSession } from '@/lib/session';
@@ -55,7 +56,8 @@ export async function authorized(
     if (!actor) return failure('Script Runner requires an active administrator.', 403);
     return await action(actor);
   } catch (error) {
-    if (error instanceof RequestError) return failure(error.message, error.status);
+    if (error instanceof RequestError || error instanceof LinkedVariableError)
+      return failure(error.message, error.status);
     if (error instanceof EnvironmentKeyError) return failure(error.message, 503);
     if (error instanceof z.ZodError)
       return failure(error.issues[0]?.message ?? 'Invalid request.', 400);

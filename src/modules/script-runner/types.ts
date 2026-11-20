@@ -1,6 +1,8 @@
 export const DEFAULT_CWD = '/var/lib/servermon-script';
 export const DEFAULT_TIMEOUT_SECONDS = 900;
 export const DEFAULT_RETENTION_DAYS = 3;
+export const DEFAULT_MAX_CONCURRENT_RUNS = 2;
+export const MAX_SCRIPT_FOLDER_LENGTH = 64;
 export const RUNNER_USER = 'servermon-script';
 export const SCRIPT_LANGUAGES = ['bash', 'python', 'node'] as const;
 export type ScriptLanguage = (typeof SCRIPT_LANGUAGES)[number];
@@ -21,6 +23,31 @@ export interface ScriptEnvironmentVariable {
   value: string;
 }
 
+export interface SavedEnvVariable {
+  id: string;
+  key: string;
+  secret: boolean;
+  updatedAt: string;
+}
+
+export interface SavedEnvVariableDetail extends SavedEnvVariable {
+  value?: string;
+}
+
+export interface ScriptRunnerDefaults {
+  defaultWorkingDirectory: string;
+  defaultTimeoutSeconds: number;
+  maxConcurrentRuns: number;
+  logRetentionDays: number;
+}
+
+export const SCRIPT_RUNNER_DEFAULTS: ScriptRunnerDefaults = {
+  defaultWorkingDirectory: DEFAULT_CWD,
+  defaultTimeoutSeconds: DEFAULT_TIMEOUT_SECONDS,
+  maxConcurrentRuns: DEFAULT_MAX_CONCURRENT_RUNS,
+  logRetentionDays: DEFAULT_RETENTION_DAYS,
+};
+
 export type RunStatus =
   | 'queued'
   | 'running'
@@ -35,6 +62,8 @@ export interface ScriptDraft {
   source: string;
   language: ScriptLanguage;
   env: ScriptEnvironmentVariable[];
+  envVarIds?: string[];
+  folder?: string;
   cwd: string;
   args: string[];
   timeoutSeconds: number;
@@ -45,7 +74,10 @@ export interface SavedScript extends ScriptDraft {
   updatedAt: string;
 }
 
-export type ScriptSummary = Pick<SavedScript, 'id' | 'title' | 'cwd' | 'language' | 'updatedAt'>;
+export type ScriptSummary = Pick<
+  SavedScript,
+  'id' | 'title' | 'cwd' | 'language' | 'folder' | 'updatedAt'
+>;
 
 export interface ScriptRun {
   id: string;
@@ -71,9 +103,11 @@ export interface ScriptRun {
 export interface RunSnapshot extends ScriptRun {
   source: string;
   env: ScriptEnvironmentVariable[];
+  linkedEnvKeys?: string[];
 }
 
-export interface RunnerOverview {
+export interface RunnerOverview extends ScriptRunnerDefaults {
+  variables: SavedEnvVariable[];
   scripts: ScriptSummary[];
   active: ScriptRun[];
   history: ScriptRun[];
@@ -83,7 +117,6 @@ export interface RunnerOverview {
   supported: boolean;
   runtimes: ScriptLanguage[];
   environmentSupport: boolean;
-  logRetentionDays: number;
 }
 
 export interface OutputEntry {

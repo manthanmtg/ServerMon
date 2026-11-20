@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { openEnvironment, sealEnvironment } from './environment';
+import {
+  combineLaunchEnvironment,
+  openEnvironment,
+  partitionRunEnvironment,
+  sealEnvironment,
+} from './environment';
 import { launchInput, scriptInput } from './schemas';
 import { encodeLaunch, parseRunnerProbe } from './systemd';
 
@@ -49,5 +54,37 @@ describe('Script Runner launch settings', () => {
       runtimes: ['bash', 'python'],
     });
     expect(encodeLaunch(legacy, 1)).toBe(['/tmp', '0', 'echo hi'].join('\0'));
+  });
+});
+
+describe('linked run environments', () => {
+  it('uses a per-run override and marks only effective linked values as private', () => {
+    const result = combineLaunchEnvironment(
+      [
+        { key: 'APP_MODE', value: 'default' },
+        { key: 'DEPLOY_TOKEN', value: 'linked secret' },
+      ],
+      [{ key: 'APP_MODE', value: 'override' }]
+    );
+
+    expect(result).toEqual({
+      env: [
+        { key: 'APP_MODE', value: 'override' },
+        { key: 'DEPLOY_TOKEN', value: 'linked secret' },
+      ],
+      linkedEnvKeys: ['DEPLOY_TOKEN'],
+    });
+    expect(partitionRunEnvironment(result.env, result.linkedEnvKeys)).toEqual({
+      editable: [{ key: 'APP_MODE', value: 'override' }],
+      linked: [{ key: 'DEPLOY_TOKEN', value: 'linked secret' }],
+    });
+  });
+
+  it('limits the effective environment after adding linked values', () => {
+    const populated = Array.from({ length: 32 }, (_, index) => ({
+      key: `VAR_${index}`,
+      value: '',
+    }));
+    expect(() => combineLaunchEnvironment(populated, [{ key: 'EXTRA', value: '' }])).toThrow();
   });
 });

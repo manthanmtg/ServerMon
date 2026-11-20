@@ -108,9 +108,7 @@
 
 .sr-workspace {
   display: grid;
-  grid-template-columns: clamp(180px, 22%, 260px) minmax(0, 1fr);
-  align-items: stretch;
-  gap: 14px;
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .sr-panel {
@@ -135,7 +133,6 @@
 
 .sr-panel-header > div:first-child,
 .sr-code-header span,
-.sr-library-footer span,
 .sr-default-dir,
 .sr-console-run p,
 .sr-console-footer > span,
@@ -158,26 +155,12 @@
   font-weight: 680;
 }
 
-.sr-library {
-  min-height: 160px;
-}
-
 .sr-library-empty {
   margin: auto;
   padding: 22px 16px;
   text-align: center;
   color: var(--muted-foreground);
   font-size: 13px;
-}
-
-.sr-library-footer {
-  display: grid;
-  gap: 7px;
-  padding: 13px 15px;
-  margin-block-start: auto;
-  border-block-start: 1px solid var(--sr-edge);
-  color: var(--muted-foreground);
-  font-size: 11px;
 }
 
 .sr-search {
@@ -212,15 +195,6 @@
 .sr-input:focus-visible {
   border-color: var(--sr-green);
   outline: 1px solid var(--sr-green);
-}
-
-.sr-library-list {
-  display: grid;
-  align-content: start;
-  gap: 4px;
-  padding: 6px 8px 10px;
-  max-height: 350px;
-  overflow: auto;
 }
 
 .sr-library-item {
@@ -1028,22 +1002,6 @@
     gap: 8px;
   }
 
-  .sr-workspace {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .sr-library {
-    min-height: 0;
-  }
-
-  .sr-library-footer {
-    grid-template-columns: 1fr 1fr;
-  }
-
-  .sr-library-list {
-    max-height: 188px;
-  }
-
   .sr-run-select {
     grid-template-columns: minmax(75px, 1fr) auto auto;
     padding-inline: 8px;
@@ -1084,7 +1042,10 @@
 .sr-view-bar {
   display: flex;
   align-items: center;
-  gap: 22px;
+  gap: clamp(5px, 2vw, 22px);
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: thin;
   border-bottom: 1px solid var(--sr-edge);
 }
 
@@ -1092,9 +1053,11 @@
   position: relative;
   display: inline-flex;
   align-items: center;
+  flex: none;
   gap: 8px;
   min-height: 44px;
   padding: 0 8px;
+  white-space: nowrap;
   color: var(--muted-foreground);
   font-size: 14px;
   font-weight: 630;
@@ -1108,7 +1071,7 @@
 .sr-view-bar button[aria-pressed='true']::after {
   content: '';
   position: absolute;
-  inset: auto 8px -1px;
+  inset: auto 8px 0;
   height: 2px;
   border-radius: 999px;
   background: var(--sr-green);
@@ -1339,5 +1302,61 @@
   .sr-editor,
   .sr-editor .cm-editor {
     height: 310px;
+  }
+}
+
+.sr-editor-tools,
+.sr-linked-list {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.sr-editor-tools {
+  justify-content: flex-end;
+  padding-block: 5px;
+}
+
+.sr-linked-token {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  max-width: 100%;
+  padding: 4px 8px;
+  background: var(--sr-glow);
+  color: var(--sr-green);
+  border-radius: 7px;
+  font: 12px var(--sr-code);
+  overflow-wrap: anywhere;
+}
+
+.sr-linked-token button {
+  display: grid;
+  place-items: center;
+  min-width: 32px;
+  height: 32px;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.sr-linked-token button:hover {
+  background: var(--sr-inset);
+  color: var(--foreground);
+}
+
+.sr-link-select {
+  max-width: 340px;
+}
+
+@media (max-width: 680px) {
+  .sr-editor-tools {
+    gap: 4px;
+  }
+
+  .sr-linked-token button {
+    min-width: 44px;
+    height: 44px;
   }
 }

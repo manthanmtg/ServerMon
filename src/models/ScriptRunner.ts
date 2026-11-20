@@ -4,25 +4,29 @@ import {
   type RunStatus,
   type ScriptDraft,
   type ScriptLanguage,
+  type ScriptRunnerDefaults,
 } from '@/modules/script-runner/types';
 
-type StoredDraft = Omit<ScriptDraft, 'language' | 'env'> & {
+type StoredDraft = Omit<ScriptDraft, 'language' | 'env' | 'folder' | 'envVarIds'> & {
   language?: ScriptLanguage;
   environmentSeal?: string | null;
 };
 
 export interface ScriptRecord extends StoredDraft {
+  folder?: string;
+  envVarIds?: string[];
   _id: string;
   host: string;
   updatedAt: Date;
 }
 
 export interface RunRecord extends StoredDraft {
+  linkedEnvironmentSeal?: string | null;
   _id: string;
   host: string;
   scriptId?: string;
   requestedBy: string;
-  status: RunStatus;
+  status: RunStatus | 'queued_linked';
   createdAt: Date;
   startedAt?: Date;
   finishedAt?: Date;
@@ -34,14 +38,16 @@ export interface RunRecord extends StoredDraft {
   logsPurgedAt?: Date;
 }
 
-interface SettingsRecord {
+export interface SettingsRecord extends Partial<ScriptRunnerDefaults> {
   _id: string;
-  logRetentionDays?: number;
   workerSeenAt?: Date;
   workerId?: string;
   workerCapabilityId?: string;
   workerProtocol?: number;
   workerRuntimes?: ScriptLanguage[];
+  workerLinkedEnvironmentId?: string;
+  linkMutationId?: string;
+  linkMutationUntil?: Date;
 }
 
 const draft = {
@@ -56,13 +62,18 @@ const draft = {
   timeoutSeconds: { type: Number, required: true },
 };
 
-const scriptSchema = new Schema<ScriptRecord>(draft, { timestamps: true, versionKey: false });
+const scriptSchema = new Schema<ScriptRecord>(
+  { ...draft, folder: String, envVarIds: [String] },
+  { timestamps: true, versionKey: false }
+);
+scriptSchema.index({ host: 1, envVarIds: 1 });
 scriptSchema.index({ host: 1, title: 1, _id: 1 });
 
 const runSchema = new Schema<RunRecord>(
   {
     ...draft,
     scriptId: String,
+    linkedEnvironmentSeal: { type: String, select: false },
     requestedBy: { type: String, required: true },
     status: { type: String, required: true },
     createdAt: { type: Date, required: true },
@@ -85,14 +96,41 @@ const settingsSchema = new Schema<SettingsRecord>(
   {
     _id: { type: String, required: true },
     logRetentionDays: Number,
+    maxConcurrentRuns: Number,
+    defaultTimeoutSeconds: Number,
+    defaultWorkingDirectory: String,
     workerSeenAt: Date,
     workerId: String,
     workerCapabilityId: String,
     workerProtocol: Number,
     workerRuntimes: { type: [String], enum: SCRIPT_LANGUAGES, default: undefined },
+    workerLinkedEnvironmentId: String,
+    linkMutationId: { type: String, select: false },
+    linkMutationUntil: { type: Date, select: false },
   },
   { versionKey: false }
 );
+
+export interface VariableRecord {
+  _id: string;
+  host: string;
+  key: string;
+  secret: boolean;
+  valueSeal: string;
+  updatedAt: Date;
+}
+
+const variableSchema = new Schema<VariableRecord>(
+  {
+    _id: { type: String, required: true },
+    host: { type: String, required: true },
+    key: { type: String, required: true },
+    secret: { type: Boolean, required: true },
+    valueSeal: { type: String, required: true, select: false },
+  },
+  { timestamps: true, versionKey: false }
+);
+variableSchema.index({ host: 1, key: 1 }, { unique: true });
 
 function model<T>(name: string, schema: Schema<T>): Model<T> {
   return (mongoose.models[name] as Model<T> | undefined) ?? mongoose.model<T>(name, schema);
@@ -101,3 +139,4 @@ function model<T>(name: string, schema: Schema<T>): Model<T> {
 export const ScriptRunnerScript = model('ScriptRunnerScript', scriptSchema);
 export const ScriptRunnerRun = model('ScriptRunnerRun', runSchema);
 export const ScriptRunnerSettings = model('ScriptRunnerSettings', settingsSchema);
+export const ScriptRunnerVariable = model('ScriptRunnerVariable', variableSchema);

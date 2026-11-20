@@ -6,40 +6,46 @@ import {
   Activity,
   ArrowDown,
   ArrowUpRight,
+  Bookmark,
   Braces,
   Circle,
   Clock3,
   FileCode2,
   FolderOpen,
   History,
+  KeyRound,
+  LayoutDashboard,
   ListRestart,
   Play,
   Plus,
   Save,
-  Search,
   Settings2,
   SquareTerminal,
-  Trash2,
   Variable,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/toast';
 import {
   DEFAULT_CWD,
-  DEFAULT_RETENTION_DAYS,
   DEFAULT_TIMEOUT_SECONDS,
   isActiveRun,
   SCRIPT_LANGUAGES,
   SCRIPT_RUNTIMES,
+  SCRIPT_RUNNER_DEFAULTS,
   type RunnerOverview,
   type RunSnapshot,
   type SavedScript,
   type ScriptDraft,
   type ScriptLanguage,
   type ScriptRun,
+  type ScriptRunnerDefaults,
 } from '../types';
 import { errorMessage, requestId, runnerRequest } from './client';
+import EnvironmentVariablesPanel from './EnvironmentVariablesPanel';
 import LaunchDialog from './LaunchDialog';
+import SavedScriptsPanel, { OpenSavedScriptDialog } from './SavedScriptsPanel';
+import ScriptRunnerOverviewPanel from './ScriptRunnerOverviewPanel';
+import ScriptRunnerSettingsPanel from './ScriptRunnerSettingsPanel';
 import RunConfiguration, { validConfiguration } from './RunConfiguration';
 import RunConsole, { elapsed, RunBadge } from './RunConsole';
 import RunnerDialog from './RunnerDialog';
@@ -54,6 +60,7 @@ const starter: ScriptDraft = {
   title: 'Host snapshot',
   language: 'bash',
   env: [],
+  envVarIds: [],
   source:
     '#!/usr/bin/env bash\nset -euo pipefail\n\nprintf "Host: %s\\n" "$(hostname)"\nprintf "Working directory: %s\\n" "$PWD"\nprintf "\\nDisk usage\\n"\ndf -h .\n',
   cwd: DEFAULT_CWD,
@@ -76,86 +83,46 @@ function draftFields({
   cwd,
   args,
   env,
+  envVarIds,
   timeoutSeconds,
 }: ScriptDraft): ScriptDraft {
-  return { title, source, language: language ?? 'bash', cwd, args, env: env ?? [], timeoutSeconds };
+  return {
+    title,
+    source,
+    language: language ?? 'bash',
+    cwd,
+    args,
+    env: env ?? [],
+    envVarIds: envVarIds ?? [],
+    timeoutSeconds,
+  };
 }
 
-type Launch = { draft: ScriptDraft; scriptId?: string; replay?: boolean };
+const views = [
+  { id: 'overview', label: 'Overview', icon: LayoutDashboard },
+  { id: 'workspace', label: 'Workspace', icon: Braces },
+  { id: 'saved', label: 'Saved Scripts', icon: Bookmark },
+  { id: 'environment', label: 'Env Vars', icon: KeyRound },
+  { id: 'runs', label: 'Runs', icon: Activity },
+  { id: 'settings', label: 'Settings', icon: Settings2 },
+] as const;
+type View = (typeof views)[number]['id'];
+type Launch = { draft: ScriptDraft; scriptId?: string; rerunOf?: string; linkedEnvKeys?: string[] };
 type Tab = 'active' | 'history';
+
+function applyDefaults(draft: ScriptDraft, defaults: ScriptRunnerDefaults): ScriptDraft {
+  return {
+    ...draft,
+    cwd: defaults.defaultWorkingDirectory,
+    timeoutSeconds: defaults.defaultTimeoutSeconds,
+  };
+}
 
 function mergeHistory(recent: ScriptRun[], cached: ScriptRun[]): ScriptRun[] {
   const byId = new Map(cached.map((run) => [run.id, run]));
   for (const run of recent) byId.set(run.id, run);
   return Array.from(byId.values()).sort(
     (a, b) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id)
-  );
-}
-
-function RetentionDialog({
-  days,
-  onClose,
-  onSave,
-}: {
-  days: number;
-  onClose: () => void;
-  onSave: (days: number) => void;
-}) {
-  const [value, setValue] = useState(String(days));
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
-
-  return (
-    <RunnerDialog title="Script Runner settings" onClose={onClose} busy={busy}>
-      <form
-        className="sr-dialog-form"
-        onSubmit={async (event) => {
-          event.preventDefault();
-          setError('');
-          setBusy(true);
-          try {
-            const result = await runnerRequest<{ logRetentionDays: number }>('/settings', {
-              method: 'PATCH',
-              body: JSON.stringify({ logRetentionDays: Number(value) }),
-            });
-            onSave(result.logRetentionDays);
-          } catch (failure) {
-            setError(errorMessage(failure));
-            setBusy(false);
-          }
-        }}
-      >
-        <label className="sr-field">
-          <span>Log retention in days</span>
-          <input
-            className="sr-input sr-timeout-input"
-            type="number"
-            min={1}
-            max={365}
-            required
-            value={value}
-            onChange={(event) => setValue(event.target.value)}
-          />
-        </label>
-        <p className="sr-muted">
-          Measured from when a run finishes. Saved scripts and run history stay available after
-          output expires.
-        </p>
-        {error && (
-          <p className="sr-error" role="alert">
-            {error}
-          </p>
-        )}
-        <footer className="sr-dialog-actions">
-          <Button type="button" variant="outline" onClick={onClose} disabled={busy}>
-            Cancel
-          </Button>
-          <Button type="submit" className="sr-run-button" loading={busy}>
-            Save settings
-          </Button>
-        </footer>
-      </form>
-    </RunnerDialog>
   );
 }
 
@@ -295,19 +262,22 @@ export default function ScriptRunnerPage() {
   const [scriptId, setScriptId] = useState<string>();
   const [baseline, setBaseline] = useState(starter);
   const [saved, setSaved] = useState<ScriptDraft | null>(null);
-  const [query, setQuery] = useState('');
   const [tab, setTab] = useState<Tab>('active');
-  const [view, setView] = useState<'workspace' | 'runs'>('workspace');
+  const [view, setView] = useState<View>('overview');
   const [editorView, setEditorView] = useState<'source' | 'defaults'>('source');
   const [selection, setSelection] = useState<ScriptRun | null>(null);
   const [launch, setLaunch] = useState<Launch | null>(null);
-  const [settings, setSettings] = useState(false);
-  const [deleteOpen, setDeleteOpen] = useState(false);
-  const [working, setWorking] = useState(false);
+  const [libraryOpen, setLibraryOpen] = useState(false);
+  const [openingScript, setOpeningScript] = useState(false);
+  const [savingScript, setSavingScript] = useState(false);
+  const working = openingScript || savingScript;
   const [more, setMore] = useState<{ history: ScriptRun[]; next?: string } | null>(null);
   const [historyBusy, setHistoryBusy] = useState(false);
   const [actionError, setActionError] = useState('');
   const [discard, setDiscard] = useState<{ next: () => void } | null>(null);
+  const initialDefaultsApplied = useRef(false);
+  const scriptLoad = useRef<AbortController | null>(null);
+  const documentVersion = useRef(0);
   const pendingLaunch = useRef<{ signature: string; id: string; scriptId?: string } | null>(null);
 
   const refresh = useCallback(async (signal?: AbortSignal) => {
@@ -315,10 +285,18 @@ export default function ScriptRunnerPage() {
       const result = await runnerRequest<RunnerOverview>('', { signal });
       if (!signal?.aborted) {
         setOverview(result);
+        if (!initialDefaultsApplied.current) {
+          initialDefaultsApplied.current = true;
+          const configureUntouched = (current: ScriptDraft) =>
+            current === starter || current === emptyDraft
+              ? applyDefaults(current, result)
+              : current;
+          setDraft(configureUntouched);
+          setBaseline(configureUntouched);
+        }
         setMore((current) =>
           current ? { ...current, history: mergeHistory(result.history, current.history) } : current
         );
-        setSelection((current) => current ?? result.active[0] ?? result.history[0] ?? null);
         setOverviewError('');
       }
     } catch (error) {
@@ -336,6 +314,7 @@ export default function ScriptRunnerPage() {
     void poll();
     return () => {
       abort.abort();
+      scriptLoad.current?.abort();
       clearTimeout(interval);
     };
   }, [refresh]);
@@ -346,16 +325,20 @@ export default function ScriptRunnerPage() {
   const dirty = JSON.stringify(draft) !== JSON.stringify(saved ?? baseline);
   const hasOnlineWorker = !!overview?.online;
   const scripts = overview?.scripts ?? [];
-  const filtered = scripts.filter((script) =>
-    script.title.toLowerCase().includes(query.toLowerCase())
-  );
+  const variables = overview?.variables ?? [];
+  const envCount = draft.env.length + (draft.envVarIds?.length ?? 0);
   const active = overview?.active ?? [];
   const history = mergeHistory(overview?.history ?? [], more?.history ?? []);
   const selected = selection
-    ? (active.find((run) => run.id === selection.id) ??
-      history.find((run) => run.id === selection.id) ??
+    ? (history.find((run) => run.id === selection.id) ??
+      (isActiveRun(selection.status) ? active.find((run) => run.id === selection.id) : undefined) ??
       selection)
-    : (active[0] ?? null);
+    : null;
+  const displayedHistory =
+    selected && !isActiveRun(selected.status) && !history.some(({ id }) => id === selected.id)
+      ? mergeHistory([selected], history)
+      : history;
+  const visibleTab = selected ? (isActiveRun(selected.status) ? 'active' : 'history') : tab;
 
   const updateSource = useCallback((source: string) => {
     setDraft((old) => ({ ...old, source }));
@@ -370,6 +353,26 @@ export default function ScriptRunnerPage() {
     });
   }
 
+  const handleRunFinished = useCallback((run: ScriptRun) => {
+    setSelection((current) => (current?.id === run.id ? run : current));
+  }, []);
+
+  function cancelScriptLoad() {
+    if (!scriptLoad.current) return;
+    scriptLoad.current.abort();
+    scriptLoad.current = null;
+    setOpeningScript(false);
+  }
+
+  function showView(next: View) {
+    cancelScriptLoad();
+    setView(next);
+  }
+
+  function replaceEditor() {
+    setEditorKey(++documentVersion.current);
+  }
+
   function replaceDraft(next: () => void) {
     if (dirty) setDiscard({ next });
     else next();
@@ -377,11 +380,12 @@ export default function ScriptRunnerPage() {
 
   function newDraft() {
     replaceDraft(() => {
-      setView('workspace');
+      showView('workspace');
       setEditorView('source');
-      setDraft(emptyDraft);
-      setEditorKey((key) => key + 1);
-      setBaseline(emptyDraft);
+      const configured = overview ? applyDefaults(emptyDraft, overview) : emptyDraft;
+      setDraft(configured);
+      replaceEditor();
+      setBaseline(configured);
       setScriptId(undefined);
       setSaved(null);
       setActionError('');
@@ -390,38 +394,60 @@ export default function ScriptRunnerPage() {
   }
 
   async function openScript(id: string) {
-    setWorking(true);
+    cancelScriptLoad();
+    const controller = new AbortController();
+    scriptLoad.current = controller;
+    setOpeningScript(true);
     setActionError('');
     try {
-      const response = await runnerRequest<SavedScript>(`/scripts/${id}`);
+      const response = await runnerRequest<SavedScript>(`/scripts/${id}`, {
+        signal: controller.signal,
+      });
+      if (controller.signal.aborted) return;
       const loaded = draftFields(response);
+      setView('workspace');
       setEditorView('source');
       setScriptId(response.id);
       setDraft(loaded);
-      setEditorKey((key) => key + 1);
+      replaceEditor();
       setSaved(loaded);
     } catch (error) {
-      setActionError(errorMessage(error));
+      if (!controller.signal.aborted) setActionError(errorMessage(error));
     } finally {
-      setWorking(false);
+      if (scriptLoad.current === controller) {
+        scriptLoad.current = null;
+        setOpeningScript(false);
+      }
     }
   }
 
+  function editScript(id: string) {
+    setLibraryOpen(false);
+    if (id === scriptId) {
+      showView('workspace');
+      return;
+    }
+    replaceDraft(() => void openScript(id));
+  }
+
   async function saveScript(next: ScriptDraft, id?: string) {
+    const version = documentVersion.current;
     const response = await runnerRequest<SavedScript>(id ? `/scripts/${id}` : '/scripts', {
       method: id ? 'PATCH' : 'POST',
       body: JSON.stringify(next),
     });
     const committed = draftFields(response);
-    setDraft((current) => (current === draft ? committed : current));
-    setSaved(committed);
-    setScriptId(response.id);
+    if (documentVersion.current === version) {
+      setDraft((current) => (current === draft ? committed : current));
+      setSaved(committed);
+      setScriptId(response.id);
+    }
     void refresh();
     return response.id;
   }
 
   async function saveCurrent() {
-    setWorking(true);
+    setSavingScript(true);
     setActionError('');
     try {
       await saveScript(draft, scriptId);
@@ -429,35 +455,20 @@ export default function ScriptRunnerPage() {
     } catch (error) {
       setActionError(errorMessage(error));
     } finally {
-      setWorking(false);
+      setSavingScript(false);
     }
   }
 
-  async function deleteCurrent() {
-    if (!scriptId) return;
-    setWorking(true);
-    setActionError('');
-    try {
-      await runnerRequest(`/scripts/${scriptId}`, { method: 'DELETE' });
-      setScriptId(undefined);
-      setDraft(starter);
-      setEditorView('source');
-      setEditorKey((key) => key + 1);
-      setBaseline(starter);
-      setSaved(null);
-      setDeleteOpen(false);
-      void refresh();
-      toast({ variant: 'success', title: 'Script deleted' });
-    } catch (error) {
-      setActionError(errorMessage(error));
-    } finally {
-      setWorking(false);
-    }
+  function handleDeleted(id: string) {
+    if (id !== scriptId) return;
+    documentVersion.current++;
+    setScriptId(undefined);
+    setSaved(null);
   }
 
   function selectRun(run: ScriptRun) {
     setSelection(run);
-    setView('runs');
+    showView('runs');
     if (window.matchMedia('(max-width: 920px)').matches) {
       requestAnimationFrame(() =>
         document.getElementById('script-run-console')?.scrollIntoView({
@@ -466,6 +477,12 @@ export default function ScriptRunnerPage() {
         })
       );
     }
+  }
+
+  function selectTab(nextTab: Tab) {
+    if (nextTab === visibleTab) return;
+    setTab(nextTab);
+    setSelection(null);
   }
 
   function disposeLaunch() {
@@ -483,10 +500,14 @@ export default function ScriptRunnerPage() {
     }
     const run = await runnerRequest<ScriptRun>('/runs', {
       method: 'POST',
-      body: JSON.stringify({ ...next, id: pending.id, scriptId: pending.scriptId }),
+      body: JSON.stringify({
+        ...next,
+        id: pending.id,
+        scriptId: pending.scriptId,
+        rerunOf: launch?.rerunOf,
+      }),
     });
     disposeLaunch();
-    setTab(isActiveRun(run.status) ? 'active' : 'history');
     selectRun(run);
     setOverview((current) =>
       current && isActiveRun(run.status)
@@ -508,7 +529,8 @@ export default function ScriptRunnerPage() {
     try {
       const snapshot = await runnerRequest<RunSnapshot>(`/runs/${run.id}`);
       setLaunch({
-        replay: true,
+        rerunOf: snapshot.id,
+        linkedEnvKeys: snapshot.linkedEnvKeys,
         scriptId: scripts.some((script) => script.id === snapshot.scriptId)
           ? snapshot.scriptId
           : undefined,
@@ -557,9 +579,6 @@ export default function ScriptRunnerPage() {
                   ? 'Worker online'
                   : 'Worker offline'}
           </span>
-          <Button variant="outline" onClick={() => setSettings(true)}>
-            <Settings2 size={16} /> Settings
-          </Button>
         </div>
       </header>
       {overviewError && (
@@ -567,105 +586,93 @@ export default function ScriptRunnerPage() {
           {overviewError}
         </p>
       )}
-      {actionError && !deleteOpen && (
+      {actionError && (
         <p className="sr-error" role="alert">
           {actionError}
         </p>
       )}
 
       <nav className="sr-view-bar" aria-label="Script Runner views">
-        <button
-          type="button"
-          aria-pressed={view === 'workspace'}
-          onClick={() => setView('workspace')}
-        >
-          <Braces size={17} /> Workspace
-        </button>
-        <button type="button" aria-pressed={view === 'runs'} onClick={() => setView('runs')}>
-          <Activity size={17} /> Runs {active.length > 0 && <span>{active.length} active</span>}
-        </button>
+        {views.map(({ id, label, icon: Icon }) => (
+          <button key={id} type="button" aria-pressed={view === id} onClick={() => showView(id)}>
+            <Icon size={17} /> {label}
+            {id === 'runs' && active.length > 0 && <span>{active.length} active</span>}
+          </button>
+        ))}
       </nav>
 
-      <div className="sr-workspace" hidden={view !== 'workspace'}>
-        <section className="sr-panel sr-library" aria-label="Script library">
-          <header className="sr-panel-header">
-            <div>
-              <Braces size={18} />
-              <h2>Library</h2>
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={newDraft}
-              disabled={working}
-              title="New script"
-              aria-label="New script"
-            >
-              <Plus size={15} /> New
-            </Button>
-          </header>
-          {scripts.length > 0 ? (
-            <>
-              <label className="sr-search">
-                <Search size={15} />
-                <input
-                  aria-label="Find scripts"
-                  placeholder="Find a script"
-                  value={query}
-                  onChange={(event) => setQuery(event.target.value)}
-                />
-              </label>
-              <div className="sr-library-list">
-                {filtered.length ? (
-                  filtered.map((script) => (
-                    <button
-                      key={script.id}
-                      className="sr-library-item"
-                      aria-pressed={script.id === scriptId}
-                      disabled={working}
-                      onClick={() => {
-                        if (script.id !== scriptId) replaceDraft(() => void openScript(script.id));
-                      }}
-                    >
-                      <FileCode2 size={16} />
-                      <span>
-                        <strong>{script.title}</strong>
-                        <small title={script.cwd}>
-                          {SCRIPT_RUNTIMES[script.language ?? 'bash'].label} · {script.cwd}
-                        </small>
-                      </span>
-                    </button>
-                  ))
-                ) : (
-                  <p className="sr-muted">No matching scripts.</p>
-                )}
-              </div>
-            </>
-          ) : (
-            <p className="sr-library-empty">
-              {overview ? 'Save a script to reuse it here.' : 'Loading your scripts…'}
-            </p>
-          )}
-          <div className="sr-library-footer">
-            <span>
-              <FileCode2 size={14} /> {scripts.length} saved
-            </span>
-            <span>
-              <Clock3 size={14} /> {overview?.logRetentionDays ?? DEFAULT_RETENTION_DAYS}-day logs
-            </span>
-          </div>
-        </section>
+      {view === 'overview' && (
+        <ScriptRunnerOverviewPanel
+          active={active}
+          history={history}
+          onNew={newDraft}
+          onLibrary={() => showView('saved')}
+          onRuns={() => showView('runs')}
+          onSelectRun={selectRun}
+        />
+      )}
 
+      {view === 'saved' && (
+        <SavedScriptsPanel
+          scripts={scripts}
+          loading={!overview}
+          onNew={newDraft}
+          onEdit={editScript}
+          onChanged={() => void refresh()}
+          onDeleted={handleDeleted}
+        />
+      )}
+
+      {view === 'environment' && (
+        <EnvironmentVariablesPanel
+          variables={variables}
+          loading={!overview}
+          onChanged={() => void refresh()}
+        />
+      )}
+
+      {view === 'settings' && (
+        <ScriptRunnerSettingsPanel
+          settings={overview ?? SCRIPT_RUNNER_DEFAULTS}
+          online={hasOnlineWorker}
+          supported={!!overview?.supported}
+          runtimes={overview?.runtimes ?? []}
+          onSaved={(settings) => {
+            setOverview((current) => (current ? { ...current, ...settings } : current));
+            if (!scriptId && !dirty) {
+              const configured = applyDefaults(draft, settings);
+              setDraft(configured);
+              setBaseline(configured);
+            }
+            void refresh();
+          }}
+        />
+      )}
+
+      <div className="sr-workspace" hidden={view !== 'workspace'}>
         <section className="sr-panel sr-author" aria-label="Script editor">
           <header className="sr-panel-header">
             <div>
               <FileCode2 size={17} />
               <h2>Editor</h2>
             </div>
-            <span className="sr-editor-state">
-              <i data-saved={!!saved && !dirty} />
-              {saved && !dirty ? 'Saved' : 'Draft'}
-            </span>
+            <div className="sr-editor-tools">
+              <span className="sr-editor-state">
+                <i data-saved={!!saved && !dirty} />
+                {saved && !dirty ? 'Saved' : 'Draft'}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setLibraryOpen(true)}
+                disabled={working}
+              >
+                <FolderOpen size={15} /> Open saved script
+              </Button>
+              <Button variant="ghost" size="sm" onClick={newDraft} disabled={working}>
+                <Plus size={15} /> New script
+              </Button>
+            </div>
           </header>
           <div className="sr-editor-title">
             <label className="sr-field">
@@ -679,21 +686,6 @@ export default function ScriptRunnerPage() {
                 placeholder="Name this script"
               />
             </label>
-            {scriptId && (
-              <Button
-                variant="ghost"
-                size="icon"
-                aria-label="Delete script"
-                title="Delete script"
-                disabled={working}
-                onClick={() => {
-                  setActionError('');
-                  setDeleteOpen(true);
-                }}
-              >
-                <Trash2 size={17} />
-              </Button>
-            )}
           </div>
           <div className="sr-document-bar">
             <div className="sr-segment" aria-label="Script editing view">
@@ -749,6 +741,7 @@ export default function ScriptRunnerPage() {
                   setDraft((current) => ({ ...current, ...configuration }))
                 }
                 recent={overview?.recentDirectories ?? []}
+                variables={variables}
                 scope="defaults"
               />
             </div>
@@ -757,9 +750,9 @@ export default function ScriptRunnerPage() {
             <span className="sr-default-dir" title={draft.cwd}>
               <FolderOpen size={15} />
               <span>{draft.cwd}</span>
-              {draft.env.length > 0 && (
+              {envCount > 0 && (
                 <span className="sr-env-count">
-                  <Variable size={14} /> {draft.env.length}
+                  <Variable size={14} /> {envCount}
                 </span>
               )}
             </span>
@@ -788,18 +781,22 @@ export default function ScriptRunnerPage() {
         <div className="sr-runs-workspace">
           <RunList
             active={active}
-            history={history}
+            history={displayedHistory}
             historyCursor={more ? more.next : overview?.nextHistoryCursor}
             historyBusy={historyBusy}
             selectedId={selected?.id}
             onSelect={selectRun}
             onMore={(cursor) => void loadEarlier(cursor)}
             onRerun={(run) => void rerun(run)}
-            tab={tab}
-            onTab={setTab}
+            tab={visibleTab}
+            onTab={selectTab}
             loading={!overview}
           />
-          <RunConsole run={selected} onRerun={(run) => void rerun(run)} />
+          <RunConsole
+            run={selected}
+            onRerun={(run) => void rerun(run)}
+            onFinished={handleRunFinished}
+          />
         </div>
       )}
 
@@ -810,59 +807,19 @@ export default function ScriptRunnerPage() {
           online={hasOnlineWorker}
           runtimes={overview?.runtimes ?? ['bash']}
           environmentSupport={!!overview?.environmentSupport}
-          canSave={!launch.replay}
+          variables={variables}
+          recordedKeys={launch.linkedEnvKeys}
+          canSave={!launch.rerunOf}
           onClose={disposeLaunch}
           onLaunch={start}
         />
       )}
-      {settings && (
-        <RetentionDialog
-          days={overview?.logRetentionDays ?? DEFAULT_RETENTION_DAYS}
-          onClose={() => setSettings(false)}
-          onSave={(days) => {
-            setSettings(false);
-            setOverview((current) => (current ? { ...current, logRetentionDays: days } : current));
-            void refresh();
-            toast({ variant: 'success', title: 'Log retention updated' });
-          }}
+      {libraryOpen && (
+        <OpenSavedScriptDialog
+          scripts={scripts}
+          onSelect={editScript}
+          onClose={() => setLibraryOpen(false)}
         />
-      )}
-      {deleteOpen && (
-        <RunnerDialog
-          title="Delete saved script?"
-          onClose={() => setDeleteOpen(false)}
-          busy={working}
-        >
-          <div className="sr-dialog-form">
-            <p className="sr-muted">
-              <strong>{saved?.title}</strong> will be removed from the library. Existing runs stay
-              in history.
-            </p>
-            {actionError && (
-              <p className="sr-error" role="alert">
-                {actionError}
-              </p>
-            )}
-            <footer className="sr-dialog-actions">
-              <Button
-                type="button"
-                variant="outline"
-                disabled={working}
-                onClick={() => setDeleteOpen(false)}
-              >
-                Cancel
-              </Button>
-              <Button
-                type="button"
-                variant="destructive"
-                loading={working}
-                onClick={() => void deleteCurrent()}
-              >
-                Delete script
-              </Button>
-            </footer>
-          </div>
-        </RunnerDialog>
       )}
       {discard && (
         <RunnerDialog title="Discard unsaved edits?" onClose={() => setDiscard(null)}>

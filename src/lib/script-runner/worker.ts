@@ -4,10 +4,19 @@ import { setTimeout as delay } from 'node:timers/promises';
 import connectDB from '@/lib/db';
 import { createLogger } from '@/lib/logger';
 import { ScriptRunnerRun, ScriptRunnerSettings, type RunRecord } from '@/models/ScriptRunner';
-import { DEFAULT_RETENTION_DAYS } from '@/modules/script-runner/types';
+import { DEFAULT_MAX_CONCURRENT_RUNS, DEFAULT_RETENTION_DAYS } from '@/modules/script-runner/types';
 import { captureOutput } from './output';
-import { openEnvironment } from './environment';
-import { findRun, outputPath, resultPath, runnerHost, runnerSettings, supported } from './store';
+import { combineLaunchEnvironment, openEnvironment } from './environment';
+import {
+  ACTIVE_STATUSES,
+  QUEUED_STATUSES,
+  findRun,
+  outputPath,
+  resultPath,
+  runnerHost,
+  runnerSettings,
+  supported,
+} from './store';
 import {
   encodeLaunch,
   forgetUnit,
@@ -19,7 +28,6 @@ import {
 } from './systemd';
 
 const log = createLogger('script-runner:worker');
-const CONCURRENCY = 2;
 const TICK_MS = 750;
 const HEARTBEAT_MS = 5000;
 const CLEANUP_MS = 60_000;
@@ -27,7 +35,7 @@ const PROBE_MS = 60_000;
 const DAY_MS = 86_400_000;
 
 type TerminalResult = Pick<RunRecord, 'exitCode' | 'signal' | 'message' | 'outputTruncated'> & {
-  status: Exclude<RunRecord['status'], 'queued' | 'running'>;
+  status: Exclude<RunRecord['status'], 'queued' | 'queued_linked' | 'running'>;
   finishedAt: string;
 };
 
@@ -67,7 +75,10 @@ async function executeRun(run: RunRecord, task: Task, capabilities: RunnerCapabi
   const language = run.language ?? 'bash';
   let env;
   try {
-    env = openEnvironment(run.environmentSeal);
+    env = combineLaunchEnvironment(
+      openEnvironment(run.linkedEnvironmentSeal),
+      openEnvironment(run.environmentSeal)
+    ).env;
   } catch {
     await persistResult(
       id,
@@ -187,7 +198,7 @@ async function cleanExpiredLogs(now: number) {
   const days = settings?.logRetentionDays ?? DEFAULT_RETENTION_DAYS;
   const expired = await ScriptRunnerRun.find({
     host: runnerHost,
-    status: { $nin: ['queued', 'running'] },
+    status: { $nin: ACTIVE_STATUSES },
     finishedAt: { $lte: new Date(now - days * DAY_MS) },
     logsPurgedAt: null,
   })
@@ -213,6 +224,7 @@ export async function runWorker(signal: AbortSignal) {
   const workerId = randomUUID();
   const tasks = new Map<string, Task>();
   let nextHeartbeat = 0;
+  let maxConcurrentRuns = DEFAULT_MAX_CONCURRENT_RUNS;
   let nextCleanup = 0;
   let nextProbe = Date.now() + PROBE_MS;
 
@@ -243,29 +255,37 @@ export async function runWorker(signal: AbortSignal) {
       nextProbe = Date.now() + PROBE_MS;
     }
     if (Date.now() >= nextHeartbeat) {
-      await ScriptRunnerSettings.updateOne(
+      const settings = await ScriptRunnerSettings.findOneAndUpdate(
         { _id: runnerHost },
         {
           $set: {
             workerId,
             workerSeenAt: new Date(),
             workerCapabilityId: workerId,
+            workerLinkedEnvironmentId: workerId,
             workerProtocol: capabilities.protocol,
             workerRuntimes: capabilities.runtimes,
           },
         },
-        { upsert: true }
-      );
+        { upsert: true, returnDocument: 'after' }
+      )
+        .select('maxConcurrentRuns')
+        .lean();
+      maxConcurrentRuns = settings?.maxConcurrentRuns ?? DEFAULT_MAX_CONCURRENT_RUNS;
       nextHeartbeat = Date.now() + HEARTBEAT_MS;
     }
 
-    for (let free = CONCURRENCY - tasks.size - unreconciled; free > 0 && !signal.aborted; free--) {
+    for (
+      let free = maxConcurrentRuns - tasks.size - unreconciled;
+      free > 0 && !signal.aborted;
+      free--
+    ) {
       const run = await ScriptRunnerRun.findOneAndUpdate(
-        { host: runnerHost, status: 'queued' },
+        { host: runnerHost, status: { $in: QUEUED_STATUSES } },
         { $set: { status: 'running', startedAt: new Date() } },
         { sort: { createdAt: 1, _id: 1 }, returnDocument: 'after' }
       )
-        .select('+source +environmentSeal')
+        .select('+source +environmentSeal +linkedEnvironmentSeal')
         .lean();
       if (!run) break;
       if (signal.aborted) break;

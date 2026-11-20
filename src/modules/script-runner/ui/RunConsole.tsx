@@ -48,9 +48,11 @@ export function RunBadge({ run }: { run: ScriptRun }) {
 function OutputConsole({
   initial,
   onRerun,
+  onFinished,
 }: {
   initial: ScriptRun;
   onRerun: (run: ScriptRun) => void;
+  onFinished?: (run: ScriptRun) => void;
 }) {
   const [latest, setLatest] = useState<ScriptRun | null>(null);
   const [entries, setEntries] = useState<OutputEntry[]>([]);
@@ -75,8 +77,7 @@ function OutputConsole({
     const stream = new EventSource(`${runnerApi}/runs/${id}/output`);
     stream.onopen = () => setConnection('open');
     stream.onerror = () => setConnection('retrying');
-    const receive = (event: MessageEvent<string>) => {
-      const batch = JSON.parse(event.data) as OutputBatch;
+    const receive = (batch: OutputBatch) => {
       setLatest(batch.run);
       if (batch.run.logsPurgedAt) {
         setEntries([]);
@@ -94,14 +95,18 @@ function OutputConsole({
         });
       }
     };
-    stream.addEventListener('output', receive);
+    stream.addEventListener('output', (event: MessageEvent<string>) =>
+      receive(JSON.parse(event.data) as OutputBatch)
+    );
     stream.addEventListener('done', (event: MessageEvent<string>) => {
-      receive(event);
+      const batch = JSON.parse(event.data) as OutputBatch;
+      receive(batch);
+      onFinished?.(batch.run);
       stream.close();
       setConnection('done');
     });
     return () => stream.close();
-  }, [id]);
+  }, [id, onFinished]);
 
   useEffect(() => {
     if (!active) return;
@@ -276,9 +281,11 @@ function OutputConsole({
 export default function RunConsole({
   run,
   onRerun,
+  onFinished,
 }: {
   run: ScriptRun | null;
   onRerun: (run: ScriptRun) => void;
+  onFinished?: (run: ScriptRun) => void;
 }) {
   return (
     <section className="sr-panel sr-console" aria-label="Run console" id="script-run-console">
@@ -294,14 +301,14 @@ export default function RunConsole({
         )}
       </header>
       {run ? (
-        <OutputConsole key={run.id} initial={run} onRerun={onRerun} />
+        <OutputConsole key={run.id} initial={run} onRerun={onRerun} onFinished={onFinished} />
       ) : (
         <div className="sr-console-empty">
           <div className="sr-console-glyph">
             <Terminal size={30} strokeWidth={1.5} />
           </div>
           <strong>Ready for output</strong>
-          <p>Start a script or select a past run to see its stdout and stderr here.</p>
+          <p>Select a run to see its stdout and stderr here.</p>
         </div>
       )}
     </section>

@@ -3,7 +3,13 @@
 import { useState, type FormEvent } from 'react';
 import { Play, SquareTerminal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { RUNNER_USER, SCRIPT_RUNTIMES, type ScriptDraft, type ScriptLanguage } from '../types';
+import {
+  RUNNER_USER,
+  SCRIPT_RUNTIMES,
+  type SavedEnvVariable,
+  type ScriptDraft,
+  type ScriptLanguage,
+} from '../types';
 import { errorMessage } from './client';
 import RunConfiguration, { validConfiguration } from './RunConfiguration';
 import RunnerDialog from './RunnerDialog';
@@ -14,6 +20,8 @@ export default function LaunchDialog({
   online,
   runtimes,
   environmentSupport,
+  variables,
+  recordedKeys,
   canSave,
   onClose,
   onLaunch,
@@ -23,6 +31,8 @@ export default function LaunchDialog({
   online: boolean;
   runtimes: ScriptLanguage[];
   environmentSupport: boolean;
+  variables: SavedEnvVariable[];
+  recordedKeys?: string[];
   canSave?: boolean;
   onClose: () => void;
   onLaunch: (draft: ScriptDraft, save: boolean) => Promise<void>;
@@ -36,7 +46,8 @@ export default function LaunchDialog({
     ? 'The Linux script worker is offline.'
     : !runtimes.includes(settings.language)
       ? `${runtime.label} is unavailable on this worker.`
-      : settings.env.length > 0 && !environmentSupport
+      : (settings.env.length > 0 || !!settings.envVarIds?.length || !!recordedKeys?.length) &&
+          !environmentSupport
         ? 'Upgrade the Linux script worker to use environment variables.'
         : '';
 
@@ -72,6 +83,8 @@ export default function LaunchDialog({
               setSettings((current) => ({ ...current, ...configuration }))
             }
             recent={recent}
+            variables={variables}
+            recordedKeys={recordedKeys}
             scope={canSave ? 'run' : 'replay'}
           />
         </fieldset>

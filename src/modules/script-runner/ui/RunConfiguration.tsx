@@ -9,6 +9,8 @@ import {
   EyeOff,
   Folder,
   FolderOpen,
+  KeyRound,
+  Link2,
   Plus,
   Variable,
   X,
@@ -20,6 +22,7 @@ import {
   MAX_ENV_VALUE_LENGTH,
   MAX_ENV_VARS,
   type DirectoryListing,
+  type SavedEnvVariable,
   type ScriptDraft,
   type ScriptEnvironmentVariable,
 } from '../types';
@@ -100,7 +103,7 @@ function DirectoryPicker({ start, onSelect }: { start: string; onSelect: (path: 
   );
 }
 
-type Configuration = Pick<ScriptDraft, 'cwd' | 'args' | 'timeoutSeconds' | 'env'>;
+type Configuration = Pick<ScriptDraft, 'cwd' | 'args' | 'timeoutSeconds' | 'env' | 'envVarIds'>;
 
 function environmentError(env: ScriptEnvironmentVariable[]) {
   if (env.some(({ key }) => !ENV_NAME_PATTERN.test(key))) {
@@ -234,15 +237,102 @@ function EnvironmentFields({
   );
 }
 
+function LinkedEnvironment({
+  ids,
+  variables,
+  recordedKeys,
+  onChange,
+}: {
+  ids: string[];
+  variables: SavedEnvVariable[];
+  recordedKeys?: string[];
+  onChange: (ids: string[]) => void;
+}) {
+  if (recordedKeys) {
+    if (recordedKeys.length === 0) return null;
+    return (
+      <fieldset className="sr-config-group">
+        <legend>
+          <Link2 size={16} /> Recorded linked variables
+        </legend>
+        <p className="sr-muted">
+          This run reuses the original values. An override below takes precedence.
+        </p>
+        <div className="sr-linked-list">
+          {recordedKeys.map((key) => (
+            <span key={key} className="sr-linked-token">
+              <KeyRound size={13} /> {key}
+            </span>
+          ))}
+        </div>
+      </fieldset>
+    );
+  }
+
+  const available = variables.filter((variable) => !ids.includes(variable.id));
+  return (
+    <fieldset className="sr-config-group">
+      <legend>
+        <Link2 size={16} /> Linked environment variables
+      </legend>
+      <p className="sr-muted">
+        Link named values from Env Vars. An override with the same name takes precedence.
+      </p>
+      {ids.length > 0 && (
+        <div className="sr-linked-list">
+          {ids.map((id) => {
+            const variable = variables.find((entry) => entry.id === id);
+            return (
+              <span className="sr-linked-token" key={id}>
+                {variable?.secret && <KeyRound size={13} />}
+                {variable?.key ?? 'Unavailable variable'}
+                <button
+                  type="button"
+                  aria-label={`Unlink ${variable?.key ?? 'unavailable variable'}`}
+                  onClick={() => onChange(ids.filter((item) => item !== id))}
+                >
+                  <X size={14} />
+                </button>
+              </span>
+            );
+          })}
+        </div>
+      )}
+      {available.length > 0 && ids.length < MAX_ENV_VARS && (
+        <select
+          aria-label="Link saved environment variable"
+          className="sr-input sr-mono sr-link-select"
+          value=""
+          onChange={(event) => onChange([...ids, event.currentTarget.value])}
+        >
+          <option value="" disabled>
+            Link a saved variable…
+          </option>
+          {available.map((variable) => (
+            <option key={variable.id} value={variable.id}>
+              {variable.key}
+              {variable.secret ? ' (secret)' : ''}
+            </option>
+          ))}
+        </select>
+      )}
+    </fieldset>
+  );
+}
+
 export default function RunConfiguration({
   value,
   onChange,
   recent,
+  variables,
+  recordedKeys,
   scope,
 }: {
   value: Configuration;
   onChange: (value: Configuration) => void;
   recent: string[];
+  variables: SavedEnvVariable[];
+  recordedKeys?: string[];
   scope: 'defaults' | 'run' | 'replay';
 }) {
   const cwdId = useId();
@@ -352,6 +442,12 @@ export default function RunConfiguration({
           <Plus size={15} /> Add argument
         </Button>
       </fieldset>
+      <LinkedEnvironment
+        ids={value.envVarIds ?? []}
+        variables={variables}
+        recordedKeys={scope === 'replay' ? (recordedKeys ?? []) : undefined}
+        onChange={(envVarIds) => onChange({ ...value, envVarIds })}
+      />
       <EnvironmentFields
         value={value.env}
         onChange={(env) => onChange({ ...value, env })}

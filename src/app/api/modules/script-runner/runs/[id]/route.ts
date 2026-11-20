@@ -8,10 +8,14 @@ export const dynamic = 'force-dynamic';
 export function GET(request: Request, { params }: ById) {
   return authorized(request, async () => {
     const run = await findRun(runIdInput.parse((await params).id))
-      .select('+source +environmentSeal')
+      .select('+source +environmentSeal +linkedEnvironmentSeal')
       .lean();
-    return run
-      ? data({ ...runResponse(run), source: run.source, env: openEnvironment(run.environmentSeal) })
-      : failure('Run not found.', 404);
+    if (!run) return failure('Run not found.', 404);
+    return data({
+      ...runResponse(run),
+      source: run.source,
+      env: openEnvironment(run.environmentSeal),
+      linkedEnvKeys: openEnvironment(run.linkedEnvironmentSeal).map(({ key }) => key),
+    });
   });
 }

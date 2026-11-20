@@ -7,11 +7,16 @@ import {
   ScriptRunnerRun,
   ScriptRunnerScript,
   ScriptRunnerSettings,
+  ScriptRunnerVariable,
   type RunRecord,
   type ScriptRecord,
+  type SettingsRecord,
+  type VariableRecord,
 } from '@/models/ScriptRunner';
 import {
-  DEFAULT_RETENTION_DAYS,
+  SCRIPT_RUNNER_DEFAULTS,
+  type SavedEnvVariable,
+  type ScriptRunnerDefaults,
   type RunnerOverview,
   type SavedScript,
   type ScriptDraft,
@@ -22,7 +27,8 @@ import {
 
 export const runnerHost = hostname();
 export const supported = process.platform === 'linux';
-export const ACTIVE_STATUSES = ['queued', 'running'] as const;
+export const QUEUED_STATUSES = ['queued', 'queued_linked'] as const;
+export const ACTIVE_STATUSES = [...QUEUED_STATUSES, 'running'] as const;
 export const WORKER_STALE_MS = 20_000;
 export const runnerDataDirectory = '/var/lib/servermon/script-runner';
 export const outputPath = (id: string) =>
@@ -40,7 +46,7 @@ export function runResponse(run: RunRecord): ScriptRun {
     cwd: run.cwd,
     args: run.args,
     timeoutSeconds: run.timeoutSeconds,
-    status: run.status,
+    status: run.status === 'queued_linked' ? 'queued' : run.status,
     requestedBy: run.requestedBy,
     createdAt: run.createdAt.toISOString(),
     startedAt: run.startedAt?.toISOString(),
@@ -54,12 +60,13 @@ export function runResponse(run: RunRecord): ScriptRun {
   };
 }
 
-function scriptSummary(script: ScriptRecord): ScriptSummary {
+export function scriptSummary(script: ScriptRecord): ScriptSummary {
   return {
     id: script._id,
     title: script.title,
     language: script.language ?? 'bash',
     cwd: script.cwd,
+    folder: script.folder,
     updatedAt: script.updatedAt.toISOString(),
   };
 }
@@ -69,6 +76,7 @@ export function scriptResponse(script: ScriptRecord): SavedScript {
     ...scriptSummary(script),
     source: script.source,
     env: openEnvironment(script.environmentSeal),
+    envVarIds: script.envVarIds ?? [],
     args: script.args,
     timeoutSeconds: script.timeoutSeconds,
   };
@@ -78,11 +86,37 @@ export function runnerSettings() {
   return ScriptRunnerSettings.findById(runnerHost).lean();
 }
 
+export function runnerDefaults(
+  settings?: Partial<ScriptRunnerDefaults> | null
+): ScriptRunnerDefaults {
+  return {
+    defaultWorkingDirectory:
+      settings?.defaultWorkingDirectory ?? SCRIPT_RUNNER_DEFAULTS.defaultWorkingDirectory,
+    defaultTimeoutSeconds:
+      settings?.defaultTimeoutSeconds ?? SCRIPT_RUNNER_DEFAULTS.defaultTimeoutSeconds,
+    maxConcurrentRuns: settings?.maxConcurrentRuns ?? SCRIPT_RUNNER_DEFAULTS.maxConcurrentRuns,
+    logRetentionDays: settings?.logRetentionDays ?? SCRIPT_RUNNER_DEFAULTS.logRetentionDays,
+  };
+}
+
+export function variableResponse(variable: VariableRecord): SavedEnvVariable {
+  return {
+    id: variable._id,
+    key: variable.key,
+    secret: variable.secret,
+    updatedAt: variable.updatedAt.toISOString(),
+  };
+}
+
+export function findVariable(id: string) {
+  return ScriptRunnerVariable.findOne({ host: runnerHost, _id: id });
+}
+
 export function workerOnline(seenAt?: Date) {
   return supported && !!seenAt && Date.now() - seenAt.getTime() < WORKER_STALE_MS;
 }
 
-export function workerCapabilities(settings: Awaited<ReturnType<typeof runnerSettings>>) {
+export function workerCapabilities(settings: SettingsRecord | null) {
   if (settings?.workerId && settings.workerCapabilityId === settings.workerId) {
     return {
       protocol: settings.workerProtocol ?? 1,
@@ -97,9 +131,9 @@ export async function overview(before?: string): Promise<RunnerOverview> {
     ? await ScriptRunnerRun.findOne({ _id: before, host: runnerHost }).select('createdAt').lean()
     : null;
   const terminal = { host: runnerHost, status: { $nin: ACTIVE_STATUSES } };
-  const [scripts, active, history, settings, recentRuns] = await Promise.all([
+  const [scripts, active, history, settings, recentRuns, variables] = await Promise.all([
     ScriptRunnerScript.find({ host: runnerHost })
-      .select('title language cwd updatedAt')
+      .select('title language cwd folder updatedAt')
       .sort({ title: 1 })
       .lean(),
     ScriptRunnerRun.find({ host: runnerHost, status: { $in: ACTIVE_STATUSES } })
@@ -123,10 +157,16 @@ export async function overview(before?: string): Promise<RunnerOverview> {
       .sort({ createdAt: -1 })
       .limit(60)
       .lean(),
+    ScriptRunnerVariable.find({ host: runnerHost })
+      .select('key secret updatedAt')
+      .sort({ key: 1 })
+      .lean(),
   ]);
   const capabilities = workerCapabilities(settings);
   const online = workerOnline(settings?.workerSeenAt);
   return {
+    ...runnerDefaults(settings),
+    variables: variables.map(variableResponse),
     scripts: scripts.map(scriptSummary),
     active: active.map(runResponse),
     history: history.slice(0, historySize).map(runResponse),
@@ -136,7 +176,6 @@ export async function overview(before?: string): Promise<RunnerOverview> {
     supported,
     runtimes: online ? capabilities.runtimes : [],
     environmentSupport: capabilities.protocol >= 2,
-    logRetentionDays: settings?.logRetentionDays ?? DEFAULT_RETENTION_DAYS,
   };
 }
 
@@ -168,7 +207,7 @@ export async function requestStop(id: string) {
   const now = new Date();
   const queued = await findRun(id)
     .findOneAndUpdate(
-      { status: 'queued' },
+      { status: { $in: QUEUED_STATUSES } },
       { $set: { status: 'stopped', finishedAt: now, stopRequestedAt: now } },
       { returnDocument: 'after' }
     )
