@@ -72,7 +72,7 @@ export default function LaunchDialog({
           <SquareTerminal size={21} />
           <div>
             <strong>{draft.title}</strong>
-            <span>{runtime.label} · Local files · Network off</span>
+            <span>{runtime.label} · Local files · Network enabled</span>
           </div>
           <code>{RUNNER_USER}</code>
         </div>

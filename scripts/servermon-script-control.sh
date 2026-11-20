@@ -25,7 +25,7 @@ case "$action" in
             --property="TimeoutStartSec=${timeout}s" --property=TimeoutStopSec=5s \
             --property=KillMode=control-group --property=NoNewPrivileges=yes \
             --property=ProtectSystem=full --property=TasksMax=128 \
-            --property=PrivateNetwork=yes --property=SystemCallArchitectures=native \
+            --property=PrivateNetwork=no --property=SystemCallArchitectures=native \
             --property="RestrictAddressFamilies=AF_INET AF_INET6 AF_NETLINK" \
             --setenv=BASH_ENV=/dev/null --setenv=ENV=/dev/null \
             /usr/local/libexec/servermon-script-execute

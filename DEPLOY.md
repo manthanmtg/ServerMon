@@ -229,7 +229,7 @@ Your admin account, TOTP configuration, and all data remain intact.
 
 ## Script Runner on Linux
 
-The installer provisions `servermon-script-runner-worker.service` and a dedicated `servermon-script` account. Open **Scripts** as a ServerMon administrator. Runs start in `/var/lib/servermon-script` by default. A custom directory must be accessible to the execution account. Each script runs with isolated networking and access to local files permitted by that account.
+The installer provisions `servermon-script-runner-worker.service` and a dedicated `servermon-script` account. Open **Scripts** as a ServerMon administrator. Runs start in `/var/lib/servermon-script` by default. A custom directory must be accessible to the execution account. Each script uses the host network, including access to local network services, and can access local files permitted by the execution account.
 
 The worker runs up to two scripts at a time by default. **Scripts → Settings** controls concurrency, log retention, and defaults for new scripts. Each run uses a separate systemd service so a web service restart leaves active scripts running and **Stop** terminates the run's process group. If the worker restarts with active scripts, it stops the remaining processes and reconciles their history. Choose Bash, Python 3, or Node.js in the editor. The Linux installer supplies the interpreters, and the worker reports which runtimes are available. Custom installs must provision the current launcher and put the interpreters in `/usr/local/bin`, `/usr/bin`, or `/bin`. Node.js scripts use CommonJS by default.
 
