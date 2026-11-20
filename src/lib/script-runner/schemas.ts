@@ -87,6 +87,10 @@ export const launchInput = scriptPatchInput.extend({
   cwd: directoryInput.optional(),
   timeoutSeconds: timeoutInput.optional(),
 });
+export const runRequestInput = z.union([
+  launchInput,
+  z.strictObject({ id: runIdInput.optional(), scriptId: runIdInput }),
+]);
 export const retentionInput = z.object({ logRetentionDays: z.number().int().min(1).max(365) });
 export const defaultsPatchInput = retentionInput
   .extend({

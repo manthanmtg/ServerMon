@@ -270,6 +270,7 @@ export default function ScriptRunnerPage() {
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [openingScript, setOpeningScript] = useState(false);
   const [savingScript, setSavingScript] = useState(false);
+  const [startingScriptId, setStartingScriptId] = useState<string>();
   const working = openingScript || savingScript;
   const [more, setMore] = useState<{ history: ScriptRun[]; next?: string } | null>(null);
   const [historyBusy, setHistoryBusy] = useState(false);
@@ -279,6 +280,7 @@ export default function ScriptRunnerPage() {
   const scriptLoad = useRef<AbortController | null>(null);
   const documentVersion = useRef(0);
   const pendingLaunch = useRef<{ signature: string; id: string; scriptId?: string } | null>(null);
+  const savedLaunchIds = useRef(new Map<string, string>());
 
   const refresh = useCallback(async (signal?: AbortSignal) => {
     try {
@@ -460,6 +462,7 @@ export default function ScriptRunnerPage() {
   }
 
   function handleDeleted(id: string) {
+    savedLaunchIds.current.delete(id);
     if (id !== scriptId) return;
     documentVersion.current++;
     setScriptId(undefined);
@@ -508,6 +511,30 @@ export default function ScriptRunnerPage() {
       }),
     });
     disposeLaunch();
+    showLaunchedRun(run);
+  }
+
+  async function runSaved(savedScriptId: string) {
+    if (startingScriptId || !hasOnlineWorker) return;
+    setStartingScriptId(savedScriptId);
+    setActionError('');
+    const id = savedLaunchIds.current.get(savedScriptId) ?? requestId();
+    savedLaunchIds.current.set(savedScriptId, id);
+    try {
+      const run = await runnerRequest<ScriptRun>('/runs', {
+        method: 'POST',
+        body: JSON.stringify({ id, scriptId: savedScriptId }),
+      });
+      savedLaunchIds.current.delete(savedScriptId);
+      showLaunchedRun(run);
+    } catch (error) {
+      setActionError(errorMessage(error));
+    } finally {
+      setStartingScriptId(undefined);
+    }
+  }
+
+  function showLaunchedRun(run: ScriptRun) {
     selectRun(run);
     setOverview((current) =>
       current && isActiveRun(run.status)
@@ -616,6 +643,9 @@ export default function ScriptRunnerPage() {
         <SavedScriptsPanel
           scripts={scripts}
           loading={!overview}
+          canRun={hasOnlineWorker}
+          startingScriptId={startingScriptId}
+          onRun={runSaved}
           onNew={newDraft}
           onEdit={editScript}
           onChanged={() => void refresh()}

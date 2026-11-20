@@ -123,6 +123,27 @@ it('ignores a script details response after leaving the library', async () => {
   expect(screen.queryByRole('region', { name: 'Script editor' })).not.toBeInTheDocument();
 });
 
+it('runs a saved script by ID and opens its console', async () => {
+  const scriptId = '27ac89d0-0704-4662-9770-e143d2a47d3c';
+  overview.scripts = [{ ...completed, id: scriptId, updatedAt: completed.createdAt }];
+  const launched: ScriptRun = { ...completed, id: 'library-run', scriptId, status: 'queued' };
+  const fetchRunner = vi.fn(async (url: string, options?: RequestInit) =>
+    Response.json(url.endsWith('/runs') && options?.method === 'POST' ? launched : overview)
+  );
+  vi.stubGlobal('fetch', fetchRunner);
+
+  render(<ScriptRunnerPage />);
+  await screen.findByText('Worker online');
+  fireEvent.click(screen.getByRole('button', { name: 'Saved Scripts' }));
+  fireEvent.click(screen.getByRole('button', { name: `Run now: ${completed.title}` }));
+
+  const console = within(await screen.findByRole('region', { name: 'Run console' }));
+  expect(console.getByRole('heading', { name: 'Host snapshot Bash' })).toBeVisible();
+  const submitted = fetchRunner.mock.calls.find(([url]) => url.endsWith('/runs'))?.[1];
+  expect(JSON.parse(String(submitted?.body))).toEqual({ scriptId, id: expect.any(String) });
+  expect(screen.queryByRole('dialog', { name: 'Configure run' })).not.toBeInTheDocument();
+});
+
 describe('Script Runner console selection', () => {
   it.each([
     ['Active', 'Restore data'],

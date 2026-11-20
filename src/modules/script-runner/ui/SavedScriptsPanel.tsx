@@ -8,6 +8,7 @@ import {
   FileCode2,
   Folder,
   FolderInput,
+  Play,
   Plus,
   Search,
   Trash2,
@@ -28,6 +29,9 @@ type LibraryAction = { type: 'move' | 'delete'; script: ScriptSummary };
 interface SavedScriptsPanelProps {
   scripts: ScriptSummary[];
   loading: boolean;
+  canRun: boolean;
+  startingScriptId?: string;
+  onRun: (id: string) => void;
   onNew: () => void;
   onEdit: (id: string) => void;
   onChanged: () => void;
@@ -118,6 +122,9 @@ export function OpenSavedScriptDialog({
 export default function SavedScriptsPanel({
   scripts,
   loading,
+  canRun,
+  startingScriptId,
+  onRun,
   onNew,
   onEdit,
   onChanged,
@@ -301,7 +308,20 @@ export default function SavedScriptsPanel({
                   aria-label={`Actions for ${script.title}`}
                 >
                   <Button
-                    className="sr-management-button"
+                    className="sr-management-button sr-saved-text-action sr-run-button"
+                    type="button"
+                    aria-label={`Run now: ${script.title}`}
+                    loading={startingScriptId === script.id}
+                    disabled={!canRun || !!startingScriptId || busyId === script.id}
+                    onClick={() => onRun(script.id)}
+                  >
+                    {startingScriptId !== script.id && (
+                      <Play size={14} fill="currentColor" aria-hidden="true" />
+                    )}
+                    Run now
+                  </Button>
+                  <Button
+                    className="sr-management-button sr-saved-text-action"
                     type="button"
                     variant="outline"
                     onClick={() => onEdit(script.id)}
@@ -309,7 +329,7 @@ export default function SavedScriptsPanel({
                     Edit in Workspace <ArrowUpRight size={15} aria-hidden="true" />
                   </Button>
                   <Button
-                    className="sr-management-button"
+                    className="sr-management-button sr-saved-icon-action"
                     type="button"
                     variant="ghost"
                     size="icon"
@@ -322,7 +342,7 @@ export default function SavedScriptsPanel({
                     {busyId !== script.id && <Copy size={16} aria-hidden="true" />}
                   </Button>
                   <Button
-                    className="sr-management-button"
+                    className="sr-management-button sr-saved-icon-action"
                     type="button"
                     variant="ghost"
                     size="icon"
@@ -334,7 +354,7 @@ export default function SavedScriptsPanel({
                     <FolderInput size={16} aria-hidden="true" />
                   </Button>
                   <Button
-                    className="sr-management-button sr-saved-delete"
+                    className="sr-management-button sr-saved-icon-action sr-saved-delete"
                     type="button"
                     variant="ghost"
                     size="icon"

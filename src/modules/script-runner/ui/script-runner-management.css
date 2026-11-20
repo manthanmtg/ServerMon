@@ -189,18 +189,19 @@
   gap: 3px;
 }
 
-.sr-saved-actions button:first-child {
+.sr-saved-actions .sr-saved-text-action {
+  flex: none;
   white-space: nowrap;
   padding-inline: 10px;
   font-size: 12px;
 }
 
-.sr-saved-actions button:not(:first-child) {
+.sr-saved-actions .sr-saved-icon-action {
   flex: none;
   color: var(--muted-foreground);
 }
 
-.sr-saved-actions button:not(:first-child):hover {
+.sr-saved-actions .sr-saved-icon-action:hover {
   color: var(--foreground);
 }
 
@@ -310,10 +311,7 @@
   .sr-saved-actions {
     grid-column: 1 / -1;
     flex-wrap: wrap;
-  }
-
-  .sr-saved-actions button:first-child {
-    margin-inline-end: auto;
+    justify-content: flex-start;
   }
 }
 

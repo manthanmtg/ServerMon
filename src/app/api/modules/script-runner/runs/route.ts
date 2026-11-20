@@ -8,7 +8,7 @@ import {
   partitionRunEnvironment,
 } from '@/lib/script-runner/environment';
 import { readLinkedEnvironment } from '@/lib/script-runner/variables';
-import { launchInput } from '@/lib/script-runner/schemas';
+import { runRequestInput } from '@/lib/script-runner/schemas';
 import {
   findRun,
   findScript,
@@ -26,15 +26,10 @@ export const dynamic = 'force-dynamic';
 
 export function POST(request: Request) {
   return authorized(request, async (actor) => {
-    const {
-      id = randomUUID(),
-      scriptId,
-      rerunOf,
-      envVarIds: requestedLinks,
-      language: requestedLanguage,
-      env: requestedEnv,
-      ...draft
-    } = await body(request, launchInput);
+    const input = await body(request, runRequestInput);
+    const { id = randomUUID(), scriptId } = input;
+    const draft = 'source' in input ? input : undefined;
+    const rerunOf = draft?.rerunOf;
     const existing = await findRun(id).lean();
     if (existing) return data(runResponse(existing), 202);
 
@@ -43,27 +38,30 @@ export function POST(request: Request) {
       throw new RequestError('The Linux script worker is offline.', 503);
     }
     const [script, previousRun] = await Promise.all([
-      scriptId ? findScript(scriptId).select('+environmentSeal').lean() : null,
+      scriptId ? findScript(scriptId).select('+source +environmentSeal').lean() : null,
       rerunOf ? findRun(rerunOf).select('+environmentSeal +linkedEnvironmentSeal').lean() : null,
     ]);
-    if (scriptId && !script) throw new RequestError('The saved script no longer exists.', 404);
+    const content = draft ?? script;
+    if (!content || (scriptId && !script)) {
+      throw new RequestError('The saved script no longer exists.', 404);
+    }
     if (rerunOf && !previousRun) throw new RequestError('The original run no longer exists.', 404);
 
     const defaults = runnerDefaults(settings);
-    const language = requestedLanguage ?? previousRun?.language ?? script?.language ?? 'bash';
+    const language = draft?.language ?? previousRun?.language ?? script?.language ?? 'bash';
     const timeoutSeconds =
-      draft.timeoutSeconds ??
+      draft?.timeoutSeconds ??
       previousRun?.timeoutSeconds ??
       script?.timeoutSeconds ??
       defaults.defaultTimeoutSeconds;
-    const cwd = draft.cwd ?? previousRun?.cwd ?? script?.cwd ?? defaults.defaultWorkingDirectory;
-    const ids = requestedLinks ?? (previousRun ? [] : (script?.envVarIds ?? []));
+    const cwd = draft?.cwd ?? previousRun?.cwd ?? script?.cwd ?? defaults.defaultWorkingDirectory;
+    const ids = draft?.envVarIds ?? (previousRun ? [] : (script?.envVarIds ?? []));
     const linked = [
       ...openEnvironment(previousRun?.linkedEnvironmentSeal),
       ...(await readLinkedEnvironment(ids)),
     ];
     const editable =
-      requestedEnv ??
+      draft?.env ??
       openEnvironment(previousRun ? previousRun.environmentSeal : script?.environmentSeal);
     const combined = combineLaunchEnvironment(linked, editable);
     const environment = partitionRunEnvironment(combined.env, combined.linkedEnvKeys);
@@ -97,9 +95,9 @@ export function POST(request: Request) {
     try {
       const run = await ScriptRunnerRun.create({
         ...storedDraft({
-          title: draft.title,
-          source: draft.source,
-          args: draft.args,
+          title: content.title,
+          source: content.source,
+          args: content.args,
           cwd,
           timeoutSeconds,
           language,
