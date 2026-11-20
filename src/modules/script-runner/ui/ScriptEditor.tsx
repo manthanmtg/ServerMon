@@ -20,15 +20,21 @@ import { shell } from '@codemirror/legacy-modes/mode/shell';
 import { highlightSelectionMatches, searchKeymap } from '@codemirror/search';
 import { oneDarkHighlightStyle } from '@codemirror/theme-one-dark';
 import { useTheme } from '@/lib/ThemeContext';
+import { javascript } from '@codemirror/lang-javascript';
+import { python } from '@codemirror/lang-python';
+import type { ScriptLanguage } from '../types';
 
 const externalEdit = Annotation.define<boolean>();
 const syntaxTheme = new Compartment();
+const languageMode = new Compartment();
 
-export default function BashEditor({
+export default function ScriptEditor({
+  language,
   value,
   onChange,
 }: {
   value: string;
+  language: ScriptLanguage;
   onChange: (text: string) => void;
 }) {
   const { theme } = useTheme();
@@ -49,10 +55,10 @@ export default function BashEditor({
           history(),
           bracketMatching(),
           highlightSelectionMatches(),
-          StreamLanguage.define(shell),
+          languageMode.of([]),
           syntaxTheme.of([]),
           keymap.of([...defaultKeymap, ...historyKeymap, ...searchKeymap]),
-          EditorView.contentAttributes.of({ 'aria-label': 'Bash script', spellcheck: 'false' }),
+          EditorView.contentAttributes.of({ 'aria-label': 'Script source', spellcheck: 'false' }),
           EditorView.updateListener.of((update) => {
             if (update.docChanged && !update.transactions.some((t) => t.annotation(externalEdit))) {
               onChange(update.state.doc.toString());
@@ -81,6 +87,16 @@ export default function BashEditor({
     const highlights = theme.type === 'dark' ? oneDarkHighlightStyle : defaultHighlightStyle;
     view.current?.dispatch({ effects: syntaxTheme.reconfigure(syntaxHighlighting(highlights)) });
   }, [theme.type, onChange]);
+
+  useEffect(() => {
+    const extension =
+      language === 'python'
+        ? python()
+        : language === 'node'
+          ? javascript()
+          : StreamLanguage.define(shell);
+    view.current?.dispatch({ effects: languageMode.reconfigure(extension) });
+  }, [language, onChange]);
 
   return <div className="sr-editor" ref={mount} />;
 }

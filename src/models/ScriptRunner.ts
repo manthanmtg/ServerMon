@@ -1,13 +1,23 @@
 import mongoose, { Schema, type Model } from 'mongoose';
-import type { RunStatus, ScriptDraft } from '@/modules/script-runner/types';
+import {
+  SCRIPT_LANGUAGES,
+  type RunStatus,
+  type ScriptDraft,
+  type ScriptLanguage,
+} from '@/modules/script-runner/types';
 
-export interface ScriptRecord extends ScriptDraft {
+type StoredDraft = Omit<ScriptDraft, 'language' | 'env'> & {
+  language?: ScriptLanguage;
+  environmentSeal?: string | null;
+};
+
+export interface ScriptRecord extends StoredDraft {
   _id: string;
   host: string;
   updatedAt: Date;
 }
 
-export interface RunRecord extends ScriptDraft {
+export interface RunRecord extends StoredDraft {
   _id: string;
   host: string;
   scriptId?: string;
@@ -29,6 +39,9 @@ interface SettingsRecord {
   logRetentionDays?: number;
   workerSeenAt?: Date;
   workerId?: string;
+  workerCapabilityId?: string;
+  workerProtocol?: number;
+  workerRuntimes?: ScriptLanguage[];
 }
 
 const draft = {
@@ -36,6 +49,8 @@ const draft = {
   host: { type: String, required: true },
   title: { type: String, required: true },
   source: { type: String, required: true, select: false },
+  language: { type: String, enum: SCRIPT_LANGUAGES },
+  environmentSeal: { type: String, select: false },
   cwd: { type: String, required: true },
   args: [{ type: String }],
   timeoutSeconds: { type: Number, required: true },
@@ -72,6 +87,9 @@ const settingsSchema = new Schema<SettingsRecord>(
     logRetentionDays: Number,
     workerSeenAt: Date,
     workerId: String,
+    workerCapabilityId: String,
+    workerProtocol: Number,
+    workerRuntimes: { type: [String], enum: SCRIPT_LANGUAGES, default: undefined },
   },
   { versionKey: false }
 );

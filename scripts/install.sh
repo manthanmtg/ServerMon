@@ -467,8 +467,8 @@ apt-get update -y || {
     exit 1; 
 }
 
-log_info "Installing core packages: curl, git, build-essential, lsof, liblzma-dev, pkg-config, snapd..."
-apt-get install -y curl git build-essential lsof liblzma-dev pkg-config snapd sudo || { log_err "Failed to install system dependencies"; exit 1; }
+log_info "Installing core packages: curl, git, build-essential, lsof, liblzma-dev, pkg-config, snapd, sudo, python3..."
+apt-get install -y curl git build-essential lsof liblzma-dev pkg-config snapd sudo python3 || { log_err "Failed to install system dependencies"; exit 1; }
 log "Installed core build and system tools"
 
 
@@ -478,15 +478,23 @@ log "Base packages and tools installed"
 # ── Step 2: Node.js & pnpm ──────────────────────────────
 step "2/${TOTAL_STEPS}" "Setting up Node.js and pnpm"
 
-if command -v node &> /dev/null; then
-    NODE_VER=$(node -v)
-    log "Node.js already installed: ${NODE_VER}"
+# The execution account uses the system-wide runtime search path.
+SCRIPT_RUNTIME_PATH="/usr/local/bin:/usr/bin:/bin"
+SCRIPT_NODE_PATH=$(PATH="$SCRIPT_RUNTIME_PATH" command -v node || true)
+NODE_VER=""
+if [ -n "$SCRIPT_NODE_PATH" ]; then
+    NODE_VER=$("$SCRIPT_NODE_PATH" -v)
+fi
+if [[ "$NODE_VER" =~ ^v([0-9]+)\.([0-9]+)\. ]] &&
+    (( BASH_REMATCH[1] > 20 || (BASH_REMATCH[1] == 20 && BASH_REMATCH[2] >= 9) )); then
+    log "System-wide Node.js already installed: ${NODE_VER}"
 else
     log_info "Setting up NodeSource repository for Node.js v20..."
     curl -fsSL https://deb.nodesource.com/setup_20.x 2>/dev/null | bash - > /dev/null 2>&1
     log_info "Installing nodejs package..."
     apt-get install -qq -y nodejs > /dev/null 2>&1
-    log "Node.js $(node -v) installed"
+    SCRIPT_NODE_PATH=/usr/bin/node
+    log "Node.js $("$SCRIPT_NODE_PATH" -v) installed"
 fi
 
 if command -v pnpm &> /dev/null; then
@@ -554,7 +562,7 @@ install -d -m 0755 -o root -g root /usr/local/libexec
 SCRIPT_HELPERS_DIR=$(mktemp -d /usr/local/libexec/.servermon-scripts.XXXXXX)
 trap 'rm -rf -- "$SCRIPT_HELPERS_DIR"' EXIT
 install -o root -g root -m 0755 "${SOURCE_DIR}/scripts/servermon-script-control.sh" "$SCRIPT_HELPERS_DIR/servermon-script-control"
-install -o root -g root -m 0755 "${SOURCE_DIR}/scripts/servermon-script-execute.sh" "$SCRIPT_HELPERS_DIR/servermon-script-execute"
+install -o root -g root -m 0755 "${SOURCE_DIR}/scripts/servermon-script-execute.py" "$SCRIPT_HELPERS_DIR/servermon-script-execute"
 
 # Prepare new release directory (build happens here to minimize downtime)
 mkdir -p "$RELEASES_DIR"
@@ -786,6 +794,10 @@ if ! id "$SCRIPT_RUNNER_USER" &>/dev/null; then
     useradd --system --user-group --home-dir /var/lib/servermon-script --create-home \
         --shell /usr/sbin/nologin "$SCRIPT_RUNNER_USER"
 fi
+if ! runuser -u "$SCRIPT_RUNNER_USER" -- "$SCRIPT_NODE_PATH" --version >/dev/null; then
+    log_err "The Script Runner account cannot execute the system Node.js interpreter."
+    exit 1
+fi
 install -d -m 0750 -o "$SCRIPT_RUNNER_USER" -g "$SERVICE_USER" /var/lib/servermon-script
 install -d -m 0700 -o "$SERVICE_USER" -g "$SERVICE_USER" /var/lib/servermon/script-runner
 mv -fT "$SCRIPT_HELPERS_DIR/servermon-script-control" /usr/local/libexec/servermon-script-control
@@ -900,7 +912,6 @@ WORKEREOF
 
 log_info "Systemd service file created at /etc/systemd/system/${APPS_WORKER_SERVICE_NAME}.service"
 
-SCRIPT_NODE_PATH=$(command -v node)
 cat > "/etc/systemd/system/${SCRIPT_WORKER_SERVICE_NAME}.service" <<SCRIPTWORKEREOF
 [Unit]
 Description=ServerMon Script Runner worker

@@ -417,8 +417,8 @@ function checkAppsWorkerContract(): void {
 
 function checkScriptRunnerContract(): void {
   const install = 'scripts/install.sh';
-  for (const script of ['servermon-script-control.sh', 'servermon-script-execute.sh']) {
-    requireBashSyntax(`scripts/${script}`);
+  requireBashSyntax('scripts/servermon-script-control.sh');
+  for (const script of ['servermon-script-control.sh', 'servermon-script-execute.py']) {
     requireContains(
       install,
       `scripts/${script}`,

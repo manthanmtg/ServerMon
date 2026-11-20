@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { isObjectIdOrHexString } from 'mongoose';
 import User from '@/models/User';
+import { EnvironmentKeyError } from '@/lib/script-runner/environment';
 import connectDB from '@/lib/db';
 import { createLogger } from '@/lib/logger';
 import { getSession } from '@/lib/session';
@@ -55,6 +56,7 @@ export async function authorized(
     return await action(actor);
   } catch (error) {
     if (error instanceof RequestError) return failure(error.message, error.status);
+    if (error instanceof EnvironmentKeyError) return failure(error.message, 503);
     if (error instanceof z.ZodError)
       return failure(error.issues[0]?.message ?? 'Invalid request.', 400);
     log.error('Script Runner request failed', {

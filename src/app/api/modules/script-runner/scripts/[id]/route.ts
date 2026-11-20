@@ -1,5 +1,5 @@
-import { runIdInput, scriptInput } from '@/lib/script-runner/schemas';
-import { findScript, scriptResponse } from '@/lib/script-runner/store';
+import { runIdInput, scriptPatchInput } from '@/lib/script-runner/schemas';
+import { findScript, scriptResponse, storedDraft } from '@/lib/script-runner/store';
 import { authorized, body, data, failure, type ById } from '../../_shared';
 
 export const dynamic = 'force-dynamic';
@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic';
 export function GET(request: Request, { params }: ById) {
   return authorized(request, async () => {
     const script = await findScript(runIdInput.parse((await params).id))
-      .select('+source')
+      .select('+source +environmentSeal')
       .lean();
     return script ? data(scriptResponse(script)) : failure('Script not found.', 404);
   });
@@ -15,10 +15,10 @@ export function GET(request: Request, { params }: ById) {
 
 export function PATCH(request: Request, { params }: ById) {
   return authorized(request, async () => {
-    const draft = await body(request, scriptInput);
+    const draft = await body(request, scriptPatchInput);
     const script = await findScript(runIdInput.parse((await params).id))
-      .findOneAndUpdate({}, { $set: draft }, { returnDocument: 'after' })
-      .select('+source')
+      .findOneAndUpdate({}, { $set: storedDraft(draft) }, { returnDocument: 'after' })
+      .select('+source +environmentSeal')
       .lean();
     return script ? data(scriptResponse(script)) : failure('Script not found.', 404);
   });

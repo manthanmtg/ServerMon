@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { spawn } from 'node:child_process';
@@ -25,7 +25,7 @@ describe('Script Runner', () => {
   it('runs the launch protocol in the selected directory with arguments and closed stdin', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'shell runner '));
     temporary.push(directory);
-    const procedure = spawn('/bin/bash', [resolve('scripts/servermon-script-execute.sh')], {
+    const procedure = spawn('python3', ['-I', resolve('scripts/servermon-script-execute.py')], {
       env: { ...process.env, RUNTIME_DIRECTORY: directory, MONGO_URI: 'should-not-reach-script' },
     });
     const file = join(directory, 'output');
@@ -35,7 +35,7 @@ describe('Script Runner', () => {
         cwd: directory,
         args: ['space and $dollar', ''],
         source:
-          'printf "%s|%s|%s|%s|%s\\n" "$PWD" "$1" "$#" "${MONGO_URI-unset}" "${2-empty}"; if read -r line; then exit 99; fi; printf "warning" >&2; exit 17',
+          'printf "%s|%s|%s|%s|%s\\n" "$PWD" "$1" "$#" "${MONGO_URI-unset}" "${2-empty}"; if read -r line; then exit 99; fi; [[ ${0##*/} == script.sh ]] || exit 98; printf "warning" >&2; exit 17',
       })
     );
     expect(await result).toMatchObject({ code: 17, signal: null, truncated: false });
@@ -51,6 +51,32 @@ describe('Script Runner', () => {
     );
     expect((await readOutput(file, output.cursor)).entries).toEqual([]);
     expect(await readFile(file, 'utf8')).toContain('"stream":"stdout"');
+  });
+
+  it('runs Python with local imports and literal environment values', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'python runner '));
+    temporary.push(directory);
+    await writeFile(join(directory, 'local_value.py'), 'marker = "from cwd"\n');
+    const procedure = spawn('python3', ['-I', resolve('scripts/servermon-script-execute.py')], {
+      env: { ...process.env, RUNTIME_DIRECTORY: directory, JWT_SECRET: 'should-not-reach-script' },
+    });
+    const file = join(directory, 'output');
+    const result = captureOutput(procedure, file);
+    procedure.stdin.end(
+      encodeLaunch({
+        language: 'python',
+        cwd: directory,
+        args: ['two words'],
+        env: [{ key: 'RUN_VALUE', value: '  literal $x=  \nsecond line' }],
+        source:
+          'import os, sys\nfrom local_value import marker\nprint(marker, sys.argv[1], repr(os.environ["RUN_VALUE"]), os.getenv("JWT_SECRET"), sep="|")',
+      })
+    );
+    expect(await result).toMatchObject({ code: 0, signal: null, truncated: false });
+    const output = await readOutput(file, 0);
+    expect(output.entries.map(({ text }) => text).join('')).toBe(
+      "from cwd|two words|'  literal $x=  \\nsecond line'|None\n"
+    );
   });
 
   it('drains a noisy script after reaching the disk limit', async () => {

@@ -5,7 +5,8 @@ action=${1:-}
 if [[ "$action" == probe && $# == 1 ]]; then
     [[ -x /usr/local/libexec/servermon-script-execute ]]
     [[ $(/usr/bin/id -u servermon-script) -gt 0 ]]
-    exec /usr/bin/systemctl show --property=Version --value
+    /usr/bin/systemctl show --property=Version --value >/dev/null
+    exec /usr/sbin/runuser -u servermon-script -- /usr/local/libexec/servermon-script-execute --runtimes
 fi
 
 id=${2:-}

@@ -1,13 +1,47 @@
 import { execFile, spawn } from 'node:child_process';
 import { promisify } from 'node:util';
-import type { ScriptDraft } from '@/modules/script-runner/types';
+import {
+  SCRIPT_LANGUAGES,
+  type ScriptDraft,
+  type ScriptLanguage,
+} from '@/modules/script-runner/types';
 
 const execute = promisify(execFile);
 const SUDO_PATH = '/usr/bin/sudo';
 const CONTROL_PATH = '/usr/local/libexec/servermon-script-control';
 
-export function encodeLaunch({ cwd, args, source }: Pick<ScriptDraft, 'cwd' | 'args' | 'source'>) {
-  return [cwd, String(args.length), ...args, source].join('\0');
+type LaunchPayload = Pick<ScriptDraft, 'cwd' | 'args' | 'source'> &
+  Partial<Pick<ScriptDraft, 'language' | 'env'>>;
+
+export function encodeLaunch(
+  { cwd, args, source, language = 'bash', env = [] }: LaunchPayload,
+  protocol = 2
+) {
+  if (protocol === 1) return [cwd, String(args.length), ...args, source].join('\0');
+  return [
+    'script-runner-v2',
+    language,
+    cwd,
+    String(args.length),
+    ...args,
+    String(env.length),
+    ...env.flatMap(({ key, value }) => [key, value]),
+    source,
+  ].join('\0');
+}
+
+export interface RunnerCapabilities {
+  protocol: number;
+  runtimes: ScriptLanguage[];
+}
+
+export function parseRunnerProbe(output: string): RunnerCapabilities {
+  const [header, ...available] = output.trim().split(/\r?\n/);
+  if (header !== 'script-runner-v2') return { protocol: 1, runtimes: ['bash'] };
+  return {
+    protocol: 2,
+    runtimes: SCRIPT_LANGUAGES.filter((language) => available.includes(language)),
+  };
 }
 
 export function parseUnit(output: string) {
@@ -47,7 +81,7 @@ async function control(action: 'probe' | 'inspect' | 'stop' | 'forget', runId?: 
   return stdout;
 }
 
-export const probeRunner = () => control('probe');
+export const probeRunner = async () => parseRunnerProbe(await control('probe'));
 export const inspectUnit = async (id: string) => parseUnit(await control('inspect', id));
 export const stopUnit = (id: string) => control('stop', id);
 export const forgetUnit = (id: string) => control('forget', id);

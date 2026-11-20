@@ -2,6 +2,7 @@ import { hostname } from 'node:os';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { runIdInput } from './schemas';
+import { openEnvironment, sealEnvironment } from './environment';
 import {
   ScriptRunnerRun,
   ScriptRunnerScript,
@@ -14,6 +15,7 @@ import {
   type RunnerOverview,
   type SavedScript,
   type ScriptDraft,
+  type ScriptLanguage,
   type ScriptRun,
   type ScriptSummary,
 } from '@/modules/script-runner/types';
@@ -34,6 +36,7 @@ export function runResponse(run: RunRecord): ScriptRun {
     id: run._id,
     scriptId: run.scriptId,
     title: run.title,
+    language: run.language ?? 'bash',
     cwd: run.cwd,
     args: run.args,
     timeoutSeconds: run.timeoutSeconds,
@@ -55,6 +58,7 @@ function scriptSummary(script: ScriptRecord): ScriptSummary {
   return {
     id: script._id,
     title: script.title,
+    language: script.language ?? 'bash',
     cwd: script.cwd,
     updatedAt: script.updatedAt.toISOString(),
   };
@@ -64,6 +68,7 @@ export function scriptResponse(script: ScriptRecord): SavedScript {
   return {
     ...scriptSummary(script),
     source: script.source,
+    env: openEnvironment(script.environmentSeal),
     args: script.args,
     timeoutSeconds: script.timeoutSeconds,
   };
@@ -77,6 +82,16 @@ export function workerOnline(seenAt?: Date) {
   return supported && !!seenAt && Date.now() - seenAt.getTime() < WORKER_STALE_MS;
 }
 
+export function workerCapabilities(settings: Awaited<ReturnType<typeof runnerSettings>>) {
+  if (settings?.workerId && settings.workerCapabilityId === settings.workerId) {
+    return {
+      protocol: settings.workerProtocol ?? 1,
+      runtimes: settings.workerRuntimes ?? (['bash'] satisfies ScriptLanguage[]),
+    };
+  }
+  return { protocol: 1, runtimes: ['bash'] satisfies ScriptLanguage[] };
+}
+
 export async function overview(before?: string): Promise<RunnerOverview> {
   const cursor = before
     ? await ScriptRunnerRun.findOne({ _id: before, host: runnerHost }).select('createdAt').lean()
@@ -84,7 +99,7 @@ export async function overview(before?: string): Promise<RunnerOverview> {
   const terminal = { host: runnerHost, status: { $nin: ACTIVE_STATUSES } };
   const [scripts, active, history, settings, recentRuns] = await Promise.all([
     ScriptRunnerScript.find({ host: runnerHost })
-      .select('title cwd updatedAt')
+      .select('title language cwd updatedAt')
       .sort({ title: 1 })
       .lean(),
     ScriptRunnerRun.find({ host: runnerHost, status: { $in: ACTIVE_STATUSES } })
@@ -109,14 +124,18 @@ export async function overview(before?: string): Promise<RunnerOverview> {
       .limit(60)
       .lean(),
   ]);
+  const capabilities = workerCapabilities(settings);
+  const online = workerOnline(settings?.workerSeenAt);
   return {
     scripts: scripts.map(scriptSummary),
     active: active.map(runResponse),
     history: history.slice(0, historySize).map(runResponse),
     nextHistoryCursor: history.length > historySize ? history[historySize - 1]._id : undefined,
     recentDirectories: [...new Set(recentRuns.map((run) => run.cwd))].slice(0, 6),
-    online: workerOnline(settings?.workerSeenAt),
+    online,
     supported,
+    runtimes: online ? capabilities.runtimes : [],
+    environmentSupport: capabilities.protocol >= 2,
     logRetentionDays: settings?.logRetentionDays ?? DEFAULT_RETENTION_DAYS,
   };
 }
@@ -129,8 +148,19 @@ export function findScript(id: string) {
   return ScriptRunnerScript.findOne({ _id: id, host: runnerHost });
 }
 
+export function storedDraft({
+  env,
+  ...draft
+}: Omit<ScriptDraft, 'language' | 'env'> & Partial<Pick<ScriptDraft, 'language' | 'env'>>) {
+  return env === undefined ? draft : { ...draft, environmentSeal: sealEnvironment(env) };
+}
+
 export async function storeScript(draft: ScriptDraft) {
-  const script = await ScriptRunnerScript.create({ ...draft, _id: randomUUID(), host: runnerHost });
+  const script = await ScriptRunnerScript.create({
+    ...storedDraft(draft),
+    _id: randomUUID(),
+    host: runnerHost,
+  });
   return scriptResponse(script);
 }
 

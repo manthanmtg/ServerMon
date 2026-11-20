@@ -6,8 +6,17 @@ import { createLogger } from '@/lib/logger';
 import { ScriptRunnerRun, ScriptRunnerSettings, type RunRecord } from '@/models/ScriptRunner';
 import { DEFAULT_RETENTION_DAYS } from '@/modules/script-runner/types';
 import { captureOutput } from './output';
+import { openEnvironment } from './environment';
 import { findRun, outputPath, resultPath, runnerHost, runnerSettings, supported } from './store';
-import { encodeLaunch, forgetUnit, inspectUnit, probeRunner, startUnit, stopUnit } from './systemd';
+import {
+  encodeLaunch,
+  forgetUnit,
+  inspectUnit,
+  probeRunner,
+  startUnit,
+  stopUnit,
+  type RunnerCapabilities,
+} from './systemd';
 
 const log = createLogger('script-runner:worker');
 const CONCURRENCY = 2;
@@ -53,14 +62,38 @@ async function stopIfAlive(id: string) {
   }
 }
 
-async function executeRun(run: RunRecord, task: Task) {
+async function executeRun(run: RunRecord, task: Task, capabilities: RunnerCapabilities) {
   const id = run._id;
+  const language = run.language ?? 'bash';
+  let env;
+  try {
+    env = openEnvironment(run.environmentSeal);
+  } catch {
+    await persistResult(
+      id,
+      finishResult({ status: 'failed', message: 'The run environment could not be decrypted.' }),
+      false
+    );
+    return;
+  }
+  if (!capabilities.runtimes.includes(language) || (env.length > 0 && capabilities.protocol < 2)) {
+    await persistResult(
+      id,
+      finishResult({
+        status: 'failed',
+        message: 'The script worker does not support this launch configuration.',
+      }),
+      false
+    );
+    return;
+  }
+  const payload = encodeLaunch({ ...run, language, env }, capabilities.protocol);
   const child = startUnit(id, run.timeoutSeconds);
   const capturing = captureOutput(child, outputPath(id));
   child.stdin.on('error', () => {
     // A failed or stopped launch can close the input before the payload is sent.
   });
-  child.stdin.end(encodeLaunch(run));
+  child.stdin.end(payload);
   const capture = await capturing;
   const [stopped, shutdown] = await Promise.all([task.stop, task.shutdown]);
   const unit = await inspectUnit(id).catch((error) => {
@@ -176,7 +209,7 @@ async function cleanExpiredLogs(now: number) {
 export async function runWorker(signal: AbortSignal) {
   if (!supported) throw new Error('Script Runner requires Linux and systemd.');
   await connectDB();
-  await probeRunner();
+  let capabilities = await probeRunner();
   const workerId = randomUUID();
   const tasks = new Map<string, Task>();
   let nextHeartbeat = 0;
@@ -206,13 +239,21 @@ export async function runWorker(signal: AbortSignal) {
 
     if (signal.aborted) return;
     if (Date.now() >= nextProbe) {
-      await probeRunner();
+      capabilities = await probeRunner();
       nextProbe = Date.now() + PROBE_MS;
     }
     if (Date.now() >= nextHeartbeat) {
       await ScriptRunnerSettings.updateOne(
         { _id: runnerHost },
-        { $set: { workerId, workerSeenAt: new Date() } },
+        {
+          $set: {
+            workerId,
+            workerSeenAt: new Date(),
+            workerCapabilityId: workerId,
+            workerProtocol: capabilities.protocol,
+            workerRuntimes: capabilities.runtimes,
+          },
+        },
         { upsert: true }
       );
       nextHeartbeat = Date.now() + HEARTBEAT_MS;
@@ -224,13 +265,13 @@ export async function runWorker(signal: AbortSignal) {
         { $set: { status: 'running', startedAt: new Date() } },
         { sort: { createdAt: 1, _id: 1 }, returnDocument: 'after' }
       )
-        .select('+source')
+        .select('+source +environmentSeal')
         .lean();
       if (!run) break;
       if (signal.aborted) break;
       const task: Task = { done: Promise.resolve() };
       tasks.set(run._id, task);
-      task.done = executeRun(run, task)
+      task.done = executeRun(run, task, capabilities)
         .catch((error) => log.error('Script run requires recovery', { id: run._id, error }))
         .finally(() => tasks.delete(run._id));
     }

@@ -20,6 +20,7 @@ import {
   Settings2,
   SquareTerminal,
   Trash2,
+  Variable,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/toast';
@@ -28,24 +29,31 @@ import {
   DEFAULT_RETENTION_DAYS,
   DEFAULT_TIMEOUT_SECONDS,
   isActiveRun,
+  SCRIPT_LANGUAGES,
+  SCRIPT_RUNTIMES,
   type RunnerOverview,
+  type RunSnapshot,
   type SavedScript,
   type ScriptDraft,
+  type ScriptLanguage,
   type ScriptRun,
 } from '../types';
 import { errorMessage, requestId, runnerRequest } from './client';
-import BashLaunchDialog from './LaunchDialog';
+import LaunchDialog from './LaunchDialog';
+import RunConfiguration, { validConfiguration } from './RunConfiguration';
 import RunConsole, { elapsed, RunBadge } from './RunConsole';
 import RunnerDialog from './RunnerDialog';
 import './script-runner.css';
 
-const BashEditor = dynamic(() => import('./BashEditor'), {
+const ScriptEditor = dynamic(() => import('./ScriptEditor'), {
   ssr: false,
-  loading: () => <div className="sr-editor sr-editor-loading">Loading Bash editor…</div>,
+  loading: () => <div className="sr-editor sr-editor-loading">Loading editor…</div>,
 });
 
 const starter: ScriptDraft = {
   title: 'Host snapshot',
+  language: 'bash',
+  env: [],
   source:
     '#!/usr/bin/env bash\nset -euo pipefail\n\nprintf "Host: %s\\n" "$(hostname)"\nprintf "Working directory: %s\\n" "$PWD"\nprintf "\\nDisk usage\\n"\ndf -h .\n',
   cwd: DEFAULT_CWD,
@@ -53,11 +61,25 @@ const starter: ScriptDraft = {
   timeoutSeconds: DEFAULT_TIMEOUT_SECONDS,
 };
 
-const emptyDraft = {
-  ...starter,
-  title: 'Untitled script',
-  source: '#!/usr/bin/env bash\nset -euo pipefail\n\n',
+const templates: Record<ScriptLanguage, string> = {
+  bash: '#!/usr/bin/env bash\nset -euo pipefail\n\n',
+  python: 'from pathlib import Path\n\nprint(Path.cwd())\n',
+  node: 'console.log(process.cwd());\n',
 };
+
+const emptyDraft: ScriptDraft = { ...starter, title: 'Untitled script', source: templates.bash };
+
+function draftFields({
+  title,
+  source,
+  language,
+  cwd,
+  args,
+  env,
+  timeoutSeconds,
+}: ScriptDraft): ScriptDraft {
+  return { title, source, language: language ?? 'bash', cwd, args, env: env ?? [], timeoutSeconds };
+}
 
 type Launch = { draft: ScriptDraft; scriptId?: string; replay?: boolean };
 type Tab = 'active' | 'history';
@@ -200,7 +222,9 @@ function RunList({
                   <FileCode2 size={17} />
                   <span>
                     <strong>{run.title}</strong>
-                    <small title={run.cwd}>{run.cwd}</small>
+                    <small title={run.cwd}>
+                      {SCRIPT_RUNTIMES[run.language ?? 'bash'].label} · {run.cwd}
+                    </small>
                   </span>
                 </span>
                 <RunBadge run={run} />
@@ -273,6 +297,8 @@ export default function ScriptRunnerPage() {
   const [saved, setSaved] = useState<ScriptDraft | null>(null);
   const [query, setQuery] = useState('');
   const [tab, setTab] = useState<Tab>('active');
+  const [view, setView] = useState<'workspace' | 'runs'>('workspace');
+  const [editorView, setEditorView] = useState<'source' | 'defaults'>('source');
   const [selection, setSelection] = useState<ScriptRun | null>(null);
   const [launch, setLaunch] = useState<Launch | null>(null);
   const [settings, setSettings] = useState(false);
@@ -314,7 +340,9 @@ export default function ScriptRunnerPage() {
     };
   }, [refresh]);
 
-  const valid = !!draft.title.trim() && !!draft.source.trim();
+  const hasSource = !!draft.title.trim() && !!draft.source.trim();
+  const valid = hasSource && validConfiguration(draft);
+  const runtime = SCRIPT_RUNTIMES[draft.language];
   const dirty = JSON.stringify(draft) !== JSON.stringify(saved ?? baseline);
   const hasOnlineWorker = !!overview?.online;
   const scripts = overview?.scripts ?? [];
@@ -333,6 +361,15 @@ export default function ScriptRunnerPage() {
     setDraft((old) => ({ ...old, source }));
   }, []);
 
+  function selectLanguage(language: ScriptLanguage) {
+    setDraft((current) => {
+      const isTemplate =
+        current.source === templates[current.language] ||
+        (current.language === 'bash' && current.source === starter.source);
+      return { ...current, language, source: isTemplate ? templates[language] : current.source };
+    });
+  }
+
   function replaceDraft(next: () => void) {
     if (dirty) setDiscard({ next });
     else next();
@@ -340,6 +377,8 @@ export default function ScriptRunnerPage() {
 
   function newDraft() {
     replaceDraft(() => {
+      setView('workspace');
+      setEditorView('source');
       setDraft(emptyDraft);
       setEditorKey((key) => key + 1);
       setBaseline(emptyDraft);
@@ -355,8 +394,8 @@ export default function ScriptRunnerPage() {
     setActionError('');
     try {
       const response = await runnerRequest<SavedScript>(`/scripts/${id}`);
-      const { title, source, cwd, args, timeoutSeconds } = response;
-      const loaded = { title, source, cwd, args, timeoutSeconds };
+      const loaded = draftFields(response);
+      setEditorView('source');
       setScriptId(response.id);
       setDraft(loaded);
       setEditorKey((key) => key + 1);
@@ -373,13 +412,7 @@ export default function ScriptRunnerPage() {
       method: id ? 'PATCH' : 'POST',
       body: JSON.stringify(next),
     });
-    const committed = {
-      title: response.title,
-      source: response.source,
-      cwd: response.cwd,
-      args: response.args,
-      timeoutSeconds: response.timeoutSeconds,
-    };
+    const committed = draftFields(response);
     setDraft((current) => (current === draft ? committed : current));
     setSaved(committed);
     setScriptId(response.id);
@@ -408,6 +441,7 @@ export default function ScriptRunnerPage() {
       await runnerRequest(`/scripts/${scriptId}`, { method: 'DELETE' });
       setScriptId(undefined);
       setDraft(starter);
+      setEditorView('source');
       setEditorKey((key) => key + 1);
       setBaseline(starter);
       setSaved(null);
@@ -423,7 +457,8 @@ export default function ScriptRunnerPage() {
 
   function selectRun(run: ScriptRun) {
     setSelection(run);
-    if (window.matchMedia('(max-width: 1299px)').matches) {
+    setView('runs');
+    if (window.matchMedia('(max-width: 920px)').matches) {
       requestAnimationFrame(() =>
         document.getElementById('script-run-console')?.scrollIntoView({
           block: 'nearest',
@@ -451,7 +486,7 @@ export default function ScriptRunnerPage() {
       body: JSON.stringify({ ...next, id: pending.id, scriptId: pending.scriptId }),
     });
     disposeLaunch();
-    setTab('active');
+    setTab(isActiveRun(run.status) ? 'active' : 'history');
     selectRun(run);
     setOverview((current) =>
       current && isActiveRun(run.status)
@@ -471,19 +506,13 @@ export default function ScriptRunnerPage() {
   async function rerun(run: ScriptRun) {
     setActionError('');
     try {
-      const snapshot = await runnerRequest<ScriptRun & { source: string }>(`/runs/${run.id}`);
+      const snapshot = await runnerRequest<RunSnapshot>(`/runs/${run.id}`);
       setLaunch({
         replay: true,
         scriptId: scripts.some((script) => script.id === snapshot.scriptId)
           ? snapshot.scriptId
           : undefined,
-        draft: {
-          title: snapshot.title,
-          source: snapshot.source,
-          cwd: snapshot.cwd,
-          args: snapshot.args,
-          timeoutSeconds: snapshot.timeoutSeconds,
-        },
+        draft: draftFields(snapshot),
       });
     } catch (error) {
       setActionError(errorMessage(error));
@@ -514,7 +543,7 @@ export default function ScriptRunnerPage() {
           </div>
           <div>
             <h1>Script Runner</h1>
-            <p>Write Bash scripts, run them in the background, and follow their output.</p>
+            <p>Write scripts, set launch defaults, and follow background runs.</p>
           </div>
         </div>
         <div className="sr-hero-actions">
@@ -544,7 +573,20 @@ export default function ScriptRunnerPage() {
         </p>
       )}
 
-      <div className="sr-workspace">
+      <nav className="sr-view-bar" aria-label="Script Runner views">
+        <button
+          type="button"
+          aria-pressed={view === 'workspace'}
+          onClick={() => setView('workspace')}
+        >
+          <Braces size={17} /> Workspace
+        </button>
+        <button type="button" aria-pressed={view === 'runs'} onClick={() => setView('runs')}>
+          <Activity size={17} /> Runs {active.length > 0 && <span>{active.length} active</span>}
+        </button>
+      </nav>
+
+      <div className="sr-workspace" hidden={view !== 'workspace'}>
         <section className="sr-panel sr-library" aria-label="Script library">
           <header className="sr-panel-header">
             <div>
@@ -552,14 +594,14 @@ export default function ScriptRunnerPage() {
               <h2>Library</h2>
             </div>
             <Button
-              variant="ghost"
-              size="icon"
+              variant="outline"
+              size="sm"
               onClick={newDraft}
               disabled={working}
               title="New script"
               aria-label="New script"
             >
-              <Plus size={19} />
+              <Plus size={15} /> New
             </Button>
           </header>
           {scripts.length > 0 ? (
@@ -588,7 +630,9 @@ export default function ScriptRunnerPage() {
                       <FileCode2 size={16} />
                       <span>
                         <strong>{script.title}</strong>
-                        <small title={script.cwd}>{script.cwd}</small>
+                        <small title={script.cwd}>
+                          {SCRIPT_RUNTIMES[script.language ?? 'bash'].label} · {script.cwd}
+                        </small>
                       </span>
                     </button>
                   ))
@@ -651,19 +695,73 @@ export default function ScriptRunnerPage() {
               </Button>
             )}
           </div>
-          <div className="sr-code-frame">
-            <div className="sr-code-header">
-              <span>
-                <FileCode2 size={14} /> script.sh
-              </span>
-              <code>Bash</code>
+          <div className="sr-document-bar">
+            <div className="sr-segment" aria-label="Script editing view">
+              <button
+                type="button"
+                aria-pressed={editorView === 'source'}
+                onClick={() => setEditorView('source')}
+              >
+                <FileCode2 size={15} /> Source
+              </button>
+              <button
+                type="button"
+                aria-pressed={editorView === 'defaults'}
+                onClick={() => setEditorView('defaults')}
+              >
+                <Settings2 size={15} /> Run defaults
+              </button>
             </div>
-            <BashEditor key={editorKey} value={draft.source} onChange={updateSource} />
+            <label className="sr-runtime-select">
+              <span>Runtime</span>
+              <select
+                aria-label="Script runtime"
+                value={draft.language}
+                onChange={(event) => selectLanguage(event.currentTarget.value as ScriptLanguage)}
+              >
+                {SCRIPT_LANGUAGES.map((language) => (
+                  <option key={language} value={language}>
+                    {SCRIPT_RUNTIMES[language].label}
+                  </option>
+                ))}
+              </select>
+            </label>
           </div>
+          <div className="sr-code-frame" hidden={editorView !== 'source'}>
+            <div className="sr-code-header" data-language={draft.language}>
+              <span>
+                <FileCode2 size={14} /> {runtime.filename}
+              </span>
+              <code>{runtime.label}</code>
+            </div>
+            <ScriptEditor
+              key={editorKey}
+              language={draft.language}
+              value={draft.source}
+              onChange={updateSource}
+            />
+          </div>
+          {editorView === 'defaults' && (
+            <div className="sr-defaults-panel">
+              <RunConfiguration
+                value={draft}
+                onChange={(configuration) =>
+                  setDraft((current) => ({ ...current, ...configuration }))
+                }
+                recent={overview?.recentDirectories ?? []}
+                scope="defaults"
+              />
+            </div>
+          )}
           <div className="sr-author-actions">
             <span className="sr-default-dir" title={draft.cwd}>
               <FolderOpen size={15} />
               <span>{draft.cwd}</span>
+              {draft.env.length > 0 && (
+                <span className="sr-env-count">
+                  <Variable size={14} /> {draft.env.length}
+                </span>
+              )}
             </span>
             <div>
               <Button
@@ -676,37 +774,42 @@ export default function ScriptRunnerPage() {
               </Button>
               <Button
                 className="sr-run-button"
-                disabled={!valid || working}
+                disabled={!hasSource || working}
                 onClick={() => setLaunch({ draft, scriptId })}
               >
-                <Play size={15} fill="currentColor" /> Run
+                <Play size={15} fill="currentColor" /> Configure run
               </Button>
             </div>
           </div>
         </section>
-
-        <RunConsole run={selected} onRerun={(run) => void rerun(run)} />
       </div>
 
-      <RunList
-        active={active}
-        history={history}
-        historyCursor={more ? more.next : overview?.nextHistoryCursor}
-        historyBusy={historyBusy}
-        selectedId={selected?.id}
-        onSelect={selectRun}
-        onMore={(cursor) => void loadEarlier(cursor)}
-        onRerun={(run) => void rerun(run)}
-        tab={tab}
-        onTab={setTab}
-        loading={!overview}
-      />
+      {view === 'runs' && (
+        <div className="sr-runs-workspace">
+          <RunList
+            active={active}
+            history={history}
+            historyCursor={more ? more.next : overview?.nextHistoryCursor}
+            historyBusy={historyBusy}
+            selectedId={selected?.id}
+            onSelect={selectRun}
+            onMore={(cursor) => void loadEarlier(cursor)}
+            onRerun={(run) => void rerun(run)}
+            tab={tab}
+            onTab={setTab}
+            loading={!overview}
+          />
+          <RunConsole run={selected} onRerun={(run) => void rerun(run)} />
+        </div>
+      )}
 
       {launch && (
-        <BashLaunchDialog
+        <LaunchDialog
           draft={launch.draft}
           recent={overview?.recentDirectories ?? []}
           online={hasOnlineWorker}
+          runtimes={overview?.runtimes ?? ['bash']}
+          environmentSupport={!!overview?.environmentSupport}
           canSave={!launch.replay}
           onClose={disposeLaunch}
           onLaunch={start}

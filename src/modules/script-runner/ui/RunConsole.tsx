@@ -13,7 +13,13 @@ import {
   WrapText,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { isActiveRun, type OutputBatch, type OutputEntry, type ScriptRun } from '../types';
+import {
+  SCRIPT_RUNTIMES,
+  isActiveRun,
+  type OutputBatch,
+  type OutputEntry,
+  type ScriptRun,
+} from '../types';
 import { errorMessage, runnerApi, runnerRequest, statusLabels } from './client';
 
 const VIEW_CHARS = 400_000;
@@ -128,7 +134,12 @@ function OutputConsole({
     <>
       <div className="sr-console-run">
         <div>
-          <h3>{run.title}</h3>
+          <h3>
+            {run.title}{' '}
+            <span className="sr-console-runtime">
+              {SCRIPT_RUNTIMES[run.language ?? 'bash'].label}
+            </span>
+          </h3>
           <p title={run.cwd}>
             <FolderOpen size={13} /> <span>{run.cwd}</span>
           </p>
