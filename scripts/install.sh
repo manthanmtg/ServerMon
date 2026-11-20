@@ -23,6 +23,8 @@ KEEP_RELEASES=2 # Number of releases to keep (can be changed here or via --keep-
 CONFIG_DIR="/etc/servermon"
 SERVICE_NAME="servermon"
 APPS_WORKER_SERVICE_NAME="${SERVICE_NAME}-apps-worker"
+SCRIPT_WORKER_SERVICE_NAME="${SERVICE_NAME}-script-runner-worker"
+SCRIPT_RUNNER_USER="servermon-script"
 SERVICE_USER="servermon"
 DEFAULT_PORT=8912
 DEFAULT_MONGO_URI="mongodb://localhost:27017/servermon"
@@ -204,6 +206,12 @@ if [ "$UNINSTALL" = "true" ]; then
         fi
     fi
 
+    systemctl stop "$SCRIPT_WORKER_SERVICE_NAME" 2>/dev/null || true
+    systemctl disable "$SCRIPT_WORKER_SERVICE_NAME" 2>/dev/null || true
+    systemctl stop 'servermon-script-*.service' 2>/dev/null || true
+    rm -f "/etc/systemd/system/${SCRIPT_WORKER_SERVICE_NAME}.service" \
+        /etc/sudoers.d/servermon-script-runner \
+        /usr/local/libexec/servermon-script-control /usr/local/libexec/servermon-script-execute
     systemctl stop "$APPS_WORKER_SERVICE_NAME" 2>/dev/null || true
     systemctl disable "$APPS_WORKER_SERVICE_NAME" 2>/dev/null || true
     systemctl stop "$SERVICE_NAME" 2>/dev/null || true
@@ -223,6 +231,10 @@ if [ "$UNINSTALL" = "true" ]; then
 
     if id "$SERVICE_USER" &>/dev/null; then
         userdel "$SERVICE_USER" 2>/dev/null || true
+    fi
+
+    if id "$SCRIPT_RUNNER_USER" &>/dev/null; then
+        userdel "$SCRIPT_RUNNER_USER" 2>/dev/null || true
     fi
 
     log "ServerMon has been removed."
@@ -456,7 +468,7 @@ apt-get update -y || {
 }
 
 log_info "Installing core packages: curl, git, build-essential, lsof, liblzma-dev, pkg-config, snapd..."
-apt-get install -y curl git build-essential lsof liblzma-dev pkg-config snapd || { log_err "Failed to install system dependencies"; exit 1; }
+apt-get install -y curl git build-essential lsof liblzma-dev pkg-config snapd sudo || { log_err "Failed to install system dependencies"; exit 1; }
 log "Installed core build and system tools"
 
 
@@ -536,6 +548,13 @@ SERVERMON_REPO_DIR_VALUE="$SOURCE_DIR"
 if [ "$SERVERMON_INSTALL_MODE" = "release" ]; then
     SERVERMON_REPO_DIR_VALUE=""
 fi
+
+# Stage privileged launchers before exposing the new release to its service user.
+install -d -m 0755 -o root -g root /usr/local/libexec
+SCRIPT_HELPERS_DIR=$(mktemp -d /usr/local/libexec/.servermon-scripts.XXXXXX)
+trap 'rm -rf -- "$SCRIPT_HELPERS_DIR"' EXIT
+install -o root -g root -m 0755 "${SOURCE_DIR}/scripts/servermon-script-control.sh" "$SCRIPT_HELPERS_DIR/servermon-script-control"
+install -o root -g root -m 0755 "${SOURCE_DIR}/scripts/servermon-script-execute.sh" "$SCRIPT_HELPERS_DIR/servermon-script-execute"
 
 # Prepare new release directory (build happens here to minimize downtime)
 mkdir -p "$RELEASES_DIR"
@@ -755,6 +774,36 @@ if systemctl cat "$APPS_WORKER_SERVICE_NAME" > /dev/null 2>&1; then
     fi
 fi
 
+# Stop the script worker before replacing its root-owned launchers or release.
+if systemctl cat "$SCRIPT_WORKER_SERVICE_NAME" > /dev/null 2>&1; then
+    if ! systemctl stop "$SCRIPT_WORKER_SERVICE_NAME"; then
+        log_err "Failed to stop the Script Runner worker; the current release remains linked."
+        exit 1
+    fi
+fi
+
+if ! id "$SCRIPT_RUNNER_USER" &>/dev/null; then
+    useradd --system --user-group --home-dir /var/lib/servermon-script --create-home \
+        --shell /usr/sbin/nologin "$SCRIPT_RUNNER_USER"
+fi
+install -d -m 0750 -o "$SCRIPT_RUNNER_USER" -g "$SERVICE_USER" /var/lib/servermon-script
+install -d -m 0700 -o "$SERVICE_USER" -g "$SERVICE_USER" /var/lib/servermon/script-runner
+mv -fT "$SCRIPT_HELPERS_DIR/servermon-script-control" /usr/local/libexec/servermon-script-control
+mv -fT "$SCRIPT_HELPERS_DIR/servermon-script-execute" /usr/local/libexec/servermon-script-execute
+
+SCRIPT_SUDOERS_TMP=$(mktemp /etc/sudoers.d/.servermon-script-runner.XXXXXX)
+cat > "$SCRIPT_SUDOERS_TMP" <<SCRIPTEOF
+Defaults!/usr/local/libexec/servermon-script-control !use_pty, !log_input, !log_output
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/local/libexec/servermon-script-control
+SCRIPTEOF
+chmod 0440 "$SCRIPT_SUDOERS_TMP"
+if ! visudo -cf "$SCRIPT_SUDOERS_TMP"; then
+    rm -f "$SCRIPT_SUDOERS_TMP"
+    log_err "Invalid Script Runner sudoers configuration."
+    exit 1
+fi
+mv -f "$SCRIPT_SUDOERS_TMP" /etc/sudoers.d/servermon-script-runner
+
 # Stop existing web service during upgrade to switch to new release
 if systemctl is-active --quiet "$SERVICE_NAME" 2>/dev/null; then
     SERVICE_WAS_ACTIVE="true"
@@ -851,7 +900,32 @@ WORKEREOF
 
 log_info "Systemd service file created at /etc/systemd/system/${APPS_WORKER_SERVICE_NAME}.service"
 
+SCRIPT_NODE_PATH=$(command -v node)
+cat > "/etc/systemd/system/${SCRIPT_WORKER_SERVICE_NAME}.service" <<SCRIPTWORKEREOF
+[Unit]
+Description=ServerMon Script Runner worker
+After=network.target$([ "$SKIP_MONGO_INSTALL" != "true" ] && echo " mongod.service")
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=${SERVICE_USER}
+Group=${SERVICE_USER}
+WorkingDirectory=${INSTALL_DIR}
+EnvironmentFile=${CONFIG_DIR}/env
+ExecStart=/usr/bin/flock --no-fork --nonblock /var/lib/servermon/script-runner/worker.lock ${SCRIPT_NODE_PATH} --import tsx src/workers/script-runner-worker.ts
+Restart=always
+RestartSec=5
+KillMode=mixed
+TimeoutStopSec=25
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target
+SCRIPTWORKEREOF
+
 systemctl daemon-reload
+systemctl enable "$SCRIPT_WORKER_SERVICE_NAME" > /dev/null 2>&1
 systemctl enable "$SERVICE_NAME" > /dev/null 2>&1
 log_info "Enabling ${SERVICE_NAME} service..."
 systemctl enable "$APPS_WORKER_SERVICE_NAME" > /dev/null 2>&1
@@ -860,6 +934,8 @@ systemctl start "$SERVICE_NAME" || true
 log_info "Starting ${SERVICE_NAME} service..."
 systemctl start "$APPS_WORKER_SERVICE_NAME" || true
 log_info "Starting ${APPS_WORKER_SERVICE_NAME} service..."
+systemctl start "$SCRIPT_WORKER_SERVICE_NAME" || true
+log_info "Starting ${SCRIPT_WORKER_SERVICE_NAME} service..."
 
 sleep 2
 WEB_SERVICE_ACTIVE="false"
@@ -871,9 +947,15 @@ if systemctl is-active --quiet "$APPS_WORKER_SERVICE_NAME"; then
     APPS_WORKER_ACTIVE="true"
 fi
 
-if [ "$WEB_SERVICE_ACTIVE" = "true" ] && [ "$APPS_WORKER_ACTIVE" = "true" ]; then
+SCRIPT_WORKER_ACTIVE="false"
+if systemctl is-active --quiet "$SCRIPT_WORKER_SERVICE_NAME"; then
+    SCRIPT_WORKER_ACTIVE="true"
+fi
+
+if [ "$WEB_SERVICE_ACTIVE" = "true" ] && [ "$APPS_WORKER_ACTIVE" = "true" ] && [ "$SCRIPT_WORKER_ACTIVE" = "true" ]; then
     log "ServerMon service is running"
     log "ServerMon Apps worker is running"
+    log "ServerMon Script Runner worker is running"
 
     if [ "$SERVICE_WAS_ACTIVE" = "true" ] && [ -n "$SERVICE_DOWNTIME_START_MS" ]; then
         SERVICE_DOWNTIME_END_MS="$(date +%s%3N)"
@@ -912,6 +994,8 @@ else
     log_info "Check web logs: journalctl -u ${SERVICE_NAME} -n 100 --no-pager"
     log_info "Check worker status: systemctl status ${APPS_WORKER_SERVICE_NAME} --no-pager"
     log_info "Check worker logs: journalctl -u ${APPS_WORKER_SERVICE_NAME} -n 100 --no-pager"
+    [ "$SCRIPT_WORKER_ACTIVE" != "true" ] && log_err "Script Runner worker failed to start"
+    log_info "Check script worker logs: journalctl -u ${SCRIPT_WORKER_SERVICE_NAME} -n 100 --no-pager"
     log_warn "Previous release directories were preserved for recovery."
     exit 1
 fi

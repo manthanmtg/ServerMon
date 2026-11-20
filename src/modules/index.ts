@@ -1,3 +1,4 @@
+import { scriptRunnerModule } from './script-runner/module';
 import { Module } from '@/types/module';
 import { healthModule } from './health/module';
 import { diskModule } from './disk/module';
@@ -44,6 +45,7 @@ export const coreModules: Module[] = [
   servicesModule,
   aiAgentsModule,
   aiRunnerModule,
+  scriptRunnerModule,
   networkModule,
   updatesModule,
   cronsModule,

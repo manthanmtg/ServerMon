@@ -1,0 +1,20 @@
+[Unit]
+Description=ServerMon Script Runner worker
+After=network.target mongod.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=servermon
+Group=servermon
+WorkingDirectory=/opt/servermon
+EnvironmentFile=/etc/servermon/env
+ExecStart=/usr/bin/flock --no-fork --nonblock /var/lib/servermon/script-runner/worker.lock /usr/bin/node --import tsx src/workers/script-runner-worker.ts
+Restart=always
+RestartSec=5
+KillMode=mixed
+TimeoutStopSec=25
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

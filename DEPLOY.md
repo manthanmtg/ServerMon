@@ -220,10 +220,25 @@ The upgrade:
 - Preserves your MongoDB data
 - Builds a new timestamped release and repoints `/opt/servermon`
 - Removes old release directories according to `--keep-last-n-release` (default `2`)
-- Stops the Apps worker before the web service and stable release switch
-- Starts and verifies both `servermon` and `servermon-apps-worker` before removing old releases
+- Stops the Apps and Script Runner workers before the web service and stable release switch
+- Starts and verifies the web service and both workers before removing old releases
 
 Your admin account, TOTP configuration, and all data remain intact.
+
+---
+
+## Script Runner on Linux
+
+The installer provisions `servermon-script-runner-worker.service` and a dedicated `servermon-script` account. Open **Scripts** as a ServerMon administrator. Runs start in `/var/lib/servermon-script` by default. A custom directory must be accessible to the execution account. Each script runs with isolated networking and access to local files permitted by that account.
+
+The worker runs up to two scripts at a time. Each run uses a separate systemd service so a web service restart leaves active scripts running and **Stop** terminates the run's process group. If the worker restarts with active scripts, it stops the remaining processes and reconciles their history. Shell input comes from the editor, and launch arguments are passed as Bash positional arguments.
+
+Script Runner stores output under `/var/lib/servermon/script-runner`, with up to 8 MiB of capture per run. **Scripts → Settings** controls log cleanup, which defaults to three days after completion. Scripts and run history remain available after logs expire.
+
+```bash
+systemctl status servermon-script-runner-worker
+journalctl -u servermon-script-runner-worker -n 100 --no-pager
+```
 
 ---
 

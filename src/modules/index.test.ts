@@ -77,8 +77,15 @@ describe('coreModules registry', () => {
     expect(coreModules.some((m) => m.id === 'firewall')).toBe(true);
   });
 
-  it('includes exactly 29 modules', () => {
-    expect(coreModules).toHaveLength(29);
+  it('registers Script Runner and its page', () => {
+    expect(coreModules.find((module) => module.id === 'script-runner')).toMatchObject({
+      routes: [{ path: '/scripts' }],
+      widgets: [{ component: 'ScriptRunnerWidget' }],
+    });
+  });
+
+  it('includes exactly 30 modules', () => {
+    expect(coreModules).toHaveLength(30);
   });
 
   it('every module with widgets has valid widget objects', () => {

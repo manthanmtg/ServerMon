@@ -415,6 +415,41 @@ function checkAppsWorkerContract(): void {
   );
 }
 
+function checkScriptRunnerContract(): void {
+  const install = 'scripts/install.sh';
+  for (const script of ['servermon-script-control.sh', 'servermon-script-execute.sh']) {
+    requireBashSyntax(`scripts/${script}`);
+    requireContains(
+      install,
+      `scripts/${script}`,
+      'installer must install the Script Runner launcher'
+    );
+  }
+  requireBefore(
+    install,
+    '${SOURCE_DIR}/scripts/servermon-script-control.sh',
+    'chown -R "${SERVICE_USER}:${SERVICE_USER}" "$NEW_RELEASE_DIR"',
+    'privileged launcher staging must precede handing the release to the service user'
+  );
+  requireContains(
+    'scripts/servermon-script-runner-worker.service',
+    'src/workers/script-runner-worker.ts',
+    'Script Runner service must start the worker entry point'
+  );
+  requireBefore(
+    install,
+    'if ! systemctl stop "$SCRIPT_WORKER_SERVICE_NAME"; then',
+    'ln -sfn "$NEW_RELEASE_DIR" "$INSTALL_DIR"',
+    'Script Runner worker must stop before the release switch'
+  );
+  requireBefore(
+    install,
+    'systemctl is-active --quiet "$SCRIPT_WORKER_SERVICE_NAME"',
+    'OLD_RELEASES=',
+    'Script Runner service must be checked before old-release cleanup'
+  );
+}
+
 function checkTestsCoverContracts(): void {
   requireContains(
     'src/lib/fleet/install-script.test.ts',
@@ -445,6 +480,7 @@ checkServerMonInstallUpdateContract();
 checkCiHardening();
 checkReleaseHelperContract();
 checkAppsWorkerContract();
+checkScriptRunnerContract();
 checkTestsCoverContracts();
 
 if (failures.length > 0) {
