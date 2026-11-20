@@ -3,6 +3,7 @@ import {
   DEFAULT_TIMEOUT_SECONDS,
   ENV_NAME_PATTERN,
   MAX_ENV_NAME_LENGTH,
+  MAX_ENV_GROUP_NAME_LENGTH,
   MAX_ENV_VALUE_LENGTH,
   MAX_ENV_VARS,
   MAX_SCRIPT_FOLDER_LENGTH,
@@ -55,12 +56,22 @@ const envVarIdsInput = z
   .array(runIdInput)
   .max(MAX_ENV_VARS)
   .refine((ids) => new Set(ids).size === ids.length, 'Link each variable only once');
+const envGroupIdsInput = z
+  .array(runIdInput)
+  .max(MAX_ENV_VARS)
+  .refine((ids) => new Set(ids).size === ids.length, 'Link each variable group only once');
+
+export const envGroupInput = z.strictObject({
+  name: z.string().trim().min(1, 'Give your variable group a name').max(MAX_ENV_GROUP_NAME_LENGTH),
+  variableIds: envVarIdsInput.refine((ids) => ids.length > 0, 'Choose at least one saved variable'),
+});
 
 export const scriptFolderPatchInput = z.object({ folder: folderInput }).strict();
 export const scriptInput = z.object({
   language: z.enum(SCRIPT_LANGUAGES).default('bash'),
   folder: folderInput.optional(),
   envVarIds: envVarIdsInput.optional(),
+  envGroupIds: envGroupIdsInput.optional(),
   env: environmentInput.default([]),
   title: z.string().trim().min(1, 'Give your script a name').max(80),
   source: z

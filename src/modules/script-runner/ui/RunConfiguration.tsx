@@ -10,6 +10,7 @@ import {
   Folder,
   FolderOpen,
   KeyRound,
+  Layers,
   Link2,
   Plus,
   Variable,
@@ -22,6 +23,8 @@ import {
   MAX_ENV_VALUE_LENGTH,
   MAX_ENV_VARS,
   type DirectoryListing,
+  type EnvironmentLinks,
+  type SavedEnvGroup,
   type SavedEnvVariable,
   type ScriptDraft,
   type ScriptEnvironmentVariable,
@@ -103,7 +106,8 @@ function DirectoryPicker({ start, onSelect }: { start: string; onSelect: (path: 
   );
 }
 
-type Configuration = Pick<ScriptDraft, 'cwd' | 'args' | 'timeoutSeconds' | 'env' | 'envVarIds'>;
+type Configuration = Pick<ScriptDraft, 'cwd' | 'args' | 'timeoutSeconds' | 'env'> &
+  EnvironmentLinks;
 
 function environmentError(env: ScriptEnvironmentVariable[]) {
   if (env.some(({ key }) => !ENV_NAME_PATTERN.test(key))) {
@@ -238,15 +242,17 @@ function EnvironmentFields({
 }
 
 function LinkedEnvironment({
-  ids,
+  links,
   variables,
+  groups,
   recordedKeys,
   onChange,
 }: {
-  ids: string[];
+  links: EnvironmentLinks;
   variables: SavedEnvVariable[];
+  groups: SavedEnvGroup[];
   recordedKeys?: string[];
-  onChange: (ids: string[]) => void;
+  onChange: (links: EnvironmentLinks) => void;
 }) {
   if (recordedKeys) {
     if (recordedKeys.length === 0) return null;
@@ -269,17 +275,36 @@ function LinkedEnvironment({
     );
   }
 
+  const { envVarIds: ids = [], envGroupIds: groupIds = [] } = links;
   const available = variables.filter((variable) => !ids.includes(variable.id));
+  const availableGroups = groups.filter((group) => !groupIds.includes(group.id));
   return (
     <fieldset className="sr-config-group">
       <legend>
         <Link2 size={16} /> Linked environment variables
       </legend>
       <p className="sr-muted">
-        Link named values from Env Vars. An override with the same name takes precedence.
+        Link groups or individual variables from Env Vars. An override with the same name takes
+        precedence.
       </p>
-      {ids.length > 0 && (
+      {(ids.length > 0 || groupIds.length > 0) && (
         <div className="sr-linked-list">
+          {groupIds.map((id) => {
+            const group = groups.find((entry) => entry.id === id);
+            return (
+              <span className="sr-linked-token" key={id}>
+                <Layers size={13} aria-label="Variable group" />
+                {group?.name ?? 'Unavailable group'}
+                <button
+                  type="button"
+                  aria-label={`Unlink group ${group?.name ?? 'unavailable'}`}
+                  onClick={() => onChange({ envGroupIds: groupIds.filter((item) => item !== id) })}
+                >
+                  <X size={14} />
+                </button>
+              </span>
+            );
+          })}
           {ids.map((id) => {
             const variable = variables.find((entry) => entry.id === id);
             return (
@@ -289,7 +314,7 @@ function LinkedEnvironment({
                 <button
                   type="button"
                   aria-label={`Unlink ${variable?.key ?? 'unavailable variable'}`}
-                  onClick={() => onChange(ids.filter((item) => item !== id))}
+                  onClick={() => onChange({ envVarIds: ids.filter((item) => item !== id) })}
                 >
                   <X size={14} />
                 </button>
@@ -298,12 +323,29 @@ function LinkedEnvironment({
           })}
         </div>
       )}
+      {availableGroups.length > 0 && groupIds.length < MAX_ENV_VARS && (
+        <select
+          aria-label="Link environment variable group"
+          className="sr-input sr-link-select"
+          value=""
+          onChange={(event) => onChange({ envGroupIds: [...groupIds, event.currentTarget.value] })}
+        >
+          <option value="" disabled>
+            Link a variable group…
+          </option>
+          {availableGroups.map((group) => (
+            <option key={group.id} value={group.id}>
+              {group.name} ({group.variableIds.length})
+            </option>
+          ))}
+        </select>
+      )}
       {available.length > 0 && ids.length < MAX_ENV_VARS && (
         <select
           aria-label="Link saved environment variable"
           className="sr-input sr-mono sr-link-select"
           value=""
-          onChange={(event) => onChange([...ids, event.currentTarget.value])}
+          onChange={(event) => onChange({ envVarIds: [...ids, event.currentTarget.value] })}
         >
           <option value="" disabled>
             Link a saved variable…
@@ -325,6 +367,7 @@ export default function RunConfiguration({
   onChange,
   recent,
   variables,
+  groups,
   recordedKeys,
   scope,
 }: {
@@ -332,6 +375,7 @@ export default function RunConfiguration({
   onChange: (value: Configuration) => void;
   recent: string[];
   variables: SavedEnvVariable[];
+  groups: SavedEnvGroup[];
   recordedKeys?: string[];
   scope: 'defaults' | 'run' | 'replay';
 }) {
@@ -443,10 +487,11 @@ export default function RunConfiguration({
         </Button>
       </fieldset>
       <LinkedEnvironment
-        ids={value.envVarIds ?? []}
+        links={value}
         variables={variables}
+        groups={groups}
         recordedKeys={scope === 'replay' ? (recordedKeys ?? []) : undefined}
-        onChange={(envVarIds) => onChange({ ...value, envVarIds })}
+        onChange={(links) => onChange({ ...value, ...links })}
       />
       <EnvironmentFields
         value={value.env}

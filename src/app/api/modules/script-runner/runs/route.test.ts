@@ -37,6 +37,7 @@ it('queues a saved script with its source, launch defaults, and linked environme
   vi.stubEnv('JWT_SECRET', 'script-runner-test-key');
   const scriptId = '27ac89d0-0704-4662-9770-e143d2a47d3c';
   const variableId = '8134a3a6-e21c-488e-8f15-06edbca98590';
+  const groupId = '0eff9a0b-53c6-4522-9cbe-61202c0b8cae';
   const inline = [{ key: 'APP_MODE', value: 'report' }];
   const linked = [{ key: 'REPORT_TOKEN', value: 'fixture-token' }];
   const saved = {
@@ -48,6 +49,7 @@ it('queues a saved script with its source, launch defaults, and linked environme
     args: ['weekly'],
     timeoutSeconds: 180,
     envVarIds: [variableId],
+    envGroupIds: [groupId],
     environmentSeal: sealEnvironment(inline),
   };
   const select = vi.fn(() => ({ lean: async () => saved }));
@@ -64,7 +66,10 @@ it('queues a saved script with its source, launch defaults, and linked environme
 
   expect(response.status).toBe(202);
   expect(select).toHaveBeenCalledWith('+source +environmentSeal');
-  expect(readLinkedEnvironment).toHaveBeenCalledWith([variableId]);
+  expect(readLinkedEnvironment).toHaveBeenCalledWith({
+    envVarIds: [variableId],
+    envGroupIds: [groupId],
+  });
   const [run] = createRun.mock.calls[0];
   expect(run).toMatchObject({
     scriptId,

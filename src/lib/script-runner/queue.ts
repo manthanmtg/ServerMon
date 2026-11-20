@@ -64,10 +64,12 @@ export async function enqueueRun(
     script?.timeoutSeconds ??
     defaults.defaultTimeoutSeconds;
   const cwd = draft?.cwd ?? previousRun?.cwd ?? script?.cwd ?? defaults.defaultWorkingDirectory;
-  const ids = draft?.envVarIds ?? (previousRun ? [] : (script?.envVarIds ?? []));
   const linked = [
     ...openEnvironment(previousRun?.linkedEnvironmentSeal),
-    ...(await readLinkedEnvironment(ids)),
+    ...(await readLinkedEnvironment({
+      envVarIds: draft?.envVarIds ?? (previousRun ? undefined : script?.envVarIds),
+      envGroupIds: draft?.envGroupIds ?? (previousRun ? undefined : script?.envGroupIds),
+    })),
   ];
   const editable =
     draft?.env ??

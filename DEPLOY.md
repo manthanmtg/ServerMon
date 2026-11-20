@@ -235,7 +235,9 @@ The worker runs up to two scripts at a time by default. **Scripts → Settings**
 
 Use **Run defaults** to save a script's working directory, arguments, timeout, and environment variables. Override these in **Configure run** for an individual execution, or select **Save as script defaults** to persist the changes. Values are encrypted in the database with a key derived from `JWT_SECRET`. Preserve that secret when moving or restoring ServerMon so saved environments and run snapshots remain readable. Scripts share the execution account, and values printed by a script become part of its output logs.
 
-Create reusable variables and secrets in **Scripts → Env Vars**. Link them to a saved script under **Workspace → Run defaults** or attach them to a single launch. An inline value with the same name takes precedence. A new launch uses the library value at queue time. **Run again** reuses the original linked values, even after a library update. Unlink a variable from its saved scripts before deleting it.
+Create reusable variables and secrets in **Scripts → Env Vars**. Use **New group** to organize saved variables and link them together under **Workspace → Run defaults** or **Configure run**. A variable can belong to several groups and is applied once per run. An inline value with the same name takes precedence.
+
+New runs, including scheduled runs, use the current group membership and variable values at queue time. **Run again** reuses the original linked values. Unlink a group from its saved scripts before deleting it. Deleting a group keeps its member variables. To delete an individual variable, first remove it from any groups and saved scripts that reference it.
 
 Use **Scripts → Schedules** to add a recurring run to a saved script. Choose an interval in five-minute increments. Scheduled runs use the latest saved script and linked variables. The worker queues one occurrence after downtime and skips a scheduled occurrence if the script's previous scheduled run is still queued or running. Pause or delete the schedule to stop future occurrences.
 

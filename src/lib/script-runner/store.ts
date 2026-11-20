@@ -5,16 +5,19 @@ import { runIdInput } from './schemas';
 import { openEnvironment, sealEnvironment } from './environment';
 import {
   ScriptRunnerRun,
+  ScriptRunnerEnvGroup,
   ScriptRunnerScript,
   ScriptRunnerSettings,
   ScriptRunnerVariable,
   type RunRecord,
+  type EnvGroupRecord,
   type ScriptRecord,
   type SettingsRecord,
   type VariableRecord,
 } from '@/models/ScriptRunner';
 import {
   SCRIPT_RUNNER_DEFAULTS,
+  type SavedEnvGroup,
   type SavedEnvVariable,
   type ScriptRunnerDefaults,
   type RunnerOverview,
@@ -78,6 +81,7 @@ export function scriptResponse(script: ScriptRecord): SavedScript {
     source: script.source,
     env: openEnvironment(script.environmentSeal),
     envVarIds: script.envVarIds ?? [],
+    envGroupIds: script.envGroupIds ?? [],
     args: script.args,
     timeoutSeconds: script.timeoutSeconds,
   };
@@ -116,6 +120,14 @@ export function findVariable(id: string) {
   return ScriptRunnerVariable.findOne({ host: runnerHost, _id: id });
 }
 
+export function envGroupResponse(group: EnvGroupRecord): SavedEnvGroup {
+  return { id: group._id, name: group.name, variableIds: group.variableIds };
+}
+
+export function findEnvGroup(id: string) {
+  return ScriptRunnerEnvGroup.findOne({ _id: id, host: runnerHost });
+}
+
 export function workerOnline(seenAt?: Date) {
   return supported && !!seenAt && Date.now() - seenAt.getTime() < WORKER_STALE_MS;
 }
@@ -135,7 +147,7 @@ export async function overview(before?: string): Promise<RunnerOverview> {
     ? await ScriptRunnerRun.findOne({ _id: before, host: runnerHost }).select('createdAt').lean()
     : null;
   const terminal = { host: runnerHost, status: { $nin: ACTIVE_STATUSES } };
-  const [scripts, active, history, settings, recentRuns, variables, oldestHistory] =
+  const [scripts, active, history, settings, recentRuns, variables, oldestHistory, envGroups] =
     await Promise.all([
       ScriptRunnerScript.find({ host: runnerHost })
         .select('title language cwd folder updatedAt')
@@ -169,12 +181,17 @@ export async function overview(before?: string): Promise<RunnerOverview> {
         .sort({ key: 1 })
         .lean(),
       ScriptRunnerRun.findOne(terminal).sort({ createdAt: 1, _id: 1 }).select('createdAt').lean(),
+      ScriptRunnerEnvGroup.find({ host: runnerHost })
+        .select('name variableIds')
+        .sort({ nameKey: 1 })
+        .lean(),
     ]);
   const capabilities = workerCapabilities(settings);
   const online = workerOnline(settings?.workerSeenAt);
   return {
     ...runnerDefaults(settings),
     variables: variables.map(variableResponse),
+    envGroups: envGroups.map(envGroupResponse),
     scripts: scripts.map(scriptSummary),
     active: active.map(runResponse),
     history: history.slice(0, historySize).map(runResponse),

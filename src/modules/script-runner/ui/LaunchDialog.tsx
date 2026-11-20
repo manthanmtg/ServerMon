@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import {
   RUNNER_USER,
   SCRIPT_RUNTIMES,
+  type SavedEnvGroup,
   type SavedEnvVariable,
   type ScriptDraft,
   type ScriptLanguage,
@@ -21,6 +22,7 @@ export default function LaunchDialog({
   runtimes,
   environmentSupport,
   variables,
+  groups,
   recordedKeys,
   canSave,
   onClose,
@@ -32,6 +34,7 @@ export default function LaunchDialog({
   runtimes: ScriptLanguage[];
   environmentSupport: boolean;
   variables: SavedEnvVariable[];
+  groups: SavedEnvGroup[];
   recordedKeys?: string[];
   canSave?: boolean;
   onClose: () => void;
@@ -46,7 +49,10 @@ export default function LaunchDialog({
     ? 'The Linux script worker is offline.'
     : !runtimes.includes(settings.language)
       ? `${runtime.label} is unavailable on this worker.`
-      : (settings.env.length > 0 || !!settings.envVarIds?.length || !!recordedKeys?.length) &&
+      : (settings.env.length > 0 ||
+            !!settings.envVarIds?.length ||
+            !!settings.envGroupIds?.length ||
+            !!recordedKeys?.length) &&
           !environmentSupport
         ? 'Upgrade the Linux script worker to use environment variables.'
         : '';
@@ -84,6 +90,7 @@ export default function LaunchDialog({
             }
             recent={recent}
             variables={variables}
+            groups={groups}
             recordedKeys={recordedKeys}
             scope={canSave ? 'run' : 'replay'}
           />

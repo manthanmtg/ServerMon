@@ -159,8 +159,18 @@ export default function SavedScriptsPanel({
     setError('');
     setNotice('');
     try {
-      const { title, source, language, env, cwd, args, timeoutSeconds, folder, envVarIds } =
-        await runnerRequest<SavedScript>(`/scripts/${scriptId}`);
+      const {
+        title,
+        source,
+        language,
+        env,
+        cwd,
+        args,
+        timeoutSeconds,
+        folder,
+        envVarIds,
+        envGroupIds,
+      } = await runnerRequest<SavedScript>(`/scripts/${scriptId}`);
       const duplicate = await runnerRequest<SavedScript>('/scripts', {
         method: 'POST',
         body: JSON.stringify({
@@ -173,6 +183,7 @@ export default function SavedScriptsPanel({
           timeoutSeconds,
           folder,
           envVarIds,
+          envGroupIds,
         }),
       });
       onChanged();

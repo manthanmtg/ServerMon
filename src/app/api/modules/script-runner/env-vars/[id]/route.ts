@@ -1,5 +1,9 @@
 import { withLinkMutation } from '@/lib/script-runner/variables';
-import { ScriptRunnerScript, ScriptRunnerVariable } from '@/models/ScriptRunner';
+import {
+  ScriptRunnerEnvGroup,
+  ScriptRunnerScript,
+  ScriptRunnerVariable,
+} from '@/models/ScriptRunner';
 import { openVariable, sealVariable } from '@/lib/script-runner/environment';
 import { runIdInput, variablePatchInput } from '@/lib/script-runner/schemas';
 import { findVariable, runnerHost, variableResponse } from '@/lib/script-runner/store';
@@ -63,6 +67,9 @@ export function DELETE(request: Request, { params }: ById) {
       const id = runIdInput.parse((await params).id);
       if (await ScriptRunnerScript.exists({ host: runnerHost, envVarIds: id })) {
         return failure('Unlink this variable from its saved scripts before deleting it.', 409);
+      }
+      if (await ScriptRunnerEnvGroup.exists({ host: runnerHost, variableIds: id })) {
+        return failure('Remove this variable from its groups before deleting it.', 409);
       }
       const result = await findVariable(id).deleteOne();
       return result.deletedCount

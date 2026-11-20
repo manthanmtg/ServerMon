@@ -45,6 +45,7 @@ beforeEach(() => {
   overview = {
     ...SCRIPT_RUNNER_DEFAULTS,
     variables: [],
+    envGroups: [],
     active: [active],
     history: [completed],
     scripts: [],
@@ -212,6 +213,49 @@ it('saves the history age and count limits together', async () => {
   });
   fireEvent.click(screen.getByRole('button', { name: 'Save settings' }));
   expect(await screen.findByText('Settings saved.')).toBeVisible();
+});
+
+it('creates a variable group in Env Vars and links it in saved script defaults', async () => {
+  const variable = {
+    id: 'weather-token',
+    key: 'WEATHER_TOKEN',
+    secret: true,
+    updatedAt: active.createdAt,
+  };
+  overview.variables = [variable];
+  const group = { id: 'weather-bot', name: 'Weather Telegram bot', variableIds: [variable.id] };
+  const fetchRunner = vi.fn(async (url: string, options?: RequestInit) => {
+    const input = options?.body ? JSON.parse(String(options.body)) : undefined;
+    if (url.endsWith('/env-groups') && options?.method === 'POST') {
+      expect(input).toEqual({ name: group.name, variableIds: group.variableIds });
+      overview.envGroups = [group];
+      return Response.json(group);
+    }
+    if (url.endsWith('/scripts') && options?.method === 'POST') {
+      expect(input).toMatchObject({ envGroupIds: [group.id], envVarIds: [], env: [] });
+      return Response.json({ ...input, id: 'weather-script', updatedAt: active.createdAt });
+    }
+    return Response.json(overview);
+  });
+  vi.stubGlobal('fetch', fetchRunner);
+
+  render(<ScriptRunnerPage />);
+  await screen.findByText('Worker online');
+  fireEvent.click(screen.getByRole('button', { name: 'Env Vars' }));
+  fireEvent.click(screen.getByRole('button', { name: 'New group' }));
+  fireEvent.change(screen.getByLabelText('Group name'), { target: { value: group.name } });
+  fireEvent.click(screen.getByRole('checkbox', { name: /WEATHER_TOKEN/ }));
+  fireEvent.click(screen.getByRole('button', { name: 'Save group' }));
+  expect(await screen.findByRole('button', { name: `Edit group ${group.name}` })).toBeVisible();
+
+  fireEvent.click(screen.getByRole('button', { name: 'Workspace' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Run defaults' }));
+  fireEvent.change(screen.getByLabelText('Link environment variable group'), {
+    target: { value: group.id },
+  });
+  expect(screen.getByRole('button', { name: `Unlink group ${group.name}` })).toBeVisible();
+  fireEvent.click(screen.getByRole('button', { name: /^Save$/ }));
+  await screen.findByText('Saved');
 });
 
 describe('Script Runner console selection', () => {

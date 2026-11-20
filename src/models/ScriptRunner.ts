@@ -1,6 +1,7 @@
 import mongoose, { Schema, type Model } from 'mongoose';
 import {
   SCRIPT_LANGUAGES,
+  type EnvironmentLinks,
   type RunStatus,
   type ScriptDraft,
   type ScriptLanguage,
@@ -8,14 +9,13 @@ import {
   type ScriptSchedule,
 } from '@/modules/script-runner/types';
 
-type StoredDraft = Omit<ScriptDraft, 'language' | 'env' | 'folder' | 'envVarIds'> & {
+type StoredDraft = Omit<ScriptDraft, 'language' | 'env' | 'folder' | keyof EnvironmentLinks> & {
   language?: ScriptLanguage;
   environmentSeal?: string | null;
 };
 
-export interface ScriptRecord extends StoredDraft {
+export interface ScriptRecord extends StoredDraft, EnvironmentLinks {
   folder?: string;
-  envVarIds?: string[];
   _id: string;
   host: string;
   updatedAt: Date;
@@ -92,10 +92,17 @@ const scheduleSchema = new Schema<ScheduleRecord>(
 );
 
 const scriptSchema = new Schema<ScriptRecord>(
-  { ...draft, folder: String, envVarIds: [String], schedule: scheduleSchema },
+  {
+    ...draft,
+    folder: String,
+    envVarIds: [String],
+    envGroupIds: [String],
+    schedule: scheduleSchema,
+  },
   { timestamps: true, versionKey: false }
 );
 scriptSchema.index({ host: 1, envVarIds: 1 });
+scriptSchema.index({ host: 1, envGroupIds: 1 });
 scriptSchema.index({ host: 1, title: 1, _id: 1 });
 scriptSchema.index({ host: 1, 'schedule.enabled': 1, 'schedule.nextRunAt': 1 });
 scriptSchema.index({ host: 1, 'schedule.enabled': 1, 'schedule.lastOutcome': 1 });
@@ -167,6 +174,27 @@ const variableSchema = new Schema<VariableRecord>(
 );
 variableSchema.index({ host: 1, key: 1 }, { unique: true });
 
+export interface EnvGroupRecord {
+  _id: string;
+  host: string;
+  name: string;
+  nameKey: string;
+  variableIds: string[];
+}
+
+const envGroupSchema = new Schema<EnvGroupRecord>(
+  {
+    _id: { type: String, required: true },
+    host: { type: String, required: true },
+    name: { type: String, required: true },
+    nameKey: { type: String, required: true },
+    variableIds: { type: [String], required: true },
+  },
+  { versionKey: false }
+);
+envGroupSchema.index({ host: 1, nameKey: 1 }, { unique: true });
+envGroupSchema.index({ host: 1, variableIds: 1 });
+
 function model<T>(name: string, schema: Schema<T>): Model<T> {
   return (mongoose.models[name] as Model<T> | undefined) ?? mongoose.model<T>(name, schema);
 }
@@ -175,3 +203,4 @@ export const ScriptRunnerScript = model('ScriptRunnerScript', scriptSchema);
 export const ScriptRunnerRun = model('ScriptRunnerRun', runSchema);
 export const ScriptRunnerSettings = model('ScriptRunnerSettings', settingsSchema);
 export const ScriptRunnerVariable = model('ScriptRunnerVariable', variableSchema);
+export const ScriptRunnerEnvGroup = model('ScriptRunnerEnvGroup', envGroupSchema);

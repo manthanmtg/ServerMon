@@ -20,6 +20,7 @@ export const SCRIPT_RUNTIMES = {
 export const MAX_ENV_VARS = 32;
 export const MAX_ENV_NAME_LENGTH = 128;
 export const MAX_ENV_VALUE_LENGTH = 4096;
+export const MAX_ENV_GROUP_NAME_LENGTH = 80;
 export const ENV_NAME_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
 export interface ScriptEnvironmentVariable {
@@ -36,6 +37,17 @@ export interface SavedEnvVariable {
 
 export interface SavedEnvVariableDetail extends SavedEnvVariable {
   value?: string;
+}
+
+export interface SavedEnvGroup {
+  id: string;
+  name: string;
+  variableIds: string[];
+}
+
+export interface EnvironmentLinks {
+  envVarIds?: string[];
+  envGroupIds?: string[];
 }
 
 export interface ScriptRunnerDefaults {
@@ -78,12 +90,11 @@ export type RunStatus =
   | 'timed_out'
   | 'interrupted';
 
-export interface ScriptDraft {
+export interface ScriptDraft extends EnvironmentLinks {
   title: string;
   source: string;
   language: ScriptLanguage;
   env: ScriptEnvironmentVariable[];
-  envVarIds?: string[];
   folder?: string;
   cwd: string;
   args: string[];
@@ -130,6 +141,7 @@ export interface RunSnapshot extends ScriptRun {
 
 export interface RunnerOverview extends ScriptRunnerDefaults {
   variables: SavedEnvVariable[];
+  envGroups: SavedEnvGroup[];
   scripts: ScriptSummary[];
   active: ScriptRun[];
   history: ScriptRun[];

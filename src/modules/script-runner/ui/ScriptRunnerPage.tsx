@@ -43,6 +43,7 @@ import {
 } from '../types';
 import { errorMessage, requestId, runnerRequest } from './client';
 import EnvironmentVariablesPanel from './EnvironmentVariablesPanel';
+import EnvironmentGroupsPanel from './EnvironmentGroupsPanel';
 import LaunchDialog from './LaunchDialog';
 import SavedScriptsPanel, { OpenSavedScriptDialog } from './SavedScriptsPanel';
 import ScriptRunnerOverviewPanel from './ScriptRunnerOverviewPanel';
@@ -63,6 +64,7 @@ const starter: ScriptDraft = {
   language: 'bash',
   env: [],
   envVarIds: [],
+  envGroupIds: [],
   source:
     '#!/usr/bin/env bash\nset -euo pipefail\n\nprintf "Host: %s\\n" "$(hostname)"\nprintf "Working directory: %s\\n" "$PWD"\nprintf "\\nDisk usage\\n"\ndf -h .\n',
   cwd: DEFAULT_CWD,
@@ -86,6 +88,7 @@ function draftFields({
   args,
   env,
   envVarIds,
+  envGroupIds,
   timeoutSeconds,
 }: ScriptDraft): ScriptDraft {
   return {
@@ -96,6 +99,7 @@ function draftFields({
     args,
     env: env ?? [],
     envVarIds: envVarIds ?? [],
+    envGroupIds: envGroupIds ?? [],
     timeoutSeconds,
   };
 }
@@ -343,7 +347,17 @@ export default function ScriptRunnerPage() {
   const hasOnlineWorker = !!overview?.online;
   const scripts = overview?.scripts ?? [];
   const variables = overview?.variables ?? [];
-  const envCount = draft.env.length + (draft.envVarIds?.length ?? 0);
+  const envGroups = overview?.envGroups ?? [];
+  const linkedIds = new Set([
+    ...(draft.envVarIds ?? []),
+    ...envGroups
+      .filter((group) => draft.envGroupIds?.includes(group.id))
+      .flatMap((group) => group.variableIds),
+  ]);
+  const envCount = new Set([
+    ...draft.env.map(({ key }) => key),
+    ...variables.filter(({ id }) => linkedIds.has(id)).map(({ key }) => key),
+  ]).size;
   const active = overview?.active ?? [];
   const history = mergeHistory(overview?.history ?? [], more?.history ?? []);
   const selected = selection
@@ -676,11 +690,19 @@ export default function ScriptRunnerPage() {
       )}
 
       {view === 'environment' && (
-        <EnvironmentVariablesPanel
-          variables={variables}
-          loading={!overview}
-          onChanged={() => void refresh()}
-        />
+        <div className="grid min-w-0 gap-3.5">
+          <EnvironmentGroupsPanel
+            groups={envGroups}
+            variables={variables}
+            loading={!overview}
+            onChanged={() => void refresh()}
+          />
+          <EnvironmentVariablesPanel
+            variables={variables}
+            loading={!overview}
+            onChanged={() => void refresh()}
+          />
+        </div>
       )}
 
       {view === 'schedules' && <ScriptSchedulesPanel scripts={scripts} online={hasOnlineWorker} />}
@@ -796,6 +818,7 @@ export default function ScriptRunnerPage() {
                 }
                 recent={overview?.recentDirectories ?? []}
                 variables={variables}
+                groups={envGroups}
                 scope="defaults"
               />
             </div>
@@ -862,6 +885,7 @@ export default function ScriptRunnerPage() {
           runtimes={overview?.runtimes ?? ['bash']}
           environmentSupport={!!overview?.environmentSupport}
           variables={variables}
+          groups={envGroups}
           recordedKeys={launch.linkedEnvKeys}
           canSave={!launch.rerunOf}
           onClose={disposeLaunch}

@@ -329,8 +329,8 @@ export default function EnvironmentVariablesPanel({
       <div className="grid gap-3 p-3 sm:p-4">
         <div className="flex flex-wrap items-center justify-between gap-x-5 gap-y-2">
           <p className="sr-muted flex items-center gap-2">
-            <Link2 size={16} className="shrink-0" aria-hidden="true" /> Link saved variables in a
-            script’s Run defaults.
+            <Link2 size={16} className="shrink-0" aria-hidden="true" /> Link individual variables in
+            Run defaults or add them to a group.
           </p>
           <label className="sr-search m-0! w-full sm:max-w-64">
             <Search size={15} aria-hidden="true" />

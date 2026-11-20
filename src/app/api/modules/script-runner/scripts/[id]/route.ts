@@ -30,7 +30,10 @@ export function PATCH(request: Request, { params }: ById) {
       const current = await findScript(id).select('+environmentSeal').lean();
       if (!current) return failure('Script not found.', 404);
       await validateLinkedEnvironment(
-        draft.envVarIds ?? current.envVarIds,
+        {
+          envVarIds: draft.envVarIds ?? current.envVarIds,
+          envGroupIds: draft.envGroupIds ?? current.envGroupIds,
+        },
         draft.env ?? openEnvironment(current.environmentSeal)
       );
       const script = await findScript(id)

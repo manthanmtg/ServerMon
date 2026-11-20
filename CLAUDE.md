@@ -330,8 +330,8 @@ Concise map of major directories, commands, and key files. Update this section w
 ### Script Runner
 
 - `src/lib/script-runner/` — shared run queue, Linux worker, recurring schedule dispatch, and log and history pruning
-- `src/models/ScriptRunner.ts` — saved scripts with schedule state, run snapshots, variables, and worker settings
-- `src/app/api/modules/script-runner/` and `src/modules/script-runner/` — administrator-only script, schedule, run, variable, and settings endpoints and views
+- `src/models/ScriptRunner.ts` — saved scripts with schedule state, run snapshots, variables, variable groups, and worker settings
+- `src/app/api/modules/script-runner/` and `src/modules/script-runner/` — administrator-only script, schedule, run, variable, variable group, and settings endpoints and views
 
 ### Crons Module
 
