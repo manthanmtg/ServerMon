@@ -1244,7 +1244,7 @@ export default function AIRunnerPage() {
     setActiveTab('settings');
   };
 
-  const selectPromptForEdit = (prompt: AIRunnerPromptDTO) => {
+  const selectPromptForEdit = useCallback((prompt: AIRunnerPromptDTO) => {
     setSelectedPromptId(prompt._id);
     setEditingPromptId(prompt._id);
     setPromptForm({
@@ -1256,7 +1256,7 @@ export default function AIRunnerPage() {
     });
     setPromptModalOpen(true);
     setActiveTab('prompts');
-  };
+  }, []);
 
   const selectPromptTemplateForEdit = (template: AIRunnerPromptTemplateDTO) => {
     setEditingPromptTemplateId(template._id);
@@ -1302,38 +1302,38 @@ export default function AIRunnerPage() {
     setActiveTab('schedules');
   };
 
-  const resetProfileForm = () => {
+  const resetProfileForm = useCallback(() => {
     setEditingProfileId(null);
     setProfileForm(DEFAULT_PROFILE_FORM);
-  };
+  }, []);
 
-  const resetPromptForm = () => {
+  const resetPromptForm = useCallback(() => {
     setEditingPromptId(null);
     setPromptForm(emptyPromptForm());
-  };
+  }, []);
 
-  const resetScheduleForm = () => {
+  const resetScheduleForm = useCallback(() => {
     const workspace = workspaces.find((item) => item.enabled);
     setEditingScheduleId(null);
     setScheduleForm(
       emptyScheduleForm(profiles[0]?._id, workspace?.path ?? directories[0], workspace?._id)
     );
-  };
+  }, [workspaces, profiles, directories]);
 
-  const closeScheduleModal = () => {
+  const closeScheduleModal = useCallback(() => {
     setScheduleModalOpen(false);
     resetScheduleForm();
-  };
+  }, [resetScheduleForm]);
 
-  const closeProfileModal = () => {
+  const closeProfileModal = useCallback(() => {
     setProfileModalOpen(false);
     resetProfileForm();
-  };
+  }, [resetProfileForm]);
 
-  const closePromptModal = () => {
+  const closePromptModal = useCallback(() => {
     setPromptModalOpen(false);
     resetPromptForm();
-  };
+  }, [resetPromptForm]);
 
   const closePromptTemplateModal = () => {
     setPromptTemplateModalOpen(false);
@@ -1341,11 +1341,11 @@ export default function AIRunnerPage() {
     setPromptTemplateForm(emptyPromptTemplateForm());
   };
 
-  const closeWorkspaceModal = () => {
+  const closeWorkspaceModal = useCallback(() => {
     setWorkspaceModalOpen(false);
     setEditingWorkspaceId(null);
     setWorkspaceForm(emptyWorkspaceForm());
-  };
+  }, []);
 
   const openBundleModal = (mode: 'export' | 'import') => {
     setBundleMode(mode);
@@ -1371,11 +1371,11 @@ export default function AIRunnerPage() {
     setActiveTab('settings');
   };
 
-  const openCreatePromptModal = () => {
+  const openCreatePromptModal = useCallback(() => {
     resetPromptForm();
     setPromptModalOpen(true);
     setActiveTab('prompts');
-  };
+  }, [resetPromptForm]);
 
   const openCreatePromptTemplateModal = () => {
     setEditingPromptTemplateId(null);
@@ -1744,49 +1744,64 @@ export default function AIRunnerPage() {
     await loadAll();
   };
 
-  const executeLinkedDelete = async (target: LinkedDeleteTarget, force = false) => {
-    const path =
-      target.kind === 'prompt' ? 'prompts' : target.kind === 'profile' ? 'profiles' : 'workspaces';
-    const response = await fetch(
-      `/api/modules/ai-runner/${path}/${target.id}${force ? '?force=true' : ''}`,
-      { method: 'DELETE' }
-    );
-    const payload = await response.json();
-    if (!response.ok) {
-      toast({
-        title: 'Delete failed',
-        description: payload.error || `Unable to delete ${target.kind}`,
-        variant: 'destructive',
-      });
-      return;
-    }
-    if (target.kind === 'profile' && editingProfileId === target.id) {
-      closeProfileModal();
-    }
-    if (target.kind === 'prompt' && editingPromptId === target.id) {
-      closePromptModal();
-    }
-    if (target.kind === 'workspace' && editingWorkspaceId === target.id) {
-      closeWorkspaceModal();
-    }
-    if (force && target.scheduleCount > 0) {
-      toast({
-        title: 'Schedules paused',
-        description: `${target.scheduleCount} linked schedule${target.scheduleCount === 1 ? '' : 's'} must be repaired before being enabled again.`,
-        variant: 'warning',
-      });
-    }
-    await loadAll();
-  };
+  const executeLinkedDelete = useCallback(
+    async (target: LinkedDeleteTarget, force = false) => {
+      const path =
+        target.kind === 'prompt' ? 'prompts' : target.kind === 'profile' ? 'profiles' : 'workspaces';
+      const response = await fetch(
+        `/api/modules/ai-runner/${path}/${target.id}${force ? '?force=true' : ''}`,
+        { method: 'DELETE' }
+      );
+      const payload = await response.json();
+      if (!response.ok) {
+        toast({
+          title: 'Delete failed',
+          description: payload.error || `Unable to delete ${target.kind}`,
+          variant: 'destructive',
+        });
+        return;
+      }
+      if (target.kind === 'profile' && editingProfileId === target.id) {
+        closeProfileModal();
+      }
+      if (target.kind === 'prompt' && editingPromptId === target.id) {
+        closePromptModal();
+      }
+      if (target.kind === 'workspace' && editingWorkspaceId === target.id) {
+        closeWorkspaceModal();
+      }
+      if (force && target.scheduleCount > 0) {
+        toast({
+          title: 'Schedules paused',
+          description: `${target.scheduleCount} linked schedule${target.scheduleCount === 1 ? '' : 's'} must be repaired before being enabled again.`,
+          variant: 'warning',
+        });
+      }
+      await loadAll();
+    },
+    [
+      editingProfileId,
+      editingPromptId,
+      editingWorkspaceId,
+      loadAll,
+      toast,
+      closeProfileModal,
+      closePromptModal,
+      closeWorkspaceModal,
+    ]
+  );
 
-  const requestLinkedDelete = (target: Omit<LinkedDeleteTarget, 'scheduleCount'>) => {
-    const scheduleCount = getLinkedScheduleCount(target.kind, target.id);
-    if (scheduleCount > 0) {
-      setLinkedDeleteTarget({ ...target, scheduleCount });
-      return;
-    }
-    void executeLinkedDelete({ ...target, scheduleCount: 0 });
-  };
+  const requestLinkedDelete = useCallback(
+    (target: Omit<LinkedDeleteTarget, 'scheduleCount'>) => {
+      const scheduleCount = getLinkedScheduleCount(target.kind, target.id);
+      if (scheduleCount > 0) {
+        setLinkedDeleteTarget({ ...target, scheduleCount });
+        return;
+      }
+      void executeLinkedDelete({ ...target, scheduleCount: 0 });
+    },
+    [getLinkedScheduleCount, executeLinkedDelete]
+  );
 
   const confirmLinkedDelete = async () => {
     if (!linkedDeleteTarget) return;
@@ -1837,10 +1852,18 @@ export default function AIRunnerPage() {
     }
   };
 
-  const deletePrompt = async (id: string) => {
-    const prompt = promptMap[id];
-    requestLinkedDelete({ kind: 'prompt', id, name: prompt?.name ?? 'this prompt' });
-  };
+  const deletePrompt = useCallback(
+    async (id: string) => {
+      const prompt = promptMap[id];
+      requestLinkedDelete({ kind: 'prompt', id, name: prompt?.name ?? 'this prompt' });
+    },
+    [promptMap, requestLinkedDelete]
+  );
+
+  const handleDeletePrompt = useCallback(
+    (id: string) => runExclusiveAction(`prompt:delete:${id}`, () => deletePrompt(id)),
+    [deletePrompt, runExclusiveAction]
+  );
 
   const addSavedPromptAttachments = async (fileList: FileList | null) => {
     const files = Array.from(fileList ?? []);
@@ -2127,22 +2150,45 @@ export default function AIRunnerPage() {
     }
   };
 
-  const openPromptInAutoflow = (promptId: string) => {
-    const prompt = promptMap[promptId];
-    if (!prompt) return;
-    clearAutoflowEdit();
-    setSelectedPromptId(promptId);
+  const clearAutoflowDraft = useCallback(() => {
     setAutoflowDraft((current) => ({
       ...current,
-      name: prompt.name,
-      promptId,
-      promptContent: prompt.content,
-      promptType: prompt.type,
+      promptId: undefined,
+      name: '',
+      promptContent: '',
       attachments: [],
     }));
     setAutoflowDraftLoopCount(1);
-    setActiveTab('autoflows');
-  };
+  }, []);
+
+  const clearAutoflowEdit = useCallback(() => {
+    setEditingAutoflowId(null);
+    setAutoflowName('');
+    setAutoflowShouldStart(true);
+    setAutoflowContinueOnFailure(false);
+    setAutoflowItems([]);
+    clearAutoflowDraft();
+  }, [clearAutoflowDraft]);
+
+  const openPromptInAutoflow = useCallback(
+    (promptId: string) => {
+      const prompt = promptMap[promptId];
+      if (!prompt) return;
+      clearAutoflowEdit();
+      setSelectedPromptId(promptId);
+      setAutoflowDraft((current) => ({
+        ...current,
+        name: prompt.name,
+        promptId,
+        promptContent: prompt.content,
+        promptType: prompt.type,
+        attachments: [],
+      }));
+      setAutoflowDraftLoopCount(1);
+      setActiveTab('autoflows');
+    },
+    [promptMap, clearAutoflowEdit]
+  );
 
   const runScheduleNow = async (schedule: AIRunnerScheduleDTO) => {
     const response = await fetch('/api/modules/ai-runner/run', {
@@ -2568,25 +2614,6 @@ export default function AIRunnerPage() {
     return item ? expandAutoflowDraftItemForLoop(item) : null;
   };
 
-  const clearAutoflowDraft = () => {
-    setAutoflowDraft((current) => ({
-      ...current,
-      promptId: undefined,
-      name: '',
-      promptContent: '',
-      attachments: [],
-    }));
-    setAutoflowDraftLoopCount(1);
-  };
-
-  const clearAutoflowEdit = () => {
-    setEditingAutoflowId(null);
-    setAutoflowName('');
-    setAutoflowShouldStart(true);
-    setAutoflowContinueOnFailure(false);
-    setAutoflowItems([]);
-    clearAutoflowDraft();
-  };
 
   const addAutoflowItem = (replaceStepIndex: number | null = null) => {
     const items = buildAutoflowDraftItems();
@@ -2857,10 +2884,9 @@ export default function AIRunnerPage() {
                 onOpenCreateModal={openCreatePromptModal}
                 onOpenInAutoflow={openPromptInAutoflow}
                 onSelectForEdit={selectPromptForEdit}
-                onDelete={(id) => runExclusiveAction(`prompt:delete:${id}`, () => deletePrompt(id))}
+                onDelete={handleDeletePrompt}
                 isActionPending={isActionPending}
               />
-
               <PromptModal
                 isOpen={promptModalOpen}
                 onClose={closePromptModal}
