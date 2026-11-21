@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
-import { Paperclip, X } from 'lucide-react';
+import { useEffect, useId, useRef, useState } from 'react';
+import { Eye, Paperclip, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { attachmentByteLength, validAttachmentName } from '../attachments';
 import {
@@ -10,6 +10,7 @@ import {
   type ScriptAttachment,
 } from '../types';
 import { errorMessage } from './client';
+import AttachmentPreview from './AttachmentPreview';
 
 function readAttachment(file: File): Promise<ScriptAttachment> {
   return new Promise((resolve, reject) => {
@@ -40,6 +41,8 @@ export default function AttachmentsField({
   const picker = useRef<HTMLInputElement>(null);
   const pending = useRef<AbortController | null>(null);
   const [error, setError] = useState('');
+  const [previewName, setPreviewName] = useState<string | null>(null);
+  const previewId = useId();
 
   useEffect(() => {
     return () => {
@@ -103,26 +106,49 @@ export default function AttachmentsField({
       </p>
       {files.length > 0 && (
         <ul className="grid gap-1">
-          {files.map(({ name }) => (
-            <li key={name} className="flex min-w-0 items-center justify-between gap-2">
-              <span className="sr-mono truncate text-sm" title={name}>
-                {name}
-              </span>
-              <Button
-                variant="ghost"
-                size="icon"
-                type="button"
-                aria-label={`Remove ${name}`}
-                disabled={reading}
-                onClick={() => {
-                  setError('');
-                  onChange(files.filter((file) => file.name !== name));
-                }}
-              >
-                <X size={16} aria-hidden="true" />
-              </Button>
-            </li>
-          ))}
+          {files.map((file) => {
+            const { name } = file;
+            const isPreviewOpen = previewName === name;
+            return (
+              <li key={name} className="min-w-0">
+                <div className="flex min-w-0 items-center justify-between gap-2">
+                  <span className="sr-mono truncate text-sm" title={name}>
+                    {name}
+                  </span>
+                  <div className="flex shrink-0 items-center">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      type="button"
+                      className="aria-expanded:bg-accent"
+                      title={`View ${name}`}
+                      aria-label={`View ${name}`}
+                      aria-expanded={isPreviewOpen}
+                      aria-controls={isPreviewOpen ? previewId : undefined}
+                      onClick={() => setPreviewName(isPreviewOpen ? null : name)}
+                    >
+                      <Eye size={16} aria-hidden="true" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      type="button"
+                      aria-label={`Remove ${name}`}
+                      disabled={reading}
+                      onClick={() => {
+                        setError('');
+                        if (isPreviewOpen) setPreviewName(null);
+                        onChange(files.filter((attachment) => attachment.name !== name));
+                      }}
+                    >
+                      <X size={16} aria-hidden="true" />
+                    </Button>
+                  </div>
+                </div>
+                {isPreviewOpen && <AttachmentPreview file={file} id={previewId} />}
+              </li>
+            );
+          })}
         </ul>
       )}
       <input

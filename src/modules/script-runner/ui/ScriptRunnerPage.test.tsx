@@ -19,6 +19,99 @@ vi.mock('./RunnerDialog', () => ({
   ),
 }));
 
+vi.mock('@/lib/ThemeContext', () => ({
+  useTheme: () => ({ theme: { type: 'light' }, setTheme: vi.fn() }),
+}));
+
+const { MockEditorView, mockEditorStateCreate } = vi.hoisted(() => {
+  const MockEditorView = vi.fn(function (
+    this: unknown,
+    opts: { parent?: HTMLElement }
+  ): { dispatch: ReturnType<typeof vi.fn>; destroy: ReturnType<typeof vi.fn> } {
+    if (opts?.parent) opts.parent.appendChild(document.createElement('div'));
+    return {
+      dispatch: vi.fn(),
+      destroy: vi.fn(),
+    };
+  }) as unknown as {
+    theme: ReturnType<typeof vi.fn>;
+    editable: { of: ReturnType<typeof vi.fn> };
+    contentAttributes: { of: ReturnType<typeof vi.fn> };
+  } & ReturnType<typeof vi.fn>;
+  MockEditorView.theme = vi.fn(() => []);
+  MockEditorView.editable = { of: vi.fn(() => []) };
+  MockEditorView.contentAttributes = { of: vi.fn(() => []) };
+  const mockEditorStateCreate = vi.fn(
+    (config: { doc?: string }) => ({ doc: { toString: () => config.doc ?? '' } }) as never
+  );
+  return { MockEditorView, mockEditorStateCreate };
+});
+
+vi.mock('react-pdf', async () => {
+  const { useEffect } = await import('react');
+  return {
+    pdfjs: { GlobalWorkerOptions: { workerSrc: '' } },
+    Document: function MockDocument({
+      children,
+      onLoadSuccess,
+    }: {
+      children: ReactNode;
+      onLoadSuccess?: (pdf: { numPages: number }) => void;
+    }) {
+      useEffect(() => {
+        onLoadSuccess?.({ numPages: 2 });
+      }, [onLoadSuccess]);
+      return <div>{children}</div>;
+    },
+    Page: function MockPage({ pageNumber }: { pageNumber: number }) {
+      return <div data-testid={`pdf-page-${pageNumber}`}>Page {pageNumber}</div>;
+    },
+  };
+});
+
+vi.mock('@codemirror/view', () => ({
+  EditorView: MockEditorView,
+  lineNumbers: vi.fn(() => []),
+  drawSelection: vi.fn(() => []),
+}));
+
+vi.mock('@codemirror/state', () => ({
+  EditorState: {
+    create: mockEditorStateCreate,
+    readOnly: { of: vi.fn(() => []) },
+  },
+  Compartment: vi.fn(function (this: unknown) {
+    return {
+      of: vi.fn(() => []),
+      reconfigure: vi.fn(() => ({ effects: [] })),
+    };
+  }),
+}));
+
+vi.mock('@codemirror/language', () => ({
+  StreamLanguage: { define: vi.fn(() => []) },
+  bracketMatching: vi.fn(() => []),
+  defaultHighlightStyle: {},
+  syntaxHighlighting: vi.fn(() => []),
+}));
+
+vi.mock('@codemirror/theme-one-dark', () => ({ oneDarkHighlightStyle: {} }));
+vi.mock('@codemirror/lang-cpp', () => ({ cpp: vi.fn(() => []) }));
+vi.mock('@codemirror/lang-css', () => ({ css: vi.fn(() => []) }));
+vi.mock('@codemirror/lang-go', () => ({ go: vi.fn(() => []) }));
+vi.mock('@codemirror/lang-html', () => ({ html: vi.fn(() => []) }));
+vi.mock('@codemirror/lang-java', () => ({ java: vi.fn(() => []) }));
+vi.mock('@codemirror/lang-javascript', () => ({ javascript: vi.fn(() => []) }));
+vi.mock('@codemirror/lang-json', () => ({ json: vi.fn(() => []) }));
+vi.mock('@codemirror/lang-markdown', () => ({ markdown: vi.fn(() => []) }));
+vi.mock('@codemirror/lang-php', () => ({ php: vi.fn(() => []) }));
+vi.mock('@codemirror/lang-python', () => ({ python: vi.fn(() => []) }));
+vi.mock('@codemirror/lang-rust', () => ({ rust: vi.fn(() => []) }));
+vi.mock('@codemirror/lang-sql', () => ({ sql: vi.fn(() => []) }));
+vi.mock('@codemirror/lang-xml', () => ({ xml: vi.fn(() => []) }));
+vi.mock('@codemirror/lang-yaml', () => ({ yaml: vi.fn(() => []) }));
+vi.mock('@codemirror/legacy-modes/mode/shell', () => ({ shell: {} }));
+
 const active: ScriptRun = {
   id: 'active-run',
   title: 'Restore data',
@@ -148,13 +241,17 @@ it('runs a saved script by ID and opens its console', async () => {
 
 it('runs a saved script with a temporary attachment from its configuration dialog', async () => {
   const scriptId = '27ac89d0-0704-4662-9770-e143d2a47d3c';
+  const photo = { name: 'solar_report_art.jpg', content: '/9j/2Q==' };
+  const clip = { name: 'reset_demo.mp4', content: 'AAAAIGZ0' };
+  const script = { name: 'run.sh', content: 'ZWNobyBoaQ==' };
+  const report = { name: 'report.pdf', content: 'JVBERi0xLjQ=' };
   const saved: SavedScript = {
     ...completed,
     id: scriptId,
     updatedAt: completed.createdAt,
     source: 'cat "daily notes.txt"',
     env: [],
-    attachments: [{ name: 'old.txt', content: 'b2xk' }],
+    attachments: [{ name: 'old.txt', content: 'b2xk' }, photo, clip, script, report],
   };
   overview.scripts = [saved];
   overview.attachmentSupport = true;
@@ -170,6 +267,61 @@ it('runs a saved script with a temporary attachment from its configuration dialo
   fireEvent.click(screen.getByRole('button', { name: 'Saved Scripts' }));
   fireEvent.click(screen.getByRole('button', { name: `Configure run: ${saved.title}` }));
   const dialog = within(await screen.findByRole('dialog', { name: 'Configure run' }));
+  const viewImage = dialog.getByRole('button', { name: `View ${photo.name}` });
+  fireEvent.click(viewImage);
+  expect(viewImage).toHaveAttribute('aria-expanded', 'true');
+  const imagePreview = within(dialog.getByRole('region', { name: `Preview of ${photo.name}` }));
+  const image = imagePreview.getByRole('img', { name: photo.name });
+  expect(image).toHaveAttribute('src', `data:image/jpeg;base64,${photo.content}`);
+  fireEvent.error(image);
+  expect(imagePreview.getByRole('link', { name: 'Download file' })).toHaveAttribute(
+    'download',
+    photo.name
+  );
+
+  const viewText = dialog.getByRole('button', { name: 'View old.txt' });
+  fireEvent.click(viewText);
+  expect(viewImage).toHaveAttribute('aria-expanded', 'false');
+  expect(
+    within(dialog.getByRole('region', { name: 'Preview of old.txt' })).getByText('old')
+  ).toBeVisible();
+  fireEvent.click(viewText);
+  expect(dialog.queryByRole('region', { name: 'Preview of old.txt' })).toBeNull();
+
+  const viewVideo = dialog.getByRole('button', { name: `View ${clip.name}` });
+  fireEvent.click(viewVideo);
+  const videoPreview = dialog.getByRole('region', { name: `Preview of ${clip.name}` });
+  expect(videoPreview.querySelector('video')).toHaveAttribute(
+    'src',
+    `data:video/mp4;base64,${clip.content}`
+  );
+  fireEvent.click(viewVideo);
+  expect(dialog.queryByRole('region', { name: `Preview of ${clip.name}` })).toBeNull();
+
+  const viewCode = dialog.getByRole('button', { name: `View ${script.name}` });
+  fireEvent.click(viewCode);
+  expect(dialog.getByRole('region', { name: `Preview of ${script.name}` })).toBeVisible();
+  expect(MockEditorView).toHaveBeenCalled();
+  expect(mockEditorStateCreate).toHaveBeenCalledWith(expect.objectContaining({ doc: 'echo hi' }));
+  fireEvent.click(viewCode);
+  expect(dialog.queryByRole('region', { name: `Preview of ${script.name}` })).toBeNull();
+
+  const viewPdf = dialog.getByRole('button', { name: `View ${report.name}` });
+  fireEvent.click(viewPdf);
+  const pdfPreview = await dialog.findByRole('region', { name: `Preview of ${report.name}` });
+  await waitFor(() => {
+    expect(within(pdfPreview).getByTestId('pdf-page-1')).toBeVisible();
+  });
+  expect(within(pdfPreview).getByTestId('pdf-page-2')).toBeVisible();
+  fireEvent.click(viewPdf);
+  expect(dialog.queryByRole('region', { name: `Preview of ${report.name}` })).toBeNull();
+
+  fireEvent.click(viewCode);
+  fireEvent.click(dialog.getByRole('button', { name: `Remove ${script.name}` }));
+  expect(dialog.queryByRole('region', { name: `Preview of ${script.name}` })).toBeNull();
+  fireEvent.click(dialog.getByRole('button', { name: `Remove ${clip.name}` }));
+  fireEvent.click(dialog.getByRole('button', { name: `Remove ${report.name}` }));
+  fireEvent.click(dialog.getByRole('button', { name: `Remove ${photo.name}` }));
   fireEvent.click(dialog.getByRole('button', { name: 'Remove old.txt' }));
   fireEvent.change(dialog.getByLabelText('Add files'), {
     target: { files: [new File(['hello'], 'daily notes.txt')] },
