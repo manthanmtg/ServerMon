@@ -1619,7 +1619,7 @@ export default function AppsPage() {
         <div
           className={
             collectionView === 'grid'
-              ? '@container grid gap-4 [@min-width:960px]:grid-cols-2'
+              ? 'grid gap-4 min-[960px]:grid-cols-2'
               : 'space-y-3'
           }
         >
