@@ -256,7 +256,7 @@ function CopyLogButton({ label, value }: { label: string; value: string }) {
       aria-label={label}
       title={label}
       onClick={handleCopy}
-      className="ml-auto inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-border/60 bg-card text-muted-foreground transition-colors hover:border-primary/40 hover:bg-primary/10 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+      className="ml-auto inline-flex h-11 w-11 sm:h-7 sm:w-7 shrink-0 items-center justify-center rounded-md border border-border/60 bg-card text-muted-foreground transition-colors hover:border-primary/40 hover:bg-primary/10 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
     >
       <Copy className="w-3.5 h-3.5" />
     </button>
