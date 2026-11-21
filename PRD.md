@@ -943,7 +943,7 @@ The following modules are currently implemented in the core system:
 - **Databases**: Deploy and operate Docker-based MongoDB, PostgreSQL, and MySQL databases
 - **Fleet**: Multi-node management with centralized administration, public routes, reverse proxies, RBAC policies, backup orchestration, and multi-channel alerting
 - **AI Agents**: Passive observability of AI coding agent sessions running on the server
-- **AI Runner**: Configure AI automation profiles, workspaces, prompts, schedules, and run history
+- **AI Runner**: Configure AI automation profiles, workspaces, prompts, schedules, and run history with schedule visualization
 - **Self Service**: Browse and install managed apps, CLI tools, and services
 - **Endpoints**: Define and execute custom API endpoints, scripts, and webhook proxies
 - **EnvVars**: Inspect and update host-level user environment variables with OS-aware system instructions

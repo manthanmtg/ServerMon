@@ -53,7 +53,7 @@ ServerMon ships with a rich set of modules out of the box:
 | **Databases**    | Deploy and operate Docker-based MongoDB, PostgreSQL, and MySQL databases                             |
 | **Fleet**        | Centralized management of remote nodes, public routes, and reverse proxies                           |
 | **AI Agents**    | Monitor AI coding agent sessions running on the server                                               |
-| **AI Runner**    | Configure AI automation profiles, prompts, schedules, and run history                                |
+| **AI Runner**    | AI automation with profiles, prompts, workspaces, schedules, schedule visualization, and run history |
 | **Self Service** | Browse and install managed apps, CLI tools, and services                                             |
 | **Endpoints**    | Define and execute custom API endpoints, scripts, and webhook proxies                                |
 | **EnvVars**      | Inspect and update host-level user environment variables with OS-aware system instructions           |
