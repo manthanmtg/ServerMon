@@ -48,7 +48,7 @@ describe('isCleanupPath', () => {
     expect(isCleanupPath(join(outside, 'file'))).toBe(false);
   });
 
-  it.each([undefined, 'not json', '{}', '["/"]', '["relative"]'])(
+  it.each(['not json', '{}', '["/"]', '["relative"]'])(
     'disables cleanup for unsafe allowlist %s',
     (value) => {
       vi.stubEnv('SERVERMON_DISK_CLEANUP_ROOTS', value);
@@ -59,6 +59,68 @@ describe('isCleanupPath', () => {
   it('disables cleanup when an allowlist includes a non-path item', () => {
     vi.stubEnv('SERVERMON_DISK_CLEANUP_ROOTS', JSON.stringify([root, 3]));
     expect(isCleanupPath(join(root, 'file'))).toBe(false);
+  });
+});
+
+describe('default cleanup scope', () => {
+  beforeEach(() => {
+    vi.stubEnv('SERVERMON_DISK_CLEANUP_ROOTS', '');
+  });
+
+  it.each([
+    '/var/cache/apt/archives',
+    '/var/log/app.log',
+    '/var/tmp/session.tmp',
+    '/var/crash/core.dump',
+    '/var/backups/db.sql',
+    '/opt/app/data',
+    '/srv/deployments/app',
+    '/tmp/build/cache',
+    '/media/usb/staging',
+  ])('allows cleaning %s', (targetPath) => {
+    expect(isCleanupPath(targetPath)).toBe(true);
+  });
+
+  it.each([
+    '/',
+    '/etc',
+    '/etc/nginx/nginx.conf',
+    '/usr',
+    '/usr/bin/ls',
+    '/bin/sh',
+    '/boot/vmlinuz',
+    '/var/lib/docker',
+    '/var/db',
+    '/var/spool/mail',
+    '/var',
+    '/home',
+    '/home/alice',
+    '/root/.ssh',
+    '/proc/1',
+    '/swapfile',
+  ])('protects %s', (targetPath) => {
+    expect(isCleanupPath(targetPath)).toBe(false);
+  });
+
+  it('deletes an eligible file without any configuration', async () => {
+    const file = join(root, 'file');
+    await writeFile(file, 'data');
+
+    const { identity } = await prepareDiskDeletion(file, 'file');
+    await deleteDiskEntry(file, 'file', identity);
+
+    await expect(lstat(file)).rejects.toMatchObject({ code: 'ENOENT' });
+  });
+
+  it('deletes an eligible nested directory without any configuration', async () => {
+    const folder = join(root, 'folder');
+    await mkdir(join(folder, 'nested'), { recursive: true });
+    await writeFile(join(folder, 'nested', 'file'), 'data');
+
+    const { identity } = await prepareDiskDeletion(folder, 'directory');
+    await deleteDiskEntry(folder, 'directory', identity);
+
+    await expect(lstat(folder)).rejects.toMatchObject({ code: 'ENOENT' });
   });
 });
 

@@ -173,7 +173,7 @@ export async function requestDiskDeletion(owner: string, id: string, target: str
     throw new DiskExplorerError('A cleanup operation is already in progress.', 409);
   }
   if (target === job.rootPath || !isCleanupPath(target)) {
-    throw new DiskExplorerError('This path is outside the configured cleanup directories.', 403);
+    throw new DiskExplorerError('This path is protected or outside the cleanup scope.', 403);
   }
   if (path.dirname(target) !== job.rootPath) {
     throw new DiskExplorerError('This path is outside the scanned directory.', 404);

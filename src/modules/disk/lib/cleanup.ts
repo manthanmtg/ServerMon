@@ -41,10 +41,42 @@ function isDescendant(parent: string, child: string): boolean {
   return child.startsWith(`${parent}/`);
 }
 
-function getCleanupPath(targetPath: string) {
-  const target = absolutePath(targetPath);
-  if (!target || target === '/') return null;
+// System-critical paths that are never deletable in the default cleanup mode.
+// Each entry protects the directory itself and everything inside it. Paths that
+// do not exist on a host are skipped. Everything outside this list is eligible
+// for administrator deletion. Configuring SERVERMON_DISK_CLEANUP_ROOTS replaces
+// this default behavior entirely with a strict allowlist.
+const DEFAULT_PROTECTED_PATHS: readonly string[] = [
+  '/bin',
+  '/boot',
+  '/dev',
+  '/etc',
+  '/home',
+  '/lib',
+  '/lib32',
+  '/lib64',
+  '/libexec',
+  '/libx32',
+  '/lost+found',
+  '/proc',
+  '/root',
+  '/run',
+  '/sbin',
+  '/snap',
+  '/sys',
+  '/usr',
+  '/var/db',
+  '/var/lib',
+  '/var/spool',
+];
 
+interface CleanupMatch {
+  target: string;
+  root: string;
+  roots: readonly string[];
+}
+
+function getConfiguredRoots(): string[] | null {
   let configured: unknown;
   try {
     configured = JSON.parse(process.env.SERVERMON_DISK_CLEANUP_ROOTS ?? '[]');
@@ -58,17 +90,51 @@ function getCleanupPath(targetPath: string) {
     const root = absolutePath(value);
     if (!root) return null;
     if (root === '/') continue;
-    // Deleting an ancestor would also delete the configured root.
-    if (target === root || isDescendant(target, root)) return null;
     roots.push(root);
   }
+  return [...new Set(roots)];
+}
 
-  const matchingRoot = roots.reduce<string | undefined>((longest, root) => {
-    if (!isDescendant(root, target)) return longest;
-    return !longest || root.length > longest.length ? root : longest;
-  }, undefined);
+function getCleanupPath(targetPath: string): CleanupMatch | null {
+  const target = absolutePath(targetPath);
+  if (!target || target === '/') return null;
 
-  return matchingRoot ? { target, root: matchingRoot, roots: [...new Set(roots)] } : null;
+  const rawRoots = process.env.SERVERMON_DISK_CLEANUP_ROOTS;
+  const hasAllowlist = rawRoots !== undefined && rawRoots.trim() !== '';
+
+  if (hasAllowlist) {
+    const configured = getConfiguredRoots();
+    if (configured === null || configured.length === 0) return null;
+
+    for (const root of configured) {
+      // Deleting an ancestor would also delete the configured root.
+      if (target === root || isDescendant(target, root)) return null;
+    }
+
+    const matchingRoot = configured.reduce<string | undefined>((longest, root) => {
+      if (!isDescendant(root, target)) return longest;
+      return !longest || root.length > longest.length ? root : longest;
+    }, undefined);
+    if (!matchingRoot) return null;
+
+    return { target, root: matchingRoot, roots: configured };
+  }
+
+  // Default mode: every path is eligible except protected system entries and
+  // their ancestors. Top-level entries stay protected because the deletion
+  // helper pins the allowed filesystem to the target's parent directory.
+  const parent = target.slice(0, target.lastIndexOf('/')) || '/';
+  if (parent === '/') return null;
+  for (const protectedPath of DEFAULT_PROTECTED_PATHS) {
+    if (
+      target === protectedPath ||
+      isDescendant(protectedPath, target) ||
+      isDescendant(target, protectedPath)
+    ) {
+      return null;
+    }
+  }
+  return { target, root: parent, roots: DEFAULT_PROTECTED_PATHS };
 }
 
 /** Lexical eligibility for display. Live filesystem checks run before prepare and delete. */
@@ -309,7 +375,7 @@ async function runCleanup(
 ): Promise<string> {
   const match = getCleanupPath(targetPath);
   if (!match) {
-    throw new DiskCleanupError('This path is outside the configured disk cleanup scope.', 403);
+    throw new DiskCleanupError('This path is protected or outside the disk cleanup scope.', 403);
   }
   if (process.platform !== 'linux' && process.platform !== 'darwin') {
     throw new DiskCleanupError('Disk cleanup is unavailable on this host.', 503);
