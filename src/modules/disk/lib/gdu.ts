@@ -9,8 +9,10 @@ import {
 export { DiskScanError } from './gdu-binary';
 
 const execFileAsync = promisify(execFile);
-const SCAN_TIMEOUT_MS = 120_000;
-const MAX_OUTPUT_BYTES = 64 * 1024 * 1024;
+// Whole-filesystem scans are slow and CPU/memory bound, and the explorer
+// already supports polling a running scan, so give them a generous budget.
+const SCAN_TIMEOUT_MS = 900_000;
+const MAX_OUTPUT_BYTES = 128 * 1024 * 1024;
 const MAX_ENTRIES = 500_000;
 const MAX_DEPTH = 256;
 const INVALID_EXPORT = 'Gdu returned an invalid disk scan. Try rescanning the directory.';
@@ -192,9 +194,9 @@ export async function scanDisk(scanPath: string): Promise<DiskScanTree> {
         '--enable-profiling=false',
         '--follow-symlinks=false',
         '--exclusive-size=false',
-        '--max-cores=4',
+        '--max-cores=8',
         '--output-attrs=dsize,mtime,notreg',
-        '--depth=0',
+        '--depth=1',
         '--top=0',
         '--summarize=false',
         '--',
@@ -206,7 +208,9 @@ export async function scanDisk(scanPath: string): Promise<DiskScanTree> {
           NODE_ENV: process.env.NODE_ENV,
           PATH: process.env.PATH,
           LC_ALL: 'C',
-          GOMEMLIMIT: '256MiB',
+          // Too small a soft heap limit makes gdu garbage-collect constantly
+          // on trees with hundreds of thousands of entries instead of finishing.
+          GOMEMLIMIT: '1GiB',
         },
         timeout: SCAN_TIMEOUT_MS,
         killSignal: 'SIGKILL',

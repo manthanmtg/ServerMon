@@ -31,13 +31,14 @@ async function setFakeExport(root: unknown, header = metadata) {
 }
 
 describe('scanDisk', () => {
-  it('passes the full path as one argument and runs a read-only, single-filesystem export', async () => {
+  it('passes the full path as one argument and runs a read-only, single-filesystem, one-level export', async () => {
     const output = JSON.stringify([1, 2, metadata, [{ name: scanPath, dsize: 4096, items: 1 }]]);
     await setFakeExecutable(
       `const args = process.argv.slice(2);
        if (args[0] !== '-x' || args[1] !== '-o' || args[2] !== '-' ||
            args.at(-2) !== '--' || args.at(-1) !== ${JSON.stringify(scanPath)} ||
-           !args.includes('--config-file=/dev/null') || !args.includes('--db=')) process.exit(19);
+           !args.includes('--config-file=/dev/null') || !args.includes('--db=') ||
+           !args.includes('--depth=1')) process.exit(19);
        process.stdout.write(${JSON.stringify(output)});`,
       'scanner with spaces'
     );
@@ -105,6 +106,26 @@ describe('scanDisk', () => {
         ],
       },
       partial: false,
+    });
+  });
+
+  it('keeps depth-capped directories browsable with empty children', async () => {
+    await setFakeExport([
+      { name: scanPath, dsize: 12_288, items: 3 },
+      [{ name: 'capped', dsize: 4096, mtime: 1_795_261_566, read_error: true }],
+      { name: 'file', dsize: 4096 },
+    ]);
+
+    await expect(scanDisk(scanPath)).resolves.toMatchObject({
+      partial: true,
+      root: {
+        size: 12_288,
+        readError: true,
+        children: [
+          { name: 'capped', size: 4096, readError: true, modifiedAt: 1_795_261_566, children: [] },
+          { name: 'file', size: 4096, readError: false },
+        ],
+      },
     });
   });
 

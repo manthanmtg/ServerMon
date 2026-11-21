@@ -51,10 +51,11 @@ describe('CapacityAnalysis', () => {
     expect(screen.getByLabelText('Scan directory')).toHaveValue('/');
   });
 
-  it('browses into a folder without starting a second scan', async () => {
+  it('browses into a folder by scanning that directory', async () => {
     fetchMock
       .mockImplementationOnce(() => reply(scan))
       .mockImplementationOnce(() => reply(listing('/var', [folder])))
+      .mockImplementationOnce(() => reply(scan))
       .mockImplementationOnce(() => reply(listing('/var/cache', [file])));
 
     render(<CapacityAnalysis settings={settings} />);
@@ -63,10 +64,10 @@ describe('CapacityAnalysis', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'cache' }));
 
     expect(await screen.findByText('cache.txt')).toBeInTheDocument();
-    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(fetchMock).toHaveBeenCalledTimes(4);
     expect(
-      new URL(fetchMock.mock.calls[2][0], 'http://localhost').searchParams.get('directory')
-    ).toBe('/var/cache');
+      JSON.parse(fetchMock.mock.calls[2][1].body)
+    ).toMatchObject({ action: 'scan', path: '/var/cache' });
   });
 
   it('prepares the live entry and waits for confirmation before deleting', async () => {

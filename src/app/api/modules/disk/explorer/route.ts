@@ -8,9 +8,9 @@ import { getSession } from '@/lib/session';
 import User from '@/models/User';
 import { DiskCleanupError } from '@/modules/disk/lib/cleanup';
 import {
-  browseDiskScan,
   confirmDiskDeletion,
   DiskExplorerError,
+  getDiskScan,
   requestDiskDeletion,
   startDiskScan,
 } from '@/modules/disk/lib/explorer';
@@ -32,7 +32,6 @@ const startSchema = z.discriminatedUnion('action', [
 ]);
 const browseSchema = z.object({
   id: scanId,
-  directory: absolutePath.optional(),
   offset: z.coerce.number().int().nonnegative().safe().default(0),
 });
 const deleteSchema = z.object({ id: scanId, token: z.uuid() });
@@ -84,8 +83,8 @@ export async function GET(request: Request) {
     const query = browseSchema.safeParse(Object.fromEntries(params));
     if (!query.success) return failure('Invalid scan or directory.', 400);
 
-    const { id, directory, offset } = query.data;
-    return json(browseDiskScan(user.id, id, directory, offset, user.role === 'admin'));
+    const { id, offset } = query.data;
+    return json(getDiskScan(user.id, id, offset, user.role === 'admin'));
   } catch (error) {
     return routeError(error);
   }
@@ -101,7 +100,8 @@ export async function POST(request: Request) {
 
     const data = parsed.data;
     if (data.action === 'scan') {
-      return json(await startDiskScan(user.id, data.path), 202);
+      const result = await startDiskScan(user.id, data.path, user.role === 'admin');
+      return json(result, result.status === 'ready' ? 200 : 202);
     }
     await requireActiveAdmin(user, request);
     return json(await requestDiskDeletion(user.id, data.id, data.path));

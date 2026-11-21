@@ -16,7 +16,6 @@ const POLL_MS = 1000;
 
 interface ScanLocation {
   id: string;
-  directory?: string;
   offset: number;
 }
 
@@ -46,10 +45,9 @@ function send<T>(method: 'POST' | 'DELETE', body: object) {
   });
 }
 
-function getBreadcrumbs(root: string, current: string) {
-  const crumbs = [{ name: root, path: root }];
-  const relative = current.slice(root === '/' ? 1 : root.length + 1);
-  for (const name of relative.split('/').filter(Boolean)) {
+function getBreadcrumbs(current: string) {
+  const crumbs = [{ name: '/', path: '/' }];
+  for (const name of current.split('/').filter(Boolean)) {
     const parent = crumbs[crumbs.length - 1].path;
     crumbs.push({ name, path: parent === '/' ? '/' + name : parent + '/' + name });
   }
@@ -72,7 +70,6 @@ export function CapacityAnalysis({ settings }: { settings: DiskSettings }) {
     const controller = new AbortController();
     let timer: ReturnType<typeof setTimeout> | undefined;
     const params = new URLSearchParams({ id: location.id, offset: String(location.offset) });
-    if (location.directory) params.set('directory', location.directory);
 
     async function load() {
       try {
@@ -97,14 +94,14 @@ export function CapacityAnalysis({ settings }: { settings: DiskSettings }) {
     };
   }, [location]);
 
-  async function startScan(path: string, directory?: string) {
+  async function startScan(path: string) {
     setStarting(true);
     setError('');
     setLocation(null);
     setScan(null);
     try {
       const result = await send<DiskExplorerScan>('POST', { action: 'scan', path });
-      setLocation({ id: result.id, directory, offset: 0 });
+      setLocation({ id: result.id, offset: 0 });
       setScan(result);
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Could not start the scan.');
@@ -118,11 +115,15 @@ export function CapacityAnalysis({ settings }: { settings: DiskSettings }) {
     if (scanPath.trim()) void startScan(scanPath);
   }
 
-  function browse(directory: string, offset = 0) {
-    if (!location) return;
+  function browse(directory: string) {
+    void startScan(directory);
+  }
+
+  function changePage(offset: number) {
+    if (!location || mutationPending) return;
     setError('');
     setScan(null);
-    setLocation({ id: location.id, directory, offset });
+    setLocation({ id: location.id, offset });
   }
 
   async function prepareDeletion(entry: DiskExplorerEntry) {
@@ -161,7 +162,7 @@ export function CapacityAnalysis({ settings }: { settings: DiskSettings }) {
     } finally {
       setConfirmation(null);
       setDeleting(false);
-      await startScan(scan.rootPath, scan.listing.path);
+      await startScan(scan.rootPath);
     }
   }
 
@@ -250,7 +251,7 @@ export function CapacityAnalysis({ settings }: { settings: DiskSettings }) {
                 aria-label="Directory breadcrumbs"
                 className="flex min-w-0 flex-wrap items-center"
               >
-                {getBreadcrumbs(scan.rootPath, listing.path).map((crumb, index) => (
+                {getBreadcrumbs(listing.path).map((crumb, index) => (
                   <div key={crumb.path} className="flex min-w-0 items-center">
                     {index > 0 && (
                       <ChevronRight className="size-3 shrink-0 text-muted-foreground" />
@@ -371,7 +372,7 @@ export function CapacityAnalysis({ settings }: { settings: DiskSettings }) {
                     variant="outline"
                     size="sm"
                     disabled={mutationPending || listing.offset === 0}
-                    onClick={() => browse(listing.path, Math.max(listing.offset - 100, 0))}
+                    onClick={() => changePage(Math.max(listing.offset - 100, 0))}
                     className="h-11"
                   >
                     Previous
@@ -381,7 +382,7 @@ export function CapacityAnalysis({ settings }: { settings: DiskSettings }) {
                     variant="outline"
                     size="sm"
                     disabled={mutationPending || listing.nextOffset === null}
-                    onClick={() => browse(listing.path, listing.nextOffset ?? 0)}
+                    onClick={() => changePage(listing.nextOffset ?? 0)}
                     className="h-11"
                   >
                     Next

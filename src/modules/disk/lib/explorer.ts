@@ -2,14 +2,22 @@ import { randomUUID } from 'node:crypto';
 import { realpath, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { createLogger } from '@/lib/logger';
-import type { DiskExplorerScan } from '../explorer-types';
+import type {
+  DiskExplorerListing,
+  DiskExplorerScan,
+} from '../explorer-types';
 import { deleteDiskEntry, isCleanupPath, prepareDiskDeletion } from './cleanup';
-import { DiskScanError, scanDisk, type DiskScanNode, type DiskScanTree } from './gdu';
+import {
+  DiskScanError,
+  scanDisk,
+  type DiskScanNode,
+  type DiskScanTree,
+} from './gdu';
 
 const log = createLogger('disk:explorer');
 const SCAN_TTL = 20 * 60 * 1000;
 const CONFIRMATION_TTL = 2 * 60 * 1000;
-const MAX_SCANS = 2;
+const MAX_SCANS = 8;
 const PAGE_SIZE = 100;
 
 export class DiskExplorerError extends Error {
@@ -79,16 +87,57 @@ async function finishScan(job: ScanJob) {
   }
 }
 
-export async function startDiskScan(owner: string, scanPath: string): Promise<DiskExplorerScan> {
+function toListing(job: ScanJob, offset: number, isAdmin: boolean): DiskExplorerListing {
+  const { tree } = job.state as { status: 'ready'; tree: DiskScanTree };
+  const node = tree.root;
+  const children = node.children ?? [];
+  return {
+    path: job.rootPath,
+    size: node.size,
+    partial: tree.partial,
+    offset,
+    nextOffset: offset + PAGE_SIZE < children.length ? offset + PAGE_SIZE : null,
+    entries: children.slice(offset, offset + PAGE_SIZE).map((child) => {
+      const childPath = path.join(job.rootPath, child.name);
+      return {
+        name: child.name,
+        path: childPath,
+        size: child.size,
+        kind: child.children ? 'directory' : 'file',
+        readError: child.readError,
+        canDelete: isAdmin && !child.readError && !child.special && isCleanupPath(childPath),
+      };
+    }),
+  };
+}
+
+function toScan(job: ScanJob, offset: number, isAdmin: boolean): DiskExplorerScan {
+  const reference = { id: job.id, rootPath: job.rootPath };
+  if (job.state.status === 'ready') {
+    return { ...reference, status: 'ready', listing: toListing(job, offset, isAdmin) };
+  }
+  return { ...reference, ...job.state };
+}
+
+export async function startDiskScan(
+  owner: string,
+  scanPath: string,
+  isAdmin: boolean
+): Promise<DiskExplorerScan> {
   const rootPath = await realpath(scanPath).catch(() => null);
   if (!rootPath || !(await stat(rootPath).catch(() => null))?.isDirectory()) {
     throw new DiskExplorerError('Choose an existing directory ServerMon can access.', 400);
   }
   discardExpiredScans();
-  if (
-    explorer.deleting ||
-    [...explorer.jobs.values()].some((job) => job.state.status === 'scanning')
-  ) {
+
+  // A listing only covers one directory level, so revisiting a cached
+  // directory reuses its scan instead of rescanning the same path.
+  for (const job of explorer.jobs.values()) {
+    if (job.owner !== owner || job.rootPath !== rootPath) continue;
+    job.expiresAt = Date.now() + SCAN_TTL;
+    return toScan(job, 0, isAdmin);
+  }
+  if (explorer.deleting || [...explorer.jobs.values()].some((job) => job.state.status === 'scanning')) {
     throw new DiskExplorerError('A disk operation is already running. Try again shortly.', 409);
   }
 
@@ -110,57 +159,14 @@ export async function startDiskScan(owner: string, scanPath: string): Promise<Di
   return { id, rootPath, status: 'scanning' };
 }
 
-function findNode(rootPath: string, root: DiskScanNode, target: string): DiskScanNode {
-  const relative = path.relative(rootPath, target);
-  let node: DiskScanNode | undefined = root;
-  if (relative) {
-    for (const segment of relative.split(path.sep)) {
-      node = node?.children?.find((child) => child.name === segment);
-      if (!node) break;
-    }
-  }
-  if (!node) throw new DiskExplorerError('This path is outside the scan or was not found.', 404);
-  return node;
-}
-
-export function browseDiskScan(
+export function getDiskScan(
   owner: string,
   id: string,
-  target: string | undefined,
   offset: number,
   isAdmin: boolean
 ): DiskExplorerScan {
   const job = getJob(owner, id);
-  const reference = { id, rootPath: job.rootPath };
-  if (job.state.status !== 'ready') return { ...reference, ...job.state };
-
-  const directory = target ?? job.rootPath;
-  const { root, partial } = job.state.tree;
-  const node = findNode(job.rootPath, root, directory);
-  if (!node.children) throw new DiskExplorerError('Choose a directory to browse.', 400);
-
-  return {
-    ...reference,
-    status: 'ready',
-    listing: {
-      path: directory,
-      size: node.size,
-      partial,
-      offset,
-      nextOffset: offset + PAGE_SIZE < node.children.length ? offset + PAGE_SIZE : null,
-      entries: node.children.slice(offset, offset + PAGE_SIZE).map((child) => {
-        const childPath = path.join(directory, child.name);
-        return {
-          name: child.name,
-          path: childPath,
-          size: child.size,
-          kind: child.children ? 'directory' : 'file',
-          readError: child.readError,
-          canDelete: isAdmin && !child.readError && !child.special && isCleanupPath(childPath),
-        };
-      }),
-    },
-  };
+  return toScan(job, offset, isAdmin);
 }
 
 export async function requestDiskDeletion(owner: string, id: string, target: string) {
@@ -174,8 +180,17 @@ export async function requestDiskDeletion(owner: string, id: string, target: str
   if (target === job.rootPath || !isCleanupPath(target)) {
     throw new DiskExplorerError('This path is outside the configured cleanup directories.', 403);
   }
+  if (path.dirname(target) !== job.rootPath) {
+    throw new DiskExplorerError('This path is outside the scanned directory.', 404);
+  }
 
-  const node = findNode(job.rootPath, job.state.tree.root, target);
+  const name = path.basename(target);
+  const node = job.state.tree.root.children?.find(
+    (child: DiskScanNode) => child.name === name
+  );
+  if (!node) {
+    throw new DiskExplorerError('This path was not found in the scan.', 404);
+  }
   if (node.readError) {
     throw new DiskExplorerError('This entry was not fully scanned.', 409);
   }

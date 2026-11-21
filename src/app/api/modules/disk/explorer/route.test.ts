@@ -1,5 +1,5 @@
 /** @vitest-environment node */
-import { mkdir, mkdtemp, realpath, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -35,15 +35,12 @@ function mutate(method: 'POST' | 'DELETE', body: object) {
   return new Request(url, { method, body: JSON.stringify(body) });
 }
 
-function browse(id: string, directory?: string) {
-  const params = new URLSearchParams({ id });
-  if (directory) params.set('directory', directory);
-  return GET(new Request(url + '?' + params));
+function browse(id: string, offset = 0) {
+  return GET(new Request(url + '?' + new URLSearchParams({ id, offset: String(offset) })));
 }
 
-async function startScan() {
-  const response = await POST(mutate('POST', { action: 'scan', path: root }));
-  expect(response.status).toBe(202);
+async function startScan(target: string) {
+  const response = await POST(mutate('POST', { action: 'scan', path: target }));
   const state = await response.json();
   expect(state.status).toBe('scanning');
   return String(state.id);
@@ -53,30 +50,28 @@ async function prepare(id: string, target: string) {
   return POST(mutate('POST', { action: 'prepare-delete', id, path: target }));
 }
 
+function treeFor(directory: string, children: object[]) {
+  return {
+    root: { name: directory, size: 2048, readError: false, children },
+    partial: false,
+  };
+}
+
 describe('disk explorer API', () => {
   beforeEach(async () => {
     root = await realpath(await mkdtemp(path.join(os.tmpdir(), 'servermon-explorer-test-')));
     cleanup = path.join(root, 'cleanup');
     file = path.join(cleanup, 'file.txt');
+    await mkdir(cleanup);
+    await writeFile(file, 'content');
     vi.stubEnv('SERVERMON_DISK_CLEANUP_ROOTS', JSON.stringify([cleanup]));
     session.mockResolvedValue(admin);
     activeAdmin.mockResolvedValue({ _id: admin.user.id });
-    scanDisk.mockResolvedValue({
-      root: {
-        name: root,
-        size: 2048,
-        readError: false,
-        children: [
-          {
-            name: 'cleanup',
-            size: 2048,
-            readError: false,
-            children: [{ name: 'file.txt', size: 2048, readError: false, modifiedAt: 100 }],
-          },
-        ],
-      },
-      partial: false,
-    });
+    scanDisk.mockImplementation((target: string) =>
+      target === cleanup
+        ? treeFor(cleanup, [{ name: 'file.txt', size: 2048, readError: false, modifiedAt: 100 }])
+        : treeFor(root, [{ name: 'cleanup', size: 2048, readError: false, children: [] }])
+    );
     prepareDiskDeletion.mockResolvedValue({ identity: 'live-inode', size: 2048, modifiedAt: 100 });
     deleteDiskEntry.mockResolvedValue(undefined);
   });
@@ -93,23 +88,54 @@ describe('disk explorer API', () => {
     expect(scanDisk).not.toHaveBeenCalled();
   });
 
-  it('browses a shared scan tree without rescanning and restricts it to its owner', async () => {
-    const id = await startScan();
-    const initial = await (await browse(id)).json();
-    expect(initial.listing.entries).toMatchObject([{ path: cleanup, canDelete: false }]);
+  it('serves one directory level per scan and restricts listings to their owner', async () => {
+    const id = await startScan(root);
+    const listing = await (await browse(id)).json();
+    expect(listing.listing.entries).toMatchObject([{ path: cleanup, canDelete: false }]);
 
-    const child = await (await browse(id, cleanup)).json();
+    const childId = await startScan(cleanup);
+    expect(childId).not.toBe(id);
+    expect(scanDisk).toHaveBeenCalledTimes(2);
+    const child = await (await browse(childId)).json();
     expect(child.listing.entries).toMatchObject([{ path: file, canDelete: true }]);
-    expect(scanDisk).toHaveBeenCalledTimes(1);
-    expect((await browse(id, path.dirname(root))).status).toBe(404);
 
     session.mockResolvedValue({ user: { id: '507f1f77bcf86cd799439012', role: 'admin' } });
     expect((await browse(id)).status).toBe(404);
-    expect((await prepare(id, file)).status).toBe(404);
+    expect((await prepare(childId, file)).status).toBe(404);
+  });
+
+  it('reuses a cached scan of the same directory instead of rescanning', async () => {
+    const id = await startScan(root);
+    const cached = await POST(mutate('POST', { action: 'scan', path: root }));
+    expect(cached.status).toBe(200);
+    const state = await cached.json();
+    expect(state.id).toBe(id);
+    expect(state.status).toBe('ready');
+    expect(scanDisk).toHaveBeenCalledTimes(1);
+  });
+
+  it('paginates the cached listing without rescanning', async () => {
+    const children = Array.from({ length: 150 }, (_, index) => ({
+      name: `entry-${index}`,
+      size: 1,
+      readError: false,
+      children: [],
+    }));
+    scanDisk.mockImplementation((target: string) => treeFor(target, children));
+    const id = await startScan(root);
+
+    const first = await (await browse(id)).json();
+    expect(first.listing.entries).toHaveLength(100);
+    expect(first.listing.nextOffset).toBe(100);
+
+    const second = await (await browse(id, 100)).json();
+    expect(second.listing.entries).toHaveLength(50);
+    expect(second.listing.nextOffset).toBeNull();
+    expect(scanDisk).toHaveBeenCalledTimes(1);
   });
 
   it('rejects a changed file and rechecks current administrator status before removing', async () => {
-    const id = await startScan();
+    const id = await startScan(cleanup);
     prepareDiskDeletion.mockResolvedValueOnce({
       identity: 'replacement',
       size: 4096,
@@ -125,14 +151,15 @@ describe('disk explorer API', () => {
   });
 
   it('requires an administrator and configured child, then consumes confirmation once', async () => {
-    const id = await startScan();
+    const id = await startScan(cleanup);
     session.mockResolvedValue(viewer);
-    const listing = await (await browse(id, cleanup)).json();
+    const listing = await (await browse(id)).json();
     expect(listing.listing.entries[0].canDelete).toBe(false);
     expect((await prepare(id, file)).status).toBe(403);
 
     session.mockResolvedValue(admin);
     expect((await prepare(id, cleanup)).status).toBe(403);
+    expect((await prepare(id, path.join(cleanup, 'nested', 'unscanned.txt'))).status).toBe(404);
     expect((await prepare(id, path.join(cleanup, 'unscanned.txt'))).status).toBe(404);
     const reply = await prepare(id, file);
     expect(reply.status).toBe(200);
@@ -147,7 +174,7 @@ describe('disk explorer API', () => {
   });
 
   it('retains a different account’s scan outside the deleted subtree', async () => {
-    const id = await startScan();
+    const id = await startScan(cleanup);
     const otherRoot = path.join(root, 'other');
     await mkdir(otherRoot);
     const otherAccount = { user: { id: '507f1f77bcf86cd799439012', role: 'user' } };
@@ -165,25 +192,29 @@ describe('disk explorer API', () => {
     expect((await browse(otherId)).status).toBe(200);
   });
 
-  it('exposes pending scans and prevents concurrent scans of the same host', async () => {
+  it('exposes pending scans, reuses them, and prevents concurrent scans', async () => {
     let release = () => {};
     scanDisk.mockImplementationOnce(
       () =>
         new Promise((resolve) => {
-          release = () =>
-            resolve({
-              root: { name: root, size: 0, children: [], readError: false },
-              partial: false,
-            });
+          release = () => resolve(treeFor(root, []));
         })
     );
-    const id = await startScan();
+    const id = await startScan(root);
     try {
       expect((await (await browse(id)).json()).status).toBe('scanning');
-      expect((await POST(mutate('POST', { action: 'scan', path: root }))).status).toBe(409);
+
+      const duplicate = await POST(mutate('POST', { action: 'scan', path: root }));
+      expect(duplicate.status).toBe(202);
+      expect((await duplicate.json()).id).toBe(id);
+      expect(scanDisk).toHaveBeenCalledTimes(1);
+
+      const other = await POST(mutate('POST', { action: 'scan', path: cleanup }));
+      expect(other.status).toBe(409);
     } finally {
       release();
     }
-    expect((await (await browse(id)).json()).status).toBe('ready');
+    const ready = await (await browse(id)).json();
+    expect(ready.status).toBe('ready');
   });
 });
