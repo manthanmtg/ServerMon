@@ -1,6 +1,6 @@
 import mongoose, { Document, Model, Schema } from 'mongoose';
 
-export interface INetworkAlert extends Document {
+interface INetworkAlert extends Document {
   fingerprint: string;
   severity: 'warning' | 'critical';
   title: string;

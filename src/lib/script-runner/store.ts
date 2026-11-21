@@ -33,7 +33,7 @@ export const runnerHost = hostname();
 export const supported = process.platform === 'linux';
 export const QUEUED_STATUSES = ['queued', 'queued_linked', 'queued_python'] as const;
 export const ACTIVE_STATUSES = [...QUEUED_STATUSES, 'running'] as const;
-export const WORKER_STALE_MS = 20_000;
+const WORKER_STALE_MS = 20_000;
 export const runnerDataDirectory = '/var/lib/servermon/script-runner';
 export const outputPath = (id: string) =>
   join(runnerDataDirectory, `${runIdInput.parse(id)}.ndjson`);
