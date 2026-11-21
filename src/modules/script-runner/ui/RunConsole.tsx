@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowDownToLine,
   Circle,
@@ -130,11 +130,11 @@ function OutputConsole({
     }
   }
 
-  const visible = run.logsPurgedAt
-    ? []
-    : filter === 'all'
-      ? entries
-      : entries.filter((entry) => entry.stream === filter);
+  const visible = useMemo(() => {
+    if (run.logsPurgedAt) return [];
+    if (filter === 'all') return entries;
+    return entries.filter((entry) => entry.stream === filter);
+  }, [entries, filter, run.logsPurgedAt]);
   return (
     <>
       <div className="sr-console-run">
