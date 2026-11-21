@@ -1,33 +1,19 @@
 'use client';
 
 import React, { useEffect, useState, useCallback, useRef } from 'react';
-import {
-  Plus,
-  X,
-  Settings as SettingsIcon,
-  RotateCcw,
-  Pencil,
-  Check,
-  History,
-  Bookmark,
-} from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/components/ui/toast';
 import { cn } from '@/lib/utils';
+import { resilientFetch } from '@/lib/fetch-utils';
 import TerminalUI from './TerminalUI';
 import TerminalSettingsModal from './TerminalSettingsModal';
 import TerminalHistoryModal from './TerminalHistoryModal';
 import SavedCommandsModal from './SavedCommandsModal';
+import { TerminalTabsToolbar, type TerminalSessionTab } from './components/TerminalTabsToolbar';
 
-interface SessionTab {
-  sessionId: string;
-  label: string;
-  order: number;
-  status: 'connected' | 'disconnected' | 'connecting';
-  pid?: number;
-}
+type SessionTab = TerminalSessionTab;
 
 interface TermSettings {
   idleTimeoutMinutes: number;
@@ -61,7 +47,7 @@ export default function TerminalPage() {
 
   const fetchSessions = useCallback(async () => {
     try {
-      const res = await fetch('/api/terminal/sessions');
+      const res = await resilientFetch('/api/terminal/sessions', { timeout: 8000, retries: 2 });
       const data = await res.json();
 
       setTabs((prevTabs) => {
@@ -74,10 +60,11 @@ export default function TerminalPage() {
         });
 
         if (sessions.length === 0) {
-          fetch('/api/terminal/sessions', {
+          resilientFetch('/api/terminal/sessions', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ label: 'Terminal 1' }),
+            timeout: 8000,
           })
             .then((res) => res.json())
             .then((created) => {
@@ -103,7 +90,7 @@ export default function TerminalPage() {
 
   const fetchSettings = useCallback(async () => {
     try {
-      const res = await fetch('/api/terminal/settings');
+      const res = await resilientFetch('/api/terminal/settings', { timeout: 5000, retries: 2 });
       const data = await res.json();
       if (data.settings) setSettings(data.settings);
     } catch {
@@ -113,7 +100,7 @@ export default function TerminalPage() {
 
   const fetchUser = useCallback(async () => {
     try {
-      const res = await fetch('/api/auth/me');
+      const res = await resilientFetch('/api/auth/me', { timeout: 5000, retries: 2 });
       const data = await res.json();
       if (data.user?.username) setCurrentUser(data.user.username);
     } catch {
@@ -127,16 +114,17 @@ export default function TerminalPage() {
     fetchUser();
   }, [fetchSessions, fetchSettings, fetchUser]);
 
-  const addTab = async () => {
+  const addTab = useCallback(async () => {
     if (tabs.length >= settings.maxSessions) {
       toast({ title: `Maximum ${settings.maxSessions} sessions reached`, variant: 'warning' });
       return;
     }
     try {
-      const res = await fetch('/api/terminal/sessions', {
+      const res = await resilientFetch('/api/terminal/sessions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ label: `Terminal ${tabs.length + 1}` }),
+        timeout: 8000,
       });
       const data = await res.json();
       if (!res.ok) {
@@ -149,29 +137,38 @@ export default function TerminalPage() {
     } catch {
       toast({ title: 'Failed to create session', variant: 'destructive' });
     }
-  };
+  }, [tabs.length, settings.maxSessions, toast]);
 
-  const closeTab = async (sessionId: string) => {
-    try {
-      await fetch(`/api/terminal/sessions?sessionId=${sessionId}`, { method: 'DELETE' });
-      setTabs((prev) => {
-        const next = prev.filter((t) => t.sessionId !== sessionId);
-        if (activeTabId === sessionId && next.length > 0) {
-          setActiveTabId(next[0].sessionId);
+  const closeTab = useCallback(
+    async (sessionId: string) => {
+      try {
+        await resilientFetch(`/api/terminal/sessions?sessionId=${sessionId}`, {
+          method: 'DELETE',
+          timeout: 5000,
+        });
+        setTabs((prev) => {
+          const next = prev.filter((t) => t.sessionId !== sessionId);
+          if (activeTabId === sessionId && next.length > 0) {
+            setActiveTabId(next[0].sessionId);
+          }
+          return next;
+        });
+        if (tabs.length <= 1) {
+          fetchSessions();
         }
-        return next;
-      });
-      if (tabs.length <= 1) {
-        fetchSessions();
+      } catch {
+        toast({ title: 'Failed to close session', variant: 'destructive' });
       }
-    } catch {
-      toast({ title: 'Failed to close session', variant: 'destructive' });
-    }
-  };
+    },
+    [activeTabId, tabs.length, fetchSessions, toast]
+  );
 
-  const resetAll = async () => {
+  const resetAll = useCallback(async () => {
     try {
-      const res = await fetch('/api/terminal/sessions?resetAll=true', { method: 'DELETE' });
+      const res = await resilientFetch('/api/terminal/sessions?resetAll=true', {
+        method: 'DELETE',
+        timeout: 10000,
+      });
       const data = await res.json();
       if (data.sessions) {
         const resetTabs = data.sessions.map((s: SessionTab) => ({
@@ -186,34 +183,38 @@ export default function TerminalPage() {
     } catch {
       toast({ title: 'Failed to reset', variant: 'destructive' });
     }
-  };
+  }, [toast]);
 
-  const startRename = (tab: SessionTab) => {
+  const startRename = useCallback((tab: SessionTab) => {
     setEditingTabId(tab.sessionId);
     setEditLabel(tab.label);
     setTimeout(() => editInputRef.current?.focus(), 50);
-  };
+  }, []);
 
-  const commitRename = async (sessionId: string) => {
-    const trimmed = editLabel.trim();
-    if (!trimmed) {
+  const commitRename = useCallback(
+    async (sessionId: string) => {
+      const trimmed = editLabel.trim();
+      if (!trimmed) {
+        setEditingTabId(null);
+        return;
+      }
+      try {
+        await resilientFetch('/api/terminal/sessions', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sessionId, label: trimmed }),
+          timeout: 5000,
+        });
+        setTabs((prev) =>
+          prev.map((t) => (t.sessionId === sessionId ? { ...t, label: trimmed } : t))
+        );
+      } catch {
+        /* ignore */
+      }
       setEditingTabId(null);
-      return;
-    }
-    try {
-      await fetch('/api/terminal/sessions', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sessionId, label: trimmed }),
-      });
-      setTabs((prev) =>
-        prev.map((t) => (t.sessionId === sessionId ? { ...t, label: trimmed } : t))
-      );
-    } catch {
-      /* ignore */
-    }
-    setEditingTabId(null);
-  };
+    },
+    [editLabel]
+  );
 
   const updateTabStatus = useCallback(
     (sessionId: string, status: 'connected' | 'disconnected' | 'connecting') => {
@@ -226,6 +227,11 @@ export default function TerminalPage() {
     setSettings(newSettings);
     toast({ title: 'Terminal settings saved', variant: 'success' });
   };
+
+  const handleShowResetConfirm = useCallback(() => setShowResetConfirm(true), []);
+  const handleShowSavedCommands = useCallback(() => setShowSavedCommands(true), []);
+  const handleShowHistory = useCallback(() => setShowHistory(true), []);
+  const handleShowSettings = useCallback(() => setShowSettings(true), []);
 
   if (loading) {
     return (
@@ -250,139 +256,23 @@ export default function TerminalPage() {
 
   return (
     <div className="h-full flex flex-col gap-2">
-      {/* Toolbar */}
-      <div className="flex items-center justify-between shrink-0">
-        <div className="flex items-center gap-1 overflow-x-auto pb-1 flex-1 min-w-0">
-          {tabs.map((tab) => (
-            <div
-              key={tab.sessionId}
-              className={cn(
-                'group flex items-center gap-1.5 pl-3 pr-1.5 h-9 rounded-lg text-xs font-medium transition-colors cursor-pointer shrink-0 min-w-0',
-                tab.sessionId === activeTabId
-                  ? 'bg-primary text-primary-foreground'
-                  : 'bg-secondary text-muted-foreground hover:text-foreground hover:bg-accent'
-              )}
-              onClick={() => setActiveTabId(tab.sessionId)}
-            >
-              <span
-                className={cn(
-                  'w-1.5 h-1.5 rounded-full shrink-0',
-                  tab.status === 'connected'
-                    ? 'bg-success'
-                    : tab.status === 'connecting'
-                      ? 'bg-warning animate-pulse'
-                      : 'bg-destructive'
-                )}
-              />
-              {editingTabId === tab.sessionId ? (
-                <form
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    commitRename(tab.sessionId);
-                  }}
-                  className="flex items-center gap-1"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <input
-                    ref={editInputRef}
-                    value={editLabel}
-                    onChange={(e) => setEditLabel(e.target.value)}
-                    onBlur={() => commitRename(tab.sessionId)}
-                    className="w-20 bg-transparent border-b border-current outline-none text-xs"
-                    maxLength={20}
-                  />
-                  <button type="submit" className="p-0.5 hover:bg-white/10 rounded">
-                    <Check className="w-3 h-3" />
-                  </button>
-                </form>
-              ) : (
-                <span
-                  className="truncate max-w-[100px]"
-                  onDoubleClick={(e) => {
-                    e.stopPropagation();
-                    startRename(tab);
-                  }}
-                  title="Double-click to rename"
-                >
-                  {tab.label}
-                </span>
-              )}
-              {editingTabId !== tab.sessionId && (
-                <button
-                  className="p-0.5 opacity-0 group-hover:opacity-100 hover:bg-white/10 rounded transition-opacity ml-auto"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    startRename(tab);
-                  }}
-                  title="Rename"
-                >
-                  <Pencil className="w-2.5 h-2.5" />
-                </button>
-              )}
-              {tabs.length > 1 && (
-                <button
-                  className="p-0.5 opacity-0 group-hover:opacity-100 hover:bg-white/10 rounded transition-opacity"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    closeTab(tab.sessionId);
-                  }}
-                  title="Close"
-                >
-                  <X className="w-3 h-3" />
-                </button>
-              )}
-            </div>
-          ))}
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-9 w-9 shrink-0"
-            onClick={addTab}
-            title="New terminal"
-          >
-            <Plus className="w-4 h-4" />
-          </Button>
-        </div>
-
-        <div className="flex items-center gap-1 shrink-0 ml-2">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-9 w-9"
-            onClick={() => setShowResetConfirm(true)}
-            title="Reset all terminals"
-          >
-            <RotateCcw className="w-4 h-4" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-9 w-9 text-muted-foreground hover:text-primary"
-            onClick={() => setShowSavedCommands(true)}
-            title="Saved commands"
-          >
-            <Bookmark className="w-4 h-4" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-9 w-9 text-muted-foreground hover:text-primary"
-            onClick={() => setShowHistory(true)}
-            title="Session history"
-          >
-            <History className="w-4 h-4" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-9 w-9"
-            onClick={() => setShowSettings(true)}
-            title="Terminal settings"
-          >
-            <SettingsIcon className="w-4 h-4" />
-          </Button>
-        </div>
-      </div>
+      <TerminalTabsToolbar
+        tabs={tabs}
+        activeTabId={activeTabId}
+        editingTabId={editingTabId}
+        editLabel={editLabel}
+        editInputRef={editInputRef}
+        onEditLabelChange={setEditLabel}
+        onCommitRename={commitRename}
+        onSelectTab={setActiveTabId}
+        onAddTab={addTab}
+        onStartRename={startRename}
+        onCloseTab={closeTab}
+        onShowResetConfirm={handleShowResetConfirm}
+        onShowSavedCommands={handleShowSavedCommands}
+        onShowHistory={handleShowHistory}
+        onShowSettings={handleShowSettings}
+      />
 
       {/* Terminal body */}
       <div className="flex-1 rounded-xl border border-border bg-card overflow-hidden flex flex-col">

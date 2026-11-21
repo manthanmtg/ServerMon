@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createLogger } from '@/lib/logger';
+import { getSession } from '@/lib/session';
 import { dockerService } from '@/lib/docker/service';
 
 export const dynamic = 'force-dynamic';
@@ -11,11 +12,17 @@ export async function DELETE(
   context: { params: Promise<{ volumeName: string }> }
 ) {
   try {
+    const session = await getSession();
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const { volumeName } = await context.params;
     const result = await dockerService.removeVolume(volumeName);
     return NextResponse.json(result);
   } catch (error) {
     log.error('Failed to remove docker volume', error);
-    return NextResponse.json({ error: 'Failed to remove volume' }, { status: 500 });
+    const message = error instanceof Error ? error.message : 'Failed to remove volume';
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

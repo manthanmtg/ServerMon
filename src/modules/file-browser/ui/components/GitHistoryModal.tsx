@@ -16,10 +16,12 @@ import {
   Check,
   MessageSquare,
 } from 'lucide-react';
+import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import type { GitCommitInfo } from '@/modules/file-browser/lib/file-browser';
+import { resilientFetch, safeJson } from '@/lib/fetch-utils';
 import { useToast } from '@/components/ui/toast';
 
 interface Props {
@@ -36,11 +38,60 @@ const TIME_RANGES = [
 ];
 
 const LIMIT_OPTIONS = [50, 100, 250, 500, 1000];
+const interactivePillClass =
+  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background';
+const FILE_BROWSER_REQUEST_TIMEOUT_MS = 8000;
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  value !== null && typeof value === 'object' && !Array.isArray(value);
+
+const isGitCommitInfo = (value: unknown): value is GitCommitInfo => {
+  if (!isRecord(value)) return false;
+  return (
+    typeof value.hash === 'string' &&
+    typeof value.author === 'string' &&
+    typeof value.authorEmail === 'string' &&
+    typeof value.date === 'string' &&
+    typeof value.subject === 'string' &&
+    typeof value.body === 'string'
+  );
+};
+
+const readGitHistoryPayload = async (res: Response) => {
+  const payload = await safeJson<Record<string, unknown>>(res);
+  if (!res.ok) {
+    if (isRecord(payload) && typeof payload.error === 'string') {
+      throw new Error(payload.error);
+    }
+    throw new Error(`Failed to load git history (${res.status})`);
+  }
+  if (!isRecord(payload) || payload.success !== true || !Array.isArray(payload.result)) {
+    throw new Error('Received unexpected git history payload');
+  }
+  if (!payload.result.every((entry) => isGitCommitInfo(entry))) {
+    throw new Error('Git history payload has invalid commit records');
+  }
+  return payload.result as GitCommitInfo[];
+};
+
+const readGitDiffPayload = async (res: Response) => {
+  const payload = await safeJson<Record<string, unknown>>(res);
+  if (!res.ok) {
+    if (isRecord(payload) && typeof payload.error === 'string') {
+      throw new Error(payload.error);
+    }
+    throw new Error(`Failed to load diff (${res.status})`);
+  }
+  if (!isRecord(payload) || payload.success !== true || typeof payload.result !== 'string') {
+    throw new Error('Received unexpected git diff payload');
+  }
+  return payload.result;
+};
 
 export default function GitHistoryModal({ root, onClose }: Props) {
   const [commits, setCommits] = useState<GitCommitInfo[]>([]);
   const [selectedHash, setSelectedHash] = useState<string | null>(null);
   const [diff, setDiff] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadingDiff, setLoadingDiff] = useState(false);
   const [since, setSince] = useState('30 days ago');
@@ -51,43 +102,57 @@ export default function GitHistoryModal({ root, onClose }: Props) {
 
   const fetchLogs = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
-      const res = await fetch('/api/modules/file-browser/git', {
+      const res = await resilientFetch('/api/modules/file-browser/git', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ root, action: 'log', limit, since }),
+        timeout: FILE_BROWSER_REQUEST_TIMEOUT_MS,
       });
-      const data = await res.json();
-      if (data.success) {
-        setCommits(data.result);
-      }
+      const data = await readGitHistoryPayload(res);
+      setCommits(data);
+      setSelectedHash(null);
     } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to fetch commit history';
+      setError(message);
+      toast({
+        title: 'Failed to load commit history',
+        description: message,
+        variant: 'destructive',
+      });
       console.error('Failed to fetch git logs', err);
     } finally {
       setLoading(false);
     }
-  }, [root, since, limit]);
+  }, [root, since, limit, toast]);
 
   const fetchDiff = useCallback(
     async (hash: string) => {
       setLoadingDiff(true);
       try {
-        const res = await fetch('/api/modules/file-browser/git', {
+        const res = await resilientFetch('/api/modules/file-browser/git', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ root, action: 'diff', hash }),
+          timeout: FILE_BROWSER_REQUEST_TIMEOUT_MS,
         });
-        const data = await res.json();
-        if (data.success) {
-          setDiff(data.result);
-        }
+        const result = await readGitDiffPayload(res);
+        setDiff(result);
       } catch (err) {
+        const message = err instanceof Error ? err.message : 'Failed to fetch commit diff';
+        toast({
+          title: 'Failed to load commit diff',
+          description: message,
+          variant: 'destructive',
+        });
+        setDiff(null);
         console.error('Failed to fetch diff', err);
       } finally {
         setLoadingDiff(false);
       }
     },
-    [root]
+    [root, toast]
   );
 
   useEffect(() => {
@@ -223,6 +288,7 @@ export default function GitHistoryModal({ root, onClose }: Props) {
                       onClick={() => setLimit(opt)}
                       className={cn(
                         'px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-lg transition-all duration-200',
+                        interactivePillClass,
                         limit === opt
                           ? 'bg-primary text-primary-foreground shadow-sm'
                           : 'text-muted-foreground hover:text-foreground hover:bg-accent'
@@ -251,6 +317,7 @@ export default function GitHistoryModal({ root, onClose }: Props) {
                       onClick={() => setSince(range.value)}
                       className={cn(
                         'px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-lg transition-all duration-200',
+                        interactivePillClass,
                         since === range.value
                           ? 'bg-primary text-primary-foreground shadow-sm'
                           : 'text-muted-foreground hover:text-foreground hover:bg-accent'
@@ -267,7 +334,7 @@ export default function GitHistoryModal({ root, onClose }: Props) {
               <Button
                 variant="ghost"
                 size="icon"
-                className="rounded-xl h-10 w-10 text-muted-foreground hover:text-foreground hover:bg-destructive/10 hover:text-destructive transition-all"
+                className="rounded-xl h-10 w-10 text-muted-foreground hover:text-foreground hover:bg-destructive/10 hover:text-destructive transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                 onClick={onClose}
                 aria-label="Close git history"
               >
@@ -293,6 +360,11 @@ export default function GitHistoryModal({ root, onClose }: Props) {
               <Clock className="w-3 h-3" />
               Showing {filteredCommits.length} commits
             </div>
+            {error ? (
+              <div className="text-[10px] font-bold text-destructive bg-destructive/10 border border-destructive/20 rounded-lg px-3 py-2">
+                {error}
+              </div>
+            ) : null}
           </div>
         </div>
 
@@ -323,18 +395,21 @@ export default function GitHistoryModal({ root, onClose }: Props) {
                 </div>
               ) : (
                 filteredCommits.map((c) => (
-                  <button
+                  <motion.button
                     key={c.hash}
                     type="button"
                     aria-label={`View commit ${c.hash.slice(0, 7)}: ${c.subject}`}
                     aria-pressed={selectedHash === c.hash}
                     onClick={() => setSelectedHash(c.hash === selectedHash ? null : c.hash)}
+                    whileHover={{ y: -2, scale: 1.01 }}
+                    whileTap={{ scale: 0.99 }}
                     className={cn(
-                      'group w-full text-left p-4 rounded-2xl transition-all duration-300 border',
+                      'group w-full text-left p-4 rounded-2xl transition-all duration-300 border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
                       selectedHash === c.hash
                         ? 'bg-primary/10 border-primary/30 shadow-lg shadow-primary/5'
-                        : 'bg-card/40 border-border/30 hover:bg-accent/40 hover:border-primary/20 hover:-translate-y-0.5'
+                        : 'bg-card/40 border-border/30 hover:bg-accent/40 hover:border-primary/20'
                     )}
+                    transition={{ type: 'spring', stiffness: 280, damping: 22 }}
                   >
                     <div className="flex items-start justify-between gap-3 mb-2.5">
                       <span
@@ -367,7 +442,7 @@ export default function GitHistoryModal({ root, onClose }: Props) {
                         <span>{formatDate(c.date).split(',')[0]}</span>
                       </div>
                     </div>
-                  </button>
+                  </motion.button>
                 ))
               )}
             </div>
@@ -501,27 +576,6 @@ export default function GitHistoryModal({ root, onClose }: Props) {
           )}
         </div>
       </div>
-
-      <style>{`
-        .custom-scrollbar::-webkit-scrollbar {
-          width: 8px;
-          height: 8px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-track {
-          background: transparent;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb {
-          background: hsl(var(--muted-foreground) / 0.3);
-          border-radius: 20px;
-          border: 2px solid transparent;
-          background-clip: content-box;
-          min-height: 40px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-          background: hsl(var(--primary) / 0.4);
-          background-clip: content-box;
-        }
-      `}</style>
     </div>
   );
 }

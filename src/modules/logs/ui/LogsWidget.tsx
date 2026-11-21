@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { Info, AlertTriangle, XCircle, Clock, ScrollText } from 'lucide-react';
 import Link from 'next/link';
 import { Skeleton } from '@/components/ui/skeleton';
+import { safeJson, resilientFetch } from '@/lib/fetch-utils';
 
 interface LogEntry {
   _id: string;
@@ -19,6 +20,42 @@ const severityConfig = {
   error: { icon: XCircle, color: 'text-destructive', bg: 'bg-destructive/10' },
 };
 
+interface LogResponse {
+  events?: unknown;
+}
+
+function parseLogEntries(payload: unknown): LogEntry[] {
+  if (
+    !payload ||
+    typeof payload !== 'object' ||
+    !('events' in (payload as Record<string, unknown>))
+  ) {
+    return [];
+  }
+
+  const events = (payload as LogResponse).events;
+  if (!Array.isArray(events)) {
+    return [];
+  }
+
+  return events.filter((entry): entry is LogEntry => {
+    if (!entry || typeof entry !== 'object') {
+      return false;
+    }
+
+    const item = entry as Record<string, unknown>;
+    const severity = item.severity;
+
+    return (
+      typeof item._id === 'string' &&
+      typeof item.moduleId === 'string' &&
+      typeof item.event === 'string' &&
+      typeof item.timestamp === 'string' &&
+      (severity === 'info' || severity === 'warn' || severity === 'error')
+    );
+  });
+}
+
 export default function LogsWidget() {
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -27,10 +64,24 @@ export default function LogsWidget() {
   useEffect(() => {
     const fetchLogs = async () => {
       try {
-        const res = await fetch('/api/analytics/recent?limit=5');
+        const res = await resilientFetch('/api/analytics/recent?limit=5', {
+          timeout: 5000,
+          retries: 1,
+          retryDelay: 500,
+          retryOnStatuses: [502, 503, 504],
+        });
         if (!res.ok) throw new Error(`Failed to load recent logs: ${res.status}`);
-        const data = await res.json();
-        setLogs(data.events || []);
+
+        const payload = (await safeJson<LogResponse>(res)) as LogResponse | null;
+        const parsedEvents = parseLogEntries(payload);
+        const events = payload?.events;
+
+        if (!Array.isArray(events) || (events.length > 0 && parsedEvents.length === 0)) {
+          setLoadFailed(true);
+          return;
+        }
+
+        setLogs(parsedEvents);
         setLoadFailed(false);
       } catch {
         setLoadFailed(true);
@@ -102,6 +153,11 @@ export default function LogsWidget() {
 
   return (
     <div className="space-y-4">
+      {loadFailed && (
+        <p role="status" className="text-xs text-warning">
+          Showing last activity
+        </p>
+      )}
       <div className="space-y-2">
         {logs.map((log) => {
           const config = severityConfig[log.severity] || severityConfig.info;

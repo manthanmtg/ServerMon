@@ -1,6 +1,6 @@
 import type { AccessMode } from './enums';
 
-export interface AccessRequestCtx {
+interface AccessRequestCtx {
   clientIp: string;
   basicAuthHeader?: string;
   session?: { userId: string; role?: string } | null;
@@ -30,7 +30,7 @@ export interface AccessPolicyData {
   allowedUserRoles?: string[];
 }
 
-export interface EvaluateResult {
+interface EvaluateResult {
   allowed: boolean;
   challenge?: 'basic_auth' | 'session' | 'temporary_share';
   reason?: string;

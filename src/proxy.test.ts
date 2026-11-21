@@ -15,8 +15,11 @@ vi.mock('next/server', () => ({
   },
 }));
 
-vi.mock('@/lib/session', () => ({
+vi.mock('@/lib/session-core', () => ({
   decrypt: mockDecrypt,
+}));
+
+vi.mock('@/lib/session', () => ({
   updateSession: mockUpdateSession,
 }));
 
@@ -25,7 +28,6 @@ function makeRequest(pathname: string, sessionCookie?: string) {
 
   return {
     nextUrl,
-    url: nextUrl.toString(),
     cookies: {
       get: vi.fn().mockReturnValue(sessionCookie ? { value: sessionCookie } : undefined),
     },
@@ -35,79 +37,48 @@ function makeRequest(pathname: string, sessionCookie?: string) {
 describe('proxy', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockNext.mockReturnValue({ type: 'next' });
     mockJson.mockReturnValue({ type: 'json' });
     mockRedirect.mockReturnValue({ type: 'redirect' });
+    mockNext.mockReturnValue({ type: 'next' });
     mockUpdateSession.mockResolvedValue({ type: 'refreshed' });
   });
 
-  it('redirects protected pages to /login when no session exists', async () => {
-    const middleware = (await import('./proxy')).default;
-    const request = makeRequest('/dashboard');
+  it('rejects anonymous requests to protected API routes before their handlers run', async () => {
+    const { proxy } = await import('./proxy');
 
-    const response = await middleware(request as never);
-
-    expect(mockRedirect).toHaveBeenCalled();
-    expect(response).toEqual({ type: 'redirect' });
-  });
-
-  it('returns 401 for protected API routes when no session exists', async () => {
-    const middleware = (await import('./proxy')).default;
-    const request = makeRequest('/api/modules/network');
-
-    const response = await middleware(request as never);
+    const response = await proxy(makeRequest('/api/modules/self-service/install') as never);
 
     expect(mockJson).toHaveBeenCalledWith({ error: 'Unauthorized' }, { status: 401 });
     expect(response).toEqual({ type: 'json' });
   });
 
-  it('redirects authenticated users away from /login', async () => {
-    mockDecrypt.mockResolvedValue({ user: { id: 'u1' } });
+  it('redirects anonymous requests to protected pages to login', async () => {
+    const { proxy } = await import('./proxy');
 
-    const middleware = (await import('./proxy')).default;
-    const request = makeRequest('/login', 'valid-token');
+    const response = await proxy(makeRequest('/dashboard') as never);
 
-    const response = await middleware(request as never);
-
-    expect(mockRedirect).toHaveBeenCalled();
+    expect(mockRedirect).toHaveBeenCalledWith(new URL('http://localhost/login'));
     expect(response).toEqual({ type: 'redirect' });
   });
 
-  it('refreshes the session on protected authenticated requests', async () => {
-    mockDecrypt.mockResolvedValue({ user: { id: 'u1' } });
+  it('leaves public token and bootstrap APIs for their route handlers to authenticate', async () => {
+    const { proxy } = await import('./proxy');
 
-    const middleware = (await import('./proxy')).default;
-    const request = makeRequest('/dashboard', 'valid-token');
+    const response = await proxy(makeRequest('/api/fleet/nodes/node-1/heartbeat') as never);
 
-    const response = await middleware(request as never);
-
-    expect(mockUpdateSession).toHaveBeenCalledWith(request);
-    expect(response).toEqual({ type: 'refreshed' });
-  });
-
-  it('does not refresh sessions for public API routes', async () => {
-    mockDecrypt.mockResolvedValue({ user: { id: 'u1' } });
-
-    const middleware = (await import('./proxy')).default;
-    const request = makeRequest('/api/auth/logout', 'valid-token');
-
-    const response = await middleware(request as never);
-
-    expect(mockUpdateSession).not.toHaveBeenCalled();
+    expect(mockDecrypt).not.toHaveBeenCalled();
+    expect(mockNext).toHaveBeenCalled();
     expect(response).toEqual({ type: 'next' });
   });
 
-  it('redirects legacy favicon requests to the branding icon', async () => {
-    const middleware = (await import('./proxy')).default;
-    const request = makeRequest('/favicon.ico');
+  it('refreshes valid sessions for protected requests', async () => {
+    mockDecrypt.mockResolvedValue({ user: { id: 'u1' } });
+    const { proxy } = await import('./proxy');
+    const request = makeRequest('/dashboard', 'valid-token');
 
-    const response = await middleware(request as never);
+    const response = await proxy(request as never);
 
-    expect(mockRedirect).toHaveBeenCalledWith(
-      new URL('http://localhost/api/settings/branding/icon')
-    );
-    expect(mockJson).not.toHaveBeenCalled();
-    expect(mockUpdateSession).not.toHaveBeenCalled();
-    expect(response).toEqual({ type: 'redirect' });
+    expect(mockUpdateSession).toHaveBeenCalledWith(request);
+    expect(response).toEqual({ type: 'refreshed' });
   });
 });

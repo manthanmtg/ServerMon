@@ -31,6 +31,35 @@ describe('POST /api/auth/verify', () => {
     vi.clearAllMocks();
   });
 
+  it('calls connectDB before handling request', async () => {
+    mockFindOne.mockResolvedValue(null);
+    await POST(makeRequest({ username: 'admin', password: 'password' }));
+    expect(mockConnectDB).toHaveBeenCalledTimes(1);
+  });
+
+  it('requires a username and password', async () => {
+    const res = await POST(makeRequest({ username: 'admin', password: '' }));
+    expect(res.status).toBe(400);
+    const json = await res.json();
+    expect(json.error).toBe('Invalid request body');
+  });
+
+  it('requires a complete request payload', async () => {
+    const res = await POST(makeRequest({ username: 'admin' }));
+    expect(res.status).toBe(400);
+    const json = await res.json();
+    expect(json.error).toBe('Invalid request body');
+  });
+
+  it('only queries active users when verifying credentials', async () => {
+    mockFindOne.mockResolvedValue({ username: 'admin', passwordHash: 'hash', totpEnabled: false });
+    mockVerifyPassword.mockResolvedValue(true);
+
+    await POST(makeRequest({ username: 'admin', password: 'correct' }));
+
+    expect(mockFindOne).toHaveBeenCalledWith({ username: 'admin', isActive: true });
+  });
+
   it('returns 401 when user not found', async () => {
     mockFindOne.mockResolvedValue(null);
     const res = await POST(makeRequest({ username: 'admin', password: 'wrong' }));
@@ -69,6 +98,21 @@ describe('POST /api/auth/verify', () => {
     mockFindOne.mockRejectedValue(new Error('db error'));
     const res = await POST(makeRequest({ username: 'admin', password: 'pass' }));
     expect(res.status).toBe(500);
+  });
+
+  it('returns 500 when connectDB throws', async () => {
+    mockConnectDB.mockRejectedValueOnce(new Error('db down'));
+    const res = await POST(makeRequest({ username: 'admin', password: 'pass' }));
+    expect(res.status).toBe(500);
+  });
+
+  it('returns 500 when password verification throws', async () => {
+    mockFindOne.mockResolvedValue({ username: 'admin', passwordHash: 'hash', totpEnabled: false });
+    mockVerifyPassword.mockRejectedValue(new Error('crypto fail'));
+    const res = await POST(makeRequest({ username: 'admin', password: 'correct' }));
+    const json = await res.json();
+    expect(res.status).toBe(500);
+    expect(json.error).toBe('Internal server error');
   });
 });
 

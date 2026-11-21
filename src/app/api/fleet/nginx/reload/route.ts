@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server';
-import type { Model } from 'mongoose';
 import { createLogger } from '@/lib/logger';
 import connectDB from '@/lib/db';
 import NginxState from '@/models/NginxState';
@@ -46,7 +45,7 @@ export async function POST() {
     state.lastReloadSuccess = reloadResult.ok;
     await state.save();
 
-    await recordAudit(FleetLogEvent as unknown as Model<unknown>, {
+    await recordAudit(FleetLogEvent, {
       action: 'nginx.reload',
       actorUserId: session.user.username,
       service: 'nginx',

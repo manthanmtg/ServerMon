@@ -293,14 +293,13 @@ Each step receives an `onLog` callback that appends log lines to the step's log 
 
 The `job-manager.ts` provides an in-memory store for install jobs:
 
-| Function                  | Description                                                                         |
-| ------------------------- | ----------------------------------------------------------------------------------- |
-| `createJob(request)`      | Creates a new `InstallJob`, starts the pipeline asynchronously, returns immediately |
-| `getJob(jobId)`           | Returns the current state of a job (including step progress)                        |
-| `getAllJobs()`            | Returns all jobs sorted by start time (newest first)                                |
-| `getJobsByStatus(status)` | Filter jobs by status                                                               |
-| `cancelJob(jobId)`        | Cancels a pending/running job                                                       |
-| `rollbackJob(jobId)`      | Initiates rollback for a failed/completed job                                       |
+| Function             | Description                                                                         |
+| -------------------- | ----------------------------------------------------------------------------------- |
+| `createJob(request)` | Creates a new `InstallJob`, starts the pipeline asynchronously, returns immediately |
+| `getJob(jobId)`      | Returns the current state of a job (including step progress)                        |
+| `getAllJobs()`       | Returns all jobs sorted by start time (newest first)                                |
+| `cancelJob(jobId)`   | Cancels a pending/running job                                                       |
+| `rollbackJob(jobId)` | Initiates rollback for a failed/completed job                                       |
 
 Jobs have these statuses: `pending → running → success | failed | cancelled | rolling-back`
 

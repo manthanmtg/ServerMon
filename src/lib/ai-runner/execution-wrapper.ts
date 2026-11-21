@@ -3,7 +3,13 @@ import { spawn, type ChildProcessByStdio } from 'node:child_process';
 import { createWriteStream } from 'node:fs';
 import { appendFile, readFile, writeFile } from 'node:fs/promises';
 import type { Readable } from 'node:stream';
-import type { AIRunnerArtifactPathsDTO, AIRunnerExecutionExitDTO } from '@/modules/ai-runner/types';
+import { finished } from 'node:stream/promises';
+import type {
+  AIRunnerArtifactPathsDTO,
+  AIRunnerExecutionExitDTO,
+  AIRunnerRunAsUserAuthMode,
+} from '@/modules/ai-runner/types';
+import { buildRunAsUserLaunchArgs } from './run-as-user';
 
 interface DurableLaunchFile {
   jobId: string;
@@ -13,6 +19,9 @@ interface DurableLaunchFile {
   cwd: string;
   env: NodeJS.ProcessEnv;
   paths: AIRunnerArtifactPathsDTO;
+  requiresTTY?: boolean;
+  runAsUser?: string;
+  runAsUserAuthMode?: AIRunnerRunAsUserAuthMode;
 }
 
 async function appendWrapperLog(paths: AIRunnerArtifactPathsDTO, message: string): Promise<void> {
@@ -21,13 +30,19 @@ async function appendWrapperLog(paths: AIRunnerArtifactPathsDTO, message: string
   );
 }
 
-async function main(): Promise<void> {
-  const launchPath = process.argv[2];
+export async function runAIRunnerExecutionWrapper(launchPath: string | undefined): Promise<void> {
   if (!launchPath) {
     throw new Error('AI Runner execution wrapper requires a launch file path');
   }
 
   const launch = JSON.parse(await readFile(launchPath, 'utf8')) as DurableLaunchFile;
+  const launchArgs = buildRunAsUserLaunchArgs({
+    shell: launch.shell,
+    command: launch.command,
+    requiresTTY: launch.requiresTTY,
+    runAsUser: launch.runAsUser,
+    runAsUserAuthMode: launch.runAsUserAuthMode,
+  });
   const startedAt = new Date();
   await appendWrapperLog(launch.paths, `starting job ${launch.jobId}`);
 
@@ -35,12 +50,41 @@ async function main(): Promise<void> {
   const stderr = createWriteStream(launch.paths.stderrPath, { flags: 'a' });
   const combined = createWriteStream(launch.paths.combinedPath, { flags: 'a' });
 
-  const child = spawn(launch.shell, ['-lc', launch.command], {
+  const child = spawn(launchArgs[0], launchArgs.slice(1), {
     cwd: launch.cwd,
     env: launch.env,
     detached: false,
     stdio: ['ignore', 'pipe', 'pipe'],
   }) as ChildProcessByStdio<null, Readable, Readable>;
+
+  child.stdout?.on('data', (chunk: Buffer | string) => {
+    const text = chunk.toString();
+    stdout.write(text);
+    combined.write(text);
+  });
+  child.stderr?.on('data', (chunk: Buffer | string) => {
+    const text = chunk.toString();
+    stderr.write(text);
+    combined.write(text);
+  });
+
+  let childExitCode: number | null = null;
+  let childSignal: NodeJS.Signals | null = null;
+  let hasExited = false;
+  let exitPromiseResolve: () => void;
+  const exitPromise = new Promise<void>((resolve) => {
+    exitPromiseResolve = resolve;
+  });
+
+  child.on('error', (error: Error) => {
+    void appendWrapperLog(launch.paths, `child error: ${error.message}`);
+  });
+  child.on('close', (exitCode: number | null, signal: NodeJS.Signals | null) => {
+    childExitCode = exitCode;
+    childSignal = signal;
+    hasExited = true;
+    exitPromiseResolve();
+  });
 
   const existingMetadata: Record<string, unknown> = await readFile(
     launch.paths.metadataPath,
@@ -72,34 +116,16 @@ async function main(): Promise<void> {
     )}\n`
   );
 
-  child.stdout?.on('data', (chunk: Buffer | string) => {
-    const text = chunk.toString();
-    stdout.write(text);
-    combined.write(text);
-  });
-  child.stderr?.on('data', (chunk: Buffer | string) => {
-    const text = chunk.toString();
-    stderr.write(text);
-    combined.write(text);
-  });
-
-  const exit = await new Promise<{ exitCode: number | null; signal: NodeJS.Signals | null }>(
-    (resolve) => {
-      child.on('error', (error: Error) => {
-        void appendWrapperLog(launch.paths, `child error: ${error.message}`);
-      });
-      child.on('close', (exitCode: number | null, signal: NodeJS.Signals | null) => {
-        resolve({ exitCode, signal });
-      });
-    }
-  );
+  if (!hasExited) {
+    await exitPromise;
+  }
 
   const finishedAt = new Date();
   const exitPayload: AIRunnerExecutionExitDTO = {
     jobId: launch.jobId,
     runId: launch.runId,
-    exitCode: exit.exitCode,
-    signal: exit.signal,
+    exitCode: childExitCode,
+    signal: childSignal,
     startedAt: startedAt.toISOString(),
     finishedAt: finishedAt.toISOString(),
     durationSeconds: Math.max(0, Math.round((finishedAt.getTime() - startedAt.getTime()) / 1000)),
@@ -109,9 +135,12 @@ async function main(): Promise<void> {
   stdout.end();
   stderr.end();
   combined.end();
+  await Promise.all([finished(stdout), finished(stderr), finished(combined)]);
 }
 
-void main().catch((error) => {
-  process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
-  process.exitCode = 1;
-});
+if (process.argv[1]?.endsWith('execution-wrapper.ts')) {
+  void runAIRunnerExecutionWrapper(process.argv[2]).catch((error) => {
+    process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
+    process.exitCode = 1;
+  });
+}

@@ -86,7 +86,7 @@ export function EndpointConfig({ form, onUpdateForm, autoSlugRef }: EndpointConf
         <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-[0.2em] ml-1">
           Execution Strategy
         </label>
-        <div className="grid grid-cols-3 gap-2 p-1.5 bg-muted/20 border border-border/40 rounded-3xl backdrop-blur-md shadow-inner">
+        <div className="grid grid-cols-1 gap-2 p-1.5 bg-muted/20 border border-border/40 rounded-3xl backdrop-blur-md shadow-inner sm:grid-cols-3">
           {TYPES.map((t) => {
             const Icon = TYPE_ICONS[t];
             const active = form.endpointType === t;
@@ -95,7 +95,7 @@ export function EndpointConfig({ form, onUpdateForm, autoSlugRef }: EndpointConf
                 key={t}
                 onClick={() => onUpdateForm('endpointType', t)}
                 className={cn(
-                  'flex flex-col items-center justify-center gap-1.5 py-2.5 px-4 rounded-2xl text-[11px] font-bold transition-all duration-300 relative group',
+                  'flex min-h-[44px] items-center justify-start gap-2 rounded-2xl px-4 py-2.5 text-[11px] font-bold transition-all duration-300 relative group sm:flex-col sm:justify-center sm:gap-1.5',
                   active
                     ? 'bg-primary text-primary-foreground shadow-2xl shadow-primary/30 scale-[1.02]'
                     : 'text-muted-foreground/60 hover:text-foreground hover:bg-white/5 border border-transparent'

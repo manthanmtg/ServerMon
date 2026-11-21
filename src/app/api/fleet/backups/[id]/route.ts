@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import type { Model } from 'mongoose';
 import { createLogger } from '@/lib/logger';
 import connectDB from '@/lib/db';
 import BackupJob from '@/models/BackupJob';
@@ -54,7 +53,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
 
     await BackupJob.findByIdAndDelete(id);
 
-    await recordAudit(FleetLogEvent as unknown as Model<unknown>, {
+    await recordAudit(FleetLogEvent, {
       action: 'backup.delete',
       actorUserId: session.user.username,
       service: 'backup',

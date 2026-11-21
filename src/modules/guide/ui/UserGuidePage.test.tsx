@@ -155,9 +155,7 @@ describe('UserGuidePage', () => {
     // No modules in sidebar
     expect(screen.queryByText('User Guide')).toBeNull();
     expect(screen.queryByText('Terminal')).toBeNull();
-    // The currently selected guide content may still be visible since selectedModule is still set
-    // but sidebar is empty
-    expect(screen.queryByText('xyznonexistent')).toBeNull();
+    expect(screen.getAllByText(/No guides match/i)).toHaveLength(2);
   });
 
   it('renders guide description in content area', () => {

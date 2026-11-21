@@ -7,6 +7,9 @@ const { mockGetSnapshot, mockRunJobNow, mockGetRunStatus, mockListRuns } = vi.ho
   mockGetRunStatus: vi.fn(),
   mockListRuns: vi.fn(),
 }));
+const { mockGetSession } = vi.hoisted(() => ({
+  mockGetSession: vi.fn(),
+}));
 
 vi.mock('@/lib/crons/service', () => ({
   cronsService: {
@@ -19,6 +22,7 @@ vi.mock('@/lib/crons/service', () => ({
 vi.mock('@/lib/logger', () => ({
   createLogger: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }),
 }));
+vi.mock('@/lib/session', () => ({ getSession: mockGetSession }));
 
 import { POST, GET } from './route';
 import { NextRequest } from 'next/server';
@@ -38,6 +42,7 @@ function makeGetRequest(params?: Record<string, string>): NextRequest {
 describe('POST /api/modules/crons/[id]/run', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockGetSession.mockResolvedValue({ user: { id: 'user-1', role: 'admin' } });
   });
 
   it('runs a user cron job successfully', async () => {

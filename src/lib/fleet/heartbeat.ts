@@ -1,5 +1,7 @@
 import { z } from 'zod';
 import { TUNNEL_STATUSES, PROXY_STATUSES } from './enums';
+import { ServerMonStatusZodSchema } from './servermonStatus';
+import { ServerMonBridgeSnapshotZodSchema } from './servermonBridge';
 
 export const HeartbeatZodSchema = z.object({
   nodeId: z.string().min(1),
@@ -56,6 +58,8 @@ export const HeartbeatZodSchema = z.object({
       authToken: z.string(),
     })
     .optional(),
+  servermon: ServerMonStatusZodSchema.optional(),
+  servermonBridge: ServerMonBridgeSnapshotZodSchema.optional(),
   /**
    * Optional batch of log entries piggy-backed onto the heartbeat. The hub
    * persists each entry as a FleetLogEvent so the user can see frpc output
@@ -76,5 +80,3 @@ export const HeartbeatZodSchema = z.object({
     .optional(),
   correlationId: z.string().optional(),
 });
-
-export type Heartbeat = z.infer<typeof HeartbeatZodSchema>;

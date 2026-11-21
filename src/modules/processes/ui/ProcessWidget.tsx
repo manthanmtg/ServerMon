@@ -1,11 +1,12 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { RefreshCw, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { SkeletonCard, SkeletonTable } from '@/components/ui/skeleton';
 import { useToast } from '@/components/ui/toast';
-import { cn } from '@/lib/utils';
+import { isAbortError, resilientFetch } from '@/lib/fetch-utils';
 import { ProcessList } from './components/ProcessList';
 import { ProcessSummaryGrid } from './components/ProcessSummaryGrid';
 import type { ProcessInfo, ProcessSortField, ProcessSummary } from './types';
@@ -20,6 +21,9 @@ export default function ProcessWidget() {
   const [expandedPid, setExpandedPid] = useState<number | null>(null);
   const [killingPid, setKillingPid] = useState<number | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const activeRequestRef = useRef<AbortController | null>(null);
+  const requestSequence = useRef(0);
+  const postKillRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -29,47 +33,90 @@ export default function ProcessWidget() {
     return () => clearTimeout(timer);
   }, [search]);
 
+  useEffect(() => {
+    return () => {
+      if (postKillRefreshTimerRef.current !== null) {
+        clearTimeout(postKillRefreshTimerRef.current);
+        postKillRefreshTimerRef.current = null;
+      }
+    };
+  }, [search, sortField]);
+
   const fetchProcs = useCallback(
-    async (isManual = false) => {
-      if (isManual) setRefreshing(true);
+    async (isManual = false, showError = isManual) => {
+      activeRequestRef.current?.abort();
+      const controller = new AbortController();
+      activeRequestRef.current = controller;
+      const requestId = ++requestSequence.current;
+      const isCurrentRequest = () =>
+        !controller.signal.aborted && requestId === requestSequence.current;
+
+      setRefreshing(isManual);
       try {
-        const res = await fetch(
+        const res = await resilientFetch(
           `/api/modules/processes?limit=50&sort=${sortField}&search=${encodeURIComponent(
             debouncedSearch
-          )}`
+          )}`,
+          { timeout: 8000, signal: controller.signal }
         );
         const data = await res.json();
+        if (!res.ok) {
+          const message =
+            typeof data?.error === 'string'
+              ? data.error
+              : `Failed to load processes (${res.status})`;
+          throw new Error(message);
+        }
+        if (!isCurrentRequest()) return;
         setProcesses(data.processes || []);
-        if (data.summary) setSummary(data.summary);
-      } catch {
-        // silent fail on auto-refresh
+        setSummary(data.summary || null);
+      } catch (err) {
+        if (isAbortError(err) || !isCurrentRequest()) return;
+        if (showError) {
+          toast({
+            title: err instanceof Error ? err.message : 'Failed to load processes',
+            variant: 'destructive',
+          });
+        }
       } finally {
+        if (!isCurrentRequest()) return;
         setLoading(false);
-        if (isManual) setRefreshing(false);
+        setRefreshing(false);
       }
     },
-    [sortField, debouncedSearch]
+    [sortField, debouncedSearch, toast]
   );
 
   useEffect(() => {
-    fetchProcs();
+    fetchProcs(false, true);
     const interval = setInterval(() => fetchProcs(), 5000);
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      activeRequestRef.current?.abort();
+      activeRequestRef.current = null;
+    };
   }, [fetchProcs]);
 
   const killProcess = useCallback(
     async (pid: number, signal: string) => {
       setKillingPid(pid);
       try {
-        const res = await fetch('/api/modules/processes', {
+        const res = await resilientFetch('/api/modules/processes', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ pid, signal }),
+          timeout: 5000,
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error);
         toast({ title: `Sent ${signal} to PID ${pid}`, variant: 'success' });
-        setTimeout(() => fetchProcs(), 1000);
+        if (postKillRefreshTimerRef.current !== null) {
+          clearTimeout(postKillRefreshTimerRef.current);
+        }
+        postKillRefreshTimerRef.current = setTimeout(() => {
+          postKillRefreshTimerRef.current = null;
+          void fetchProcs();
+        }, 1000);
       } catch (err) {
         toast({
           title: err instanceof Error ? err.message : 'Failed to kill process',
@@ -110,22 +157,26 @@ export default function ProcessWidget() {
       {summary && <ProcessSummaryGrid summary={summary} />}
 
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-        <div className="relative flex-1 sm:max-w-xs">
-          <label htmlFor="process-search" className="sr-only">
-            Search processes
-          </label>
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-          <input
+        <div className="flex-1 sm:max-w-xs">
+          <Input
             id="process-search"
             type="text"
             placeholder="Search by name, PID, user..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full h-9 pl-9 pr-3 rounded-lg border border-input bg-background text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/40 focus:border-ring transition-colors"
+            icon={<Search className="w-4 h-4" />}
+            className="h-9"
+            aria-label="Search processes"
           />
         </div>
-        <Button variant="outline" size="sm" onClick={() => fetchProcs(true)} className="gap-1.5">
-          <RefreshCw className={cn('w-3.5 h-3.5', refreshing && 'animate-spin')} />
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => fetchProcs(true)}
+          className="gap-1.5"
+          loading={refreshing}
+        >
+          {!refreshing && <RefreshCw className="w-3.5 h-3.5" aria-hidden="true" />}
           Refresh
         </Button>
       </div>

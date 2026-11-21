@@ -1,0 +1,987 @@
+'use client';
+
+import dynamic from 'next/dynamic';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  Activity,
+  ArrowDown,
+  ArrowUpRight,
+  Bookmark,
+  Braces,
+  CalendarClock,
+  Circle,
+  Clock3,
+  FileCode2,
+  FolderOpen,
+  History,
+  KeyRound,
+  LayoutDashboard,
+  ListRestart,
+  Play,
+  Plus,
+  Save,
+  Settings2,
+  SquareTerminal,
+  Variable,
+} from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { useToast } from '@/components/ui/toast';
+import {
+  DEFAULT_CWD,
+  DEFAULT_TIMEOUT_SECONDS,
+  isActiveRun,
+  SCRIPT_LANGUAGES,
+  SCRIPT_RUNTIMES,
+  SCRIPT_RUNNER_DEFAULTS,
+  type RunnerOverview,
+  type RunSnapshot,
+  type SavedScript,
+  type ScriptDraft,
+  type ScriptLanguage,
+  type ScriptRun,
+  type ScriptRunnerDefaults,
+} from '../types';
+import { errorMessage, requestId, runnerRequest } from './client';
+import EnvironmentVariablesPanel from './EnvironmentVariablesPanel';
+import EnvironmentGroupsPanel from './EnvironmentGroupsPanel';
+import LaunchDialog from './LaunchDialog';
+import SavedScriptsPanel, { OpenSavedScriptDialog } from './SavedScriptsPanel';
+import ScriptRunnerOverviewPanel from './ScriptRunnerOverviewPanel';
+import ScriptRunnerSettingsPanel from './ScriptRunnerSettingsPanel';
+import ScriptSchedulesPanel from './ScriptSchedulesPanel';
+import ScriptStoragePanel from './ScriptStoragePanel';
+import PythonEnvironmentField from './PythonEnvironmentField';
+import type { PythonEnvironmentSelection } from '@/modules/python-environments/types';
+import RunConfiguration, { validConfiguration } from './RunConfiguration';
+import RunConsole, { elapsed, RunBadge } from './RunConsole';
+import RunnerDialog from './RunnerDialog';
+import './script-runner.css';
+
+const ScriptEditor = dynamic(() => import('./ScriptEditor'), {
+  ssr: false,
+  loading: () => <div className="sr-editor sr-editor-loading">Loading editor…</div>,
+});
+
+const starter: ScriptDraft = {
+  title: 'Host snapshot',
+  language: 'bash',
+  env: [],
+  envVarIds: [],
+  envGroupIds: [],
+  pythonEnvironmentId: null,
+  source:
+    '#!/usr/bin/env bash\nset -euo pipefail\n\nprintf "Host: %s\\n" "$(hostname)"\nprintf "Working directory: %s\\n" "$PWD"\nprintf "\\nDisk usage\\n"\ndf -h .\n',
+  cwd: DEFAULT_CWD,
+  args: [],
+  timeoutSeconds: DEFAULT_TIMEOUT_SECONDS,
+};
+
+const templates: Record<ScriptLanguage, string> = {
+  bash: '#!/usr/bin/env bash\nset -euo pipefail\n\n',
+  python: 'from pathlib import Path\n\nprint(Path.cwd())\n',
+  node: 'console.log(process.cwd());\n',
+};
+
+const emptyDraft: ScriptDraft = { ...starter, title: 'Untitled script', source: templates.bash };
+
+function draftFields({
+  title,
+  source,
+  language,
+  cwd,
+  args,
+  env,
+  envVarIds,
+  envGroupIds,
+  pythonEnvironmentId,
+  timeoutSeconds,
+}: ScriptDraft): ScriptDraft {
+  return {
+    title,
+    source,
+    language: language ?? 'bash',
+    cwd,
+    args,
+    env: env ?? [],
+    envVarIds: envVarIds ?? [],
+    envGroupIds: envGroupIds ?? [],
+    pythonEnvironmentId: pythonEnvironmentId ?? null,
+    timeoutSeconds,
+  };
+}
+
+const views = [
+  { id: 'overview', label: 'Overview', icon: LayoutDashboard },
+  { id: 'workspace', label: 'Workspace', icon: Braces },
+  { id: 'saved', label: 'Saved Scripts', icon: Bookmark },
+  { id: 'schedules', label: 'Schedules', icon: CalendarClock },
+  { id: 'environment', label: 'Env Vars', icon: KeyRound },
+  { id: 'runs', label: 'Runs', icon: Activity },
+  { id: 'settings', label: 'Settings', icon: Settings2 },
+] as const;
+type View = (typeof views)[number]['id'];
+type Launch = {
+  draft: ScriptDraft;
+  scriptId?: string;
+  rerunOf?: string;
+  linkedEnvKeys?: string[];
+  recordedPythonEnvironment?: PythonEnvironmentSelection;
+};
+type Tab = 'active' | 'history';
+
+function applyDefaults(draft: ScriptDraft, defaults: ScriptRunnerDefaults): ScriptDraft {
+  return {
+    ...draft,
+    cwd: defaults.defaultWorkingDirectory,
+    timeoutSeconds: defaults.defaultTimeoutSeconds,
+  };
+}
+
+function mergeHistory(recent: ScriptRun[], cached: ScriptRun[]): ScriptRun[] {
+  const byId = new Map(cached.map((run) => [run.id, run]));
+  for (const run of recent) byId.set(run.id, run);
+  return Array.from(byId.values()).sort(
+    (a, b) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id)
+  );
+}
+
+function isRetained(run: ScriptRun, oldest: RunnerOverview['oldestHistory']) {
+  return (
+    !!oldest &&
+    (run.createdAt > oldest.createdAt ||
+      (run.createdAt === oldest.createdAt && run.id >= oldest.id))
+  );
+}
+
+function RunList({
+  active,
+  history,
+  historyCursor,
+  historyBusy,
+  selectedId,
+  onSelect,
+  onMore,
+  onRerun,
+  tab,
+  onTab,
+  loading,
+}: {
+  active: ScriptRun[];
+  history: ScriptRun[];
+  historyCursor?: string;
+  historyBusy: boolean;
+  selectedId?: string;
+  onSelect: (run: ScriptRun) => void;
+  onMore: (cursor: string) => void;
+  onRerun: (run: ScriptRun) => void;
+  tab: Tab;
+  onTab: (tab: Tab) => void;
+  loading: boolean;
+}) {
+  const [now, setNow] = useState(() => Date.now());
+  const ticking = tab === 'active' && active.length > 0;
+  useEffect(() => {
+    if (!ticking) return;
+    const interval = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(interval);
+  }, [ticking]);
+
+  const runs = tab === 'active' ? active : history;
+  return (
+    <section className="sr-panel sr-runs" aria-label="Script runs">
+      <header className="sr-panel-header sr-runs-header">
+        <div>
+          <Activity size={17} />
+          <h2>Runs</h2>
+        </div>
+        <div className="sr-segment" aria-label="Run view">
+          <button aria-pressed={tab === 'active'} onClick={() => onTab('active')}>
+            Active <span>{active.length}</span>
+          </button>
+          <button aria-pressed={tab === 'history'} onClick={() => onTab('history')}>
+            <History size={14} /> History
+          </button>
+        </div>
+      </header>
+      {runs.length ? (
+        <div className="sr-run-list">
+          {runs.map((run) => (
+            <div className="sr-run-row" data-selected={run.id === selectedId} key={run.id}>
+              <button
+                className="sr-run-select"
+                onClick={() => onSelect(run)}
+                aria-pressed={run.id === selectedId}
+              >
+                <span className="sr-run-name">
+                  <FileCode2 size={17} />
+                  <span>
+                    <strong>{run.title}</strong>
+                    <small title={run.cwd}>
+                      {run.scheduledFor && 'Scheduled · '}
+                      {SCRIPT_RUNTIMES[run.language ?? 'bash'].label} · {run.cwd}
+                    </small>
+                  </span>
+                </span>
+                <RunBadge run={run} />
+                <span className="sr-row-time">
+                  <Clock3 size={14} />
+                  {elapsed(run, now)}
+                </span>
+                <span className="sr-row-date">
+                  {tab === 'active'
+                    ? run.requestedBy
+                    : new Date(run.finishedAt ?? run.createdAt).toLocaleString([], {
+                        month: 'short',
+                        day: 'numeric',
+                        hour: 'numeric',
+                        minute: '2-digit',
+                      })}
+                </span>
+                <ArrowUpRight className="sr-row-arrow" size={15} />
+              </button>
+              {!isActiveRun(run.status) && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  title="Run again"
+                  aria-label={`Run ${run.title} again`}
+                  onClick={() => onRerun(run)}
+                >
+                  <ListRestart size={17} />
+                </Button>
+              )}
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="sr-runs-empty">
+          <Clock3 size={19} />
+          <span>
+            {loading
+              ? 'Loading runs…'
+              : tab === 'active'
+                ? 'No scripts running'
+                : 'No completed runs yet'}
+          </span>
+        </div>
+      )}
+      {tab === 'history' && historyCursor && (
+        <div className="sr-more">
+          <Button
+            variant="ghost"
+            size="sm"
+            loading={historyBusy}
+            onClick={() => onMore(historyCursor)}
+          >
+            <ArrowDown size={14} /> Load older runs
+          </Button>
+        </div>
+      )}
+    </section>
+  );
+}
+
+export default function ScriptRunnerPage() {
+  const { toast } = useToast();
+  const [overview, setOverview] = useState<RunnerOverview | null>(null);
+  const [overviewError, setOverviewError] = useState('');
+  const [draft, setDraft] = useState<ScriptDraft>(starter);
+  const [editorKey, setEditorKey] = useState(0);
+  const [scriptId, setScriptId] = useState<string>();
+  const [baseline, setBaseline] = useState(starter);
+  const [saved, setSaved] = useState<ScriptDraft | null>(null);
+  const [tab, setTab] = useState<Tab>('active');
+  const [view, setView] = useState<View>('overview');
+  const [editorView, setEditorView] = useState<'source' | 'defaults'>('source');
+  const [selection, setSelection] = useState<ScriptRun | null>(null);
+  const [launch, setLaunch] = useState<Launch | null>(null);
+  const [libraryOpen, setLibraryOpen] = useState(false);
+  const [openingScript, setOpeningScript] = useState(false);
+  const [savingScript, setSavingScript] = useState(false);
+  const [startingScriptId, setStartingScriptId] = useState<string>();
+  const working = openingScript || savingScript;
+  const [more, setMore] = useState<{
+    history: ScriptRun[];
+    next?: string;
+    version?: number;
+  } | null>(null);
+  const [historyBusy, setHistoryBusy] = useState(false);
+  const [actionError, setActionError] = useState('');
+  const [discard, setDiscard] = useState<{ next: () => void } | null>(null);
+  const initialDefaultsApplied = useRef(false);
+  const scriptLoad = useRef<AbortController | null>(null);
+  const documentVersion = useRef(0);
+  const pendingLaunch = useRef<{ signature: string; id: string; scriptId?: string } | null>(null);
+  const savedLaunchIds = useRef(new Map<string, string>());
+  const inspectedRunId = useRef<string>(undefined);
+
+  const refresh = useCallback(async (signal?: AbortSignal) => {
+    try {
+      const inspected = inspectedRunId.current;
+      const result = await runnerRequest<RunnerOverview>(
+        inspected ? `?inspected=${encodeURIComponent(inspected)}` : '',
+        { signal }
+      );
+      if (!signal?.aborted) {
+        setOverview(result);
+        if (!initialDefaultsApplied.current) {
+          initialDefaultsApplied.current = true;
+          const configureUntouched = (current: ScriptDraft) =>
+            current === starter || current === emptyDraft
+              ? applyDefaults(current, result)
+              : current;
+          setDraft(configureUntouched);
+          setBaseline(configureUntouched);
+        }
+        setMore((current) => {
+          if (
+            !current ||
+            current.version !== result.historyPruneVersion ||
+            !result.nextHistoryCursor
+          )
+            return null;
+          const history = current.history.filter((run) => isRetained(run, result.oldestHistory));
+          if (current.next && !history.some(({ id }) => id === current.next)) return null;
+          return { ...current, history: mergeHistory(result.history, history) };
+        });
+        setOverviewError('');
+      }
+    } catch (error) {
+      if (!signal?.aborted) setOverviewError(errorMessage(error));
+    }
+  }, []);
+
+  useEffect(() => {
+    const abort = new AbortController();
+    let interval: ReturnType<typeof setTimeout>;
+    const poll = async () => {
+      await refresh(abort.signal);
+      if (!abort.signal.aborted) interval = setTimeout(() => void poll(), 2500);
+    };
+    void poll();
+    return () => {
+      abort.abort();
+      scriptLoad.current?.abort();
+      clearTimeout(interval);
+    };
+  }, [refresh]);
+
+  const hasSource = !!draft.title.trim() && !!draft.source.trim();
+  const valid = hasSource && validConfiguration(draft);
+  const runtime = SCRIPT_RUNTIMES[draft.language];
+  const dirty = JSON.stringify(draft) !== JSON.stringify(saved ?? baseline);
+  const hasOnlineWorker = !!overview?.online;
+  const scripts = overview?.scripts ?? [];
+  const variables = overview?.variables ?? [];
+  const envGroups = overview?.envGroups ?? [];
+  const linkedIds = new Set([
+    ...(draft.envVarIds ?? []),
+    ...envGroups
+      .filter((group) => draft.envGroupIds?.includes(group.id))
+      .flatMap((group) => group.variableIds),
+  ]);
+  const envCount = new Set([
+    ...draft.env.map(({ key }) => key),
+    ...variables.filter(({ id }) => linkedIds.has(id)).map(({ key }) => key),
+  ]).size;
+  const active = overview?.active ?? [];
+  const cachedHistory = more?.version === overview?.historyPruneVersion ? more : null;
+  const history = mergeHistory(overview?.history ?? [], cachedHistory?.history ?? []);
+  const inspected = overview?.inspectedRun;
+  const selected = selection
+    ? overview?.inspectedRunId === selection.id
+      ? inspected && isActiveRun(inspected.status) && !isActiveRun(selection.status)
+        ? selection
+        : (inspected ?? null)
+      : (history.find((run) => run.id === selection.id) ??
+        (isActiveRun(selection.status)
+          ? active.find((run) => run.id === selection.id)
+          : undefined) ??
+        (isActiveRun(selection.status) || isRetained(selection, overview?.oldestHistory)
+          ? selection
+          : null))
+    : null;
+  const displayedHistory =
+    selected && !isActiveRun(selected.status) && !history.some(({ id }) => id === selected.id)
+      ? mergeHistory([selected], history)
+      : history;
+  const visibleTab = selected ? (isActiveRun(selected.status) ? 'active' : 'history') : tab;
+
+  const updateSource = useCallback((source: string) => {
+    setDraft((old) => ({ ...old, source }));
+  }, []);
+
+  function selectLanguage(language: ScriptLanguage) {
+    setDraft((current) => {
+      const isTemplate =
+        current.source === templates[current.language] ||
+        (current.language === 'bash' && current.source === starter.source);
+      return {
+        ...current,
+        language,
+        pythonEnvironmentId: language === 'python' ? current.pythonEnvironmentId : null,
+        source: isTemplate ? templates[language] : current.source,
+      };
+    });
+  }
+
+  const handleRunFinished = useCallback((run: ScriptRun) => {
+    setSelection((current) => (current?.id === run.id ? run : current));
+  }, []);
+
+  function cancelScriptLoad() {
+    if (!scriptLoad.current) return;
+    scriptLoad.current.abort();
+    scriptLoad.current = null;
+    setOpeningScript(false);
+  }
+
+  function showView(next: View, runId = selection?.id) {
+    cancelScriptLoad();
+    inspectedRunId.current = next === 'runs' ? runId : undefined;
+    setView(next);
+  }
+
+  function replaceEditor() {
+    setEditorKey(++documentVersion.current);
+  }
+
+  function replaceDraft(next: () => void) {
+    if (dirty) setDiscard({ next });
+    else next();
+  }
+
+  function newDraft() {
+    replaceDraft(() => {
+      showView('workspace');
+      setEditorView('source');
+      const configured = overview ? applyDefaults(emptyDraft, overview) : emptyDraft;
+      setDraft(configured);
+      replaceEditor();
+      setBaseline(configured);
+      setScriptId(undefined);
+      setSaved(null);
+      setActionError('');
+      requestAnimationFrame(() => document.getElementById('sr-script-title')?.focus());
+    });
+  }
+
+  async function openScript(id: string) {
+    cancelScriptLoad();
+    const controller = new AbortController();
+    scriptLoad.current = controller;
+    setOpeningScript(true);
+    setActionError('');
+    try {
+      const response = await runnerRequest<SavedScript>(`/scripts/${id}`, {
+        signal: controller.signal,
+      });
+      if (controller.signal.aborted) return;
+      const loaded = draftFields(response);
+      setView('workspace');
+      setEditorView('source');
+      setScriptId(response.id);
+      setDraft(loaded);
+      replaceEditor();
+      setSaved(loaded);
+    } catch (error) {
+      if (!controller.signal.aborted) setActionError(errorMessage(error));
+    } finally {
+      if (scriptLoad.current === controller) {
+        scriptLoad.current = null;
+        setOpeningScript(false);
+      }
+    }
+  }
+
+  function editScript(id: string) {
+    setLibraryOpen(false);
+    if (id === scriptId) {
+      showView('workspace');
+      return;
+    }
+    replaceDraft(() => void openScript(id));
+  }
+
+  async function saveScript(next: ScriptDraft, id?: string) {
+    const version = documentVersion.current;
+    const response = await runnerRequest<SavedScript>(id ? `/scripts/${id}` : '/scripts', {
+      method: id ? 'PATCH' : 'POST',
+      body: JSON.stringify(next),
+    });
+    const committed = draftFields(response);
+    if (documentVersion.current === version) {
+      setDraft((current) => (current === draft ? committed : current));
+      setSaved(committed);
+      setScriptId(response.id);
+    }
+    void refresh();
+    return response.id;
+  }
+
+  async function saveCurrent() {
+    setSavingScript(true);
+    setActionError('');
+    try {
+      await saveScript(draft, scriptId);
+      toast({ variant: 'success', title: 'Script saved' });
+    } catch (error) {
+      setActionError(errorMessage(error));
+    } finally {
+      setSavingScript(false);
+    }
+  }
+
+  function handleDeleted(id: string) {
+    savedLaunchIds.current.delete(id);
+    if (id !== scriptId) return;
+    documentVersion.current++;
+    setScriptId(undefined);
+    setSaved(null);
+  }
+
+  function selectRun(run: ScriptRun) {
+    setSelection(run);
+    showView('runs', run.id);
+    if (window.matchMedia('(max-width: 920px)').matches) {
+      requestAnimationFrame(() =>
+        document.getElementById('script-run-console')?.scrollIntoView({
+          block: 'nearest',
+          behavior: 'auto',
+        })
+      );
+    }
+  }
+
+  function selectTab(nextTab: Tab) {
+    if (nextTab === visibleTab) return;
+    setTab(nextTab);
+    inspectedRunId.current = undefined;
+    setSelection(null);
+  }
+
+  function disposeLaunch() {
+    pendingLaunch.current = null;
+    setLaunch(null);
+  }
+
+  async function start(next: ScriptDraft, shouldSave: boolean) {
+    const signature = JSON.stringify({ next, shouldSave });
+    let pending = pendingLaunch.current;
+    if (!pending || pending.signature !== signature) {
+      pending = { signature, id: requestId(), scriptId: launch?.scriptId };
+      if (shouldSave) pending.scriptId = await saveScript(next, pending.scriptId);
+      pendingLaunch.current = pending;
+    }
+    const run = await runnerRequest<ScriptRun>('/runs', {
+      method: 'POST',
+      body: JSON.stringify({
+        ...next,
+        id: pending.id,
+        scriptId: pending.scriptId,
+        rerunOf: launch?.rerunOf,
+      }),
+    });
+    disposeLaunch();
+    showLaunchedRun(run);
+  }
+
+  async function runSaved(savedScriptId: string) {
+    if (startingScriptId || !hasOnlineWorker) return;
+    setStartingScriptId(savedScriptId);
+    setActionError('');
+    const id = savedLaunchIds.current.get(savedScriptId) ?? requestId();
+    savedLaunchIds.current.set(savedScriptId, id);
+    try {
+      const run = await runnerRequest<ScriptRun>('/runs', {
+        method: 'POST',
+        body: JSON.stringify({ id, scriptId: savedScriptId }),
+      });
+      savedLaunchIds.current.delete(savedScriptId);
+      showLaunchedRun(run);
+    } catch (error) {
+      setActionError(errorMessage(error));
+    } finally {
+      setStartingScriptId(undefined);
+    }
+  }
+
+  function showLaunchedRun(run: ScriptRun) {
+    selectRun(run);
+    setOverview((current) =>
+      current && isActiveRun(run.status)
+        ? {
+            ...current,
+            active: [...current.active.filter((item) => item.id !== run.id), run],
+          }
+        : current
+    );
+    void refresh();
+    toast({
+      variant: 'success',
+      title: isActiveRun(run.status) ? 'Run queued' : 'Run available in history',
+    });
+  }
+
+  async function rerun(run: ScriptRun) {
+    setActionError('');
+    try {
+      const snapshot = await runnerRequest<RunSnapshot>(`/runs/${run.id}`);
+      setLaunch({
+        rerunOf: snapshot.id,
+        linkedEnvKeys: snapshot.linkedEnvKeys,
+        recordedPythonEnvironment: snapshot.pythonEnvironment,
+        scriptId: scripts.some((script) => script.id === snapshot.scriptId)
+          ? snapshot.scriptId
+          : undefined,
+        draft: draftFields(snapshot),
+      });
+    } catch (error) {
+      setActionError(errorMessage(error));
+    }
+  }
+
+  async function loadEarlier(cursor: string) {
+    setHistoryBusy(true);
+    try {
+      const result = await runnerRequest<RunnerOverview>(`?before=${encodeURIComponent(cursor)}`);
+      setMore((previous) => ({
+        history: mergeHistory(
+          result.history,
+          (
+            (previous?.version === result.historyPruneVersion ? previous?.history : undefined) ??
+            overview?.history ??
+            []
+          ).filter((run) => isRetained(run, result.oldestHistory))
+        ),
+        next: result.nextHistoryCursor,
+        version: result.historyPruneVersion,
+      }));
+    } catch (error) {
+      setActionError(errorMessage(error));
+    } finally {
+      setHistoryBusy(false);
+    }
+  }
+
+  return (
+    <div className="script-runner">
+      <header className="sr-hero">
+        <div className="sr-hero-main">
+          <div className="sr-hero-icon">
+            <SquareTerminal size={28} strokeWidth={1.65} />
+          </div>
+          <div>
+            <h1>Script Runner</h1>
+            <p>Write scripts, set launch defaults, and follow background runs.</p>
+          </div>
+        </div>
+        <div className="sr-hero-actions">
+          <span className={`sr-worker ${hasOnlineWorker ? 'sr-worker-online' : ''}`}>
+            <Circle size={8} fill="currentColor" />
+            {!overview
+              ? 'Checking worker'
+              : !overview.supported
+                ? 'Linux worker required'
+                : hasOnlineWorker
+                  ? 'Worker online'
+                  : 'Worker offline'}
+          </span>
+        </div>
+      </header>
+      {overviewError && (
+        <p className="sr-notice" role="status">
+          {overviewError}
+        </p>
+      )}
+      {actionError && (
+        <p className="sr-error" role="alert">
+          {actionError}
+        </p>
+      )}
+
+      <nav className="sr-view-bar" aria-label="Script Runner views">
+        {views.map(({ id, label, icon: Icon }) => (
+          <button key={id} type="button" aria-pressed={view === id} onClick={() => showView(id)}>
+            <Icon size={17} /> {label}
+            {id === 'runs' && active.length > 0 && <span>{active.length} active</span>}
+          </button>
+        ))}
+      </nav>
+
+      {view === 'overview' && (
+        <ScriptRunnerOverviewPanel
+          active={active}
+          history={history}
+          onNew={newDraft}
+          onLibrary={() => showView('saved')}
+          onRuns={() => showView('runs')}
+          onSelectRun={selectRun}
+        />
+      )}
+
+      {view === 'saved' && (
+        <SavedScriptsPanel
+          scripts={scripts}
+          loading={!overview}
+          canRun={hasOnlineWorker}
+          startingScriptId={startingScriptId}
+          onRun={runSaved}
+          onNew={newDraft}
+          onEdit={editScript}
+          onChanged={() => void refresh()}
+          onDeleted={handleDeleted}
+        />
+      )}
+
+      {view === 'environment' && (
+        <div className="grid min-w-0 gap-3.5">
+          <EnvironmentGroupsPanel
+            groups={envGroups}
+            variables={variables}
+            loading={!overview}
+            onChanged={() => void refresh()}
+          />
+          <EnvironmentVariablesPanel
+            variables={variables}
+            loading={!overview}
+            onChanged={() => void refresh()}
+          />
+        </div>
+      )}
+
+      {view === 'schedules' && <ScriptSchedulesPanel scripts={scripts} online={hasOnlineWorker} />}
+
+      {view === 'settings' && (
+        <div className="grid min-w-0 gap-3.5">
+          <ScriptRunnerSettingsPanel
+            settings={overview ?? SCRIPT_RUNNER_DEFAULTS}
+            online={hasOnlineWorker}
+            supported={!!overview?.supported}
+            runtimes={overview?.runtimes ?? []}
+            onSaved={(settings) => {
+              setOverview((current) => (current ? { ...current, ...settings } : current));
+              if (!scriptId && !dirty) {
+                const configured = applyDefaults(draft, settings);
+                setDraft(configured);
+                setBaseline(configured);
+              }
+              void refresh();
+            }}
+          />
+          <ScriptStoragePanel settings={overview ?? SCRIPT_RUNNER_DEFAULTS} />
+        </div>
+      )}
+
+      <div className="sr-workspace" hidden={view !== 'workspace'}>
+        <section className="sr-panel sr-author" aria-label="Script editor">
+          <header className="sr-panel-header">
+            <div>
+              <FileCode2 size={17} />
+              <h2>Editor</h2>
+            </div>
+            <div className="sr-editor-tools">
+              <span className="sr-editor-state">
+                <i data-saved={!!saved && !dirty} />
+                {saved && !dirty ? 'Saved' : 'Draft'}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setLibraryOpen(true)}
+                disabled={working}
+              >
+                <FolderOpen size={15} /> Open saved script
+              </Button>
+              <Button variant="ghost" size="sm" onClick={newDraft} disabled={working}>
+                <Plus size={15} /> New script
+              </Button>
+            </div>
+          </header>
+          <div className="sr-editor-title">
+            <label className="sr-field">
+              <span>Script name</span>
+              <input
+                id="sr-script-title"
+                className="sr-input"
+                value={draft.title}
+                maxLength={80}
+                onChange={(event) => setDraft({ ...draft, title: event.target.value })}
+                placeholder="Name this script"
+              />
+            </label>
+          </div>
+          <div className="sr-document-bar">
+            <div className="sr-segment" aria-label="Script editing view">
+              <button
+                type="button"
+                aria-pressed={editorView === 'source'}
+                onClick={() => setEditorView('source')}
+              >
+                <FileCode2 size={15} /> Source
+              </button>
+              <button
+                type="button"
+                aria-pressed={editorView === 'defaults'}
+                onClick={() => setEditorView('defaults')}
+              >
+                <Settings2 size={15} /> Run defaults
+              </button>
+            </div>
+            <label className="sr-runtime-select">
+              <span>Runtime</span>
+              <select
+                aria-label="Script runtime"
+                value={draft.language}
+                onChange={(event) => selectLanguage(event.currentTarget.value as ScriptLanguage)}
+              >
+                {SCRIPT_LANGUAGES.map((language) => (
+                  <option key={language} value={language}>
+                    {SCRIPT_RUNTIMES[language].label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+          {draft.language === 'python' && (
+            <div className="px-3 pb-3 sm:px-4">
+              <PythonEnvironmentField
+                options={overview?.pythonEnvironments ?? []}
+                value={draft.pythonEnvironmentId}
+                onChange={(pythonEnvironmentId) =>
+                  setDraft((current) => ({ ...current, pythonEnvironmentId }))
+                }
+              />
+            </div>
+          )}
+          <div className="sr-code-frame" hidden={editorView !== 'source'}>
+            <div className="sr-code-header" data-language={draft.language}>
+              <span>
+                <FileCode2 size={14} /> {runtime.filename}
+              </span>
+              <code>{runtime.label}</code>
+            </div>
+            <ScriptEditor
+              key={editorKey}
+              language={draft.language}
+              value={draft.source}
+              onChange={updateSource}
+            />
+          </div>
+          {editorView === 'defaults' && (
+            <div className="sr-defaults-panel">
+              <RunConfiguration
+                value={draft}
+                onChange={(configuration) =>
+                  setDraft((current) => ({ ...current, ...configuration }))
+                }
+                recent={overview?.recentDirectories ?? []}
+                variables={variables}
+                groups={envGroups}
+                scope="defaults"
+              />
+            </div>
+          )}
+          <div className="sr-author-actions">
+            <span className="sr-default-dir" title={draft.cwd}>
+              <FolderOpen size={15} />
+              <span>{draft.cwd}</span>
+              {envCount > 0 && (
+                <span className="sr-env-count">
+                  <Variable size={14} /> {envCount}
+                </span>
+              )}
+            </span>
+            <div>
+              <Button
+                variant="outline"
+                onClick={() => void saveCurrent()}
+                loading={working}
+                disabled={!valid || (!dirty && !!scriptId)}
+              >
+                <Save size={15} /> Save
+              </Button>
+              <Button
+                className="sr-run-button"
+                disabled={!hasSource || working}
+                onClick={() => setLaunch({ draft, scriptId })}
+              >
+                <Play size={15} fill="currentColor" /> Configure run
+              </Button>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      {view === 'runs' && (
+        <div className="sr-runs-workspace">
+          <RunList
+            active={active}
+            history={displayedHistory}
+            historyCursor={cachedHistory ? cachedHistory.next : overview?.nextHistoryCursor}
+            historyBusy={historyBusy}
+            selectedId={selected?.id}
+            onSelect={selectRun}
+            onMore={(cursor) => void loadEarlier(cursor)}
+            onRerun={(run) => void rerun(run)}
+            tab={visibleTab}
+            onTab={selectTab}
+            loading={!overview}
+          />
+          <RunConsole
+            run={selected}
+            onRerun={(run) => void rerun(run)}
+            onFinished={handleRunFinished}
+          />
+        </div>
+      )}
+
+      {launch && (
+        <LaunchDialog
+          draft={launch.draft}
+          recent={overview?.recentDirectories ?? []}
+          online={hasOnlineWorker}
+          runtimes={overview?.runtimes ?? ['bash']}
+          environmentSupport={!!overview?.environmentSupport}
+          pythonEnvironmentSupport={overview?.pythonEnvironmentSupport}
+          pythonEnvironments={overview?.pythonEnvironments ?? []}
+          recordedPythonEnvironment={launch.recordedPythonEnvironment}
+          variables={variables}
+          groups={envGroups}
+          recordedKeys={launch.linkedEnvKeys}
+          canSave={!launch.rerunOf}
+          onClose={disposeLaunch}
+          onLaunch={start}
+        />
+      )}
+      {libraryOpen && (
+        <OpenSavedScriptDialog
+          scripts={scripts}
+          onSelect={editScript}
+          onClose={() => setLibraryOpen(false)}
+        />
+      )}
+      {discard && (
+        <RunnerDialog title="Discard unsaved edits?" onClose={() => setDiscard(null)}>
+          <div className="sr-dialog-form">
+            <p className="sr-muted">Save this script to keep your changes in the library.</p>
+            <footer className="sr-dialog-actions">
+              <Button variant="outline" onClick={() => setDiscard(null)}>
+                Keep editing
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={() => {
+                  setDiscard(null);
+                  discard.next();
+                }}
+              >
+                Discard edits
+              </Button>
+            </footer>
+          </div>
+        </RunnerDialog>
+      )}
+    </div>
+  );
+}

@@ -44,6 +44,11 @@ set -euo pipefail
 # This variable is the "Single Source of Truth" for system updates.
 # It is typically set during installation in /etc/servermon/env.
 SERVERMON_REPO_DIR="${SERVERMON_REPO_DIR:-}"
+SERVERMON_INSTALL_MODE="source"
+SERVERMON_VERSION_TARGET="latest"
+SERVERMON_RELEASE_BASE_URL=""
+SERVERMON_SOURCE_REF="main"
+RELEASE_TMP_DIR=""
 
 # Fallback path to check for configuration
 ENV_FILE="/etc/servermon/env"
@@ -106,12 +111,107 @@ log_error() {
   log "ERROR" "$1"
 }
 
+read_env_value() {
+  local key="$1"
+  if [ ! -f "$ENV_FILE" ]; then
+    return
+  fi
+  grep "^${key}=" "$ENV_FILE" 2>/dev/null | tail -1 | cut -d'=' -f2- | xargs 2>/dev/null || true
+}
+
+detect_target() {
+  local os_name arch_name
+  os_name="$(uname -s)"
+  case "$os_name" in
+    Linux) PLATFORM_NAME="linux" ;;
+    Darwin) PLATFORM_NAME="darwin" ;;
+    *) log_error "Unsupported OS for release update: $os_name"; exit 1 ;;
+  esac
+
+  arch_name="$(uname -m)"
+  case "$arch_name" in
+    x86_64|amd64) ARCH_NAME="x64" ;;
+    aarch64|arm64) ARCH_NAME="arm64" ;;
+    *) log_error "Unsupported architecture for release update: $arch_name"; exit 1 ;;
+  esac
+}
+
+resolve_release_base_url() {
+  if [ -n "$SERVERMON_RELEASE_BASE_URL" ]; then
+    echo "$SERVERMON_RELEASE_BASE_URL"
+    return
+  fi
+  if [ "$SERVERMON_VERSION_TARGET" = "latest" ]; then
+    echo "https://github.com/manthanmtg/ServerMon/releases/latest/download"
+  else
+    echo "https://github.com/manthanmtg/ServerMon/releases/download/$SERVERMON_VERSION_TARGET"
+  fi
+}
+
+verify_checksum() {
+  local checksum_file="$1"
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum -c "$checksum_file"
+  elif command -v shasum >/dev/null 2>&1; then
+    shasum -a 256 -c "$checksum_file"
+  else
+    log_error "Neither sha256sum nor shasum is available."
+    exit 1
+  fi
+}
+
+run_release_update() {
+  detect_target
+  local base_url asset checksum_line app_dir
+  base_url="$(resolve_release_base_url)"
+  asset="servermon-hub-${PLATFORM_NAME}-${ARCH_NAME}.tar.gz"
+  RELEASE_TMP_DIR="$(mktemp -d)"
+  trap 'rm -rf "$RELEASE_TMP_DIR"' EXIT
+
+  log_info "Downloading release artifact '$asset' from '$base_url'."
+  curl -fsSL "$base_url/$asset" -o "$RELEASE_TMP_DIR/$asset"
+  curl -fsSL "$base_url/SHA256SUMS" -o "$RELEASE_TMP_DIR/SHA256SUMS"
+  checksum_line="$RELEASE_TMP_DIR/SHA256SUM"
+  grep "  $asset$" "$RELEASE_TMP_DIR/SHA256SUMS" > "$checksum_line" || {
+    log_error "Checksum missing for '$asset'."
+    exit 1
+  }
+  (cd "$RELEASE_TMP_DIR" && verify_checksum "$checksum_line") 2>&1 | tee -a "$LOG_FILE"
+
+  app_dir="$RELEASE_TMP_DIR/app"
+  mkdir -p "$app_dir"
+  tar -xzf "$RELEASE_TMP_DIR/$asset" -C "$app_dir" --strip-components=1
+
+  log_info "Running ServerMon installer in prebuilt release mode."
+  if ! SERVERMON_INSTALL_MODE="release" \
+    SERVERMON_VERSION_TARGET="$SERVERMON_VERSION_TARGET" \
+    SERVERMON_RELEASE_BASE_URL="$SERVERMON_RELEASE_BASE_URL" \
+    "$app_dir/scripts/install.sh" --prebuilt --use-existing-values 2>&1 | tee -a "$LOG_FILE"; then
+    log_error "Release installer exited with a non-zero status. See log for details."
+    exit 1
+  fi
+
+  log_info "ServerMon release update finished successfully."
+}
+
 # Ensure the log directory exists before we start appending.
 mkdir -p "$(dirname "$LOG_FILE")"
+
+if [ -f "$ENV_FILE" ]; then
+  SERVERMON_INSTALL_MODE="$(read_env_value SERVERMON_INSTALL_MODE || true)"
+  SERVERMON_INSTALL_MODE="${SERVERMON_INSTALL_MODE:-source}"
+  SERVERMON_VERSION_TARGET="$(read_env_value SERVERMON_VERSION_TARGET || true)"
+  SERVERMON_VERSION_TARGET="${SERVERMON_VERSION_TARGET:-latest}"
+  SERVERMON_RELEASE_BASE_URL="$(read_env_value SERVERMON_RELEASE_BASE_URL || true)"
+  SERVERMON_SOURCE_REF="$(read_env_value SERVERMON_SOURCE_REF || true)"
+  SERVERMON_SOURCE_REF="${SERVERMON_SOURCE_REF:-main}"
+  GIT_BRANCH="$SERVERMON_SOURCE_REF"
+fi
 
 log_info "───# ── Execution ───────────────────────────────────────────────────"
 
 log_info "Starting ServerMon system update..."
+log_info "Install mode: $SERVERMON_INSTALL_MODE"
 log_info "Repository resolved via: $RESOLVED_VIA"
 log_info "Resolved path: $REPO_DIR"
 
@@ -120,6 +220,11 @@ log_info "Resolved path: $REPO_DIR"
 if [ "$EUID" -ne 0 ]; then
   log_error "This script must be run as root (or via sudo)."
   exit 1
+fi
+
+if [ "$SERVERMON_INSTALL_MODE" = "release" ]; then
+  run_release_update
+  exit 0
 fi
 
 if [ ! -d "$REPO_DIR" ]; then
@@ -173,4 +278,3 @@ fi
 log_info "ServerMon update finished successfully."
 
 exit 0
-

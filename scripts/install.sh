@@ -22,6 +22,9 @@ RELEASES_DIR="/opt/servermon-releases"
 KEEP_RELEASES=2 # Number of releases to keep (can be changed here or via --keep-last-n-release)
 CONFIG_DIR="/etc/servermon"
 SERVICE_NAME="servermon"
+APPS_WORKER_SERVICE_NAME="${SERVICE_NAME}-apps-worker"
+SCRIPT_WORKER_SERVICE_NAME="${SERVICE_NAME}-script-runner-worker"
+SCRIPT_RUNNER_USER="servermon-script"
 SERVICE_USER="servermon"
 DEFAULT_PORT=8912
 DEFAULT_MONGO_URI="mongodb://localhost:27017/servermon"
@@ -36,6 +39,11 @@ UNINSTALL="false"
 SKIP_MONGO_INSTALL="false"
 ALLOW_ROOT="false"
 USE_EXISTING="false"
+PREBUILT="false"
+SERVERMON_INSTALL_MODE="${SERVERMON_INSTALL_MODE:-source}"
+SERVERMON_VERSION_TARGET="${SERVERMON_VERSION_TARGET:-latest}"
+SERVERMON_RELEASE_BASE_URL="${SERVERMON_RELEASE_BASE_URL:-}"
+SERVERMON_SOURCE_REF="${SERVERMON_SOURCE_REF:-main}"
 
 # Fleet Hub Defaults
 HUB_MODE="false"
@@ -127,6 +135,7 @@ usage() {
     echo "  --skip-mongo         Skip MongoDB installation (use remote MongoDB)"
     echo "  --unattended         Non-interactive mode, use defaults/flags"
     echo "  --use-existing-values Use existing config values, no prompts (upgrade shortcut)"
+    echo "  --prebuilt          Use bundled .next and node_modules; skip pnpm install/build"
     echo "  --allow-root         Run service as root (not recommended)"
     echo "  --uninstall          Remove ServerMon completely"
     echo "  -h, --help           Show this help message"
@@ -150,6 +159,7 @@ while [[ $# -gt 0 ]]; do
         --skip-mongo)  SKIP_MONGO_INSTALL="true"; shift ;;
         --unattended)  UNATTENDED="true"; shift ;;
         --use-existing-values) USE_EXISTING="true"; UNATTENDED="true"; shift ;;
+        --prebuilt)    PREBUILT="true"; [ "$SERVERMON_INSTALL_MODE" = "source" ] && SERVERMON_INSTALL_MODE="release"; shift ;;
         --keep-last-n-release) KEEP_RELEASES="$2"; shift 2 ;;
         --allow-root)  ALLOW_ROOT="true"; shift ;;
         --uninstall)   UNINSTALL="true"; shift ;;
@@ -196,8 +206,19 @@ if [ "$UNINSTALL" = "true" ]; then
         fi
     fi
 
+    systemctl stop "$SCRIPT_WORKER_SERVICE_NAME" 2>/dev/null || true
+    systemctl disable "$SCRIPT_WORKER_SERVICE_NAME" 2>/dev/null || true
+    systemctl stop 'servermon-script-*.service' 'servermon-python-*.service' 2>/dev/null || true
+    rm -f "/etc/systemd/system/${SCRIPT_WORKER_SERVICE_NAME}.service" \
+        /etc/sudoers.d/servermon-script-runner \
+        /usr/local/libexec/servermon-script-control /usr/local/libexec/servermon-script-execute \
+        /usr/local/libexec/servermon-python-env-control /usr/local/libexec/servermon-python-env-build \
+        /usr/local/libexec/servermon-uv
+    systemctl stop "$APPS_WORKER_SERVICE_NAME" 2>/dev/null || true
+    systemctl disable "$APPS_WORKER_SERVICE_NAME" 2>/dev/null || true
     systemctl stop "$SERVICE_NAME" 2>/dev/null || true
     systemctl disable "$SERVICE_NAME" 2>/dev/null || true
+    rm -f "/etc/systemd/system/${APPS_WORKER_SERVICE_NAME}.service"
     rm -f "/etc/systemd/system/${SERVICE_NAME}.service"
     systemctl daemon-reload 2>/dev/null || true
 
@@ -212,6 +233,10 @@ if [ "$UNINSTALL" = "true" ]; then
 
     if id "$SERVICE_USER" &>/dev/null; then
         userdel "$SERVICE_USER" 2>/dev/null || true
+    fi
+
+    if id "$SCRIPT_RUNNER_USER" &>/dev/null; then
+        userdel "$SCRIPT_RUNNER_USER" 2>/dev/null || true
     fi
 
     log "ServerMon has been removed."
@@ -444,8 +469,8 @@ apt-get update -y || {
     exit 1; 
 }
 
-log_info "Installing core packages: curl, git, build-essential, lsof, liblzma-dev, pkg-config, snapd..."
-apt-get install -y curl git build-essential lsof liblzma-dev pkg-config snapd || { log_err "Failed to install system dependencies"; exit 1; }
+log_info "Installing core packages: curl, git, build-essential, lsof, liblzma-dev, pkg-config, snapd, sudo, python3..."
+apt-get install -y curl git build-essential lsof liblzma-dev pkg-config snapd sudo python3 || { log_err "Failed to install system dependencies"; exit 1; }
 log "Installed core build and system tools"
 
 
@@ -455,15 +480,23 @@ log "Base packages and tools installed"
 # ── Step 2: Node.js & pnpm ──────────────────────────────
 step "2/${TOTAL_STEPS}" "Setting up Node.js and pnpm"
 
-if command -v node &> /dev/null; then
-    NODE_VER=$(node -v)
-    log "Node.js already installed: ${NODE_VER}"
+# The execution account uses the system-wide runtime search path.
+SCRIPT_RUNTIME_PATH="/usr/local/bin:/usr/bin:/bin"
+SCRIPT_NODE_PATH=$(PATH="$SCRIPT_RUNTIME_PATH" command -v node || true)
+NODE_VER=""
+if [ -n "$SCRIPT_NODE_PATH" ]; then
+    NODE_VER=$("$SCRIPT_NODE_PATH" -v)
+fi
+if [[ "$NODE_VER" =~ ^v([0-9]+)\.([0-9]+)\. ]] &&
+    (( BASH_REMATCH[1] > 20 || (BASH_REMATCH[1] == 20 && BASH_REMATCH[2] >= 9) )); then
+    log "System-wide Node.js already installed: ${NODE_VER}"
 else
     log_info "Setting up NodeSource repository for Node.js v20..."
     curl -fsSL https://deb.nodesource.com/setup_20.x 2>/dev/null | bash - > /dev/null 2>&1
     log_info "Installing nodejs package..."
     apt-get install -qq -y nodejs > /dev/null 2>&1
-    log "Node.js $(node -v) installed"
+    SCRIPT_NODE_PATH=/usr/bin/node
+    log "Node.js $("$SCRIPT_NODE_PATH" -v) installed"
 fi
 
 if command -v pnpm &> /dev/null; then
@@ -512,11 +545,51 @@ else
 fi
 
 # ── Step 4: Application Setup ────────────────────────────
-step "4/${TOTAL_STEPS}" "Building ServerMon"
+if [ "$PREBUILT" = "true" ]; then
+    step "4/${TOTAL_STEPS}" "Installing prebuilt ServerMon"
+else
+    step "4/${TOTAL_STEPS}" "Building ServerMon"
+fi
 
 # Determine source directory (where this script lives)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SOURCE_DIR="${SOURCE_DIR:-$(dirname "$SCRIPT_DIR")}"
+SERVERMON_REPO_DIR_VALUE="$SOURCE_DIR"
+if [ "$SERVERMON_INSTALL_MODE" = "release" ]; then
+    SERVERMON_REPO_DIR_VALUE=""
+fi
+
+# Stage privileged launchers before exposing the new release to its service user.
+install -d -m 0755 -o root -g root /usr/local/libexec
+SCRIPT_HELPERS_DIR=$(mktemp -d /usr/local/libexec/.servermon-scripts.XXXXXX)
+trap 'rm -rf -- "$SCRIPT_HELPERS_DIR"' EXIT
+install -o root -g root -m 0755 "${SOURCE_DIR}/scripts/servermon-script-control.sh" "$SCRIPT_HELPERS_DIR/servermon-script-control"
+install -o root -g root -m 0755 "${SOURCE_DIR}/scripts/servermon-script-execute.py" "$SCRIPT_HELPERS_DIR/servermon-script-execute"
+install -o root -g root -m 0755 "${SOURCE_DIR}/scripts/servermon-python-env-control.sh" "$SCRIPT_HELPERS_DIR/servermon-python-env-control"
+install -o root -g root -m 0755 "${SOURCE_DIR}/scripts/servermon-python-env-build.py" "$SCRIPT_HELPERS_DIR/servermon-python-env-build"
+
+# Pin and verify the uv release before staging its executable for the worker.
+UV_VERSION=0.13.9
+case "$(uname -m)" in
+    x86_64)
+        UV_TARGET=uv-x86_64-unknown-linux-gnu
+        UV_SHA256=a7fbaff2b9a271d85c1bdb540941090fd1ce011797b4abeb48e4dcd39c2471d5
+        ;;
+    aarch64|arm64)
+        UV_TARGET=uv-aarch64-unknown-linux-gnu
+        UV_SHA256=0797542018e541a9288855df555c8077eed06f7a47d206362030480e8ecc9f3d
+        ;;
+    *)
+        log_err "Python Environments requires an x86-64 or ARM64 Linux host."
+        exit 1
+        ;;
+esac
+UV_ARCHIVE="$SCRIPT_HELPERS_DIR/$UV_TARGET.tar.gz"
+curl --proto '=https' --proto-redir '=https' --retry 3 --connect-timeout 15 --max-time 120 -fsSL \
+    "https://github.com/astral-sh/uv/releases/download/$UV_VERSION/$UV_TARGET.tar.gz" -o "$UV_ARCHIVE"
+printf '%s  %s\n' "$UV_SHA256" "$UV_ARCHIVE" | sha256sum -c -
+tar -xOzf "$UV_ARCHIVE" "$UV_TARGET/uv" > "$SCRIPT_HELPERS_DIR/servermon-uv"
+chmod 0755 "$SCRIPT_HELPERS_DIR/servermon-uv"
 
 # Prepare new release directory (build happens here to minimize downtime)
 mkdir -p "$RELEASES_DIR"
@@ -530,54 +603,72 @@ else
     log_info "Performing fresh install into new release: ${NEW_RELEASE_DIR}"
 fi
 
-# Copy source excluding git, node_modules, .pnpm-store, .next, env files
-log_info "Syncing source files to ${NEW_RELEASE_DIR}..."
-rsync -a --exclude='.git' --exclude='node_modules' --exclude='.pnpm-store' \
-    --exclude='.next' --exclude='.env*' \
-    "${SOURCE_DIR}/" "${NEW_RELEASE_DIR}/" 2>/dev/null || {
-    # Fallback if rsync is not available
-    log_warn "rsync not available, falling back to cp..."
-    cp -r "${SOURCE_DIR}/." "${NEW_RELEASE_DIR}/"
-    rm -rf "${NEW_RELEASE_DIR}/.git" "${NEW_RELEASE_DIR}/node_modules" "${NEW_RELEASE_DIR}/.pnpm-store" "${NEW_RELEASE_DIR}/.next"
-}
+if [ "$PREBUILT" = "true" ]; then
+    if [ ! -d "${SOURCE_DIR}/.next" ] || [ ! -d "${SOURCE_DIR}/node_modules" ]; then
+        log_err "Prebuilt install requires .next and node_modules in ${SOURCE_DIR}"
+        exit 1
+    fi
+    log_info "Syncing prebuilt application files to ${NEW_RELEASE_DIR}..."
+    rsync -a --exclude='.git' --exclude='.pnpm-store' --exclude='.env*' \
+        "${SOURCE_DIR}/" "${NEW_RELEASE_DIR}/" 2>/dev/null || {
+        log_warn "rsync not available, falling back to cp..."
+        cp -r "${SOURCE_DIR}/." "${NEW_RELEASE_DIR}/"
+        rm -rf "${NEW_RELEASE_DIR}/.git" "${NEW_RELEASE_DIR}/.pnpm-store"
+    }
+else
+    # Copy source excluding git, node_modules, .pnpm-store, .next, env files
+    log_info "Syncing source files to ${NEW_RELEASE_DIR}..."
+    rsync -a --exclude='.git' --exclude='node_modules' --exclude='.pnpm-store' \
+        --exclude='.next' --exclude='.env*' \
+        "${SOURCE_DIR}/" "${NEW_RELEASE_DIR}/" 2>/dev/null || {
+        # Fallback if rsync is not available
+        log_warn "rsync not available, falling back to cp..."
+        cp -r "${SOURCE_DIR}/." "${NEW_RELEASE_DIR}/"
+        rm -rf "${NEW_RELEASE_DIR}/.git" "${NEW_RELEASE_DIR}/node_modules" "${NEW_RELEASE_DIR}/.pnpm-store" "${NEW_RELEASE_DIR}/.next"
+    }
+fi
 log "Release source prepared"
 
 cd "$NEW_RELEASE_DIR"
 
-log_info "Installing dependencies..."
-# Pre-approve native builds for pnpm v10+ to avoid interactive prompts
-log_info "Configuring pre-approved built dependencies (node-pty, argon2)..."
-pnpm config set only-built-dependencies --json '["node-pty", "argon2"]' > /dev/null 2>&1
-
-pnpm install --frozen-lockfile 2>&1 | tail -5 || pnpm install 2>&1 | tail -5
-
-# Calculate optimal Node memory based on available system RAM
-TOTAL_RAM_MB=$(free -m 2>/dev/null | awk '/^Mem:/{print $2}' || echo "4096")
-if [ "$TOTAL_RAM_MB" -ge 8192 ]; then
-    NODE_MEM=4096
-elif [ "$TOTAL_RAM_MB" -ge 4096 ]; then
-    NODE_MEM=3072
-elif [ "$TOTAL_RAM_MB" -ge 2048 ]; then
-    NODE_MEM=1536
+if [ "$PREBUILT" = "true" ]; then
+    log "Prebuilt application detected; skipping pnpm install and build"
 else
-    NODE_MEM=1024
+    log_info "Installing dependencies..."
+    # Pre-approve native builds for pnpm v10+ to avoid interactive prompts
+    log_info "Configuring pre-approved built dependencies (node-pty, argon2)..."
+    pnpm config set only-built-dependencies --json '["node-pty", "argon2"]' > /dev/null 2>&1
+
+    pnpm install --frozen-lockfile 2>&1 | tail -5 || pnpm install 2>&1 | tail -5
+
+    # Calculate optimal Node memory based on available system RAM
+    TOTAL_RAM_MB=$(free -m 2>/dev/null | awk '/^Mem:/{print $2}' || echo "4096")
+    if [ "$TOTAL_RAM_MB" -ge 8192 ]; then
+        NODE_MEM=4096
+    elif [ "$TOTAL_RAM_MB" -ge 4096 ]; then
+        NODE_MEM=3072
+    elif [ "$TOTAL_RAM_MB" -ge 2048 ]; then
+        NODE_MEM=1536
+    else
+        NODE_MEM=1024
+    fi
+
+    CPU_CORES=$(nproc 2>/dev/null || echo "2")
+    log_info "Building application (Node memory: ${NODE_MEM}MB, CPUs: ${CPU_CORES})..."
+    log_info "This may take 2-10 minutes depending on your server's CPU and RAM."
+
+    # Inject temporary environment for build time to satisfy Next.js static analysis/checks
+    export NODE_OPTIONS="--max-old-space-size=${NODE_MEM}"
+    export JWT_SECRET="${JWT_SECRET:-build_time_temporary_secret}"
+    export MONGO_URI="${MONGO_URI:-mongodb://localhost:27017/servermon}"
+    export SERVERMON_BUILDING=1
+    pnpm run build 2>&1 || {
+        log_err "Build failed. Check above output for errors."
+        exit 1;
+    }
+    unset SERVERMON_BUILDING
+    log "Application built successfully"
 fi
-
-CPU_CORES=$(nproc 2>/dev/null || echo "2")
-log_info "Building application (Node memory: ${NODE_MEM}MB, CPUs: ${CPU_CORES})..."
-log_info "This may take 2-10 minutes depending on your server's CPU and RAM."
-
-# Inject temporary environment for build time to satisfy Next.js static analysis/checks
-export NODE_OPTIONS="--max-old-space-size=${NODE_MEM}"
-export JWT_SECRET="${JWT_SECRET:-build_time_temporary_secret}"
-export MONGO_URI="${MONGO_URI:-mongodb://localhost:27017/servermon}"
-export SERVERMON_BUILDING=1
-pnpm run build 2>&1 || {
-    log_err "Build failed. Check above output for errors."
-    exit 1;
-}
-unset SERVERMON_BUILDING
-log "Application built successfully"
 
 # ── Environment Configuration ────────────────────────────
 mkdir -p "$CONFIG_DIR"
@@ -596,7 +687,11 @@ if [ "$EXISTING_INSTALL" = "true" ] && [ -f "${CONFIG_DIR}/env" ]; then
     update_env_line "MONGO_URI" "${MONGO_URI}"
     update_env_line "PORT" "${APP_PORT}"
     update_env_line "DOMAIN" "${DOMAIN}"
-    update_env_line "SERVERMON_REPO_DIR" "${SOURCE_DIR}"
+    update_env_line "SERVERMON_REPO_DIR" "${SERVERMON_REPO_DIR_VALUE}"
+    update_env_line "SERVERMON_INSTALL_MODE" "${SERVERMON_INSTALL_MODE}"
+    update_env_line "SERVERMON_VERSION_TARGET" "${SERVERMON_VERSION_TARGET}"
+    update_env_line "SERVERMON_RELEASE_BASE_URL" "${SERVERMON_RELEASE_BASE_URL}"
+    update_env_line "SERVERMON_SOURCE_REF" "${SERVERMON_SOURCE_REF}"
 
     if [ "$HUB_MODE" = "true" ]; then
         # Ensure managed directory exists for Hub snippets
@@ -636,7 +731,11 @@ PORT=${APP_PORT}
 MONGO_URI=${MONGO_URI}
 JWT_SECRET=${JWT_SECRET}
 DOMAIN=${DOMAIN}
-SERVERMON_REPO_DIR=${SOURCE_DIR}
+SERVERMON_REPO_DIR=${SERVERMON_REPO_DIR_VALUE}
+SERVERMON_INSTALL_MODE=${SERVERMON_INSTALL_MODE}
+SERVERMON_VERSION_TARGET=${SERVERMON_VERSION_TARGET}
+SERVERMON_RELEASE_BASE_URL=${SERVERMON_RELEASE_BASE_URL}
+SERVERMON_SOURCE_REF=${SERVERMON_SOURCE_REF}
 ENVEOF
 
     if [ "$HUB_MODE" = "true" ]; then
@@ -696,7 +795,65 @@ fi
 SERVICE_WAS_ACTIVE="false"
 SERVICE_DOWNTIME_START_MS=""
 
-# Stop existing service during upgrade to switch to new release
+# Stop the installed worker in every state so it cannot mutate host state while
+# the stable release symlink changes underneath it.
+if systemctl cat "$APPS_WORKER_SERVICE_NAME" > /dev/null 2>&1; then
+    log_info "Stopping existing Apps worker for upgrade..."
+    if ! systemctl stop "$APPS_WORKER_SERVICE_NAME"; then
+        log_err "Failed to stop the Apps worker; the current release remains linked."
+        exit 1
+    fi
+    if systemctl is-active --quiet "$APPS_WORKER_SERVICE_NAME" 2>/dev/null; then
+        log_err "Refusing to switch releases while the Apps worker is still active."
+        exit 1
+    fi
+fi
+
+# Stop the script worker before replacing its root-owned launchers or release.
+if systemctl cat "$SCRIPT_WORKER_SERVICE_NAME" > /dev/null 2>&1; then
+    if ! systemctl stop "$SCRIPT_WORKER_SERVICE_NAME"; then
+        log_err "Failed to stop the Script Runner worker; the current release remains linked."
+        exit 1
+    fi
+fi
+
+if ! id "$SCRIPT_RUNNER_USER" &>/dev/null; then
+    useradd --system --user-group --home-dir /var/lib/servermon-script --create-home \
+        --shell /usr/sbin/nologin "$SCRIPT_RUNNER_USER"
+fi
+if ! runuser -u "$SCRIPT_RUNNER_USER" -- "$SCRIPT_NODE_PATH" --version >/dev/null; then
+    log_err "The Script Runner account cannot execute the system Node.js interpreter."
+    exit 1
+fi
+install -d -m 0750 -o "$SCRIPT_RUNNER_USER" -g "$SERVICE_USER" /var/lib/servermon-script
+install -d -m 0700 -o "$SERVICE_USER" -g "$SERVICE_USER" /var/lib/servermon/script-runner
+if ! id servermon-python &>/dev/null; then
+    useradd --system --user-group --no-create-home --home-dir /nonexistent \
+        --shell /usr/sbin/nologin servermon-python
+fi
+install -d -m 0755 -o root -g root /var/lib/servermon/python-environments /var/lib/servermon/python-interpreters
+mv -fT "$SCRIPT_HELPERS_DIR/servermon-uv" /usr/local/libexec/servermon-uv
+mv -fT "$SCRIPT_HELPERS_DIR/servermon-python-env-control" /usr/local/libexec/servermon-python-env-control
+mv -fT "$SCRIPT_HELPERS_DIR/servermon-python-env-build" /usr/local/libexec/servermon-python-env-build
+mv -fT "$SCRIPT_HELPERS_DIR/servermon-script-control" /usr/local/libexec/servermon-script-control
+mv -fT "$SCRIPT_HELPERS_DIR/servermon-script-execute" /usr/local/libexec/servermon-script-execute
+
+SCRIPT_SUDOERS_TMP=$(mktemp /etc/sudoers.d/.servermon-script-runner.XXXXXX)
+cat > "$SCRIPT_SUDOERS_TMP" <<SCRIPTEOF
+Defaults!/usr/local/libexec/servermon-script-control !use_pty, !log_input, !log_output
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/local/libexec/servermon-script-control
+Defaults!/usr/local/libexec/servermon-python-env-control !use_pty, !log_input, !log_output
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/local/libexec/servermon-python-env-control
+SCRIPTEOF
+chmod 0440 "$SCRIPT_SUDOERS_TMP"
+if ! visudo -cf "$SCRIPT_SUDOERS_TMP"; then
+    rm -f "$SCRIPT_SUDOERS_TMP"
+    log_err "Invalid Script Runner sudoers configuration."
+    exit 1
+fi
+mv -f "$SCRIPT_SUDOERS_TMP" /etc/sudoers.d/servermon-script-runner
+
+# Stop existing web service during upgrade to switch to new release
 if systemctl is-active --quiet "$SERVICE_NAME" 2>/dev/null; then
     SERVICE_WAS_ACTIVE="true"
     SERVICE_DOWNTIME_START_MS="$(date +%s%3N)"
@@ -761,15 +918,92 @@ SVCEOF
 
 log_info "Systemd service file created at /etc/systemd/system/${SERVICE_NAME}.service"
 
+cat > "/etc/systemd/system/${APPS_WORKER_SERVICE_NAME}.service" <<WORKEREOF
+[Unit]
+Description=ServerMon Apps deployment worker
+After=network.target$([ "$SKIP_MONGO_INSTALL" != "true" ] && echo " mongod.service")
+Wants=network-online.target
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=${SERVICE_USER}
+Group=${SERVICE_USER}
+WorkingDirectory=${INSTALL_DIR}
+EnvironmentFile=${CONFIG_DIR}/env
+ExecStart=${PNPM_PATH} apps:worker
+Restart=always
+RestartSec=5
+TimeoutStopSec=45
+KillMode=control-group
+KillSignal=SIGTERM
+FinalKillSignal=SIGKILL
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=servermon-apps-worker
+
+[Install]
+WantedBy=multi-user.target
+WORKEREOF
+
+log_info "Systemd service file created at /etc/systemd/system/${APPS_WORKER_SERVICE_NAME}.service"
+
+cat > "/etc/systemd/system/${SCRIPT_WORKER_SERVICE_NAME}.service" <<SCRIPTWORKEREOF
+[Unit]
+Description=ServerMon Script Runner worker
+After=network.target$([ "$SKIP_MONGO_INSTALL" != "true" ] && echo " mongod.service")
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=${SERVICE_USER}
+Group=${SERVICE_USER}
+WorkingDirectory=${INSTALL_DIR}
+EnvironmentFile=${CONFIG_DIR}/env
+ExecStart=/usr/bin/flock --no-fork --nonblock /var/lib/servermon/script-runner/worker.lock ${SCRIPT_NODE_PATH} --import tsx src/workers/script-runner-worker.ts
+Restart=always
+RestartSec=5
+KillMode=mixed
+TimeoutStopSec=25
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target
+SCRIPTWORKEREOF
+
 systemctl daemon-reload
+systemctl enable "$SCRIPT_WORKER_SERVICE_NAME" > /dev/null 2>&1
 systemctl enable "$SERVICE_NAME" > /dev/null 2>&1
 log_info "Enabling ${SERVICE_NAME} service..."
-systemctl start "$SERVICE_NAME"
+systemctl enable "$APPS_WORKER_SERVICE_NAME" > /dev/null 2>&1
+log_info "Enabling ${APPS_WORKER_SERVICE_NAME} service..."
+systemctl start "$SERVICE_NAME" || true
 log_info "Starting ${SERVICE_NAME} service..."
+systemctl start "$APPS_WORKER_SERVICE_NAME" || true
+log_info "Starting ${APPS_WORKER_SERVICE_NAME} service..."
+systemctl start "$SCRIPT_WORKER_SERVICE_NAME" || true
+log_info "Starting ${SCRIPT_WORKER_SERVICE_NAME} service..."
 
 sleep 2
+WEB_SERVICE_ACTIVE="false"
+APPS_WORKER_ACTIVE="false"
 if systemctl is-active --quiet "$SERVICE_NAME"; then
+    WEB_SERVICE_ACTIVE="true"
+fi
+if systemctl is-active --quiet "$APPS_WORKER_SERVICE_NAME"; then
+    APPS_WORKER_ACTIVE="true"
+fi
+
+SCRIPT_WORKER_ACTIVE="false"
+if systemctl is-active --quiet "$SCRIPT_WORKER_SERVICE_NAME"; then
+    SCRIPT_WORKER_ACTIVE="true"
+fi
+
+if [ "$WEB_SERVICE_ACTIVE" = "true" ] && [ "$APPS_WORKER_ACTIVE" = "true" ] && [ "$SCRIPT_WORKER_ACTIVE" = "true" ]; then
     log "ServerMon service is running"
+    log "ServerMon Apps worker is running"
+    log "ServerMon Script Runner worker is running"
 
     if [ "$SERVICE_WAS_ACTIVE" = "true" ] && [ -n "$SERVICE_DOWNTIME_START_MS" ]; then
         SERVICE_DOWNTIME_END_MS="$(date +%s%3N)"
@@ -802,7 +1036,16 @@ if systemctl is-active --quiet "$SERVICE_NAME"; then
         fi
     fi
 else
-    log_warn "Service may not have started. Check: journalctl -u ${SERVICE_NAME} -f"
+    [ "$WEB_SERVICE_ACTIVE" != "true" ] && log_err "ServerMon service failed to start"
+    [ "$APPS_WORKER_ACTIVE" != "true" ] && log_err "ServerMon Apps worker failed to start"
+    log_info "Check web status: systemctl status ${SERVICE_NAME} --no-pager"
+    log_info "Check web logs: journalctl -u ${SERVICE_NAME} -n 100 --no-pager"
+    log_info "Check worker status: systemctl status ${APPS_WORKER_SERVICE_NAME} --no-pager"
+    log_info "Check worker logs: journalctl -u ${APPS_WORKER_SERVICE_NAME} -n 100 --no-pager"
+    [ "$SCRIPT_WORKER_ACTIVE" != "true" ] && log_err "Script Runner worker failed to start"
+    log_info "Check script worker logs: journalctl -u ${SCRIPT_WORKER_SERVICE_NAME} -n 100 --no-pager"
+    log_warn "Previous release directories were preserved for recovery."
+    exit 1
 fi
 
 # ── Step 6: Nginx + SSL (optional) ──────────────────────
@@ -940,9 +1183,10 @@ fi
 
 echo ""
 echo -e "  ${DIM}Useful commands:${NC}"
-echo -e "  ${DIM}  Status:   systemctl status ${SERVICE_NAME}${NC}"
-echo -e "  ${DIM}  Logs:     journalctl -u ${SERVICE_NAME} -f${NC}"
-echo -e "  ${DIM}  Restart:  systemctl restart ${SERVICE_NAME}${NC}"
+echo -e "  ${DIM}  Status:   systemctl status ${SERVICE_NAME} ${APPS_WORKER_SERVICE_NAME}${NC}"
+echo -e "  ${DIM}  Web logs: journalctl -u ${SERVICE_NAME} -f${NC}"
+echo -e "  ${DIM}  App logs: journalctl -u ${APPS_WORKER_SERVICE_NAME} -f${NC}"
+echo -e "  ${DIM}  Restart:  systemctl restart ${SERVICE_NAME} ${APPS_WORKER_SERVICE_NAME}${NC}"
 echo -e "  ${DIM}  Config:   ${CONFIG_DIR}/env${NC}"
 echo -e "  ${DIM}  Uninstall: sudo $0 --uninstall${NC}"
 echo ""

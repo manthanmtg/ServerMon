@@ -14,6 +14,16 @@ const agentTypeSchema = z.enum([
   'gemini-cli',
   'custom',
 ]);
+const runAsUserAuthModeSchema = z.enum(['passwordless-sudo']);
+const runAsUserSchema = z
+  .string()
+  .trim()
+  .max(64)
+  .optional()
+  .transform((value) => (value ? value : undefined))
+  .refine((value) => !value || /^[A-Za-z_][A-Za-z0-9_.-]{0,62}\$?$/.test(value), {
+    message: 'Run as user must be a valid OS username',
+  });
 
 const promptTypeSchema = z.enum(['inline', 'file-reference']);
 const autoflowModeSchema = z.enum(['sequential', 'parallel']);
@@ -65,6 +75,7 @@ export const workspaceCreateSchema = z.object({
   name: z.string().trim().min(1).max(160),
   path: z.string().trim().min(1).max(2000),
   blocking: z.boolean().default(true),
+  gitWorktreesEnabled: z.boolean().default(false),
   enabled: z.boolean().default(true),
   notes: z.string().trim().max(1000).optional(),
 });
@@ -88,6 +99,8 @@ export const profileCreateSchema = z.object({
     .max(24 * 60),
   shell: z.string().trim().min(1).max(260).default('/bin/bash'),
   requiresTTY: z.boolean().default(false),
+  runAsUser: runAsUserSchema,
+  runAsUserAuthMode: runAsUserAuthModeSchema.default('passwordless-sudo'),
   env: z.record(z.string(), z.string()).default({}),
   enabled: z.boolean().default(true),
   icon: z.string().trim().max(300_000).optional(),
@@ -114,6 +127,8 @@ export const profileLockSchema = z
 export const profileValidateSchema = z.object({
   invocationTemplate: z.string().trim().min(1).max(10_000),
   shell: z.string().trim().min(1).max(260).default('/bin/bash'),
+  runAsUser: runAsUserSchema,
+  runAsUserAuthMode: runAsUserAuthModeSchema.default('passwordless-sudo'),
 });
 
 const promptBaseSchema = z.object({
@@ -191,6 +206,7 @@ export const settingsUpdateSchema = z.object({
   autoflowMode: autoflowModeSchema.optional(),
   artifactBaseDir: z.string().trim().min(1).max(2000).optional(),
   maxConcurrentRuns: z.number().int().min(1).max(MAX_CONCURRENT_RUNS_CAP).optional(),
+  historyRetentionDays: z.number().int().min(1).max(3650).optional(),
   mongoRetentionDays: z.number().int().min(1).max(3650).optional(),
   artifactRetentionDays: z.number().int().min(1).max(3650).optional(),
 });

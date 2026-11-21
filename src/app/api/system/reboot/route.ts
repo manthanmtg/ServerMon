@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import { createLogger } from '@/lib/logger';
+import { getSession } from '@/lib/session';
 
 const execAsync = promisify(exec);
 const logger = createLogger('api:system:reboot');
@@ -10,6 +11,11 @@ export const dynamic = 'force-dynamic';
 
 export async function POST() {
   try {
+    const session = await getSession();
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     logger.warn('System reboot requested via API');
 
     // In a real environment, this would trigger a system reboot.

@@ -101,13 +101,13 @@ export const NodeCard = memo(function NodeCard({
     <>
       <Card className="transition-colors hover:border-primary/40 group relative">
         <Link href={`/fleet/${node.slug}`} className="absolute inset-0 z-0" />
-        <CardHeader className="flex flex-row items-start justify-between pb-2 relative z-10 pointer-events-none">
-          <div>
-            <CardTitle className="text-base">{node.name}</CardTitle>
-            <div className="text-xs text-muted-foreground font-mono">{node.slug}</div>
+        <CardHeader className="flex flex-row items-start justify-between gap-3 pb-2 relative z-10 pointer-events-none">
+          <div className="min-w-0">
+            <CardTitle className="truncate text-base">{node.name}</CardTitle>
+            <div className="truncate text-xs text-muted-foreground font-mono">{node.slug}</div>
           </div>
-          <div className="flex flex-col items-end gap-1">
-            <div className="flex items-center gap-1">
+          <div className="flex shrink-0 flex-col items-end gap-1">
+            <div className="flex max-w-[8rem] flex-wrap items-center justify-end gap-1">
               <span
                 className={cn('text-xs px-2 py-0.5 rounded-full border', STATUS_STYLES[status])}
               >
@@ -122,7 +122,7 @@ export const NodeCard = memo(function NodeCard({
             <Button
               variant="ghost"
               size="icon"
-              className="h-8 w-8 text-muted-foreground hover:text-destructive pointer-events-auto mt-1"
+              className="mt-1 min-h-11 min-w-11 text-muted-foreground hover:text-destructive pointer-events-auto sm:h-8 sm:min-h-0 sm:w-8 sm:min-w-0"
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();

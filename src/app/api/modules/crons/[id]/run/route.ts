@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createLogger } from '@/lib/logger';
 import { cronsService } from '@/lib/crons/service';
+import { getSession } from '@/lib/session';
 
 export const dynamic = 'force-dynamic';
 
@@ -9,6 +10,11 @@ const log = createLogger('api:crons:run');
 // POST — trigger a manual run for a cron job
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const session = await getSession();
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const { id } = await params;
 
     // Find the job to get its command
@@ -37,6 +43,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 // GET — check status of runs for a job
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const session = await getSession();
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const { id } = await params;
     const url = new URL(req.url);
     const runId = url.searchParams.get('runId');

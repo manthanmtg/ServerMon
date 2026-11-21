@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ZodError, z } from 'zod';
-import type { Model } from 'mongoose';
 import { createLogger } from '@/lib/logger';
 import connectDB from '@/lib/db';
 import AgentUpdateJob from '@/models/AgentUpdateJob';
@@ -74,7 +73,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
     await job.save();
 
-    await recordAudit(FleetLogEvent as unknown as Model<unknown>, {
+    await recordAudit(FleetLogEvent, {
       action: `update_job.${action}`,
       actorUserId: session.user.username,
       service: 'update',

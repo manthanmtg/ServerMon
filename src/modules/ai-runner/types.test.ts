@@ -73,6 +73,8 @@ describe('ai-runner type shapes', () => {
       artifactRetentionDays: 90,
       defaultArtifactBaseDir: '/var/lib/servermon/ai-runner',
       defaultMaxConcurrentRuns: 3,
+      defaultHistoryRetentionDays: 90,
+      historyRetentionDays: 90,
       defaultMongoRetentionDays: 30,
       defaultArtifactRetentionDays: 90,
       updatedAt: '2026-04-20T10:00:00.000Z',

@@ -1,77 +1,81 @@
 'use client';
 
-import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Cell,
-  Legend,
-  Line,
-  LineChart,
-  Pie,
-  PieChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from 'recharts';
-import {
-  AlertTriangle,
-  ArrowDown,
-  ArrowUp,
-  ArrowUpDown,
-  CheckCircle,
-  ChevronDown,
-  ChevronRight,
-  Clock,
-  Cog,
-  LoaderCircle,
-  Pause,
-  Play,
-  Power,
-  RefreshCcw,
-  RotateCcw,
-  Search,
-  Shield,
-  Square,
-  Timer,
-  XCircle,
-} from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { AlertTriangle, CheckCircle, Clock, RefreshCcw, Timer } from 'lucide-react';
+import { Card, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { PageSkeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/components/ui/toast';
-import { cn, formatBytes, relativeTime } from '@/lib/utils';
-import type { ServicesSnapshot } from '../types';
-import { ServiceLogPanel } from './components/ServiceLogPanel';
+import { relativeTime } from '@/lib/utils';
+import type { ServiceAlertSummary, ServiceTimerInfo, ServicesSnapshot } from '../types';
+import type { ServiceAction, ServicesSortDir, ServicesSortField } from './components/ServicesTable';
+import { ServicesViewTabs, type ViewTab } from './components/ServicesViewTabs';
 import { ServicesSummaryGrid } from './components/ServicesSummaryGrid';
+import { ServicesChartsPanel } from './components/ServicesChartsPanel';
+import { ServicesTable } from './components/ServicesTable';
 
 type FilterStatus = 'all' | 'running' | 'failed' | 'inactive' | 'exited';
-type SortField = 'name' | 'status' | 'cpu' | 'memory' | 'uptime' | 'restarts';
-type SortDir = 'asc' | 'desc';
-type ViewTab = 'services' | 'timers' | 'alerts';
 
-const chartColors = [
-  'var(--primary)',
-  'var(--accent)',
-  'var(--success)',
-  'var(--warning)',
-  'var(--destructive)',
-  '#8b5cf6',
-  '#06b6d4',
-  '#f97316',
-];
+const SERVICES_SNAPSHOT_TIMEOUT_MS = 8_000;
 
-function formatUptime(seconds: number): string {
-  if (seconds <= 0) return '-';
-  const d = Math.floor(seconds / 86400);
-  const h = Math.floor((seconds % 86400) / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  if (d > 0) return `${d}d ${h}h`;
-  if (h > 0) return `${h}h ${m}m`;
-  return `${m}m`;
+function isObject(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object';
+}
+
+function isServicesSnapshot(value: unknown): value is ServicesSnapshot {
+  if (!isObject(value)) {
+    return false;
+  }
+
+  const candidate = value as Record<string, unknown>;
+  if (!['systemd', 'mock'].includes(candidate.source as string)) {
+    return false;
+  }
+
+  const summary = candidate.summary;
+  if (!isObject(summary)) {
+    return false;
+  }
+
+  const snapshot = summary as Record<string, unknown>;
+  const services = candidate.services;
+  const timers = candidate.timers;
+  const alerts = candidate.alerts;
+  const history = candidate.history;
+
+  const hasValidServices =
+    Array.isArray(services) &&
+    services.every(
+      (service) =>
+        isObject(service) &&
+        typeof (service as Record<string, unknown>).name === 'string' &&
+        typeof (service as Record<string, unknown>).activeState === 'string'
+    );
+  const hasValidTimers = Array.isArray(timers) && timers.every((timer) => isObject(timer));
+  const hasValidAlerts = Array.isArray(alerts) && alerts.every((alert) => isObject(alert));
+  const hasValidHistory =
+    Array.isArray(history) &&
+    history.every(
+      (item) => isObject(item) && Array.isArray((item as Record<string, unknown>).services)
+    );
+
+  return (
+    typeof candidate.systemdAvailable === 'boolean' &&
+    typeof summary === 'object' &&
+    typeof snapshot.total === 'number' &&
+    typeof snapshot.running === 'number' &&
+    typeof snapshot.exited === 'number' &&
+    typeof snapshot.failed === 'number' &&
+    typeof snapshot.inactive === 'number' &&
+    typeof snapshot.enabled === 'number' &&
+    typeof snapshot.disabled === 'number' &&
+    typeof snapshot.healthScore === 'number' &&
+    hasValidServices &&
+    hasValidTimers &&
+    hasValidAlerts &&
+    hasValidHistory &&
+    typeof candidate.timestamp === 'string'
+  );
 }
 
 function futureTime(value: string): string {
@@ -84,22 +88,210 @@ function futureTime(value: string): string {
   return `in ${Math.round(hours / 24)}d`;
 }
 
-function statusVariant(state: string): 'success' | 'warning' | 'destructive' | 'secondary' {
-  if (state === 'active') return 'success';
-  if (state === 'activating' || state === 'deactivating' || state === 'reloading') return 'warning';
-  if (state === 'failed') return 'destructive';
-  return 'secondary';
+type ServicesTimersPanelProps = {
+  timers: ServiceTimerInfo[] | undefined;
+};
+
+type ServicesAlertsPanelProps = {
+  alerts: ServiceAlertSummary[] | undefined;
+};
+
+function ServicesTimersPanel({ timers = [] }: ServicesTimersPanelProps) {
+  return (
+    <Card className="border-border/60 overflow-hidden">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Timer className="w-4 h-4" />
+          Systemd Timers
+        </CardTitle>
+        <p className="text-sm text-muted-foreground">
+          Scheduled timer units and their next/last execution times.
+        </p>
+      </CardHeader>
+      <div className="overflow-x-auto">
+        <table className="min-w-full text-sm">
+          <thead className="text-left text-xs uppercase tracking-[0.18em] text-muted-foreground bg-muted/20">
+            <tr>
+              <th className="py-3 px-5">Timer</th>
+              <th className="py-3 px-5">Activates</th>
+              <th className="py-3 px-5">Next Run</th>
+              <th className="py-3 px-5">Last Run</th>
+            </tr>
+          </thead>
+          <tbody>
+            {timers.length === 0 ? (
+              <tr>
+                <td colSpan={4} className="py-12 text-center text-muted-foreground">
+                  No timers found.
+                </td>
+              </tr>
+            ) : (
+              timers.map((timer) => (
+                <tr key={timer.name} className="border-t border-border/60">
+                  <td className="py-3 px-5 font-medium">{timer.name}</td>
+                  <td className="py-3 px-5 font-mono text-xs text-muted-foreground">
+                    {timer.activates}
+                  </td>
+                  <td className="py-3 px-5">
+                    <div className="flex items-center gap-2">
+                      <Clock className="w-3.5 h-3.5 text-muted-foreground" />
+                      <span className="text-xs">{futureTime(timer.nextRun)}</span>
+                    </div>
+                  </td>
+                  <td className="py-3 px-5 text-xs text-muted-foreground">{timer.lastRun}</td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+    </Card>
+  );
 }
 
-function subStateIcon(sub: string) {
-  if (sub === 'running') return <Play className="w-3.5 h-3.5" />;
-  if (sub === 'exited') return <Square className="w-3.5 h-3.5" />;
-  if (sub === 'failed') return <XCircle className="w-3.5 h-3.5" />;
-  if (sub === 'dead') return <Power className="w-3.5 h-3.5" />;
-  if (sub === 'waiting' || sub === 'start-pre' || sub === 'start')
-    return <LoaderCircle className="w-3.5 h-3.5 animate-spin" />;
-  if (sub === 'auto-restart') return <RotateCcw className="w-3.5 h-3.5 animate-spin" />;
-  return <Pause className="w-3.5 h-3.5" />;
+function ServicesAlertsPanel({ alerts = [] }: ServicesAlertsPanelProps) {
+  return (
+    <Card className="border-border/60 overflow-hidden">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <AlertTriangle className="w-4 h-4" />
+          Active Alerts
+        </CardTitle>
+        <p className="text-sm text-muted-foreground">
+          Service alerts based on failure detection, restart loops, and resource thresholds.
+        </p>
+      </CardHeader>
+      <div className="overflow-x-auto">
+        {alerts.length === 0 ? (
+          <div className="py-12 text-center text-muted-foreground flex flex-col items-center gap-2">
+            <CheckCircle className="w-8 h-8 text-success" />
+            <p>No active alerts. All services are healthy.</p>
+          </div>
+        ) : (
+          <table className="min-w-full text-sm">
+            <thead className="text-left text-xs uppercase tracking-[0.18em] text-muted-foreground bg-muted/20">
+              <tr>
+                <th className="py-3 px-5">Severity</th>
+                <th className="py-3 px-5">Service</th>
+                <th className="py-3 px-5">Alert</th>
+                <th className="py-3 px-5">First Seen</th>
+                <th className="py-3 px-5">Last Seen</th>
+              </tr>
+            </thead>
+            <tbody>
+              {alerts.map((alert) => (
+                <tr key={alert.id} className="border-t border-border/60">
+                  <td className="py-3 px-5">
+                    <Badge variant={alert.severity === 'critical' ? 'destructive' : 'warning'}>
+                      {alert.severity}
+                    </Badge>
+                  </td>
+                  <td className="py-3 px-5 font-medium">{alert.service}</td>
+                  <td className="py-3 px-5">
+                    <div>
+                      <p className="font-medium">{alert.title}</p>
+                      <p className="text-xs text-muted-foreground">{alert.message}</p>
+                    </div>
+                  </td>
+                  <td className="py-3 px-5 text-xs text-muted-foreground">
+                    {relativeTime(alert.firstSeenAt)}
+                  </td>
+                  <td className="py-3 px-5 text-xs text-muted-foreground">
+                    {relativeTime(alert.lastSeenAt)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </Card>
+  );
+}
+
+type ServicesHeroSectionProps = {
+  snapshot: ServicesSnapshot | null;
+  filter: FilterStatus;
+  refreshMs: number;
+  onFilterChange: (filter: FilterStatus) => void;
+  onRefreshMsChange: (refreshMs: number) => void;
+  onRefresh: () => void;
+};
+
+function ServicesHeroSection({
+  snapshot,
+  filter,
+  refreshMs,
+  onFilterChange,
+  onRefreshMsChange,
+  onRefresh,
+}: ServicesHeroSectionProps) {
+  return (
+    <section className="rounded-[28px] border border-border/60 bg-[radial-gradient(circle_at_top_left,var(--primary)/0.18,transparent_40%),linear-gradient(180deg,var(--card),color-mix(in_oklab,var(--card)_92%,transparent))] p-4 shadow-sm sm:p-6">
+      <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+        <div className="space-y-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant={snapshot?.systemdAvailable ? 'success' : 'warning'}>
+              {snapshot?.systemdAvailable ? 'systemd connected' : 'Mock mode'}
+            </Badge>
+            <Badge variant="outline">Source: {snapshot?.source || 'unknown'}</Badge>
+            {(snapshot?.summary.failed ?? 0) > 0 && (
+              <Badge variant="destructive">
+                <AlertTriangle className="w-3 h-3 mr-1" />
+                {snapshot?.summary.failed} failed
+              </Badge>
+            )}
+          </div>
+          <div>
+            <h2 className="text-2xl font-semibold tracking-tight text-foreground">
+              Services operations center
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              Live service monitoring, resource tracking, health scores, and management controls.
+            </p>
+          </div>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-3">
+          <label className="flex min-h-[44px] flex-col justify-center rounded-xl border border-border/60 bg-background/70 px-3 py-2 text-xs uppercase tracking-[0.18em] text-muted-foreground">
+            Filter
+            <select
+              className="mt-1 bg-transparent text-sm font-semibold text-foreground outline-none"
+              value={filter}
+              onChange={(event) => onFilterChange(event.target.value as FilterStatus)}
+            >
+              <option value="all">All services</option>
+              <option value="running">Running</option>
+              <option value="failed">Failed</option>
+              <option value="inactive">Inactive</option>
+              <option value="exited">Exited</option>
+            </select>
+          </label>
+          <label className="flex min-h-[44px] flex-col justify-center rounded-xl border border-border/60 bg-background/70 px-3 py-2 text-xs uppercase tracking-[0.18em] text-muted-foreground">
+            Refresh
+            <select
+              className="mt-1 bg-transparent text-sm font-semibold text-foreground outline-none"
+              value={String(refreshMs)}
+              onChange={(event) => onRefreshMsChange(Number(event.target.value))}
+            >
+              <option value="3000">3 sec</option>
+              <option value="5000">5 sec</option>
+              <option value="10000">10 sec</option>
+              <option value="30000">30 sec</option>
+            </select>
+          </label>
+          <button
+            type="button"
+            onClick={onRefresh}
+            className="flex min-h-[44px] items-center justify-center gap-2 rounded-xl border border-border/60 bg-background/70 px-3 py-2 text-sm font-semibold text-foreground transition-colors hover:bg-accent"
+          >
+            <RefreshCcw className="h-4 w-4" />
+            Refresh now
+          </button>
+        </div>
+      </div>
+    </section>
+  );
 }
 
 export default function ServicesPage() {
@@ -109,19 +301,60 @@ export default function ServicesPage() {
   const [refreshMs, setRefreshMs] = useState(5000);
   const [filter, setFilter] = useState<FilterStatus>('all');
   const [search, setSearch] = useState('');
-  const [sortField, setSortField] = useState<SortField>('name');
-  const [sortDir, setSortDir] = useState<SortDir>('asc');
+  const [sortField, setSortField] = useState<ServicesSortField>('name');
+  const [sortDir, setSortDir] = useState<ServicesSortDir>('asc');
   const [expandedService, setExpandedService] = useState<string | null>(null);
   const [pendingAction, setPendingAction] = useState<string | null>(null);
   const [viewTab, setViewTab] = useState<ViewTab>('services');
+  const snapshotRequestSequence = useRef(0);
+  const normalizedSearch = useMemo(() => search.trim().toLowerCase(), [search]);
 
   const loadSnapshot = useCallback(async () => {
-    const response = await fetch('/api/modules/services', { cache: 'no-store' });
-    const data = await response.json();
-    if (!response.ok) {
-      throw new Error(data.error || 'Failed to fetch services data');
+    const requestSequence = ++snapshotRequestSequence.current;
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => {
+      controller.abort();
+    }, SERVICES_SNAPSHOT_TIMEOUT_MS);
+
+    try {
+      const response = await fetch('/api/modules/services', {
+        cache: 'no-store',
+        signal: controller.signal,
+      });
+
+      let data: unknown;
+      try {
+        data = await response.json();
+      } catch {
+        throw new Error('Services snapshot response is not valid JSON');
+      }
+
+      if (!response.ok) {
+        const message =
+          isObject(data) && typeof data.error === 'string'
+            ? data.error
+            : `Request failed with ${response.status}`;
+        throw new Error(message);
+      }
+
+      if (!isServicesSnapshot(data)) {
+        throw new Error('Services snapshot response format is invalid');
+      }
+
+      if (requestSequence === snapshotRequestSequence.current) {
+        setSnapshot(data);
+      }
+    } catch (error: unknown) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw new Error(
+          `Services snapshot request timed out after ${SERVICES_SNAPSHOT_TIMEOUT_MS}ms`
+        );
+      }
+
+      throw error;
+    } finally {
+      clearTimeout(timeoutId);
     }
-    setSnapshot(data);
   }, []);
 
   useEffect(() => {
@@ -165,11 +398,12 @@ export default function ServicesPage() {
       });
     }
 
-    if (search) {
-      const q = search.toLowerCase();
-      list = list.filter(
-        (s) => s.name.toLowerCase().includes(q) || s.description.toLowerCase().includes(q)
-      );
+    if (normalizedSearch) {
+      list = list.filter((s) => {
+        const name = s.name.toLowerCase();
+        const description = s.description.toLowerCase();
+        return name.includes(normalizedSearch) || description.includes(normalizedSearch);
+      });
     }
 
     const sorted = [...list].sort((a, b) => {
@@ -198,7 +432,7 @@ export default function ServicesPage() {
     });
 
     return sorted;
-  }, [snapshot, filter, search, sortField, sortDir]);
+  }, [snapshot, filter, normalizedSearch, sortField, sortDir]);
 
   const topByCpu = useMemo(() => {
     if (!snapshot) return [];
@@ -229,7 +463,7 @@ export default function ServicesPage() {
   const cpuHistory = useMemo(() => {
     if (!snapshot) return [];
     return snapshot.history.map((h) => {
-      const row: Record<string, number | string> = {
+      const row: { time: string; [key: string]: number | string } = {
         time: new Date(h.timestamp).toLocaleTimeString([], {
           hour: '2-digit',
           minute: '2-digit',
@@ -246,50 +480,71 @@ export default function ServicesPage() {
     });
   }, [snapshot]);
 
-  function toggleSort(field: SortField) {
-    if (sortField === field) {
-      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
-    } else {
-      setSortField(field);
-      setSortDir(field === 'name' ? 'asc' : 'desc');
-    }
-  }
-
-  function SortIcon({ field }: { field: SortField }) {
-    if (sortField !== field) return <ArrowUpDown className="w-3 h-3 text-muted-foreground/50" />;
-    return sortDir === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />;
-  }
-
-  async function runAction(
-    serviceName: string,
-    action: 'start' | 'stop' | 'restart' | 'enable' | 'disable' | 'reload'
-  ) {
-    setPendingAction(`${serviceName}:${action}`);
-    try {
-      const response = await fetch(
-        `/api/modules/services/${encodeURIComponent(serviceName)}/action`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action }),
-        }
-      );
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to execute action');
+  const toggleSort = useCallback(
+    (field: ServicesSortField) => {
+      if (sortField === field) {
+        setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+      } else {
+        setSortField(field);
+        setSortDir(field === 'name' ? 'asc' : 'desc');
       }
-      toast({ title: `${action} ${serviceName}`, description: data.message, variant: 'success' });
-      await loadSnapshot();
-    } catch (error: unknown) {
-      toast({
-        title: `${action} failed`,
-        description: error instanceof Error ? error.message : 'Unknown error',
-        variant: 'destructive',
-      });
-    } finally {
-      setPendingAction(null);
-    }
-  }
+    },
+    [sortField]
+  );
+
+  const runAction = useCallback(
+    async (serviceName: string, action: ServiceAction) => {
+      setPendingAction(`${serviceName}:${action}`);
+      try {
+        const response = await fetch(
+          `/api/modules/services/${encodeURIComponent(serviceName)}/action`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action }),
+          }
+        );
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.error || 'Failed to execute action');
+        }
+        toast({ title: `${action} ${serviceName}`, description: data.message, variant: 'success' });
+        await loadSnapshot();
+      } catch (error: unknown) {
+        toast({
+          title: `${action} failed`,
+          description: error instanceof Error ? error.message : 'Unknown error',
+          variant: 'destructive',
+        });
+      } finally {
+        setPendingAction(null);
+      }
+    },
+    [loadSnapshot, toast]
+  );
+
+  const handleFilterChange = useCallback((value: FilterStatus) => {
+    setFilter(value);
+  }, []);
+
+  const handleRefreshMsChange = useCallback((value: number) => {
+    setRefreshMs(value);
+  }, []);
+
+  const handleRefresh = useCallback(() => {
+    void loadSnapshot().catch(() => undefined);
+  }, [loadSnapshot]);
+
+  const toggleExpandedService = useCallback((serviceName: string | null) => {
+    setExpandedService(serviceName);
+  }, []);
+
+  const handleRunAction = useCallback(
+    (serviceName: string, action: ServiceAction) => {
+      void runAction(serviceName, action);
+    },
+    [runAction]
+  );
 
   if (loading) {
     return <PageSkeleton statCards={3} />;
@@ -297,656 +552,52 @@ export default function ServicesPage() {
 
   return (
     <div className="space-y-6" data-testid="services-page">
-      {/* Hero header */}
-      <section className="rounded-[28px] border border-border/60 bg-[radial-gradient(circle_at_top_left,var(--primary)/0.18,transparent_40%),linear-gradient(180deg,var(--card),color-mix(in_oklab,var(--card)_92%,transparent))] p-4 shadow-sm sm:p-6">
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-          <div className="space-y-2">
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge variant={snapshot?.systemdAvailable ? 'success' : 'warning'}>
-                {snapshot?.systemdAvailable ? 'systemd connected' : 'Mock mode'}
-              </Badge>
-              <Badge variant="outline">Source: {snapshot?.source || 'unknown'}</Badge>
-              {(snapshot?.summary.failed ?? 0) > 0 && (
-                <Badge variant="destructive">
-                  <AlertTriangle className="w-3 h-3 mr-1" />
-                  {snapshot?.summary.failed} failed
-                </Badge>
-              )}
-            </div>
-            <div>
-              <h2 className="text-2xl font-semibold tracking-tight text-foreground">
-                Services operations center
-              </h2>
-              <p className="text-sm text-muted-foreground">
-                Live service monitoring, resource tracking, health scores, and management controls.
-              </p>
-            </div>
-          </div>
-
-          <div className="grid gap-3 sm:grid-cols-3">
-            <label className="flex min-h-[44px] flex-col justify-center rounded-xl border border-border/60 bg-background/70 px-3 py-2 text-xs uppercase tracking-[0.18em] text-muted-foreground">
-              Filter
-              <select
-                className="mt-1 bg-transparent text-sm font-semibold text-foreground outline-none"
-                value={filter}
-                onChange={(e) => setFilter(e.target.value as FilterStatus)}
-              >
-                <option value="all">All services</option>
-                <option value="running">Running</option>
-                <option value="failed">Failed</option>
-                <option value="inactive">Inactive</option>
-                <option value="exited">Exited</option>
-              </select>
-            </label>
-            <label className="flex min-h-[44px] flex-col justify-center rounded-xl border border-border/60 bg-background/70 px-3 py-2 text-xs uppercase tracking-[0.18em] text-muted-foreground">
-              Refresh
-              <select
-                className="mt-1 bg-transparent text-sm font-semibold text-foreground outline-none"
-                value={String(refreshMs)}
-                onChange={(e) => setRefreshMs(Number(e.target.value))}
-              >
-                <option value="3000">3 sec</option>
-                <option value="5000">5 sec</option>
-                <option value="10000">10 sec</option>
-                <option value="30000">30 sec</option>
-              </select>
-            </label>
-            <button
-              type="button"
-              onClick={() => loadSnapshot().catch(() => undefined)}
-              className="flex min-h-[44px] items-center justify-center gap-2 rounded-xl border border-border/60 bg-background/70 px-3 py-2 text-sm font-semibold text-foreground transition-colors hover:bg-accent"
-            >
-              <RefreshCcw className="h-4 w-4" />
-              Refresh now
-            </button>
-          </div>
-        </div>
-      </section>
+      <ServicesHeroSection
+        snapshot={snapshot}
+        filter={filter}
+        refreshMs={refreshMs}
+        onFilterChange={handleFilterChange}
+        onRefreshMsChange={handleRefreshMsChange}
+        onRefresh={handleRefresh}
+      />
 
       <ServicesSummaryGrid summary={snapshot?.summary} alertsCount={snapshot?.alerts.length ?? 0} />
 
-      {/* Charts row */}
-      <div className="grid gap-6 2xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-        <Card className="border-border/60">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle>Top services by CPU</CardTitle>
-                <p className="text-sm text-muted-foreground">
-                  Horizontal bar chart of the busiest services.
-                </p>
-              </div>
-              <Badge variant="outline">Top 10</Badge>
-            </div>
-          </CardHeader>
-          <CardContent className="h-[320px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={topByCpu} layout="vertical">
-                <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" horizontal={false} />
-                <XAxis type="number" tick={{ fill: 'var(--muted-foreground)', fontSize: 11 }} />
-                <YAxis
-                  dataKey="name"
-                  type="category"
-                  width={120}
-                  tick={{ fill: 'var(--muted-foreground)', fontSize: 11 }}
-                />
-                <Tooltip
-                  formatter={(value: unknown) => [
-                    `${(typeof value === 'number' ? value : Number(value || 0)).toFixed(2)}%`,
-                    'CPU',
-                  ]}
-                  contentStyle={{ background: 'var(--card)', border: '1px solid var(--border)' }}
-                />
-                <Bar
-                  dataKey="cpuPercent"
-                  fill="var(--primary)"
-                  radius={[0, 6, 6, 0]}
-                  name="CPU %"
-                />
-              </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
+      <ServicesChartsPanel
+        topByCpu={topByCpu}
+        topByMemory={topByMemory}
+        stateDistribution={stateDistribution}
+        cpuHistory={cpuHistory}
+      />
 
-        <Card className="border-border/60">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle>Top services by memory</CardTitle>
-                <p className="text-sm text-muted-foreground">
-                  Memory consumption of the heaviest services.
-                </p>
-              </div>
-              <Badge variant="outline">Top 10</Badge>
-            </div>
-          </CardHeader>
-          <CardContent className="h-[320px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={topByMemory} layout="vertical">
-                <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" horizontal={false} />
-                <XAxis
-                  type="number"
-                  tick={{ fill: 'var(--muted-foreground)', fontSize: 11 }}
-                  tickFormatter={(v: number) => formatBytes(v)}
-                />
-                <YAxis
-                  dataKey="name"
-                  type="category"
-                  width={120}
-                  tick={{ fill: 'var(--muted-foreground)', fontSize: 11 }}
-                />
-                <Tooltip
-                  formatter={(value: unknown) => [
-                    formatBytes(typeof value === 'number' ? value : Number(value || 0)),
-                    'Memory',
-                  ]}
-                  contentStyle={{ background: 'var(--card)', border: '1px solid var(--border)' }}
-                />
-                <Bar
-                  dataKey="memoryBytes"
-                  fill="var(--accent)"
-                  radius={[0, 6, 6, 0]}
-                  name="Memory"
-                />
-              </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* State distribution + CPU history */}
-      <div className="grid gap-6 2xl:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
-        <Card className="border-border/60">
-          <CardHeader>
-            <CardTitle>Service state distribution</CardTitle>
-            <p className="text-sm text-muted-foreground">Breakdown of services by active state.</p>
-          </CardHeader>
-          <CardContent className="h-[280px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={stateDistribution}
-                  dataKey="value"
-                  nameKey="name"
-                  innerRadius={50}
-                  outerRadius={90}
-                  paddingAngle={3}
-                >
-                  {stateDistribution.map((entry) => (
-                    <Cell key={entry.name} fill={entry.fill} />
-                  ))}
-                </Pie>
-                <Tooltip
-                  contentStyle={{ background: 'var(--card)', border: '1px solid var(--border)' }}
-                />
-                <Legend />
-              </PieChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-
-        <Card className="border-border/60">
-          <CardHeader>
-            <CardTitle>CPU usage over time</CardTitle>
-            <p className="text-sm text-muted-foreground">
-              Tracking the top 5 CPU-consuming services.
-            </p>
-          </CardHeader>
-          <CardContent className="h-[280px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={cpuHistory}>
-                <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="time" tick={{ fill: 'var(--muted-foreground)', fontSize: 11 }} />
-                <YAxis tick={{ fill: 'var(--muted-foreground)', fontSize: 11 }} />
-                <Tooltip
-                  contentStyle={{ background: 'var(--card)', border: '1px solid var(--border)' }}
-                />
-                {[0, 1, 2, 3, 4].map((i) => (
-                  <Line
-                    key={i}
-                    type="monotone"
-                    dataKey={`cpu${i}`}
-                    stroke={chartColors[i]}
-                    strokeWidth={2}
-                    dot={false}
-                    name={
-                      (cpuHistory[cpuHistory.length - 1]?.[`name${i}`] as string) ||
-                      `Service ${i + 1}`
-                    }
-                  />
-                ))}
-                <Legend />
-              </LineChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Tab navigation */}
-      <div className="flex items-center gap-4 flex-wrap">
-        <div className="inline-flex rounded-xl border border-border bg-muted/30 p-1">
-          {(['services', 'timers', 'alerts'] as ViewTab[]).map((tab) => (
-            <button
-              key={tab}
-              type="button"
-              onClick={() => setViewTab(tab)}
-              className={cn(
-                'min-h-[44px] rounded-lg px-4 text-xs font-semibold uppercase tracking-[0.18em] transition-colors flex items-center gap-2',
-                viewTab === tab
-                  ? 'bg-card text-foreground shadow-sm'
-                  : 'text-muted-foreground hover:text-foreground'
-              )}
-            >
-              {tab === 'services' && <Cog className="w-3.5 h-3.5" />}
-              {tab === 'timers' && <Timer className="w-3.5 h-3.5" />}
-              {tab === 'alerts' && <AlertTriangle className="w-3.5 h-3.5" />}
-              {tab}
-              {tab === 'alerts' && (snapshot?.alerts.length ?? 0) > 0 && (
-                <span className="ml-1 rounded-full bg-destructive px-1.5 py-0.5 text-[10px] font-bold text-destructive-foreground">
-                  {snapshot?.alerts.length}
-                </span>
-              )}
-            </button>
-          ))}
-        </div>
-        {viewTab === 'services' && (
-          <div className="relative flex-1 min-w-[200px] max-w-md">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <input
-              type="text"
-              placeholder="Search services..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full h-10 pl-9 pr-3 rounded-xl border border-border bg-background text-sm outline-none focus:ring-2 focus:ring-primary/30"
-            />
-          </div>
-        )}
-      </div>
+      <ServicesViewTabs
+        alertsCount={snapshot?.alerts.length ?? 0}
+        search={search}
+        selectedTab={viewTab}
+        onTabChange={setViewTab}
+        onSearchChange={setSearch}
+      />
 
       {/* Services table */}
       {viewTab === 'services' && (
-        <Card className="border-border/60 overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-sm">
-              <thead className="text-left text-xs uppercase tracking-[0.18em] text-muted-foreground bg-muted/20">
-                <tr>
-                  <th className="py-3 px-4 w-8" />
-                  <th
-                    className="py-3 px-4 cursor-pointer select-none"
-                    onClick={() => toggleSort('name')}
-                  >
-                    <span className="inline-flex items-center gap-1">
-                      Service <SortIcon field="name" />
-                    </span>
-                  </th>
-                  <th
-                    className="py-3 px-4 cursor-pointer select-none"
-                    onClick={() => toggleSort('status')}
-                  >
-                    <span className="inline-flex items-center gap-1">
-                      Status <SortIcon field="status" />
-                    </span>
-                  </th>
-                  <th className="py-3 px-4">PID</th>
-                  <th
-                    className="py-3 px-4 cursor-pointer select-none"
-                    onClick={() => toggleSort('cpu')}
-                  >
-                    <span className="inline-flex items-center gap-1">
-                      CPU <SortIcon field="cpu" />
-                    </span>
-                  </th>
-                  <th
-                    className="py-3 px-4 cursor-pointer select-none"
-                    onClick={() => toggleSort('memory')}
-                  >
-                    <span className="inline-flex items-center gap-1">
-                      Memory <SortIcon field="memory" />
-                    </span>
-                  </th>
-                  <th
-                    className="py-3 px-4 cursor-pointer select-none"
-                    onClick={() => toggleSort('uptime')}
-                  >
-                    <span className="inline-flex items-center gap-1">
-                      Uptime <SortIcon field="uptime" />
-                    </span>
-                  </th>
-                  <th
-                    className="py-3 px-4 cursor-pointer select-none"
-                    onClick={() => toggleSort('restarts')}
-                  >
-                    <span className="inline-flex items-center gap-1">
-                      Restarts <SortIcon field="restarts" />
-                    </span>
-                  </th>
-                  <th className="py-3 px-4">Enabled</th>
-                  <th className="py-3 px-4">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredServices.length === 0 ? (
-                  <tr>
-                    <td colSpan={10} className="py-12 text-center text-muted-foreground">
-                      No services match your filter.
-                    </td>
-                  </tr>
-                ) : (
-                  filteredServices.map((svc) => {
-                    const isExpanded = expandedService === svc.name;
-                    return (
-                      <Fragment key={svc.name}>
-                        <tr
-                          className={cn(
-                            'border-t border-border/60 transition-colors hover:bg-muted/10',
-                            isExpanded && 'bg-muted/10'
-                          )}
-                        >
-                          <td className="py-3 px-4">
-                            <button
-                              type="button"
-                              onClick={() => setExpandedService(isExpanded ? null : svc.name)}
-                              className="p-1 rounded hover:bg-accent transition-colors"
-                            >
-                              {isExpanded ? (
-                                <ChevronDown className="w-4 h-4 text-muted-foreground" />
-                              ) : (
-                                <ChevronRight className="w-4 h-4 text-muted-foreground" />
-                              )}
-                            </button>
-                          </td>
-                          <td className="py-3 px-4">
-                            <div>
-                              <span className="font-medium">{svc.name}</span>
-                              <p className="text-xs text-muted-foreground truncate max-w-[250px]">
-                                {svc.description}
-                              </p>
-                            </div>
-                          </td>
-                          <td className="py-3 px-4">
-                            <Badge variant={statusVariant(svc.activeState)} className="gap-1">
-                              {subStateIcon(svc.subState)}
-                              {svc.activeState} ({svc.subState})
-                            </Badge>
-                          </td>
-                          <td className="py-3 px-4 font-mono text-xs">
-                            {svc.mainPid > 0 ? svc.mainPid : '-'}
-                          </td>
-                          <td className="py-3 px-4">
-                            <span
-                              className={cn(
-                                'font-medium',
-                                svc.cpuPercent > 50
-                                  ? 'text-destructive'
-                                  : svc.cpuPercent > 20
-                                    ? 'text-warning'
-                                    : ''
-                              )}
-                            >
-                              {svc.cpuPercent > 0 ? `${svc.cpuPercent.toFixed(1)}%` : '-'}
-                            </span>
-                          </td>
-                          <td className="py-3 px-4">
-                            <span
-                              className={cn(
-                                'font-medium',
-                                svc.memoryBytes > 2 * 1024 * 1024 * 1024
-                                  ? 'text-destructive'
-                                  : svc.memoryBytes > 512 * 1024 * 1024
-                                    ? 'text-warning'
-                                    : ''
-                              )}
-                            >
-                              {svc.memoryBytes > 0 ? formatBytes(svc.memoryBytes) : '-'}
-                            </span>
-                            {svc.memoryPercent > 0 && (
-                              <span className="text-xs text-muted-foreground ml-1">
-                                ({svc.memoryPercent}%)
-                              </span>
-                            )}
-                          </td>
-                          <td className="py-3 px-4 text-xs">{formatUptime(svc.uptimeSeconds)}</td>
-                          <td className="py-3 px-4">
-                            {svc.restartCount > 0 ? (
-                              <Badge variant={svc.restartCount > 3 ? 'destructive' : 'warning'}>
-                                {svc.restartCount}
-                              </Badge>
-                            ) : (
-                              <span className="text-muted-foreground">0</span>
-                            )}
-                          </td>
-                          <td className="py-3 px-4">
-                            <Badge variant={svc.enabled ? 'success' : 'secondary'}>
-                              {svc.enabled ? 'yes' : 'no'}
-                            </Badge>
-                          </td>
-                          <td className="py-3 px-4">
-                            <div className="flex items-center gap-1">
-                              {svc.activeState !== 'active' && (
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  className="h-8 w-8 p-0 text-success hover:bg-success/10"
-                                  title="Start"
-                                  loading={pendingAction === `${svc.name}:start`}
-                                  onClick={() => runAction(svc.name, 'start')}
-                                >
-                                  <Play className="h-4 w-4" />
-                                </Button>
-                              )}
-                              {svc.activeState === 'active' && (
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  className="h-8 w-8 p-0 text-destructive hover:bg-destructive/10"
-                                  title="Stop"
-                                  loading={pendingAction === `${svc.name}:stop`}
-                                  onClick={() => runAction(svc.name, 'stop')}
-                                >
-                                  <Square className="h-4 w-4" />
-                                </Button>
-                              )}
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                className="h-8 w-8 p-0 text-primary hover:bg-primary/10"
-                                title="Restart"
-                                loading={pendingAction === `${svc.name}:restart`}
-                                onClick={() => runAction(svc.name, 'restart')}
-                              >
-                                <RotateCcw className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                className="h-8 w-8 p-0 hover:bg-accent"
-                                title={svc.enabled ? 'Disable' : 'Enable'}
-                                loading={
-                                  pendingAction === `${svc.name}:enable` ||
-                                  pendingAction === `${svc.name}:disable`
-                                }
-                                onClick={() =>
-                                  runAction(svc.name, svc.enabled ? 'disable' : 'enable')
-                                }
-                              >
-                                {svc.enabled ? (
-                                  <Shield className="h-4 w-4 text-muted-foreground" />
-                                ) : (
-                                  <CheckCircle className="h-4 w-4 text-success" />
-                                )}
-                              </Button>
-                            </div>
-                          </td>
-                        </tr>
-                        {isExpanded && (
-                          <tr className="bg-muted/5">
-                            <td colSpan={10} className="px-4 py-3">
-                              <div className="space-y-3">
-                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-                                  <div>
-                                    <span className="text-muted-foreground">Type: </span>
-                                    <span className="font-medium">{svc.type}</span>
-                                  </div>
-                                  <div>
-                                    <span className="text-muted-foreground">Unit file: </span>
-                                    <span className="font-mono">{svc.unitFileState}</span>
-                                  </div>
-                                  <div>
-                                    <span className="text-muted-foreground">Path: </span>
-                                    <span className="font-mono truncate">
-                                      {svc.fragmentPath || 'n/a'}
-                                    </span>
-                                  </div>
-                                  {svc.triggeredBy && (
-                                    <div>
-                                      <span className="text-muted-foreground">Triggered by: </span>
-                                      <span className="font-medium">{svc.triggeredBy}</span>
-                                    </div>
-                                  )}
-                                </div>
-                                {svc.after && svc.after.length > 0 && (
-                                  <div className="text-xs">
-                                    <span className="text-muted-foreground">
-                                      Dependencies (After):{' '}
-                                    </span>
-                                    <span className="font-mono">
-                                      {svc.after.slice(0, 8).join(', ')}
-                                      {svc.after.length > 8 && ` +${svc.after.length - 8} more`}
-                                    </span>
-                                  </div>
-                                )}
-                                <div>
-                                  <ServiceLogPanel serviceName={svc.name} />
-                                </div>
-                              </div>
-                            </td>
-                          </tr>
-                        )}
-                      </Fragment>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
-          <div className="px-4 py-3 border-t border-border/60 text-xs text-muted-foreground">
-            Showing {filteredServices.length} of {snapshot?.summary.total ?? 0} services
-          </div>
-        </Card>
+        <ServicesTable
+          services={filteredServices}
+          totalServices={snapshot?.summary.total ?? 0}
+          expandedService={expandedService}
+          pendingAction={pendingAction}
+          sortField={sortField}
+          sortDir={sortDir}
+          onToggleExpanded={toggleExpandedService}
+          onToggleSort={toggleSort}
+          onRunAction={handleRunAction}
+        />
       )}
 
       {/* Timers tab */}
-      {viewTab === 'timers' && (
-        <Card className="border-border/60 overflow-hidden">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Timer className="w-4 h-4" />
-              Systemd Timers
-            </CardTitle>
-            <p className="text-sm text-muted-foreground">
-              Scheduled timer units and their next/last execution times.
-            </p>
-          </CardHeader>
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-sm">
-              <thead className="text-left text-xs uppercase tracking-[0.18em] text-muted-foreground bg-muted/20">
-                <tr>
-                  <th className="py-3 px-5">Timer</th>
-                  <th className="py-3 px-5">Activates</th>
-                  <th className="py-3 px-5">Next Run</th>
-                  <th className="py-3 px-5">Last Run</th>
-                </tr>
-              </thead>
-              <tbody>
-                {!snapshot?.timers || snapshot.timers.length === 0 ? (
-                  <tr>
-                    <td colSpan={4} className="py-12 text-center text-muted-foreground">
-                      No timers found.
-                    </td>
-                  </tr>
-                ) : (
-                  snapshot.timers.map((timer) => (
-                    <tr key={timer.name} className="border-t border-border/60">
-                      <td className="py-3 px-5 font-medium">{timer.name}</td>
-                      <td className="py-3 px-5 font-mono text-xs text-muted-foreground">
-                        {timer.activates}
-                      </td>
-                      <td className="py-3 px-5">
-                        <div className="flex items-center gap-2">
-                          <Clock className="w-3.5 h-3.5 text-muted-foreground" />
-                          <span className="text-xs">{futureTime(timer.nextRun)}</span>
-                        </div>
-                      </td>
-                      <td className="py-3 px-5 text-xs text-muted-foreground">
-                        {relativeTime(timer.lastRun)}
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </Card>
-      )}
+      {viewTab === 'timers' && <ServicesTimersPanel timers={snapshot?.timers} />}
 
       {/* Alerts tab */}
-      {viewTab === 'alerts' && (
-        <Card className="border-border/60 overflow-hidden">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <AlertTriangle className="w-4 h-4" />
-              Active Alerts
-            </CardTitle>
-            <p className="text-sm text-muted-foreground">
-              Service alerts based on failure detection, restart loops, and resource thresholds.
-            </p>
-          </CardHeader>
-          <div className="overflow-x-auto">
-            {!snapshot?.alerts || snapshot.alerts.length === 0 ? (
-              <div className="py-12 text-center text-muted-foreground flex flex-col items-center gap-2">
-                <CheckCircle className="w-8 h-8 text-success" />
-                <p>No active alerts. All services are healthy.</p>
-              </div>
-            ) : (
-              <table className="min-w-full text-sm">
-                <thead className="text-left text-xs uppercase tracking-[0.18em] text-muted-foreground bg-muted/20">
-                  <tr>
-                    <th className="py-3 px-5">Severity</th>
-                    <th className="py-3 px-5">Service</th>
-                    <th className="py-3 px-5">Alert</th>
-                    <th className="py-3 px-5">First Seen</th>
-                    <th className="py-3 px-5">Last Seen</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {snapshot.alerts.map((alert) => (
-                    <tr key={alert.id} className="border-t border-border/60">
-                      <td className="py-3 px-5">
-                        <Badge variant={alert.severity === 'critical' ? 'destructive' : 'warning'}>
-                          {alert.severity}
-                        </Badge>
-                      </td>
-                      <td className="py-3 px-5 font-medium">{alert.service}</td>
-                      <td className="py-3 px-5">
-                        <div>
-                          <p className="font-medium">{alert.title}</p>
-                          <p className="text-xs text-muted-foreground">{alert.message}</p>
-                        </div>
-                      </td>
-                      <td className="py-3 px-5 text-xs text-muted-foreground">
-                        {relativeTime(alert.firstSeenAt)}
-                      </td>
-                      <td className="py-3 px-5 text-xs text-muted-foreground">
-                        {relativeTime(alert.lastSeenAt)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
-        </Card>
-      )}
+      {viewTab === 'alerts' && <ServicesAlertsPanel alerts={snapshot?.alerts} />}
     </div>
   );
 }

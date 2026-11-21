@@ -1,12 +1,16 @@
 /** @vitest-environment node */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-const { mockCheckPort } = vi.hoisted(() => ({
+const { mockCheckPort, mockGetSession } = vi.hoisted(() => ({
   mockCheckPort: vi.fn(),
+  mockGetSession: vi.fn(),
 }));
 
 vi.mock('@/lib/ports/service', () => ({
   portsService: { checkPort: mockCheckPort },
+}));
+vi.mock('@/lib/session', () => ({
+  getSession: mockGetSession,
 }));
 vi.mock('@/lib/logger', () => ({
   createLogger: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }),
@@ -25,6 +29,15 @@ function makeRequest(port?: string): NextRequest {
 describe('GET /api/modules/ports/check', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockGetSession.mockResolvedValue({ user: { username: 'admin', role: 'admin' } });
+  });
+
+  it('returns 401 when unauthenticated', async () => {
+    mockGetSession.mockResolvedValue(null);
+    const res = await GET(makeRequest('80'));
+    expect(res.status).toBe(401);
+    expect(await res.json()).toEqual({ error: 'Unauthorized' });
+    expect(mockCheckPort).not.toHaveBeenCalled();
   });
 
   it('returns 400 when port parameter is missing', async () => {
@@ -53,6 +66,38 @@ describe('GET /api/modules/ports/check', () => {
   it('returns 400 for negative port', async () => {
     const res = await GET(makeRequest('-1'));
     expect(res.status).toBe(400);
+  });
+
+  it('returns 400 for floating-point ports', async () => {
+    const res = await GET(makeRequest('8080.5'));
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBe('port must be between 1 and 65535');
+  });
+
+  it('returns 400 for mixed numeric strings', async () => {
+    const res = await GET(makeRequest('80abc'));
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBe('port must be between 1 and 65535');
+  });
+
+  it('returns 400 for scientific notation', async () => {
+    const res = await GET(makeRequest('1e2'));
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBe('port must be between 1 and 65535');
+  });
+
+  it('allows numeric strings with surrounding whitespace', async () => {
+    mockCheckPort.mockResolvedValue({ port: 80, open: true, process: 'nginx' });
+    const res = await GET(makeRequest('  80  '));
+    expect(res.status).toBe(200);
+    expect(mockCheckPort).toHaveBeenCalledWith(80);
+  });
+
+  it('accepts leading-zero ports', async () => {
+    mockCheckPort.mockResolvedValue({ port: 8080, open: true, process: 'nginx' });
+    const res = await GET(makeRequest('08080'));
+    expect(res.status).toBe(200);
+    expect(mockCheckPort).toHaveBeenCalledWith(8080);
   });
 
   it('returns check result for valid port 80', async () => {

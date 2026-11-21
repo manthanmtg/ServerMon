@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ZodError } from 'zod';
-import type { Model } from 'mongoose';
 import { createLogger } from '@/lib/logger';
 import connectDB from '@/lib/db';
 import ResourcePolicy, { ResourcePolicyZodSchema } from '@/models/ResourcePolicy';
@@ -48,7 +47,7 @@ export async function POST(req: NextRequest) {
 
     const created = await ResourcePolicy.create(parsed);
 
-    await recordAudit(FleetLogEvent as unknown as Model<unknown>, {
+    await recordAudit(FleetLogEvent, {
       action: 'resource_policy.create',
       actorUserId: session.user.username,
       metadata: {

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
-import LogsPage from './LogsPage';
+import LogsPage, { buildSearchableLogEntries, getFilteredLogs } from './LogsPage';
 
 const mockLogs = [
   {
@@ -27,7 +27,7 @@ const mockLogs = [
     timestamp: new Date().toISOString(),
     metadata: { service: 'nginx' },
   },
-];
+] satisfies Parameters<typeof buildSearchableLogEntries>[0];
 
 describe('LogsPage', () => {
   beforeEach(() => {
@@ -121,5 +121,30 @@ describe('LogsPage', () => {
     });
 
     await waitFor(() => expect(screen.queryByRole('status')).toBeNull());
+  });
+
+  it('shows a failure state when logs cannot be loaded', async () => {
+    global.fetch = vi.fn().mockRejectedValue(new Error('Fetch failed'));
+
+    await act(async () => {
+      render(<LogsPage />);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText('Unable to load logs')).toBeTruthy();
+      expect(
+        screen.getByText('Recent audit events could not be fetched. The page will keep retrying.')
+      ).toBeTruthy();
+    });
+  });
+
+  it('prepares searchable log fields once and filters against the prepared values', () => {
+    const prepared = buildSearchableLogEntries(mockLogs);
+
+    expect(prepared[0].eventLower).toBe('user admin created');
+    expect(prepared[0].moduleLower).toBe('users');
+    expect(prepared[0].metadataJson).toBe('{"user":"admin"}');
+    expect(getFilteredLogs(prepared, 'warn', '').map((log) => log._id)).toEqual(['2']);
+    expect(getFilteredLogs(prepared, 'all', 'SYSTEM').map((log) => log._id)).toEqual(['3']);
   });
 });

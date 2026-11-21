@@ -77,7 +77,7 @@ vi.mock('@xterm/addon-fit', () => ({
 vi.mock('@xterm/xterm/css/xterm.css', () => ({}));
 
 // Import after mocks
-import { NodeTerminal } from './NodeTerminal';
+import { deriveTerminalWorkspace, NodeTerminal } from './NodeTerminal';
 
 describe('NodeTerminal', () => {
   beforeEach(() => {
@@ -192,11 +192,21 @@ describe('NodeTerminal', () => {
 
   it('creates an additional fleet terminal tab', () => {
     render(<NodeTerminal nodeId="node-xyz" />);
-    fireEvent.click(screen.getByTitle(/new tab/i));
+    fireEvent.click(screen.getByRole('button', { name: /new terminal tab/i }));
     expect(screen.getAllByText('Shell 2').length).toBeGreaterThan(0);
 
     const lastCall = mockUseTtySession.mock.calls[mockUseTtySession.mock.calls.length - 1];
     expect(lastCall?.[0]?.enabled).toBe(false);
+  });
+
+  it('exposes accessible names for terminal tab strip icon controls', () => {
+    render(<NodeTerminal nodeId="node-xyz" />);
+
+    expect(screen.getByRole('button', { name: /activate terminal tab shell 1/i })).toBeDefined();
+    expect(screen.getByRole('button', { name: /new terminal tab/i })).toBeDefined();
+    expect(screen.getByRole('button', { name: /copy terminal selection/i })).toBeDefined();
+    expect(screen.getByRole('button', { name: /paste from clipboard/i })).toBeDefined();
+    expect(screen.getByRole('button', { name: /clear terminal/i })).toBeDefined();
   });
 
   it('sends quick commands to the active session', async () => {
@@ -207,5 +217,42 @@ describe('NodeTerminal', () => {
     await waitFor(() => {
       expect(mockSend).toHaveBeenCalledWith('uptime\n');
     });
+  });
+
+  it('derives active tab and active session count from tab state', () => {
+    const tabs = [
+      {
+        sessionId: 'session-1',
+        label: 'Shell 1',
+        order: 0,
+        started: false,
+        status: 'idle' as const,
+        createdAt: '2026-05-03T13:00:00.000Z',
+        lastActiveAt: '2026-05-03T13:00:00.000Z',
+      },
+      {
+        sessionId: 'session-2',
+        label: 'Shell 2',
+        order: 1,
+        started: true,
+        status: 'connected' as const,
+        createdAt: '2026-05-03T13:01:00.000Z',
+        lastActiveAt: '2026-05-03T13:01:00.000Z',
+      },
+      {
+        sessionId: 'session-3',
+        label: 'Shell 3',
+        order: 2,
+        started: true,
+        status: 'connecting' as const,
+        createdAt: '2026-05-03T13:02:00.000Z',
+        lastActiveAt: '2026-05-03T13:02:00.000Z',
+      },
+    ];
+
+    const workspace = deriveTerminalWorkspace(tabs, 'session-2');
+
+    expect(workspace.activeTab?.sessionId).toBe('session-2');
+    expect(workspace.activeSessions).toBe(2);
   });
 });

@@ -26,6 +26,8 @@ type PendingAction =
   | { kind: 'restart' }
   | null;
 
+const mobileActionClassName = 'h-11 w-full sm:h-9 sm:w-auto';
+
 export function FrpServerControl() {
   const [state, setState] = useState<FrpServerState | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -188,6 +190,7 @@ export function FrpServerControl() {
           <div className="flex gap-2 pt-2 flex-wrap">
             <Button
               variant={state.enabled ? 'destructive' : 'default'}
+              className={mobileActionClassName}
               disabled={busy}
               onClick={() => setPending({ kind: 'toggle', enabled: !state.enabled })}
             >
@@ -195,6 +198,7 @@ export function FrpServerControl() {
             </Button>
             <Button
               variant="outline"
+              className={mobileActionClassName}
               disabled={busy}
               onClick={() => setPending({ kind: 'restart' })}
             >
@@ -244,11 +248,21 @@ export function FrpServerControl() {
               The FRP server has {blocked.activeConnections} active connection(s). Use force disable
               to terminate anyway.
             </p>
-            <div className="flex gap-2">
-              <Button variant="destructive" disabled={busy} onClick={() => doToggle(false, true)}>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Button
+                variant="destructive"
+                className={mobileActionClassName}
+                disabled={busy}
+                onClick={() => doToggle(false, true)}
+              >
                 Force disable
               </Button>
-              <Button variant="outline" disabled={busy} onClick={() => setBlocked(null)}>
+              <Button
+                variant="outline"
+                className={mobileActionClassName}
+                disabled={busy}
+                onClick={() => setBlocked(null)}
+              >
                 Cancel
               </Button>
             </div>

@@ -15,6 +15,10 @@ const BrandingPostBodySchema = z.object({
 });
 
 export async function GET() {
+  if (process.env.SERVERMON_BRANDING_MOCK === '1') {
+    return NextResponse.json({ pageTitle: 'ServerMon', logoBase64: '' });
+  }
+
   try {
     await connectDB();
     let settings = await BrandSettings.findById('brand-settings').lean();

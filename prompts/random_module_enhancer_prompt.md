@@ -10,7 +10,7 @@ autonomousSafe: true
 
 ## Objective
 
-Pick one module from `src/modules/` and improve it — cleaner code, better types, and refined UI/UX.
+Pick one module from `src/modules/` and improve existing behavior — cleaner code, better types, and refined UI/UX.
 
 ## Workflow
 
@@ -18,7 +18,7 @@ Pick one module from `src/modules/` and improve it — cleaner code, better type
 
 - Pick a module directory.
 - Identify monolithic files, `any` types, or missing loading states.
-- Find opportunities for "smart" features (e.g., sparklines for metrics, quick actions in the process list).
+- Find opportunities to polish existing behavior, such as clearer loading states, tighter empty states, or safer action feedback.
 
 ### 2. Refactor
 
@@ -31,11 +31,12 @@ Pick one module from `src/modules/` and improve it — cleaner code, better type
 - **Density**: Ensure the UI is compact and professional.
 - **Responsiveness**: Verify the module works perfectly on mobile (no horizontal scroll, large enough touch targets).
 - **Style**: Use the semantic theme tokens defined in `globals.css`.
+- **Existing Scope**: Do not add new product capabilities; leave feature ideas for a human-selected prompt or issue note.
 
 ### 4. Verify
 
-- Run `pnpm check` to ensure no regressions in linting, types, or build.
-- Add Vitest unit tests if the module lacks coverage for core logic.
+- Run `pnpm format:check`, then `pnpm check` to cover the release contract, lint, types, build, and tests.
+- Add or update focused Vitest tests only when the selected slice changes core logic or behavior. Leave broader coverage gaps for `test_coverage_adder.md` or an `issues_to_look/` note.
 
 ## Scope Guardrail
 

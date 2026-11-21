@@ -11,6 +11,22 @@ const mockNetworkData = {
   source: 'live',
 };
 
+const mockFetchResponse = (payload: unknown, init?: ResponseInit) =>
+  new Response(JSON.stringify(payload), {
+    headers: { 'content-type': 'application/json' },
+    ...init,
+  });
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+  return { promise, resolve, reject };
+}
+
 describe('NetworkWidget', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -56,7 +72,7 @@ describe('NetworkWidget', () => {
     });
   });
 
-  it('shows 0 B before data loads', () => {
+  it('shows loading placeholders before data loads', async () => {
     let resolveFetch!: (v: Response) => void;
     global.fetch = vi.fn().mockImplementation(
       () =>
@@ -65,9 +81,9 @@ describe('NetworkWidget', () => {
         })
     );
     render(<NetworkWidget />);
-    const zeroValues = screen.getAllByText('0 B/s');
+    const zeroValues = screen.getAllByText('—/s');
     expect(zeroValues.length).toBeGreaterThanOrEqual(1);
-    act(() => {
+    await act(async () => {
       resolveFetch({ ok: true, json: async () => mockNetworkData } as Response);
     });
   });
@@ -92,6 +108,157 @@ describe('NetworkWidget', () => {
     await waitFor(() => expect(screen.getByText('eth0')).toBeDefined());
   });
 
+  it('retains the last verified network stats when a later poll fails', async () => {
+    vi.useFakeTimers();
+    global.fetch = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => mockNetworkData,
+      })
+      .mockRejectedValue(new Error('Network request failed'));
+
+    await act(async () => {
+      render(<NetworkWidget />);
+    });
+
+    expect(screen.getByText('eth0')).toBeInTheDocument();
+    expect(screen.getByText('1 MiB/s')).toBeInTheDocument();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5251);
+    });
+
+    expect(screen.getByText('eth0')).toBeInTheDocument();
+    expect(screen.getByText('1 MiB/s')).toBeInTheDocument();
+    expect(screen.getByText('512 KiB/s')).toBeInTheDocument();
+    expect(screen.getByText('Showing last reading')).toBeInTheDocument();
+  });
+
+  it('keeps the newest network reading when an older poll succeeds later', async () => {
+    vi.useFakeTimers();
+    const staleResponse = deferred<Response>();
+    const freshResponse = deferred<Response>();
+    global.fetch = vi
+      .fn()
+      .mockImplementationOnce(() => staleResponse.promise)
+      .mockImplementationOnce(() => freshResponse.promise);
+
+    const { unmount } = render(<NetworkWidget />);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5000);
+    });
+
+    await act(async () => {
+      freshResponse.resolve(
+        mockFetchResponse({
+          ...mockNetworkData,
+          stats: [{ ...mockNetworkData.stats[0], iface: 'fresh0' }],
+        })
+      );
+    });
+    expect(screen.getByText('fresh0')).toBeInTheDocument();
+
+    await act(async () => {
+      staleResponse.resolve(
+        mockFetchResponse({
+          ...mockNetworkData,
+          stats: [{ ...mockNetworkData.stats[0], iface: 'stale0' }],
+        })
+      );
+    });
+
+    expect(screen.getByText('fresh0')).toBeInTheDocument();
+    expect(screen.queryByText('stale0')).toBeNull();
+    unmount();
+  });
+
+  it('ignores an older poll failure after a newer reading succeeds', async () => {
+    vi.useFakeTimers();
+    const staleResponse = deferred<Response>();
+    const freshResponse = deferred<Response>();
+    global.fetch = vi
+      .fn()
+      .mockImplementationOnce(() => staleResponse.promise)
+      .mockImplementationOnce(() => freshResponse.promise)
+      .mockRejectedValueOnce(new Error('Stale retry failed'));
+
+    const { unmount } = render(<NetworkWidget />);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5000);
+    });
+
+    await act(async () => {
+      freshResponse.resolve(
+        mockFetchResponse({
+          ...mockNetworkData,
+          stats: [{ ...mockNetworkData.stats[0], iface: 'fresh0' }],
+        })
+      );
+    });
+    expect(screen.getByText('fresh0')).toBeInTheDocument();
+
+    await act(async () => {
+      staleResponse.reject(new Error('Stale request failed'));
+      await vi.advanceTimersByTimeAsync(250);
+    });
+
+    expect(screen.getByText('fresh0')).toBeInTheDocument();
+    expect(screen.queryByText('Showing last reading')).toBeNull();
+    unmount();
+  });
+
+  it.each([
+    {
+      name: 'wireless interface containing lo',
+      stats: [
+        { iface: 'lo', rx_sec: 0, tx_sec: 0, rx_bytes: 0, tx_bytes: 0 },
+        { iface: 'wlo1', rx_sec: 4096, tx_sec: 2048, rx_bytes: 100000, tx_bytes: 50000 },
+      ],
+      expected: 'wlo1',
+    },
+    {
+      name: 'loopback alias before ethernet',
+      stats: [
+        { iface: 'lo:1', rx_sec: 0, tx_sec: 0, rx_bytes: 0, tx_bytes: 0 },
+        { iface: 'eth1', rx_sec: 4096, tx_sec: 2048, rx_bytes: 100000, tx_bytes: 50000 },
+      ],
+      expected: 'eth1',
+    },
+    {
+      name: 'macOS loopback before wireless',
+      stats: [
+        { iface: 'lo0', rx_sec: 0, tx_sec: 0, rx_bytes: 0, tx_bytes: 0 },
+        { iface: 'en0', rx_sec: 4096, tx_sec: 2048, rx_bytes: 100000, tx_bytes: 50000 },
+      ],
+      expected: 'en0',
+    },
+    {
+      name: 'loopback-only snapshot',
+      stats: [{ iface: 'lo', rx_sec: 512, tx_sec: 256, rx_bytes: 100000, tx_bytes: 50000 }],
+      expected: 'lo',
+    },
+    {
+      name: 'ordinary first interface',
+      stats: [
+        { iface: 'ens18', rx_sec: 4096, tx_sec: 2048, rx_bytes: 100000, tx_bytes: 50000 },
+        { iface: 'lo', rx_sec: 0, tx_sec: 0, rx_bytes: 0, tx_bytes: 0 },
+      ],
+      expected: 'ens18',
+    },
+  ])('selects the primary interface for $name', async ({ stats, expected }) => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ stats, connections: [], alerts: [], source: 'live' }),
+    });
+
+    await act(async () => {
+      render(<NetworkWidget />);
+    });
+
+    await waitFor(() => expect(screen.getByText(expected)).toBeDefined());
+  });
+
   it('shows Network label when no data available', async () => {
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,
@@ -100,7 +267,8 @@ describe('NetworkWidget', () => {
     await act(async () => {
       render(<NetworkWidget />);
     });
-    await waitFor(() => expect(screen.getByText('Network')).toBeDefined());
+    await waitFor(() => expect(screen.getByText('Active Interface')).toBeDefined());
+    expect(screen.getByText('No interfaces')).toBeDefined();
   });
 
   it('handles fetch failure gracefully', async () => {
@@ -108,7 +276,43 @@ describe('NetworkWidget', () => {
     await act(async () => {
       render(<NetworkWidget />);
     });
-    await waitFor(() => expect(screen.getByText('Network')).toBeDefined());
+    await waitFor(() => expect(screen.getByText('Active Interface')).toBeDefined());
+  });
+
+  it('does not parse failed HTTP responses', async () => {
+    const json = vi.fn();
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      json,
+    });
+    await act(async () => {
+      render(<NetworkWidget />);
+    });
+    await waitFor(() => expect(global.fetch).toHaveBeenCalled());
+    expect(json).not.toHaveBeenCalled();
+    await waitFor(() => expect(screen.getByText('Active Interface')).toBeDefined());
+    expect(screen.getByText('Unavailable')).toBeDefined();
+  });
+
+  it('passes an abort signal to each poll request', async () => {
+    vi.useFakeTimers();
+    await act(async () => {
+      render(<NetworkWidget />);
+    });
+
+    expect(global.fetch).toHaveBeenLastCalledWith(
+      '/api/modules/network',
+      expect.objectContaining({ signal: expect.any(AbortSignal) })
+    );
+
+    await act(async () => {
+      vi.advanceTimersByTime(5001);
+    });
+
+    expect(global.fetch).toHaveBeenLastCalledWith(
+      '/api/modules/network',
+      expect.objectContaining({ signal: expect.any(AbortSignal) })
+    );
   });
 
   it('polls every 5 seconds', async () => {

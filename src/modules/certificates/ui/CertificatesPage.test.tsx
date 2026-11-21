@@ -115,6 +115,20 @@ describe('CertificatesPage', () => {
     });
   });
 
+  it('provides accessible names for certificate actions', async () => {
+    await renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Refresh certificates' })).toBeDefined();
+      expect(
+        screen.getByRole('button', { name: 'Renew certificate for example.com' })
+      ).toBeDefined();
+      expect(
+        screen.getByRole('button', { name: 'Renew certificate for expired.com' })
+      ).toBeDefined();
+    });
+  });
+
   it('handles certificate renewal', async () => {
     vi.mocked(global.fetch).mockImplementation((url, options) => {
       if (url === '/api/modules/certificates') {
@@ -174,6 +188,33 @@ describe('CertificatesPage', () => {
     await waitFor(() => {
       expect(screen.getByText('Renewal failed for example.com')).toBeDefined();
       expect(screen.getByText('Renewal failed with error code 1')).toBeDefined();
+    });
+  });
+
+  it('handles malformed renewal responses as failures', async () => {
+    vi.mocked(global.fetch).mockImplementation((url, options) => {
+      if (url === '/api/modules/certificates') {
+        return Promise.resolve({ ok: true, json: async () => mockSnapshot } as Response);
+      }
+      if (url === '/api/modules/certificates/renew' && options?.method === 'POST') {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({ success: true }),
+        } as Response);
+      }
+      return Promise.reject(new Error('URL not mocked'));
+    });
+
+    await renderPage();
+    const renewButtons = screen.getAllByText('Renew');
+
+    await act(async () => {
+      fireEvent.click(renewButtons[0]);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText('Renewal failed for example.com')).toBeDefined();
+      expect(screen.getByText('Invalid renewal response')).toBeDefined();
     });
   });
 });

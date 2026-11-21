@@ -38,8 +38,11 @@ export default function ThemeSelector() {
         variant="ghost"
         size="sm"
         onClick={() => setIsOpen(!isOpen)}
+        aria-label="Select theme"
+        aria-expanded={isOpen}
+        aria-haspopup="listbox"
         className={cn(
-          'flex items-center gap-2 px-3 h-9 rounded-xl transition-all duration-300',
+          'flex items-center gap-2 px-3 h-11 rounded-xl transition-all duration-300 sm:h-9',
           isOpen
             ? 'bg-accent text-accent-foreground'
             : 'hover:bg-accent/50 text-muted-foreground hover:text-foreground'
@@ -48,12 +51,19 @@ export default function ThemeSelector() {
         <CurrentIcon className="w-4 h-4" />
         <span className="text-xs font-bold hidden sm:inline tracking-tight">{theme.name}</span>
         <ChevronDown
-          className={cn('w-3 h-3 transition-transform duration-300', isOpen && 'rotate-180')}
+          className={cn(
+            'w-3 h-3 transition-transform duration-300 hidden sm:block',
+            isOpen && 'rotate-180'
+          )}
         />
       </Button>
 
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-56 p-1.5 z-50 rounded-2xl border border-white/5 bg-popover/80 backdrop-blur-xl shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+        <div
+          role="listbox"
+          aria-label="Available themes"
+          className="absolute right-0 mt-2 w-56 p-1.5 z-50 rounded-2xl border border-white/5 bg-popover/80 backdrop-blur-xl shadow-2xl animate-in fade-in zoom-in-95 duration-200"
+        >
           <div className="px-2.5 py-2 mb-1 border-b border-border/30">
             <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/50">
               Interface Theme
@@ -65,6 +75,8 @@ export default function ThemeSelector() {
             return (
               <button
                 key={t.id}
+                role="option"
+                aria-selected={isActive}
                 onClick={() => {
                   setTheme(t.id);
                   setIsOpen(false);
@@ -73,7 +85,8 @@ export default function ThemeSelector() {
                   'w-full flex items-center justify-between p-2 rounded-xl text-xs font-medium transition-all group',
                   isActive
                     ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/20'
-                    : 'hover:bg-accent text-muted-foreground hover:text-foreground'
+                    : 'hover:bg-accent text-muted-foreground hover:text-foreground',
+                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background'
                 )}
               >
                 <div className="flex items-center gap-2.5">

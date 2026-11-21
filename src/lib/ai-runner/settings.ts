@@ -5,6 +5,7 @@ import { getDefaultAIRunnerArtifactBaseDir } from './artifact-store';
 import { DEFAULT_MAX_CONCURRENT_RUNS, MAX_CONCURRENT_RUNS_CAP } from './shared';
 
 const AI_RUNNER_SETTINGS_ID = 'airunner-settings';
+const DEFAULT_HISTORY_RETENTION_DAYS = 90;
 const DEFAULT_MONGO_RETENTION_DAYS = 30;
 const DEFAULT_ARTIFACT_RETENTION_DAYS = 90;
 
@@ -20,6 +21,7 @@ function mapSettings(doc: {
   autoflowMode?: 'sequential' | 'parallel';
   artifactBaseDir?: string;
   maxConcurrentRuns?: number;
+  historyRetentionDays?: number;
   mongoRetentionDays?: number;
   artifactRetentionDays?: number;
   updatedAt?: Date | string;
@@ -30,6 +32,10 @@ function mapSettings(doc: {
     autoflowMode: doc.autoflowMode === 'parallel' ? 'parallel' : 'sequential',
     artifactBaseDir: doc.artifactBaseDir?.trim() || defaultArtifactBaseDir,
     maxConcurrentRuns: normalizeMaxConcurrentRuns(doc.maxConcurrentRuns),
+    historyRetentionDays:
+      typeof doc.historyRetentionDays === 'number'
+        ? Math.max(1, Math.floor(doc.historyRetentionDays))
+        : DEFAULT_HISTORY_RETENTION_DAYS,
     mongoRetentionDays:
       typeof doc.mongoRetentionDays === 'number'
         ? Math.max(1, Math.floor(doc.mongoRetentionDays))
@@ -40,6 +46,7 @@ function mapSettings(doc: {
         : DEFAULT_ARTIFACT_RETENTION_DAYS,
     defaultArtifactBaseDir,
     defaultMaxConcurrentRuns: DEFAULT_MAX_CONCURRENT_RUNS,
+    defaultHistoryRetentionDays: DEFAULT_HISTORY_RETENTION_DAYS,
     defaultMongoRetentionDays: DEFAULT_MONGO_RETENTION_DAYS,
     defaultArtifactRetentionDays: DEFAULT_ARTIFACT_RETENTION_DAYS,
     updatedAt: doc.updatedAt ? new Date(doc.updatedAt).toISOString() : undefined,
@@ -62,6 +69,7 @@ export async function updateAIRunnerSettings(input: {
   autoflowMode?: 'sequential' | 'parallel';
   artifactBaseDir?: string;
   maxConcurrentRuns?: number;
+  historyRetentionDays?: number;
   mongoRetentionDays?: number;
   artifactRetentionDays?: number;
 }): Promise<AIRunnerSettingsDTO> {
@@ -78,6 +86,9 @@ export async function updateAIRunnerSettings(input: {
   }
   if (typeof input.maxConcurrentRuns === 'number') {
     $set.maxConcurrentRuns = normalizeMaxConcurrentRuns(input.maxConcurrentRuns);
+  }
+  if (typeof input.historyRetentionDays === 'number') {
+    $set.historyRetentionDays = Math.floor(input.historyRetentionDays);
   }
   if (typeof input.mongoRetentionDays === 'number') {
     $set.mongoRetentionDays = Math.floor(input.mongoRetentionDays);

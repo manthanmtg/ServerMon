@@ -39,7 +39,13 @@ interface LegacyPromptRuntime {
 async function resolveWorkspace(input: {
   workspaceId?: string;
   workingDirectory?: string;
-}): Promise<{ workspaceId?: string; workingDirectory?: string; blocking: boolean }> {
+}): Promise<{
+  workspaceId?: string;
+  workingDirectory?: string;
+  blocking: boolean;
+  gitWorktreesEnabled: boolean;
+  gitWorktreeBaseDir?: string;
+}> {
   if (input.workspaceId) {
     const workspace = await AIRunnerWorkspace.findById(input.workspaceId);
     if (!workspace || !workspace.enabled) {
@@ -49,11 +55,13 @@ async function resolveWorkspace(input: {
       workspaceId: stringifyId(workspace._id),
       workingDirectory: workspace.path,
       blocking: Boolean(workspace.blocking),
+      gitWorktreesEnabled: Boolean(workspace.gitWorktreesEnabled),
+      gitWorktreeBaseDir: workspace.gitWorktreeBaseDir ?? undefined,
     };
   }
 
   if (!input.workingDirectory) {
-    return { blocking: false };
+    return { blocking: false, gitWorktreesEnabled: false };
   }
 
   const workspace = await AIRunnerWorkspace.findOne({
@@ -61,17 +69,24 @@ async function resolveWorkspace(input: {
     enabled: true,
   });
   if (!workspace) {
-    return { workingDirectory: input.workingDirectory, blocking: false };
+    return {
+      workingDirectory: input.workingDirectory,
+      blocking: false,
+      gitWorktreesEnabled: false,
+    };
   }
 
   return {
     workspaceId: stringifyId(workspace._id),
     workingDirectory: workspace.path,
     blocking: Boolean(workspace.blocking),
+    gitWorktreesEnabled: Boolean(workspace.gitWorktreesEnabled),
+    gitWorktreeBaseDir: workspace.gitWorktreeBaseDir ?? undefined,
   };
 }
 
 async function assertWorkspaceCanQueue(resolved: AIRunnerResolvedExecution): Promise<void> {
+  if (resolved.gitWorktreesEnabled) return;
   if (!resolved.workspaceBlocking || !resolved.workspaceId) return;
 
   const activeJob = await AIRunnerJob.findOne({
@@ -215,6 +230,8 @@ export async function resolveExecutionRequest(
     profile,
     workspaceId: workspace.workspaceId,
     workspaceBlocking: workspace.blocking,
+    gitWorktreesEnabled: workspace.gitWorktreesEnabled,
+    gitWorktreeBaseDir: workspace.gitWorktreeBaseDir,
     promptContent,
     command,
     workingDirectory: resolvedWorkingDirectory,
@@ -335,12 +352,16 @@ export async function enqueueResolvedRun(
       agentProfileId: resolved.profile._id,
       workspaceId: resolved.workspaceId,
       workspaceBlocking: resolved.workspaceBlocking,
+      gitWorktreesEnabled: resolved.gitWorktreesEnabled,
+      gitWorktreeBaseDir: resolved.gitWorktreeBaseDir,
       triggeredBy: resolved.triggeredBy,
       promptContent: resolved.promptContent,
       workingDirectory: resolved.workingDirectory,
       command: resolved.command,
       shell: resolved.profile.shell,
       requiresTTY: resolved.profile.requiresTTY,
+      runAsUser: resolved.profile.runAsUser,
+      runAsUserAuthMode: resolved.profile.runAsUserAuthMode,
       env: resolved.profile.env,
       timeoutMinutes: resolved.timeoutMinutes,
       status: 'queued',

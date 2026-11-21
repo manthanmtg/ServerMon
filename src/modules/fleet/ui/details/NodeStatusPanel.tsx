@@ -1,5 +1,5 @@
 'use client';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Spinner } from '@/components/ui/spinner';
@@ -9,6 +9,7 @@ import type { TunnelStatus } from '@/lib/fleet/enums';
 import type { ReconcileReport } from '@/lib/fleet/reconcile';
 import { useFleetStream } from '../lib/useFleetStream';
 import { useToast } from '@/components/ui/toast';
+import { OperationLogViewer } from '@/components/operations/OperationLogViewer';
 
 interface Node {
   _id: string;
@@ -36,6 +37,47 @@ interface Node {
   tags?: string[];
 }
 
+interface AgentUpdateLogEvent {
+  _id: string;
+  createdAt?: string;
+  service?: string;
+  level: string;
+  eventType: string;
+  message: string;
+  metadata?: { commandId?: unknown };
+}
+
+function isAgentUpdateEvent(event: AgentUpdateLogEvent): boolean {
+  return event.eventType.startsWith('agent.update.');
+}
+
+function isTerminalAgentUpdateEvent(event: AgentUpdateLogEvent): boolean {
+  return event.eventType === 'agent.update.succeeded' || event.eventType === 'agent.update.failed';
+}
+
+function logEventTime(event: AgentUpdateLogEvent): number {
+  if (!event.createdAt) return 0;
+  const time = new Date(event.createdAt).getTime();
+  return Number.isFinite(time) ? time : 0;
+}
+
+export function shouldReplaceAgentUpdateLogs(
+  current: AgentUpdateLogEvent[],
+  next: AgentUpdateLogEvent[]
+): boolean {
+  if (current.length !== next.length) return true;
+  return current.some((event, index) => {
+    const nextEvent = next[index];
+    return (
+      event._id !== nextEvent._id ||
+      event.createdAt !== nextEvent.createdAt ||
+      event.level !== nextEvent.level ||
+      event.eventType !== nextEvent.eventType ||
+      event.message !== nextEvent.message
+    );
+  });
+}
+
 export function NodeStatusPanel({ nodeId }: { nodeId: string }) {
   const { toast } = useToast();
   const [node, setNode] = useState<Node | null>(null);
@@ -43,7 +85,44 @@ export function NodeStatusPanel({ nodeId }: { nodeId: string }) {
   const [busy, setBusy] = useState(false);
   const [reconcileReport, setReconcileReport] = useState<ReconcileReport | null>(null);
   const [reconcileBusy, setReconcileBusy] = useState(false);
+  const [updateLogStartedAt, setUpdateLogStartedAt] = useState<string | null>(null);
+  const [updateCommandId, setUpdateCommandId] = useState<string | null>(null);
+  const [updateLogs, setUpdateLogs] = useState<AgentUpdateLogEvent[]>([]);
+  const [updateLogsError, setUpdateLogsError] = useState<string | null>(null);
+  const [updateLogPolling, setUpdateLogPolling] = useState(false);
   const refreshRef = useRef<() => void>(() => {});
+
+  const loadUpdateLogs = useCallback(
+    async (startedAt: string, commandId: string | null) => {
+      try {
+        const params = new URLSearchParams({
+          nodeId,
+          service: 'agent',
+          since: startedAt,
+          limit: '100',
+        });
+        const res = await fetch(`/api/fleet/logs?${params.toString()}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const body = (await res.json()) as { events?: AgentUpdateLogEvent[] };
+        const events = (body.events ?? [])
+          .filter(isAgentUpdateEvent)
+          .filter((event) => {
+            if (!commandId) return true;
+            const eventCommandId = event.metadata?.commandId;
+            return eventCommandId == null || String(eventCommandId) === commandId;
+          })
+          .sort((a, b) => logEventTime(a) - logEventTime(b));
+        setUpdateLogs((current) =>
+          shouldReplaceAgentUpdateLogs(current, events) ? events : current
+        );
+        setUpdateLogsError(null);
+        setUpdateLogPolling(!events.some(isTerminalAgentUpdateEvent));
+      } catch (err) {
+        setUpdateLogsError(err instanceof Error ? err.message : 'Failed to load update logs');
+      }
+    },
+    [nodeId]
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -85,6 +164,14 @@ export function NodeStatusPanel({ nodeId }: { nodeId: string }) {
 
   useFleetStream({ nodeId, onEvent: onStreamEvent });
 
+  useEffect(() => {
+    if (!updateLogStartedAt || !updateLogPolling) return;
+    const iv = setInterval(() => {
+      void loadUpdateLogs(updateLogStartedAt, updateCommandId);
+    }, 2500);
+    return () => clearInterval(iv);
+  }, [loadUpdateLogs, updateCommandId, updateLogPolling, updateLogStartedAt]);
+
   const toggleMaintenance = async (enabled: boolean) => {
     setBusy(true);
     try {
@@ -111,15 +198,25 @@ export function NodeStatusPanel({ nodeId }: { nodeId: string }) {
   };
 
   const runUpdate = async () => {
+    const startedAt = new Date(Date.now() - 5000).toISOString();
+    setUpdateLogStartedAt(startedAt);
+    setUpdateCommandId(null);
+    setUpdateLogs([]);
+    setUpdateLogsError(null);
+    setUpdateLogPolling(true);
     setBusy(true);
     try {
       const res = await fetch(`/api/fleet/nodes/${nodeId}/updates`, { method: 'POST' });
       if (res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { commandId?: unknown };
+        const commandId = typeof body.commandId === 'string' ? body.commandId : null;
+        setUpdateCommandId(commandId);
         toast({
           title: 'Update Queued',
           description: 'The update command will be received on the next heartbeat (within 30s).',
           variant: 'success',
         });
+        void loadUpdateLogs(startedAt, commandId);
       } else {
         throw new Error('Failed to queue update');
       }
@@ -129,6 +226,7 @@ export function NodeStatusPanel({ nodeId }: { nodeId: string }) {
         description: err instanceof Error ? err.message : 'Unknown error',
         variant: 'destructive',
       });
+      setUpdateLogPolling(false);
     } finally {
       setBusy(false);
     }
@@ -244,7 +342,7 @@ export function NodeStatusPanel({ nodeId }: { nodeId: string }) {
             <CardTitle>Controls</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <Button
                 variant="outline"
                 disabled={busy}
@@ -259,6 +357,13 @@ export function NodeStatusPanel({ nodeId }: { nodeId: string }) {
                 Update Agent
               </Button>
             </div>
+            {updateLogStartedAt && (
+              <AgentUpdateLogsPanel
+                logs={updateLogs}
+                error={updateLogsError}
+                polling={updateLogPolling}
+              />
+            )}
             <div className="text-sm">
               <div className="font-medium mb-1">Capabilities</div>
               <div className="flex flex-wrap gap-1">
@@ -300,9 +405,54 @@ export function NodeStatusPanel({ nodeId }: { nodeId: string }) {
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="flex justify-between gap-2">
-      <span className="text-muted-foreground">{label}</span>
-      <span className="text-right">{children}</span>
+    <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 py-0.5">
+      <span className="text-muted-foreground text-xs sm:text-sm whitespace-nowrap">{label}</span>
+      <span className="text-right text-xs sm:text-sm font-medium break-all">{children}</span>
     </div>
   );
 }
+
+const AgentUpdateLogsPanel = memo(function AgentUpdateLogsPanel({
+  logs,
+  error,
+  polling,
+}: {
+  logs: AgentUpdateLogEvent[];
+  error: string | null;
+  polling: boolean;
+}) {
+  const lastEvent = logs.at(-1);
+  const status = polling
+    ? 'running'
+    : lastEvent?.eventType === 'agent.update.succeeded'
+      ? 'succeeded'
+      : lastEvent?.eventType === 'agent.update.failed'
+        ? 'failed'
+        : 'queued';
+  const output = logs
+    .map((event) => {
+      const time = event.createdAt ? new Date(event.createdAt).toLocaleTimeString() : '--:--:--';
+      return `[${time}] [${event.level.toUpperCase()}] ${event.eventType}\n${event.message}`;
+    })
+    .join('\n');
+
+  return (
+    <div className="rounded-lg border border-border bg-muted/20">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-3 py-2">
+        <div className="text-sm font-medium">Agent update logs</div>
+        <Badge variant={polling ? 'default' : 'outline'}>{polling ? 'running' : 'complete'}</Badge>
+      </div>
+      <div className="p-3">
+        <OperationLogViewer
+          output={output}
+          status={status}
+          label="Agent update output"
+          error={error}
+          emptyMessage="Waiting for agent output..."
+          downloadableFilename="agent-update.log"
+          maxHeightClassName="max-h-72"
+        />
+      </div>
+    </div>
+  );
+});

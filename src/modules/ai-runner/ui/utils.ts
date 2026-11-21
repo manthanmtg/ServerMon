@@ -1,13 +1,14 @@
 import { formatBytes, relativeTime, slugify } from '@/lib/utils';
 import cronstrue from 'cronstrue';
 import type { DragEvent } from 'react';
-import type { AIRunnerRunDTO, AIRunnerScheduleDTO } from '../types';
+import type { AIRunnerLogEntry, AIRunnerRunDTO, AIRunnerScheduleDTO } from '../types';
 import { ICON_PRESETS } from './constants';
 import type { PromptFormState, ScheduleBuilderMode, ScheduleFormState } from './types';
 
 export { relativeTime as formatRelative, slugify as slugifyValue, formatBytes as formatMemory };
 
-export const PROMPT_TEMPLATE_PLACEHOLDER = '<YOUR_PROMPT>';
+const PROMPT_TEMPLATE_PLACEHOLDER = '<YOUR_PROMPT>';
+const DEFAULT_LOG_ENTRY_LIMIT = 500;
 
 export function applyPromptTemplate(template: string, current: string): string {
   if (!current.trim()) return template;
@@ -56,6 +57,29 @@ export function emptyScheduleForm(
   };
 }
 
+export function mergeLogEntries(
+  current: AIRunnerLogEntry[],
+  incoming: AIRunnerLogEntry[],
+  limit = DEFAULT_LOG_ENTRY_LIMIT
+): AIRunnerLogEntry[] {
+  const merged = new Map<string, AIRunnerLogEntry>();
+  for (const entry of current) {
+    merged.set(entry.id, entry);
+  }
+  for (const entry of incoming) {
+    merged.set(entry.id, entry);
+  }
+
+  return Array.from(merged.values())
+    .map((entry) => ({
+      entry,
+      timestamp: Date.parse(entry.timestamp),
+    }))
+    .sort((left, right) => left.timestamp - right.timestamp)
+    .slice(-limit)
+    .map(({ entry }) => entry);
+}
+
 export function formatDuration(seconds?: number): string {
   if (!seconds || seconds <= 0) return '—';
   const minutes = Math.floor(seconds / 60);
@@ -87,6 +111,122 @@ export function formatCountdown(targetIso?: string, now = Date.now()): string {
   parts.push(`${seconds}s`);
 
   return diffMs > 0 ? `in ${parts.join(' ')}` : `overdue by ${parts.join(' ')}`;
+}
+
+export type ScheduleDashboardState<T extends Pick<AIRunnerScheduleDTO, '_id'>> = {
+  enabledScheduleCount: number;
+  pausedScheduleCount: number;
+  scheduledProfileCount: number;
+  recentlyActiveScheduleCount: number;
+  nextSchedule: T | undefined;
+  sortedSchedules: T[];
+};
+
+export interface RunnerInventoryCounts {
+  enabledProfileCount: number;
+  activeWorkspaceCount: number;
+  blockingWorkspaceCount: number;
+  worktreeWorkspaceCount: number;
+}
+
+interface RunnerInventoryInput {
+  profiles: Array<Pick<{ enabled: boolean }, 'enabled'>>;
+  workspaces: Array<
+    Pick<
+      { enabled: boolean; blocking: boolean; gitWorktreesEnabled?: boolean },
+      'enabled' | 'blocking' | 'gitWorktreesEnabled'
+    >
+  >;
+}
+
+export function deriveRunnerInventoryCounts({
+  profiles,
+  workspaces,
+}: RunnerInventoryInput): RunnerInventoryCounts {
+  let enabledProfileCount = 0;
+  let activeWorkspaceCount = 0;
+  let blockingWorkspaceCount = 0;
+  let worktreeWorkspaceCount = 0;
+
+  for (const profile of profiles) {
+    if (profile.enabled) {
+      enabledProfileCount += 1;
+    }
+  }
+
+  for (const workspace of workspaces) {
+    if (workspace.enabled) {
+      activeWorkspaceCount += 1;
+    }
+    if (workspace.gitWorktreesEnabled) {
+      worktreeWorkspaceCount += 1;
+    } else if (workspace.blocking) {
+      blockingWorkspaceCount += 1;
+    }
+  }
+
+  return {
+    enabledProfileCount,
+    activeWorkspaceCount,
+    blockingWorkspaceCount,
+    worktreeWorkspaceCount,
+  };
+}
+
+type ScheduleDashboardInput = Pick<
+  AIRunnerScheduleDTO,
+  '_id' | 'agentProfileId' | 'enabled' | 'lastRunAt' | 'nextRunTime' | 'updatedAt'
+>;
+
+export function deriveScheduleDashboardState<T extends ScheduleDashboardInput>(
+  schedules: T[],
+  now = Date.now()
+): ScheduleDashboardState<T> {
+  let enabledScheduleCount = 0;
+  let recentlyActiveScheduleCount = 0;
+  let nextSchedule: T | undefined;
+  const scheduledProfileIds = new Set<string>();
+
+  for (const schedule of schedules) {
+    scheduledProfileIds.add(schedule.agentProfileId);
+
+    if (schedule.enabled) {
+      enabledScheduleCount += 1;
+    }
+
+    if (schedule.lastRunAt && now - new Date(schedule.lastRunAt).getTime() < 24 * 60 * 60 * 1000) {
+      recentlyActiveScheduleCount += 1;
+    }
+
+    if (schedule.enabled && schedule.nextRunTime) {
+      const nextTime = new Date(schedule.nextRunTime).getTime();
+      const currentNextTime = nextSchedule?.nextRunTime
+        ? new Date(nextSchedule.nextRunTime).getTime()
+        : Number.POSITIVE_INFINITY;
+      if (nextTime < currentNextTime) {
+        nextSchedule = schedule;
+      }
+    }
+  }
+
+  const sortedSchedules = [...schedules].sort((left, right) => {
+    if (left.enabled !== right.enabled) return left.enabled ? -1 : 1;
+    if (left.nextRunTime && right.nextRunTime) {
+      return new Date(left.nextRunTime).getTime() - new Date(right.nextRunTime).getTime();
+    }
+    if (left.nextRunTime) return -1;
+    if (right.nextRunTime) return 1;
+    return new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime();
+  });
+
+  return {
+    enabledScheduleCount,
+    pausedScheduleCount: schedules.length - enabledScheduleCount,
+    scheduledProfileCount: scheduledProfileIds.size,
+    recentlyActiveScheduleCount,
+    nextSchedule,
+    sortedSchedules,
+  };
 }
 
 const MINUTE_OPTIONS = Array.from({ length: 60 }, (_, index) => index);
@@ -390,7 +530,7 @@ function getAdvancedCronRunsPerDay(expression: string): RunsPerDaySummary | null
   };
 }
 
-export function estimateCronRunsPerDay(expression: string): RunsPerDaySummary | null {
+function estimateCronRunsPerDay(expression: string): RunsPerDaySummary | null {
   const parsed = parseScheduleBuilder(expression);
 
   if (parsed.mode === 'every') {

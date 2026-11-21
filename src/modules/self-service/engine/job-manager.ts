@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { createLogger } from '@/lib/logger';
-import type { InstallJob, InstallRequest, JobStatus } from '../types';
+import type { InstallJob, InstallRequest } from '../types';
 import { getTemplateById } from '../templates';
 import { runProvisionPipeline, rollbackPipeline } from './provisioner';
 
@@ -75,10 +75,6 @@ export function getAllJobs(): InstallJob[] {
     const bTime = b.startedAt || '';
     return bTime.localeCompare(aTime);
   });
-}
-
-export function getJobsByStatus(status: JobStatus): InstallJob[] {
-  return getAllJobs().filter((j) => j.status === status);
 }
 
 export function cancelJob(jobId: string): { success: boolean; error?: string } {

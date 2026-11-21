@@ -13,15 +13,20 @@ export async function GET(request: NextRequest) {
     const query = searchParams.get('q') || undefined;
     const category = searchParams.get('category') as TemplateCategory | null;
     const tagsParam = searchParams.get('tags');
-    const tags = tagsParam ? tagsParam.split(',').map((t) => t.trim()) : undefined;
+    const tags = tagsParam
+      ? tagsParam
+          .split(',')
+          .map((t) => t.trim())
+          .filter(Boolean)
+      : undefined;
 
-    const hasFilters = query || category || tags;
+    const hasFilters = query || category || (tags && tags.length > 0);
 
     const templates = hasFilters
       ? searchTemplates({
           query: query || undefined,
           category: category || undefined,
-          tags,
+          tags: tags && tags.length > 0 ? tags : undefined,
         })
       : getAllTemplates();
 

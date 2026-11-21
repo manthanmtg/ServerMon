@@ -7,7 +7,6 @@ import FrpServerState from '@/models/FrpServerState';
 import { verifyPairingToken } from '@/lib/fleet/pairing';
 import { recordAudit } from '@/lib/fleet/audit';
 import { getOrCreateHubAuthToken } from '@/lib/fleet/hubAuth';
-import type { Model } from 'mongoose';
 
 export const dynamic = 'force-dynamic';
 
@@ -58,7 +57,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     node.tunnelStatus = 'disconnected';
     await node.save();
 
-    await recordAudit(FleetLogEvent as unknown as Model<unknown>, {
+    await recordAudit(FleetLogEvent, {
       action: 'node.pair_verified',
       nodeId: id,
     });

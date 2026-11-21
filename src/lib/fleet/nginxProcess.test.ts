@@ -1,3 +1,4 @@
+/** @vitest-environment node */
 import { describe, it, expect, vi } from 'vitest';
 import { EventEmitter } from 'node:events';
 import { Readable } from 'node:stream';
@@ -70,6 +71,28 @@ describe('nginxTest', () => {
     });
     expect(r.ok).toBe(false);
     expect(r.stderr).toContain('unknown directive');
+  });
+
+  it('times out and returns ok=false when command hangs', async () => {
+    vi.useFakeTimers();
+    const fake = makeFakeProc();
+    const spawnImpl = vi.fn(() => {
+      // Never calls _exit
+      return fake as unknown as ReturnType<typeof import('node:child_process').spawn>;
+    });
+
+    const promise = nginxTest({
+      spawnImpl: spawnImpl as unknown as typeof import('node:child_process').spawn,
+      timeoutMs: 100,
+    });
+
+    await vi.advanceTimersByTimeAsync(100);
+    const r = await promise;
+
+    expect(r.ok).toBe(false);
+    expect(r.stderr).toContain('Command timed out');
+    expect(fake.kill).toHaveBeenCalledWith('SIGKILL');
+    vi.useRealTimers();
   });
 });
 

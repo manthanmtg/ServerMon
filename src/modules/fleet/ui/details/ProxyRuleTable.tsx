@@ -1,10 +1,13 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { motion } from 'framer-motion';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Spinner } from '@/components/ui/spinner';
 import { Badge } from '@/components/ui/badge';
+
+const MotionCard = motion.create('div');
 
 interface ProxyRule {
   name: string;
@@ -18,8 +21,74 @@ interface ProxyRule {
   status?: string;
 }
 
+interface ServerMonBridgeRouteCandidate {
+  id: string;
+  kind: 'servermon' | 'database' | 'app' | 'service';
+  name: string;
+  status: 'running' | 'stopped' | 'failed' | 'unknown';
+  target: {
+    localIp: string;
+    localPort: number;
+    protocol: 'http' | 'https' | 'tcp';
+  };
+  route: {
+    eligible: boolean;
+    proxyRuleName: string;
+  };
+  metadata?: {
+    database?: {
+      engine?: 'mongo' | 'postgres' | 'mysql';
+    };
+  };
+}
+
+interface NodeDetail {
+  proxyRules?: ProxyRule[];
+  servermonBridge?: {
+    routeCandidates?: ServerMonBridgeRouteCandidate[];
+  };
+}
+
+function proxyRuleMatchesCandidate(rule: ProxyRule, candidate: ServerMonBridgeRouteCandidate) {
+  return (
+    rule.name === candidate.route.proxyRuleName ||
+    (rule.type === candidate.target.protocol &&
+      rule.localIp === candidate.target.localIp &&
+      rule.localPort === candidate.target.localPort)
+  );
+}
+
+function buildProxySuggestions(
+  node: NodeDetail,
+  rules: ProxyRule[]
+): ServerMonBridgeRouteCandidate[] {
+  return (node.servermonBridge?.routeCandidates ?? []).filter(
+    (candidate) =>
+      candidate.kind === 'database' &&
+      candidate.status === 'running' &&
+      candidate.route.eligible &&
+      candidate.target.protocol === 'tcp' &&
+      !rules.some((rule) => proxyRuleMatchesCandidate(rule, candidate))
+  );
+}
+
+function allocateRemotePort(rules: ProxyRule[]): number {
+  const used = new Set(
+    rules.map((rule) => rule.remotePort).filter((port): port is number => !!port)
+  );
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    const port = Math.floor(Math.random() * 10000) + 9000;
+    if (!used.has(port)) return port;
+  }
+  for (let port = 9000; port < 19000; port += 1) {
+    if (!used.has(port)) return port;
+  }
+  return 19000;
+}
+
 export function ProxyRuleTable({ nodeId }: { nodeId: string }) {
   const [rules, setRules] = useState<ProxyRule[] | null>(null);
+  const [nodeDetail, setNodeDetail] = useState<NodeDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -31,8 +100,9 @@ export function ProxyRuleTable({ nodeId }: { nodeId: string }) {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
         if (cancelled) return;
-        const node = data.node ?? data;
+        const node = (data.node ?? data) as NodeDetail;
         setRules(node.proxyRules ?? []);
+        setNodeDetail(node);
         setError(null);
       } catch (e) {
         if (!cancelled) setError((e as Error).message);
@@ -82,6 +152,24 @@ export function ProxyRuleTable({ nodeId }: { nodeId: string }) {
     setRules(next);
   };
 
+  const addSuggestion = (candidate: ServerMonBridgeRouteCandidate) => {
+    const list = rules ?? [];
+    const next: ProxyRule[] = [
+      ...list,
+      {
+        name: candidate.route.proxyRuleName,
+        type: 'tcp',
+        localIp: candidate.target.localIp,
+        localPort: candidate.target.localPort,
+        remotePort: allocateRemotePort(list),
+        customDomains: [],
+        enabled: true,
+        status: 'disabled',
+      },
+    ];
+    setRules(next);
+  };
+
   const update = (i: number, patch: Partial<ProxyRule>) => {
     if (!rules) return;
     const next = rules.map((r, idx) => (idx === i ? { ...r, ...patch } : r));
@@ -94,6 +182,11 @@ export function ProxyRuleTable({ nodeId }: { nodeId: string }) {
     setRules(next);
     await persist(next);
   };
+
+  const proxySuggestions = useMemo(
+    () => (nodeDetail && rules ? buildProxySuggestions(nodeDetail, rules) : []),
+    [nodeDetail, rules]
+  );
 
   if (!rules)
     return (
@@ -129,10 +222,55 @@ export function ProxyRuleTable({ nodeId }: { nodeId: string }) {
             No proxy rules yet. Add one to expose a local service.
           </p>
         )}
+        {proxySuggestions.length > 0 && (
+          <section className="space-y-2 rounded border border-border bg-muted/20 p-3">
+            <div>
+              <h4 className="text-sm font-medium">Detected proxy candidates</h4>
+              <p className="text-xs text-muted-foreground">
+                Databases reported by the agent bridge can be added as raw TCP proxy rules.
+              </p>
+            </div>
+            <div className="grid gap-2">
+              {proxySuggestions.map((candidate) => (
+                <MotionCard
+                  whileHover={{ y: -1 }}
+                  whileTap={{ y: 0 }}
+                  key={candidate.id}
+                  transition={{ type: 'spring', stiffness: 300, damping: 22, mass: 0.5 }}
+                  className="flex flex-col gap-2 rounded border border-border bg-card p-2 transition-all duration-200 hover:border-primary/70 hover:bg-card/80 md:flex-row md:items-center md:justify-between"
+                >
+                  <div className="min-w-0 space-y-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-sm font-medium">{candidate.name}</span>
+                      {candidate.metadata?.database?.engine && (
+                        <Badge variant="outline">{candidate.metadata.database.engine}</Badge>
+                      )}
+                    </div>
+                    <div className="font-mono text-xs text-muted-foreground">
+                      {candidate.target.localIp}:{candidate.target.localPort}
+                    </div>
+                  </div>
+                  <Button
+                    variant="outline"
+                    type="button"
+                    onClick={() => addSuggestion(candidate)}
+                    aria-label={`Add proxy for ${candidate.name}`}
+                    className="shrink-0"
+                  >
+                    Add proxy
+                  </Button>
+                </MotionCard>
+              ))}
+            </div>
+          </section>
+        )}
         {rules.map((r, i) => (
-          <div
+          <MotionCard
             key={i}
-            className="rounded border border-border p-2 space-y-2"
+            whileHover={{ y: -1 }}
+            whileTap={{ y: 0 }}
+            transition={{ type: 'spring', stiffness: 280, damping: 24, mass: 0.5 }}
+            className="rounded border border-border p-2 space-y-2 transition-all duration-200 hover:border-primary/50 hover:bg-card/50 hover:shadow-sm"
             data-testid={`proxy-rule-${i}`}
           >
             <div className="grid grid-cols-2 md:grid-cols-6 gap-2">
@@ -146,7 +284,7 @@ export function ProxyRuleTable({ nodeId }: { nodeId: string }) {
                 value={r.type}
                 onChange={(e) => update(i, { type: e.target.value as ProxyRule['type'] })}
                 aria-label={`Rule ${i + 1} type`}
-                className="h-10 rounded-md border border-input bg-background px-2 text-sm"
+                className="h-10 rounded-md border border-input bg-background px-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               >
                 {(['tcp', 'http', 'https', 'udp', 'stcp', 'xtcp'] as const).map((t) => (
                   <option key={t} value={t}>
@@ -205,11 +343,12 @@ export function ProxyRuleTable({ nodeId }: { nodeId: string }) {
                 type="button"
                 onClick={() => remove(i)}
                 aria-label={`Remove rule ${i + 1}`}
+                className="hover:bg-destructive/10 focus-visible:ring-destructive/40 active:translate-y-px"
               >
                 Remove
               </Button>
             </div>
-          </div>
+          </MotionCard>
         ))}
       </CardContent>
     </Card>

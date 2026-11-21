@@ -16,6 +16,11 @@ interface SessionUser {
 
 export async function GET() {
   try {
+    const session = await getSession();
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     await connectDB();
     const sessions = await TerminalSession.find().sort({ order: 1, createdAt: 1 }).lean();
     return NextResponse.json({ sessions });
@@ -27,10 +32,14 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
+    const sessionPayload = await getSession();
+    if (!sessionPayload) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     await connectDB();
     // User check not needed here as history is created in server.ts
     // but we'll keep getSession call to ensure authorized
-    await getSession();
 
     const settings = await TerminalSettings.findById('terminal-settings').lean();
     const maxSessions = settings?.maxSessions ?? 8;
@@ -61,6 +70,11 @@ export async function POST(request: Request) {
 
 export async function PUT(request: Request) {
   try {
+    const sessionPayload = await getSession();
+    if (!sessionPayload) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     await connectDB();
     const { sessionId, label, lastActiveAt } = await request.json();
     if (!sessionId) {
@@ -90,8 +104,12 @@ export async function PUT(request: Request) {
 
 export async function DELETE(request: Request) {
   try {
-    await connectDB();
     const sessionPayload = await getSession();
+    if (!sessionPayload) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    await connectDB();
     const user = sessionPayload?.user as SessionUser | undefined;
     const username = user?.username || 'unknown';
 

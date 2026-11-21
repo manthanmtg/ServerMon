@@ -102,6 +102,27 @@ describe('EnvVarsPage', () => {
     expect(screen.getByText('PUBLIC_URL')).toBeTruthy();
   });
 
+  it('exposes the environment view switcher state to assistive technology', async () => {
+    render(<EnvVarsPage />);
+
+    await screen.findByText('PATH');
+
+    const viewSwitcher = screen.getByRole('group', { name: 'Environment views' });
+    expect(screen.getByRole('button', { name: 'Env command' })).toHaveAttribute(
+      'aria-pressed',
+      'true'
+    );
+    expect(viewSwitcher).toContainElement(screen.getByRole('button', { name: 'Saved' }));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Saved' }));
+
+    expect(screen.getByRole('button', { name: 'Saved' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: 'Env command' })).toHaveAttribute(
+      'aria-pressed',
+      'false'
+    );
+  });
+
   it('masks secret values and reveals them with the eye button', async () => {
     render(<EnvVarsPage />);
 

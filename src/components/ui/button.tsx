@@ -18,10 +18,10 @@ const variantStyles: Record<ButtonVariant, string> = {
 };
 
 const sizeStyles: Record<ButtonSize, string> = {
-  sm: 'h-8 px-3 text-xs gap-1.5 rounded-md',
-  default: 'h-9 px-4 text-sm gap-2 rounded-lg',
+  sm: 'h-8 min-h-11 min-w-11 px-3 text-xs gap-1.5 rounded-md sm:min-h-0 sm:min-w-0',
+  default: 'h-9 min-h-11 min-w-11 px-4 text-sm gap-2 rounded-lg sm:min-h-0 sm:min-w-0',
   lg: 'h-11 px-6 text-sm gap-2 rounded-lg',
-  icon: 'h-9 w-9 rounded-lg',
+  icon: 'h-9 w-9 min-h-11 min-w-11 rounded-lg sm:min-h-0 sm:min-w-0',
 };
 
 const Button = forwardRef<HTMLButtonElement, ButtonProps>(
@@ -35,6 +35,7 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         disabled={disabled || loading}
         className={`inline-flex items-center justify-center font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-50 cursor-pointer ${variantStyles[variant]} ${sizeStyles[size]} ${className || ''}`}
         {...props}
+        aria-busy={loading || undefined}
       >
         {loading && (
           <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />

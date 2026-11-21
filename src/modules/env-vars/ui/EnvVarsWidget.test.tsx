@@ -28,7 +28,7 @@ describe('EnvVarsWidget', () => {
     expect(screen.getByText('/home/app/.profile')).toBeTruthy();
   });
 
-  it('stops loading when the env vars request times out', async () => {
+  it('explains that the summary is unavailable when the env vars request times out', async () => {
     let requestSignal: AbortSignal | undefined;
     const realSetTimeout = globalThis.setTimeout.bind(globalThis);
     const timeoutSpy = vi.spyOn(window, 'setTimeout').mockImplementation((handler, timeout) => {
@@ -54,7 +54,11 @@ describe('EnvVarsWidget', () => {
 
       await waitFor(() => expect(requestSignal).toBeDefined());
       await waitFor(() => expect(requestSignal?.aborted).toBe(true));
-      await waitFor(() => expect(screen.getByText('unknown')).toBeTruthy());
+      expect(await screen.findByRole('alert')).toHaveTextContent(
+        'Environment variable summary is unavailable.'
+      );
+      expect(screen.getByText('Refresh the page to try again.')).toBeTruthy();
+      expect(screen.queryByText('unknown')).toBeNull();
     } finally {
       timeoutSpy.mockRestore();
     }

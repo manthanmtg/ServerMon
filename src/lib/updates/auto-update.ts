@@ -5,13 +5,18 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { z } from 'zod';
 import { createLogger } from '@/lib/logger';
 import { systemUpdateService } from '@/lib/updates/system-service';
+import type { LocalAutoUpdateTarget } from '@/types/updates';
 
 const execFileAsync = promisify(execFile);
 const log = createLogger('auto-update');
 const DEFAULT_CONFIG_PATH = '/etc/servermon/auto-update.json';
+const DEFAULT_AGENT_CONFIG_PATH = '/etc/servermon/agent-auto-update.json';
+const DEFAULT_ENV_PATH = '/etc/servermon/env';
 const DEFAULT_TIME = '03:00';
 const DEFAULT_GRACE_MINUTES = 120;
 const DEFAULT_MAX_RETRIES = 1;
+const DEFAULT_SOURCE_REMOTE = 'origin';
+const DEFAULT_SOURCE_REF = 'main';
 
 const TimeZ = z
   .string()
@@ -67,6 +72,17 @@ export type RepoUpdateCheck =
   | { status: 'unchanged'; localRef: string; upstreamRef: string }
   | { status: 'failed'; message: string };
 
+interface RepoUpdateCheckOptions {
+  remote?: string;
+  branch?: string;
+}
+
+interface ServerMonInstallMetadata {
+  installMode: 'release' | 'source';
+  repoDir?: string;
+  sourceRef: string;
+}
+
 export type AutoUpdateRunResult =
   | { launched: true; runId?: string; scheduledDate: string; kind: 'scheduled' | 'catch-up' }
   | { launched: false; reason: string; scheduledDate?: string; runId?: string };
@@ -77,21 +93,55 @@ interface LocalParts {
   minutes: number;
 }
 
-export function getAutoUpdateConfigPath(): string {
+function getAutoUpdateConfigPath(target: LocalAutoUpdateTarget = 'servermon'): string {
+  if (target === 'agent') {
+    return process.env.SERVERMON_AGENT_AUTO_UPDATE_CONFIG || DEFAULT_AGENT_CONFIG_PATH;
+  }
   return process.env.SERVERMON_AUTO_UPDATE_CONFIG || DEFAULT_CONFIG_PATH;
 }
 
-export function getSystemTimezone(): string {
+function getSystemTimezone(): string {
   return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
 }
 
-export function getDefaultAutoUpdateSettings(): AutoUpdateSettings {
+function getDefaultAutoUpdateSettings(): AutoUpdateSettings {
   return AutoUpdateSettingsZ.parse({});
 }
 
-export async function loadAutoUpdateSettings(): Promise<AutoUpdateSettings> {
+function parseEnvFile(raw: string): Record<string, string> {
+  const values: Record<string, string> = {};
+  for (const line of raw.split('\n')) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    const index = trimmed.indexOf('=');
+    if (index <= 0) continue;
+    values[trimmed.slice(0, index)] = trimmed.slice(index + 1).trim();
+  }
+  return values;
+}
+
+async function loadServerMonInstallMetadata(): Promise<ServerMonInstallMetadata> {
+  let envFile: Record<string, string> = {};
   try {
-    const raw = await readFile(getAutoUpdateConfigPath(), 'utf8');
+    envFile = parseEnvFile(await readFile(DEFAULT_ENV_PATH, 'utf8'));
+  } catch {
+    envFile = {};
+  }
+
+  const installModeRaw = process.env.SERVERMON_INSTALL_MODE || envFile.SERVERMON_INSTALL_MODE;
+  const installMode = installModeRaw === 'release' ? 'release' : 'source';
+  const repoDir = process.env.SERVERMON_REPO_DIR || envFile.SERVERMON_REPO_DIR || undefined;
+  const sourceRef =
+    process.env.SERVERMON_SOURCE_REF || envFile.SERVERMON_SOURCE_REF || DEFAULT_SOURCE_REF;
+
+  return { installMode, repoDir, sourceRef };
+}
+
+export async function loadAutoUpdateSettings(
+  target: LocalAutoUpdateTarget = 'servermon'
+): Promise<AutoUpdateSettings> {
+  try {
+    const raw = await readFile(getAutoUpdateConfigPath(target), 'utf8');
     const parsed = JSON.parse(raw) as unknown;
     return AutoUpdateSettingsZ.parse(parsed);
   } catch (error) {
@@ -103,11 +153,12 @@ export async function loadAutoUpdateSettings(): Promise<AutoUpdateSettings> {
 }
 
 export async function saveAutoUpdateSettings(
-  patch: Partial<AutoUpdateSettings>
+  patch: Partial<AutoUpdateSettings>,
+  target: LocalAutoUpdateTarget = 'servermon'
 ): Promise<AutoUpdateSettings> {
-  const current = await loadAutoUpdateSettings();
+  const current = await loadAutoUpdateSettings(target);
   const next = AutoUpdateSettingsZ.parse({ ...current, ...patch });
-  const path = getAutoUpdateConfigPath();
+  const path = getAutoUpdateConfigPath(target);
   await mkdir(dirname(path), { recursive: true, mode: 0o755 });
   await writeFile(path, JSON.stringify(next, null, 2) + '\n', { mode: 0o644 });
   return next;
@@ -169,13 +220,21 @@ export function shouldLaunchAutoUpdate(
   return { shouldLaunch: true, kind: 'catch-up', scheduledDate: local.date };
 }
 
-export async function checkRepoForUpdates(repoDir: string): Promise<RepoUpdateCheck> {
+export async function checkRepoForUpdates(
+  repoDir: string,
+  options: RepoUpdateCheckOptions = {}
+): Promise<RepoUpdateCheck> {
   try {
-    await execFileAsync('git', ['-C', repoDir, 'fetch', '--quiet'], { timeout: 30000 });
+    const remote = options.remote ?? DEFAULT_SOURCE_REMOTE;
+    const branch = options.branch?.trim();
+    const fetchArgs = ['-C', repoDir, 'fetch', '--quiet'];
+    if (branch) fetchArgs.push(remote, branch);
+    await execFileAsync('git', fetchArgs, { timeout: 30000 });
     const local = await execFileAsync('git', ['-C', repoDir, 'rev-parse', 'HEAD'], {
       timeout: 10000,
     });
-    const upstream = await execFileAsync('git', ['-C', repoDir, 'rev-parse', '@{u}'], {
+    const upstreamRevision = branch ? 'FETCH_HEAD' : '@{u}';
+    const upstream = await execFileAsync('git', ['-C', repoDir, 'rev-parse', upstreamRevision], {
       timeout: 10000,
     });
     const localRef = String(local.stdout).trim();
@@ -196,18 +255,26 @@ export async function checkRepoForUpdates(repoDir: string): Promise<RepoUpdateCh
   }
 }
 
-export async function runLocalAutoUpdateOnce(now = new Date()): Promise<AutoUpdateRunResult> {
-  let settings = await loadAutoUpdateSettings();
+export async function runLocalAutoUpdateOnce(
+  targetOrNow: LocalAutoUpdateTarget | Date = 'servermon',
+  maybeNow = new Date()
+): Promise<AutoUpdateRunResult> {
+  const target = targetOrNow instanceof Date ? 'servermon' : targetOrNow;
+  const now = targetOrNow instanceof Date ? targetOrNow : maybeNow;
+  let settings = await loadAutoUpdateSettings(target);
   let activeRunStillRunning = false;
 
   if (settings.activeRunId) {
     const active = await systemUpdateService.getUpdateRunDetails(settings.activeRunId);
     activeRunStillRunning = active?.status === 'running';
     if (!activeRunStillRunning) {
-      settings = await saveAutoUpdateSettings({
-        activeRunId: undefined,
-        lastRunStatus: active?.status,
-      });
+      settings = await saveAutoUpdateSettings(
+        {
+          activeRunId: undefined,
+          lastRunStatus: active?.status,
+        },
+        target
+      );
     }
   }
 
@@ -221,19 +288,44 @@ export async function runLocalAutoUpdateOnce(now = new Date()): Promise<AutoUpda
   }
 
   if (decision.kind === 'catch-up') {
-    settings = await saveAutoUpdateSettings({
-      lastCatchUpDateAttempted: decision.scheduledDate,
-    });
+    settings = await saveAutoUpdateSettings(
+      {
+        lastCatchUpDateAttempted: decision.scheduledDate,
+      },
+      target
+    );
   }
 
-  const servermonRepo = process.env.SERVERMON_REPO_DIR || '/opt/servermon/repo';
-  const servermonCheck = await checkRepoForUpdates(servermonRepo);
+  if (target === 'agent') {
+    return runAgentAutoUpdate(decision, now, target);
+  }
+
+  return runServerMonAutoUpdate(decision, now, target);
+}
+
+async function runServerMonAutoUpdate(
+  decision: Extract<AutoUpdateDecision, { shouldLaunch: true }>,
+  now: Date,
+  target: LocalAutoUpdateTarget
+): Promise<AutoUpdateRunResult> {
+  const metadata = await loadServerMonInstallMetadata();
+  const servermonRepo = metadata.repoDir || '/opt/servermon/repo';
+  const servermonCheck =
+    metadata.installMode === 'release'
+      ? ({ status: 'changed', localRef: 'release', upstreamRef: 'latest' } as const)
+      : await checkRepoForUpdates(servermonRepo, {
+          remote: DEFAULT_SOURCE_REMOTE,
+          branch: metadata.sourceRef,
+        });
   if (servermonCheck.status === 'failed') {
-    await saveAutoUpdateSettings({
-      lastRunStatus: 'failed',
-      lastRunAt: now.toISOString(),
-      lastRunMessage: `ServerMon check failed: ${servermonCheck.message}`,
-    });
+    await saveAutoUpdateSettings(
+      {
+        lastRunStatus: 'failed',
+        lastRunAt: now.toISOString(),
+        lastRunMessage: `ServerMon check failed: ${servermonCheck.message}`,
+      },
+      target
+    );
     return {
       launched: false,
       reason: 'servermon-check-failed',
@@ -241,38 +333,22 @@ export async function runLocalAutoUpdateOnce(now = new Date()): Promise<AutoUpda
     };
   }
 
-  const agentStatus = await systemUpdateService.getServermonAgentStatus();
-  let agentNeedsUpdate = false;
-  let agentRepoDir: string | undefined;
-  if (agentStatus.active && agentStatus.updateSupported && agentStatus.repoDir) {
-    const agentCheck = await checkRepoForUpdates(agentStatus.repoDir);
-    if (agentCheck.status === 'failed') {
-      await saveAutoUpdateSettings({
-        lastRunStatus: 'failed',
-        lastRunAt: now.toISOString(),
-        lastRunMessage: `Agent check failed: ${agentCheck.message}`,
-      });
-      return {
-        launched: false,
-        reason: 'agent-check-failed',
-        scheduledDate: decision.scheduledDate,
-      };
-    }
-    agentNeedsUpdate = agentCheck.status === 'changed';
-    agentRepoDir = agentStatus.repoDir;
-  }
-
   const servermonNeedsUpdate = servermonCheck.status === 'changed';
-  if (!servermonNeedsUpdate && !agentNeedsUpdate) {
+  if (!servermonNeedsUpdate) {
     const run = await systemUpdateService.recordSkippedUpdateRun(
-      'Local auto-update skipped: no upstream changes detected'
+      'ServerMon app auto-update skipped: no upstream changes detected',
+      'servermon',
+      'scheduled'
     );
-    await saveAutoUpdateSettings({
-      lastSkippedDate: decision.scheduledDate,
-      lastRunStatus: 'skipped',
-      lastRunAt: now.toISOString(),
-      lastRunMessage: 'No upstream changes detected',
-    });
+    await saveAutoUpdateSettings(
+      {
+        lastSkippedDate: decision.scheduledDate,
+        lastRunStatus: 'skipped',
+        lastRunAt: now.toISOString(),
+        lastRunMessage: 'No upstream changes detected',
+      },
+      target
+    );
     return {
       launched: false,
       reason: 'no-updates',
@@ -281,18 +357,17 @@ export async function runLocalAutoUpdateOnce(now = new Date()): Promise<AutoUpda
     };
   }
 
-  const launched = await systemUpdateService.triggerLocalAutoUpdateRun({
-    servermonNeedsUpdate,
-    agentNeedsUpdate,
-    agentRepoDir,
-  });
+  const launched = await systemUpdateService.triggerUpdate({ trigger: 'scheduled' });
 
   if (!launched.success) {
-    await saveAutoUpdateSettings({
-      lastRunStatus: 'failed',
-      lastRunAt: now.toISOString(),
-      lastRunMessage: launched.message,
-    });
+    await saveAutoUpdateSettings(
+      {
+        lastRunStatus: 'failed',
+        lastRunAt: now.toISOString(),
+        lastRunMessage: launched.message,
+      },
+      target
+    );
     return {
       launched: false,
       reason: 'launch-failed',
@@ -300,13 +375,123 @@ export async function runLocalAutoUpdateOnce(now = new Date()): Promise<AutoUpda
     };
   }
 
-  await saveAutoUpdateSettings({
-    activeRunId: launched.runId,
-    lastScheduledDateLaunched: decision.scheduledDate,
-    lastRunStatus: 'running',
-    lastRunAt: now.toISOString(),
-    lastRunMessage: 'Local auto-update launched',
-  });
+  await saveAutoUpdateSettings(
+    {
+      activeRunId: launched.runId,
+      lastScheduledDateLaunched: decision.scheduledDate,
+      lastRunStatus: 'running',
+      lastRunAt: now.toISOString(),
+      lastRunMessage: 'ServerMon app auto-update launched',
+    },
+    target
+  );
+
+  return {
+    launched: true,
+    runId: launched.runId,
+    scheduledDate: decision.scheduledDate,
+    kind: decision.kind,
+  };
+}
+
+async function runAgentAutoUpdate(
+  decision: Extract<AutoUpdateDecision, { shouldLaunch: true }>,
+  now: Date,
+  target: LocalAutoUpdateTarget
+): Promise<AutoUpdateRunResult> {
+  const agentStatus = await systemUpdateService.getServermonAgentStatus();
+  if (!agentStatus.active || !agentStatus.updateSupported || !agentStatus.repoDir) {
+    const run = await systemUpdateService.recordSkippedUpdateRun(
+      agentStatus.message || 'Agent auto-update skipped: agent update is not available',
+      'agent',
+      'scheduled'
+    );
+    await saveAutoUpdateSettings(
+      {
+        lastSkippedDate: decision.scheduledDate,
+        lastRunStatus: 'skipped',
+        lastRunAt: now.toISOString(),
+        lastRunMessage: agentStatus.message || 'Agent update is not available',
+      },
+      target
+    );
+    return {
+      launched: false,
+      reason: 'agent-unavailable',
+      scheduledDate: decision.scheduledDate,
+      runId: run.runId,
+    };
+  }
+
+  if (agentStatus.installMode !== 'release') {
+    const agentCheck = await checkRepoForUpdates(agentStatus.repoDir);
+    if (agentCheck.status === 'failed') {
+      await saveAutoUpdateSettings(
+        {
+          lastRunStatus: 'failed',
+          lastRunAt: now.toISOString(),
+          lastRunMessage: `Agent check failed: ${agentCheck.message}`,
+        },
+        target
+      );
+      return {
+        launched: false,
+        reason: 'agent-check-failed',
+        scheduledDate: decision.scheduledDate,
+      };
+    }
+
+    if (agentCheck.status !== 'changed') {
+      const run = await systemUpdateService.recordSkippedUpdateRun(
+        'Agent auto-update skipped: no upstream changes detected',
+        'agent',
+        'scheduled'
+      );
+      await saveAutoUpdateSettings(
+        {
+          lastSkippedDate: decision.scheduledDate,
+          lastRunStatus: 'skipped',
+          lastRunAt: now.toISOString(),
+          lastRunMessage: 'No upstream changes detected',
+        },
+        target
+      );
+      return {
+        launched: false,
+        reason: 'no-updates',
+        scheduledDate: decision.scheduledDate,
+        runId: run.runId,
+      };
+    }
+  }
+
+  const launched = await systemUpdateService.triggerAgentUpdate({ trigger: 'scheduled' });
+  if (!launched.success) {
+    await saveAutoUpdateSettings(
+      {
+        lastRunStatus: 'failed',
+        lastRunAt: now.toISOString(),
+        lastRunMessage: launched.message,
+      },
+      target
+    );
+    return {
+      launched: false,
+      reason: 'launch-failed',
+      scheduledDate: decision.scheduledDate,
+    };
+  }
+
+  await saveAutoUpdateSettings(
+    {
+      activeRunId: launched.runId,
+      lastScheduledDateLaunched: decision.scheduledDate,
+      lastRunStatus: 'running',
+      lastRunAt: now.toISOString(),
+      lastRunMessage: 'Agent auto-update launched',
+    },
+    target
+  );
 
   return {
     launched: true,

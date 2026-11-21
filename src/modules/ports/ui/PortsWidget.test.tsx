@@ -25,8 +25,9 @@ describe('PortsWidget', () => {
 
   it('renders loading state initially', () => {
     vi.mocked(global.fetch).mockReturnValue(new Promise(() => {}));
-    const { container } = render(<PortsWidget />);
-    expect(container.querySelector('.animate-spin')).toBeTruthy();
+    render(<PortsWidget />);
+
+    expect(screen.getByRole('status', { name: 'Loading ports summary' })).toBeTruthy();
   });
 
   it('renders port counts correctly', async () => {
@@ -72,7 +73,7 @@ describe('PortsWidget', () => {
     });
 
     await waitFor(() => {
-      expect(screen.queryByRole('img', { hidden: true })).toBeNull();
+      expect(screen.getByText(/Unable to refresh port data/i)).toBeTruthy();
     });
   });
 });

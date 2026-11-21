@@ -74,6 +74,18 @@ describe('FileBrowserSettingsModal', () => {
     expect(screen.getByText('File Browser Settings')).toBeDefined();
   });
 
+  it('presents settings in a keyboard-accessible dialog', () => {
+    render(
+      <FileBrowserSettingsModal settings={defaultSettings} onClose={onClose} onSaved={onSaved} />
+    );
+
+    expect(screen.getByRole('dialog', { name: 'File Browser Settings' })).toBeDefined();
+    expect(screen.getByRole('button', { name: 'Close file browser settings' })).toHaveFocus();
+
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
   it('renders modal description', () => {
     render(
       <FileBrowserSettingsModal settings={defaultSettings} onClose={onClose} onSaved={onSaved} />
@@ -191,12 +203,11 @@ describe('FileBrowserSettingsModal', () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
-  it('calls onClose when backdrop is clicked', () => {
+  it('calls onClose when the dialog backdrop is clicked', () => {
     render(
       <FileBrowserSettingsModal settings={defaultSettings} onClose={onClose} onSaved={onSaved} />
     );
-    const backdrop = document.querySelector('.fixed.inset-0') as HTMLElement;
-    fireEvent.click(backdrop);
+    fireEvent.mouseDown(screen.getByTestId('dialog-backdrop'));
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 

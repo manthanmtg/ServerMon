@@ -1,6 +1,15 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
+import {
+  useCallback,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type KeyboardEvent,
+  type MouseEvent,
+} from 'react';
+import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import { ArrowUpDown, CornerDownLeft, Search, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -9,6 +18,7 @@ import {
   rankCommandSearchItems,
   type CommandSearchItem,
 } from './commandSearchUtils';
+import { useOverlayAccessibility } from '@/components/ui/overlay/useOverlayAccessibility';
 
 interface CommandSearchProps {
   isOpen: boolean;
@@ -16,9 +26,17 @@ interface CommandSearchProps {
   items?: CommandSearchItem[];
 }
 
+const subscribeToClient = () => () => undefined;
+
 export default function CommandSearch({ isOpen, onClose, items }: CommandSearchProps) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const mounted = useSyncExternalStore(
+    subscribeToClient,
+    () => true,
+    () => false
+  );
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
   const searchItems = useMemo(() => items ?? buildGlobalSearchItems(), [items]);
@@ -27,59 +45,83 @@ export default function CommandSearch({ isOpen, onClose, items }: CommandSearchP
     [query, searchItems]
   );
 
-  useEffect(() => {
-    if (!isOpen) return;
-    inputRef.current?.focus();
-  }, [isOpen]);
+  useOverlayAccessibility({
+    open: isOpen && mounted,
+    containerRef: dialogRef,
+    initialFocusRef: inputRef,
+    onEscape: onClose,
+  });
 
-  const handleQueryChange = (value: string) => {
+  const handleQueryChange = useCallback((value: string) => {
     setQuery(value);
     setSelectedIndex(0);
-  };
-
-  if (!isOpen) return null;
+  }, []);
 
   const selectedItem = results[selectedIndex];
 
-  const selectItem = (item: CommandSearchItem) => {
-    router.push(item.href);
-    onClose();
-  };
-
-  const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
-    if (event.key === 'Escape') {
-      event.preventDefault();
+  const selectItem = useCallback(
+    (item: CommandSearchItem) => {
+      router.push(item.href);
       onClose();
-      return;
-    }
+    },
+    [onClose, router]
+  );
 
-    if (event.key === 'ArrowDown') {
-      event.preventDefault();
-      setSelectedIndex((current) => Math.min(current + 1, Math.max(results.length - 1, 0)));
-      return;
+  const handleResultMouseEnter = useCallback((event: MouseEvent<HTMLButtonElement>) => {
+    const index = Number(event.currentTarget.dataset.index);
+    if (!Number.isNaN(index)) {
+      setSelectedIndex(index);
     }
+  }, []);
 
-    if (event.key === 'ArrowUp') {
-      event.preventDefault();
-      setSelectedIndex((current) => Math.max(current - 1, 0));
-      return;
-    }
+  const handleResultClick = useCallback(
+    (event: MouseEvent<HTMLButtonElement>) => {
+      const index = Number(event.currentTarget.dataset.index);
+      const item = results[index];
+      if (!Number.isNaN(index) && item) {
+        selectItem(item);
+      }
+    },
+    [results, selectItem]
+  );
 
-    if (event.key === 'Enter' && selectedItem) {
-      event.preventDefault();
-      selectItem(selectedItem);
-    }
-  };
+  const handleKeyDown = useCallback(
+    (event: KeyboardEvent<HTMLInputElement>) => {
+      if (event.key === 'ArrowDown') {
+        event.preventDefault();
+        setSelectedIndex((current) => Math.min(current + 1, Math.max(results.length - 1, 0)));
+        return;
+      }
 
-  return (
-    <div className="fixed inset-0 z-[80] flex items-start justify-center bg-background/70 px-3 pt-[14vh] backdrop-blur-sm sm:px-6">
+      if (event.key === 'ArrowUp') {
+        event.preventDefault();
+        setSelectedIndex((current) => Math.max(current - 1, 0));
+        return;
+      }
+
+      if (event.key === 'Enter' && selectedItem) {
+        event.preventDefault();
+        selectItem(selectedItem);
+      }
+    },
+    [results, selectedItem, selectItem]
+  );
+
+  if (!mounted || !isOpen) return null;
+
+  return createPortal(
+    <div
+      data-overlay-root
+      className="fixed inset-0 z-[80] flex items-start justify-center bg-background/70 px-3 pt-[14vh] backdrop-blur-sm sm:px-6"
+    >
       <button
         type="button"
         aria-label="Close search"
-        className="absolute inset-0 cursor-default"
+        className="absolute inset-0 cursor-default focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
         onClick={onClose}
       />
       <div
+        ref={dialogRef}
         className="relative w-full max-w-2xl overflow-hidden rounded-lg border border-border bg-popover text-popover-foreground shadow-2xl"
         role="dialog"
         aria-modal="true"
@@ -93,6 +135,7 @@ export default function CommandSearch({ isOpen, onClose, items }: CommandSearchP
             value={query}
             onChange={(event) => handleQueryChange(event.target.value)}
             onKeyDown={handleKeyDown}
+            aria-label="Search modules, pages, and actions"
             role="combobox"
             aria-expanded="true"
             aria-controls="command-search-results"
@@ -104,7 +147,7 @@ export default function CommandSearch({ isOpen, onClose, items }: CommandSearchP
             type="button"
             onClick={onClose}
             aria-label="Close search"
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            className="flex h-11 w-11 min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground sm:h-9 sm:w-9 sm:min-h-0 sm:min-w-0"
           >
             <X className="h-4 w-4" />
           </button>
@@ -126,8 +169,9 @@ export default function CommandSearch({ isOpen, onClose, items }: CommandSearchP
                   type="button"
                   role="option"
                   aria-selected={selected}
-                  onMouseEnter={() => setSelectedIndex(index)}
-                  onClick={() => selectItem(item)}
+                  data-index={index}
+                  onMouseEnter={handleResultMouseEnter}
+                  onClick={handleResultClick}
                   className={cn(
                     'flex min-h-[56px] w-full items-center gap-3 rounded-md px-3 text-left transition-colors',
                     selected ? 'bg-accent text-accent-foreground' : 'text-popover-foreground'
@@ -164,6 +208,7 @@ export default function CommandSearch({ isOpen, onClose, items }: CommandSearchP
           </span>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

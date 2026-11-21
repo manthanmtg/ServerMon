@@ -10,6 +10,8 @@ import { NodeGrid } from '@/modules/fleet/ui/dashboard/NodeGrid';
 import { Plus } from 'lucide-react';
 import { Spinner } from '@/components/ui/spinner';
 
+import { resilientFetch } from '@/lib/fetch-utils';
+
 export default function FleetPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
@@ -22,7 +24,7 @@ export default function FleetPage() {
   useEffect(() => {
     async function checkSetup() {
       try {
-        const res = await fetch('/api/fleet/server');
+        const res = await resilientFetch('/api/fleet/server', { timeout: 5000 });
         if (res.ok) {
           const data = await res.json();
           // If not enabled or no subdomain host, go to setup
@@ -56,12 +58,12 @@ export default function FleetPage() {
   return (
     <ProShell title="Fleet" subtitle="Manage remote agents and public routes">
       <div className="space-y-4">
-        <div className="flex items-center justify-between gap-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex-1 min-w-0">
             <FleetStatsBanner />
           </div>
           <Link href="/fleet/onboarding">
-            <Button>
+            <Button className="w-full sm:w-auto">
               <Plus className="h-4 w-4 mr-1" /> Onboard agent
             </Button>
           </Link>

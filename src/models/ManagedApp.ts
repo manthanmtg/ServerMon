@@ -1,0 +1,212 @@
+import mongoose, { Document, Model, Schema } from 'mongoose';
+import type {
+  AppAutoUpdateStatus,
+  AppCommands,
+  AppExecutionEngine,
+  AppOperation,
+  AppRelease,
+  AppSourceType,
+  AppTemplateId,
+  ManagedAppStatus,
+} from '@/modules/apps/types';
+
+export interface IManagedApp extends Document {
+  _id: mongoose.Types.ObjectId;
+  name: string;
+  slug: string;
+  templateId: AppTemplateId;
+  sourceType: AppSourceType;
+  sourcePath?: string;
+  gitUrl?: string;
+  gitBranch?: string;
+  gitCurrentSha?: string;
+  gitDeployedSha?: string;
+  gitLastCheckedAt?: Date;
+  gitLastUpdatedAt?: Date;
+  autoUpdate: {
+    scheduleGeneration?: number;
+    consecutiveFailures?: number;
+    lastAttemptAt?: Date;
+    lastCheckCompletedAt?: Date;
+    lastSuccessfulDeployAt?: Date;
+    lastOperationId?: string;
+    lastProjectedOperationId?: string;
+    lastScheduledFor?: Date;
+    retryAt?: Date;
+    observedRemoteSha?: string;
+    pauseReason?: 'rollback';
+    enabled: boolean;
+    intervalMinutes: number;
+    nextRunAt?: Date;
+    lastRunAt?: Date;
+    lastStatus?: AppAutoUpdateStatus;
+    lastError?: string;
+  };
+  domain: string;
+  port: number;
+  commands: AppCommands;
+  envVars: Map<string, string>;
+  healthCheckPath: string;
+  tlsEnabled: boolean;
+  status: ManagedAppStatus;
+  configVersion: number;
+  executionEngine: AppExecutionEngine;
+  currentReleaseId?: string;
+  activeReleaseId?: string;
+  deletingAt?: Date;
+  deletedAt?: Date;
+  migrationVersion: number;
+  operations: Array<
+    Omit<AppOperation, 'startedAt' | 'deadlineAt' | 'completedAt'> & {
+      startedAt: Date;
+      deadlineAt?: Date;
+      completedAt?: Date;
+    }
+  >;
+  releases: Array<
+    Omit<AppRelease, 'createdAt' | 'activatedAt'> & {
+      createdAt: Date;
+      activatedAt?: Date;
+    }
+  >;
+  lastDeployedAt?: Date;
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
+const ReleaseSchema = new Schema(
+  {
+    commitSha: { type: String },
+    id: { type: String, required: true },
+    status: {
+      type: String,
+      enum: ['building', 'active', 'failed', 'superseded'],
+      required: true,
+    },
+    createdAt: { type: Date, required: true },
+    activatedAt: { type: Date },
+    error: { type: String },
+    logs: { type: [String], default: [] },
+  },
+  { _id: false }
+);
+
+const AutoUpdateSchema = new Schema(
+  {
+    scheduleGeneration: { type: Number, default: 0 },
+    consecutiveFailures: { type: Number, default: 0 },
+    lastAttemptAt: Date,
+    lastCheckCompletedAt: Date,
+    lastSuccessfulDeployAt: Date,
+    lastOperationId: String,
+    lastProjectedOperationId: String,
+    lastScheduledFor: Date,
+    retryAt: Date,
+    observedRemoteSha: String,
+    pauseReason: { type: String, enum: ['rollback'] },
+    enabled: { type: Boolean, required: true, default: false },
+    intervalMinutes: { type: Number, required: true, min: 5, max: 10080, default: 60 },
+    nextRunAt: { type: Date },
+    lastRunAt: { type: Date },
+    lastStatus: {
+      type: String,
+      enum: ['idle', 'updated', 'unchanged', 'failed'],
+    },
+    lastError: { type: String },
+  },
+  { _id: false }
+);
+
+const OperationSchema = new Schema(
+  {
+    queueOperationId: String,
+    trigger: { type: String, enum: ['auto', 'manual'] },
+    id: { type: String, required: true },
+    type: {
+      type: String,
+      enum: ['deploy', 'update', 'rollback', 'delete'],
+      required: true,
+    },
+    status: {
+      type: String,
+      enum: ['running', 'succeeded', 'failed', 'unchanged'],
+      required: true,
+    },
+    title: { type: String, required: true },
+    step: { type: String, required: true },
+    startedAt: { type: Date, required: true },
+    deadlineAt: { type: Date },
+    completedAt: { type: Date },
+    releaseId: { type: String },
+    commitSha: { type: String },
+    error: { type: String },
+    logs: { type: [String], default: [] },
+  },
+  { _id: false }
+);
+
+const ManagedAppSchema = new Schema<IManagedApp>(
+  {
+    name: { type: String, required: true, trim: true },
+    slug: { type: String, required: true, unique: true, index: true, trim: true },
+    templateId: { type: String, enum: ['nextjs'], required: true, default: 'nextjs' },
+    sourceType: { type: String, enum: ['local', 'git'], required: true, default: 'local' },
+    sourcePath: { type: String, trim: true },
+    gitUrl: { type: String, trim: true },
+    gitBranch: { type: String, trim: true },
+    gitCurrentSha: { type: String, trim: true },
+    gitDeployedSha: { type: String, trim: true },
+    gitLastCheckedAt: { type: Date },
+    gitLastUpdatedAt: { type: Date },
+    autoUpdate: {
+      type: AutoUpdateSchema,
+      default: () => ({ enabled: false, intervalMinutes: 60 }),
+    },
+    domain: { type: String, required: true, unique: true, index: true, trim: true },
+    port: { type: Number, required: true, min: 1, max: 65535 },
+    commands: {
+      install: { type: String, required: true },
+      build: { type: String, required: true },
+      start: { type: String, required: true },
+    },
+    envVars: { type: Map, of: String, default: {} },
+    healthCheckPath: { type: String, required: true, default: '/' },
+    tlsEnabled: { type: Boolean, required: true, default: false },
+    status: {
+      type: String,
+      enum: ['draft', 'deploying', 'running', 'failed', 'stopped', 'unknown'],
+      default: 'draft',
+      index: true,
+    },
+    configVersion: { type: Number, required: true, default: 1, min: 1 },
+    executionEngine: {
+      type: String,
+      enum: ['legacy', 'v2'],
+      required: true,
+      default: 'legacy',
+      index: true,
+    },
+    currentReleaseId: { type: String },
+    activeReleaseId: { type: String },
+    deletingAt: { type: Date },
+    deletedAt: { type: Date },
+    migrationVersion: { type: Number, required: true, default: 0, min: 0 },
+    releases: { type: [ReleaseSchema], default: [] },
+    operations: { type: [OperationSchema], default: [] },
+    lastDeployedAt: { type: Date },
+  },
+  { timestamps: true }
+);
+
+ManagedAppSchema.index({
+  sourceType: 1,
+  'autoUpdate.enabled': 1,
+  'autoUpdate.nextRunAt': 1,
+  _id: 1,
+});
+
+const ManagedApp: Model<IManagedApp> =
+  (mongoose.models.ManagedApp as Model<IManagedApp>) ||
+  mongoose.model<IManagedApp>('ManagedApp', ManagedAppSchema);
+
+export default ManagedApp;

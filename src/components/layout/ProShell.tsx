@@ -2,16 +2,17 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import dynamic from 'next/dynamic';
 import { usePathname, useRouter } from 'next/navigation';
 import { useTheme } from '@/lib/ThemeContext';
 import { useBrand } from '@/lib/BrandContext';
 import ThemeSelector from './ThemeSelector';
 import { Activity, LogOut, Menu, X, Power, LoaderCircle, Search } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { resilientFetch } from '@/lib/fetch-utils';
 import { useToast } from '@/components/ui/toast';
 import ConfirmationModal from '@/components/ui/ConfirmationModal';
 import QuickAccessBar from '@/components/layout/QuickAccessBar';
-import CommandSearch from '@/components/layout/CommandSearch';
 import { footerNavItems, navGroups } from '@/components/layout/navigation';
 
 interface ProShellProps {
@@ -32,7 +33,7 @@ function getBrowserStorage(): Storage | null {
   return window.localStorage;
 }
 
-function SidebarNav({
+const SidebarNav = React.memo(function SidebarNav({
   pathname,
   onNavigate,
   onLogout,
@@ -43,6 +44,14 @@ function SidebarNav({
 }) {
   const { settings } = useBrand();
   const navRef = React.useRef<HTMLElement>(null);
+  const navLinkClass = (isActive: boolean) =>
+    cn(
+      'relative flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] font-medium transition-all duration-200 min-h-[44px] group',
+      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
+      isActive
+        ? 'bg-primary text-primary-foreground border border-primary/40 shadow-sm shadow-primary/25'
+        : 'text-sidebar-foreground hover:bg-accent hover:text-foreground hover:translate-x-1 active:bg-accent active:translate-x-0.5'
+    );
 
   // Restore scroll position
   useEffect(() => {
@@ -90,12 +99,7 @@ function SidebarNav({
                     key={item.href}
                     href={item.href}
                     onClick={onNavigate}
-                    className={cn(
-                      'flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] font-medium transition-colors min-h-[44px]',
-                      isActive
-                        ? 'bg-primary text-primary-foreground'
-                        : 'text-sidebar-foreground hover:bg-accent hover:text-foreground active:bg-accent'
-                    )}
+                    className={navLinkClass(isActive)}
                   >
                     <item.icon className="w-4 h-4 shrink-0" />
                     {item.label}
@@ -115,12 +119,7 @@ function SidebarNav({
               key={item.href}
               href={item.href}
               onClick={onNavigate}
-              className={cn(
-                'flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] font-medium transition-colors min-h-[44px]',
-                isActive
-                  ? 'bg-primary text-primary-foreground'
-                  : 'text-sidebar-foreground hover:bg-accent hover:text-foreground active:bg-accent'
-              )}
+              className={navLinkClass(isActive)}
             >
               <item.icon className="w-4 h-4 shrink-0" />
               {item.label}
@@ -137,7 +136,11 @@ function SidebarNav({
       </div>
     </div>
   );
-}
+});
+
+const CommandSearch = dynamic(() => import('@/components/layout/CommandSearch'), {
+  ssr: false,
+});
 
 export default function ProShell({ children, title, subtitle, headerContent }: ProShellProps) {
   useTheme();
@@ -189,19 +192,26 @@ export default function ProShell({ children, title, subtitle, headerContent }: P
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  const handleLogout = async () => {
+  const handleLogout = React.useCallback(async () => {
     try {
-      await fetch('/api/auth/logout', { method: 'POST' });
+      await resilientFetch('/api/auth/logout', { method: 'POST', timeout: 5000 });
     } finally {
       router.push('/login');
     }
-  };
+  }, [router]);
+
+  const handleNavigate = React.useCallback(() => {
+    setSidebarOpen(false);
+  }, []);
 
   const handleReboot = async () => {
     setShowRebootConfirm(false);
     setIsRebooting(true);
     try {
-      const response = await fetch('/api/system/reboot', { method: 'POST' });
+      const response = await resilientFetch('/api/system/reboot', {
+        method: 'POST',
+        timeout: 15000,
+      });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Failed to issue reboot command');
 
@@ -230,16 +240,14 @@ export default function ProShell({ children, title, subtitle, headerContent }: P
       {/* Mobile Sidebar Overlay */}
       {sidebarOpen && (
         <div className="fixed inset-0 z-50 lg:hidden">
-          <div
-            className="absolute inset-0 bg-background/80 backdrop-blur-sm"
+          <button
+            type="button"
+            aria-label="Close sidebar"
             onClick={() => setSidebarOpen(false)}
+            className="absolute inset-0 bg-background/80 backdrop-blur-sm cursor-default border-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
           />
           <aside className="absolute left-0 top-0 bottom-0 w-[260px] bg-sidebar border-r border-sidebar-border shadow-xl animate-fade-in">
-            <SidebarNav
-              pathname={pathname}
-              onNavigate={() => setSidebarOpen(false)}
-              onLogout={handleLogout}
-            />
+            <SidebarNav pathname={pathname} onNavigate={handleNavigate} onLogout={handleLogout} />
           </aside>
         </div>
       )}
@@ -278,7 +286,7 @@ export default function ProShell({ children, title, subtitle, headerContent }: P
 
             <button
               onClick={() => setCommandSearchOpen(true)}
-              className="flex h-9 w-9 items-center justify-center rounded-xl border border-border bg-background text-muted-foreground transition-colors hover:bg-accent hover:text-foreground active:bg-accent"
+              className="flex h-11 w-11 items-center justify-center rounded-xl border border-border bg-background text-muted-foreground transition-colors hover:bg-accent hover:text-foreground active:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:h-9 sm:w-9"
               aria-label="Open search"
               title="Open search"
             >
@@ -289,11 +297,13 @@ export default function ProShell({ children, title, subtitle, headerContent }: P
               onClick={() => setShowRebootConfirm(true)}
               disabled={isRebooting}
               className={cn(
-                'flex items-center justify-center h-9 w-9 rounded-xl transition-all duration-300',
+                'flex items-center justify-center h-11 w-11 rounded-xl transition-all duration-300 sm:h-9 sm:w-9',
+                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
                 'bg-destructive/10 text-destructive border border-destructive/20 hover:bg-destructive hover:text-white hover:shadow-lg hover:shadow-destructive/20',
                 'active:scale-95 disabled:opacity-50 disabled:grayscale disabled:pointer-events-none'
               )}
               title="Reboot System"
+              aria-label="Reboot System"
             >
               {isRebooting ? (
                 <LoaderCircle className="w-4 h-4 animate-spin" />
@@ -304,7 +314,7 @@ export default function ProShell({ children, title, subtitle, headerContent }: P
 
             <ThemeSelector />
 
-            <div className="flex items-center gap-2 pl-2 sm:pl-3 border-l border-border">
+            <div className="hidden xs:flex items-center gap-2 pl-2 sm:pl-3 border-l border-border">
               <div className="w-8 h-8 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center text-xs font-semibold text-primary">
                 A
               </div>

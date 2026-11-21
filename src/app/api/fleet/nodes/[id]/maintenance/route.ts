@@ -7,7 +7,6 @@ import FleetLogEvent from '@/models/FleetLogEvent';
 import { recordAudit } from '@/lib/fleet/audit';
 import { getSession } from '@/lib/session';
 import { enforceRbac } from '@/lib/fleet/rbac';
-import type { Model } from 'mongoose';
 
 export const dynamic = 'force-dynamic';
 
@@ -50,7 +49,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     };
     await node.save();
 
-    await recordAudit(FleetLogEvent as unknown as Model<unknown>, {
+    await recordAudit(FleetLogEvent, {
       action: 'node.maintenance_toggle',
       actorUserId: session.user.username,
       nodeId: id,

@@ -2,14 +2,24 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { NextRequest } from 'next/server';
 
-const { mockFindById, mockFindByIdAndUpdate, mockCreate, mockExecuteEndpoint } = vi.hoisted(() => ({
+const {
+  mockConnectDB,
+  mockFindById,
+  mockFindByIdAndUpdate,
+  mockCreate,
+  mockExecuteEndpoint,
+  mockGetSession,
+} = vi.hoisted(() => ({
+  mockConnectDB: vi.fn(),
   mockFindById: vi.fn(),
   mockFindByIdAndUpdate: vi.fn(),
   mockCreate: vi.fn(),
   mockExecuteEndpoint: vi.fn(),
+  mockGetSession: vi.fn(),
 }));
 
-vi.mock('@/lib/db', () => ({ default: vi.fn().mockResolvedValue(true) }));
+vi.mock('@/lib/db', () => ({ default: mockConnectDB }));
+vi.mock('@/lib/session', () => ({ getSession: mockGetSession }));
 vi.mock('@/lib/logger', () => ({
   createLogger: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }),
 }));
@@ -53,6 +63,8 @@ const mockEndpoint = {
 describe('POST /api/modules/endpoints/[id]/test', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockConnectDB.mockResolvedValue(true);
+    mockGetSession.mockResolvedValue({ user: { role: 'admin' } });
     mockCreate.mockResolvedValue({});
     mockFindByIdAndUpdate.mockResolvedValue({});
     mockExecuteEndpoint.mockResolvedValue({
@@ -63,6 +75,18 @@ describe('POST /api/modules/endpoints/[id]/test', () => {
       stderr: '',
       error: null,
     });
+  });
+
+  it('rejects unauthenticated requests before executing the endpoint', async () => {
+    mockGetSession.mockResolvedValue(null);
+
+    const res = await POST(makeRequest(), makeContext('ep-1'));
+
+    expect(res.status).toBe(401);
+    expect(await res.json()).toEqual({ error: 'Unauthorized' });
+    expect(mockConnectDB).not.toHaveBeenCalled();
+    expect(mockFindById).not.toHaveBeenCalled();
+    expect(mockExecuteEndpoint).not.toHaveBeenCalled();
   });
 
   it('returns execution result on success', async () => {

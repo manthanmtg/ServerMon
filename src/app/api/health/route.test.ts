@@ -75,10 +75,8 @@ describe('GET /api/health', () => {
     expect(body.metrics).toBeNull();
   });
 
-  it('reports the correct database status when the DB is disconnected', async () => {
-    // readyState 0 = disconnected — the route reports 'disconnected' but still
-    // returns 200 because disconnected !== error (the healthy check is
-    // `dbStatus !== 'error' && latest !== null`).
+  it('returns 503 with degraded status when the DB is disconnected', async () => {
+    // A readiness endpoint must not report healthy when a required dependency is unavailable.
     mockMongoose.connection.readyState = 0;
     vi.mocked(metricsService.getCurrent).mockReturnValue({
       cpu: 10,
@@ -99,8 +97,8 @@ describe('GET /api/health', () => {
     const response = await GET();
     const body = await response.json();
 
-    // The health logic is: healthy = dbStatus !== 'error' && latest !== null
-    // So disconnected (not error) + has metrics = still 200/ok
+    expect(response.status).toBe(503);
+    expect(body.status).toBe('degraded');
     expect(body.database).toBe('disconnected');
   });
 
@@ -161,5 +159,111 @@ describe('GET /api/health', () => {
 
     expect(body.uptime).toBeGreaterThanOrEqual(0);
     expect(Number.isInteger(body.uptime)).toBe(true);
+  });
+
+  it('returns degraded health when the current metrics call throws', async () => {
+    vi.mocked(metricsService.getCurrent).mockImplementation(() => {
+      throw new Error('metrics collector unavailable');
+    });
+
+    const response = await GET();
+    const body = await response.json();
+
+    expect(response.status).toBe(503);
+    expect(body.status).toBe('degraded');
+    expect(body.database).toBe('connected');
+    expect(body.metrics).toBeNull();
+    expect(body.sseConnections).toBe(0);
+  });
+
+  it('returns degraded health when SSE connection count lookup throws', async () => {
+    vi.mocked(metricsService.getCurrent).mockReturnValue({
+      cpu: 15,
+      memory: 35,
+      timestamp: '12:00:00',
+      serverTimestamp: new Date().toISOString(),
+      cpuCores: 4,
+      memTotal: 8000000000,
+      memUsed: 1000000000,
+      uptime: 240,
+      swapTotal: 0,
+      swapUsed: 0,
+      swapFree: 0,
+      disks: [],
+      io: null,
+    });
+    vi.mocked(metricsService.getConnectionCount).mockImplementation(() => {
+      throw new Error('sse pool closed');
+    });
+
+    const response = await GET();
+    const body = await response.json();
+
+    expect(response.status).toBe(503);
+    expect(body.status).toBe('degraded');
+    expect(body.metrics).toEqual({ cpu: 15, memory: 35 });
+    expect(body.sseConnections).toBe(0);
+  });
+
+  it('returns degraded health for a connecting database even when metrics are available', async () => {
+    mockMongoose.connection.readyState = 2;
+    vi.mocked(metricsService.getCurrent).mockReturnValue({
+      cpu: 45,
+      memory: 70,
+      timestamp: '12:00:00',
+      serverTimestamp: new Date().toISOString(),
+      cpuCores: 8,
+      memTotal: 16000000000,
+      memUsed: 7000000000,
+      uptime: 5400,
+      swapTotal: 0,
+      swapUsed: 0,
+      swapFree: 0,
+      disks: [],
+      io: null,
+    });
+
+    const response = await GET();
+    const body = await response.json();
+
+    expect(response.status).toBe(503);
+    expect(body.status).toBe('degraded');
+    expect(body.database).toBe('disconnected');
+  });
+
+  it('reports degraded status when metrics payload is undefined', async () => {
+    vi.mocked(metricsService.getCurrent).mockReturnValue(undefined as unknown as null);
+
+    const response = await GET();
+    const body = await response.json();
+
+    expect(response.status).toBe(503);
+    expect(body.status).toBe('degraded');
+    expect(body.metrics).toBeNull();
+  });
+
+  it('returns an ISO-8601 timestamp', async () => {
+    vi.mocked(metricsService.getCurrent).mockReturnValue({
+      cpu: 11,
+      memory: 22,
+      timestamp: '12:00:00',
+      serverTimestamp: new Date().toISOString(),
+      cpuCores: 4,
+      memTotal: 8000000000,
+      memUsed: 2500000000,
+      uptime: 600,
+      swapTotal: 0,
+      swapUsed: 0,
+      swapFree: 0,
+      disks: [],
+      io: null,
+    });
+
+    const response = await GET();
+    const body = await response.json();
+    const parsedTimestamp = new Date(body.timestamp);
+
+    expect(Number.isNaN(parsedTimestamp.getTime())).toBe(false);
+    expect(parsedTimestamp.toISOString()).toBe(body.timestamp);
   });
 });

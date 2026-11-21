@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { sortAgentToolCards } from '@/lib/ai-agents/tool-catalog';
 import type { AgentsSnapshot, AgentType } from '../../types';
-import { buildToolCatalogSummary, ToolsPanel } from './ToolsPanel';
+import { buildToolCatalogSummary, buildToolSessionsByType, ToolsPanel } from './ToolsPanel';
 
 const snapshot: AgentsSnapshot = {
   summary: { total: 1, running: 0, idle: 0, waiting: 0, error: 0, completed: 1 },
@@ -130,5 +130,22 @@ describe('ToolsPanel', () => {
     expect(summary.installedToolCount).toBe(1);
     expect(summary.configuredToolCount).toBe(1);
     expect(summary.updateCount).toBe(1);
+  });
+
+  it('groups active and past sessions by tool type once for card rendering', () => {
+    const grouped = buildToolSessionsByType({
+      ...snapshot,
+      sessions: [
+        {
+          ...snapshot.pastSessions[0],
+          id: 'claude-session',
+          agent: { type: 'claude-code', displayName: 'Claude Code', version: '1.0.0' },
+          status: 'idle',
+        },
+      ],
+    });
+
+    expect(grouped.get('codex')?.map((session) => session.id)).toEqual(['codex-session']);
+    expect(grouped.get('claude-code')?.map((session) => session.id)).toEqual(['claude-session']);
   });
 });

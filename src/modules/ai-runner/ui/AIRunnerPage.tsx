@@ -14,13 +14,11 @@ import {
   HardDrive,
   Hourglass,
   Infinity as InfinityIcon,
-  ListFilter,
   LockKeyhole,
   Plus,
   Play,
   RefreshCcw,
   Save,
-  Search,
   Square,
   TerminalSquare,
   Trash2,
@@ -59,6 +57,7 @@ import type {
   AIRunnerWorkspaceDTO,
 } from '../types';
 import { TAB_META, DEFAULT_PROFILE_FORM, ICON_PRESETS } from './constants';
+import { LogStreamView } from './components/LogStreamView';
 import { RunDetailDrawer } from './components/RunDetailDrawer';
 import { ScheduleBuilder } from './components/ScheduleBuilder';
 import { ScheduleVisualizationModal } from './components/ScheduleVisualizationModal';
@@ -66,6 +65,8 @@ import { MultiScheduleEditorModal } from './components/MultiScheduleEditorModal'
 import { PromptModal } from './components/PromptModal';
 import { PromptLibrary } from './components/PromptLibrary';
 import { CompactStat, LabelWithHint, ProfileIconPreview } from './components/AIRunnerShared';
+import { AutoFlowView } from './components/AutoFlowView';
+import { HistoryView } from './components/HistoryView';
 import type {
   HistoryDetailSection,
   AutoflowItemDraft,
@@ -82,18 +83,18 @@ import {
   applyPromptTemplate,
   emptyPromptForm,
   emptyScheduleForm,
+  deriveRunnerInventoryCounts,
+  deriveScheduleDashboardState,
   formatCountdown,
   formatDateTime,
-  formatDuration,
-  formatMemory,
   formatRelative,
   formatRunsPerDayLabel,
   formatScheduleDate,
   getDroppedAttachmentFiles,
-  getRunStatusVariant,
   getScheduleModeLabel,
   getScheduleStatusVariant,
   humanizeCron,
+  mergeLogEntries,
   slugifyValue,
   summarizeRunsPerDay,
 } from './utils';
@@ -102,7 +103,6 @@ import { buildScheduleVisualizationModel } from './scheduleVisualization';
 const SCHEDULE_SURFACE_REFRESH_MS = 15_000;
 const HISTORY_REFRESH_MS = 5_000;
 const ACTIVE_SCHEDULE_RUN_REFRESH_MS = 5_000;
-const LOG_ENTRY_LIMIT = 500;
 const PROMPT_TEMPLATE_PLACEHOLDER = '<YOUR_PROMPT>';
 const PORTABLE_RESOURCE_OPTIONS: Array<{
   id: AIRunnerPortableResource;
@@ -144,6 +144,9 @@ const DEFAULT_PORTABLE_RESOURCES = PORTABLE_RESOURCE_OPTIONS.map((item) => item.
 const MAX_PROMPT_ATTACHMENTS = 8;
 const MAX_PROMPT_ATTACHMENT_BYTES = 5 * 1024 * 1024;
 const MAX_PROMPT_ATTACHMENTS_TOTAL_BYTES = 10 * 1024 * 1024;
+const MAX_AUTOFLOW_ITEMS = 100;
+const MAX_AUTOFLOW_ITEM_NAME_LENGTH = 160;
+const DEFAULT_HISTORY_RETENTION_DAYS = 90;
 const DEFAULT_MONGO_RETENTION_DAYS = 30;
 const DEFAULT_ARTIFACT_RETENTION_DAYS = 90;
 const DEFAULT_MAX_CONCURRENT_RUNS = 3;
@@ -185,6 +188,7 @@ type LinkedDeleteTarget =
 interface StorageSettingsFormState {
   artifactBaseDir: string;
   maxConcurrentRuns: string;
+  historyRetentionDays: string;
   mongoRetentionDays: string;
   artifactRetentionDays: string;
 }
@@ -195,6 +199,7 @@ function storageSettingsFormFromSettings(
   return {
     artifactBaseDir: settings?.artifactBaseDir ?? '',
     maxConcurrentRuns: String(settings?.maxConcurrentRuns ?? DEFAULT_MAX_CONCURRENT_RUNS),
+    historyRetentionDays: String(settings?.historyRetentionDays ?? DEFAULT_HISTORY_RETENTION_DAYS),
     mongoRetentionDays: String(settings?.mongoRetentionDays ?? DEFAULT_MONGO_RETENTION_DAYS),
     artifactRetentionDays: String(
       settings?.artifactRetentionDays ?? DEFAULT_ARTIFACT_RETENTION_DAYS
@@ -208,6 +213,9 @@ function defaultStorageSettingsFormFromSettings(
   return {
     artifactBaseDir: settings?.defaultArtifactBaseDir ?? settings?.artifactBaseDir ?? '',
     maxConcurrentRuns: String(settings?.defaultMaxConcurrentRuns ?? DEFAULT_MAX_CONCURRENT_RUNS),
+    historyRetentionDays: String(
+      settings?.defaultHistoryRetentionDays ?? DEFAULT_HISTORY_RETENTION_DAYS
+    ),
     mongoRetentionDays: String(settings?.defaultMongoRetentionDays ?? DEFAULT_MONGO_RETENTION_DAYS),
     artifactRetentionDays: String(
       settings?.defaultArtifactRetentionDays ?? DEFAULT_ARTIFACT_RETENTION_DAYS
@@ -227,6 +235,18 @@ function parseMaxConcurrentRuns(value: string): number | null {
   if (!Number.isInteger(parsed)) return null;
   if (parsed < MIN_CONCURRENT_RUNS || parsed > MAX_CONCURRENT_RUNS) return null;
   return parsed;
+}
+
+function getSafeRunAsUser(value?: string): string {
+  const trimmed = value?.trim();
+  if (!trimmed) return 'servermon-ai';
+  return /^[A-Za-z_][A-Za-z0-9_.-]{0,62}\$?$/.test(trimmed) ? trimmed : 'servermon-ai';
+}
+
+function getSafeRunAsShell(value?: string): string {
+  const trimmed = value?.trim();
+  if (!trimmed) return '/bin/bash';
+  return trimmed.startsWith('/') && /^[A-Za-z0-9_./-]+$/.test(trimmed) ? trimmed : '/bin/bash';
 }
 
 function getLocalDateTimeInputValue(date: Date): string {
@@ -253,6 +273,45 @@ function getActiveScheduleRunLabel(run?: AIRunnerRunDTO | null): string | null {
   return null;
 }
 
+export function getScheduleVisualizationScope({
+  profileId,
+  profileMap,
+  schedules,
+}: {
+  profileId: string | null;
+  profileMap: Record<string, AIRunnerProfileDTO>;
+  schedules: AIRunnerScheduleDTO[];
+}): { profile: AIRunnerProfileDTO | null; schedules: AIRunnerScheduleDTO[] } {
+  if (!profileId) {
+    return { profile: null, schedules };
+  }
+
+  return {
+    profile: profileMap[profileId] ?? null,
+    schedules: schedules.filter((schedule) => schedule.agentProfileId === profileId),
+  };
+}
+
+type LinkedScheduleCounts = Record<LinkedDeleteTarget['kind'], Record<string, number>>;
+
+export function deriveLinkedScheduleCounts(schedules: AIRunnerScheduleDTO[]): LinkedScheduleCounts {
+  const counts: LinkedScheduleCounts = {
+    profile: {},
+    prompt: {},
+    workspace: {},
+  };
+
+  for (const schedule of schedules) {
+    counts.prompt[schedule.promptId] = (counts.prompt[schedule.promptId] ?? 0) + 1;
+    counts.profile[schedule.agentProfileId] = (counts.profile[schedule.agentProfileId] ?? 0) + 1;
+    if (schedule.workspaceId) {
+      counts.workspace[schedule.workspaceId] = (counts.workspace[schedule.workspaceId] ?? 0) + 1;
+    }
+  }
+
+  return counts;
+}
+
 function getSchedulerReliabilityWarning(
   diagnostics: AIRunnerRuntimeDiagnostics | null
 ): { title: string; body: string } | null {
@@ -277,22 +336,6 @@ function getSchedulerReliabilityWarning(
   }
 
   return null;
-}
-
-function mergeLogEntries(
-  current: AIRunnerLogEntry[],
-  incoming: AIRunnerLogEntry[]
-): AIRunnerLogEntry[] {
-  const merged = new Map<string, AIRunnerLogEntry>();
-  for (const entry of [...current, ...incoming]) {
-    merged.set(entry.id, entry);
-  }
-
-  return Array.from(merged.values())
-    .sort((left, right) => {
-      return new Date(left.timestamp).getTime() - new Date(right.timestamp).getTime();
-    })
-    .slice(-LOG_ENTRY_LIMIT);
 }
 
 function fileToBase64(file: File): Promise<string> {
@@ -330,6 +373,8 @@ function emptyWorkspaceForm(path = ''): WorkspaceFormState {
     name: '',
     path,
     blocking: true,
+    isGitRepo: false,
+    gitWorktreesEnabled: true,
     enabled: true,
     notes: '',
   };
@@ -448,6 +493,9 @@ export default function AIRunnerPage() {
   const [autoflowMode, setAutoflowMode] = useState<'sequential' | 'parallel'>('sequential');
   const [autoflowContinueOnFailure, setAutoflowContinueOnFailure] = useState(false);
   const [autoflowItems, setAutoflowItems] = useState<AutoflowItemDraft[]>([]);
+  const [autoflowDraftLoopCount, setAutoflowDraftLoopCount] = useState(1);
+  const [editingAutoflowId, setEditingAutoflowId] = useState<string | null>(null);
+  const [autoflowShouldStart, setAutoflowShouldStart] = useState(true);
   const [autoflowDraft, setAutoflowDraft] = useState<AutoflowItemDraft>({
     name: '',
     promptContent: '',
@@ -759,6 +807,34 @@ export default function AIRunnerPage() {
     [activeTab, loadActiveRuns, loadLogs, loadMetadata, loadRuns, loadSchedules]
   );
 
+  useEffect(() => {
+    if (!workspaceModalOpen || !workspaceForm.path) return;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => {
+      fetch('/api/modules/ai-runner/workspaces/detect-git', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: workspaceForm.path }),
+        signal: controller.signal,
+      })
+        .then((res) => res.json())
+        .then((data) => {
+          if (data && typeof data.isGitRepo === 'boolean') {
+            setWorkspaceForm((prev) => ({
+              ...prev,
+              isGitRepo: data.isGitRepo,
+              gitWorktreesEnabled: prev.gitWorktreesEnabled ?? data.isGitRepo,
+            }));
+          }
+        })
+        .catch(() => {});
+    }, 400);
+    return () => {
+      clearTimeout(timeout);
+      controller.abort();
+    };
+  }, [workspaceModalOpen, workspaceForm.path]);
+
   // Initial load — runs once on mount. Abort any in-flight fetches on unmount.
   useEffect(() => {
     void (async () => {
@@ -774,6 +850,12 @@ export default function AIRunnerPage() {
       schedulesAbortRef.current?.abort();
     };
   }, [loadMetadata]);
+
+  useEffect(() => {
+    if (autoflowMode === 'parallel' && autoflowDraftLoopCount !== 1) {
+      setAutoflowDraftLoopCount(1);
+    }
+  }, [autoflowDraftLoopCount, autoflowMode]);
 
   // Debounced refetch of runs when the history search input changes. We
   // deliberately don't re-run metadata loads here — typing in the search
@@ -933,8 +1015,16 @@ export default function AIRunnerPage() {
     () => Object.fromEntries(prompts.map((prompt) => [prompt._id, prompt])),
     [prompts]
   );
+  const promptNameMap = useMemo(
+    () => Object.fromEntries(prompts.map((prompt) => [prompt._id, prompt.name])),
+    [prompts]
+  );
   const workspaceMap = useMemo(
     () => Object.fromEntries(workspaces.map((workspace) => [workspace._id, workspace])),
+    [workspaces]
+  );
+  const workspaceNameMap = useMemo(
+    () => Object.fromEntries(workspaces.map((workspace) => [workspace._id, workspace.name])),
     [workspaces]
   );
   const scheduleMap = useMemo(
@@ -945,6 +1035,10 @@ export default function AIRunnerPage() {
     () => Object.fromEntries(autoflows.map((autoflow) => [autoflow._id, autoflow])),
     [autoflows]
   );
+  const profileNameMap = useMemo(
+    () => Object.fromEntries(profiles.map((profile) => [profile._id, profile.name])),
+    [profiles]
+  );
   const getAutoflowItemForRun = useCallback(
     (run: Pick<AIRunnerRunDTO, '_id' | 'autoflowId' | 'autoflowItemId'>) => {
       if (!run.autoflowId) return undefined;
@@ -954,25 +1048,26 @@ export default function AIRunnerPage() {
     },
     [autoflowMap]
   );
-  const getLinkedScheduleCount = (kind: LinkedDeleteTarget['kind'], id: string): number => {
-    if (kind === 'prompt') {
-      return schedules.filter((schedule) => schedule.promptId === id).length;
-    }
-    if (kind === 'profile') {
-      return schedules.filter((schedule) => schedule.agentProfileId === id).length;
-    }
-    return schedules.filter((schedule) => schedule.workspaceId === id).length;
-  };
-  const getScheduleMissingReferences = (schedule: AIRunnerScheduleDTO): string[] => {
-    const missing: string[] = [];
-    if (!promptMap[schedule.promptId]) missing.push('prompt');
-    if (!profileMap[schedule.agentProfileId]) missing.push('profile');
-    if (schedule.workspaceId && !workspaceMap[schedule.workspaceId]) missing.push('workspace');
-    return missing;
-  };
+  const linkedScheduleCounts = useMemo(() => deriveLinkedScheduleCounts(schedules), [schedules]);
+  const getLinkedScheduleCount = useCallback(
+    (kind: LinkedDeleteTarget['kind'], id: string): number => linkedScheduleCounts[kind][id] ?? 0,
+    [linkedScheduleCounts]
+  );
+  const getScheduleMissingReferences = useCallback(
+    (schedule: AIRunnerScheduleDTO): string[] => {
+      const missing: string[] = [];
+      if (!promptMap[schedule.promptId]) missing.push('prompt');
+      if (!profileMap[schedule.agentProfileId]) missing.push('profile');
+      if (schedule.workspaceId && !workspaceMap[schedule.workspaceId]) missing.push('workspace');
+      return missing;
+    },
+    [promptMap, profileMap, workspaceMap]
+  );
   const filteredPrompts = useMemo(() => prompts, [prompts]);
-  const activeWorkspaceCount = workspaces.filter((workspace) => workspace.enabled).length;
-  const blockingWorkspaceCount = workspaces.filter((workspace) => workspace.blocking).length;
+  const { activeWorkspaceCount, blockingWorkspaceCount, enabledProfileCount } = useMemo(
+    () => deriveRunnerInventoryCounts({ profiles, workspaces }),
+    [profiles, workspaces]
+  );
 
   const filteredHistoryRuns = useMemo(() => {
     const query = runSearch.trim().toLowerCase();
@@ -1019,19 +1114,16 @@ export default function AIRunnerPage() {
     getAutoflowItemForRun,
   ]);
 
-  const enabledScheduleCount = schedules.filter((schedule) => schedule.enabled).length;
+  const {
+    enabledScheduleCount,
+    pausedScheduleCount,
+    scheduledProfileCount,
+    recentlyActiveScheduleCount,
+    nextSchedule,
+    sortedSchedules,
+  } = useMemo(() => deriveScheduleDashboardState(schedules), [schedules]);
   const schedulesGloballyEnabled = runnerSettings?.schedulesGloballyEnabled ?? true;
   const schedulerReliabilityWarning = getSchedulerReliabilityWarning(runtimeDiagnostics);
-  const enabledProfileCount = profiles.filter((profile) => profile.enabled).length;
-  const pausedScheduleCount = schedules.length - enabledScheduleCount;
-  const scheduledProfileCount = new Set(schedules.map((schedule) => schedule.agentProfileId)).size;
-  const recentlyActiveScheduleCount = schedules.filter((schedule) => {
-    if (!schedule.lastRunAt) return false;
-    return Date.now() - new Date(schedule.lastRunAt).getTime() < 24 * 60 * 60 * 1000;
-  }).length;
-  const nextSchedule = schedules
-    .filter((schedule) => schedule.enabled && schedule.nextRunTime)
-    .sort((a, b) => new Date(a.nextRunTime!).getTime() - new Date(b.nextRunTime!).getTime())[0];
   const activeScheduleRunMap = useMemo(() => {
     const statusRank: Record<AIRunnerRunDTO['status'], number> = {
       running: 3,
@@ -1071,56 +1163,65 @@ export default function AIRunnerPage() {
   }, [activeScheduleRuns]);
   const nextScheduleActiveRun = nextSchedule ? activeScheduleRunMap[nextSchedule._id] : undefined;
   const nextScheduleStatusLabel = getActiveScheduleRunLabel(nextScheduleActiveRun);
-  const sortedSchedules = [...schedules].sort((left, right) => {
-    if (left.enabled !== right.enabled) return left.enabled ? -1 : 1;
-    if (left.nextRunTime && right.nextRunTime) {
-      return new Date(left.nextRunTime).getTime() - new Date(right.nextRunTime).getTime();
-    }
-    if (left.nextRunTime) return -1;
-    if (right.nextRunTime) return 1;
-    return new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime();
-  });
-  const scheduleVisualizationProfile = scheduleVisualizationProfileId
-    ? (profileMap[scheduleVisualizationProfileId] ?? null)
-    : null;
-  const visualizationSchedules = scheduleVisualizationProfileId
-    ? schedules.filter((schedule) => schedule.agentProfileId === scheduleVisualizationProfileId)
-    : schedules;
-  const profileScheduleSummaryMap = useMemo(
+  const { profile: scheduleVisualizationProfile, schedules: visualizationSchedules } = useMemo(
     () =>
-      Object.fromEntries(
-        profiles.map((profile) => {
-          const profileSchedules = schedules.filter(
-            (schedule) => schedule.agentProfileId === profile._id
-          );
-          const visualization = buildScheduleVisualizationModel(profileSchedules);
-          const nextLaunch = profileSchedules
-            .filter((schedule) => schedule.enabled && schedule.nextRunTime)
-            .sort((left, right) => {
-              return new Date(left.nextRunTime!).getTime() - new Date(right.nextRunTime!).getTime();
-            })[0]?.nextRunTime;
-
-          return [
-            profile._id,
-            {
-              totalSchedules: profileSchedules.length,
-              enabledSchedules: profileSchedules.filter((schedule) => schedule.enabled).length,
-              runsPerDayLabel: formatRunsPerDayLabel(summarizeRunsPerDay(profileSchedules)),
-              workspaceCount: visualization.workspaceCount,
-              highRiskWorkspaceCount: visualization.highRiskWorkspaceCount,
-              nextLaunch,
-            },
-          ];
-        })
-      ),
-    [profiles, schedules]
+      getScheduleVisualizationScope({
+        profileId: scheduleVisualizationProfileId,
+        profileMap,
+        schedules,
+      }),
+    [profileMap, scheduleVisualizationProfileId, schedules]
   );
+  const profileScheduleSummaryMap = useMemo(() => {
+    const schedulesByProfile = new Map<string, AIRunnerScheduleDTO[]>();
 
-  const hasAutoflowDraftPrompt = Boolean(autoflowDraft.promptContent?.trim());
-  const filteredLogEntries = useMemo(() => {
-    if (logLevelFilter === 'all') return logEntries;
-    return logEntries.filter((entry) => entry.level === logLevelFilter);
-  }, [logEntries, logLevelFilter]);
+    for (const schedule of schedules) {
+      const profileSchedules = schedulesByProfile.get(schedule.agentProfileId);
+      if (profileSchedules) {
+        profileSchedules.push(schedule);
+      } else {
+        schedulesByProfile.set(schedule.agentProfileId, [schedule]);
+      }
+    }
+
+    return Object.fromEntries(
+      profiles.map((profile) => {
+        const profileSchedules = schedulesByProfile.get(profile._id) ?? [];
+        const visualization = buildScheduleVisualizationModel(profileSchedules);
+        let enabledSchedules = 0;
+        let nextLaunch: string | undefined;
+        let nextLaunchTime = Infinity;
+
+        for (const schedule of profileSchedules) {
+          if (!schedule.enabled) continue;
+          enabledSchedules += 1;
+          if (!schedule.nextRunTime) continue;
+
+          const scheduleTime = new Date(schedule.nextRunTime).getTime();
+          if (scheduleTime < nextLaunchTime) {
+            nextLaunch = schedule.nextRunTime;
+            nextLaunchTime = scheduleTime;
+          }
+        }
+
+        return [
+          profile._id,
+          {
+            totalSchedules: profileSchedules.length,
+            enabledSchedules,
+            runsPerDayLabel: formatRunsPerDayLabel(summarizeRunsPerDay(profileSchedules)),
+            workspaceCount: visualization.workspaceCount,
+            highRiskWorkspaceCount: visualization.highRiskWorkspaceCount,
+            nextLaunch,
+          },
+        ];
+      })
+    );
+  }, [profiles, schedules]);
+
+  const hasAutoflowDraftPrompt = Boolean(
+    autoflowDraft.promptId || autoflowDraft.promptContent?.trim()
+  );
 
   const selectProfileForEdit = (profile: AIRunnerProfileDTO) => {
     setEditingProfileId(profile._id);
@@ -1133,6 +1234,8 @@ export default function AIRunnerPage() {
       maxTimeout: profile.maxTimeout,
       shell: profile.shell,
       requiresTTY: profile.requiresTTY,
+      runAsUser: profile.runAsUser ?? '',
+      runAsUserAuthMode: profile.runAsUserAuthMode ?? 'passwordless-sudo',
       env: profile.env,
       enabled: profile.enabled,
       icon: profile.icon ?? '',
@@ -1141,7 +1244,7 @@ export default function AIRunnerPage() {
     setActiveTab('settings');
   };
 
-  const selectPromptForEdit = (prompt: AIRunnerPromptDTO) => {
+  const selectPromptForEdit = useCallback((prompt: AIRunnerPromptDTO) => {
     setSelectedPromptId(prompt._id);
     setEditingPromptId(prompt._id);
     setPromptForm({
@@ -1153,7 +1256,7 @@ export default function AIRunnerPage() {
     });
     setPromptModalOpen(true);
     setActiveTab('prompts');
-  };
+  }, []);
 
   const selectPromptTemplateForEdit = (template: AIRunnerPromptTemplateDTO) => {
     setEditingPromptTemplateId(template._id);
@@ -1173,6 +1276,8 @@ export default function AIRunnerPage() {
       name: workspace.name,
       path: workspace.path,
       blocking: workspace.blocking,
+      isGitRepo: workspace.isGitRepo,
+      gitWorktreesEnabled: workspace.gitWorktreesEnabled,
       enabled: workspace.enabled,
       notes: workspace.notes ?? '',
     });
@@ -1197,38 +1302,38 @@ export default function AIRunnerPage() {
     setActiveTab('schedules');
   };
 
-  const resetProfileForm = () => {
+  const resetProfileForm = useCallback(() => {
     setEditingProfileId(null);
     setProfileForm(DEFAULT_PROFILE_FORM);
-  };
+  }, []);
 
-  const resetPromptForm = () => {
+  const resetPromptForm = useCallback(() => {
     setEditingPromptId(null);
     setPromptForm(emptyPromptForm());
-  };
+  }, []);
 
-  const resetScheduleForm = () => {
+  const resetScheduleForm = useCallback(() => {
     const workspace = workspaces.find((item) => item.enabled);
     setEditingScheduleId(null);
     setScheduleForm(
       emptyScheduleForm(profiles[0]?._id, workspace?.path ?? directories[0], workspace?._id)
     );
-  };
+  }, [workspaces, profiles, directories]);
 
-  const closeScheduleModal = () => {
+  const closeScheduleModal = useCallback(() => {
     setScheduleModalOpen(false);
     resetScheduleForm();
-  };
+  }, [resetScheduleForm]);
 
-  const closeProfileModal = () => {
+  const closeProfileModal = useCallback(() => {
     setProfileModalOpen(false);
     resetProfileForm();
-  };
+  }, [resetProfileForm]);
 
-  const closePromptModal = () => {
+  const closePromptModal = useCallback(() => {
     setPromptModalOpen(false);
     resetPromptForm();
-  };
+  }, [resetPromptForm]);
 
   const closePromptTemplateModal = () => {
     setPromptTemplateModalOpen(false);
@@ -1236,11 +1341,11 @@ export default function AIRunnerPage() {
     setPromptTemplateForm(emptyPromptTemplateForm());
   };
 
-  const closeWorkspaceModal = () => {
+  const closeWorkspaceModal = useCallback(() => {
     setWorkspaceModalOpen(false);
     setEditingWorkspaceId(null);
     setWorkspaceForm(emptyWorkspaceForm());
-  };
+  }, []);
 
   const openBundleModal = (mode: 'export' | 'import') => {
     setBundleMode(mode);
@@ -1266,11 +1371,11 @@ export default function AIRunnerPage() {
     setActiveTab('settings');
   };
 
-  const openCreatePromptModal = () => {
+  const openCreatePromptModal = useCallback(() => {
     resetPromptForm();
     setPromptModalOpen(true);
     setActiveTab('prompts');
-  };
+  }, [resetPromptForm]);
 
   const openCreatePromptTemplateModal = () => {
     setEditingPromptTemplateId(null);
@@ -1446,6 +1551,12 @@ export default function AIRunnerPage() {
         });
         if (response.ok) {
           detail = await response.json();
+        } else if (response.status === 404) {
+          toast({
+            title: 'Run history unavailable',
+            description: 'This run may have been removed by history retention.',
+            variant: 'destructive',
+          });
         }
       } catch {
         /* history list refresh below is enough for recent runs */
@@ -1461,7 +1572,7 @@ export default function AIRunnerPage() {
         });
       }
     },
-    [loadRuns]
+    [loadRuns, toast]
   );
 
   useEffect(() => {
@@ -1594,6 +1705,8 @@ export default function AIRunnerPage() {
       body: JSON.stringify({
         invocationTemplate: profileForm.invocationTemplate,
         shell: profileForm.shell,
+        runAsUser: profileForm.runAsUser,
+        runAsUserAuthMode: profileForm.runAsUserAuthMode,
       }),
     });
     const payload = await response.json();
@@ -1631,49 +1744,64 @@ export default function AIRunnerPage() {
     await loadAll();
   };
 
-  const executeLinkedDelete = async (target: LinkedDeleteTarget, force = false) => {
-    const path =
-      target.kind === 'prompt' ? 'prompts' : target.kind === 'profile' ? 'profiles' : 'workspaces';
-    const response = await fetch(
-      `/api/modules/ai-runner/${path}/${target.id}${force ? '?force=true' : ''}`,
-      { method: 'DELETE' }
-    );
-    const payload = await response.json();
-    if (!response.ok) {
-      toast({
-        title: 'Delete failed',
-        description: payload.error || `Unable to delete ${target.kind}`,
-        variant: 'destructive',
-      });
-      return;
-    }
-    if (target.kind === 'profile' && editingProfileId === target.id) {
-      closeProfileModal();
-    }
-    if (target.kind === 'prompt' && editingPromptId === target.id) {
-      closePromptModal();
-    }
-    if (target.kind === 'workspace' && editingWorkspaceId === target.id) {
-      closeWorkspaceModal();
-    }
-    if (force && target.scheduleCount > 0) {
-      toast({
-        title: 'Schedules paused',
-        description: `${target.scheduleCount} linked schedule${target.scheduleCount === 1 ? '' : 's'} must be repaired before being enabled again.`,
-        variant: 'warning',
-      });
-    }
-    await loadAll();
-  };
+  const executeLinkedDelete = useCallback(
+    async (target: LinkedDeleteTarget, force = false) => {
+      const path =
+        target.kind === 'prompt' ? 'prompts' : target.kind === 'profile' ? 'profiles' : 'workspaces';
+      const response = await fetch(
+        `/api/modules/ai-runner/${path}/${target.id}${force ? '?force=true' : ''}`,
+        { method: 'DELETE' }
+      );
+      const payload = await response.json();
+      if (!response.ok) {
+        toast({
+          title: 'Delete failed',
+          description: payload.error || `Unable to delete ${target.kind}`,
+          variant: 'destructive',
+        });
+        return;
+      }
+      if (target.kind === 'profile' && editingProfileId === target.id) {
+        closeProfileModal();
+      }
+      if (target.kind === 'prompt' && editingPromptId === target.id) {
+        closePromptModal();
+      }
+      if (target.kind === 'workspace' && editingWorkspaceId === target.id) {
+        closeWorkspaceModal();
+      }
+      if (force && target.scheduleCount > 0) {
+        toast({
+          title: 'Schedules paused',
+          description: `${target.scheduleCount} linked schedule${target.scheduleCount === 1 ? '' : 's'} must be repaired before being enabled again.`,
+          variant: 'warning',
+        });
+      }
+      await loadAll();
+    },
+    [
+      editingProfileId,
+      editingPromptId,
+      editingWorkspaceId,
+      loadAll,
+      toast,
+      closeProfileModal,
+      closePromptModal,
+      closeWorkspaceModal,
+    ]
+  );
 
-  const requestLinkedDelete = (target: Omit<LinkedDeleteTarget, 'scheduleCount'>) => {
-    const scheduleCount = getLinkedScheduleCount(target.kind, target.id);
-    if (scheduleCount > 0) {
-      setLinkedDeleteTarget({ ...target, scheduleCount });
-      return;
-    }
-    void executeLinkedDelete({ ...target, scheduleCount: 0 });
-  };
+  const requestLinkedDelete = useCallback(
+    (target: Omit<LinkedDeleteTarget, 'scheduleCount'>) => {
+      const scheduleCount = getLinkedScheduleCount(target.kind, target.id);
+      if (scheduleCount > 0) {
+        setLinkedDeleteTarget({ ...target, scheduleCount });
+        return;
+      }
+      void executeLinkedDelete({ ...target, scheduleCount: 0 });
+    },
+    [getLinkedScheduleCount, executeLinkedDelete]
+  );
 
   const confirmLinkedDelete = async () => {
     if (!linkedDeleteTarget) return;
@@ -1724,10 +1852,18 @@ export default function AIRunnerPage() {
     }
   };
 
-  const deletePrompt = async (id: string) => {
-    const prompt = promptMap[id];
-    requestLinkedDelete({ kind: 'prompt', id, name: prompt?.name ?? 'this prompt' });
-  };
+  const deletePrompt = useCallback(
+    async (id: string) => {
+      const prompt = promptMap[id];
+      requestLinkedDelete({ kind: 'prompt', id, name: prompt?.name ?? 'this prompt' });
+    },
+    [promptMap, requestLinkedDelete]
+  );
+
+  const handleDeletePrompt = useCallback(
+    (id: string) => runExclusiveAction(`prompt:delete:${id}`, () => deletePrompt(id)),
+    [deletePrompt, runExclusiveAction]
+  );
 
   const addSavedPromptAttachments = async (fileList: FileList | null) => {
     const files = Array.from(fileList ?? []);
@@ -2014,20 +2150,45 @@ export default function AIRunnerPage() {
     }
   };
 
-  const openPromptInAutoflow = (promptId: string) => {
-    const prompt = promptMap[promptId];
-    if (!prompt) return;
-    setSelectedPromptId(promptId);
+  const clearAutoflowDraft = useCallback(() => {
     setAutoflowDraft((current) => ({
       ...current,
-      name: prompt.name,
-      promptId,
-      promptContent: prompt.content,
-      promptType: prompt.type,
+      promptId: undefined,
+      name: '',
+      promptContent: '',
       attachments: [],
     }));
-    setActiveTab('autoflows');
-  };
+    setAutoflowDraftLoopCount(1);
+  }, []);
+
+  const clearAutoflowEdit = useCallback(() => {
+    setEditingAutoflowId(null);
+    setAutoflowName('');
+    setAutoflowShouldStart(true);
+    setAutoflowContinueOnFailure(false);
+    setAutoflowItems([]);
+    clearAutoflowDraft();
+  }, [clearAutoflowDraft]);
+
+  const openPromptInAutoflow = useCallback(
+    (promptId: string) => {
+      const prompt = promptMap[promptId];
+      if (!prompt) return;
+      clearAutoflowEdit();
+      setSelectedPromptId(promptId);
+      setAutoflowDraft((current) => ({
+        ...current,
+        name: prompt.name,
+        promptId,
+        promptContent: prompt.content,
+        promptType: prompt.type,
+        attachments: [],
+      }));
+      setAutoflowDraftLoopCount(1);
+      setActiveTab('autoflows');
+    },
+    [promptMap, clearAutoflowEdit]
+  );
 
   const runScheduleNow = async (schedule: AIRunnerScheduleDTO) => {
     const response = await fetch('/api/modules/ai-runner/run', {
@@ -2124,6 +2285,7 @@ export default function AIRunnerPage() {
   const saveStorageSettings = async () => {
     const artifactBaseDir = storageSettingsForm.artifactBaseDir.trim();
     const maxConcurrentRuns = parseMaxConcurrentRuns(storageSettingsForm.maxConcurrentRuns);
+    const historyRetentionDays = parseRetentionDays(storageSettingsForm.historyRetentionDays);
     const mongoRetentionDays = parseRetentionDays(storageSettingsForm.mongoRetentionDays);
     const artifactRetentionDays = parseRetentionDays(storageSettingsForm.artifactRetentionDays);
 
@@ -2145,7 +2307,11 @@ export default function AIRunnerPage() {
       return;
     }
 
-    if (mongoRetentionDays === null || artifactRetentionDays === null) {
+    if (
+      historyRetentionDays === null ||
+      mongoRetentionDays === null ||
+      artifactRetentionDays === null
+    ) {
       toast({
         title: 'Retention days are invalid',
         description: `Use whole numbers from ${MIN_RETENTION_DAYS} to ${MAX_RETENTION_DAYS}.`,
@@ -2162,6 +2328,7 @@ export default function AIRunnerPage() {
         body: JSON.stringify({
           artifactBaseDir,
           maxConcurrentRuns,
+          historyRetentionDays,
           mongoRetentionDays,
           artifactRetentionDays,
         }),
@@ -2240,6 +2407,29 @@ export default function AIRunnerPage() {
     toast({
       title: 'Copied',
       description: 'AI Runner export JSON copied to clipboard.',
+      variant: 'success',
+    });
+  };
+
+  const copyRunAsSetupGuide = async () => {
+    const targetUser = getSafeRunAsUser(profileForm.runAsUser);
+    const shellPath = getSafeRunAsShell(profileForm.shell);
+    const setupGuide = [
+      '# Replace servermon with the OS user that runs the ServerMon service.',
+      `sudo useradd --create-home --shell ${shellPath} ${targetUser}`,
+      'ps -o user= -p "$(pgrep -f \'servermon\')"',
+      `sudo visudo -f /etc/sudoers.d/servermon-ai-runner-${targetUser}`,
+      '',
+      '# sudoers entry:',
+      `servermon ALL=(${targetUser}) NOPASSWD:SETENV: ${shellPath}`,
+      '',
+      '# Validation command:',
+      `sudo -n -E -u ${targetUser} -- ${shellPath} -lc 'id -un'`,
+    ].join('\n');
+    await navigator.clipboard.writeText(setupGuide);
+    toast({
+      title: 'Copied',
+      description: 'Run-as user setup guide copied to clipboard.',
       variant: 'success',
     });
   };
@@ -2365,11 +2555,15 @@ export default function AIRunnerPage() {
   };
 
   const buildAutoflowDraftItem = (): AutoflowItemDraft | null => {
+    const savedPromptName = autoflowDraft.promptId
+      ? promptMap[autoflowDraft.promptId]?.name
+      : undefined;
     const name =
       autoflowDraft.name.trim() ||
+      savedPromptName ||
       autoflowDraft.promptContent?.split('\n')[0]?.trim().slice(0, 64) ||
       `Step ${autoflowItems.length + 1}`;
-    if (!autoflowDraft.promptContent?.trim()) {
+    if (!autoflowDraft.promptId && !autoflowDraft.promptContent?.trim()) {
       toast({
         title: 'Prompt required',
         description: 'Add prompt content before adding this AutoFlow step.',
@@ -2396,60 +2590,163 @@ export default function AIRunnerPage() {
     return { ...autoflowDraft, name };
   };
 
-  const addAutoflowItem = () => {
+  const getEffectiveAutoflowLoopCount = () => {
+    if (autoflowMode !== 'sequential') return 1;
+    return Math.min(Math.max(Math.floor(autoflowDraftLoopCount), 1), MAX_AUTOFLOW_ITEMS);
+  };
+
+  const expandAutoflowDraftItemForLoop = (item: AutoflowItemDraft) => {
+    const loopCount = getEffectiveAutoflowLoopCount();
+    if (loopCount === 1) return [item];
+
+    return Array.from({ length: loopCount }, (_, index) => {
+      const suffix = ` - Loop ${index + 1}`;
+      const baseName = item.name.slice(0, MAX_AUTOFLOW_ITEM_NAME_LENGTH - suffix.length);
+      return {
+        ...item,
+        name: `${baseName}${suffix}`,
+      };
+    });
+  };
+
+  const buildAutoflowDraftItems = (): AutoflowItemDraft[] | null => {
     const item = buildAutoflowDraftItem();
-    if (!item) return;
-    setAutoflowItems((current) => [...current, item]);
-    setAutoflowDraft((current) => ({
-      ...current,
-      promptId: undefined,
-      name: '',
-      promptContent: '',
-      attachments: [],
-    }));
+    return item ? expandAutoflowDraftItemForLoop(item) : null;
+  };
+
+
+  const addAutoflowItem = (replaceStepIndex: number | null = null) => {
+    const items = buildAutoflowDraftItems();
+    if (!items) return;
+    const nextItemCount = autoflowItems.length + items.length - (replaceStepIndex === null ? 0 : 1);
+    if (nextItemCount > MAX_AUTOFLOW_ITEMS) {
+      toast({
+        title: 'Too many AutoFlow steps',
+        description: `AutoFlows support up to ${MAX_AUTOFLOW_ITEMS} steps.`,
+        variant: 'warning',
+      });
+      return;
+    }
+    setAutoflowItems((current) => {
+      if (replaceStepIndex === null) {
+        return [...current, ...items];
+      }
+      if (replaceStepIndex < 0 || replaceStepIndex >= current.length) return current;
+      const next = [...current];
+      next.splice(replaceStepIndex, 1, ...items);
+      return next;
+    });
+    clearAutoflowDraft();
   };
 
   const submitAutoflow = async () => {
     try {
-      const draftItem = autoflowItems.length === 0 ? buildAutoflowDraftItem() : null;
-      const items = autoflowItems.length > 0 ? autoflowItems : draftItem ? [draftItem] : [];
+      const isEditingFlow = Boolean(editingAutoflowId);
+      const payload = {
+        name: autoflowName.trim() || 'Untitled AutoFlow',
+        mode: autoflowMode,
+        continueOnFailure: autoflowContinueOnFailure,
+      };
+      const draftItems = autoflowItems.length === 0 ? buildAutoflowDraftItems() : null;
+      const items = autoflowItems.length > 0 ? autoflowItems : draftItems ? draftItems : [];
       if (items.length === 0) return;
-      const response = await fetch('/api/modules/ai-runner/autoflows', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: autoflowName.trim() || 'Untitled AutoFlow',
-          mode: autoflowMode,
-          continueOnFailure: autoflowContinueOnFailure,
-          items,
-          startImmediately: true,
-        }),
-      });
-      const payload = await response.json();
-      if (!response.ok) throw new Error(payload.error || 'Unable to start AutoFlow');
-      setAutoflowName('');
-      setAutoflowItems([]);
-      setAutoflowDraft((current) => ({
-        ...current,
-        promptId: undefined,
-        name: '',
-        promptContent: '',
-        attachments: [],
-      }));
-      setAutoflows((current) => [payload, ...current]);
+
+      if (editingAutoflowId) {
+        const response = await fetch(`/api/modules/ai-runner/autoflows/${editingAutoflowId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...payload, items }),
+        });
+        const responsePayload = await response.json();
+        if (!response.ok) throw new Error(responsePayload.error || 'Unable to update AutoFlow');
+        if (autoflowShouldStart) {
+          const startResponse = await fetch(
+            `/api/modules/ai-runner/autoflows/${editingAutoflowId}/start`,
+            { method: 'POST' }
+          );
+          const startPayload = await startResponse.json();
+          if (!startResponse.ok) {
+            throw new Error(startPayload.error || 'Unable to start updated AutoFlow');
+          }
+        }
+      } else {
+        const response = await fetch('/api/modules/ai-runner/autoflows', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...payload, items, startImmediately: autoflowShouldStart }),
+        });
+        const responsePayload = await response.json();
+        if (!response.ok) {
+          throw new Error(responsePayload.error || 'Unable to save AutoFlow');
+        }
+      }
+
+      clearAutoflowEdit();
       toast({
-        title: 'AutoFlow started',
-        description: 'Steps will queue according to the selected run mode and workspace locks.',
+        title: isEditingFlow
+          ? 'AutoFlow saved'
+          : autoflowShouldStart
+            ? 'AutoFlow started'
+            : 'AutoFlow draft saved',
+        description: isEditingFlow
+          ? autoflowShouldStart
+            ? 'Your changes were saved and execution started.'
+            : 'Your changes were saved to the selected AutoFlow.'
+          : autoflowShouldStart
+            ? 'Steps were queued according to the selected run mode and workspace locks.'
+            : 'AutoFlow was saved as a draft.',
         variant: 'success',
       });
       await loadAll();
+      setActiveTab('autoflows');
     } catch (error) {
       toast({
         title: 'AutoFlow failed',
-        description: error instanceof Error ? error.message : 'Unable to start AutoFlow',
+        description: error instanceof Error ? error.message : 'Unable to save AutoFlow',
         variant: 'destructive',
       });
     }
+  };
+
+  const editAutoflow = (id: string) => {
+    const autoflow = autoflows.find((item) => item._id === id);
+    if (!autoflow) {
+      toast({
+        title: 'AutoFlow not found',
+        description: 'Unable to load the selected AutoFlow.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    if (autoflow.status === 'running') {
+      toast({
+        title: 'Unable to edit AutoFlow',
+        description: 'Stop this flow before editing.',
+        variant: 'warning',
+      });
+      return;
+    }
+
+    setEditingAutoflowId(id);
+    setAutoflowName(autoflow.name);
+    setAutoflowMode(autoflow.mode);
+    setAutoflowContinueOnFailure(autoflow.continueOnFailure);
+    setAutoflowItems(
+      autoflow.items.map((item) => ({
+        name: item.name,
+        promptId: item.promptId,
+        promptContent: item.promptContent ?? '',
+        promptType: item.promptType,
+        attachments: item.attachments ?? [],
+        agentProfileId: item.agentProfileId,
+        workspaceId: item.workspaceId,
+        workingDirectory: item.workingDirectory,
+        timeout: item.timeout,
+      }))
+    );
+    clearAutoflowDraft();
+    setAutoflowShouldStart(false);
+    setActiveTab('autoflows');
   };
 
   const startAutoflow = async (id: string) => {
@@ -2504,6 +2801,9 @@ export default function AIRunnerPage() {
       variant: 'success',
     });
   };
+
+  const profileRunAsUser = getSafeRunAsUser(profileForm.runAsUser);
+  const profileRunAsShell = getSafeRunAsShell(profileForm.shell);
 
   if (loading) {
     return <PageSkeleton statCards={4} />;
@@ -2584,10 +2884,9 @@ export default function AIRunnerPage() {
                 onOpenCreateModal={openCreatePromptModal}
                 onOpenInAutoflow={openPromptInAutoflow}
                 onSelectForEdit={selectPromptForEdit}
-                onDelete={(id) => runExclusiveAction(`prompt:delete:${id}`, () => deletePrompt(id))}
+                onDelete={handleDeletePrompt}
                 isActionPending={isActionPending}
               />
-
               <PromptModal
                 isOpen={promptModalOpen}
                 onClose={closePromptModal}
@@ -3216,629 +3515,74 @@ export default function AIRunnerPage() {
           )}
 
           {activeTab === 'autoflows' && (
-            <div
-              id="runner-tab-autoflows"
-              role="tabpanel"
-              aria-labelledby="tab-autoflows"
-              className="grid gap-5 xl:grid-cols-[0.95fr_1.05fr]"
-            >
-              <Card className="border-border/60">
-                <CardHeader>
-                  <CardTitle className="text-sm">AutoFlow Builder</CardTitle>
-                  <CardDescription>
-                    Queue a chain of prompts. Sequential mode waits for each step; parallel mode
-                    still respects blocking workspaces.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="grid gap-4 md:grid-cols-[1fr_180px]">
-                    <Input
-                      label="AutoFlow Name"
-                      value={autoflowName}
-                      onChange={(event) => setAutoflowName(event.target.value)}
-                      placeholder="ServerMon cleanup wave"
-                    />
-                    <label className="space-y-1.5">
-                      <span className="block text-sm font-medium">Run Mode</span>
-                      <select
-                        value={autoflowMode}
-                        onChange={(event) =>
-                          setAutoflowMode(event.target.value as typeof autoflowMode)
-                        }
-                        className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring/40"
-                      >
-                        <option value="sequential">Sequential</option>
-                        <option value="parallel">Parallel</option>
-                      </select>
-                    </label>
-                  </div>
-
-                  <div className="rounded-xl border border-border/60 bg-card/60 p-4 space-y-4">
-                    <div className="grid gap-4 md:grid-cols-[1fr_200px_180px]">
-                      <Input
-                        label="Step Name"
-                        value={autoflowDraft.name}
-                        onChange={(event) =>
-                          setAutoflowDraft((current) => ({
-                            ...current,
-                            name: event.target.value,
-                          }))
-                        }
-                        placeholder="Patch tests"
-                      />
-                      <label className="space-y-1.5">
-                        <span className="block text-sm font-medium">Profile</span>
-                        <select
-                          value={autoflowDraft.agentProfileId}
-                          onChange={(event) => {
-                            const profile = profileMap[event.target.value];
-                            setAutoflowDraft((current) => ({
-                              ...current,
-                              agentProfileId: event.target.value,
-                              timeout: profile?.defaultTimeout ?? current.timeout,
-                            }));
-                          }}
-                          className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring/40"
-                        >
-                          <option value="">Select profile</option>
-                          {profiles
-                            .filter((profile) => profile.enabled)
-                            .map((profile) => (
-                              <option key={profile._id} value={profile._id}>
-                                {profile.name}
-                              </option>
-                            ))}
-                        </select>
-                      </label>
-                      <Input
-                        label="Timeout"
-                        type="number"
-                        value={autoflowDraft.timeout}
-                        onChange={(event) =>
-                          setAutoflowDraft((current) => ({
-                            ...current,
-                            timeout: Number(event.target.value) || 1,
-                          }))
-                        }
-                        min={1}
-                      />
-                    </div>
-
-                    <div className="grid gap-4 md:grid-cols-[220px_1fr]">
-                      <label className="space-y-1.5">
-                        <span className="block text-sm font-medium">Workspace</span>
-                        <select
-                          value={autoflowDraft.workspaceId ?? ''}
-                          onChange={(event) => {
-                            const workspace = workspaceMap[event.target.value];
-                            setAutoflowDraft((current) => ({
-                              ...current,
-                              workspaceId: event.target.value || undefined,
-                              workingDirectory: workspace?.path ?? current.workingDirectory,
-                            }));
-                          }}
-                          className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring/40"
-                        >
-                          <option value="">Custom path</option>
-                          {workspaces
-                            .filter((workspace) => workspace.enabled)
-                            .map((workspace) => (
-                              <option key={workspace._id} value={workspace._id}>
-                                {workspace.name}
-                              </option>
-                            ))}
-                        </select>
-                      </label>
-                      <div className="space-y-1.5">
-                        <span className="block text-sm font-medium">Workspace Path</span>
-                        <input
-                          list="runner-directories"
-                          value={autoflowDraft.workingDirectory}
-                          onChange={(event) =>
-                            setAutoflowDraft((current) => ({
-                              ...current,
-                              workspaceId:
-                                workspaces.find(
-                                  (workspace) => workspace.path === event.target.value
-                                )?._id ?? undefined,
-                              workingDirectory: event.target.value,
-                            }))
-                          }
-                          className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring/40"
-                        />
-                      </div>
-                    </div>
-
-                    <label className="block space-y-1.5">
-                      <span className="flex items-center justify-between gap-2 text-sm font-medium">
-                        Prompt
-                        {promptTemplates.length > 0 ? (
-                          <select
-                            aria-label="Load prompt template into AutoFlow step"
-                            onChange={(event) => {
-                              const template = promptTemplates.find(
-                                (item) => item._id === event.target.value
-                              );
-                              if (!template) return;
-                              setAutoflowDraft((current) => ({
-                                ...current,
-                                promptId: undefined,
-                                promptContent: applyPromptTemplate(
-                                  template.content,
-                                  current.promptContent ?? ''
-                                ),
-                              }));
-                              event.target.value = '';
-                            }}
-                            className="h-9 max-w-[260px] rounded-lg border border-input bg-background px-3 text-xs outline-none focus:ring-2 focus:ring-ring/40"
-                          >
-                            <option value="">Load template...</option>
-                            {promptTemplates.map((template) => (
-                              <option key={template._id} value={template._id}>
-                                {template.name}
-                              </option>
-                            ))}
-                          </select>
-                        ) : null}
-                      </span>
-                      <textarea
-                        value={autoflowDraft.promptContent ?? ''}
-                        onChange={(event) =>
-                          setAutoflowDraft((current) => ({
-                            ...current,
-                            promptId: undefined,
-                            promptContent: event.target.value,
-                          }))
-                        }
-                        className="min-h-44 w-full rounded-xl border border-input bg-background px-3 py-3 text-sm outline-none focus:ring-2 focus:ring-ring/40"
-                      />
-                    </label>
-
-                    <div
-                      role="region"
-                      aria-label="Ad-hoc prompt attachments"
-                      onDragEnter={acceptAttachmentDrag}
-                      onDragOver={acceptAttachmentDrag}
-                      onDrop={(event) => {
-                        void uploadAutoflowAttachments(getDroppedAttachmentFiles(event));
-                      }}
-                      className="space-y-3 rounded-xl border border-dashed border-border/70 bg-background/70 p-4 transition-colors hover:border-primary/50"
-                    >
-                      <div className="flex flex-wrap items-center justify-between gap-3">
-                        <div>
-                          <p className="text-sm font-semibold">Step files & images</p>
-                          <p className="mt-1 text-xs text-muted-foreground">
-                            Uploaded to temp storage and passed to this ad-hoc step by path. Drop
-                            files here or use upload.
-                          </p>
-                        </div>
-                        <label className="inline-flex h-9 cursor-pointer items-center gap-2 rounded-lg border border-input bg-background px-3 text-xs font-medium transition-colors hover:bg-accent/50">
-                          <Upload className="h-4 w-4" />
-                          Upload
-                          <input
-                            type="file"
-                            multiple
-                            className="sr-only"
-                            onChange={(event) => {
-                              void uploadAutoflowAttachments(event.target.files);
-                              event.target.value = '';
-                            }}
-                          />
-                        </label>
-                      </div>
-                      {(autoflowDraft.attachments ?? []).length > 0 ? (
-                        <div className="space-y-2">
-                          {(autoflowDraft.attachments ?? []).map((attachment, index) => (
-                            <div
-                              key={`${attachment.path}-${index}`}
-                              className="flex items-center justify-between gap-3 rounded-lg border border-border/60 bg-card px-3 py-2 text-xs"
-                            >
-                              <span className="min-w-0 truncate">
-                                {attachment.name}
-                                <span className="ml-2 text-muted-foreground">
-                                  {formatMemory(attachment.size)}
-                                </span>
-                              </span>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={() => removeAutoflowAttachment(index)}
-                              >
-                                <X className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          ))}
-                        </div>
-                      ) : null}
-                    </div>
-
-                    <div className="flex flex-wrap items-center justify-between gap-3">
-                      <label className="flex items-center gap-2 text-sm">
-                        <input
-                          type="checkbox"
-                          checked={autoflowContinueOnFailure}
-                          onChange={(event) => setAutoflowContinueOnFailure(event.target.checked)}
-                        />
-                        Continue after failed step
-                      </label>
-                      <Button variant="outline" onClick={addAutoflowItem}>
-                        <Plus className="w-4 h-4" />
-                        Add Step
-                      </Button>
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    {autoflowItems.map((item, index) => (
-                      <div
-                        key={`${item.name}-${index}`}
-                        className="flex items-start justify-between gap-3 rounded-xl border border-border/60 bg-background/70 px-4 py-3"
-                      >
-                        <div>
-                          <p className="text-sm font-semibold">
-                            {index + 1}. {item.name}
-                          </p>
-                          <p className="mt-1 text-xs text-muted-foreground">
-                            {profileMap[item.agentProfileId]?.name || 'Unknown profile'} ·{' '}
-                            {item.workspaceId
-                              ? workspaceMap[item.workspaceId]?.name || item.workingDirectory
-                              : item.workingDirectory}
-                          </p>
-                          {(item.attachments ?? []).length > 0 ? (
-                            <Badge variant="outline" className="mt-2 text-[10px]">
-                              {(item.attachments ?? []).length} files
-                            </Badge>
-                          ) : null}
-                        </div>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() =>
-                            setAutoflowItems((current) =>
-                              current.filter((_, itemIndex) => itemIndex !== index)
-                            )
-                          }
-                        >
-                          Remove
-                        </Button>
-                      </div>
-                    ))}
-                    {autoflowItems.length === 0 ? (
-                      <div className="rounded-xl border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
-                        Start the current draft as a one-step AutoFlow, or add steps to build a
-                        larger queue.
-                      </div>
-                    ) : null}
-                  </div>
-
-                  <Button
-                    size="lg"
-                    disabled={autoflowItems.length === 0 && !hasAutoflowDraftPrompt}
-                    onClick={() => void runExclusiveAction('autoflow:submit', submitAutoflow)}
-                    loading={isActionPending('autoflow:submit')}
-                  >
-                    <Play className="w-4 h-4" />
-                    Start AutoFlow
-                  </Button>
-                </CardContent>
-              </Card>
-
-              <Card className="overflow-hidden border-border/60">
-                <CardHeader className="border-b border-border/60">
-                  <CardTitle className="text-sm">AutoFlow Runs</CardTitle>
-                  <CardDescription>
-                    Status across multi-step prompt queues and their generated runs.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="p-0">
-                  {autoflows.map((autoflow) => (
-                    <div
-                      key={autoflow._id}
-                      className="border-b border-border/60 px-5 py-4 last:border-b-0"
-                    >
-                      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                        <div>
-                          <div className="flex flex-wrap items-center gap-2">
-                            <h3 className="text-sm font-semibold">{autoflow.name}</h3>
-                            <Badge
-                              variant={
-                                autoflow.status === 'completed'
-                                  ? 'success'
-                                  : autoflow.status === 'failed'
-                                    ? 'destructive'
-                                    : autoflow.status === 'running'
-                                      ? 'default'
-                                      : 'outline'
-                              }
-                            >
-                              {autoflow.status}
-                            </Badge>
-                            <Badge variant="outline">{autoflow.mode}</Badge>
-                          </div>
-                          <p className="mt-2 text-xs text-muted-foreground">
-                            {autoflow.items.filter((item) => item.status === 'completed').length}/
-                            {autoflow.items.length} complete
-                          </p>
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                          {autoflow.status !== 'running' ? (
-                            <Button
-                              size="sm"
-                              onClick={() =>
-                                void runExclusiveAction(`autoflow:start:${autoflow._id}`, () =>
-                                  startAutoflow(autoflow._id)
-                                )
-                              }
-                              loading={isActionPending(`autoflow:start:${autoflow._id}`)}
-                            >
-                              <Play className="w-4 h-4" />
-                              Restart
-                            </Button>
-                          ) : (
-                            <Button
-                              size="sm"
-                              variant="destructive"
-                              onClick={() =>
-                                void runExclusiveAction(`autoflow:cancel:${autoflow._id}`, () =>
-                                  cancelAutoflow(autoflow._id)
-                                )
-                              }
-                              loading={isActionPending(`autoflow:cancel:${autoflow._id}`)}
-                            >
-                              <Square className="w-4 h-4" />
-                              Cancel
-                            </Button>
-                          )}
-                        </div>
-                      </div>
-                      <div className="mt-3 grid gap-2">
-                        {autoflow.items.map((item, index) => (
-                          <button
-                            type="button"
-                            key={item._id ?? `${autoflow._id}-${index}`}
-                            disabled={!item.runId}
-                            onClick={() => {
-                              if (item.runId) void revealHistoryRun(item.runId);
-                            }}
-                            className={cn(
-                              'grid min-h-10 w-full gap-2 rounded-lg border border-border/50 bg-background/70 px-3 py-2 text-left text-xs transition-colors sm:grid-cols-[32px_1fr_100px]',
-                              item.runId
-                                ? 'cursor-pointer hover:border-primary/40 hover:bg-accent/30 focus:outline-none focus:ring-2 focus:ring-ring/40'
-                                : 'cursor-default'
-                            )}
-                            title={item.runId ? 'Open this step in history' : 'No history run yet'}
-                          >
-                            <span className="text-muted-foreground">#{index + 1}</span>
-                            <span className="min-w-0 truncate">{item.name}</span>
-                            <Badge variant="outline">{item.status}</Badge>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                  {autoflows.length === 0 ? (
-                    <div className="px-6 py-16 text-center text-sm text-muted-foreground">
-                      No AutoFlows yet.
-                    </div>
-                  ) : null}
-                </CardContent>
-              </Card>
-            </div>
+            <AutoFlowView
+              autoflowName={autoflowName}
+              setAutoflowName={setAutoflowName}
+              autoflowMode={autoflowMode}
+              setAutoflowMode={setAutoflowMode}
+              autoflowDraft={autoflowDraft}
+              setAutoflowDraft={setAutoflowDraft}
+              profiles={profiles}
+              profileMap={profileMap}
+              workspaces={workspaces}
+              workspaceMap={workspaceMap}
+              prompts={prompts}
+              promptTemplates={promptTemplates}
+              autoflowDraftLoopCount={autoflowDraftLoopCount}
+              setAutoflowDraftLoopCount={setAutoflowDraftLoopCount}
+              autoflowContinueOnFailure={autoflowContinueOnFailure}
+              setAutoflowContinueOnFailure={setAutoflowContinueOnFailure}
+              autoflowItems={autoflowItems}
+              setAutoflowItems={setAutoflowItems}
+              autoflows={autoflows}
+              uploadAutoflowAttachments={uploadAutoflowAttachments}
+              removeAutoflowAttachment={removeAutoflowAttachment}
+              addAutoflowItem={addAutoflowItem}
+              submitAutoflow={submitAutoflow}
+              startAutoflow={startAutoflow}
+              cancelAutoflow={cancelAutoflow}
+              editAutoflow={editAutoflow}
+              revealHistoryRun={revealHistoryRun}
+              isActionPending={isActionPending}
+              runExclusiveAction={runExclusiveAction}
+              hasAutoflowDraftPrompt={hasAutoflowDraftPrompt}
+              editingAutoflowId={editingAutoflowId}
+              autoflowShouldStart={autoflowShouldStart}
+              setAutoflowShouldStart={setAutoflowShouldStart}
+              clearAutoflowEdit={clearAutoflowEdit}
+              applyPromptTemplate={applyPromptTemplate}
+              acceptAttachmentDrag={acceptAttachmentDrag}
+              getDroppedAttachmentFiles={getDroppedAttachmentFiles}
+            />
           )}
 
           {activeTab === 'history' && (
-            <div
-              id="runner-tab-history"
-              role="tabpanel"
-              aria-labelledby="tab-history"
-              className="space-y-5"
-            >
-              <Card className="border-border/60">
-                <CardContent className="p-0">
-                  <div className="border-b border-border/60 px-5 py-4">
-                    <div className="flex flex-wrap items-end justify-between gap-3">
-                      <div className="grid flex-1 gap-3 xl:grid-cols-[minmax(260px,1.4fr)_repeat(4,minmax(0,1fr))]">
-                        <label className="space-y-1">
-                          <span className="text-xs font-medium text-muted-foreground">Search</span>
-                          <Input
-                            value={runSearch}
-                            onChange={(event) => setRunSearch(event.target.value)}
-                            placeholder="Prompt, command, profile, workspace"
-                            icon={<Search className="w-4 h-4" />}
-                          />
-                        </label>
-
-                        <label className="space-y-1">
-                          <span className="flex items-center gap-1 text-xs font-medium text-muted-foreground">
-                            <ListFilter className="w-3.5 h-3.5" />
-                            Status
-                          </span>
-                          <select
-                            value={historyStatusFilter}
-                            onChange={(event) =>
-                              setHistoryStatusFilter(
-                                event.target.value as typeof historyStatusFilter
-                              )
-                            }
-                            className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring/40"
-                          >
-                            <option value="all">All statuses</option>
-                            <option value="queued">Queued</option>
-                            <option value="running">Running</option>
-                            <option value="retrying">Retrying</option>
-                            <option value="skipped">Skipped</option>
-                            <option value="completed">Completed</option>
-                            <option value="failed">Failed</option>
-                            <option value="timeout">Timed out</option>
-                            <option value="killed">Killed</option>
-                          </select>
-                        </label>
-
-                        <label className="space-y-1">
-                          <span className="text-xs font-medium text-muted-foreground">Trigger</span>
-                          <select
-                            value={historyTriggerFilter}
-                            onChange={(event) =>
-                              setHistoryTriggerFilter(
-                                event.target.value as typeof historyTriggerFilter
-                              )
-                            }
-                            className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring/40"
-                          >
-                            <option value="all">All triggers</option>
-                            <option value="manual">Manual</option>
-                            <option value="schedule">Schedule</option>
-                            <option value="autoflow">AutoFlow</option>
-                          </select>
-                        </label>
-
-                        <label className="space-y-1">
-                          <span className="text-xs font-medium text-muted-foreground">Profile</span>
-                          <select
-                            value={historyProfileFilter}
-                            onChange={(event) => setHistoryProfileFilter(event.target.value)}
-                            className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring/40"
-                          >
-                            <option value="all">All profiles</option>
-                            {profiles.map((profile) => (
-                              <option key={profile._id} value={profile._id}>
-                                {profile.name}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
-
-                        <label className="space-y-1">
-                          <span className="text-xs font-medium text-muted-foreground">
-                            Schedule
-                          </span>
-                          <select
-                            value={historyScheduleFilter}
-                            onChange={(event) => setHistoryScheduleFilter(event.target.value)}
-                            className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring/40"
-                          >
-                            <option value="all">All schedules</option>
-                            <option value="none">No schedule</option>
-                            {schedules.map((schedule) => (
-                              <option key={schedule._id} value={schedule._id}>
-                                {schedule.name}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
-                      </div>
-
-                      <Button
-                        variant="outline"
-                        onClick={() =>
-                          void runExclusiveAction('history:refresh', () => loadAll(runSearch))
-                        }
-                        loading={isActionPending('history:refresh')}
-                        className="h-10 shrink-0 self-end"
-                      >
-                        <RefreshCcw className="w-4 h-4" />
-                        Refresh
-                      </Button>
-                    </div>
-                  </div>
-
-                  <div className="overflow-x-auto">
-                    <table className="min-w-full text-sm">
-                      <thead className="border-b border-border/60 bg-secondary/20 text-xs uppercase tracking-wide text-muted-foreground">
-                        <tr>
-                          <th className="px-4 py-3 text-left font-medium">Status</th>
-                          <th className="px-4 py-3 text-left font-medium">Run</th>
-                          <th className="px-4 py-3 text-left font-medium">Prompt</th>
-                          <th className="px-4 py-3 text-left font-medium">Profile</th>
-                          <th className="px-4 py-3 text-left font-medium">Trigger</th>
-                          <th className="px-4 py-3 text-left font-medium">Workspace</th>
-                          <th className="px-4 py-3 text-left font-medium">Started</th>
-                          <th className="px-4 py-3 text-left font-medium">Duration</th>
-                          <th className="px-4 py-3 text-left font-medium">Exit</th>
-                          <th className="px-4 py-3 text-left font-medium">Resources</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {filteredHistoryRuns.map((run) => (
-                          <tr
-                            key={run._id}
-                            ref={(node) => {
-                              historyRowRefs.current[run._id] = node;
-                            }}
-                            tabIndex={-1}
-                            onClick={() => openRunDetail(run)}
-                            className={cn(
-                              'cursor-pointer border-b border-border/40 transition-colors hover:bg-accent/30 focus:outline-none focus:ring-2 focus:ring-ring/40',
-                              selectedRun?._id === run._id && 'bg-primary/5',
-                              focusedHistoryRunId === run._id && 'bg-primary/10'
-                            )}
-                          >
-                            <td className="px-4 py-3 align-top">
-                              <Badge variant={getRunStatusVariant(run.status)}>{run.status}</Badge>
-                            </td>
-                            <td className="px-4 py-3 align-top">
-                              <div className="max-w-[220px]">
-                                <p className="truncate font-medium">{getRunDisplayName(run)}</p>
-                                <p className="truncate text-xs text-muted-foreground">
-                                  {getRunContextLabel(run)}
-                                </p>
-                              </div>
-                            </td>
-                            <td className="px-4 py-3 align-top">
-                              <div className="max-w-[280px]">
-                                <p className="truncate">{run.promptContent.slice(0, 80)}</p>
-                                <p className="truncate text-xs text-muted-foreground">
-                                  {run.promptId
-                                    ? promptMap[run.promptId]?.name || 'Saved prompt'
-                                    : 'Inline prompt'}
-                                </p>
-                              </div>
-                            </td>
-                            <td className="px-4 py-3 align-top">
-                              {profileMap[run.agentProfileId]?.name || 'Unknown profile'}
-                            </td>
-                            <td className="px-4 py-3 align-top">
-                              <Badge variant="outline">{run.triggeredBy}</Badge>
-                            </td>
-                            <td className="px-4 py-3 align-top">
-                              <span className="block max-w-[220px] truncate text-xs text-muted-foreground">
-                                {run.workingDirectory}
-                              </span>
-                            </td>
-                            <td className="px-4 py-3 align-top">
-                              <div>
-                                <p>{formatDateTime(run.startedAt ?? run.queuedAt)}</p>
-                                <p className="text-xs text-muted-foreground">
-                                  {formatRelative(run.startedAt ?? run.queuedAt)}
-                                </p>
-                              </div>
-                            </td>
-                            <td className="px-4 py-3 align-top">
-                              {formatDuration(run.durationSeconds)}
-                            </td>
-                            <td className="px-4 py-3 align-top">
-                              {run.exitCode === undefined ? '—' : run.exitCode}
-                            </td>
-                            <td className="px-4 py-3 align-top">
-                              <div className="text-xs text-muted-foreground">
-                                <p>CPU {run.resourceUsage?.peakCpuPercent?.toFixed(1) ?? '—'}%</p>
-                                <p>Mem {formatMemory(run.resourceUsage?.peakMemoryBytes)}</p>
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-
-                  {filteredHistoryRuns.length === 0 && (
-                    <div className="px-6 py-16 text-center text-sm text-muted-foreground">
-                      No runs match the current history filters.
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </div>
+            <HistoryView
+              runSearch={runSearch}
+              setRunSearch={setRunSearch}
+              historyStatusFilter={historyStatusFilter}
+              setHistoryStatusFilter={setHistoryStatusFilter}
+              historyTriggerFilter={historyTriggerFilter}
+              setHistoryTriggerFilter={setHistoryTriggerFilter}
+              historyProfileFilter={historyProfileFilter}
+              setHistoryProfileFilter={setHistoryProfileFilter}
+              historyScheduleFilter={historyScheduleFilter}
+              setHistoryScheduleFilter={setHistoryScheduleFilter}
+              profiles={profiles}
+              profileMap={profileMap}
+              schedules={schedules}
+              filteredHistoryRuns={filteredHistoryRuns}
+              historyRowRefs={historyRowRefs}
+              openRunDetail={openRunDetail}
+              selectedRun={selectedRun}
+              focusedHistoryRunId={focusedHistoryRunId}
+              loadAll={loadAll}
+              isActionPending={isActionPending}
+              runExclusiveAction={runExclusiveAction}
+              getRunDisplayName={getRunDisplayName}
+              getRunContextLabel={getRunContextLabel}
+              promptMap={promptMap}
+            />
           )}
 
           {activeTab === 'settings' && (
@@ -4001,11 +3745,32 @@ export default function AIRunnerPage() {
 
                     <label className="block space-y-2">
                       <LabelWithHint
-                        label="Mongo retention days"
-                        hint="Completed AI Runner jobs and run snapshots older than this are cleaned from Mongo."
+                        label="Run history retention days"
+                        hint="Permanently deletes finished run records and their associated jobs after this many days. Active runs are kept."
                       />
                       <Input
-                        aria-label="Mongo retention days"
+                        aria-label="Run history retention days"
+                        type="number"
+                        min={MIN_RETENTION_DAYS}
+                        max={MAX_RETENTION_DAYS}
+                        inputMode="numeric"
+                        value={storageSettingsForm.historyRetentionDays}
+                        onChange={(event) =>
+                          setStorageSettingsForm((current) => ({
+                            ...current,
+                            historyRetentionDays: event.target.value,
+                          }))
+                        }
+                      />
+                    </label>
+
+                    <label className="block space-y-2">
+                      <LabelWithHint
+                        label="AI Runner logs retention days"
+                        hint="Completed run output stored in Mongo older than this is replaced with a retention notice."
+                      />
+                      <Input
+                        aria-label="AI Runner logs retention days"
                         type="number"
                         min={MIN_RETENTION_DAYS}
                         max={MAX_RETENTION_DAYS}
@@ -4101,9 +3866,13 @@ export default function AIRunnerPage() {
                               <Badge variant={workspace.enabled ? 'success' : 'warning'}>
                                 {workspace.enabled ? 'Enabled' : 'Disabled'}
                               </Badge>
-                              <Badge variant={workspace.blocking ? 'warning' : 'outline'}>
-                                {workspace.blocking ? 'Blocking' : 'Parallel allowed'}
-                              </Badge>
+                              {workspace.gitWorktreesEnabled ? (
+                                <Badge variant="success">Git Worktrees</Badge>
+                              ) : (
+                                <Badge variant={workspace.blocking ? 'warning' : 'outline'}>
+                                  {workspace.blocking ? 'Blocking' : 'Parallel allowed'}
+                                </Badge>
+                              )}
                             </div>
                             <p className="mt-2 break-all font-mono text-xs text-muted-foreground">
                               {workspace.path}
@@ -4278,6 +4047,9 @@ export default function AIRunnerPage() {
                                 {profile.requiresTTY && (
                                   <Badge variant="outline">TTY required</Badge>
                                 )}
+                                {profile.runAsUser ? (
+                                  <Badge variant="outline">runs as {profile.runAsUser}</Badge>
+                                ) : null}
                                 <Badge variant="outline">
                                   {scheduleSummary.totalSchedules} schedule
                                   {scheduleSummary.totalSchedules === 1 ? '' : 's'}
@@ -4754,6 +4526,83 @@ export default function AIRunnerPage() {
                                 </p>
                               </div>
                             </label>
+                            <div className="space-y-3 rounded-xl border border-border/60 bg-secondary/10 p-4">
+                              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                                <div className="space-y-1">
+                                  <LabelWithHint
+                                    label="Run As User"
+                                    hint="Optionally execute this profile as a dedicated OS user. Leave blank to keep the current ServerMon process user."
+                                  />
+                                  <p className="text-xs leading-5 text-muted-foreground">
+                                    Use a low-privilege account and configure passwordless sudo on
+                                    the host. Passwords are never stored in profiles.
+                                  </p>
+                                </div>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() =>
+                                    void runExclusiveAction(
+                                      'profile:run-as-copy',
+                                      copyRunAsSetupGuide
+                                    )
+                                  }
+                                  loading={isActionPending('profile:run-as-copy')}
+                                >
+                                  <Copy className="h-4 w-4" />
+                                  Copy setup
+                                </Button>
+                              </div>
+                              <div className="grid gap-4 md:grid-cols-2">
+                                <label className="block space-y-1.5">
+                                  <span className="text-sm font-medium text-foreground">
+                                    Target OS user
+                                  </span>
+                                  <Input
+                                    value={profileForm.runAsUser ?? ''}
+                                    onChange={(event) =>
+                                      setProfileForm((current) => ({
+                                        ...current,
+                                        runAsUser: event.target.value,
+                                      }))
+                                    }
+                                    placeholder="servermon-ai"
+                                  />
+                                </label>
+                                <label className="block space-y-1.5">
+                                  <span className="text-sm font-medium text-foreground">
+                                    Auth mode
+                                  </span>
+                                  <select
+                                    value={profileForm.runAsUserAuthMode ?? 'passwordless-sudo'}
+                                    onChange={(event) =>
+                                      setProfileForm((current) => ({
+                                        ...current,
+                                        runAsUserAuthMode: event.target
+                                          .value as ProfileFormState['runAsUserAuthMode'],
+                                      }))
+                                    }
+                                    className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring/40"
+                                  >
+                                    <option value="passwordless-sudo">
+                                      Configured on host / passwordless sudo
+                                    </option>
+                                  </select>
+                                </label>
+                              </div>
+                              <div className="rounded-lg border border-border/60 bg-background/80 p-3 text-xs leading-5 text-muted-foreground">
+                                <p>
+                                  Sudoers needs to allow the ServerMon service user to run this
+                                  profile as <span className="font-mono">{profileRunAsUser}</span>.
+                                  Include <span className="font-mono">SETENV</span> so profile
+                                  environment variables are available to the target user.
+                                </p>
+                                <pre className="mt-2 overflow-auto whitespace-pre-wrap rounded-md bg-secondary/30 p-2 font-mono text-[11px] text-foreground">
+                                  {`servermon ALL=(${profileRunAsUser}) NOPASSWD:SETENV: ${profileRunAsShell}`}
+                                </pre>
+                              </div>
+                            </div>
                           </div>
 
                           <div className="rounded-[24px] border border-border/60 bg-background/80 p-5 space-y-4">
@@ -4956,7 +4805,24 @@ export default function AIRunnerPage() {
                         placeholder="ServerMon Repo"
                       />
                       <div className="space-y-1.5">
-                        <span className="block text-sm font-medium">Workspace Path</span>
+                        <div className="flex items-center justify-between">
+                          <span className="block text-sm font-medium">Workspace Path</span>
+                          {workspaceForm.path && (
+                            <span className="text-xs text-muted-foreground flex items-center gap-1.5">
+                              <span
+                                className={cn(
+                                  'h-2 w-2 rounded-full',
+                                  workspaceForm.isGitRepo
+                                    ? 'bg-green-500'
+                                    : 'bg-zinc-300 dark:bg-zinc-700'
+                                )}
+                              />
+                              {workspaceForm.isGitRepo
+                                ? 'Git repository detected'
+                                : 'Not a git repository'}
+                            </span>
+                          )}
+                        </div>
                         <input
                           list="runner-directories"
                           value={workspaceForm.path}
@@ -4970,26 +4836,55 @@ export default function AIRunnerPage() {
                           placeholder="/root/repos/ServerMon"
                         />
                       </div>
-                      <label className="flex items-start gap-3 rounded-xl border border-border/60 bg-secondary/10 p-4 text-sm">
-                        <input
-                          type="checkbox"
-                          checked={workspaceForm.blocking}
-                          onChange={(event) =>
-                            setWorkspaceForm((current) => ({
-                              ...current,
-                              blocking: event.target.checked,
-                            }))
-                          }
-                          className="mt-1"
-                        />
-                        <span>
-                          <span className="block font-medium">Blocking workspace</span>
-                          <span className="mt-1 block text-xs leading-5 text-muted-foreground">
-                            When enabled, only one active AI Runner job can dispatch in this
-                            workspace at a time.
+
+                      {workspaceForm.isGitRepo ? (
+                        <label className="flex items-start gap-3 rounded-xl border border-border/60 bg-secondary/10 p-4 text-sm">
+                          <input
+                            type="checkbox"
+                            checked={workspaceForm.gitWorktreesEnabled}
+                            onChange={(event) =>
+                              setWorkspaceForm((current) => ({
+                                ...current,
+                                gitWorktreesEnabled: event.target.checked,
+                              }))
+                            }
+                            className="mt-1"
+                          />
+                          <span>
+                            <span className="block font-medium">
+                              Enable git worktrees for parallel execution
+                            </span>
+                            <span className="mt-1 block text-xs leading-5 text-muted-foreground">
+                              Each AI Runner job will create a temporary git worktree from the
+                              current commit. Worktrees are automatically removed when the job
+                              finishes.
+                            </span>
                           </span>
-                        </span>
-                      </label>
+                        </label>
+                      ) : null}
+
+                      {(!workspaceForm.isGitRepo || !workspaceForm.gitWorktreesEnabled) && (
+                        <label className="flex items-start gap-3 rounded-xl border border-border/60 bg-secondary/10 p-4 text-sm">
+                          <input
+                            type="checkbox"
+                            checked={workspaceForm.blocking}
+                            onChange={(event) =>
+                              setWorkspaceForm((current) => ({
+                                ...current,
+                                blocking: event.target.checked,
+                              }))
+                            }
+                            className="mt-1"
+                          />
+                          <span>
+                            <span className="block font-medium">Blocking workspace</span>
+                            <span className="mt-1 block text-xs leading-5 text-muted-foreground">
+                              When enabled, only one active AI Runner job can dispatch in this
+                              workspace at a time.
+                            </span>
+                          </span>
+                        </label>
+                      )}
                       <label className="flex items-center gap-2 text-sm">
                         <input
                           type="checkbox"
@@ -5447,149 +5342,19 @@ export default function AIRunnerPage() {
           )}
 
           {activeTab === 'logs' && (
-            <div
-              id="runner-tab-logs"
-              role="tabpanel"
-              aria-labelledby="tab-logs"
-              className="space-y-5"
-            >
-              <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_280px]">
-                <Card className="border-border/60">
-                  <CardHeader>
-                    <CardTitle className="text-sm">AI Runner Debug Stream</CardTitle>
-                    <CardDescription>
-                      Restart-scoped structured logs from the queue, supervisor, and worker
-                      lifecycle.
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="grid gap-3 md:grid-cols-3">
-                    <CompactStat
-                      label="Entries"
-                      value={logEntries.length}
-                      tone="primary"
-                      detail="Current in-browser tail for this session."
-                    />
-                    <CompactStat
-                      label="Stream"
-                      value={logStreamConnected ? 'Live' : 'Retrying'}
-                      tone={logStreamConnected ? 'success' : 'warning'}
-                      detail="SSE connection state for new log events."
-                    />
-                    <CompactStat
-                      label="Session"
-                      value={logSessionId ? logSessionId.slice(0, 8) : '—'}
-                      detail="Fresh log file created on each app restart."
-                    />
-                  </CardContent>
-                </Card>
-
-                <Card className="border-border/60">
-                  <CardHeader>
-                    <CardTitle className="text-sm">Tail Controls</CardTitle>
-                    <CardDescription>
-                      Filter noise, inspect the current `/tmp` file, and refresh the recent tail.
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    <label className="space-y-1">
-                      <span className="text-xs font-medium text-muted-foreground">Level</span>
-                      <select
-                        value={logLevelFilter}
-                        onChange={(event) =>
-                          setLogLevelFilter(event.target.value as typeof logLevelFilter)
-                        }
-                        className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring/40"
-                      >
-                        <option value="all">All levels</option>
-                        <option value="debug">Debug</option>
-                        <option value="info">Info</option>
-                        <option value="warn">Warn</option>
-                        <option value="error">Error</option>
-                      </select>
-                    </label>
-                    <div className="rounded-xl border border-border/60 bg-secondary/20 px-3 py-2">
-                      <p className="text-xs font-medium text-muted-foreground">Current log file</p>
-                      <p className="mt-1 break-all font-mono text-xs">{logFilePath || '—'}</p>
-                    </div>
-                    <Button
-                      variant="outline"
-                      onClick={() => void runExclusiveAction('logs:refresh', loadLogs)}
-                      loading={isActionPending('logs:refresh')}
-                      className="w-full"
-                    >
-                      <RefreshCcw className="w-4 h-4" />
-                      Refresh Tail
-                    </Button>
-                  </CardContent>
-                </Card>
-              </div>
-
-              {logsError ? (
-                <div className="rounded-xl border border-warning/30 bg-warning/10 px-4 py-3 text-sm text-muted-foreground">
-                  {logsError}
-                </div>
-              ) : null}
-
-              <Card className="border-border/60">
-                <CardContent className="p-0">
-                  <div className="grid grid-cols-[170px_170px_minmax(180px,220px)_minmax(180px,220px)_minmax(320px,1fr)] border-b border-border/60 bg-secondary/20 px-4 py-3 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                    <span>Time</span>
-                    <span>Level</span>
-                    <span>Component</span>
-                    <span>Event</span>
-                    <span>Message & Data</span>
-                  </div>
-                  <div
-                    ref={logViewportRef}
-                    className="max-h-[620px] overflow-auto bg-background/80 font-mono text-xs"
-                  >
-                    {filteredLogEntries.length === 0 ? (
-                      <div className="px-6 py-16 text-center text-sm text-muted-foreground">
-                        No AI Runner log entries match the current filter.
-                      </div>
-                    ) : (
-                      filteredLogEntries.map((entry) => (
-                        <div
-                          key={entry.id}
-                          className="grid grid-cols-[170px_170px_minmax(180px,220px)_minmax(180px,220px)_minmax(320px,1fr)] gap-3 border-b border-border/40 px-4 py-3 align-top"
-                        >
-                          <div>
-                            <p>{formatDateTime(entry.timestamp)}</p>
-                            <p className="mt-1 text-[11px] text-muted-foreground">
-                              pid {entry.pid}
-                            </p>
-                          </div>
-                          <div>
-                            <Badge
-                              variant={
-                                entry.level === 'error'
-                                  ? 'destructive'
-                                  : entry.level === 'warn'
-                                    ? 'secondary'
-                                    : entry.level === 'info'
-                                      ? 'outline'
-                                      : 'default'
-                              }
-                            >
-                              {entry.level}
-                            </Badge>
-                          </div>
-                          <div className="break-all text-muted-foreground">{entry.component}</div>
-                          <div className="break-all">{entry.event}</div>
-                          <div className="space-y-2">
-                            <p className="font-sans text-sm leading-6">{entry.message}</p>
-                            {entry.data ? (
-                              <pre className="overflow-x-auto rounded-lg border border-border/60 bg-secondary/20 p-3 text-[11px] leading-5 whitespace-pre-wrap break-words">
-                                {JSON.stringify(entry.data, null, 2)}
-                              </pre>
-                            ) : null}
-                          </div>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
+            <div id="runner-tab-logs" role="tabpanel" aria-labelledby="tab-logs">
+              <LogStreamView
+                logEntries={logEntries}
+                logStreamConnected={logStreamConnected}
+                logSessionId={logSessionId}
+                logLevelFilter={logLevelFilter}
+                onLogLevelFilterChange={setLogLevelFilter}
+                logFilePath={logFilePath}
+                onRefreshTail={() => runExclusiveAction('logs:refresh', loadLogs)}
+                isRefreshing={isActionPending('logs:refresh')}
+                logsError={logsError}
+                logViewportRef={logViewportRef}
+              />
             </div>
           )}
         </CardContent>
@@ -5608,11 +5373,9 @@ export default function AIRunnerPage() {
       {multiScheduleEditorOpen ? (
         <MultiScheduleEditorModal
           schedules={sortedSchedules}
-          promptNames={Object.fromEntries(prompts.map((prompt) => [prompt._id, prompt.name]))}
-          profileNames={Object.fromEntries(profiles.map((profile) => [profile._id, profile.name]))}
-          workspaceNames={Object.fromEntries(
-            workspaces.map((workspace) => [workspace._id, workspace.name])
-          )}
+          promptNames={promptNameMap}
+          profileNames={profileNameMap}
+          workspaceNames={workspaceNameMap}
           onClose={() => setMultiScheduleEditorOpen(false)}
           onSaved={loadAll}
         />

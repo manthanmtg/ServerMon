@@ -119,6 +119,7 @@ export function EndpointDetail({
       <div className="flex items-center gap-3 sm:gap-4 px-4 sm:px-6 py-4 border-b border-border/40 bg-card/60 backdrop-blur-xl">
         <button
           onClick={onCloseDetail}
+          aria-label="Close endpoint details"
           className="lg:hidden p-2 rounded-xl hover:bg-accent text-muted-foreground shrink-0 transition-colors"
         >
           <ChevronRight className="w-5 h-5 rotate-180" />
@@ -139,6 +140,7 @@ export function EndpointDetail({
               <div className="flex items-center bg-background/40 rounded-xl border border-border/40 shadow-sm relative ml-1">
                 <button
                   onClick={onCopySlug}
+                  aria-label="Copy endpoint URL"
                   className="shrink-0 text-muted-foreground hover:text-primary transition-colors p-1.5 border-r border-border/40 rounded-l-xl"
                   title="Copy full URL"
                 >
@@ -150,6 +152,7 @@ export function EndpointDetail({
                 </button>
                 <button
                   onClick={() => setShowCopyDropdown(!showCopyDropdown)}
+                  aria-label="Open copy format menu"
                   className={cn(
                     'p-1.5 hover:bg-accent/50 text-muted-foreground/40 hover:text-primary transition-all rounded-r-xl',
                     showCopyDropdown && 'bg-primary/10 text-primary'

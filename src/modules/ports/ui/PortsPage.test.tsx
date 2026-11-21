@@ -146,6 +146,22 @@ describe('PortsPage', () => {
     });
   });
 
+  it('marks the active protocol filter as pressed', async () => {
+    await renderPage();
+    const allButton = screen.getByRole('button', { name: 'ALL' });
+    const tcpButton = screen.getByRole('button', { name: 'TCP' });
+
+    expect(allButton).toHaveAttribute('aria-pressed', 'true');
+    expect(tcpButton).toHaveAttribute('aria-pressed', 'false');
+
+    await act(async () => {
+      fireEvent.click(tcpButton);
+    });
+
+    expect(allButton).toHaveAttribute('aria-pressed', 'false');
+    expect(tcpButton).toHaveAttribute('aria-pressed', 'true');
+  });
+
   it('checks port availability', async () => {
     await renderPage();
     const checkInput = screen.getByPlaceholderText(/Enter port number/i);
@@ -170,6 +186,13 @@ describe('PortsPage', () => {
     });
   });
 
+  it('provides accessible names for port filter inputs', async () => {
+    await renderPage();
+
+    expect(screen.getByRole('spinbutton', { name: /port number/i })).toBeTruthy();
+    expect(screen.getByRole('textbox', { name: /search listening ports/i })).toBeTruthy();
+  });
+
   it('renders firewall rules', async () => {
     await renderPage();
     await waitFor(() => {
@@ -190,5 +213,19 @@ describe('PortsPage', () => {
 
     expect(filtered.map((port) => port.port)).toEqual([80, 443]);
     expect(listening.map((port) => port.port)).toEqual([443, 53, 80]);
+  });
+
+  it('filters listening ports by visible user and state columns', () => {
+    const listening: PortsSnapshot['listening'] = [
+      { ...mockSnapshot.listening[0], port: 443, user: 'www-data', state: 'LISTEN' },
+      { ...mockSnapshot.listening[1], port: 53, user: 'systemd-resolve', state: 'OPEN' },
+    ];
+
+    expect(
+      getFilteredListeningPorts(listening, 'all', 'www-data').map((port) => port.port)
+    ).toEqual([443]);
+    expect(getFilteredListeningPorts(listening, 'all', 'open').map((port) => port.port)).toEqual([
+      53,
+    ]);
   });
 });

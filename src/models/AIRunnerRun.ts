@@ -52,6 +52,7 @@ export interface IAIRunnerRun extends Document {
   };
   recoveryState?: string;
   lastRecoveryError?: string;
+  worktreePath?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -122,6 +123,7 @@ const AIRunnerRunSchema = new Schema<IAIRunnerRun>(
     },
     recoveryState: { type: String, maxlength: 120 },
     lastRecoveryError: { type: String, maxlength: 10_000 },
+    worktreePath: { type: String, trim: true, maxlength: 2000 },
   },
   { timestamps: true }
 );
@@ -132,7 +134,6 @@ AIRunnerRunSchema.index({ promptId: 1, startedAt: -1 });
 AIRunnerRunSchema.index({ scheduleId: 1, startedAt: -1 });
 AIRunnerRunSchema.index({ workspaceId: 1, startedAt: -1 });
 AIRunnerRunSchema.index({ autoflowId: 1, startedAt: -1 });
-AIRunnerRunSchema.index({ queuedAt: 1 }, { expireAfterSeconds: 30 * 24 * 60 * 60 });
 
 const AIRunnerRun: Model<IAIRunnerRun> =
   mongoose.models.AIRunnerRun || mongoose.model<IAIRunnerRun>('AIRunnerRun', AIRunnerRunSchema);

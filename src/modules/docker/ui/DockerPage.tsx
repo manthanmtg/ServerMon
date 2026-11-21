@@ -1,22 +1,59 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Database } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
+import ConfirmationModal from '@/components/ui/ConfirmationModal';
 import { PageSkeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/components/ui/toast';
+import dynamic from 'next/dynamic';
 
 import type { DockerSnapshot } from '../types';
 import { DockerHeader } from './components/DockerHeader';
 import { DockerStats } from './components/DockerStats';
-import { ResourceCharts } from './components/ResourceCharts';
-import { IOCharts } from './components/IOCharts';
 import { ContainerTable } from './components/ContainerTable';
 import { AssetManager } from './components/AssetManager';
-import { DockerTerminal } from './components/DockerTerminal';
 import { DockerSidebar } from './components/DockerSidebar';
 
+const ResourceCharts = dynamic(
+  () => import('./components/ResourceCharts').then((m) => m.ResourceCharts),
+  { ssr: false }
+);
+const IOCharts = dynamic(() => import('./components/IOCharts').then((m) => m.IOCharts), {
+  ssr: false,
+});
+const DockerTerminal = dynamic(
+  () => import('./components/DockerTerminal').then((m) => m.DockerTerminal),
+  { ssr: false }
+);
+
 const DOCKER_SNAPSHOT_TIMEOUT_MS = 8000;
+
+type DockerAssetType = 'images' | 'volumes' | 'networks';
+
+type DockerRemovalTarget =
+  | {
+      kind: 'container';
+      id: string;
+      name: string;
+      resourceLabel: 'container';
+    }
+  | {
+      kind: 'asset';
+      id: string;
+      name: string;
+      resourceLabel: 'image' | 'volume' | 'network';
+      assetType: DockerAssetType;
+    };
+
+export function selectDockerContainer(
+  containers: DockerSnapshot['containers'],
+  selectedContainerId: string | null
+) {
+  return (
+    containers.find((container) => container.id === selectedContainerId) || containers[0] || null
+  );
+}
 
 export default function DockerPage() {
   const { toast } = useToast();
@@ -28,8 +65,12 @@ export default function DockerPage() {
   const [terminalCommand, setTerminalCommand] = useState('docker ps -a\n');
   const [sessionId] = useState(() => `docker-${crypto.randomUUID()}`);
   const [pendingActionId, setPendingActionId] = useState<string | null>(null);
+  const [removalTarget, setRemovalTarget] = useState<DockerRemovalTarget | null>(null);
+  const [removing, setRemoving] = useState(false);
+  const snapshotRequestSequence = useRef(0);
 
   const loadSnapshot = useCallback(async () => {
+    const requestSequence = ++snapshotRequestSequence.current;
     const controller = new AbortController();
     const timeoutId = window.setTimeout(() => {
       controller.abort();
@@ -44,8 +85,10 @@ export default function DockerPage() {
       if (!response.ok) {
         throw new Error(data.error || 'Failed to fetch docker data');
       }
-      setSnapshot(data);
-      setSelectedContainerId((currentId) => currentId || data.containers[0]?.id || null);
+      if (requestSequence === snapshotRequestSequence.current) {
+        setSnapshot(data);
+        setSelectedContainerId((currentId) => currentId || data.containers[0]?.id || null);
+      }
     } catch (error: unknown) {
       const isAbortError = error instanceof DOMException && error.name === 'AbortError';
       toast({
@@ -88,10 +131,10 @@ export default function DockerPage() {
     [snapshot]
   );
 
-  const selectedContainer =
-    snapshot?.containers.find((container) => container.id === selectedContainerId) ||
-    snapshot?.containers[0] ||
-    null;
+  const selectedContainer = useMemo(
+    () => selectDockerContainer(snapshot?.containers ?? [], selectedContainerId),
+    [selectedContainerId, snapshot?.containers]
+  );
 
   const ioHistory = useMemo(() => {
     if (!snapshot || !selectedContainer) return [];
@@ -131,53 +174,135 @@ export default function DockerPage() {
     });
   }, [snapshot]);
 
-  async function runAction(containerId: string, action: 'start' | 'stop' | 'restart' | 'remove') {
-    if (action === 'remove' && !window.confirm('Are you sure you want to remove this container?'))
-      return;
-    setPendingActionId(containerId);
-    try {
-      const response = await fetch(`/api/modules/docker/${containerId}/action`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action }),
-      });
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to execute action');
+  const runAction = useCallback(
+    async (containerId: string, action: 'start' | 'stop' | 'restart' | 'remove') => {
+      setPendingActionId(containerId);
+      try {
+        const response = await fetch(`/api/modules/docker/${containerId}/action`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action }),
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.error || 'Failed to execute action');
+        }
+        setTerminalCommand(`docker ${action} ${data.container?.name || containerId}\n`);
+        toast({ title: `${action} complete`, description: data.message, variant: 'success' });
+        await loadSnapshot();
+      } catch (error: unknown) {
+        toast({
+          title: `Docker ${action} failed`,
+          description: error instanceof Error ? error.message : 'Unknown error',
+          variant: 'destructive',
+        });
+      } finally {
+        setPendingActionId(null);
       }
-      setTerminalCommand(`docker ${action} ${data.container?.name || containerId}\n`);
-      toast({ title: `${action} complete`, description: data.message, variant: 'success' });
-      await loadSnapshot();
-    } catch (error: unknown) {
-      toast({
-        title: `Docker ${action} failed`,
-        description: error instanceof Error ? error.message : 'Unknown error',
-        variant: 'destructive',
-      });
-    } finally {
-      setPendingActionId(null);
-    }
-  }
+    },
+    [loadSnapshot, toast]
+  );
 
-  async function deleteAsset(id: string, type: 'images' | 'volumes' | 'networks') {
-    if (!window.confirm(`Are you sure you want to remove this ${type.slice(0, -1)}?`)) return;
-    const url = `/api/modules/docker/${type}/${id}`;
-    try {
-      const response = await fetch(url, { method: 'DELETE' });
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.error || `Failed to remove ${type.slice(0, -1)}`);
+  const deleteAsset = useCallback(
+    async (id: string, type: DockerAssetType) => {
+      const url = `/api/modules/docker/${type}/${id}`;
+      try {
+        const response = await fetch(url, { method: 'DELETE' });
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.error || `Failed to remove ${type.slice(0, -1)}`);
+        }
+        toast({ title: 'Removal complete', description: data.message, variant: 'success' });
+        await loadSnapshot();
+      } catch (error: unknown) {
+        toast({
+          title: 'Removal failed',
+          description: error instanceof Error ? error.message : 'Unknown error',
+          variant: 'destructive',
+        });
       }
-      toast({ title: 'Removal complete', description: data.message, variant: 'success' });
-      await loadSnapshot();
-    } catch (error: unknown) {
-      toast({
-        title: 'Removal failed',
-        description: error instanceof Error ? error.message : 'Unknown error',
-        variant: 'destructive',
+    },
+    [loadSnapshot, toast]
+  );
+
+  const requestContainerRemoval = useCallback(
+    (id: string) => {
+      const container = snapshot?.containers.find((item) => item.id === id);
+      if (!container) return;
+
+      setRemovalTarget({
+        kind: 'container',
+        id: container.id,
+        name: container.name,
+        resourceLabel: 'container',
       });
+    },
+    [snapshot]
+  );
+
+  const requestAssetRemoval = useCallback(
+    (id: string, assetType: DockerAssetType) => {
+      if (assetType === 'images') {
+        const image = snapshot?.images.find((item) => item.id === id);
+        setRemovalTarget({
+          kind: 'asset',
+          id,
+          name: image ? `${image.repository}:${image.tag}` : id,
+          resourceLabel: 'image',
+          assetType,
+        });
+        return;
+      }
+
+      if (assetType === 'volumes') {
+        const volume = snapshot?.volumes.find((item) => item.name === id);
+        setRemovalTarget({
+          kind: 'asset',
+          id,
+          name: volume?.name ?? id,
+          resourceLabel: 'volume',
+          assetType,
+        });
+        return;
+      }
+
+      const network = snapshot?.networks.find((item) => item.id === id);
+      setRemovalTarget({
+        kind: 'asset',
+        id,
+        name: network?.name ?? id,
+        resourceLabel: 'network',
+        assetType,
+      });
+    },
+    [snapshot]
+  );
+
+  const confirmRemoval = useCallback(async () => {
+    if (!removalTarget || removing) return;
+
+    setRemoving(true);
+    try {
+      if (removalTarget.kind === 'container') {
+        await runAction(removalTarget.id, 'remove');
+      } else {
+        await deleteAsset(removalTarget.id, removalTarget.assetType);
+      }
+    } finally {
+      setRemoving(false);
+      setRemovalTarget(null);
     }
-  }
+  }, [deleteAsset, removalTarget, removing, runAction]);
+
+  const handleLogs = useCallback((id: string, name: string) => {
+    setSelectedContainerId(id);
+    setTerminalCommand(`docker logs -f ${name}\n`);
+  }, []);
+
+  const handleExec = useCallback((id: string, name: string) => {
+    setSelectedContainerId(id);
+    setTerminalCommand(`docker exec -it ${name} sh\n`);
+  }, []);
 
   if (loading) {
     return <PageSkeleton statCards={3} />;
@@ -210,22 +335,22 @@ export default function DockerPage() {
           expandedId={expandedId}
           pendingActionId={pendingActionId}
           onExpand={setExpandedId}
-          onAction={runAction}
-          onLogs={(id, name) => {
-            setSelectedContainerId(id);
-            setTerminalCommand(`docker logs -f ${name}\n`);
+          onAction={(id, action) => {
+            if (action === 'remove') {
+              requestContainerRemoval(id);
+              return;
+            }
+            void runAction(id, action);
           }}
-          onExec={(id, name) => {
-            setSelectedContainerId(id);
-            setTerminalCommand(`docker exec -it ${name} sh\n`);
-          }}
+          onLogs={handleLogs}
+          onExec={handleExec}
         />
 
         <AssetManager
           images={snapshot?.images || []}
           volumes={snapshot?.volumes || []}
           networks={snapshot?.networks || []}
-          onDelete={deleteAsset}
+          onDelete={requestAssetRemoval}
         />
 
         <DockerTerminal
@@ -259,6 +384,26 @@ export default function DockerPage() {
           </Card>
         )}
       </div>
+
+      <ConfirmationModal
+        isOpen={removalTarget !== null}
+        title={
+          removalTarget
+            ? `Remove ${removalTarget.resourceLabel} ${removalTarget.name}?`
+            : 'Remove Docker resource?'
+        }
+        message={
+          removalTarget?.resourceLabel === 'volume'
+            ? 'This permanently removes the volume and the data stored in it. This cannot be undone.'
+            : 'This action cannot be undone.'
+        }
+        confirmLabel={removalTarget ? `Remove ${removalTarget.resourceLabel}` : 'Remove'}
+        cancelLabel={removalTarget ? `Keep ${removalTarget.resourceLabel}` : 'Cancel'}
+        variant="danger"
+        isLoading={removing}
+        onConfirm={() => void confirmRemoval()}
+        onCancel={() => setRemovalTarget(null)}
+      />
     </div>
   );
 }

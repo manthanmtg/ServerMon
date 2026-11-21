@@ -1,12 +1,16 @@
 /** @vitest-environment node */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-const { mockPerformAction } = vi.hoisted(() => ({
+const { mockGetSession, mockPerformAction } = vi.hoisted(() => ({
+  mockGetSession: vi.fn(),
   mockPerformAction: vi.fn(),
 }));
 
 vi.mock('@/lib/docker/service', () => ({
   dockerService: { performAction: mockPerformAction },
+}));
+vi.mock('@/lib/session', () => ({
+  getSession: mockGetSession,
 }));
 vi.mock('@/lib/logger', () => ({
   createLogger: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }),
@@ -29,6 +33,17 @@ function makeRequest(body: unknown): Request {
 describe('POST /api/modules/docker/[containerId]/action', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockGetSession.mockResolvedValue({ id: 'mock-session' });
+  });
+
+  it('returns 401 without a session', async () => {
+    mockGetSession.mockResolvedValue(null);
+
+    const res = await POST(makeRequest({ action: 'start' }), makeContext('abc123'));
+
+    expect(res.status).toBe(401);
+    expect(await res.json()).toEqual({ error: 'Unauthorized' });
+    expect(mockPerformAction).not.toHaveBeenCalled();
   });
 
   it('performs start action', async () => {
@@ -74,6 +89,6 @@ describe('POST /api/modules/docker/[containerId]/action', () => {
     const res = await POST(makeRequest({ action: 'start' }), makeContext('abc123'));
     expect(res.status).toBe(500);
     const json = await res.json();
-    expect(json.error).toBe('Failed to execute action');
+    expect(json.error).toBe('docker error');
   });
 });

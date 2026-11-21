@@ -5,18 +5,22 @@ import { useMetrics } from '@/lib/MetricsContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { HardDrive } from 'lucide-react';
 import { formatBytes } from '@/lib/utils';
+import { resilientFetch } from '@/lib/fetch-utils';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('disk:widget');
 
 export default function DiskWidget() {
   const { latest } = useMetrics();
   const [unitSystem, setUnitSystem] = useState<'binary' | 'decimal'>('binary');
 
   useEffect(() => {
-    fetch('/api/modules/disk/settings')
+    resilientFetch('/api/modules/disk/settings', { timeout: 5000, retries: 1 })
       .then((res) => res.json())
       .then((data) => {
         if (data.settings?.unitSystem) setUnitSystem(data.settings.unitSystem);
       })
-      .catch((err) => console.error('Failed to load disk settings:', err));
+      .catch((err) => logger.error('Failed to load disk settings', err));
   }, []);
 
   if (!latest || !latest.disks || latest.disks.length === 0) {

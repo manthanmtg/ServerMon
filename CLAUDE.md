@@ -6,21 +6,22 @@ This file is the single source of truth for all project rules, coding convention
 
 Every change (PR or commit to `main`) **must** satisfy these requirements:
 
-| Check  | Command             | Expectation          |
-| ------ | ------------------- | -------------------- |
-| Format | `pnpm format:check` | 0 changes needed     |
-| Lint   | `pnpm lint`         | 0 errors, 0 warnings |
-| Types  | `pnpm typecheck`    | 0 errors             |
-| Build  | `pnpm build`        | Exit code 0          |
-| Tests  | `pnpm test`         | Exit code 0          |
+| Check            | Command                       | Expectation          |
+| ---------------- | ----------------------------- | -------------------- |
+| Format           | `pnpm format:check`           | 0 changes needed     |
+| Release contract | `pnpm check:release-contract` | Exit code 0          |
+| Lint             | `pnpm lint`                   | 0 errors, 0 warnings |
+| Types            | `pnpm typecheck`              | 0 errors             |
+| Build            | `pnpm build`                  | Exit code 0          |
+| Tests            | `pnpm test`                   | Exit code 0          |
 
-Shortcut: `pnpm check` runs lint, typecheck, build, and tests in sequence; run `pnpm format:check` separately. **A failure in any required step blocks the merge.**
+Shortcut: `pnpm check` runs the release contract check, lint, typecheck, build, and tests in sequence; run `pnpm format:check` separately. **A failure in any required step blocks the merge.**
 
 ---
 
 ## Project Overview
 
-ServerMon is a self-hosted server monitoring platform built with Next.js 16 (App Router), TypeScript, MongoDB, and Tailwind CSS 4. It follows a modular architecture where features (terminal, processes, logs, metrics) are independent modules that register into a core shell.
+ServerMon is a self-hosted server monitoring platform built with Next.js 16.1 (App Router), TypeScript, MongoDB, and Tailwind CSS 4.2. It follows a modular architecture where features (terminal, processes, logs, metrics) are independent modules that register into a core shell.
 
 ---
 
@@ -122,6 +123,7 @@ Tests use **Vitest** for unit/integration and **Playwright** for E2E.
 - **CSS variable theming**: All colors flow through variables defined in `src/app/globals.css`.
 - **Error boundaries**: `ModuleWidgetRegistry` wraps each widget automatically.
 - **Structured logging**: Use `createLogger()` from `src/lib/logger.ts`. Never use `console.log`.
+- **Runtime Diagnostics**: Centralized system health snapshots and request instrumentation via `src/lib/runtime-diagnostics.ts` and `src/lib/server-request-diagnostics.ts`.
 
 ---
 
@@ -129,13 +131,25 @@ Tests use **Vitest** for unit/integration and **Playwright** for E2E.
 
 Required at runtime (set in `.env.local` or `/etc/servermon/env`):
 
-| Variable     | Required | Description                      |
-| ------------ | -------- | -------------------------------- |
-| `MONGO_URI`  | Yes      | MongoDB connection string        |
-| `JWT_SECRET` | Yes      | Secret for signing session JWTs  |
-| `PORT`       | No       | App port (default: 8912)         |
-| `NODE_ENV`   | No       | `development` or `production`    |
-| `LOG_LEVEL`  | No       | `debug`, `info`, `warn`, `error` |
+| Variable                       | Required | Description                                           |
+| ------------------------------ | -------- | ----------------------------------------------------- |
+| `MONGO_URI`                    | Yes      | MongoDB connection string                             |
+| `JWT_SECRET`                   | Yes      | Secret for signing session JWTs                       |
+| `PORT`                         | No       | App port (default: 8912)                              |
+| `NODE_ENV`                     | No       | `development` or `production`                         |
+| `LOG_LEVEL`                    | No       | `debug`, `info`, `warn`, `error`                      |
+| `SERVERMON_SLOW_REQUEST_MS`    | No       | Threshold for slow request logging (default: 2000)    |
+| `SERVERMON_REPO_DIR`           | No       | Path to ServerMon repo (default: /opt/servermon/repo) |
+| `SERVERMON_NETWORK_MOCK`       | No       | Set to `1` to mock network speedtests                 |
+| `SERVERMON_DOCKER_MOCK`        | No       | Set to `1` to mock Docker operations                  |
+| `SERVERMON_DATABASES_ROOT`     | No       | Host data root for Databases module instances         |
+| `SERVERMON_APPS_ROOT`          | No       | Host data root for Apps module releases               |
+| `SERVERMON_UPDATES_MOCK`       | No       | Set to `1` to mock system updates                     |
+| `SERVERMON_AUTO_UPDATE_CONFIG` | No       | Path to auto-update config JSON                       |
+| `FLEET_HUB_PUBLIC_URL`         | No       | Public URL for the Fleet Hub                          |
+| `AI_RUNNER_MAX_WORKERS`        | No       | Max concurrent AI Runner workers                      |
+| `SERVERMON_INSTALL_MODE`       | No       | `hub` or `agent` installation mode                    |
+| `SERVERMON_BRANDING_MOCK`      | No       | Set to `1` to return default branding without MongoDB |
 
 ---
 
@@ -156,39 +170,72 @@ Concise map of major directories, commands, and key files. Update this section w
 - `pnpm dev` — run dev server via `src/server.ts`
 - `pnpm build` — Next.js production build (`NODE_OPTIONS` enabled)
 - `pnpm start` — run production server
+- `pnpm apps:worker` — run the separately supervised Apps deployment worker
 - `pnpm lint` — ESLint over `src/`
+- `pnpm lint:fix` — ESLint fix over `src/`
 - `pnpm typecheck` — `tsc --noEmit` (`NODE_OPTIONS` enabled)
+- `pnpm clean` — Remove `.next` and `tsconfig.tsbuildinfo`
+- `pnpm check:release-contract` — validate required release artifact contracts
+- `pnpm release` — create and tag a new SemVer release (patch, minor, major)
 - `pnpm test` — Vitest unit/integration
+- `pnpm test:watch` — Vitest watch mode
+- `pnpm test:ui` — Vitest UI mode
+- `pnpm test:coverage` — Vitest coverage
 - `pnpm test:e2e` — Playwright end-to-end
 - `pnpm format` — Prettier write
 - `pnpm format:check` — Prettier check
-- `pnpm check` — lint + typecheck + build + test
+- `pnpm check` — release contract + lint + typecheck + build + test
 
 ## Top-level Layout
 
 - `src/` — application source (see sub-index below)
 - `e2e/` — Playwright end-to-end specs
-- `scripts/` — CLI helper scripts
+- `scripts/` — CLI helper scripts (installers, updates, macOS launchd, releases)
 - `public/` — static assets
-- `docs/` — plans and reference docs (superpowers plans live under `docs/superpowers/plans/`)
+- `docs/` — plans and reference docs (`docs/FUTURE_PLANS.md` is the prioritized
+  improvement roadmap; superpowers plans/specs live under `docs/superpowers/`)
 - `module_ideas/` — product specs per module (e.g. `fleet_management.md`)
 - `prompts/`, `manual_prompts/`, `issues_to_look/` — autonomous run prompts, prompt observability metadata (`prompts/prompts_metadata.json`), manual prompts, and investigation notes
-- `.env.example` — required runtime env vars (do NOT commit real `.env`)
-- `CLAUDE.md`, `README.md`, `PRD.md`, `DEPLOY.md`, `AGENTS.md` — project docs
+- `CLAUDE.md`, `README.md`, `PRD.md`, `DEPLOY.md`, `AGENTS.md`, `GO_LIVE.md` — project docs
+- `Release Artifacts` — prebuilt hub and agent tarballs (see `DEPLOY.md`)
 
 ## `src/` Layout
 
-- `src/app/` — Next.js App Router pages + `api/` route handlers
+- `src/app/` — Next.js App Router pages + `api/` route handlers (dashboard, settings, fleet, ai-agents, ai-runner, apps, certificates, crons, databases, disk, docker, endpoints, env-vars, file-browser, firewall, guide, hardware, logs, memory, network, nginx, ports, processes, self-service, services, terminal, updates, users, security/system health, etc.)
+- `src/app/api/modules/` — feature-specific API routes (ai-runner, ai-agents, apps, certificates, crons, databases, disk, docker, endpoints, env-vars, file-browser, firewall, hardware, memory, network, nginx, ports, processes, security, self-service, services, updates, users)
+- `src/app/api/auth/` — authentication handlers (login, logout, me, verify, passkey registration/auth)
+- `src/app/api/analytics/` — internal usage analytics and recent event history
+- `src/app/api/system/` — system-level actions (diagnostics, reboot, update history)
+- `src/app/api/setup/` — initial platform setup and completion handlers
+- `src/app/api/health/` — core health and lightweight ping endpoints
+- `src/app/api/metrics/` — real-time system metrics SSE streams
+- `src/app/api/terminal/` — host terminal session and command management
 - `src/components/` — shared UI (including `layout/`, `ui/`, `modules/`)
-- `src/lib/` — utilities, domain logic, fleet libraries, AI orchestration
+- `src/lib/` — utilities, domain logic, fleet libraries, AI orchestration, and core context providers (`ThemeContext.tsx`, `BrandContext.tsx`, `MetricsContext.tsx`)
+- `src/lib/db.ts` — MongoDB connection management and lifecycle hooks
+- `src/lib/logger.ts` — structured logging utility with environment-aware levels
+- `src/lib/runtime-diagnostics.ts`, `src/lib/server-request-diagnostics.ts` — system health snapshots and Next.js request instrumentation
+- `src/lib/runtime-launch-context.ts` — platform and environment detection during server startup
+- `src/lib/fetch-utils.ts` — resilient server/client fetch helpers for request timeouts, retries, and safe JSON parsing
+- `src/lib/session.ts`, `src/lib/session-core.ts`, `src/lib/auth-routes.ts` — JWT session management, cookie handling, and auth guard logic
+- `src/lib/themes.ts` — System-wide theme definitions and color palette logic
+- `src/lib/crons/service.ts` — internal job scheduling and management
 - `src/lib/ai-agents/` — agent adapters (Claude Code, Codex, Gemini CLI) and session monitoring
 - `src/lib/ai-runner/` — automated task supervisor, watchdog, and worker orchestration
+- `src/lib/ai-runner/run-as-user.ts` — Run as user isolation and sudo-based execution logic
+- `src/lib/ai-runner/git-worktree.ts` — Ephemeral git worktree parallelism for safe concurrent repository executions
+- `src/lib/ai-runner/shared.ts` — profile mapping, template validation, and output buffering
+- `src/lib/endpoints/` — executors for custom API logic (scripts, webhooks, logic handlers)
+- `src/lib/certificates/`, `src/lib/ports/`, `src/lib/memory/`, `src/lib/security/` — service-layer logic for certificates, ports, memory monitoring, and security management
 - `src/models/` — Mongoose schemas
-  - **Core**: `User.ts`, `AnalyticsEvent.ts`, `BrandSettings.ts`, `SavedCommand.ts`, `QuickAccessSettings.ts`
-  - **Modules**: `CustomEndpoint.ts`, `EndpointExecutionLog.ts`, `TerminalHistory.ts`, `TerminalSession.ts`, `TerminalSettings.ts`, `FileBrowserSettings.ts`, `DiskSettings.ts`, `UpdateHistory.ts`
-  - **Monitoring**: `NetworkSpeedtestResult.ts`, `NetworkSpeedtestSettings.ts`, `NetworkStatAggregate.ts`, `NetworkAlert.ts`, `DockerStatAggregate.ts`, `DockerAlert.ts`, `ServiceAlert.ts`
-  - **AI & Fleet**: (see specific sections below)
+- `src/modules/` — feature modules (terminal, processes, logs, metrics, fleet, ai-agents, ai-runner, apps, certificates, crons, disk, firewall, health, nginx, network, hardware, self-service, endpoints, users, services, security, ports, memory, guide, etc.)
+- `src/modules/apps/ui/components/AppsOperationLogsDialog.tsx` — expanded live and historical Apps operation log viewer
+- `src/models/NetworkSpeedtestResult.ts`, `src/models/NetworkSpeedtestSettings.ts`, `src/models/NetworkAlert.ts`, `src/models/NetworkStatAggregate.ts` — persisted Network module data
+- `src/models/CustomEndpoint.ts`, `src/models/EndpointExecutionLog.ts` — persisted endpoint configuration and execution history
 - `src/lib/env-vars/` — stateless host environment variable helpers for OS target detection, shell env parsing, user-scope add/delete, and system-scope instructions
+- `src/lib/apps/` — managed app deployment helpers for persistent release paths, systemd/Nginx rendering, health checks, runtime/log inspection, operation history, rollback, and Apps service DTOs
+- `src/lib/databases/` — Docker-only database templates, managed data path helpers, connection string generation, runtime actions, and explorer sidecar orchestration for MongoDB, PostgreSQL, and MySQL
+- `src/lib/docker/` — Docker CLI-backed container, image, network, volume, event, and alert aggregation service with mock-mode support
 - `src/lib/network/speedtest.ts`, `src/lib/network/speedtest-scheduler.ts` — speedtest CLI normalization, history persistence, fixed-interval scheduling, and startup scheduler
 - `src/server.ts` — custom Next.js server entry (Socket.IO bridge)
 - `src/proxy.ts`, `src/proxy.test.ts` — reverse proxy helper + tests
@@ -197,19 +244,130 @@ Concise map of major directories, commands, and key files. Update this section w
 
 ### Fleet Management
 
-- `src/models/` — fleet Mongoose models: Node, FrpServerState, FleetLogEvent, ConfigRevision, PublicRoute, NginxState, AgentUpdateJob, BackupJob, ResourcePolicy, AccessPolicy, RouteTemplate, DiagnosticRun, ImportedConfig, AlertChannel, AlertSubscription
-- `src/lib/fleet/` — pure libraries: enums, status, pairing, toml, toml-parse, nginx, binary, frpProcess, nginxProcess, heartbeat, audit, revisions, templates, install-script, preflight, preflightExecutors, diagnostics, firewall, dns, acme, resourceGuards, resourceGuardMiddleware, access, rbac, import, backup, frpOrchestrator, nginxOrchestrator, applyEngine, orchestrators, reconcile, publicRouteLifecycle, publicRouteProxy, resolveAgentEndpoint, agentClient, agentPtyBridge, tty-bridge, hubAuth, hubTtyBridge, fleetTtyNamespace, eventBus, docsMarkdown, alerts, alertSubscriber
-- `src/app/api/fleet/` — fleet HTTP routes: nodes, server, routes, nginx, templates, access-policies, resource-policies, logs, revisions (incl. `[id]/apply` + `[id]/rollback`), updates, backups, emergency, install, import, endpoint-exec, public, stream, alerts/channels (+ `[id]`), alerts/subscriptions (+ `[id]`), alerts/test
+- `src/models/` — fleet Mongoose models: Node, FrpServerState, FleetLogEvent, ConfigRevision, PublicRoute, NginxState, AgentUpdateJob, BackupJob, ResourcePolicy, AccessPolicy, RouteTemplate, DiagnosticRun, ImportedConfig, AlertChannel, AlertSubscription, FleetCommandSecret
+- `src/lib/fleet/` — pure libraries: enums, status, pairing, toml, toml-parse, nginx, binary, frpProcess, nginxProcess, heartbeat, audit, revisions, templates, install-script, preflight, preflightExecutors, diagnostics, firewall, dns, acme, resourceGuards, resourceGuardMiddleware, access, rbac, import, backup, frpOrchestrator, nginxOrchestrator, applyEngine, orchestrators, reconcile, publicRouteLifecycle, publicRouteProxy, resolveAgentEndpoint, agentClient, agentPtyBridge, tty-bridge, hubAuth, hubTtyBridge, fleetTtyNamespace, eventBus, docsMarkdown, alerts, alertSubscriber, routeSuggestions, servermonBridge, servermonStatus, servermonInstall, servermonAgentCommands, agentUpdateCommand, commandSecrets, domain
+- `src/app/api/fleet/` — fleet HTTP routes: nodes (+ `[id]/diagnose`, `/heartbeat`, `/maintenance`, `/pair`, `/reconcile`, `/rotate-token`, `/route-suggestions`, `/servermon` incl. install/recheck/restart, `/updates`, `by-slug/[slug]`), server (+ `/preflight`, `/restart`), routes (+ `[id]/diagnose`), nginx (+ `/import`, `/reload`, `/test`), templates, access-policies, resource-policies, logs, revisions (incl. `[id]/apply` + `[id]/rollback`), backups (incl. `[id]/restore`), emergency, install (incl. `/script`), import, endpoint-exec, public (incl. `/install-script`, `/servermon-bridge`), stream, updates (+ `[id]`), alerts/channels (+ `[id]`), alerts/subscriptions (+ `[id]`), alerts/test
 - `src/app/fleet/` — fleet UI pages: dashboard, node detail `[slug]`, onboarding, setup, routes (incl. `[id]` detail), logs, server, nginx, updates, backups, diagnostics, templates, policies, emergency, import, endpoint-runner, alerts
-- `src/modules/fleet/` — module definition + shared types + UI components (`ui/dashboard/`, `ui/onboarding/`, `ui/details/`, `ui/operations/`); `ui/details/exposeService/` houses the 6-step Expose Remote Service wizard (`ExposeServiceWizard`, `StepIdentity`, `StepTarget`, `StepAccess`, `StepPreview`, `StepDns`, `StepCreate`, `schema.ts`, `index.ts` barrel); `ui/details/terminal/` houses node-specific terminal; `ui/operations/rotate/` holds `RotateTokenFlow` and `RotateAllTokensFlow` for `EmergencyControls`; `ui/operations/AlertChannelManager.tsx` manages alerts
+- `src/modules/fleet/` — module definition + UI components (`ui/dashboard/`, `ui/onboarding/`, `ui/details/`, `ui/operations/`); `ui/details/` houses `NodeStatusPanel` and `NodeServerMonPanel` (install/update logs); `ui/details/exposeService/` houses the 6-step Expose Remote Service wizard (`ExposeServiceWizard`, `StepIdentity`, `StepTarget`, `StepAccess`, `StepPreview`, `StepDns`, `StepCreate`, `schema.ts`, `index.ts` barrel); `ui/details/terminal/` houses node-specific terminal; `ui/operations/rotate/` holds `RotateTokenFlow` and `RotateAllTokensFlow` for `EmergencyControls`; `ui/operations/AlertChannelManager.tsx` manages alerts
 - `module_ideas/fleet_management.md` — full product spec (phases 1-5)
+
+### Disk Module
+
+- `src/app/api/modules/disk/` — disk routes for hardware health, scan, and settings; `health/cache.ts` centralizes short-lived health result caching
+- `src/models/DiskSettings.ts` — persisted Disk module settings
+- `src/modules/disk/` — disk module definition, page, widget, settings modal, hardware health panel, and focused UI components (`DiskSummaryCards`, `IoThroughputChart`) with colocated Vitest coverage
+- `src/app/disk/` — Disk module page route and route-level tests
+
+### Hardware Module
+
+- `src/app/api/modules/hardware/` — hardware health snapshots and system specification routes
+- `src/lib/hardware/` — Hardware detection service with OS-specific fallbacks and mock support
+- `src/modules/hardware/` — Hardware module definition, types, widget UI, and detailed system specification views
+
+### File Browser Module
+
+- `src/app/api/modules/file-browser/` — file listing, file read/write, uploads, Git status/history, and settings routes with route-level tests
+- `src/app/file-browser/` — File Browser page route and route-level tests
+- `src/modules/file-browser/lib/` — host filesystem helpers, path safety, and File Browser data shaping with colocated Vitest coverage
+- `src/modules/file-browser/ui/` — File Browser page shell, settings modal, and focused UI components including breadcrumbs, entry list/actions, tree panel, preview, status bars, Git bar, and editor/history modals
+
+### Nginx Module
+
+- `src/app/api/modules/nginx/` — Nginx routes for service status, config test/reload, DNS checks, and virtual host list/detail/create/update/delete flows
+- `src/lib/nginx/` — Nginx service helpers, virtual host discovery, parser, DNS checks, and managed-config renderer with colocated Vitest coverage
+- `src/modules/nginx/` — Nginx module definition, shared types, dashboard/widget UI, and host creation wizard with colocated UI tests
+
+### Network Module
+
+- `src/app/api/modules/network/` — API routes for speedtest results, settings, and historical metrics
+- `src/lib/network/` — speedtest CLI normalization, history persistence, fixed-interval scheduling, and startup scheduler
+- `src/models/NetworkSpeedtestResult.ts`, `src/models/NetworkSpeedtestSettings.ts`, `src/models/NetworkAlert.ts`, `src/models/NetworkStatAggregate.ts` — persisted Network module data
+- `src/modules/network/` — Network module definition, dashboard widget, page route, and history charts with Vitest coverage
+
+### Terminal & Processes
+
+- `src/models/` — Terminal & Processes models: TerminalHistory, TerminalSession, TerminalSettings, SavedCommand, DockerAlert, DockerStatAggregate
+- `src/app/api/modules/processes/`, `src/app/api/terminal/`, `src/app/api/modules/docker/` — API handlers for OS processes, host terminal sessions, and Docker container management
+- `src/lib/docker/` — Docker service layer for container snapshots/actions, image/network/volume discovery, lifecycle events, persisted alerts, and daily stats aggregation
+- `src/modules/processes/`, `src/modules/terminal/`, `src/modules/docker/` — UI modules for process monitoring, web terminal, and Docker management; uses extracted component pattern (e.g., `ProcessList.tsx`, `ProcessListChrome.tsx`, `ContainerTable.tsx`)
+
+### Self-Service & Custom Endpoints
+
+- `src/modules/self-service/`, `src/app/api/modules/self-service/` — Browse and install services/tools with fully managed provisioning (Nginx, SSL, systemd); logic in `engine/`, definitions in `templates/`
+- `src/modules/endpoints/`, `src/app/api/modules/endpoints/` — Define and manage custom API endpoints with script handlers and webhook proxying
+- `src/lib/endpoints/` — Logic executors (script, logic, webhook) and token service for custom endpoints
+
+### Apps
+
+- `src/modules/apps/` — Linux-first managed app deployment module with Apps UI/widget registration and compatibility views over durable queued operations
+- `src/lib/apps/` — Apps deployment helpers for release paths, env masking, systemd/Nginx rendering, operation enqueue/readiness, lease fencing, expired-operation recovery, and the worker runner
+- `src/lib/apps/worker/`, `src/workers/apps-worker.ts` — separately supervised Apps host-mutation consumer; renews fenced operation leases, drains on shutdown, and must be healthy before new mutations are accepted
+- `src/lib/apps/auto-update.ts`, `src/lib/apps/auto-update-scheduler.ts` — Git-based auto-update logic and background polling scheduler for managed apps
+- `src/modules/apps/ui/components/AutoUpdateStatus.tsx` — visible automatic-update state, attempt/check/deploy timestamps, and worker/scheduler health
+- `docs/apps-auto-update.md` — automatic update behavior, status meanings, troubleshooting, and rollout verification
+- `src/models/ManagedApp.ts`, `src/models/AppOperation.ts`, `src/models/AppOperationEvent.ts`, `src/models/AppsWorkerHeartbeat.ts` — persisted app state, durable operation ownership/events, and worker readiness
+- `src/app/api/modules/apps/` — authenticated Apps routes; asynchronous deploy/update/rollback/delete mutations return `503` without creating an operation when the worker heartbeat is unavailable
+- `src/app/apps/` — Apps module page route wrapped in `ProShell`
+
+### Databases
+
+- `src/modules/databases/` — Docker-only database deployment module for MongoDB, PostgreSQL, and MySQL with UI/widget registration, local/public exposure controls, masked connection details, and explorer UI
+- `src/lib/databases/` — Databases templates, persistent host data path helpers, Docker command construction, CRUD/deploy/action services, connection string builders, TLS certificate generation/rotation, and local-only explorer sidecar orchestration
+- `src/models/ManagedDatabase.ts` — persisted database metadata, credentials, data path, exposure mode, container state, operation logs, and explorer sidecar state
+- `src/app/api/modules/databases/` — Databases API routes for authenticated list/create/update/delete, deploy, runtime actions, explorer start/stop, and explorer proxying
+- `src/app/databases/` — Databases module page route and explorer route wrapped in `ProShell`
 
 ### AI & Automation
 
 - `src/modules/ai-agents/` — AI agent monitoring; `ui/AIAgentsPage.tsx` displays active sessions, tool catalog, and conversation history across multiple adapters (Claude Code, Codex, Gemini CLI, etc.)
-- `src/modules/ai-runner/` — automated task orchestration; `ui/AIRunnerPage.tsx` manages prompts, profiles, workspaces, schedules, AutoFlows, logs, prompt templates, worker concurrency, import/export, and schedule visualization; uses supervisor/worker pattern for background execution
-- `src/models/AIRunnerPrompt.ts`, `src/models/AIRunnerPromptTemplate.ts`, `src/models/AIRunnerProfile.ts`, `src/models/AIRunnerWorkspace.ts`, `src/models/AIRunnerSchedule.ts`, `src/models/AIRunnerAutoflow.ts`, `src/models/AIRunnerJob.ts`, `src/models/AIRunnerRun.ts`, `src/models/AIRunnerSupervisorLease.ts`, `src/models/AIRunnerSettings.ts` — persisted AI Runner prompt library, templates, profiles, reusable workspaces, schedules, AutoFlows, durable job queue, run history, supervisor lease, and global settings
-- `src/app/api/modules/ai-runner/` — AI Runner routes for prompts, prompt templates, prompt attachments, profiles, workspaces, schedules (including bulk update), AutoFlows, runs, logs/stream, settings, bundle import/export, directories, and direct run dispatch
+- `src/modules/ai-runner/` — automated task orchestration; `ui/AIRunnerPage.tsx` and `ui/components/` (`AutoFlowView`, `HistoryView`, etc.) manage prompts, profiles (with run-as user support), workspaces, schedules, AutoFlows, logs, prompt templates, worker concurrency, import/export, and schedule visualization; uses supervisor/worker pattern for background execution
+- `src/models/AIRunnerPrompt.ts`, `src/models/AIRunnerPromptTemplate.ts`, `src/models/AIRunnerProfile.ts`, `src/models/AIRunnerWorkspace.ts`, `src/models/AIRunnerSchedule.ts`, `src/models/AIRunnerAutoflow.ts`, `src/models/AIRunnerJob.ts`, `src/models/AIRunnerRun.ts`, `src/models/AIRunnerSupervisorLease.ts`, `src/models/AIRunnerSettings.ts` — persisted AI Runner prompt library, templates, profiles (including `runAsUser` and `runAsUserAuthMode`), reusable workspaces, schedules, AutoFlows, durable job queue, run history, supervisor lease, and global settings
+- `src/app/api/modules/ai-agents/` — AI Agent session monitoring, kill signals, and tool execution history
+- `src/app/api/modules/ai-runner/` — AI Runner routes for prompts, prompt templates, prompt attachments, profiles (including validation, lock, and test actions), workspaces, schedules (including bulk update), AutoFlows (including start/cancel actions), runs, logs/stream, settings, bundle import/export, directories, and direct run dispatch
 - `src/modules/env-vars/` — EnvVars module definition and UI for managing host-level environment variables (stateless, bypassing MongoDB)
 - `docs/ai-runner-module.md` — technical architecture for automation runner
-- Env keys added: `FLEET_HUB_PUBLIC_URL`, `FRP_BIND_PORT`, `FRP_VHOST_HTTP_PORT`, `FRP_VHOST_HTTPS_PORT`, `FRP_AUTH_TOKEN`, `FRP_SUBDOMAIN_HOST`, `FLEET_HUB_AUTH_TOKEN`, `FLEET_HUB_ORCHESTRATORS_ENABLED`, `FLEET_AGENT_*`, `FLEET_NGINX_*`, `FLEET_ACME_*`, `FLEET_BINARY_CACHE_DIR`, `FLEET_FRP_VERSION`, `FLEET_FRPS_CONFIG_DIR`, `FLEET_BACKUP_DIR`, `FLEET_AUTO_APPLY_REVISIONS` (set to `'true'`), `AI_RUNNER_*` (concurrency, logs, workers)
+
+### Script Runner
+
+- `src/lib/script-runner/` — shared run queue, Linux worker, interval and calendar scheduling, storage accounting, and log and history pruning
+- `src/models/ScriptRunner.ts` — saved scripts with schedule state, run snapshots, variables, variable groups, and worker settings
+- `src/app/api/modules/script-runner/` and `src/modules/script-runner/` — administrator-only script, schedule, run, variable, variable group, and settings endpoints and views
+
+### Python Environments
+
+- `src/modules/python-environments/` and `src/app/python-environments/` — inventory, dependency editor, revision activity, and module registration
+- `src/lib/python-environments/` and `src/models/PythonEnvironment.ts` — host-scoped build state, interpreter discovery, revision promotion, rollback, and retention
+- `src/app/api/modules/python-environments/` — authenticated environment operations under the Script Runner administrator guard
+- `scripts/servermon-python-env-control.sh` and `scripts/servermon-python-env-build.py` — isolated Linux dependency builds and revision publication under the Script Runner worker
+
+### Crons Module
+
+- `src/lib/crons/service.ts` — cron discovery, schedule calculation, create/update/delete actions, manual run tracking, and mock-mode support for tests and non-host environments
+- `src/app/api/modules/crons/` — cron snapshot, create/update/delete, and per-job run routes with focused route coverage
+- `src/modules/crons/` — Cron Jobs module definition, widget, page, type contracts, scheduling helpers, and extracted UI panels/forms under `ui/components/`
+
+### Security & System Health
+
+- `src/modules/health/` — Health Monitor module definition and dashboard widget for core CPU, memory, and disk utilization
+- `src/modules/security/`, `src/lib/security/` — WebAuthn passkey management, security settings, and auth audit logs
+- `src/modules/certificates/`, `src/lib/certificates/` — SSL/TLS certificate monitoring, expiry alerts, and PEM parsing
+- `src/modules/ports/`, `src/lib/ports/` — Host port scanning, service detection, and open port monitoring
+- `src/modules/memory/`, `src/lib/memory/` — Real-time memory pressure monitoring, swap usage, and OOM risk detection
+- `src/modules/guide/`, `src/modules/guide-registry.ts` — Interactive project walkthroughs and module documentation overlays
+
+### System Services & Firewall
+
+- `src/models/ServiceAlert.ts` — persisted system service alerts and threshold metadata
+- `src/modules/services/`, `src/lib/services/` — System services module definition, UI, and service-layer logic for systemd service discovery, status monitoring, resource usage, and state control
+- `src/modules/firewall/`, `src/lib/firewall/` — Firewall module definition, UI, and service-layer logic for monitoring host firewall posture, default policies, and rule exposure
+- `src/app/api/modules/services/`, `src/app/api/modules/firewall/` — API routes for host system services and firewall management
+
+### Users, Security & Settings
+
+- `src/models/` — Users & Settings models: User, BrandSettings, QuickAccessSettings, FileBrowserSettings, UpdateHistory, AnalyticsEvent
+- `src/modules/users/` — Users & Permissions module definition and UI for managing system users, SSH access, sudo privileges, and ServerMon web access controls
+- `src/modules/updates/`, `src/lib/updates/` — System Updates module definition, UI, and host-level update discovery, scheduling, and package manager integration
+- `src/app/api/modules/users/`, `src/app/api/modules/updates/`, `src/app/api/settings/` — API routes for users, system updates, and global settings (branding, quick-access)
+- `src/lib/passkey-utils.ts`, `src/lib/auth-utils.ts` — Utility functions for WebAuthn passkey registration/authentication and general JWT/session auth logic
+- `src/lib/analytics.ts` — Internal analytics event tracking and persistence logic
+  — Internal analytics event tracking and persistence logic

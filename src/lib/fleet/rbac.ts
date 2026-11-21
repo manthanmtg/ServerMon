@@ -17,6 +17,7 @@ export const FLEET_CAPABILITIES = [
   'can_restore_backup',
   'can_manage_alerts',
   'can_manage_policies',
+  'can_install_servermon',
 ] as const;
 export type FleetCapability = (typeof FLEET_CAPABILITIES)[number];
 

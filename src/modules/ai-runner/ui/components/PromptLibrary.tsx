@@ -1,5 +1,6 @@
 'use client';
 
+import React from 'react';
 import { Play, Save, Trash2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -18,7 +19,7 @@ interface PromptLibraryProps {
   isActionPending: (key: string) => boolean;
 }
 
-export function PromptLibrary({
+export const PromptLibrary = React.memo(function PromptLibrary({
   prompts,
   selectedPromptId,
   setSelectedPromptId,
@@ -151,4 +152,4 @@ export function PromptLibrary({
       </div>
     </div>
   );
-}
+});

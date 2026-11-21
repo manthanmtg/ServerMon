@@ -1,8 +1,11 @@
 /** @vitest-environment node */
 import { describe, it, expect, vi } from 'vitest';
+import { EventEmitter } from 'node:events';
 import { AgentClient } from './agentClient';
 import type { AgentPtyBridge } from './agentPtyBridge';
 import type { FrpHandle } from './frpProcess';
+import type { ServerMonStatus } from './servermonStatus';
+import type { ServerMonBridgeSnapshot } from './servermonBridge';
 
 interface FakeBridge {
   start: ReturnType<typeof vi.fn>;
@@ -320,5 +323,184 @@ describe('AgentClient', () => {
     expect(body.tunnel).toBeDefined();
     expect(body.capabilities).toBeDefined();
     await client.stop();
+  });
+
+  it('heartbeat includes ServerMon bridge capabilities when the local app publishes them', async () => {
+    const heartbeatCalls: Array<{ url: string; init?: RequestInit }> = [];
+    const fetchImpl = vi.fn(
+      async (url: string | URL | Request, init?: RequestInit): Promise<Response> => {
+        const u = typeof url === 'string' ? url : url.toString();
+        if (u.endsWith('/pair')) {
+          return mkOkResponse({
+            hub: {
+              serverAddr: 'hub.example.com',
+              serverPort: 7000,
+              authToken: 'hub-token',
+              subdomainHost: 'hub.example.com',
+            },
+          });
+        }
+        if (u.endsWith('/api/fleet/nodes/node-1')) {
+          return mkOkResponse(defaultNodeConfig());
+        }
+        if (u.endsWith('/heartbeat')) {
+          heartbeatCalls.push({ url: u, init });
+          return mkOkResponse({ ok: true });
+        }
+        throw new Error(`Unexpected URL ${u}`);
+      }
+    );
+
+    let intervalCb: (() => void) | null = null;
+    const client = new AgentClient({
+      hubUrl: 'https://hub.example.com',
+      pairingToken: 'pair-token',
+      nodeId: 'node-1',
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+      ensureBinaryImpl: vi.fn(async () => ({
+        frps: '/tmp/cache/frps',
+        frpc: '/tmp/cache/frpc',
+      })),
+      startFrpcImpl: vi.fn(() => makeFakeFrpHandle()),
+      writeFile: vi.fn(),
+      mkdir: vi.fn(),
+      ptyBridgeFactory: () => makeFakeBridge() as unknown as AgentPtyBridge,
+      setIntervalImpl: vi.fn((cb: () => void) => {
+        intervalCb = cb;
+        return 42 as unknown as ReturnType<typeof setInterval>;
+      }) as unknown as typeof setInterval,
+      clearIntervalImpl: vi.fn() as unknown as typeof clearInterval,
+      collectServerMonStatusImpl: vi.fn(
+        async (): Promise<ServerMonStatus> => ({
+          installed: true,
+          serviceName: 'servermon.service',
+          serviceState: 'running',
+          serviceEnabled: true,
+          port: 8912,
+          healthUrl: 'http://127.0.0.1:8912/api/health',
+          healthStatus: 'healthy',
+          lastCheckedAt: '2026-05-07T11:30:00.000Z',
+        })
+      ),
+      collectServerMonBridgeImpl: vi.fn(
+        async (): Promise<ServerMonBridgeSnapshot> => ({
+          schemaVersion: 1,
+          collectedAt: '2026-05-07T11:30:00.000Z',
+          app: { running: true, port: 8912 },
+          modules: { databases: { running: true, total: 1, runningCount: 1 } },
+          routeCandidates: [
+            {
+              id: 'database:db-1',
+              kind: 'database',
+              module: 'databases',
+              name: 'Main Mongo',
+              status: 'running',
+              target: { localIp: '127.0.0.1', localPort: 27017, protocol: 'tcp' },
+              route: {
+                eligible: true,
+                templateSlug: 'generic-tcp',
+                proxyRuleName: 'main-mongo',
+                accessMode: 'public',
+                tlsEnabled: false,
+                websocketEnabled: false,
+                compression: false,
+                timeoutSeconds: 60,
+                maxBodyMb: 32,
+              },
+              securityNotes: [],
+            },
+          ],
+        })
+      ),
+    });
+
+    await client.start();
+    await intervalCb!();
+
+    expect(heartbeatCalls.length).toBeGreaterThanOrEqual(1);
+    const body = JSON.parse(String(heartbeatCalls[0].init?.body));
+    expect(body.servermonBridge.routeCandidates[0]).toMatchObject({
+      id: 'database:db-1',
+      target: { localIp: '127.0.0.1', localPort: 27017, protocol: 'tcp' },
+    });
+    await client.stop();
+  });
+
+  it('remote update command uses shared release/source updater arguments', async () => {
+    const logEntry = vi.fn();
+    const spawnImpl = vi.fn(() => {
+      const child = new EventEmitter() as unknown as ReturnType<
+        typeof import('node:child_process').spawn
+      >;
+      Object.assign(child, {
+        stdout: new EventEmitter(),
+        stderr: new EventEmitter(),
+        unref: vi.fn(),
+        pid: 777,
+      });
+      return child;
+    });
+
+    const client = new AgentClient({
+      hubUrl: 'https://hub.example.com',
+      pairingToken: 'pair-token',
+      nodeId: 'node-1',
+      spawnImpl: spawnImpl as unknown as typeof import('node:child_process').spawn,
+      logEntry,
+    });
+
+    await (
+      client as unknown as {
+        handleCommand: (cmd: { id: string; command: string; args?: unknown }) => Promise<void>;
+      }
+    ).handleCommand({
+      id: 'cmd-1',
+      command: 'update',
+      args: { mode: 'release', versionTarget: 'v0.1.1' },
+    });
+
+    expect(spawnImpl).toHaveBeenCalledWith(
+      'bash',
+      ['-c', expect.stringContaining('VERSION_TARGET="v0.1.1"')],
+      expect.objectContaining({ detached: true, stdio: ['ignore', 'pipe', 'pipe'] })
+    );
+    const updateCall = spawnImpl.mock.calls.at(-1)! as unknown as [string, string[], unknown];
+    const script = String(updateCall[1][1]);
+    expect(script).toContain('UPDATE_MODE="release"');
+    expect(script).toContain('install_from_release');
+    expect(script).toContain('servermon-agent-$PLATFORM_NAME-$ARCH_NAME.tar.gz');
+
+    const child = spawnImpl.mock.results[0].value as unknown as {
+      stdout: EventEmitter;
+      stderr: EventEmitter;
+      emit: (event: string, ...args: unknown[]) => boolean;
+    };
+    child.stdout.emit('data', Buffer.from('downloading artifact\n'));
+    child.stderr.emit('data', Buffer.from('restart pending\n'));
+    child.emit('close', 0);
+
+    expect(logEntry).toHaveBeenCalledWith(
+      expect.objectContaining({
+        level: 'info',
+        eventType: 'agent.update.log',
+        message: 'downloading artifact',
+        metadata: expect.objectContaining({ commandId: 'cmd-1' }),
+      })
+    );
+    expect(logEntry).toHaveBeenCalledWith(
+      expect.objectContaining({
+        level: 'warn',
+        eventType: 'agent.update.log',
+        message: 'restart pending',
+        metadata: expect.objectContaining({ commandId: 'cmd-1' }),
+      })
+    );
+    expect(logEntry).toHaveBeenCalledWith(
+      expect.objectContaining({
+        level: 'info',
+        eventType: 'agent.update.succeeded',
+        metadata: expect.objectContaining({ commandId: 'cmd-1', exitCode: 0 }),
+      })
+    );
   });
 });

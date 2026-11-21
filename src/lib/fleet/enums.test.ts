@@ -6,7 +6,6 @@ import {
   PROXY_STATUSES,
   PUBLIC_ROUTE_STATUSES,
   SERVICE_STATES,
-  isTerminalNodeStatus,
 } from './enums';
 
 describe('fleet enums', () => {
@@ -58,11 +57,6 @@ describe('fleet enums', () => {
       'degraded',
       'failed',
     ]);
-  });
-  it('isTerminalNodeStatus flags stable end states', () => {
-    expect(isTerminalNodeStatus('online')).toBe(true);
-    expect(isTerminalNodeStatus('offline')).toBe(true);
-    expect(isTerminalNodeStatus('connecting')).toBe(false);
   });
   it('includes the transitional substates for post-reboot UI', () => {
     expect(NODE_TRANSITIONS).toEqual([

@@ -9,8 +9,6 @@ import {
   CartesianGrid,
   Cell,
   Legend,
-  Line,
-  LineChart,
   Pie,
   PieChart,
   ResponsiveContainer,
@@ -19,35 +17,33 @@ import {
   YAxis,
 } from 'recharts';
 import {
-  Activity,
-  AlertTriangle,
   ArrowDown,
   ArrowUp,
   CalendarClock,
   ExternalLink,
   Gauge,
-  Globe,
   History,
   Loader2,
-  Network,
   RefreshCcw,
   Shield,
   TerminalSquare,
-  X,
   Zap,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/components/ui/toast';
-import { cn, formatBytes, relativeTime } from '@/lib/utils';
+import { resilientFetch, safeJson } from '@/lib/fetch-utils';
+import { cn, formatBytes } from '@/lib/utils';
 import type {
   NetworkSnapshot,
   NetworkSpeedtestOverview,
-  NetworkSpeedtestResult,
   NetworkSpeedtestScheduleInterval,
 } from '../types';
 import TerminalUI from '@/modules/terminal/ui/TerminalUI';
+import { SpeedtestHistoryModal } from './components/SpeedtestHistoryModal';
+import { NetworkAlerts } from './components/NetworkAlerts';
+import { QuickInsights } from './components/QuickInsights';
 
 const chartColors = [
   'var(--primary)',
@@ -84,6 +80,16 @@ function formatSpeedtestDate(value: string | undefined) {
   });
 }
 
+function getSafeHttpUrl(value: string | undefined) {
+  if (!value) return null;
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' || url.protocol === 'http:' ? url.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
 const scheduleOptions: Array<{ value: NetworkSpeedtestScheduleInterval; label: string }> = [
   { value: 'off', label: 'Off' },
   { value: '30m', label: 'Every 30 min' },
@@ -92,6 +98,23 @@ const scheduleOptions: Array<{ value: NetworkSpeedtestScheduleInterval; label: s
   { value: '6h', label: 'Every 6 hours' },
   { value: '24h', label: 'Every day' },
 ];
+
+const NETWORK_REQUEST_TIMEOUT_MS = 5000;
+const SPEEDTEST_OVERVIEW_TIMEOUT_MS = 8000;
+const TRANSIENT_RETRY_STATUSES = [502, 503, 504];
+const SPEEDTEST_RUN_TIMEOUT_MS = 20000;
+
+type SpeedtestRunResponse = {
+  status?: string;
+  error?: string;
+  downloadMbps?: number;
+  uploadMbps?: number;
+  pingMs?: number;
+};
+
+type ApiErrorPayload = {
+  error?: string;
+};
 
 export default function NetworkPage() {
   const { toast } = useToast();
@@ -108,23 +131,37 @@ export default function NetworkPage() {
   const [showSpeedtestHistory, setShowSpeedtestHistory] = useState(false);
 
   const loadSnapshot = useCallback(async () => {
-    try {
-      const response = await fetch('/api/modules/network', { cache: 'no-store' });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Failed to fetch network data');
-      setSnapshot(data);
-      if (data.interfaces.length > 0 && selectedIface === 'all') {
-        // Keep 'all' or default to first non-internal if possible
-      }
-    } catch (error) {
-      console.error(error);
+    const response = await resilientFetch('/api/modules/network', {
+      cache: 'no-store',
+      timeout: NETWORK_REQUEST_TIMEOUT_MS,
+      retries: 1,
+      retryDelay: 300,
+      retryOnStatuses: TRANSIENT_RETRY_STATUSES,
+    });
+    const data = await safeJson<(NetworkSnapshot & ApiErrorPayload) | ApiErrorPayload>(response);
+    if (!response.ok) {
+      throw new Error(data?.error || 'Failed to fetch network data');
     }
-  }, [selectedIface]);
+    if (!data || !('interfaces' in data))
+      throw new Error('Network API returned an invalid response');
+    setSnapshot(data);
+  }, []);
 
   const loadSpeedtestOverview = useCallback(async () => {
-    const response = await fetch('/api/modules/network/speedtest', { cache: 'no-store' });
-    const data = await response.json();
-    if (!response.ok) throw new Error(data.error || 'Failed to fetch speedtest history');
+    const response = await resilientFetch('/api/modules/network/speedtest', {
+      cache: 'no-store',
+      timeout: SPEEDTEST_OVERVIEW_TIMEOUT_MS,
+      retries: 1,
+      retryDelay: 300,
+      retryOnStatuses: TRANSIENT_RETRY_STATUSES,
+    });
+    const data = await safeJson<(NetworkSpeedtestOverview & ApiErrorPayload) | ApiErrorPayload>(
+      response
+    );
+    if (!response.ok) throw new Error(data?.error || 'Failed to fetch speedtest history');
+    if (!data || !('settings' in data)) {
+      throw new Error('Speedtest API returned an invalid response');
+    }
     setSpeedtestOverview(data);
     setSpeedtestRunning(Boolean(data.running));
   }, []);
@@ -132,12 +169,25 @@ export default function NetworkPage() {
   const runSpeedtest = useCallback(async () => {
     setSpeedtestRunning(true);
     try {
-      const response = await fetch('/api/modules/network/speedtest', {
+      const response = await resilientFetch('/api/modules/network/speedtest', {
         method: 'POST',
         cache: 'no-store',
+        timeout: SPEEDTEST_RUN_TIMEOUT_MS,
+        retries: 1,
+        retryDelay: 250,
+        retryOnStatuses: TRANSIENT_RETRY_STATUSES,
       });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Failed to run speedtest');
+      const data = await safeJson<SpeedtestRunResponse>(response);
+      if (!response.ok) {
+        throw new Error(
+          typeof data === 'object' && data !== null && typeof data.error === 'string'
+            ? data.error
+            : 'Failed to run speedtest'
+        );
+      }
+      if (typeof data !== 'object' || data === null || typeof data.status !== 'string') {
+        throw new Error('Speedtest API returned an invalid response');
+      }
       await loadSpeedtestOverview();
       if (data.status === 'failed') {
         toast({
@@ -168,13 +218,23 @@ export default function NetworkPage() {
     async (scheduleInterval: NetworkSpeedtestScheduleInterval) => {
       setScheduleSaving(true);
       try {
-        const response = await fetch('/api/modules/network/speedtest', {
+        const response = await resilientFetch('/api/modules/network/speedtest', {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
+          timeout: NETWORK_REQUEST_TIMEOUT_MS,
+          retries: 1,
+          retryDelay: 250,
+          retryOnStatuses: TRANSIENT_RETRY_STATUSES,
           body: JSON.stringify({ scheduleInterval }),
         });
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.error || 'Failed to update speedtest schedule');
+        const data = await safeJson<ApiErrorPayload>(response);
+        if (!response.ok) {
+          throw new Error(
+            typeof data === 'object' && data !== null && typeof data.error === 'string'
+              ? data.error
+              : 'Failed to update speedtest schedule'
+          );
+        }
         await loadSpeedtestOverview();
       } catch (error) {
         toast({
@@ -272,6 +332,8 @@ export default function NetworkPage() {
     return Object.entries(states).map(([name, value]) => ({ name, value }));
   }, [snapshot]);
 
+  const visibleConnections = useMemo(() => snapshot?.connections.slice(0, 50) ?? [], [snapshot]);
+
   const packetStats = useMemo(() => {
     if (!snapshot) return [];
     return snapshot.stats
@@ -285,8 +347,24 @@ export default function NetworkPage() {
       }));
   }, [snapshot, selectedIface]);
 
+  const selectedInterfaces = useMemo(() => {
+    if (!snapshot) return [];
+    return snapshot.interfaces.filter((i) => selectedIface === 'all' || i.iface === selectedIface);
+  }, [snapshot, selectedIface]);
+
+  const selectedStats = useMemo(() => {
+    if (!snapshot) return [];
+    return snapshot.stats.filter((s) => selectedIface === 'all' || s.iface === selectedIface);
+  }, [snapshot, selectedIface]);
+
+  const statsByInterface = useMemo(
+    () => new Map(snapshot?.stats.map((stats) => [stats.iface, stats]) ?? []),
+    [snapshot]
+  );
+
   const speedtestHistory = useMemo(() => speedtestOverview?.history ?? [], [speedtestOverview]);
   const latestSpeedtest = speedtestOverview?.latest ?? null;
+  const speedtestResultUrl = getSafeHttpUrl(latestSpeedtest?.resultUrl);
   const speedtestChartData = useMemo(
     () =>
       [...speedtestHistory]
@@ -484,10 +562,10 @@ export default function NetworkPage() {
                   {latestSpeedtest.isp}
                 </Badge>
               )}
-              {latestSpeedtest?.resultUrl && (
+              {speedtestResultUrl && (
                 <a
                   className="inline-flex items-center gap-1 text-primary hover:underline"
-                  href={latestSpeedtest.resultUrl}
+                  href={speedtestResultUrl}
                   target="_blank"
                   rel="noopener noreferrer"
                 >
@@ -507,42 +585,47 @@ export default function NetworkPage() {
       </Card>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {snapshot?.interfaces
-          .filter((i) => selectedIface === 'all' || i.iface === selectedIface)
-          .map((iface) => {
-            const stats = snapshot.stats.find((s) => s.iface === iface.iface);
-            return (
-              <Card key={iface.iface} className="border-border/60 bg-card/80">
-                <CardContent className="p-5 space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
-                        {iface.iface}
-                      </p>
-                      <p className="text-sm font-mono mt-1">{iface.ip4 || '-'}</p>
-                    </div>
-                    <Badge variant={iface.operstate === 'up' ? 'success' : 'destructive'}>
-                      {iface.operstate.toUpperCase()}
-                    </Badge>
+        {selectedInterfaces.map((iface) => {
+          const stats = statsByInterface.get(iface.iface);
+          return (
+            <Card
+              key={iface.iface}
+              className="group overflow-hidden border-border/60 bg-card/80 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/30 hover:bg-card hover:shadow-[0_18px_36px_-28px_color-mix(in_oklab,var(--primary)_45%,transparent)]"
+            >
+              <CardContent className="space-y-4 p-5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
+                      {iface.iface}
+                    </p>
+                    <p className="text-sm font-mono mt-1">{iface.ip4 || '-'}</p>
                   </div>
-                  <div className="grid grid-cols-2 gap-2 text-xs">
-                    <div className="flex items-center gap-1.5 text-muted-foreground">
-                      <ArrowDown className="h-3 w-3 text-success" />
-                      <span>{stats ? formatBytes(stats.rx_sec) : '0 B'}/s</span>
-                    </div>
-                    <div className="flex items-center gap-1.5 text-muted-foreground">
-                      <ArrowUp className="h-3 w-3 text-primary" />
-                      <span>{stats ? formatBytes(stats.tx_sec) : '0 B'}/s</span>
-                    </div>
+                  <Badge variant={iface.operstate === 'up' ? 'success' : 'destructive'}>
+                    {iface.operstate.toUpperCase()}
+                  </Badge>
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div className="flex items-center gap-1.5 rounded-lg border border-border/40 bg-muted/20 px-2 py-1.5 text-muted-foreground transition-colors group-hover:border-success/30 group-hover:bg-success/5">
+                    <ArrowDown className="h-3 w-3 text-success" />
+                    <span className="truncate tabular-nums">
+                      {stats ? formatBytes(stats.rx_sec) : '0 B'}/s
+                    </span>
                   </div>
-                  <div className="pt-2 border-t border-border/40 flex items-center justify-between text-[10px] uppercase tracking-wider text-muted-foreground font-medium">
-                    <span>{iface.speed > 0 ? formatSpeed(iface.speed) : 'N/A Speed'}</span>
-                    <span>MTU {iface.mtu}</span>
+                  <div className="flex items-center gap-1.5 rounded-lg border border-border/40 bg-muted/20 px-2 py-1.5 text-muted-foreground transition-colors group-hover:border-primary/30 group-hover:bg-primary/5">
+                    <ArrowUp className="h-3 w-3 text-primary" />
+                    <span className="truncate tabular-nums">
+                      {stats ? formatBytes(stats.tx_sec) : '0 B'}/s
+                    </span>
                   </div>
-                </CardContent>
-              </Card>
-            );
-          })}
+                </div>
+                <div className="flex items-center justify-between border-t border-border/40 pt-2 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                  <span>{iface.speed > 0 ? formatSpeed(iface.speed) : 'N/A Speed'}</span>
+                  <span>MTU {iface.mtu}</span>
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })}
       </div>
 
       <section className="grid gap-6 2xl:grid-cols-[2fr_1fr]">
@@ -571,30 +654,28 @@ export default function NetworkPage() {
                   contentStyle={{ background: 'var(--card)', border: '1px solid var(--border)' }}
                 />
                 <Legend />
-                {snapshot?.stats
-                  .filter((s) => selectedIface === 'all' || s.iface === selectedIface)
-                  .map((s, idx) => (
-                    <Fragment key={s.iface}>
-                      <Area
-                        type="monotone"
-                        dataKey={`${s.iface}_rx`}
-                        stroke={chartColors[idx % chartColors.length]}
-                        fill={chartColors[idx % chartColors.length]}
-                        fillOpacity={0.15}
-                        name={`${s.iface} Down`}
-                        strokeWidth={2}
-                      />
-                      <Area
-                        type="monotone"
-                        dataKey={`${s.iface}_tx`}
-                        stroke={chartColors[(idx + 1) % chartColors.length]}
-                        fill={chartColors[(idx + 1) % chartColors.length]}
-                        fillOpacity={0.05}
-                        name={`${s.iface} Up`}
-                        strokeWidth={2}
-                      />
-                    </Fragment>
-                  ))}
+                {selectedStats.map((s, idx) => (
+                  <Fragment key={s.iface}>
+                    <Area
+                      type="monotone"
+                      dataKey={`${s.iface}_rx`}
+                      stroke={chartColors[idx % chartColors.length]}
+                      fill={chartColors[idx % chartColors.length]}
+                      fillOpacity={0.15}
+                      name={`${s.iface} Down`}
+                      strokeWidth={2}
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey={`${s.iface}_tx`}
+                      stroke={chartColors[(idx + 1) % chartColors.length]}
+                      fill={chartColors[(idx + 1) % chartColors.length]}
+                      fillOpacity={0.05}
+                      name={`${s.iface} Up`}
+                      strokeWidth={2}
+                    />
+                  </Fragment>
+                ))}
               </AreaChart>
             </ResponsiveContainer>
           </CardContent>
@@ -693,7 +774,7 @@ export default function NetworkPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/40">
-                {snapshot?.connections.slice(0, 50).map((conn, idx) => (
+                {visibleConnections.map((conn, idx) => (
                   <tr
                     key={`${conn.localAddress}-${conn.localPort}-${idx}`}
                     className="hover:bg-muted/30 transition-colors"
@@ -805,92 +886,8 @@ export default function NetworkPage() {
       </Card>
 
       <section className="grid gap-6 md:grid-cols-2">
-        <Card className="border-border/60">
-          <CardHeader>
-            <CardTitle>Network Alerts</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {snapshot?.alerts.length ? (
-                snapshot.alerts.map((alert) => (
-                  <div
-                    key={alert.id}
-                    className={cn(
-                      'p-3 rounded-xl border flex gap-3',
-                      alert.severity === 'critical'
-                        ? 'bg-destructive/5 border-destructive/20'
-                        : 'bg-warning/5 border-warning/20'
-                    )}
-                  >
-                    <AlertTriangle
-                      className={cn(
-                        'h-5 w-5 shrink-0',
-                        alert.severity === 'critical' ? 'text-destructive' : 'text-warning'
-                      )}
-                    />
-                    <div>
-                      <p className="font-semibold text-sm">{alert.title}</p>
-                      <p className="text-xs text-muted-foreground">{alert.message}</p>
-                      <p className="text-[10px] mt-2 text-muted-foreground uppercase font-bold tracking-wider">
-                        {alert.source} • {relativeTime(alert.lastSeenAt)}
-                      </p>
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <div className="text-center py-8 text-muted-foreground">
-                  <Zap className="h-10 w-10 mx-auto mb-3 opacity-20" />
-                  <p className="text-sm font-medium">All systems normal</p>
-                  <p className="text-xs mt-1">No active network alerts detected.</p>
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-border/60">
-          <CardHeader>
-            <CardTitle>Quick Insights</CardTitle>
-          </CardHeader>
-          <CardContent className="grid grid-cols-2 gap-4">
-            <div className="p-4 rounded-2xl bg-muted/30 border border-border/40">
-              <Activity className="h-5 w-5 text-primary mb-2" />
-              <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">
-                Avg Throughput
-              </p>
-              <p className="text-xl font-bold mt-1">
-                {formatBytes(snapshot?.stats.reduce((acc, s) => acc + s.rx_sec + s.tx_sec, 0) || 0)}
-                /s
-              </p>
-            </div>
-            <div className="p-4 rounded-2xl bg-muted/30 border border-border/40">
-              <Network className="h-5 w-5 text-success mb-2" />
-              <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">
-                Interfaces
-              </p>
-              <p className="text-xl font-bold mt-1">{snapshot?.interfaces.length || 0}</p>
-            </div>
-            <div className="p-4 rounded-2xl bg-muted/30 border border-border/40">
-              <Globe className="h-5 w-5 text-accent mb-2" />
-              <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">
-                Total Connections
-              </p>
-              <p className="text-xl font-bold mt-1">{snapshot?.connections.length || 0}</p>
-            </div>
-            <div className="p-4 rounded-2xl bg-muted/30 border border-border/40">
-              <Shield className="h-5 w-5 text-destructive mb-2" />
-              <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">
-                Errors/Drops
-              </p>
-              <p className="text-xl font-bold mt-1">
-                {snapshot?.stats.reduce(
-                  (acc, s) => acc + s.rx_errors + s.tx_errors + s.rx_dropped + s.tx_dropped,
-                  0
-                )}
-              </p>
-            </div>
-          </CardContent>
-        </Card>
+        <NetworkAlerts alerts={snapshot?.alerts} />
+        <QuickInsights snapshot={snapshot} />
       </section>
 
       {showSpeedtestHistory && (
@@ -900,143 +897,6 @@ export default function NetworkPage() {
           onClose={() => setShowSpeedtestHistory(false)}
         />
       )}
-    </div>
-  );
-}
-
-function SpeedtestHistoryModal({
-  history,
-  chartData,
-  onClose,
-}: {
-  history: NetworkSpeedtestResult[];
-  chartData: Array<{ time: string; download: number; upload: number; ping: number }>;
-  onClose: () => void;
-}) {
-  return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-      <button
-        type="button"
-        className="absolute inset-0 bg-background/80 backdrop-blur-sm"
-        aria-label="Close speedtest history"
-        onClick={onClose}
-      />
-      <div
-        className="relative flex max-h-[88vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-border/60 bg-card shadow-2xl"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="speedtest-history-title"
-      >
-        <div className="flex items-center justify-between border-b border-border/60 px-5 py-4">
-          <div>
-            <h3 id="speedtest-history-title" className="text-lg font-semibold">
-              Speedtest History
-            </h3>
-            <p className="text-sm text-muted-foreground">
-              Download, upload, and latency from manual and scheduled runs.
-            </p>
-          </div>
-          <Button variant="ghost" size="icon" onClick={onClose} aria-label="Close">
-            <X className="h-4 w-4" />
-          </Button>
-        </div>
-        <div className="space-y-5 overflow-y-auto p-5">
-          <div className="h-[320px] rounded-xl border border-border/50 bg-background/40 p-3">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={chartData}>
-                <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="time" tick={{ fill: 'var(--muted-foreground)', fontSize: 11 }} />
-                <YAxis
-                  yAxisId="speed"
-                  tick={{ fill: 'var(--muted-foreground)', fontSize: 11 }}
-                  tickFormatter={(value) => `${value} Mbps`}
-                />
-                <YAxis
-                  yAxisId="latency"
-                  orientation="right"
-                  tick={{ fill: 'var(--muted-foreground)', fontSize: 11 }}
-                  tickFormatter={(value) => `${value} ms`}
-                />
-                <Tooltip
-                  contentStyle={{ background: 'var(--card)', border: '1px solid var(--border)' }}
-                />
-                <Legend />
-                <Line
-                  yAxisId="speed"
-                  type="monotone"
-                  dataKey="download"
-                  name="Download Mbps"
-                  stroke="var(--success)"
-                  strokeWidth={2}
-                  dot={false}
-                />
-                <Line
-                  yAxisId="speed"
-                  type="monotone"
-                  dataKey="upload"
-                  name="Upload Mbps"
-                  stroke="var(--primary)"
-                  strokeWidth={2}
-                  dot={false}
-                />
-                <Line
-                  yAxisId="latency"
-                  type="monotone"
-                  dataKey="ping"
-                  name="Ping ms"
-                  stroke="var(--warning)"
-                  strokeWidth={2}
-                  dot={false}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-
-          <div className="overflow-x-auto rounded-xl border border-border/50">
-            <table className="min-w-full text-sm">
-              <thead className="bg-muted/30 text-left text-xs uppercase tracking-[0.16em] text-muted-foreground">
-                <tr>
-                  <th className="px-4 py-3">Time</th>
-                  <th className="px-4 py-3">Trigger</th>
-                  <th className="px-4 py-3">Down</th>
-                  <th className="px-4 py-3">Up</th>
-                  <th className="px-4 py-3">Ping</th>
-                  <th className="px-4 py-3">Server</th>
-                  <th className="px-4 py-3">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border/40">
-                {history.map((result) => (
-                  <tr key={result.id ?? `${result.startedAt}-${result.trigger}`}>
-                    <td className="px-4 py-3 whitespace-nowrap">
-                      {formatSpeedtestDate(result.finishedAt)}
-                    </td>
-                    <td className="px-4 py-3 capitalize">{result.trigger}</td>
-                    <td className="px-4 py-3 tabular-nums">{formatMbps(result.downloadMbps)}</td>
-                    <td className="px-4 py-3 tabular-nums">{formatMbps(result.uploadMbps)}</td>
-                    <td className="px-4 py-3 tabular-nums">{formatLatency(result.pingMs)}</td>
-                    <td className="max-w-[260px] truncate px-4 py-3">
-                      {result.serverName || result.error || '-'}
-                    </td>
-                    <td className="px-4 py-3">
-                      <Badge variant={result.status === 'completed' ? 'success' : 'destructive'}>
-                        {result.status.toUpperCase()}
-                      </Badge>
-                    </td>
-                  </tr>
-                ))}
-                {history.length === 0 && (
-                  <tr>
-                    <td className="px-4 py-8 text-center text-muted-foreground" colSpan={7}>
-                      No speedtest history yet.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
     </div>
   );
 }

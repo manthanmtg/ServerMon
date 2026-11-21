@@ -5,13 +5,26 @@ import { existsSync, openSync, closeSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { readdir, readFile, stat, unlink, writeFile, mkdir } from 'node:fs/promises';
-import type { ServermonAgentStatus, UpdateRunStatus } from '@/types/updates';
+import type {
+  ServermonAgentStatus,
+  UpdateRunStatus,
+  UpdateRunTrigger,
+  UpdateRunType,
+} from '@/types/updates';
+import { buildAgentUpdateShell } from '@/lib/fleet/agentUpdateCommand';
 
 const execFileAsync = promisify(execFile);
 const log = createLogger('system-update-service');
 const MAX_OUTPUT_BYTES = 128 * 1024;
 const AGENT_SERVICE_NAME = 'servermon-agent.service';
 const DEFAULT_AGENT_REPO_DIR = '/opt/servermon-agent/source';
+const AGENT_METADATA_FILE = '/etc/servermon-agent/install.env';
+
+interface AgentInstallMetadata {
+  installMode?: 'release' | 'source' | 'unknown';
+  versionTarget?: string;
+  appDir?: string;
+}
 
 class SystemUpdateService {
   private static instance: SystemUpdateService;
@@ -169,6 +182,8 @@ class SystemUpdateService {
         runMap.set(r.runId, {
           runId: r.runId,
           timestamp: r.timestamp,
+          type: r.type,
+          trigger: r.trigger,
           status: r.status,
           pid: r.pid,
           exitCode: r.exitCode,
@@ -246,6 +261,8 @@ class SystemUpdateService {
             {
               runId: run.runId,
               timestamp: run.timestamp,
+              type: run.type,
+              trigger: run.trigger,
               status: run.status,
               pid: run.pid,
               exitCode: run.exitCode,
@@ -279,7 +296,8 @@ class SystemUpdateService {
   private async spawnTrackedRun(
     cmd: string,
     args: string[],
-    env?: Record<string, string>
+    env?: Record<string, string>,
+    metadata: { type?: UpdateRunType; trigger?: UpdateRunTrigger } = {}
   ): Promise<{ success: boolean; pid?: number; message: string; runId?: string }> {
     const logDir = await this.ensureLogDir();
     const runIdBase = String(Date.now());
@@ -304,6 +322,8 @@ class SystemUpdateService {
         const run: UpdateRunStatus & { logFile: string; metadataFile: string } = {
           runId: runIdBase,
           timestamp,
+          type: metadata.type,
+          trigger: metadata.trigger,
           status: 'running',
           pid: child.pid,
           exitCode: null,
@@ -320,6 +340,8 @@ class SystemUpdateService {
                 {
                   runId: run.runId,
                   timestamp: run.timestamp,
+                  type: run.type,
+                  trigger: run.trigger,
                   status: run.status,
                   pid: run.pid,
                   exitCode: run.exitCode,
@@ -369,7 +391,7 @@ class SystemUpdateService {
     }
   }
 
-  public async triggerUpdate(): Promise<{
+  public async triggerUpdate(options: { trigger?: UpdateRunTrigger } = {}): Promise<{
     success: boolean;
     pid?: number;
     message: string;
@@ -388,7 +410,10 @@ class SystemUpdateService {
       ? ['--scope', '--quiet', '--', 'sudo', updateScript]
       : [updateScript];
 
-    return this.spawnTrackedRun(spawnCmd, spawnArgs);
+    return this.spawnTrackedRun(spawnCmd, spawnArgs, undefined, {
+      type: 'servermon',
+      trigger: options.trigger ?? 'manual',
+    });
   }
 
   private parseSystemctlShow(output: string): Record<string, string> {
@@ -411,6 +436,27 @@ class SystemUpdateService {
     return undefined;
   }
 
+  private parseAgentInstallMetadata(raw: string): AgentInstallMetadata {
+    const metadata: AgentInstallMetadata = {};
+    for (const line of raw.split('\n')) {
+      const idx = line.indexOf('=');
+      if (idx <= 0) continue;
+      const key = line.slice(0, idx).trim();
+      const value = line.slice(idx + 1).trim();
+      if (key === 'SERVERMON_AGENT_INSTALL_MODE') {
+        metadata.installMode =
+          value === 'release' || value === 'source' ? value : value ? 'unknown' : undefined;
+      }
+      if (key === 'SERVERMON_AGENT_VERSION_TARGET' && value) {
+        metadata.versionTarget = value;
+      }
+      if (key === 'SERVERMON_AGENT_APP_DIR' && value) {
+        metadata.appDir = value;
+      }
+    }
+    return metadata;
+  }
+
   public async getServermonAgentStatus(): Promise<ServermonAgentStatus> {
     try {
       const output = await execFileAsync('systemctl', [
@@ -425,6 +471,7 @@ class SystemUpdateService {
       const fields = this.parseSystemctlShow(String(output.stdout));
       const fragmentPath = fields.FragmentPath || undefined;
       let repoDir = process.env.SERVERMON_AGENT_REPO_DIR || DEFAULT_AGENT_REPO_DIR;
+      let metadata: AgentInstallMetadata = {};
 
       if (fragmentPath && existsSync(fragmentPath)) {
         try {
@@ -432,6 +479,14 @@ class SystemUpdateService {
           repoDir = this.parseWorkingDirectory(serviceFile) ?? repoDir;
         } catch (err) {
           log.warn(`Failed to read ${AGENT_SERVICE_NAME} unit file`, err);
+        }
+      }
+      if (existsSync(AGENT_METADATA_FILE)) {
+        try {
+          metadata = this.parseAgentInstallMetadata(await readFile(AGENT_METADATA_FILE, 'utf-8'));
+          repoDir = metadata.appDir ?? repoDir;
+        } catch (err) {
+          log.warn(`Failed to read ${AGENT_METADATA_FILE}`, err);
         }
       }
 
@@ -442,6 +497,8 @@ class SystemUpdateService {
         installed,
         active: fields.ActiveState === 'active',
         enabled: fields.UnitFileState === 'enabled',
+        installMode: metadata.installMode ?? (repoExists ? 'source' : undefined),
+        versionTarget: metadata.versionTarget,
         loadState: fields.LoadState,
         activeState: fields.ActiveState,
         unitFileState: fields.UnitFileState,
@@ -466,7 +523,7 @@ class SystemUpdateService {
     }
   }
 
-  public async triggerAgentUpdate(): Promise<{
+  public async triggerAgentUpdate(options: { trigger?: UpdateRunTrigger } = {}): Promise<{
     success: boolean;
     pid?: number;
     message: string;
@@ -480,15 +537,11 @@ class SystemUpdateService {
       };
     }
 
-    const updateScript = [
-      'set -euo pipefail',
-      `cd ${JSON.stringify(status.repoDir)}`,
-      'git pull --rebase',
-      'pnpm install --frozen-lockfile',
-      'pnpm build',
-      `systemctl restart ${AGENT_SERVICE_NAME}`,
-      `systemctl is-active --quiet ${AGENT_SERVICE_NAME}`,
-    ].join('\n');
+    const updateScript = buildAgentUpdateShell({
+      mode: 'auto',
+      appDir: status.repoDir,
+      serviceName: AGENT_SERVICE_NAME,
+    });
 
     const useSystemd = await this.checkSystemdRun();
     const spawnCmd = useSystemd ? 'systemd-run' : 'sudo';
@@ -496,10 +549,17 @@ class SystemUpdateService {
       ? ['--scope', '--quiet', '--', 'sudo', 'bash', '-lc', updateScript]
       : ['bash', '-lc', updateScript];
 
-    return this.spawnTrackedRun(spawnCmd, spawnArgs);
+    return this.spawnTrackedRun(spawnCmd, spawnArgs, undefined, {
+      type: 'agent',
+      trigger: options.trigger ?? 'manual',
+    });
   }
 
-  public async recordSkippedUpdateRun(message: string): Promise<UpdateRunStatus> {
+  public async recordSkippedUpdateRun(
+    message: string,
+    type: UpdateRunType = 'unknown',
+    trigger: UpdateRunTrigger = 'manual'
+  ): Promise<UpdateRunStatus> {
     const logDir = await this.ensureLogDir();
     const runIdBase = String(Date.now());
     const runId = `${this.LOG_PREFIX}${runIdBase}`;
@@ -509,6 +569,8 @@ class SystemUpdateService {
     const run: UpdateRunStatus = {
       runId: runIdBase,
       timestamp,
+      type,
+      trigger,
       status: 'skipped',
       pid: 0,
       exitCode: 0,
@@ -524,6 +586,8 @@ class SystemUpdateService {
         {
           runId: run.runId,
           timestamp: run.timestamp,
+          type: run.type,
+          trigger: run.trigger,
           status: run.status,
           pid: run.pid,
           exitCode: run.exitCode,
@@ -549,7 +613,11 @@ class SystemUpdateService {
     runId?: string;
   }> {
     if (!plan.servermonNeedsUpdate && !plan.agentNeedsUpdate) {
-      const run = await this.recordSkippedUpdateRun('No upstream changes detected');
+      const run = await this.recordSkippedUpdateRun(
+        'No upstream changes detected',
+        'combined',
+        'scheduled'
+      );
       return {
         success: true,
         message: 'No upstream changes detected',
@@ -564,7 +632,15 @@ class SystemUpdateService {
       ? ['--scope', '--quiet', '--', 'sudo', 'bash', '-lc', script]
       : ['bash', '-lc', script];
 
-    return this.spawnTrackedRun(spawnCmd, spawnArgs);
+    return this.spawnTrackedRun(spawnCmd, spawnArgs, undefined, {
+      type:
+        plan.servermonNeedsUpdate && plan.agentNeedsUpdate
+          ? 'combined'
+          : plan.agentNeedsUpdate
+            ? 'agent'
+            : 'servermon',
+      trigger: 'scheduled',
+    });
   }
 
   private buildLocalAutoUpdateScript(plan: {
@@ -596,12 +672,11 @@ class SystemUpdateService {
     if (plan.agentNeedsUpdate && plan.agentRepoDir) {
       lines.push(
         'echo "Agent update phase"',
-        `cd ${JSON.stringify(plan.agentRepoDir)}`,
-        'git pull --rebase',
-        'pnpm install --frozen-lockfile',
-        'pnpm build',
-        `systemctl restart ${AGENT_SERVICE_NAME}`,
-        `systemctl is-active --quiet ${AGENT_SERVICE_NAME}`,
+        buildAgentUpdateShell({
+          mode: 'auto',
+          appDir: plan.agentRepoDir,
+          serviceName: AGENT_SERVICE_NAME,
+        }),
         'echo "Agent update succeeded"'
       );
     } else {
@@ -631,7 +706,12 @@ class SystemUpdateService {
       ? ['--scope', '--quiet', '--', 'sudo', 'bash', '-c', upgradeScript]
       : ['bash', '-c', upgradeScript];
 
-    return this.spawnTrackedRun(spawnCmd, spawnArgs, { DEBIAN_FRONTEND: 'noninteractive' });
+    return this.spawnTrackedRun(
+      spawnCmd,
+      spawnArgs,
+      { DEBIAN_FRONTEND: 'noninteractive' },
+      { type: 'packages', trigger: 'manual' }
+    );
   }
 }
 

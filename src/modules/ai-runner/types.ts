@@ -25,6 +25,7 @@ export type AIRunnerJobStatus =
   | 'completed'
   | 'failed'
   | 'canceled';
+export type AIRunnerRunAsUserAuthMode = 'passwordless-sudo';
 export type AIRunnerAutoflowStatus = 'draft' | 'running' | 'completed' | 'failed' | 'canceled';
 export type AIRunnerAutoflowItemStatus =
   | 'pending'
@@ -40,6 +41,9 @@ export interface AIRunnerWorkspaceDTO {
   name: string;
   path: string;
   blocking: boolean;
+  isGitRepo: boolean;
+  gitWorktreesEnabled: boolean;
+  gitWorktreeBaseDir?: string;
   enabled: boolean;
   notes?: string;
   createdAt: string;
@@ -56,6 +60,8 @@ export interface AIRunnerProfileDTO {
   maxTimeout: number;
   shell: string;
   requiresTTY: boolean;
+  runAsUser?: string;
+  runAsUserAuthMode?: AIRunnerRunAsUserAuthMode;
   env: Record<string, string>;
   enabled: boolean;
   locked: boolean;
@@ -126,10 +132,12 @@ export interface AIRunnerSettingsDTO {
   autoflowMode: 'sequential' | 'parallel';
   artifactBaseDir: string;
   maxConcurrentRuns: number;
+  historyRetentionDays: number;
   mongoRetentionDays: number;
   artifactRetentionDays: number;
   defaultArtifactBaseDir: string;
   defaultMaxConcurrentRuns: number;
+  defaultHistoryRetentionDays: number;
   defaultMongoRetentionDays: number;
   defaultArtifactRetentionDays: number;
   updatedAt?: string;
@@ -176,6 +184,8 @@ export interface AIRunnerExecutionMetadataDTO {
   command: string;
   shell: string;
   workingDirectory: string;
+  runAsUser?: string;
+  runAsUserAuthMode?: AIRunnerRunAsUserAuthMode;
   promptId?: string;
   scheduleId?: string;
   autoflowId?: string;
@@ -335,6 +345,8 @@ export interface AIRunnerPortableProfile {
   maxTimeout: number;
   shell: string;
   requiresTTY: boolean;
+  runAsUser?: string;
+  runAsUserAuthMode?: AIRunnerRunAsUserAuthMode;
   env: Record<string, string>;
   enabled: boolean;
   icon?: string;
@@ -344,6 +356,7 @@ export interface AIRunnerPortableWorkspace {
   name: string;
   path: string;
   blocking: boolean;
+  gitWorktreesEnabled?: boolean;
   enabled: boolean;
   notes?: string;
 }

@@ -38,12 +38,18 @@ Pick one category per run:
 - Remove **at most 5 dead items** per run.
 - If removing something requires changing other files, keep the total diff under 30 lines.
 
-### 4. Verify
+### 4. No-Op Conditions
+
+- If you scan the codebase and cannot confidently identify any truly unused exports, files, or commented-out code, **stop** — log "codebase is free of dead code" and no-op.
+- If the only remaining candidates are ambiguous (e.g., dynamically referenced string keys) and cannot be proven dead, log them to `issues_to_look/` and no-op.
+- If a known dead code issue is already documented in `issues_to_look/` and you cannot safely fix it, no-op.
+
+### 5. Verify
 
 - Run `pnpm check` — must pass cleanly.
 - If anything breaks, revert immediately and log to `issues_to_look/`.
 
-### 5. Commit
+### 6. Commit
 
 - Commit with a message like: `chore: remove unused processStats export from utils`
 - List what was removed and why in the commit body.

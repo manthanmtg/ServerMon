@@ -22,6 +22,26 @@ function matchesSearch(session: AgentSession, query: string): boolean {
   );
 }
 
+type FilterAgentSessionOptions = {
+  filterAgent: FilterAgent;
+  filterStatus?: FilterStatus;
+  search: string;
+};
+
+export function buildFilteredAgentSessions(
+  sessions: readonly AgentSession[],
+  { filterAgent, filterStatus = 'all', search }: FilterAgentSessionOptions
+): AgentSession[] {
+  const trimmedSearch = search.trim().toLowerCase();
+
+  return sessions.filter((session) => {
+    if (filterStatus !== 'all' && session.status !== filterStatus) return false;
+    if (filterAgent !== 'all' && session.agent.type !== filterAgent) return false;
+    if (trimmedSearch && !matchesSearch(session, trimmedSearch)) return false;
+    return true;
+  });
+}
+
 export default function AIAgentsPage() {
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState<'sessions' | 'tools'>('sessions');
@@ -40,22 +60,26 @@ export default function AIAgentsPage() {
     onError: handleSnapshotError,
   });
 
-  const trimmedSearch = search.trim().toLowerCase();
+  const trimmedSearch = search.trim();
 
-  const filteredSessions = useMemo(() => {
-    let sessions = snapshot?.sessions ?? [];
-    if (filterStatus !== 'all') sessions = sessions.filter((s) => s.status === filterStatus);
-    if (filterAgent !== 'all') sessions = sessions.filter((s) => s.agent.type === filterAgent);
-    if (trimmedSearch) sessions = sessions.filter((s) => matchesSearch(s, trimmedSearch));
-    return sessions;
-  }, [snapshot, filterStatus, filterAgent, trimmedSearch]);
+  const filteredSessions = useMemo(
+    () =>
+      buildFilteredAgentSessions(snapshot?.sessions ?? [], {
+        filterStatus,
+        filterAgent,
+        search: trimmedSearch,
+      }),
+    [snapshot, filterStatus, filterAgent, trimmedSearch]
+  );
 
-  const filteredPastSessions = useMemo(() => {
-    let sessions = snapshot?.pastSessions ?? [];
-    if (filterAgent !== 'all') sessions = sessions.filter((s) => s.agent.type === filterAgent);
-    if (trimmedSearch) sessions = sessions.filter((s) => matchesSearch(s, trimmedSearch));
-    return sessions;
-  }, [snapshot, filterAgent, trimmedSearch]);
+  const filteredPastSessions = useMemo(
+    () =>
+      buildFilteredAgentSessions(snapshot?.pastSessions ?? [], {
+        filterAgent,
+        search: trimmedSearch,
+      }),
+    [snapshot, filterAgent, trimmedSearch]
+  );
 
   const selectedSession = useMemo(() => {
     if (!selectedId) return null;

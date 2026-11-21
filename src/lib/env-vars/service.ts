@@ -205,7 +205,7 @@ async function exists(file: string): Promise<boolean> {
   }
 }
 
-export async function detectUserTarget(
+async function detectUserTarget(
   env: EnvDictionary = process.env,
   platform: EnvVarPlatform = process.platform
 ): Promise<EnvVarTarget> {
@@ -311,6 +311,10 @@ function envRecordsToDictionary(records: EnvVarRecord[]): EnvDictionary {
   return Object.fromEntries(records.map((record) => [record.key, record.value]));
 }
 
+function toNodeEnv(value: string | undefined): NodeJS.ProcessEnv['NODE_ENV'] {
+  return value === 'production' || value === 'test' ? value : 'development';
+}
+
 export function parseEnvCommandOutput(output: string): EnvVarRecord[] {
   return output
     .split(/\r?\n/)
@@ -337,7 +341,15 @@ export function parseEnvCommandOutput(output: string): EnvVarRecord[] {
 }
 
 function toProcessEnv(env: EnvDictionary): NodeJS.ProcessEnv {
-  return env as unknown as NodeJS.ProcessEnv;
+  const processEnv: NodeJS.ProcessEnv = {
+    NODE_ENV: toNodeEnv(env.NODE_ENV ?? process.env.NODE_ENV),
+  };
+  for (const [key, value] of Object.entries(env)) {
+    if (typeof value === 'string') {
+      processEnv[key] = value;
+    }
+  }
+  return processEnv;
 }
 
 function sanitizedShellSeedEnv(target: EnvVarTarget, env: EnvDictionary): EnvDictionary {
@@ -495,7 +507,7 @@ async function setWindowsUserEnv(key: string, value: string | null): Promise<voi
   await execFileAsync('powershell.exe', ['-NoProfile', '-Command', command]);
 }
 
-export async function addEnvVar(input: EnvVarMutationInput): Promise<EnvVarMutationResult> {
+async function addEnvVar(input: EnvVarMutationInput): Promise<EnvVarMutationResult> {
   assertValidKey(input.key);
   if (input.scope === 'system') {
     return {
@@ -528,7 +540,7 @@ export async function addEnvVar(input: EnvVarMutationInput): Promise<EnvVarMutat
   };
 }
 
-export async function deleteEnvVar(input: EnvVarMutationInput): Promise<EnvVarMutationResult> {
+async function deleteEnvVar(input: EnvVarMutationInput): Promise<EnvVarMutationResult> {
   assertValidKey(input.key);
   if (input.scope === 'system') {
     return {

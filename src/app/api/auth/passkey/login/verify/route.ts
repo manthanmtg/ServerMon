@@ -10,6 +10,11 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 const logger = createLogger('api:auth:passkey:login:verify');
 
+function redactCredentialId(credentialId: string | undefined): string {
+  if (!credentialId) return 'missing';
+  return `${credentialId.slice(0, 4)}...`;
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body = (await req.json()) as AuthenticationResponseJSON;
@@ -23,14 +28,15 @@ export async function POST(req: NextRequest) {
 
     // Redacted reveal of DB name to confirm connectivity
     const dbName = conn.connection.name;
-    logger.info(`Checking passkey login. DB: ${dbName}, ID prefix: ${body.id?.slice(0, 10)}...`);
+    const credentialPrefix = redactCredentialId(body.id);
+    logger.info(`Checking passkey login. DB: ${dbName}, credential prefix: ${credentialPrefix}`);
 
     // 1. Find the user who owns this credential.
     // We handle a legacy bug where IDs were doubly-encoded during registration.
     const credentialID = body.id;
     const legacyEncodedID = Buffer.from(body.id).toString('base64url');
 
-    logger.info(`Searching for user with ID: ${credentialID} or legacy: ${legacyEncodedID}`);
+    logger.info(`Searching for user with credential prefix: ${credentialPrefix}`);
 
     const user = await User.findOne({
       'passkeys.credentialID': { $in: [credentialID, legacyEncodedID] },
@@ -38,7 +44,7 @@ export async function POST(req: NextRequest) {
     });
 
     if (!user) {
-      logger.warn(`Passkey mismatch: No user found with credentialID: ${credentialID}`);
+      logger.warn(`Passkey mismatch: No user found for credential prefix: ${credentialPrefix}`);
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 

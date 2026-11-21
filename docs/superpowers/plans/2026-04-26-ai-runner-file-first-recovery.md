@@ -64,7 +64,7 @@ Expected: PASS.
 
 - [ ] **Step 1: Write settings tests**
 
-Add expectations that default settings include artifact base dir, Mongo retention days, and artifact retention days. Add update tests for valid retention values and invalid schema tests for negative values.
+Add expectations that default settings include artifact base dir, AI Runner logs retention days, and artifact retention days. Add update tests for valid retention values and invalid schema tests for negative values.
 
 - [ ] **Step 2: Add settings fields**
 
@@ -149,7 +149,7 @@ Replace stale-job immediate termination with artifact/exit/liveness inspection. 
 
 - [ ] **Step 3: Add cleanup tick**
 
-Supervisor cleanup removes terminal Mongo records older than `mongoRetentionDays` and artifact folders older than `artifactRetentionDays`, skipping active run ids.
+Supervisor cleanup replaces terminal Mongo output fields older than `mongoRetentionDays` with a retention notice and removes artifact folders older than `artifactRetentionDays`, skipping active run ids.
 
 - [ ] **Step 4: Run supervisor tests**
 

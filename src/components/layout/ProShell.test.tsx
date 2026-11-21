@@ -188,10 +188,12 @@ describe('ProShell', () => {
     expect(screen.getByTestId('theme-selector')).toBeDefined();
   });
 
-  it('opens command search with the header search button', () => {
+  it('opens command search with the header search button', async () => {
     renderProShell();
     fireEvent.click(screen.getByLabelText('Open search'));
-    expect(screen.getByTestId('command-search')).toBeDefined();
+    await waitFor(() => {
+      expect(screen.getByTestId('command-search')).toBeDefined();
+    });
   });
 
   it('opens command search with Cmd+K', () => {
@@ -235,7 +237,10 @@ describe('ProShell', () => {
     });
 
     await waitFor(() => {
-      expect(global.fetch).toHaveBeenCalledWith('/api/auth/logout', { method: 'POST' });
+      expect(global.fetch).toHaveBeenCalledWith(
+        '/api/auth/logout',
+        expect.objectContaining({ method: 'POST' })
+      );
       expect(mockPush).toHaveBeenCalledWith('/login');
     });
   });
@@ -289,7 +294,10 @@ describe('ProShell', () => {
       fireEvent.click(screen.getByTestId('modal-confirm'));
     });
     await waitFor(() => {
-      expect(global.fetch).toHaveBeenCalledWith('/api/system/reboot', { method: 'POST' });
+      expect(global.fetch).toHaveBeenCalledWith(
+        '/api/system/reboot',
+        expect.objectContaining({ method: 'POST' })
+      );
     });
   });
 

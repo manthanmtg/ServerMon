@@ -4,6 +4,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 const { mockRemoveVolume } = vi.hoisted(() => ({
   mockRemoveVolume: vi.fn(),
 }));
+const { mockGetSession } = vi.hoisted(() => ({
+  mockGetSession: vi.fn(),
+}));
 
 vi.mock('@/lib/docker/service', () => ({
   dockerService: { removeVolume: mockRemoveVolume },
@@ -11,6 +14,7 @@ vi.mock('@/lib/docker/service', () => ({
 vi.mock('@/lib/logger', () => ({
   createLogger: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }),
 }));
+vi.mock('@/lib/session', () => ({ getSession: mockGetSession }));
 
 import { DELETE } from './route';
 
@@ -21,6 +25,7 @@ function makeContext(volumeName: string) {
 describe('DELETE /api/modules/docker/volumes/[volumeName]', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockGetSession.mockResolvedValue({ user: { role: 'admin' } });
   });
 
   it('removes a volume successfully', async () => {
@@ -43,6 +48,6 @@ describe('DELETE /api/modules/docker/volumes/[volumeName]', () => {
     const res = await DELETE(new Request('http://localhost'), makeContext('my-volume'));
     expect(res.status).toBe(500);
     const json = await res.json();
-    expect(json.error).toBe('Failed to remove volume');
+    expect(json.error).toBe('volume in use');
   });
 });

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import si from 'systeminformation';
 import { createLogger } from '@/lib/logger';
 import { cachedResult, cacheTimestamp, CACHE_TTL_MS, setCacheResult } from './cache';
+import { getSession } from '@/lib/session';
 
 const log = createLogger('api:disk:health');
 
@@ -9,6 +10,11 @@ export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {
+    const session = await getSession();
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const now = Date.now();
     if (cachedResult && now - cacheTimestamp < CACHE_TTL_MS) {
       return NextResponse.json(cachedResult);

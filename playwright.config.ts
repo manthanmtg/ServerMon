@@ -54,7 +54,7 @@ export default defineConfig({
 
   /* Run your local dev server before starting the tests */
   webServer: {
-    command: 'pnpm dev',
+    command: 'SERVERMON_SKIP_STARTUP_JOBS=1 SERVERMON_BRANDING_MOCK=1 pnpm dev',
     url: 'http://localhost:8912',
     reuseExistingServer: !process.env.CI,
   },

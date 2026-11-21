@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ZodError } from 'zod';
-import type { Model } from 'mongoose';
 import { createLogger } from '@/lib/logger';
 import connectDB from '@/lib/db';
 import AlertSubscription, { AlertSubscriptionZodSchema } from '@/models/AlertSubscription';
@@ -64,7 +63,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       return NextResponse.json({ error: 'Subscription not found' }, { status: 404 });
     }
 
-    await recordAudit(FleetLogEvent as unknown as Model<unknown>, {
+    await recordAudit(FleetLogEvent, {
       action: 'alert_subscription.update',
       actorUserId: session.user.username,
       metadata: { subscriptionId: id },
@@ -99,7 +98,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
 
     await AlertSubscription.findByIdAndDelete(id);
 
-    await recordAudit(FleetLogEvent as unknown as Model<unknown>, {
+    await recordAudit(FleetLogEvent, {
       action: 'alert_subscription.delete',
       actorUserId: session.user.username,
       metadata: { subscriptionId: id },

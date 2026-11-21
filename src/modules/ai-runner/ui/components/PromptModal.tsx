@@ -1,9 +1,11 @@
 'use client';
 
-import React from 'react';
+import React, { useId, useRef, useSyncExternalStore } from 'react';
+import { createPortal } from 'react-dom';
 import { Save, Upload, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { useOverlayAccessibility } from '@/components/ui/overlay/useOverlayAccessibility';
 import {
   formatMemory,
   applyPromptTemplate,
@@ -12,6 +14,8 @@ import {
 } from '../utils';
 import type { AIRunnerPromptTemplateDTO, AIRunnerPromptAttachmentDTO } from '../../types';
 import type { PromptFormState } from '../types';
+
+const subscribeToClient = () => () => undefined;
 
 interface PromptModalProps {
   isOpen: boolean;
@@ -40,28 +44,57 @@ export function PromptModal({
   addAttachments,
   removeAttachment,
 }: PromptModalProps) {
-  if (!isOpen) return null;
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const nameInputRef = useRef<HTMLInputElement>(null);
+  const titleId = useId();
+  const descriptionId = useId();
+  const mounted = useSyncExternalStore(
+    subscribeToClient,
+    () => true,
+    () => false
+  );
 
-  return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 md:p-6">
+  useOverlayAccessibility({
+    open: isOpen && mounted,
+    containerRef: dialogRef,
+    initialFocusRef: nameInputRef,
+    onEscape: onClose,
+  });
+
+  if (!mounted || !isOpen) return null;
+
+  return createPortal(
+    <div
+      data-overlay-root
+      className="fixed inset-0 z-[100] flex items-center justify-center p-4 md:p-6"
+    >
       <div
         className="absolute inset-0 bg-background/80 backdrop-blur-sm animate-in fade-in duration-300"
         onClick={onClose}
       />
-      <div className="relative flex max-h-[92dvh] w-full max-w-5xl flex-col overflow-hidden rounded-[32px] border border-primary/20 bg-card/95 shadow-2xl animate-in fade-in zoom-in-95 slide-in-from-bottom-4 duration-300">
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        aria-describedby={descriptionId}
+        tabIndex={-1}
+        className="relative flex max-h-[92dvh] w-full max-w-5xl flex-col overflow-hidden rounded-[32px] border border-primary/20 bg-card/95 shadow-2xl animate-in fade-in zoom-in-95 slide-in-from-bottom-4 duration-300"
+      >
         <div className="flex items-center justify-between border-b border-border/60 bg-background/80 px-6 py-5 backdrop-blur">
           <div>
             <p className="text-[11px] uppercase tracking-[0.26em] text-primary/80">Prompt Studio</p>
-            <h3 className="mt-2 text-2xl font-semibold tracking-tight">
+            <h3 id={titleId} className="mt-2 text-2xl font-semibold tracking-tight">
               {editingPromptId ? 'Edit prompt' : 'Create prompt'}
             </h3>
-            <p className="mt-2 text-sm text-muted-foreground">
+            <p id={descriptionId} className="mt-2 text-sm text-muted-foreground">
               Write the prompt once, tag it clearly, and keep it portable across runs and schedules.
             </p>
           </div>
           <button
+            type="button"
             onClick={onClose}
-            className="flex h-10 w-10 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
+            className="flex h-11 w-11 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
             aria-label="Close prompt modal"
           >
             <X className="h-5 w-5" />
@@ -79,6 +112,7 @@ export function PromptModal({
                   </p>
                 </div>
                 <Input
+                  ref={nameInputRef}
                   label="Name"
                   value={promptForm.name}
                   onChange={(event) =>
@@ -176,6 +210,7 @@ export function PromptModal({
                 </p>
               </div>
               <textarea
+                aria-label={promptForm.type === 'inline' ? 'Prompt content' : 'Prompt file path'}
                 value={promptForm.content}
                 onChange={(event) =>
                   setPromptForm((current) => ({
@@ -263,6 +298,7 @@ export function PromptModal({
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

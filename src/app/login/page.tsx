@@ -9,6 +9,7 @@ import { startAuthentication } from '@simplewebauthn/browser';
 import { createLogger } from '@/lib/logger';
 import { useBrand } from '@/lib/BrandContext';
 import { useEffect } from 'react';
+import { resilientFetch } from '@/lib/fetch-utils';
 
 const logger = createLogger('auth:login');
 
@@ -33,7 +34,7 @@ export default function LoginPage() {
     setError('');
 
     try {
-      const res = await fetch('/api/auth/verify', {
+      const res = await resilientFetch('/api/auth/verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password }),
@@ -54,7 +55,7 @@ export default function LoginPage() {
     setError('');
 
     try {
-      const res = await fetch('/api/auth/login', {
+      const res = await resilientFetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password, totpToken }),
@@ -77,7 +78,7 @@ export default function LoginPage() {
 
     try {
       // 1. Get options from server
-      const optionsRes = await fetch('/api/auth/passkey/login/options', {
+      const optionsRes = await resilientFetch('/api/auth/passkey/login/options', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username }),
@@ -89,7 +90,7 @@ export default function LoginPage() {
       const asseResp = await startAuthentication({ optionsJSON: options });
 
       // 3. Verify with server
-      const verifyRes = await fetch('/api/auth/passkey/login/verify', {
+      const verifyRes = await resilientFetch('/api/auth/passkey/login/verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(asseResp),
@@ -136,7 +137,10 @@ export default function LoginPage() {
         {/* Card */}
         <div className="rounded-xl border border-border bg-card p-6">
           {error && (
-            <div className="mb-4 p-3 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive text-sm flex items-center gap-2">
+            <div
+              role="alert"
+              className="mb-4 p-3 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive text-sm flex items-center gap-2"
+            >
               <Shield className="w-4 h-4 shrink-0" />
               {error}
             </div>
@@ -207,6 +211,7 @@ export default function LoginPage() {
               <input
                 type="text"
                 required
+                aria-label="Six-digit two-factor authentication code"
                 value={totpToken}
                 onChange={(e) => setTotpToken(e.target.value.replace(/\D/g, ''))}
                 className="flex h-12 w-full rounded-lg border border-input bg-background px-3 py-2 text-center text-xl tracking-[0.3em] font-mono text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/40 focus:border-ring transition-colors"

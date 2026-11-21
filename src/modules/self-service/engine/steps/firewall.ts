@@ -50,14 +50,3 @@ export async function runFirewallSetup(
   logs.push(msg);
   return { success: true, logs };
 }
-
-export async function rollbackFirewall(onLog: (line: string) => void): Promise<void> {
-  const logs: string[] = [];
-  const ufwCheck = await detectCommand('which ufw');
-  if (!ufwCheck.found) return;
-
-  onLog('Rolling back firewall rules...');
-  logs.push('Rolling back firewall rules...');
-  log.info('Firewall rollback — HTTP/HTTPS rules are shared, not removing.');
-  onLog('Firewall rules are shared (HTTP/HTTPS) — not removing.');
-}

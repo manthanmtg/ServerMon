@@ -56,13 +56,13 @@ describe('IngressSetupWizard', () => {
               bindPort: 7000,
               vhostHttpPort: 8080,
               vhostHttpsPort: 8443,
-              subdomainHost: 'ultron.manthanby.cv',
+              subdomainHost: 'apps.example.com',
               configVersion: 4,
               activeConnections: 2,
               connectedNodeIds: ['node-1', 'node-2'],
             },
             envDefaults: {
-              hubPublicUrl: 'https://ultron.manthanby.cv',
+              hubPublicUrl: 'https://apps.example.com',
               managedDir: '/etc/nginx/servermon',
               binaryPath: 'nginx',
             },
@@ -78,7 +78,7 @@ describe('IngressSetupWizard', () => {
               managedDir: '/etc/nginx/servermon',
               binaryPath: 'nginx',
               runtimeState: 'running',
-              managedServerNames: ['orion-servermon.ultron.manthanby.cv'],
+              managedServerNames: ['servermon.apps.example.com'],
               detectedConflicts: [],
             },
           }),
@@ -91,7 +91,7 @@ describe('IngressSetupWizard', () => {
     await renderLoaded();
 
     expect(screen.getByText('Hub ingress is configured')).toBeDefined();
-    expect(screen.getByText('https://ultron.manthanby.cv')).toBeDefined();
+    expect(screen.getByText('https://apps.example.com')).toBeDefined();
     expect(screen.getByText('FRP enabled')).toBeDefined();
     expect(screen.getByText('nginx managed')).toBeDefined();
     expect(screen.queryByText('Verify reachability')).toBeNull();
@@ -110,10 +110,10 @@ describe('IngressSetupWizard', () => {
                 runtimeState: 'running',
                 bindPort: 7000,
                 vhostHttpPort: 8080,
-                subdomainHost: 'ultron.manthanby.cv',
+                subdomainHost: 'apps.example.com',
                 connectedNodeIds: [],
               },
-              envDefaults: { hubPublicUrl: 'https://ultron.manthanby.cv' },
+              envDefaults: { hubPublicUrl: 'https://apps.example.com' },
             }),
           });
         }

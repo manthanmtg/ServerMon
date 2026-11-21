@@ -1,38 +1,43 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { decrypt, updateSession } from '@/lib/session';
+import { NextResponse } from 'next/server';
+import type { NextRequest } from 'next/server';
 import { isPublicApiRoute, isPublicRoute } from '@/lib/auth-routes';
+import { decrypt } from '@/lib/session-core';
+import { updateSession } from '@/lib/session';
 
 const BRAND_ICON_PATH = '/api/settings/branding/icon';
 
-export default async function middleware(req: NextRequest) {
-  const path = req.nextUrl.pathname;
+export async function proxy(request: NextRequest) {
+  const pathname = request.nextUrl.pathname;
 
-  if (path === '/favicon.ico') {
-    return NextResponse.redirect(new URL(BRAND_ICON_PATH, req.nextUrl));
+  if (pathname === '/favicon.ico') {
+    return NextResponse.redirect(new URL(BRAND_ICON_PATH, request.nextUrl));
   }
 
-  const routeIsPublic = isPublicRoute(path);
-  const apiRouteIsPublic = isPublicApiRoute(path);
+  const pageIsPublic = isPublicRoute(pathname);
+  const apiIsPublic = isPublicApiRoute(pathname);
 
-  const cookie = req.cookies.get('session')?.value;
-  const session = cookie ? await decrypt(cookie).catch(() => null) : null;
+  if (apiIsPublic) {
+    return NextResponse.next();
+  }
 
-  if (!routeIsPublic && !apiRouteIsPublic && !session) {
-    if (path.startsWith('/api')) {
+  const sessionCookie = request.cookies.get('session')?.value;
+  const session = sessionCookie ? await decrypt(sessionCookie).catch(() => null) : null;
+
+  if (!session) {
+    if (pathname.startsWith('/api/')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    return NextResponse.redirect(new URL('/login', req.nextUrl));
+
+    return pageIsPublic
+      ? NextResponse.next()
+      : NextResponse.redirect(new URL('/login', request.nextUrl));
   }
 
-  if (routeIsPublic && session) {
-    return NextResponse.redirect(new URL('/dashboard', req.nextUrl));
+  if (pageIsPublic) {
+    return NextResponse.redirect(new URL('/dashboard', request.nextUrl));
   }
 
-  if (session && !routeIsPublic && !apiRouteIsPublic) {
-    return (await updateSession(req)) ?? NextResponse.next();
-  }
-
-  return NextResponse.next();
+  return (await updateSession(request)) ?? NextResponse.next();
 }
 
 export const config = {

@@ -1,5 +1,5 @@
 /** @vitest-environment node */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 const { mockConnectDB, mockFindById, mockFindOneAndUpdate, mockGetSession } = vi.hoisted(() => ({
   mockConnectDB: vi.fn().mockResolvedValue(undefined),
@@ -41,6 +41,11 @@ function makeRawRequest(body: string): Request {
 describe('GET /api/settings/branding', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    delete process.env.SERVERMON_BRANDING_MOCK;
+  });
+
+  afterEach(() => {
+    delete process.env.SERVERMON_BRANDING_MOCK;
   });
 
   it('returns existing settings', async () => {
@@ -68,11 +73,35 @@ describe('GET /api/settings/branding', () => {
     const json = await res.json();
     expect(json.error).toBe('Failed to fetch settings');
   });
+
+  it('returns 500 when connectDB rejects', async () => {
+    mockConnectDB.mockRejectedValueOnce(new Error('connect failed'));
+    const res = await GET();
+    expect(res.status).toBe(500);
+    const json = await res.json();
+    expect(json.error).toBe('Failed to fetch settings');
+    expect(mockFindById).not.toHaveBeenCalled();
+  });
+
+  it('returns default settings without DB access when branding mock is enabled', async () => {
+    process.env.SERVERMON_BRANDING_MOCK = '1';
+
+    const res = await GET();
+
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toEqual({ pageTitle: 'ServerMon', logoBase64: '' });
+    expect(mockConnectDB).not.toHaveBeenCalled();
+  });
 });
 
 describe('POST /api/settings/branding', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    delete process.env.SERVERMON_BRANDING_MOCK;
+  });
+
+  afterEach(() => {
+    delete process.env.SERVERMON_BRANDING_MOCK;
   });
 
   it('returns 401 when not authenticated', async () => {
@@ -137,5 +166,50 @@ describe('POST /api/settings/branding', () => {
     expect(res.status).toBe(500);
     const json = await res.json();
     expect(json.error).toBe('Failed to update settings');
+  });
+
+  it('returns 500 when session lookup fails', async () => {
+    mockGetSession.mockRejectedValue(new Error('session service down'));
+    const res = await POST(makeRequest({ pageTitle: 'Test' }));
+    expect(res.status).toBe(500);
+    const json = await res.json();
+    expect(json.error).toBe('Failed to update settings');
+    expect(mockFindOneAndUpdate).not.toHaveBeenCalled();
+  });
+
+  it('returns 500 when connectDB rejects', async () => {
+    mockGetSession.mockResolvedValue({ user: { role: 'admin' } });
+    mockConnectDB.mockRejectedValueOnce(new Error('connect failed'));
+    const res = await POST(makeRequest({ pageTitle: 'Test' }));
+    expect(res.status).toBe(500);
+    const json = await res.json();
+    expect(json.error).toBe('Failed to update settings');
+    expect(mockFindOneAndUpdate).not.toHaveBeenCalled();
+  });
+
+  it('defaults missing fields when payload omits them', async () => {
+    mockGetSession.mockResolvedValue({ user: { role: 'admin' } });
+    const updated = { pageTitle: 'ServerMon', logoBase64: '' };
+    mockFindOneAndUpdate.mockResolvedValue(updated);
+    const res = await POST(makeRequest({}));
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json).toEqual({ success: true, settings: updated });
+    expect(mockFindOneAndUpdate).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        $set: expect.objectContaining({ pageTitle: 'ServerMon', logoBase64: '' }),
+      }),
+      expect.anything()
+    );
+  });
+
+  it('returns 400 for null JSON payload', async () => {
+    mockGetSession.mockResolvedValue({ user: { role: 'admin' } });
+    const res = await POST(makeRawRequest('null'));
+    expect(res.status).toBe(400);
+    expect(mockConnectDB).not.toHaveBeenCalled();
+    expect(mockFindOneAndUpdate).not.toHaveBeenCalled();
+    expect(await res.json()).toEqual({ error: 'Invalid request body' });
   });
 });

@@ -1,22 +1,23 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   Cable,
-  CheckCircle,
   Filter,
+  AlertTriangle,
   LoaderCircle,
   Radio,
   RefreshCw,
   Search,
   Server,
   Shield,
-  XCircle,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
-import type { PortsSnapshot, PortCheckResult } from '../types';
+import type { PortsSnapshot } from '../types';
+import { useSharedJsonPollingQuery } from '@/lib/polling/useSharedJsonPollingQuery';
+import { PortAvailabilityChecker } from './PortAvailabilityChecker';
 
 type ProtocolFilter = 'all' | 'tcp' | 'udp';
 
@@ -46,133 +47,117 @@ const WELL_KNOWN: Record<number, string> = {
   27017: 'MongoDB',
 };
 
-function isValidPortValue(value: string): boolean {
-  if (!value) return false;
-  const port = parseInt(value, 10);
-  return Number.isInteger(port) && port >= 1 && port <= 65535;
-}
+type ListeningPort = PortsSnapshot['listening'][number];
+
+type SearchableListeningPort = ListeningPort & {
+  processLower: string;
+  addressLower: string;
+  userLower: string;
+  stateLower: string;
+  protocolLower: string;
+  wellKnownLower: string;
+  pidText: string;
+};
 
 export function getFilteredListeningPorts(
-  listening: PortsSnapshot['listening'],
+  listening: ReadonlyArray<ListeningPort | SearchableListeningPort>,
   protocolFilter: ProtocolFilter,
-  search: string
-): PortsSnapshot['listening'] {
-  const query = search.trim().toLowerCase();
-
+  query: string
+): ListeningPort[] {
   return listening
-    .filter((port) => {
-      if (protocolFilter === 'tcp' && !port.protocol.startsWith('tcp')) return false;
-      if (protocolFilter === 'udp' && !port.protocol.startsWith('udp')) return false;
+    .filter((entry) => {
+      const protocolLower =
+        'protocolLower' in entry ? entry.protocolLower : entry.protocol.toLowerCase();
+      if (protocolFilter === 'tcp' && !protocolLower.startsWith('tcp')) return false;
+      if (protocolFilter === 'udp' && !protocolLower.startsWith('udp')) return false;
       if (!query) return true;
+      const processLower =
+        'processLower' in entry ? entry.processLower : entry.process.toLowerCase();
+      const addressLower =
+        'addressLower' in entry ? entry.addressLower : entry.address.toLowerCase();
+      const userLower = 'userLower' in entry ? entry.userLower : entry.user.toLowerCase();
+      const stateLower = 'stateLower' in entry ? entry.stateLower : entry.state.toLowerCase();
+      const wellKnownLower =
+        'wellKnownLower' in entry
+          ? entry.wellKnownLower
+          : (WELL_KNOWN[entry.port] || '').toLowerCase();
+      const pidText = 'pidText' in entry ? entry.pidText : String(entry.pid ?? '');
 
       return (
-        port.port.toString().includes(query) ||
-        port.process.toLowerCase().includes(query) ||
-        port.address.toLowerCase().includes(query) ||
-        (port.pid?.toString() || '').includes(query) ||
-        (WELL_KNOWN[port.port] || '').toLowerCase().includes(query)
+        entry.port.toString().includes(query) ||
+        processLower.includes(query) ||
+        addressLower.includes(query) ||
+        userLower.includes(query) ||
+        stateLower.includes(query) ||
+        pidText.includes(query) ||
+        wellKnownLower.includes(query)
       );
     })
     .sort((left, right) => left.port - right.port);
 }
 
+function buildSearchableListeningPorts(listening: ListeningPort[]): SearchableListeningPort[] {
+  return listening.map((port) => ({
+    ...port,
+    processLower: port.process.toLowerCase(),
+    addressLower: port.address.toLowerCase(),
+    userLower: port.user.toLowerCase(),
+    stateLower: port.state.toLowerCase(),
+    protocolLower: port.protocol.toLowerCase(),
+    wellKnownLower: (WELL_KNOWN[port.port] || '').toLowerCase(),
+    pidText: String(port.pid ?? ''),
+  }));
+}
+
 export default function PortsPage() {
-  const [snapshot, setSnapshot] = useState<PortsSnapshot | null>(null);
-  const [loading, setLoading] = useState(true);
+  const {
+    data: snapshot,
+    loading,
+    error,
+    refresh,
+  } = useSharedJsonPollingQuery<PortsSnapshot>({
+    key: 'ports:list',
+    url: '/api/modules/ports',
+    intervalMs: 10_000,
+    staleTimeMs: 0,
+  });
+  const loadError = error ? 'Unable to load ports data. Please try again.' : null;
   const [search, setSearch] = useState('');
   const [protocolFilter, setProtocolFilter] = useState<ProtocolFilter>('all');
-  const [checkPort, setCheckPort] = useState('');
-  const [checkResult, setCheckResult] = useState<PortCheckResult | null>(null);
-  const [checking, setChecking] = useState(false);
 
-  const load = useCallback(async () => {
-    try {
-      const res = await fetch('/api/modules/ports', { cache: 'no-store' });
-      if (res.ok) {
-        const data = await res.json();
-        setSnapshot(data);
-      }
-    } catch {
-      // ignore
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    load();
-    const interval = window.setInterval(load, 10000);
-    return () => window.clearInterval(interval);
-  }, [load]);
-
-  const handleCheckPort = async () => {
-    if (!isValidPortValue(checkPort)) return;
-    const port = parseInt(checkPort, 10);
-    setChecking(true);
-    setCheckResult(null);
-    try {
-      const res = await fetch(`/api/modules/ports/check?port=${port}`);
-      if (res.ok) {
-        const data = await res.json();
-        setCheckResult(data);
-      } else {
-        setCheckResult(null);
-      }
-    } catch {
-      setCheckResult(null);
-    } finally {
-      setChecking(false);
-    }
-  };
-
-  useEffect(() => {
-    if (!isValidPortValue(checkPort)) {
-      setCheckResult(null);
-      return;
-    }
-
-    setChecking(true);
-    setCheckResult(null);
-
-    const controller = new AbortController();
-    const timeoutId = window.setTimeout(async () => {
-      try {
-        const port = parseInt(checkPort, 10);
-        const res = await fetch(`/api/modules/ports/check?port=${port}`, {
-          signal: controller.signal,
-        });
-        if (res.ok) {
-          const data: PortCheckResult = await res.json();
-          setCheckResult(data);
-        } else {
-          setCheckResult(null);
-        }
-      } catch {
-        if (!controller.signal.aborted) {
-          setCheckResult(null);
-        }
-      } finally {
-        if (!controller.signal.aborted) {
-          setChecking(false);
-        }
-      }
-    }, 400);
-
-    return () => {
-      controller.abort();
-      window.clearTimeout(timeoutId);
-    };
-  }, [checkPort]);
+  const preparedListening = useMemo(
+    () => buildSearchableListeningPorts(snapshot?.listening ?? []),
+    [snapshot?.listening]
+  );
+  const normalizedSearch = useMemo(() => search.trim().toLowerCase(), [search]);
 
   const filtered = useMemo(
-    () => getFilteredListeningPorts(snapshot?.listening ?? [], protocolFilter, search),
-    [snapshot?.listening, protocolFilter, search]
+    () => getFilteredListeningPorts(preparedListening, protocolFilter, normalizedSearch),
+    [preparedListening, protocolFilter, normalizedSearch]
   );
 
   if (loading && !snapshot) {
     return (
       <div className="flex items-center justify-center py-24">
         <LoaderCircle className="h-6 w-6 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (loadError && !snapshot) {
+    return (
+      <div className="flex items-center justify-center py-24">
+        <div className="border rounded-lg p-6 bg-destructive/10 border-destructive/30 text-center max-w-md">
+          <AlertTriangle className="h-8 w-8 text-destructive mx-auto" />
+          <p className="text-sm mt-3 text-destructive">{loadError}</p>
+          <button
+            type="button"
+            onClick={() => void refresh()}
+            className="mt-4 inline-flex h-11 min-h-[44px] items-center justify-center rounded-lg bg-destructive px-4 text-sm font-medium text-destructive-foreground"
+          >
+            Retry
+          </button>
+        </div>
       </div>
     );
   }
@@ -235,66 +220,20 @@ export default function PortsPage() {
         </Card>
       </div>
 
-      {/* Port Checker */}
-      <Card className="border-border/60">
-        <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Search className="w-4 h-4 text-primary" />
-            Port Availability Checker
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center gap-3">
-            <input
-              type="number"
-              min={1}
-              max={65535}
-              placeholder="Enter port number (1-65535)"
-              value={checkPort}
-              onChange={(e) => setCheckPort(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleCheckPort()}
-              className="flex-1 h-10 px-3 bg-secondary border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-primary/30"
-            />
-            <button
-              onClick={handleCheckPort}
-              disabled={checking || !isValidPortValue(checkPort)}
-              className="h-10 px-4 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 disabled:opacity-50 transition-colors"
-            >
-              {checking ? <LoaderCircle className="w-4 h-4 animate-spin" /> : 'Check'}
-            </button>
-          </div>
-          {checkPort && !isValidPortValue(checkPort) && (
-            <p className="mt-2 text-xs text-destructive">
-              Port must be a number between 1 and 65535.
-            </p>
-          )}
-          {checkResult && (
-            <div
-              className={cn(
-                'mt-3 flex items-center gap-2 rounded-lg px-4 py-3 text-sm border',
-                checkResult.available
-                  ? 'bg-success/5 border-success/20 text-success'
-                  : 'bg-destructive/5 border-destructive/20 text-destructive'
-              )}
-            >
-              {checkResult.available ? (
-                <>
-                  <CheckCircle className="w-4 h-4" /> Port {checkResult.port} is available
-                </>
-              ) : (
-                <>
-                  <XCircle className="w-4 h-4" /> Port {checkResult.port} is in use
-                  {checkResult.process ? ` by ${checkResult.process}` : ''}
-                </>
-              )}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      <PortAvailabilityChecker />
 
       {/* Listening Ports Table */}
       <Card className="border-border/60">
         <CardHeader className="pb-3">
+          {loadError && (
+            <div
+              role="status"
+              aria-live="polite"
+              className="mb-3 rounded-md bg-warning/10 border border-warning/30 px-3 py-2 text-xs text-warning"
+            >
+              {loadError}
+            </div>
+          )}
           <div className="flex items-center justify-between flex-wrap gap-3">
             <CardTitle className="flex items-center gap-2 text-base">
               <Radio className="w-4 h-4 text-primary" />
@@ -305,6 +244,7 @@ export default function PortsPage() {
                 <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
                 <input
                   type="text"
+                  aria-label="Search listening ports"
                   placeholder="Search ports..."
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
@@ -317,8 +257,9 @@ export default function PortsPage() {
                   <button
                     key={f}
                     onClick={() => setProtocolFilter(f)}
+                    aria-pressed={protocolFilter === f}
                     className={cn(
-                      'px-2 py-1 rounded text-xs font-medium transition-colors',
+                      'px-2 py-1 rounded text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
                       protocolFilter === f
                         ? 'bg-primary text-primary-foreground'
                         : 'text-muted-foreground hover:text-foreground hover:bg-accent'
@@ -329,9 +270,10 @@ export default function PortsPage() {
                 ))}
               </div>
               <button
-                onClick={load}
-                className="h-8 w-8 flex items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                onClick={() => void refresh()}
+                className="h-8 w-8 flex items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                 title="Refresh"
+                aria-label="Refresh listening ports"
               >
                 <RefreshCw className="w-3.5 h-3.5" />
               </button>

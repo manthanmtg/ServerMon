@@ -26,10 +26,10 @@ export function EnvVarsTable({
   }
 
   return (
-    <div className="overflow-x-auto">
+    <div className="overflow-x-auto rounded-lg border border-border/60 bg-card/40 shadow-sm shadow-background/20">
       <table className="w-full text-left border-collapse">
         <thead>
-          <tr className="border-b border-border/50 bg-accent/10">
+          <tr className="border-b border-border/50 bg-accent/15">
             <th className="px-4 py-3 text-[11px] font-bold text-muted-foreground uppercase">
               Name
             </th>
@@ -51,10 +51,17 @@ export function EnvVarsTable({
           {rows.map((record) => {
             const isRevealed = revealed.has(record.key);
             return (
-              <tr key={`${record.scope}-${record.key}`} className="border-b border-border/40">
-                <td className="px-4 py-3 font-mono text-xs font-semibold">{record.key}</td>
-                <td className="px-4 py-3 font-mono text-xs max-w-[280px] truncate">
-                  {displayValue(record, isRevealed)}
+              <tr
+                key={`${record.scope}-${record.key}`}
+                className="group border-b border-border/40 transition-colors last:border-b-0 hover:bg-accent/10"
+              >
+                <td className="px-4 py-3 font-mono text-xs font-semibold text-foreground">
+                  {record.key}
+                </td>
+                <td className="px-4 py-3">
+                  <span className="block max-w-[280px] truncate rounded-md bg-background/40 px-2 py-1 font-mono text-xs text-muted-foreground transition-colors group-hover:text-foreground">
+                    {displayValue(record, isRevealed)}
+                  </span>
                 </td>
                 <td className="px-4 py-3">
                   <Badge variant={record.scope === 'session' ? 'secondary' : 'default'}>
@@ -73,6 +80,7 @@ export function EnvVarsTable({
                         type="button"
                         variant="ghost"
                         size="icon"
+                        className="text-muted-foreground hover:text-foreground"
                         aria-label={`${isRevealed ? 'Hide' : 'Reveal'} ${record.key}`}
                         onClick={() => onToggleReveal(record.key)}
                       >
@@ -84,10 +92,11 @@ export function EnvVarsTable({
                         type="button"
                         variant="ghost"
                         size="icon"
+                        className="text-muted-foreground hover:text-destructive"
                         aria-label={`Delete ${record.key}`}
                         onClick={() => onDelete(record)}
                       >
-                        <Trash2 className="h-4 w-4 text-destructive" />
+                        <Trash2 className="h-4 w-4" />
                       </Button>
                     )}
                   </div>

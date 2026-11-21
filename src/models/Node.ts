@@ -8,6 +8,11 @@ import {
   SERVICE_MANAGERS,
   SERVICE_STATES,
 } from '@/lib/fleet/enums';
+import { ServerMonStatusZodSchema, type ServerMonStatus } from '@/lib/fleet/servermonStatus';
+import {
+  ServerMonBridgeSnapshotZodSchema,
+  type ServerMonBridgeSnapshot,
+} from '@/lib/fleet/servermonBridge';
 
 const ProxyRuleZ = z.object({
   name: z
@@ -105,6 +110,8 @@ export const NodeZodSchema = z.object({
       fileOps: false,
       updates: true,
     }),
+  servermon: ServerMonStatusZodSchema.optional(),
+  servermonBridge: ServerMonBridgeSnapshotZodSchema.optional(),
 });
 
 export type INodeDTO = z.infer<typeof NodeZodSchema>;
@@ -128,6 +135,8 @@ export interface INode extends Document, INodeDTO {
    * the agent for terminal sessions through the FRP TCP tunnel.
    */
   ptyBridge?: { port: number; authToken: string };
+  servermon?: ServerMonStatus;
+  servermonBridge?: ServerMonBridgeSnapshot;
   pendingCommands?: Array<{ id: string; command: string; args?: unknown; issuedAt?: Date }>;
   createdBy?: string;
   updatedBy?: string;
@@ -216,6 +225,20 @@ const NodeSchema = new Schema(
       port: { type: Number },
       authToken: { type: String },
     },
+    servermon: {
+      installed: { type: Boolean },
+      serviceName: { type: String },
+      serviceState: { type: String },
+      serviceEnabled: { type: Schema.Types.Mixed },
+      port: { type: Number },
+      installDir: { type: String },
+      healthUrl: { type: String },
+      healthStatus: { type: String },
+      version: { type: String },
+      lastCheckedAt: { type: String },
+      lastError: { type: String },
+    },
+    servermonBridge: { type: Schema.Types.Mixed },
     pendingCommands: [
       {
         id: { type: String, required: true },

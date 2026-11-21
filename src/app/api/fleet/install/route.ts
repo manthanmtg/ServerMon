@@ -36,7 +36,9 @@ export async function GET(req: NextRequest) {
     const candidates = await Node.find({
       pairingTokenPrefix: prefix,
       pairingTokenHash: { $exists: true, $ne: null },
-    });
+    })
+      .select('pairingTokenHash')
+      .lean();
 
     let matchedNode: (typeof candidates)[number] | null = null;
     for (const candidate of candidates) {

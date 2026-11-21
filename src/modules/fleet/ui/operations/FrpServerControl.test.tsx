@@ -82,4 +82,26 @@ describe('FrpServerControl', () => {
       ).toBe(true);
     });
   });
+
+  it('keeps server control actions touch-friendly on mobile', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ state: baseState }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await act(async () => {
+      render(<FrpServerControl />);
+    });
+
+    const enable = await screen.findByRole('button', { name: 'Enable FRP server' });
+    const restart = screen.getByRole('button', { name: 'Restart' });
+
+    for (const action of [enable, restart]) {
+      expect(action).toHaveClass('h-11');
+      expect(action).toHaveClass('w-full');
+      expect(action).toHaveClass('sm:h-9');
+      expect(action).toHaveClass('sm:w-auto');
+    }
+  });
 });

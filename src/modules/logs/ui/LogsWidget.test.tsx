@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, waitFor, act } from '@testing-library/react';
 import LogsWidget from './LogsWidget';
 
@@ -23,6 +23,10 @@ describe('LogsWidget', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     global.fetch = vi.fn();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it('renders loading skeletons initially', () => {
@@ -76,5 +80,31 @@ describe('LogsWidget', () => {
       expect(screen.getByText('Unable to load activity')).toBeTruthy();
       expect(screen.getByText('Recent audit events could not be fetched.')).toBeTruthy();
     });
+  });
+
+  it('retains the last verified activity when a later poll returns an invalid payload', async () => {
+    vi.useFakeTimers();
+    vi.mocked(global.fetch)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ events: mockLogs }),
+      } as Response)
+      .mockResolvedValue({
+        ok: true,
+        json: async () => ({ events: [{}] }),
+      } as Response);
+
+    await act(async () => {
+      render(<LogsWidget />);
+    });
+
+    expect(screen.getByText('User created: admin')).toBeInTheDocument();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10000);
+    });
+
+    expect(screen.getByText('User created: admin')).toBeInTheDocument();
+    expect(screen.getByText('Showing last activity')).toBeInTheDocument();
   });
 });

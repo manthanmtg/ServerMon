@@ -4,6 +4,7 @@ import { resolveAgentEndpoint, type ResolveAgentEndpointDeps } from './resolveAg
 
 interface FakeNode {
   _id: string;
+  slug?: string;
   proxyRules?: Array<{
     name: string;
     type: string;
@@ -12,6 +13,7 @@ interface FakeNode {
     status?: string;
   }>;
   capabilities?: { terminal?: boolean };
+  ptyBridge?: { port?: number; authToken?: string };
 }
 
 function makeNodeModel(doc: FakeNode | null): ResolveAgentEndpointDeps['Node'] {
@@ -40,61 +42,84 @@ describe('resolveAgentEndpoint', () => {
     expect(r).toBeNull();
   });
 
-  it('returns null when node has no terminal proxy rule', async () => {
+  it('returns null when the node has not reported a pty bridge token yet', async () => {
     const Node = makeNodeModel({
       _id: 'n',
+      slug: 'orion',
+      capabilities: { terminal: true },
+    });
+    const r = await resolveAgentEndpoint('n', { Node });
+    expect(r).toBeNull();
+  });
+
+  it('falls back to the deterministic terminal bridge port when no proxy rule is persisted', async () => {
+    const Node = makeNodeModel({
+      _id: 'n',
+      slug: 'orion',
+      capabilities: { terminal: true },
+      ptyBridge: { port: 8918, authToken: 'agent-token' },
       proxyRules: [{ name: 'http', type: 'http', enabled: true, remotePort: 8080 }],
     });
     const r = await resolveAgentEndpoint('n', { Node });
-    expect(r).toBeNull();
+    expect(r).toEqual({
+      host: '127.0.0.1',
+      port: 39288,
+      authToken: 'agent-token',
+    });
   });
 
-  it('returns null when terminal rule is not enabled', async () => {
+  it('returns null when terminal capability is disabled', async () => {
     const Node = makeNodeModel({
       _id: 'n',
-      proxyRules: [{ name: 'terminal', type: 'tcp', enabled: false, remotePort: 8001 }],
+      capabilities: { terminal: false },
+      ptyBridge: { port: 8918, authToken: 'agent-token' },
+      proxyRules: [{ name: 'terminal-bridge', type: 'tcp', enabled: true, remotePort: 8001 }],
     });
     const r = await resolveAgentEndpoint('n', { Node });
     expect(r).toBeNull();
   });
 
-  it('returns null when enabled terminal rule has no remotePort', async () => {
+  it('uses the deterministic port when the bridge rule has no remotePort', async () => {
     const Node = makeNodeModel({
       _id: 'n',
-      proxyRules: [{ name: 'terminal', type: 'tcp', enabled: true }],
+      slug: 'orion',
+      capabilities: { terminal: true },
+      ptyBridge: { port: 8918, authToken: 'agent-token' },
+      proxyRules: [{ name: 'terminal-bridge', type: 'tcp', enabled: true }],
     });
     const r = await resolveAgentEndpoint('n', { Node });
-    expect(r).toBeNull();
+    expect(r).toEqual({
+      host: '127.0.0.1',
+      port: 39288,
+      authToken: 'agent-token',
+    });
   });
 
   it('returns endpoint for an enabled terminal rule with remotePort', async () => {
-    process.env.FLEET_HUB_AUTH_TOKEN = 'secret-token';
     const Node = makeNodeModel({
       _id: 'n',
-      proxyRules: [{ name: 'terminal', type: 'tcp', enabled: true, remotePort: 9001 }],
+      ptyBridge: { port: 8918, authToken: 'agent-token' },
+      proxyRules: [{ name: 'terminal-bridge', type: 'tcp', enabled: true, remotePort: 9001 }],
     });
     const r = await resolveAgentEndpoint('n', { Node });
     expect(r).toEqual({
       host: '127.0.0.1',
       port: 9001,
-      authToken: 'secret-token',
+      authToken: 'agent-token',
     });
   });
 
-  it('falls back to injected getHubAuthToken when env is unset', async () => {
-    delete process.env.FLEET_HUB_AUTH_TOKEN;
+  it('keeps supporting the legacy terminal proxy rule name', async () => {
     const Node = makeNodeModel({
       _id: 'n',
+      ptyBridge: { port: 8918, authToken: 'agent-token' },
       proxyRules: [{ name: 'terminal', type: 'tcp', enabled: true, remotePort: 7001 }],
     });
-    const r = await resolveAgentEndpoint('n', {
-      Node,
-      getHubAuthToken: async () => 'fallback-token',
-    });
+    const r = await resolveAgentEndpoint('n', { Node });
     expect(r).toEqual({
       host: '127.0.0.1',
       port: 7001,
-      authToken: 'fallback-token',
+      authToken: 'agent-token',
     });
   });
 });

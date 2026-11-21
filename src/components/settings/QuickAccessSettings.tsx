@@ -3,8 +3,10 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { GripVertical, Zap, Settings, type LucideIcon } from 'lucide-react';
+import { motion } from 'framer-motion';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/components/ui/toast';
+import { resilientFetch } from '@/lib/fetch-utils';
 import { type QuickAccessItem } from '@/components/layout/QuickAccessBar';
 import { navGroups } from '@/components/layout/navigation';
 
@@ -43,6 +45,7 @@ const ICON_KEY_BY_HREF: Record<string, string> = {
   '/memory': 'Brain',
   '/endpoints': 'Waypoints',
   '/self-service': 'Zap',
+  '/apps': 'Boxes',
   '/env-vars': 'KeyRound',
 };
 
@@ -50,7 +53,7 @@ function quickAccessIdFromHref(href: string): string {
   return href.replace(/^\/+/, '').replaceAll('/', '-') || 'dashboard';
 }
 
-const ALL_MODULES: ModuleDef[] = navGroups.flatMap((group) =>
+const allModules: ModuleDef[] = navGroups.flatMap((group) =>
   group.items.map((item) => ({
     id: quickAccessIdFromHref(item.href),
     label: item.label,
@@ -60,9 +63,9 @@ const ALL_MODULES: ModuleDef[] = navGroups.flatMap((group) =>
   }))
 );
 
-export { ALL_MODULES };
-
-const MODULE_BY_ID = new Map(ALL_MODULES.map((moduleDef) => [moduleDef.id, moduleDef]));
+const MODULE_BY_ID = new Map(allModules.map((moduleDef) => [moduleDef.id, moduleDef]));
+const MotionRow = motion.create('div');
+const MotionSpan = motion.create('span');
 
 export default function QuickAccessSettings() {
   const { toast } = useToast();
@@ -74,7 +77,7 @@ export default function QuickAccessSettings() {
   const dragIndex = useRef<number | null>(null);
 
   useEffect(() => {
-    fetch('/api/settings/quick-access')
+    resilientFetch('/api/settings/quick-access', { timeout: 5000 })
       .then((r) => r.json())
       .then((data: { items?: QuickAccessItem[] }) => {
         setEnabledIds((data.items ?? []).map((i) => i.id));
@@ -91,7 +94,7 @@ export default function QuickAccessSettings() {
 
   const disabledModules = useMemo(() => {
     const enabledSet = new Set(enabledIds);
-    return ALL_MODULES.filter((m) => !enabledSet.has(m.id));
+    return allModules.filter((m) => !enabledSet.has(m.id));
   }, [enabledIds]);
 
   const toggleModule = useCallback((id: string, enabled: boolean) => {
@@ -101,11 +104,11 @@ export default function QuickAccessSettings() {
     });
   }, []);
 
-  const handleDragStart = (index: number) => {
+  const handleDragStart = useCallback((index: number) => {
     dragIndex.current = index;
-  };
+  }, []);
 
-  const handleDragOver = (e: React.DragEvent, targetIndex: number) => {
+  const handleDragOver = useCallback((e: React.DragEvent, targetIndex: number) => {
     e.preventDefault();
     const src = dragIndex.current;
     if (src === null || src === targetIndex) return;
@@ -116,13 +119,13 @@ export default function QuickAccessSettings() {
       return next;
     });
     dragIndex.current = targetIndex;
-  };
+  }, []);
 
-  const handleDragEnd = () => {
+  const handleDragEnd = useCallback(() => {
     dragIndex.current = null;
-  };
+  }, []);
 
-  const handleSave = async () => {
+  const handleSave = useCallback(async () => {
     setIsSaving(true);
     try {
       const items: QuickAccessItem[] = enabledIds
@@ -133,10 +136,11 @@ export default function QuickAccessSettings() {
         })
         .filter((x): x is QuickAccessItem => x !== null);
 
-      const res = await fetch('/api/settings/quick-access', {
+      const res = await resilientFetch('/api/settings/quick-access', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ items }),
+        timeout: 5000,
       });
 
       if (!res.ok) {
@@ -158,7 +162,7 @@ export default function QuickAccessSettings() {
     } finally {
       setIsSaving(false);
     }
-  };
+  }, [enabledIds, toast]);
 
   return (
     <Card>
@@ -187,13 +191,15 @@ export default function QuickAccessSettings() {
               </span>
             ) : (
               enabledModules.map((mod) => (
-                <span
+                <MotionSpan
                   key={mod.id}
-                  className="flex items-center gap-1.5 px-3 h-8 rounded-full text-xs font-medium bg-accent text-foreground whitespace-nowrap shrink-0"
+                  whileHover={{ y: -1, scale: 1.01 }}
+                  transition={{ type: 'spring', stiffness: 250, damping: 18 }}
+                  className="flex items-center gap-1.5 px-3 h-11 sm:h-8 rounded-full text-xs font-medium bg-accent text-foreground whitespace-nowrap shrink-0"
                 >
                   <mod.icon className="w-3.5 h-3.5 shrink-0" />
                   <span className="hidden sm:inline">{mod.label}</span>
-                </span>
+                </MotionSpan>
               ))
             )}
           </div>
@@ -215,12 +221,14 @@ export default function QuickAccessSettings() {
                 </p>
                 <div className="space-y-1">
                   {enabledModules.map((mod, idx) => (
-                    <div
+                    <MotionRow
                       key={mod.id}
                       draggable
                       onDragStart={() => handleDragStart(idx)}
                       onDragOver={(e) => handleDragOver(e, idx)}
                       onDragEnd={handleDragEnd}
+                      whileHover={{ y: -1 }}
+                      transition={{ type: 'spring', stiffness: 260, damping: 20 }}
                       className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-primary/5 border border-primary/20 cursor-grab active:cursor-grabbing min-h-[44px] group"
                     >
                       <GripVertical className="w-4 h-4 text-muted-foreground/50 group-hover:text-muted-foreground shrink-0 transition-colors" />
@@ -232,12 +240,12 @@ export default function QuickAccessSettings() {
                       </span>
                       <button
                         onClick={() => toggleModule(mod.id, false)}
-                        className="text-xs text-muted-foreground hover:text-destructive transition-colors px-2 py-1 rounded min-h-[44px]"
+                        className="text-xs text-muted-foreground hover:text-destructive transition-colors px-2 py-1 rounded min-h-[44px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                         aria-label={`Remove ${mod.label}`}
                       >
                         Remove
                       </button>
-                    </div>
+                    </MotionRow>
                   ))}
                 </div>
               </div>
@@ -250,8 +258,10 @@ export default function QuickAccessSettings() {
                 </p>
                 <div className="space-y-1">
                   {disabledModules.map((mod) => (
-                    <div
+                    <MotionRow
                       key={mod.id}
+                      whileHover={{ y: -1 }}
+                      transition={{ type: 'spring', stiffness: 260, damping: 20 }}
                       className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-accent transition-colors min-h-[44px]"
                     >
                       <div className="w-7 h-7 rounded-md bg-secondary flex items-center justify-center shrink-0">
@@ -260,12 +270,12 @@ export default function QuickAccessSettings() {
                       <span className="flex-1 text-sm text-muted-foreground">{mod.label}</span>
                       <button
                         onClick={() => toggleModule(mod.id, true)}
-                        className="text-xs text-primary hover:text-primary/80 font-medium transition-colors px-2 py-1 rounded min-h-[44px]"
+                        className="text-xs text-primary hover:text-primary/80 font-medium transition-colors px-2 py-1 rounded min-h-[44px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                         aria-label={`Pin ${mod.label}`}
                       >
                         Pin
                       </button>
-                    </div>
+                    </MotionRow>
                   ))}
                 </div>
               </div>

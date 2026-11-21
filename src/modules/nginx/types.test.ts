@@ -4,7 +4,6 @@ import type {
   NginxStatus,
   NginxConnection,
   NginxVirtualHost,
-  NginxLogEntry,
   NginxConfigTest,
   NginxSnapshot,
 } from './types';
@@ -67,16 +66,6 @@ describe('nginx type shapes', () => {
     expect(vhost.enabled).toBe(true);
     expect(vhost.sslEnabled).toBe(true);
     expect(vhost.serverNames).toHaveLength(2);
-  });
-
-  it('NginxLogEntry captures log level', () => {
-    const entry: NginxLogEntry = {
-      timestamp: '2026-03-18T00:00:00Z',
-      level: 'error',
-      message: 'connect() failed',
-    };
-    expect(entry.level).toBe('error');
-    expect(entry.message).toContain('failed');
   });
 
   it('NginxConfigTest tracks success/failure', () => {
