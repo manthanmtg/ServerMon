@@ -2150,6 +2150,26 @@ export default function AIRunnerPage() {
     }
   };
 
+  const clearAutoflowDraft = useCallback(() => {
+    setAutoflowDraft((current) => ({
+      ...current,
+      promptId: undefined,
+      name: '',
+      promptContent: '',
+      attachments: [],
+    }));
+    setAutoflowDraftLoopCount(1);
+  }, []);
+
+  const clearAutoflowEdit = useCallback(() => {
+    setEditingAutoflowId(null);
+    setAutoflowName('');
+    setAutoflowShouldStart(true);
+    setAutoflowContinueOnFailure(false);
+    setAutoflowItems([]);
+    clearAutoflowDraft();
+  }, [clearAutoflowDraft]);
+
   const openPromptInAutoflow = useCallback(
     (promptId: string) => {
       const prompt = promptMap[promptId];
@@ -2594,25 +2614,6 @@ export default function AIRunnerPage() {
     return item ? expandAutoflowDraftItemForLoop(item) : null;
   };
 
-  const clearAutoflowDraft = useCallback(() => {
-    setAutoflowDraft((current) => ({
-      ...current,
-      promptId: undefined,
-      name: '',
-      promptContent: '',
-      attachments: [],
-    }));
-    setAutoflowDraftLoopCount(1);
-  }, []);
-
-  const clearAutoflowEdit = useCallback(() => {
-    setEditingAutoflowId(null);
-    setAutoflowName('');
-    setAutoflowShouldStart(true);
-    setAutoflowContinueOnFailure(false);
-    setAutoflowItems([]);
-    clearAutoflowDraft();
-  }, [clearAutoflowDraft]);
 
   const addAutoflowItem = (replaceStepIndex: number | null = null) => {
     const items = buildAutoflowDraftItems();
