@@ -65,9 +65,10 @@ describe('CapacityAnalysis', () => {
 
     expect(await screen.findByText('cache.txt')).toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledTimes(4);
-    expect(
-      JSON.parse(fetchMock.mock.calls[2][1].body)
-    ).toMatchObject({ action: 'scan', path: '/var/cache' });
+    expect(JSON.parse(fetchMock.mock.calls[2][1].body)).toMatchObject({
+      action: 'scan',
+      path: '/var/cache',
+    });
   });
 
   it('prepares the live entry and waits for confirmation before deleting', async () => {

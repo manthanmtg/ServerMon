@@ -7,11 +7,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import {
-  ensureGduExecutable,
-  GDU_RELEASE_VERSION,
-  installGdu,
-} from './gdu-binary';
+import { ensureGduExecutable, GDU_RELEASE_VERSION, installGdu } from './gdu-binary';
 
 const execFileAsync = promisify(execFile);
 
@@ -102,7 +98,6 @@ describe('ensureGduExecutable', () => {
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 
-
   it('skips a PATH gdu that is GNU du or too old', async () => {
     await writeExecutable(
       'gdu',
@@ -153,9 +148,7 @@ describe('ensureGduExecutable', () => {
     vi.stubEnv('PATH', [tarDir, fixtureDir].join(path.delimiter));
     const body = await buildReleaseArchive();
     let releaseArchive!: (value: Response) => void;
-    const fetchImpl = vi.fn(
-      () => new Promise<Response>((resolve) => (releaseArchive = resolve))
-    );
+    const fetchImpl = vi.fn(() => new Promise<Response>((resolve) => (releaseArchive = resolve)));
     const deps = { fetchImpl, checksums: checksumsFor(body) };
 
     const first = ensureGduExecutable(deps);
@@ -177,11 +170,13 @@ describe('installGdu', () => {
     const body = await buildReleaseArchive();
     const fetchImpl = fetchReturning(body);
 
-    await expect(
-      installGdu({ fetchImpl, checksums: checksumsFor(body) })
-    ).resolves.toBe(path.join(binDir, 'gdu'));
+    await expect(installGdu({ fetchImpl, checksums: checksumsFor(body) })).resolves.toBe(
+      path.join(binDir, 'gdu')
+    );
 
-    await expect(stat(path.join(binDir, 'gdu'))).resolves.toMatchObject({ mode: expect.any(Number) });
+    await expect(stat(path.join(binDir, 'gdu'))).resolves.toMatchObject({
+      mode: expect.any(Number),
+    });
     expect(await readdir(binDir)).toEqual(['gdu']);
     expect(String(await readFile(path.join(binDir, 'gdu')))).toContain('process.exit(0);');
     expect(fetchImpl).toHaveBeenCalledWith(
@@ -221,9 +216,9 @@ describe('installGdu', () => {
   it('explains platforms without a prebuilt release', async () => {
     const fetchImpl = vi.fn();
 
-    await expect(
-      installGdu({ fetchImpl, platform: 'win32', arch: 'x64' })
-    ).rejects.toThrow(/No prebuilt gdu/);
+    await expect(installGdu({ fetchImpl, platform: 'win32', arch: 'x64' })).rejects.toThrow(
+      /No prebuilt gdu/
+    );
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 
