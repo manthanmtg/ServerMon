@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useId, useState, type FormEvent } from 'react';
-import { CalendarClock, Pause, Pencil, Play, Plus, Trash2 } from 'lucide-react';
+import { CalendarClock, Clock3, Pause, Pencil, Play, Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   calendarTimePattern,
@@ -77,6 +77,65 @@ function localTime(iso: string, timeZone?: string) {
     timeStyle: 'short',
     timeZone,
   });
+}
+
+function ScheduleCountdown({ nextRunAt, online }: { nextRunAt: string; online: boolean }) {
+  const target = Date.parse(nextRunAt);
+  const [remaining, setRemaining] = useState(() =>
+    Math.max(0, Math.ceil((target - Date.now()) / 1000))
+  );
+
+  useEffect(() => {
+    const initialDelay = target - Date.now();
+    if (!Number.isFinite(initialDelay)) return;
+    function tick() {
+      const delay = target - Date.now();
+      setRemaining(Math.max(0, Math.ceil(delay / 1000)));
+      if (delay > 0) timer = setTimeout(tick, delay % 1000 || 1000);
+    }
+    let timer = setTimeout(tick, initialDelay > 0 ? initialDelay % 1000 || 1000 : 0);
+    return () => clearTimeout(timer);
+  }, [target]);
+
+  if (!Number.isFinite(remaining)) return null;
+  const units = [
+    { value: Math.floor(remaining / 86400), name: 'day', label: 'Days' },
+    { value: Math.floor(remaining / 3600) % 24, name: 'hour', label: 'Hrs' },
+    { value: Math.floor(remaining / 60) % 60, name: 'minute', label: 'Min' },
+    { value: remaining % 60, name: 'second', label: 'Sec' },
+  ];
+
+  return (
+    <div className="sr-schedule-countdown" role="timer" aria-label="Next run countdown">
+      {remaining > 0 ? (
+        <>
+          <span className="sr-only">
+            {units
+              .filter(({ value }) => value > 0)
+              .map(({ value, name }) => `${value} ${name}${value === 1 ? '' : 's'}`)
+              .join(', ')}
+          </span>
+          <div aria-hidden="true">
+            <span className="sr-schedule-countdown-label">
+              <Clock3 size={12} /> Scheduled in
+            </span>
+            <div className="sr-schedule-countdown-units">
+              {units.slice(units[0].value > 0 ? 0 : 1).map(({ value, label }) => (
+                <span key={label}>
+                  <strong>{String(value).padStart(2, '0')}</strong>
+                  <small>{label}</small>
+                </span>
+              ))}
+            </div>
+          </div>
+        </>
+      ) : (
+        <span className="sr-schedule-countdown-label">
+          <Clock3 size={14} aria-hidden="true" /> {online ? 'Due now' : 'Waiting for worker'}
+        </span>
+      )}
+    </div>
+  );
 }
 
 export default function ScriptSchedulesPanel({
@@ -217,11 +276,8 @@ export default function ScriptSchedulesPanel({
         {entries?.length ? (
           <ul className="divide-y divide-[var(--sr-edge)] rounded-md border border-[var(--sr-edge)]">
             {entries.map(({ schedule, script }) => (
-              <li
-                key={script.id}
-                className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 p-3"
-              >
-                <div className="grid min-w-0 gap-1">
+              <li key={script.id} className="flex flex-wrap items-center gap-x-5 gap-y-3 p-3">
+                <div className="grid min-w-0 flex-[1_1_14rem] gap-1">
                   <strong className="break-words text-sm">{script.title}</strong>
                   <p className="sr-muted">
                     {'calendar' in schedule
@@ -250,7 +306,14 @@ export default function ScriptSchedulesPanel({
                     </p>
                   )}
                 </div>
-                <div className="flex flex-wrap gap-2">
+                {schedule.enabled && schedule.nextRunAt && (
+                  <ScheduleCountdown
+                    key={schedule.nextRunAt}
+                    nextRunAt={schedule.nextRunAt}
+                    online={online}
+                  />
+                )}
+                <div className="ms-auto flex flex-wrap gap-2">
                   <Button
                     type="button"
                     variant="outline"

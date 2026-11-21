@@ -183,12 +183,48 @@ it('creates, pauses, resumes, and deletes a saved script schedule', async () => 
 
   fireEvent.click(screen.getByRole('button', { name: 'Pause Host snapshot schedule' }));
   expect(await screen.findByText('Every 15 minutes · Paused')).toBeVisible();
+  expect(screen.queryByRole('timer')).not.toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', { name: 'Resume Host snapshot schedule' }));
   expect(await screen.findByText('Every 15 minutes · Enabled')).toBeVisible();
   fireEvent.click(screen.getByRole('button', { name: 'Delete Host snapshot schedule' }));
   fireEvent.click(screen.getByRole('button', { name: 'Delete schedule' }));
   expect(await screen.findByText('No schedules yet.')).toBeVisible();
   expect(schedule).toBeUndefined();
+});
+
+it('counts down to the scheduled time and follows the next occurrence after a refresh', async () => {
+  vi.useFakeTimers();
+  const now = Date.parse('2026-11-21T13:29:58Z');
+  vi.setSystemTime(now);
+  const scriptId = 'saved-script';
+  overview.scripts = [{ ...completed, id: scriptId, updatedAt: completed.createdAt }];
+  const schedule: ScriptSchedule = {
+    scriptId,
+    enabled: true,
+    intervalMinutes: 5,
+    nextRunAt: new Date(now + 2000).toISOString(),
+  };
+  vi.stubGlobal('fetch', async (url: string) =>
+    Response.json(url.endsWith('/schedules') ? [schedule] : overview)
+  );
+
+  await act(async () => {
+    render(<ScriptRunnerPage />);
+  });
+  await act(async () => {
+    fireEvent.click(screen.getByRole('button', { name: 'Schedules' }));
+  });
+  const countdown = () => within(screen.getByRole('timer', { name: 'Next run countdown' }));
+  expect(countdown().getByText('2 seconds')).toBeInTheDocument();
+
+  await act(async () => vi.advanceTimersByTimeAsync(1000));
+  expect(countdown().getByText('1 second')).toBeInTheDocument();
+  await act(async () => vi.advanceTimersByTimeAsync(1000));
+  expect(countdown().getByText('Due now')).toBeVisible();
+
+  schedule.nextRunAt = new Date(now + 302_000).toISOString();
+  await act(async () => vi.advanceTimersByTimeAsync(3000));
+  expect(countdown().getByText('4 minutes, 57 seconds')).toBeInTheDocument();
 });
 
 it('saves the history age and count limits together', async () => {
