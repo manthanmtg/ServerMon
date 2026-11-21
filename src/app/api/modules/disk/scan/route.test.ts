@@ -90,6 +90,11 @@ describe('POST /api/modules/disk/scan', () => {
     const res = await POST(makeRequest({ path: '/var' }));
     const json = await res.json();
     expect(res.status).toBe(200);
+    expect(mockExecFile).toHaveBeenCalledWith(
+      'du',
+      ['-k', '-d', '1', '/var'],
+      expect.any(Function)
+    );
     expect(json.results).toHaveLength(2);
     expect(json.results[0].name).toBe('log');
     expect(json.results[0].size).toBe(2048 * 1024);
@@ -123,5 +128,33 @@ describe('POST /api/modules/disk/scan', () => {
     expect(res.status).toBe(500);
     const json = await res.json();
     expect(json.error).toBe('Failed to scan directories');
+  });
+
+  it('returns usable results marked partial when some directories cannot be read', async () => {
+    const error = Object.assign(new Error('Permission denied'), {
+      code: 1,
+      stdout: '1024\t/var/log\n1024\t/var\n',
+    });
+    mockExecFile.mockImplementationOnce((_cmd, _args, callback) => callback(error));
+
+    const res = await POST(makeRequest({ path: '/var' }));
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      results: [{ name: 'log', path: '/var/log', size: 1024 * 1024 }],
+      partial: true,
+    });
+  });
+
+  it('returns 500 when a failed command has no usable child directory results', async () => {
+    const error = Object.assign(new Error('Permission denied'), {
+      code: 1,
+      stdout: '0\t/var\n',
+    });
+    mockExecFile.mockImplementationOnce((_cmd, _args, callback) => callback(error));
+
+    const res = await POST(makeRequest({ path: '/var' }));
+
+    expect(res.status).toBe(500);
   });
 });

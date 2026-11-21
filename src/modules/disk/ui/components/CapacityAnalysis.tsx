@@ -64,7 +64,13 @@ export function CapacityAnalysis({ settings }: CapacityAnalysisProps) {
       if (data.results) {
         setScanResults(data.results);
 
-        if (data.results.length === 0) {
+        if (data.partial) {
+          toast({
+            title: 'Scan Incomplete',
+            description: 'Some entries could not be scanned. Reported sizes may be incomplete.',
+            variant: 'warning',
+          });
+        } else if (data.results.length === 0) {
           toast({
             title: 'Scan Complete',
             description: 'No large files or directories found.',

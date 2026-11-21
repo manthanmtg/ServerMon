@@ -46,7 +46,24 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Invalid path' }, { status: 400 });
     }
 
-    const { stdout } = await execFileAsync('du', ['-sk', '--max-depth=1', scanPath]);
+    let stdout: string;
+    let scanError: Error | undefined;
+    try {
+      ({ stdout } = await execFileAsync('du', ['-k', '-d', '1', scanPath]));
+    } catch (error) {
+      // du can report an unreadable entry and still print sizes for other entries.
+      if (
+        !(error instanceof Error) ||
+        !('code' in error) ||
+        error.code !== 1 ||
+        !('stdout' in error) ||
+        typeof error.stdout !== 'string'
+      ) {
+        throw error;
+      }
+      stdout = error.stdout;
+      scanError = error;
+    }
 
     const results = stdout
       .trim()
@@ -70,6 +87,14 @@ export async function POST(request: Request) {
       .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry))
       .sort((a, b) => b.size - a.size)
       .slice(0, 10);
+
+    if (scanError) {
+      if (results.length === 0) {
+        throw scanError;
+      }
+      log.warn('Disk scan returned partial results', scanError);
+      return NextResponse.json({ results, partial: true });
+    }
 
     return NextResponse.json({ results });
   } catch (error) {
