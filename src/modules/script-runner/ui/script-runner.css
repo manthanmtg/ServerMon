@@ -1318,6 +1318,8 @@
 
 .sr-launch-actions > div {
   display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   gap: 8px;
   margin-inline-start: auto;
 }

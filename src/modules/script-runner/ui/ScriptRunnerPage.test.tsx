@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
@@ -184,6 +184,52 @@ it('runs a saved script with a temporary attachment from its configuration dialo
   });
   expect(fetchRunner.mock.calls.some(([, options]) => options?.method === 'PATCH')).toBe(false);
 });
+
+it.each([true, false])(
+  'saves run defaults without starting a run (worker online: %s)',
+  async (online) => {
+    const scriptId = '27ac89d0-0704-4662-9770-e143d2a47d3c';
+    const saved: SavedScript = {
+      ...completed,
+      id: scriptId,
+      updatedAt: completed.createdAt,
+      source: 'cat input.txt',
+      env: [],
+    };
+    overview.online = online;
+    overview.attachmentSupport = true;
+    overview.scripts = [saved];
+    const fetchRunner = vi.fn(async (url: string, options?: RequestInit) => {
+      if (url.endsWith(`/scripts/${scriptId}`)) {
+        return Response.json(
+          options?.method === 'PATCH' ? { ...saved, ...JSON.parse(String(options.body)) } : saved
+        );
+      }
+      return Response.json(overview);
+    });
+    vi.stubGlobal('fetch', fetchRunner);
+
+    render(<ScriptRunnerPage />);
+    fireEvent.click(screen.getByRole('button', { name: 'Saved Scripts' }));
+    const configure = await screen.findByRole('button', { name: `Configure run: ${saved.title}` });
+    expect(configure).toBeEnabled();
+    fireEvent.click(configure);
+    const dialog = within(await screen.findByRole('dialog', { name: 'Configure run' }));
+    fireEvent.change(dialog.getByLabelText('Add files'), {
+      target: { files: [new File(['hello'], 'input.txt')] },
+    });
+    await dialog.findByText('input.txt');
+    fireEvent.click(dialog.getByRole('button', { name: 'Save defaults' }));
+
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Configure run' })).toBeNull());
+    const submitted = fetchRunner.mock.calls.find(([, options]) => options?.method === 'PATCH');
+    expect(submitted?.[0]).toMatch(`/scripts/${scriptId}`);
+    expect(JSON.parse(String(submitted?.[1]?.body))).toMatchObject({
+      attachments: [{ name: 'input.txt', content: 'aGVsbG8=' }],
+    });
+    expect(fetchRunner.mock.calls.some(([url]) => url.endsWith('/runs'))).toBe(false);
+  }
+);
 
 it('creates, pauses, resumes, and deletes a saved script schedule', async () => {
   const scriptId = '27ac89d0-0704-4662-9770-e143d2a47d3c';
@@ -464,7 +510,7 @@ describe('Script Runner console selection', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Configure run' }));
     const dialog = within(screen.getByRole('dialog', { name: 'Configure run' }));
     expect(dialog.getByText('config.txt')).toBeVisible();
-    fireEvent.click(dialog.getByRole('checkbox', { name: 'Save as script defaults' }));
+    fireEvent.click(dialog.getByRole('checkbox', { name: 'Save when starting' }));
     fireEvent.click(dialog.getByRole('button', { name: 'Save & run' }));
 
     const console = within(await screen.findByRole('region', { name: 'Run console' }));

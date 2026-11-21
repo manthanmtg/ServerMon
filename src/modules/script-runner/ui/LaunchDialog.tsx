@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type FormEvent } from 'react';
+import { useState } from 'react';
 import { Play, SquareTerminal } from 'lucide-react';
 import type {
   PythonEnvironmentOption,
@@ -33,9 +33,9 @@ export default function LaunchDialog({
   variables,
   groups,
   recordedKeys,
-  canSave,
   onClose,
   onLaunch,
+  onSave,
 }: {
   draft: ScriptDraft;
   recent: string[];
@@ -49,15 +49,17 @@ export default function LaunchDialog({
   variables: SavedEnvVariable[];
   groups: SavedEnvGroup[];
   recordedKeys?: string[];
-  canSave?: boolean;
   onClose: () => void;
   onLaunch: (draft: ScriptDraft, save: boolean) => Promise<void>;
+  onSave?: (draft: ScriptDraft) => Promise<void>;
 }) {
   const [settings, setSettings] = useState(draft);
   const [readingAttachments, setReadingAttachments] = useState(false);
   const [save, setSave] = useState(false);
-  const [busy, setBusy] = useState(false);
+  const [pendingAction, setPendingAction] = useState<'save' | 'run' | null>(null);
   const [error, setError] = useState('');
+  const busy = pendingAction !== null;
+  const disabled = busy || readingAttachments || !validConfiguration(settings);
   const runtime = SCRIPT_RUNTIMES[settings.language];
   const unavailable = !online
     ? 'The Linux script worker is offline.'
@@ -75,23 +77,29 @@ export default function LaunchDialog({
             ? 'Upgrade the Linux script worker to use environment variables.'
             : '';
 
-  async function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (readingAttachments || unavailable || !validConfiguration(settings)) return;
-    setBusy(true);
+  async function submit(action: 'save' | 'run') {
+    if (disabled || (action === 'save' ? !onSave : !!unavailable)) return;
+    setPendingAction(action);
     setError('');
     try {
-      await onLaunch(settings, save);
+      if (action === 'save') await onSave?.(settings);
+      else await onLaunch(settings, save);
     } catch (failure) {
       setError(errorMessage(failure));
     } finally {
-      setBusy(false);
+      setPendingAction(null);
     }
   }
 
   return (
     <RunnerDialog title="Configure run" onClose={onClose} busy={busy}>
-      <form className="sr-dialog-form sr-launch-form" onSubmit={submit}>
+      <form
+        className="sr-dialog-form sr-launch-form"
+        onSubmit={(event) => {
+          event.preventDefault();
+          void submit('run');
+        }}
+      >
         <div className="sr-launch-target">
           <SquareTerminal size={21} />
           <div>
@@ -108,7 +116,7 @@ export default function LaunchDialog({
               onChange={(pythonEnvironmentId) =>
                 setSettings((current) => ({ ...current, pythonEnvironmentId }))
               }
-              replay={!canSave}
+              replay={!onSave}
               recorded={recordedPythonEnvironment}
             />
           )}
@@ -126,7 +134,7 @@ export default function LaunchDialog({
             variables={variables}
             groups={groups}
             recordedKeys={recordedKeys}
-            scope={canSave ? 'run' : 'replay'}
+            scope={onSave ? 'run' : 'replay'}
           />
         </fieldset>
         {unavailable && (
@@ -140,7 +148,7 @@ export default function LaunchDialog({
           </p>
         )}
         <footer className="sr-dialog-actions sr-launch-actions">
-          {canSave && (
+          {onSave && (
             <label className="sr-check">
               <input
                 type="checkbox"
@@ -148,18 +156,29 @@ export default function LaunchDialog({
                 disabled={busy}
                 onChange={(event) => setSave(event.currentTarget.checked)}
               />{' '}
-              Save as script defaults
+              Save when starting
             </label>
           )}
           <div>
             <Button variant="outline" type="button" disabled={busy} onClick={onClose}>
               Cancel
             </Button>
+            {onSave && (
+              <Button
+                variant="outline"
+                type="button"
+                disabled={disabled}
+                loading={pendingAction === 'save'}
+                onClick={() => void submit('save')}
+              >
+                Save defaults
+              </Button>
+            )}
             <Button
               type="submit"
               className="sr-run-button"
-              loading={busy}
-              disabled={readingAttachments || !!unavailable || !validConfiguration(settings)}
+              loading={pendingAction === 'run'}
+              disabled={disabled || !!unavailable}
             >
               <Play size={16} fill="currentColor" /> {save ? 'Save & run' : 'Start run'}
             </Button>

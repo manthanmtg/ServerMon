@@ -579,6 +579,16 @@ export default function ScriptRunnerPage() {
     setLaunch(null);
   }
 
+  async function saveLaunchDefaults(next: ScriptDraft) {
+    await saveScript(
+      next,
+      pendingLaunch.current?.scriptId ?? launch?.scriptId,
+      launch?.fromLibrary
+    );
+    disposeLaunch();
+    toast({ variant: 'success', title: 'Script defaults saved' });
+  }
+
   async function start(next: ScriptDraft, shouldSave: boolean) {
     const signature = JSON.stringify({ next, shouldSave });
     let pending = pendingLaunch.current;
@@ -740,6 +750,7 @@ export default function ScriptRunnerPage() {
           scripts={scripts}
           loading={!overview}
           canRun={hasOnlineWorker && !openingScript}
+          canConfigure={!openingScript}
           startingScriptId={startingScriptId}
           onRun={runSaved}
           onConfigure={(id) => void openScript(id, true)}
@@ -971,9 +982,9 @@ export default function ScriptRunnerPage() {
           variables={variables}
           groups={envGroups}
           recordedKeys={launch.linkedEnvKeys}
-          canSave={!launch.rerunOf}
           onClose={disposeLaunch}
           onLaunch={start}
+          onSave={launch.rerunOf ? undefined : saveLaunchDefaults}
         />
       )}
       {libraryOpen && (

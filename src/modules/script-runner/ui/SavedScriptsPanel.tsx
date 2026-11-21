@@ -31,6 +31,7 @@ interface SavedScriptsPanelProps {
   scripts: ScriptSummary[];
   loading: boolean;
   canRun: boolean;
+  canConfigure: boolean;
   startingScriptId?: string;
   onRun: (id: string) => void;
   onConfigure: (id: string) => void;
@@ -125,6 +126,7 @@ export default function SavedScriptsPanel({
   scripts,
   loading,
   canRun,
+  canConfigure,
   startingScriptId,
   onRun,
   onConfigure,
@@ -345,7 +347,7 @@ export default function SavedScriptsPanel({
                     size="icon"
                     title="Configure run and attachments"
                     aria-label={`Configure run: ${script.title}`}
-                    disabled={!canRun || !!startingScriptId || busyId === script.id}
+                    disabled={!canConfigure || !!startingScriptId || busyId === script.id}
                     onClick={() => onConfigure(script.id)}
                   >
                     <Paperclip size={16} aria-hidden="true" />

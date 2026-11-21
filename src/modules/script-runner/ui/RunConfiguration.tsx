@@ -157,7 +157,7 @@ function EnvironmentFields({
         {scope === 'defaults'
           ? 'Saved with this script. You can change them when launching a run.'
           : scope === 'run'
-            ? 'Changes here apply to this run. Save & run updates the script defaults.'
+            ? 'Use Save defaults to keep these changes for future runs.'
             : 'Changes here apply to this run.'}
       </p>
       {value.length > 0 && (
