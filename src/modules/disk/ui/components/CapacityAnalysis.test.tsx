@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { CapacityAnalysis } from './CapacityAnalysis';
 
 const settings = { unitSystem: 'decimal' as const };
@@ -86,6 +86,38 @@ describe('CapacityAnalysis', () => {
 
     expect(await screen.findByRole('alertdialog')).toHaveTextContent('/var/cache/cache.txt');
     expect(fetchMock).toHaveBeenCalledTimes(3);
+    fireEvent.click(screen.getByRole('button', { name: 'Delete permanently' }));
+
+    await waitFor(() => {
+      expect(fetchMock.mock.calls[3][1]).toMatchObject({
+        method: 'DELETE',
+        body: JSON.stringify({ id: scan.id, token: 'delete-token' }),
+      });
+    });
+  });
+
+  it('opens the expanded cleanup view and deletes from it', async () => {
+    fetchMock
+      .mockImplementationOnce(() => reply(scan))
+      .mockImplementationOnce(() => reply(listing('/var/cache', [file])))
+      .mockImplementationOnce(() => reply({ token: 'delete-token', size: 4096, modifiedAt: 100 }))
+      .mockImplementationOnce(() => reply({ success: true }))
+      .mockImplementationOnce(() => reply(scan))
+      .mockImplementationOnce(() => reply(listing('/var/cache', [])));
+
+    render(<CapacityAnalysis settings={settings} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Scan' }));
+
+    const expand = screen.getByRole('button', { name: 'Expand capacity analysis' });
+    await waitFor(() => expect(expand).toBeEnabled());
+    fireEvent.click(expand);
+
+    const dialog = await screen.findByRole('dialog', { name: /Capacity Analysis/ });
+    expect(dialog).toHaveTextContent('/var/cache');
+    expect(within(dialog).getByText('cache.txt')).toBeInTheDocument();
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete cache.txt' }));
+    expect(await screen.findByRole('alertdialog')).toHaveTextContent('/var/cache/cache.txt');
     fireEvent.click(screen.getByRole('button', { name: 'Delete permanently' }));
 
     await waitFor(() => {

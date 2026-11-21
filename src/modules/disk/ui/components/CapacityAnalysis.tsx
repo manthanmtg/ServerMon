@@ -1,14 +1,19 @@
 'use client';
 
 import { useEffect, useState, type FormEvent } from 'react';
-import { ChevronRight, File, Folder, LoaderCircle, Search, Trash2 } from 'lucide-react';
+import { ChevronRight, File, Folder, LoaderCircle, Maximize2, Search, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import ConfirmationModal from '@/components/ui/ConfirmationModal';
+import { Dialog } from '@/components/ui/Dialog';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/components/ui/toast';
 import { formatBytes } from '@/lib/utils';
-import type { DiskExplorerEntry, DiskExplorerScan } from '../../explorer-types';
+import type {
+  DiskExplorerEntry,
+  DiskExplorerListing,
+  DiskExplorerScan,
+} from '../../explorer-types';
 import type { DiskSettings } from '../DiskSettingsModal';
 
 const endpoint = '/api/modules/disk/explorer';
@@ -54,6 +59,217 @@ function getBreadcrumbs(current: string) {
   return crumbs;
 }
 
+interface CapacityBodyProps {
+  preparing: boolean;
+  failure: string;
+  loadingText: string | null;
+  listing: DiskExplorerListing | null;
+  mutationPending: boolean;
+  expanded: boolean;
+  formatSize: (size: number) => string;
+  onBrowse: (directory: string) => void;
+  onPage: (offset: number) => void;
+  onPrepareDeletion: (entry: DiskExplorerEntry) => void;
+}
+
+function CapacityBody({
+  preparing,
+  failure,
+  loadingText,
+  listing,
+  mutationPending,
+  expanded,
+  formatSize,
+  onBrowse,
+  onPage,
+  onPrepareDeletion,
+}: CapacityBodyProps) {
+  return (
+    <div className="space-y-3">
+      {preparing && (
+        <p role="status" className="text-sm text-muted-foreground">
+          Checking the deletion target…
+        </p>
+      )}
+      {failure && (
+        <p
+          role="alert"
+          className="rounded-lg border border-destructive/30 p-3 text-sm text-destructive"
+        >
+          {failure}
+        </p>
+      )}
+      {loadingText && (
+        <div
+          role="status"
+          className="grid min-h-48 place-items-center rounded-lg border border-dashed border-border"
+        >
+          <p className="flex items-center gap-2 text-sm text-muted-foreground">
+            <LoaderCircle className="size-4 animate-spin" aria-hidden="true" />
+            {loadingText}
+          </p>
+        </div>
+      )}
+      {!failure && !loadingText && !listing && (
+        <div className="grid min-h-48 place-items-center rounded-lg border border-dashed border-border p-5 text-center">
+          <div>
+            <Search className="mx-auto mb-3 size-6 text-muted-foreground" aria-hidden="true" />
+            <p className="text-sm font-semibold">Ready for Analysis</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Enter a directory to find what takes up space on its filesystem.
+            </p>
+          </div>
+        </div>
+      )}
+      {listing && (
+        <>
+          <div className="flex flex-wrap items-center justify-between gap-x-3 border-b border-border pb-2">
+            <nav aria-label="Directory breadcrumbs" className="flex min-w-0 flex-wrap items-center">
+              {getBreadcrumbs(listing.path).map((crumb, index) => (
+                <div key={crumb.path} className="flex min-w-0 items-center">
+                  {index > 0 && <ChevronRight className="size-3 shrink-0 text-muted-foreground" />}
+                  {crumb.path === listing.path ? (
+                    <span aria-current="location" className="break-all px-2 text-sm font-medium">
+                      {crumb.name}
+                    </span>
+                  ) : (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      onClick={() => onBrowse(crumb.path)}
+                      disabled={mutationPending}
+                      className="h-11 min-w-0 px-2 text-sm"
+                    >
+                      <span className="truncate">{crumb.name}</span>
+                    </Button>
+                  )}
+                </div>
+              ))}
+            </nav>
+            <span className="shrink-0 text-sm font-semibold tabular-nums">
+              {formatSize(listing.size)}
+            </span>
+          </div>
+          {listing.partial && (
+            <p
+              role="status"
+              className="rounded-lg border border-warning/30 p-2 text-xs text-warning"
+            >
+              Some entries could not be scanned. Reported sizes may be incomplete.
+            </p>
+          )}
+          {listing.entries.length === 0 ? (
+            <p className="py-6 text-center text-sm text-muted-foreground">No entries to display.</p>
+          ) : (
+            <ul
+              aria-label="Disk usage by entry"
+              className={
+                expanded
+                  ? 'divide-y divide-border'
+                  : 'max-h-[28rem] divide-y divide-border overflow-y-auto'
+              }
+            >
+              {listing.entries.map((entry) => (
+                <li
+                  key={entry.path}
+                  className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2 py-1"
+                >
+                  <div className="min-w-0">
+                    {entry.kind === 'directory' ? (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        onClick={() => onBrowse(entry.path)}
+                        disabled={mutationPending}
+                        className="h-11 min-w-0 max-w-full justify-start gap-2 px-2"
+                        title={entry.name}
+                      >
+                        <Folder className="size-4 shrink-0 text-primary" aria-hidden="true" />
+                        <span className="truncate">{entry.name}</span>
+                      </Button>
+                    ) : (
+                      <span
+                        className="flex min-h-11 items-center gap-2 px-2 text-sm"
+                        title={entry.name}
+                      >
+                        <File
+                          className="size-4 shrink-0 text-muted-foreground"
+                          aria-hidden="true"
+                        />
+                        <span className="truncate">{entry.name}</span>
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center justify-end gap-1">
+                    <span className="text-right text-xs tabular-nums">
+                      {formatSize(entry.size)}
+                      {entry.readError && (
+                        <span className="block text-[10px] text-warning">Partial</span>
+                      )}
+                    </span>
+                    {entry.canDelete && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        disabled={mutationPending}
+                        onClick={() => onPrepareDeletion(entry)}
+                        aria-label={'Delete ' + entry.name}
+                        className="size-11 text-muted-foreground hover:text-destructive"
+                      >
+                        <Trash2 className="size-4" aria-hidden="true" />
+                      </Button>
+                    )}
+                  </div>
+                  <div className="h-1 overflow-hidden rounded-full bg-muted" aria-hidden="true">
+                    <div
+                      className="h-full rounded-full bg-primary/60"
+                      style={{
+                        width:
+                          (listing.size ? Math.min((entry.size / listing.size) * 100, 100) : 0) +
+                          '%',
+                      }}
+                    />
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+          {(listing.offset > 0 || listing.nextOffset !== null) && (
+            <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+              <span>
+                Showing {listing.offset + 1}–{listing.offset + listing.entries.length}
+              </span>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={mutationPending || listing.offset === 0}
+                  onClick={() => onPage(Math.max(listing.offset - 100, 0))}
+                  className="h-11"
+                >
+                  Previous
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={mutationPending || listing.nextOffset === null}
+                  onClick={() => onPage(listing.nextOffset ?? 0)}
+                  className="h-11"
+                >
+                  Next
+                </Button>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 export function CapacityAnalysis({ settings }: { settings: DiskSettings }) {
   const [scanPath, setScanPath] = useState('/');
   const [location, setLocation] = useState<ScanLocation | null>(null);
@@ -63,6 +279,7 @@ export function CapacityAnalysis({ settings }: { settings: DiskSettings }) {
   const [preparing, setPreparing] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [confirmation, setConfirmation] = useState<DeleteConfirmation | null>(null);
+  const [expanded, setExpanded] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -170,6 +387,12 @@ export function CapacityAnalysis({ settings }: { settings: DiskSettings }) {
   const failure = error || (scan?.status === 'failed' ? scan.error : '');
   const loading =
     starting || (!failure && Boolean(location) && (!scan || scan.status === 'scanning'));
+  const loadingText =
+    !failure && loading
+      ? scan?.status === 'scanning' || starting
+        ? 'Scanning disk usage…'
+        : 'Loading directory…'
+      : null;
   const mutationPending = preparing || Boolean(confirmation) || deleting;
   const formatSize = (size: number) => formatBytes(size, settings.unitSystem);
 
@@ -204,195 +427,57 @@ export function CapacityAnalysis({ settings }: { settings: DiskSettings }) {
             )}
             Scan
           </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            aria-label="Expand capacity analysis"
+            title="Open the cleanup view"
+            disabled={!listing || loading || mutationPending}
+            onClick={() => setExpanded(true)}
+            className="size-11 text-muted-foreground hover:text-foreground"
+          >
+            <Maximize2 className="size-4" aria-hidden="true" />
+          </Button>
         </form>
       </CardHeader>
       <CardContent className="space-y-3 pt-4">
-        {preparing && (
-          <p role="status" className="text-sm text-muted-foreground">
-            Checking the deletion target…
-          </p>
-        )}
-        {failure && (
-          <p
-            role="alert"
-            className="rounded-lg border border-destructive/30 p-3 text-sm text-destructive"
-          >
-            {failure}
-          </p>
-        )}
-        {loading && (
-          <div
-            role="status"
-            className="grid min-h-48 place-items-center rounded-lg border border-dashed border-border"
-          >
-            <p className="flex items-center gap-2 text-sm text-muted-foreground">
-              <LoaderCircle className="size-4 animate-spin" aria-hidden="true" />
-              {scan?.status === 'scanning' || starting
-                ? 'Scanning disk usage…'
-                : 'Loading directory…'}
-            </p>
-          </div>
-        )}
-        {!failure && !loading && !listing && (
-          <div className="grid min-h-48 place-items-center rounded-lg border border-dashed border-border p-5 text-center">
-            <div>
-              <Search className="mx-auto mb-3 size-6 text-muted-foreground" aria-hidden="true" />
-              <p className="text-sm font-semibold">Ready for Analysis</p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Enter a directory to find what takes up space on its filesystem.
-              </p>
-            </div>
-          </div>
-        )}
-        {listing && scan && (
-          <>
-            <div className="flex flex-wrap items-center justify-between gap-x-3 border-b border-border pb-2">
-              <nav
-                aria-label="Directory breadcrumbs"
-                className="flex min-w-0 flex-wrap items-center"
-              >
-                {getBreadcrumbs(listing.path).map((crumb, index) => (
-                  <div key={crumb.path} className="flex min-w-0 items-center">
-                    {index > 0 && (
-                      <ChevronRight className="size-3 shrink-0 text-muted-foreground" />
-                    )}
-                    {crumb.path === listing.path ? (
-                      <span aria-current="location" className="break-all px-2 text-sm font-medium">
-                        {crumb.name}
-                      </span>
-                    ) : (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        onClick={() => browse(crumb.path)}
-                        disabled={mutationPending}
-                        className="h-11 min-w-0 px-2 text-sm"
-                      >
-                        <span className="truncate">{crumb.name}</span>
-                      </Button>
-                    )}
-                  </div>
-                ))}
-              </nav>
-              <span className="shrink-0 text-sm font-semibold tabular-nums">
-                {formatSize(listing.size)}
-              </span>
-            </div>
-            {listing.partial && (
-              <p
-                role="status"
-                className="rounded-lg border border-warning/30 p-2 text-xs text-warning"
-              >
-                Some entries could not be scanned. Reported sizes may be incomplete.
-              </p>
-            )}
-            {listing.entries.length === 0 ? (
-              <p className="py-6 text-center text-sm text-muted-foreground">
-                No entries to display.
-              </p>
-            ) : (
-              <ul
-                aria-label="Disk usage by entry"
-                className="max-h-[28rem] divide-y divide-border overflow-y-auto"
-              >
-                {listing.entries.map((entry) => (
-                  <li
-                    key={entry.path}
-                    className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2 py-1"
-                  >
-                    <div className="min-w-0">
-                      {entry.kind === 'directory' ? (
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          onClick={() => browse(entry.path)}
-                          disabled={mutationPending}
-                          className="h-11 min-w-0 max-w-full justify-start gap-2 px-2"
-                          title={entry.name}
-                        >
-                          <Folder className="size-4 shrink-0 text-primary" aria-hidden="true" />
-                          <span className="truncate">{entry.name}</span>
-                        </Button>
-                      ) : (
-                        <span
-                          className="flex min-h-11 items-center gap-2 px-2 text-sm"
-                          title={entry.name}
-                        >
-                          <File
-                            className="size-4 shrink-0 text-muted-foreground"
-                            aria-hidden="true"
-                          />
-                          <span className="truncate">{entry.name}</span>
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex items-center justify-end gap-1">
-                      <span className="text-right text-xs tabular-nums">
-                        {formatSize(entry.size)}
-                        {entry.readError && (
-                          <span className="block text-[10px] text-warning">Partial</span>
-                        )}
-                      </span>
-                      {entry.canDelete && (
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          disabled={mutationPending}
-                          onClick={() => void prepareDeletion(entry)}
-                          aria-label={'Delete ' + entry.name}
-                          className="size-11 text-muted-foreground hover:text-destructive"
-                        >
-                          <Trash2 className="size-4" aria-hidden="true" />
-                        </Button>
-                      )}
-                    </div>
-                    <div className="h-1 overflow-hidden rounded-full bg-muted" aria-hidden="true">
-                      <div
-                        className="h-full rounded-full bg-primary/60"
-                        style={{
-                          width:
-                            (listing.size ? Math.min((entry.size / listing.size) * 100, 100) : 0) +
-                            '%',
-                        }}
-                      />
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-            {(listing.offset > 0 || listing.nextOffset !== null) && (
-              <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
-                <span>
-                  Showing {listing.offset + 1}–{listing.offset + listing.entries.length}
-                </span>
-                <div className="flex gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    disabled={mutationPending || listing.offset === 0}
-                    onClick={() => changePage(Math.max(listing.offset - 100, 0))}
-                    className="h-11"
-                  >
-                    Previous
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    disabled={mutationPending || listing.nextOffset === null}
-                    onClick={() => changePage(listing.nextOffset ?? 0)}
-                    className="h-11"
-                  >
-                    Next
-                  </Button>
-                </div>
-              </div>
-            )}
-          </>
-        )}
+        <CapacityBody
+          preparing={preparing}
+          failure={failure}
+          loadingText={loadingText}
+          listing={listing}
+          mutationPending={mutationPending}
+          expanded={false}
+          formatSize={formatSize}
+          onBrowse={browse}
+          onPage={changePage}
+          onPrepareDeletion={(entry) => void prepareDeletion(entry)}
+        />
       </CardContent>
+      <Dialog
+        open={expanded}
+        onOpenChange={setExpanded}
+        size="fullscreen"
+        title="Capacity Analysis"
+        description={
+          listing ? listing.path : failure ? 'Clean up disk space from a wider view.' : undefined
+        }
+        closeLabel="Close capacity analysis"
+      >
+        <CapacityBody
+          preparing={preparing}
+          failure={failure}
+          loadingText={loadingText}
+          listing={listing}
+          mutationPending={mutationPending}
+          expanded
+          formatSize={formatSize}
+          onBrowse={browse}
+          onPage={changePage}
+          onPrepareDeletion={(entry) => void prepareDeletion(entry)}
+        />
+      </Dialog>
       {confirmation && (
         <ConfirmationModal
           isOpen
