@@ -26,10 +26,12 @@ import {
   type EnvironmentLinks,
   type SavedEnvGroup,
   type SavedEnvVariable,
+  type ScriptAttachment,
   type ScriptDraft,
   type ScriptEnvironmentVariable,
 } from '../types';
 import { errorMessage, runnerRequest } from './client';
+import AttachmentsField from './AttachmentsField';
 
 function DirectoryPicker({ start, onSelect }: { start: string; onSelect: (path: string) => void }) {
   const [path, setPath] = useState(start || '/');
@@ -106,7 +108,7 @@ function DirectoryPicker({ start, onSelect }: { start: string; onSelect: (path: 
   );
 }
 
-type Configuration = Pick<ScriptDraft, 'cwd' | 'args' | 'timeoutSeconds' | 'env'> &
+type Configuration = Pick<ScriptDraft, 'cwd' | 'args' | 'timeoutSeconds' | 'env' | 'attachments'> &
   EnvironmentLinks;
 
 function environmentError(env: ScriptEnvironmentVariable[]) {
@@ -369,6 +371,9 @@ function LinkedEnvironment({
 export default function RunConfiguration({
   value,
   onChange,
+  onAttachmentsChange,
+  readingAttachments,
+  onReadingAttachmentsChange,
   recent,
   variables,
   groups,
@@ -377,6 +382,9 @@ export default function RunConfiguration({
 }: {
   value: Configuration;
   onChange: (value: Configuration) => void;
+  onAttachmentsChange: (files: ScriptAttachment[]) => void;
+  readingAttachments: boolean;
+  onReadingAttachmentsChange: (reading: boolean) => void;
   recent: string[];
   variables: SavedEnvVariable[];
   groups: SavedEnvGroup[];
@@ -393,11 +401,20 @@ export default function RunConfiguration({
 
   return (
     <div className="sr-configuration">
+      <AttachmentsField
+        files={value.attachments ?? []}
+        onChange={onAttachmentsChange}
+        reading={readingAttachments}
+        onReadingChange={onReadingAttachmentsChange}
+      />
       <div className="sr-config-group sr-config-location">
         <div className="sr-fields">
           <label className="sr-field" htmlFor={cwdId}>
             <span>
-              <FolderOpen size={15} /> Working directory
+              <FolderOpen size={15} />{' '}
+              {value.attachments?.length
+                ? 'Working directory without attachments'
+                : 'Working directory'}
             </span>
           </label>
           <div className="sr-inline-input">

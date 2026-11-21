@@ -1,4 +1,13 @@
+import type { ScriptRun } from '../types';
+
 export const runnerApi = '/api/modules/script-runner';
+
+export function workingDirectoryLabel({
+  cwd,
+  attachmentCount,
+}: Pick<ScriptRun, 'cwd' | 'attachmentCount'>) {
+  return attachmentCount ? 'Temporary run folder' : cwd;
+}
 
 export async function runnerRequest<T>(path = '', options?: RequestInit): Promise<T> {
   const response = await fetch(runnerApi + path, {

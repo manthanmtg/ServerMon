@@ -12,27 +12,45 @@ const SUDO_PATH = '/usr/bin/sudo';
 const CONTROL_PATH = '/usr/local/libexec/servermon-script-control';
 
 type LaunchPayload = Pick<ScriptDraft, 'cwd' | 'args' | 'source'> &
-  Partial<Pick<ScriptDraft, 'language' | 'env'>> & {
+  Partial<Pick<ScriptDraft, 'language' | 'env' | 'attachments'>> & {
     pythonEnvironment?: PythonEnvironmentSelection;
   };
 
 export function encodeLaunch(
-  { cwd, args, source, language = 'bash', env = [], pythonEnvironment }: LaunchPayload,
+  {
+    cwd,
+    args,
+    source,
+    language = 'bash',
+    env = [],
+    pythonEnvironment,
+    attachments = [],
+  }: LaunchPayload,
   protocol = 2
 ) {
   if (pythonEnvironment && (protocol < 3 || language !== 'python')) {
     throw new Error('This launcher does not support the selected Python environment.');
   }
+  if (attachments.length && protocol < 4) {
+    throw new Error('This launcher does not support attachments.');
+  }
   if (protocol === 1) return [cwd, String(args.length), ...args, source].join('\0');
+  const python = pythonEnvironment
+    ? [pythonEnvironment.environmentId, pythonEnvironment.revisionId]
+    : [];
+  const header = attachments.length
+    ? ['script-runner-v4', language, ...(pythonEnvironment ? python : ['', ''])]
+    : [pythonEnvironment ? 'script-runner-v3' : 'script-runner-v2', language, ...python];
   return [
-    pythonEnvironment ? 'script-runner-v3' : 'script-runner-v2',
-    language,
-    ...(pythonEnvironment ? [pythonEnvironment.environmentId, pythonEnvironment.revisionId] : []),
+    ...header,
     cwd,
     String(args.length),
     ...args,
     String(env.length),
     ...env.flatMap(({ key, value }) => [key, value]),
+    ...(attachments.length
+      ? [String(attachments.length), ...attachments.flatMap(({ name, content }) => [name, content])]
+      : []),
     source,
   ].join('\0');
 }
@@ -46,7 +64,11 @@ export function parseRunnerProbe(output: string): RunnerCapabilities {
   const [header, ...available] = output.trim().split(/\r?\n/);
   if (header !== 'script-runner-v2') return { protocol: 1, runtimes: ['bash'] };
   return {
-    protocol: available.includes('python-environments-v1') ? 3 : 2,
+    protocol: available.includes('attachments-v1')
+      ? 4
+      : available.includes('python-environments-v1')
+        ? 3
+        : 2,
     runtimes: SCRIPT_LANGUAGES.filter((language) => available.includes(language)),
   };
 }

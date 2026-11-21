@@ -4,10 +4,11 @@ import { openEnvironment, sealEnvironment } from '@/lib/script-runner/environmen
 import type { RunRecord } from '@/models/ScriptRunner';
 import { POST } from './route';
 
-const { createRun, findSavedScript, readLinkedEnvironment } = vi.hoisted(() => ({
+const { createRun, findSavedScript, readLinkedEnvironment, worker } = vi.hoisted(() => ({
   createRun: vi.fn(async (run: RunRecord) => run),
   findSavedScript: vi.fn(),
   readLinkedEnvironment: vi.fn(),
+  worker: { protocol: 2 },
 }));
 
 vi.mock('../_shared', async (importOriginal) => ({
@@ -24,14 +25,18 @@ vi.mock('@/lib/script-runner/store', async (importOriginal) => ({
     workerId: 'worker',
     workerCapabilityId: 'worker',
     workerLinkedEnvironmentId: 'worker',
-    workerProtocol: 2,
+    workerProtocol: worker.protocol,
     workerRuntimes: ['python'],
   }),
   workerOnline: () => true,
 }));
 vi.mock('@/lib/script-runner/variables', () => ({ readLinkedEnvironment }));
 
-afterEach(() => vi.unstubAllEnvs());
+afterEach(() => {
+  worker.protocol = 2;
+  vi.clearAllMocks();
+  vi.unstubAllEnvs();
+});
 
 it('queues a saved script with its source, launch defaults, and linked environment', async () => {
   vi.stubEnv('JWT_SECRET', 'script-runner-test-key');
@@ -65,7 +70,7 @@ it('queues a saved script with its source, launch defaults, and linked environme
   );
 
   expect(response.status).toBe(202);
-  expect(select).toHaveBeenCalledWith('+source +environmentSeal');
+  expect(select).toHaveBeenCalledWith('+source +environmentSeal +attachments');
   expect(readLinkedEnvironment).toHaveBeenCalledWith({
     envVarIds: [variableId],
     envGroupIds: [groupId],
@@ -83,4 +88,47 @@ it('queues a saved script with its source, launch defaults, and linked environme
   });
   expect(openEnvironment(run.environmentSeal)).toEqual(inline);
   expect(openEnvironment(run.linkedEnvironmentSeal)).toEqual(linked);
+});
+
+it('only queues saved attachments for a worker that can stage them', async () => {
+  const scriptId = '27ac89d0-0704-4662-9770-e143d2a47d3c';
+  const attachments = [{ name: 'input.bin', content: 'AP8=' }];
+  const saved = {
+    title: 'Read attachment',
+    source: 'print(open("input.bin", "rb").read())',
+    cwd: `${tmpdir()}/unneeded-script-working-directory`,
+    args: [],
+    language: 'python',
+    attachments,
+  };
+  findSavedScript.mockReturnValue({ select: () => ({ lean: async () => saved }) });
+  readLinkedEnvironment.mockResolvedValue([]);
+  const launch = () =>
+    POST(
+      new Request('http://localhost/api/modules/script-runner/runs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ scriptId }),
+      })
+    );
+
+  await expect(launch()).rejects.toMatchObject({
+    status: 503,
+    message: expect.stringMatching(/attachments/),
+  });
+  expect(createRun).not.toHaveBeenCalled();
+  worker.protocol = 4;
+  const response = await launch();
+  expect(response.status).toBe(202);
+  expect(createRun).toHaveBeenCalledWith(
+    expect.objectContaining({
+      scriptId,
+      status: 'queued_attachments',
+      attachmentCount: 1,
+      attachments,
+    })
+  );
+  const queued = await response.json();
+  expect(queued).toMatchObject({ status: 'queued', attachmentCount: 1 });
+  expect(queued).not.toHaveProperty('attachments');
 });

@@ -8,12 +8,13 @@ export const dynamic = 'force-dynamic';
 export function GET(request: Request, { params }: ById) {
   return authorized(request, async () => {
     const run = await findRun(runIdInput.parse((await params).id))
-      .select('+source +environmentSeal +linkedEnvironmentSeal')
+      .select('+source +environmentSeal +linkedEnvironmentSeal +attachments')
       .lean();
     if (!run) return failure('Run not found.', 404);
     return data({
       ...runResponse(run),
       source: run.source,
+      attachments: run.attachments,
       env: openEnvironment(run.environmentSeal),
       linkedEnvKeys: openEnvironment(run.linkedEnvironmentSeal).map(({ key }) => key),
     });

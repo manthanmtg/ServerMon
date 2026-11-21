@@ -49,8 +49,10 @@ export async function enqueueRun(
     throw new RunQueueError('The Linux script worker is offline.', 503);
   }
   const [script, previousRun] = await Promise.all([
-    scriptId ? findScript(scriptId).select('+source +environmentSeal').lean() : null,
-    rerunOf ? findRun(rerunOf).select('+environmentSeal +linkedEnvironmentSeal').lean() : null,
+    scriptId ? findScript(scriptId).select('+source +environmentSeal +attachments').lean() : null,
+    rerunOf
+      ? findRun(rerunOf).select('+environmentSeal +linkedEnvironmentSeal +attachments').lean()
+      : null,
   ]);
   const content = draft ?? script;
   if (!content || (scriptId && !script)) {
@@ -66,6 +68,9 @@ export async function enqueueRun(
     script?.timeoutSeconds ??
     defaults.defaultTimeoutSeconds;
   const cwd = draft?.cwd ?? previousRun?.cwd ?? script?.cwd ?? defaults.defaultWorkingDirectory;
+  const attachments =
+    draft?.attachments ?? (previousRun ? previousRun.attachments : script?.attachments);
+  const attachmentCount = attachments?.length ?? 0;
   const linked = [
     ...openEnvironment(previousRun?.linkedEnvironmentSeal),
     ...(await readLinkedEnvironment({
@@ -85,6 +90,9 @@ export async function enqueueRun(
   if (combined.env.length && capabilities.protocol < 2) {
     throw new RunQueueError('Upgrade the Linux script worker to use environment variables.', 503);
   }
+  if (attachmentCount && capabilities.protocol < 4) {
+    throw new RunQueueError('Upgrade the Linux script worker to use attachments.', 503);
+  }
   if (environment.linked.length && settings?.workerLinkedEnvironmentId !== settings?.workerId) {
     throw new RunQueueError(
       'Upgrade the Linux script worker to use linked environment variables.',
@@ -92,17 +100,19 @@ export async function enqueueRun(
     );
   }
 
-  try {
-    if (!(await stat(cwd)).isDirectory()) {
-      throw new RunQueueError('Choose an existing working directory on this server.', 422);
+  if (!attachmentCount) {
+    try {
+      if (!(await stat(cwd)).isDirectory()) {
+        throw new RunQueueError('Choose an existing working directory on this server.', 422);
+      }
+    } catch (error) {
+      if (error instanceof RunQueueError) throw error;
+      const code = (error as NodeJS.ErrnoException).code;
+      if (code !== 'EACCES' && code !== 'EPERM') {
+        throw new RunQueueError('Choose an existing working directory on this server.', 422);
+      }
+      // The launcher validates paths that only the execution account can access.
     }
-  } catch (error) {
-    if (error instanceof RunQueueError) throw error;
-    const code = (error as NodeJS.ErrnoException).code;
-    if (code !== 'EACCES' && code !== 'EPERM') {
-      throw new RunQueueError('Choose an existing working directory on this server.', 422);
-    }
-    // The launcher validates paths that only the execution account can access.
   }
 
   const { title, source, args } = content;
@@ -118,7 +128,9 @@ export async function enqueueRun(
           timeoutSeconds,
           language,
           env: environment.editable,
+          attachments: attachmentCount ? attachments : undefined,
         }),
+        attachmentCount: attachmentCount || undefined,
         pythonEnvironment,
         linkedEnvironmentSeal: sealEnvironment(environment.linked),
         scriptId,
@@ -126,12 +138,14 @@ export async function enqueueRun(
         scheduledFor,
         host: runnerHost,
         _id: id,
-        // Earlier workers only claim 'queued' and cannot execute linked environments.
-        status: pythonEnvironment
-          ? 'queued_python'
-          : environment.linked.length
-            ? 'queued_linked'
-            : 'queued',
+        // Capability-specific queue statuses keep earlier workers from running incomplete jobs.
+        status: attachmentCount
+          ? 'queued_attachments'
+          : pythonEnvironment
+            ? 'queued_python'
+            : environment.linked.length
+              ? 'queued_linked'
+              : 'queued',
         createdAt: new Date(),
       });
       return run;

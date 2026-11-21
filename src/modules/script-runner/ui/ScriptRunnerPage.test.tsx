@@ -146,6 +146,45 @@ it('runs a saved script by ID and opens its console', async () => {
   expect(screen.queryByRole('dialog', { name: 'Configure run' })).not.toBeInTheDocument();
 });
 
+it('runs a saved script with a temporary attachment from its configuration dialog', async () => {
+  const scriptId = '27ac89d0-0704-4662-9770-e143d2a47d3c';
+  const saved: SavedScript = {
+    ...completed,
+    id: scriptId,
+    updatedAt: completed.createdAt,
+    source: 'cat "daily notes.txt"',
+    env: [],
+    attachments: [{ name: 'old.txt', content: 'b2xk' }],
+  };
+  overview.scripts = [saved];
+  overview.attachmentSupport = true;
+  const launched: ScriptRun = { ...completed, id: 'library-run', scriptId, status: 'queued' };
+  const fetchRunner = vi.fn(async (url: string, options?: RequestInit) => {
+    if (url.endsWith(`/scripts/${scriptId}`)) return Response.json(saved);
+    return Response.json(url.endsWith('/runs') && options?.method === 'POST' ? launched : overview);
+  });
+  vi.stubGlobal('fetch', fetchRunner);
+
+  render(<ScriptRunnerPage />);
+  await screen.findByText('Worker online');
+  fireEvent.click(screen.getByRole('button', { name: 'Saved Scripts' }));
+  fireEvent.click(screen.getByRole('button', { name: `Configure run: ${saved.title}` }));
+  const dialog = within(await screen.findByRole('dialog', { name: 'Configure run' }));
+  fireEvent.click(dialog.getByRole('button', { name: 'Remove old.txt' }));
+  fireEvent.change(dialog.getByLabelText('Add files'), {
+    target: { files: [new File(['hello'], 'daily notes.txt')] },
+  });
+  await dialog.findByText('daily notes.txt');
+  fireEvent.click(dialog.getByRole('button', { name: 'Start run' }));
+  await screen.findByRole('region', { name: 'Run console' });
+  const submitted = fetchRunner.mock.calls.find(([url]) => url.endsWith('/runs'))?.[1];
+  expect(JSON.parse(String(submitted?.body))).toMatchObject({
+    scriptId,
+    attachments: [{ name: 'daily notes.txt', content: 'aGVsbG8=' }],
+  });
+  expect(fetchRunner.mock.calls.some(([, options]) => options?.method === 'PATCH')).toBe(false);
+});
+
 it('creates, pauses, resumes, and deletes a saved script schedule', async () => {
   const scriptId = '27ac89d0-0704-4662-9770-e143d2a47d3c';
   overview.scripts = [{ ...completed, id: scriptId, updatedAt: completed.createdAt }];
@@ -394,27 +433,49 @@ describe('Script Runner console selection', () => {
     expect(screen.queryByRole('region', { name: 'Script output' })).not.toBeInTheDocument();
   });
 
-  it('opens the console for a run launched from the workspace', async () => {
+  it('saves workspace attachments as defaults and runs with them', async () => {
+    overview.attachmentSupport = true;
+    const scriptId = 'workspace-script';
     const launched: ScriptRun = {
       ...active,
       id: 'new-run',
       status: 'queued',
       title: 'Host snapshot',
+      scriptId,
+      attachmentCount: 1,
     };
-    vi.stubGlobal('fetch', async (url: string) =>
-      Response.json(url.endsWith('/runs') ? launched : overview)
-    );
+    const fetchRunner = vi.fn(async (url: string, options?: RequestInit) => {
+      if (url.endsWith('/scripts') && options?.method === 'POST') {
+        return Response.json({ ...JSON.parse(String(options.body)), id: scriptId });
+      }
+      return Response.json(url.endsWith('/runs') ? launched : overview);
+    });
+    vi.stubGlobal('fetch', fetchRunner);
     render(<ScriptRunnerPage />);
     await screen.findByText('Worker online');
 
     const views = screen.getByRole('navigation', { name: 'Script Runner views' });
     fireEvent.click(within(views).getByRole('button', { name: 'Workspace' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Run defaults' }));
+    fireEvent.change(screen.getByLabelText('Add files'), {
+      target: { files: [new File(['options'], 'config.txt')] },
+    });
+    await screen.findByText('config.txt');
     fireEvent.click(screen.getByRole('button', { name: 'Configure run' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Start run' }));
+    const dialog = within(screen.getByRole('dialog', { name: 'Configure run' }));
+    expect(dialog.getByText('config.txt')).toBeVisible();
+    fireEvent.click(dialog.getByRole('checkbox', { name: 'Save as script defaults' }));
+    fireEvent.click(dialog.getByRole('button', { name: 'Save & run' }));
 
     const console = within(await screen.findByRole('region', { name: 'Run console' }));
     expect(console.getByRole('heading', { name: 'Host snapshot Bash' })).toBeVisible();
+    expect(console.getByText('Temporary run folder')).toBeVisible();
     expect(console.getByRole('region', { name: 'Script output' })).toBeVisible();
+    const attachments = [{ name: 'config.txt', content: 'b3B0aW9ucw==' }];
+    for (const path of ['/scripts', '/runs']) {
+      const submitted = fetchRunner.mock.calls.find(([url]) => url.endsWith(path))?.[1];
+      expect(JSON.parse(String(submitted?.body))).toMatchObject({ attachments });
+    }
   });
 
   it('keeps a selected run visible in History when it finishes', async () => {

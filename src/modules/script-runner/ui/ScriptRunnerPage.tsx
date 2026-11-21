@@ -41,7 +41,7 @@ import {
   type ScriptRun,
   type ScriptRunnerDefaults,
 } from '../types';
-import { errorMessage, requestId, runnerRequest } from './client';
+import { errorMessage, requestId, runnerRequest, workingDirectoryLabel } from './client';
 import EnvironmentVariablesPanel from './EnvironmentVariablesPanel';
 import EnvironmentGroupsPanel from './EnvironmentGroupsPanel';
 import LaunchDialog from './LaunchDialog';
@@ -91,6 +91,7 @@ function draftFields({
   cwd,
   args,
   env,
+  attachments,
   envVarIds,
   envGroupIds,
   pythonEnvironmentId,
@@ -103,6 +104,7 @@ function draftFields({
     cwd,
     args,
     env: env ?? [],
+    attachments: attachments ?? [],
     envVarIds: envVarIds ?? [],
     envGroupIds: envGroupIds ?? [],
     pythonEnvironmentId: pythonEnvironmentId ?? null,
@@ -122,6 +124,7 @@ const views = [
 type View = (typeof views)[number]['id'];
 type Launch = {
   draft: ScriptDraft;
+  fromLibrary?: boolean;
   scriptId?: string;
   rerunOf?: string;
   linkedEnvKeys?: string[];
@@ -216,9 +219,9 @@ function RunList({
                   <FileCode2 size={17} />
                   <span>
                     <strong>{run.title}</strong>
-                    <small title={run.cwd}>
+                    <small title={workingDirectoryLabel(run)}>
                       {run.scheduledFor && 'Scheduled · '}
-                      {SCRIPT_RUNTIMES[run.language ?? 'bash'].label} · {run.cwd}
+                      {SCRIPT_RUNTIMES[run.language ?? 'bash'].label} · {workingDirectoryLabel(run)}
                     </small>
                   </span>
                 </span>
@@ -286,6 +289,7 @@ export default function ScriptRunnerPage() {
   const [overview, setOverview] = useState<RunnerOverview | null>(null);
   const [overviewError, setOverviewError] = useState('');
   const [draft, setDraft] = useState<ScriptDraft>(starter);
+  const [readingAttachments, setReadingAttachments] = useState(false);
   const [editorKey, setEditorKey] = useState(0);
   const [scriptId, setScriptId] = useState<string>();
   const [baseline, setBaseline] = useState(starter);
@@ -369,6 +373,10 @@ export default function ScriptRunnerPage() {
   const hasSource = !!draft.title.trim() && !!draft.source.trim();
   const valid = hasSource && validConfiguration(draft);
   const runtime = SCRIPT_RUNTIMES[draft.language];
+  const directory = workingDirectoryLabel({
+    cwd: draft.cwd,
+    attachmentCount: draft.attachments?.length,
+  });
   const dirty = JSON.stringify(draft) !== JSON.stringify(saved ?? baseline);
   const hasOnlineWorker = !!overview?.online;
   const scripts = overview?.scripts ?? [];
@@ -466,7 +474,7 @@ export default function ScriptRunnerPage() {
     });
   }
 
-  async function openScript(id: string) {
+  async function openScript(id: string, configureRun = false) {
     cancelScriptLoad();
     const controller = new AbortController();
     scriptLoad.current = controller;
@@ -478,6 +486,10 @@ export default function ScriptRunnerPage() {
       });
       if (controller.signal.aborted) return;
       const loaded = draftFields(response);
+      if (configureRun) {
+        setLaunch({ draft: loaded, scriptId: response.id, fromLibrary: true });
+        return;
+      }
       setView('workspace');
       setEditorView('source');
       setScriptId(response.id);
@@ -503,15 +515,17 @@ export default function ScriptRunnerPage() {
     replaceDraft(() => void openScript(id));
   }
 
-  async function saveScript(next: ScriptDraft, id?: string) {
+  async function saveScript(next: ScriptDraft, id?: string, fromLibrary = false) {
     const version = documentVersion.current;
     const response = await runnerRequest<SavedScript>(id ? `/scripts/${id}` : '/scripts', {
       method: id ? 'PATCH' : 'POST',
       body: JSON.stringify(next),
     });
     const committed = draftFields(response);
-    if (documentVersion.current === version) {
-      setDraft((current) => (current === draft ? committed : current));
+    if (documentVersion.current === version && (!fromLibrary || id === scriptId)) {
+      if (!fromLibrary || !dirty) {
+        setDraft((current) => (current === draft ? committed : current));
+      }
       setSaved(committed);
       setScriptId(response.id);
     }
@@ -570,7 +584,8 @@ export default function ScriptRunnerPage() {
     let pending = pendingLaunch.current;
     if (!pending || pending.signature !== signature) {
       pending = { signature, id: requestId(), scriptId: launch?.scriptId };
-      if (shouldSave) pending.scriptId = await saveScript(next, pending.scriptId);
+      if (shouldSave)
+        pending.scriptId = await saveScript(next, pending.scriptId, launch?.fromLibrary);
       pendingLaunch.current = pending;
     }
     const run = await runnerRequest<ScriptRun>('/runs', {
@@ -724,9 +739,10 @@ export default function ScriptRunnerPage() {
         <SavedScriptsPanel
           scripts={scripts}
           loading={!overview}
-          canRun={hasOnlineWorker}
+          canRun={hasOnlineWorker && !openingScript}
           startingScriptId={startingScriptId}
           onRun={runSaved}
+          onConfigure={(id) => void openScript(id, true)}
           onNew={newDraft}
           onEdit={editScript}
           onChanged={() => void refresh()}
@@ -875,6 +891,11 @@ export default function ScriptRunnerPage() {
                 onChange={(configuration) =>
                   setDraft((current) => ({ ...current, ...configuration }))
                 }
+                onAttachmentsChange={(attachments) =>
+                  setDraft((current) => ({ ...current, attachments }))
+                }
+                readingAttachments={readingAttachments}
+                onReadingAttachmentsChange={setReadingAttachments}
                 recent={overview?.recentDirectories ?? []}
                 variables={variables}
                 groups={envGroups}
@@ -883,9 +904,9 @@ export default function ScriptRunnerPage() {
             </div>
           )}
           <div className="sr-author-actions">
-            <span className="sr-default-dir" title={draft.cwd}>
+            <span className="sr-default-dir" title={directory}>
               <FolderOpen size={15} />
-              <span>{draft.cwd}</span>
+              <span>{directory}</span>
               {envCount > 0 && (
                 <span className="sr-env-count">
                   <Variable size={14} /> {envCount}
@@ -897,13 +918,13 @@ export default function ScriptRunnerPage() {
                 variant="outline"
                 onClick={() => void saveCurrent()}
                 loading={working}
-                disabled={!valid || (!dirty && !!scriptId)}
+                disabled={readingAttachments || !valid || (!dirty && !!scriptId)}
               >
                 <Save size={15} /> Save
               </Button>
               <Button
                 className="sr-run-button"
-                disabled={!hasSource || working}
+                disabled={readingAttachments || !hasSource || working}
                 onClick={() => setLaunch({ draft, scriptId })}
               >
                 <Play size={15} fill="currentColor" /> Configure run
@@ -943,6 +964,7 @@ export default function ScriptRunnerPage() {
           online={hasOnlineWorker}
           runtimes={overview?.runtimes ?? ['bash']}
           environmentSupport={!!overview?.environmentSupport}
+          attachmentSupport={overview?.attachmentSupport}
           pythonEnvironmentSupport={overview?.pythonEnvironmentSupport}
           pythonEnvironments={overview?.pythonEnvironments ?? []}
           recordedPythonEnvironment={launch.recordedPythonEnvironment}

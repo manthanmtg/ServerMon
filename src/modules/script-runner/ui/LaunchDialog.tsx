@@ -26,6 +26,7 @@ export default function LaunchDialog({
   online,
   runtimes,
   environmentSupport,
+  attachmentSupport,
   pythonEnvironmentSupport,
   pythonEnvironments,
   recordedPythonEnvironment,
@@ -41,6 +42,7 @@ export default function LaunchDialog({
   online: boolean;
   runtimes: ScriptLanguage[];
   environmentSupport: boolean;
+  attachmentSupport?: boolean;
   pythonEnvironmentSupport?: boolean;
   pythonEnvironments: PythonEnvironmentOption[];
   recordedPythonEnvironment?: PythonEnvironmentSelection;
@@ -52,6 +54,7 @@ export default function LaunchDialog({
   onLaunch: (draft: ScriptDraft, save: boolean) => Promise<void>;
 }) {
   const [settings, setSettings] = useState(draft);
+  const [readingAttachments, setReadingAttachments] = useState(false);
   const [save, setSave] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -62,17 +65,19 @@ export default function LaunchDialog({
       ? `${runtime.label} is unavailable on this worker.`
       : (settings.pythonEnvironmentId || recordedPythonEnvironment) && !pythonEnvironmentSupport
         ? 'Upgrade the Linux script worker to use Python environments.'
-        : (settings.env.length > 0 ||
-              !!settings.envVarIds?.length ||
-              !!settings.envGroupIds?.length ||
-              !!recordedKeys?.length) &&
-            !environmentSupport
-          ? 'Upgrade the Linux script worker to use environment variables.'
-          : '';
+        : settings.attachments?.length && !attachmentSupport
+          ? 'Upgrade the Linux script worker to use attachments.'
+          : (settings.env.length > 0 ||
+                !!settings.envVarIds?.length ||
+                !!settings.envGroupIds?.length ||
+                !!recordedKeys?.length) &&
+              !environmentSupport
+            ? 'Upgrade the Linux script worker to use environment variables.'
+            : '';
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (unavailable || !validConfiguration(settings)) return;
+    if (readingAttachments || unavailable || !validConfiguration(settings)) return;
     setBusy(true);
     setError('');
     try {
@@ -112,6 +117,11 @@ export default function LaunchDialog({
             onChange={(configuration) =>
               setSettings((current) => ({ ...current, ...configuration }))
             }
+            onAttachmentsChange={(attachments) =>
+              setSettings((current) => ({ ...current, attachments }))
+            }
+            readingAttachments={readingAttachments}
+            onReadingAttachmentsChange={setReadingAttachments}
             recent={recent}
             variables={variables}
             groups={groups}
@@ -149,7 +159,7 @@ export default function LaunchDialog({
               type="submit"
               className="sr-run-button"
               loading={busy}
-              disabled={!!unavailable || !validConfiguration(settings)}
+              disabled={readingAttachments || !!unavailable || !validConfiguration(settings)}
             >
               <Play size={16} fill="currentColor" /> {save ? 'Save & run' : 'Start run'}
             </Button>

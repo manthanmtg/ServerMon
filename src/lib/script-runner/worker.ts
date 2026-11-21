@@ -28,7 +28,7 @@ const PROBE_MS = 60_000;
 const SCHEDULE_POLL_MS = 5000;
 
 type TerminalResult = Pick<RunRecord, 'exitCode' | 'signal' | 'message' | 'outputTruncated'> & {
-  status: Exclude<RunRecord['status'], 'queued' | 'queued_linked' | 'queued_python' | 'running'>;
+  status: Exclude<RunRecord['status'], (typeof QUEUED_STATUSES)[number] | 'running'>;
   finishedAt: string;
 };
 
@@ -83,7 +83,8 @@ async function executeRun(run: RunRecord, task: Task, capabilities: RunnerCapabi
   if (
     !capabilities.runtimes.includes(language) ||
     (env.length > 0 && capabilities.protocol < 2) ||
-    (run.pythonEnvironment && capabilities.protocol < 3)
+    (run.pythonEnvironment && capabilities.protocol < 3) ||
+    (!!run.attachments?.length && capabilities.protocol < 4)
   ) {
     await persistResult(
       id,
@@ -258,16 +259,17 @@ export async function runWorker(signal: AbortSignal) {
         {
           host: runnerHost,
           status: {
-            $in:
-              capabilities.protocol >= 3
-                ? QUEUED_STATUSES
-                : QUEUED_STATUSES.filter((status) => status !== 'queued_python'),
+            $in: QUEUED_STATUSES.filter(
+              (status) =>
+                (status !== 'queued_python' || capabilities.protocol >= 3) &&
+                (status !== 'queued_attachments' || capabilities.protocol >= 4)
+            ),
           },
         },
         { $set: { status: 'running', startedAt: new Date() } },
         { sort: { createdAt: 1, _id: 1 }, returnDocument: 'after' }
       )
-        .select('+source +environmentSeal +linkedEnvironmentSeal')
+        .select('+source +environmentSeal +linkedEnvironmentSeal +attachments')
         .lean();
       if (!run) break;
       if (signal.aborted) break;

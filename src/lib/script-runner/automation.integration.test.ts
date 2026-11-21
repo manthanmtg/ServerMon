@@ -58,7 +58,7 @@ vi.mock('./store', async (original) => ({
 
 vi.mock('./systemd', async (original) => ({
   ...(await original<typeof import('./systemd')>()),
-  probeRunner: async () => ({ protocol: 2, runtimes: ['bash'] }),
+  probeRunner: async () => ({ protocol: 4, runtimes: ['bash'] }),
   startUnit: (id: string) => {
     const child = spawn('python3', ['-I', resolve('scripts/servermon-script-execute.py')], {
       env: { ...process.env, RUNTIME_DIRECTORY: fixture.directory },
@@ -105,9 +105,10 @@ it.skipIf(!fixture.uri)(
       const group = await saveEnvGroup({ name: 'Reports', variableIds: [modeId, labelId] });
       const saved = await storeScript({
         title: 'Recurring report',
-        source: 'printf "%s %s\\n" "$REPORT_MODE" "$REPORT_LABEL"',
+        source: 'printf "%s %s\\n" "$REPORT_MODE" "$REPORT_LABEL"; cat "report input.txt"',
         language: 'bash',
         args: ['ready'],
+        attachments: [{ name: 'report input.txt', content: 'YXR0YWNoZWQK' }],
         cwd: fixture.directory,
         env: [{ key: 'REPORT_MODE', value: 'daily' }],
         envVarIds: [modeId],
@@ -147,12 +148,17 @@ it.skipIf(!fixture.uri)(
       const schedule = (await ScriptRunnerScript.findOne(scriptFilter).lean())?.schedule;
       expect(schedule?.lastOutcome).toBe('queued');
       expect(schedule?.nextRunAt?.getTime()).toBe(due.getTime() + 20 * 60_000);
-      expect(run).toMatchObject({ scheduledFor: due, requestedBy: 'admin', exitCode: 0 });
+      expect(run).toMatchObject({
+        scheduledFor: due,
+        requestedBy: 'admin',
+        exitCode: 0,
+        attachmentCount: 1,
+      });
       expect(await ScriptRunnerRun.countDocuments(filter)).toBe(1);
       const { readOutput } = await import('./output');
-      expect((await readOutput(outputPath(run._id), 0)).entries).toEqual([
-        expect.objectContaining({ stream: 'stdout', text: 'daily ready\n' }),
-      ]);
+      expect(
+        (await readOutput(outputPath(run._id), 0)).entries.map(({ text }) => text).join('')
+      ).toBe('daily ready\nattached\n');
 
       // Simulate insertion having succeeded immediately before a worker restart.
       await ScriptRunnerScript.updateOne(scriptFilter, {

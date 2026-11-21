@@ -31,7 +31,12 @@ import {
 
 export const runnerHost = hostname();
 export const supported = process.platform === 'linux';
-export const QUEUED_STATUSES = ['queued', 'queued_linked', 'queued_python'] as const;
+export const QUEUED_STATUSES = [
+  'queued',
+  'queued_linked',
+  'queued_python',
+  'queued_attachments',
+] as const;
 export const ACTIVE_STATUSES = [...QUEUED_STATUSES, 'running'] as const;
 const WORKER_STALE_MS = 20_000;
 export const runnerDataDirectory = '/var/lib/servermon/script-runner';
@@ -48,10 +53,15 @@ export function runResponse(run: RunRecord): ScriptRun {
     title: run.title,
     language: run.language ?? 'bash',
     cwd: run.cwd,
+    attachmentCount: run.attachmentCount,
     args: run.args,
     timeoutSeconds: run.timeoutSeconds,
     status:
-      run.status === 'queued_linked' || run.status === 'queued_python' ? 'queued' : run.status,
+      run.status === 'queued_linked' ||
+      run.status === 'queued_python' ||
+      run.status === 'queued_attachments'
+        ? 'queued'
+        : run.status,
     pythonEnvironment: run.pythonEnvironment,
     requestedBy: run.requestedBy,
     scheduledFor: run.scheduledFor?.toISOString(),
@@ -83,6 +93,7 @@ export function scriptResponse(script: ScriptRecord): SavedScript {
     ...scriptSummary(script),
     source: script.source,
     env: openEnvironment(script.environmentSeal),
+    attachments: script.attachments,
     envVarIds: script.envVarIds ?? [],
     envGroupIds: script.envGroupIds ?? [],
     pythonEnvironmentId: script.pythonEnvironmentId ?? null,
@@ -185,7 +196,7 @@ export async function overview(before?: string, inspectedRunId?: string): Promis
           .limit(historySize + 1)
           .lean(),
     runnerSettings(),
-    ScriptRunnerRun.find({ host: runnerHost })
+    ScriptRunnerRun.find({ host: runnerHost, attachmentCount: { $exists: false } })
       .select('cwd')
       .sort({ createdAt: -1 })
       .limit(60)
@@ -223,6 +234,7 @@ export async function overview(before?: string, inspectedRunId?: string): Promis
     supported,
     runtimes: online ? capabilities.runtimes : [],
     environmentSupport: capabilities.protocol >= 2,
+    attachmentSupport: capabilities.protocol >= 4,
     pythonEnvironmentSupport: capabilities.protocol >= 3,
     pythonEnvironments,
   };

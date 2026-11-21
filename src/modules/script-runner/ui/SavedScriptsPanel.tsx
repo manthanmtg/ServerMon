@@ -8,6 +8,7 @@ import {
   FileCode2,
   Folder,
   FolderInput,
+  Paperclip,
   Play,
   Plus,
   Search,
@@ -32,6 +33,7 @@ interface SavedScriptsPanelProps {
   canRun: boolean;
   startingScriptId?: string;
   onRun: (id: string) => void;
+  onConfigure: (id: string) => void;
   onNew: () => void;
   onEdit: (id: string) => void;
   onChanged: () => void;
@@ -125,6 +127,7 @@ export default function SavedScriptsPanel({
   canRun,
   startingScriptId,
   onRun,
+  onConfigure,
   onNew,
   onEdit,
   onChanged,
@@ -164,6 +167,7 @@ export default function SavedScriptsPanel({
         source,
         language,
         env,
+        attachments,
         cwd,
         args,
         timeoutSeconds,
@@ -179,6 +183,7 @@ export default function SavedScriptsPanel({
           source,
           language,
           env,
+          attachments,
           cwd,
           args,
           timeoutSeconds,
@@ -332,6 +337,18 @@ export default function SavedScriptsPanel({
                       <Play size={14} fill="currentColor" aria-hidden="true" />
                     )}
                     Run now
+                  </Button>
+                  <Button
+                    className="sr-management-button sr-saved-icon-action"
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    title="Configure run and attachments"
+                    aria-label={`Configure run: ${script.title}`}
+                    disabled={!canRun || !!startingScriptId || busyId === script.id}
+                    onClick={() => onConfigure(script.id)}
+                  >
+                    <Paperclip size={16} aria-hidden="true" />
                   </Button>
                   <Button
                     className="sr-management-button sr-saved-text-action"

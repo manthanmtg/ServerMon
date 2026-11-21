@@ -5,6 +5,7 @@ import {
   type CalendarSchedule,
   type EnvironmentLinks,
   type RunStatus,
+  type ScriptAttachment,
   type ScriptDraft,
   type ScriptLanguage,
   type ScriptRunnerDefaults,
@@ -51,7 +52,8 @@ export interface RunRecord extends StoredDraft {
   scriptId?: string;
   requestedBy: string;
   scheduledFor?: Date;
-  status: RunStatus | 'queued_linked' | 'queued_python';
+  status: RunStatus | 'queued_linked' | 'queued_python' | 'queued_attachments';
+  attachmentCount?: number;
   createdAt: Date;
   startedAt?: Date;
   finishedAt?: Date;
@@ -76,6 +78,11 @@ export interface SettingsRecord extends Partial<ScriptRunnerDefaults> {
   historyPruneVersion?: number;
 }
 
+const attachmentSchema = new Schema<ScriptAttachment>(
+  { name: String, content: String },
+  { _id: false }
+);
+
 const draft = {
   _id: { type: String, required: true },
   host: { type: String, required: true },
@@ -83,6 +90,7 @@ const draft = {
   source: { type: String, required: true, select: false },
   language: { type: String, enum: SCRIPT_LANGUAGES },
   environmentSeal: { type: String, select: false },
+  attachments: { type: [attachmentSchema], default: undefined, select: false },
   cwd: { type: String, required: true },
   args: [{ type: String }],
   timeoutSeconds: { type: Number, required: true },
@@ -144,6 +152,7 @@ const runSchema = new Schema<RunRecord>(
     scriptId: String,
     pythonEnvironment: pythonSelectionSchema,
     linkedEnvironmentSeal: { type: String, select: false },
+    attachmentCount: Number,
     requestedBy: { type: String, required: true },
     scheduledFor: Date,
     status: { type: String, required: true },

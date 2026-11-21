@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { attachmentByteLength, validAttachmentName } from '@/modules/script-runner/attachments';
 import { calendarTimePattern, isNamedTimeZone } from './calendar';
 import {
   DEFAULT_TIMEOUT_SECONDS,
@@ -8,6 +9,8 @@ import {
   MAX_ENV_VALUE_LENGTH,
   MAX_ENV_VARS,
   MAX_SCRIPT_FOLDER_LENGTH,
+  MAX_SCRIPT_ATTACHMENTS,
+  MAX_SCRIPT_ATTACHMENT_BYTES,
   MAX_HISTORY_RETENTION_DAYS,
   MAX_HISTORY_RUNS,
   SCHEDULE_MAX_MINUTES,
@@ -68,6 +71,27 @@ export const envGroupInput = z.strictObject({
 });
 
 export const scriptFolderPatchInput = z.object({ folder: folderInput }).strict();
+const attachmentsInput = z
+  .array(
+    z.strictObject({
+      name: z.string().refine(validAttachmentName, 'Use a valid filename for each attachment'),
+      content: z
+        .base64()
+        .max(4 * Math.ceil(MAX_SCRIPT_ATTACHMENT_BYTES / 3))
+        .refine((content) => !/[^A-Za-z0-9+/=]/.test(content), 'Invalid attachment content'),
+    })
+  )
+  .max(MAX_SCRIPT_ATTACHMENTS, `Attach up to ${MAX_SCRIPT_ATTACHMENTS} files`)
+  .refine(
+    (files) => new Set(files.map(({ name }) => name)).size === files.length,
+    'Attachment filenames must be unique'
+  )
+  .refine(
+    (files) =>
+      files.reduce((bytes, { content }) => bytes + attachmentByteLength(content), 0) <=
+      MAX_SCRIPT_ATTACHMENT_BYTES,
+    'Attachments can total up to 512 KiB'
+  );
 export const scriptInput = z.object({
   language: z.enum(SCRIPT_LANGUAGES).default('bash'),
   folder: folderInput.optional(),
@@ -75,6 +99,7 @@ export const scriptInput = z.object({
   envGroupIds: envGroupIdsInput.optional(),
   pythonEnvironmentId: runIdInput.nullable().optional(),
   env: environmentInput.default([]),
+  attachments: attachmentsInput.optional(),
   title: z.string().trim().min(1, 'Give your script a name').max(80),
   source: z
     .string()

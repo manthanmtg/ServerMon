@@ -5,7 +5,7 @@ import { spawn } from 'node:child_process';
 import { afterEach, describe, expect, it } from 'vitest';
 import { captureOutput, readOutput } from './output';
 import { defaultsPatchInput, launchInput, retentionInput, scheduleInput } from './schemas';
-import { encodeLaunch, parseUnit } from './systemd';
+import { encodeLaunch, parseRunnerProbe, parseUnit } from './systemd';
 
 const temporary: string[] = [];
 
@@ -66,6 +66,85 @@ describe('Script Runner', () => {
     );
     expect((await readOutput(file, output.cursor)).entries).toEqual([]);
     expect(await readFile(file, 'utf8')).toContain('"stream":"stdout"');
+  });
+
+  it('validates attachment filenames, content, and total size', () => {
+    const draft = { title: 'Check', source: 'echo hi', cwd: '/tmp' };
+    const file = { name: 'démo data.bin', content: 'AAH/' };
+    expect(launchInput.parse({ ...draft, attachments: [file] }).attachments).toEqual([file]);
+    for (const name of ['../data.bin', 'dir\\data.bin', '.', '..', 'zero\0byte', 'é'.repeat(128)]) {
+      expect(launchInput.safeParse({ ...draft, attachments: [{ ...file, name }] }).success).toBe(
+        false
+      );
+    }
+    for (const attachments of [
+      [file, file],
+      [{ ...file, content: '!!!=' }],
+      [{ ...file, content: 'AAA\n' }],
+      [
+        { ...file, content: Buffer.alloc(512 * 1024).toString('base64') },
+        { ...file, name: 'extra' },
+      ],
+    ]) {
+      expect(launchInput.safeParse({ ...draft, attachments }).success).toBe(false);
+    }
+    expect(parseRunnerProbe('script-runner-v2\nbash\nattachments-v1\n').protocol).toBe(4);
+  });
+
+  it('launches Python beside attachments under their original names with binary contents intact', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'attachment runner '));
+    temporary.push(directory);
+    const file = join(directory, 'output');
+    const attachments = [
+      { name: 'démo data.bin', content: 'AAH/' },
+      { name: 'empty', content: '' },
+      { name: 'script.py', content: Buffer.from('attachment').toString('base64') },
+    ];
+    const options = {
+      language: 'python' as const,
+      cwd: join(directory, 'missing'),
+      args: ['two words'],
+      source: `from pathlib import Path
+import sys
+assert Path(__file__).parent.samefile(Path.cwd())
+print(Path('démo data.bin').read_bytes().hex(), Path('empty').stat().st_size, Path('script.py').read_text(), sys.argv[1], sep='|')`,
+      attachments,
+    };
+    expect(() => encodeLaunch(options, 3)).toThrow(/attachments/i);
+    const procedure = spawn('python3', ['-I', resolve('scripts/servermon-script-execute.py')], {
+      env: { ...process.env, RUNTIME_DIRECTORY: directory },
+    });
+    const result = captureOutput(procedure, file);
+    procedure.stdin.end(encodeLaunch(options, 4));
+    expect(await result).toMatchObject({ code: 0 });
+    expect((await readOutput(file, 0)).entries.map(({ text }) => text).join('')).toBe(
+      '0001ff|0|attachment|two words\n'
+    );
+  });
+
+  it('rejects unsafe attachment names in the launcher before writing files', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'attachment runner '));
+    temporary.push(directory);
+    const file = join(directory, 'output');
+    const procedure = spawn('python3', ['-I', resolve('scripts/servermon-script-execute.py')], {
+      env: { ...process.env, RUNTIME_DIRECTORY: directory },
+    });
+    const result = captureOutput(procedure, file);
+    procedure.stdin.end(
+      encodeLaunch(
+        {
+          cwd: directory,
+          args: [],
+          source: 'exit 0',
+          attachments: [{ name: '../escape', content: 'eA==' }],
+        },
+        4
+      )
+    );
+    expect(await result).toMatchObject({ code: 1 });
+    expect((await readOutput(file, 0)).entries).toEqual([
+      expect.objectContaining({ text: 'Invalid Script Runner launch payload.\n' }),
+    ]);
   });
 
   it('runs Python with local imports and literal environment values', async () => {

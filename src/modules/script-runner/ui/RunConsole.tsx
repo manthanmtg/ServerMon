@@ -20,7 +20,13 @@ import {
   type OutputEntry,
   type ScriptRun,
 } from '../types';
-import { errorMessage, runnerApi, runnerRequest, statusLabels } from './client';
+import {
+  errorMessage,
+  runnerApi,
+  runnerRequest,
+  statusLabels,
+  workingDirectoryLabel,
+} from './client';
 
 const VIEW_CHARS = 400_000;
 
@@ -135,6 +141,7 @@ function OutputConsole({
     if (filter === 'all') return entries;
     return entries.filter((entry) => entry.stream === filter);
   }, [entries, filter, run.logsPurgedAt]);
+  const directory = workingDirectoryLabel(run);
   return (
     <>
       <div className="sr-console-run">
@@ -145,8 +152,8 @@ function OutputConsole({
               {SCRIPT_RUNTIMES[run.language ?? 'bash'].label}
             </span>
           </h3>
-          <p title={run.cwd}>
-            <FolderOpen size={13} /> <span>{run.cwd}</span>
+          <p title={directory}>
+            <FolderOpen size={13} /> <span>{directory}</span>
           </p>
           {run.pythonEnvironment && (
             <p title={`Revision ${run.pythonEnvironment.revisionId}`}>

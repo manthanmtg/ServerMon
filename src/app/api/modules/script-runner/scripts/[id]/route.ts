@@ -11,7 +11,7 @@ export const dynamic = 'force-dynamic';
 export function GET(request: Request, { params }: ById) {
   return authorized(request, async () => {
     const script = await findScript(runIdInput.parse((await params).id))
-      .select('+source +environmentSeal')
+      .select('+source +environmentSeal +attachments')
       .lean();
     return script ? data(scriptResponse(script)) : failure('Script not found.', 404);
   });
@@ -49,7 +49,7 @@ export function PATCH(request: Request, { params }: ById) {
       );
       const script = await findScript(id)
         .findOneAndUpdate({}, { $set: storedDraft(draft) }, { returnDocument: 'after' })
-        .select('+source +environmentSeal')
+        .select('+source +environmentSeal +attachments')
         .lean();
       return script ? data(scriptResponse(script)) : failure('Script not found.', 404);
     });

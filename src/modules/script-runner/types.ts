@@ -15,6 +15,13 @@ export const MAX_SCRIPT_FOLDER_LENGTH = 64;
 export const RUNNER_USER = 'servermon-script';
 export const SCRIPT_LANGUAGES = ['bash', 'python', 'node'] as const;
 export type ScriptLanguage = (typeof SCRIPT_LANGUAGES)[number];
+export const MAX_SCRIPT_ATTACHMENTS = 16;
+export const MAX_SCRIPT_ATTACHMENT_BYTES = 512 * 1024;
+
+export interface ScriptAttachment {
+  name: string;
+  content: string; // Base64-encoded file bytes.
+}
 
 export const SCRIPT_RUNTIMES = {
   bash: { label: 'Bash', filename: 'script.sh' },
@@ -117,6 +124,7 @@ export interface ScriptDraft extends EnvironmentLinks {
   source: string;
   language: ScriptLanguage;
   env: ScriptEnvironmentVariable[];
+  attachments?: ScriptAttachment[];
   folder?: string;
   cwd: string;
   args: string[];
@@ -139,6 +147,7 @@ export interface ScriptRun {
   scriptId?: string;
   title: string;
   cwd: string;
+  attachmentCount?: number;
   args: string[];
   timeoutSeconds: number;
   status: RunStatus;
@@ -159,6 +168,7 @@ export interface ScriptRun {
 export interface RunSnapshot extends ScriptRun {
   source: string;
   env: ScriptEnvironmentVariable[];
+  attachments?: ScriptAttachment[];
   linkedEnvKeys?: string[];
 }
 
@@ -178,6 +188,7 @@ export interface RunnerOverview extends ScriptRunnerDefaults {
   supported: boolean;
   runtimes: ScriptLanguage[];
   environmentSupport: boolean;
+  attachmentSupport?: boolean;
   pythonEnvironmentSupport?: boolean;
   pythonEnvironments?: PythonEnvironmentOption[];
 }
