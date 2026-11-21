@@ -7,7 +7,6 @@ export const APPS_WORKER_POLL_MS = 1_000;
 export const APPS_WORKER_DRAIN_MS = 30_000;
 export const APPS_WORKER_STOP_TIMEOUT_MS = 45_000;
 export const APPS_OPERATION_DEADLINE_MS = 60 * 60 * 1_000;
-export const APPS_OPERATION_EVENT_RETENTION_DAYS = 90;
 
 function assertPositive(name: string, value: number): void {
   if (!Number.isFinite(value) || value <= 0) {
