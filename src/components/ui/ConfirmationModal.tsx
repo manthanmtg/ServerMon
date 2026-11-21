@@ -125,57 +125,59 @@ function ConfirmationModalContent({
         </Button>
       }
     >
-      <div
-        className={cn(
-          'relative flex items-start gap-4 rounded-2xl border border-border/40 bg-muted/20 p-4',
-          'before:pointer-events-none before:absolute before:inset-0 before:bg-gradient-to-br before:from-white/5 before:to-transparent'
-        )}
-      >
+      {(description || verificationText) && (
         <div
           className={cn(
-            'flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl',
-            iconBg,
-            iconColor
+            'relative flex items-start gap-4 rounded-2xl border border-border/40 bg-muted/20 p-4',
+            'before:pointer-events-none before:absolute before:inset-0 before:bg-gradient-to-br before:from-white/5 before:to-transparent'
           )}
-          aria-hidden="true"
         >
-          <Icon className="h-6 w-6" />
+          <div
+            className={cn(
+              'flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl',
+              iconBg,
+              iconColor
+            )}
+            aria-hidden="true"
+          >
+            <Icon className="h-6 w-6" />
+          </div>
+          <div className="min-w-0 flex-1 space-y-3 pt-1">
+            {description && (
+              <div className="rounded-xl border border-border/40 bg-muted/40 p-3">
+                <p className="break-all font-mono text-xs text-foreground/80">{description}</p>
+              </div>
+            )}
+            {verificationText && (
+              <div className="space-y-2">
+                <p
+                  id="verification-instruction"
+                  className="text-[11px] font-medium tracking-wider text-muted-foreground"
+                >
+                  Type{' '}
+                  <span className="font-mono font-bold text-foreground">
+                    &quot;{verificationText}&quot;
+                  </span>{' '}
+                  to confirm
+                </p>
+                <input
+                  ref={inputRef}
+                  type="text"
+                  aria-labelledby="verification-instruction"
+                  value={inputValue}
+                  onChange={(event) => setInputValue(event.target.value)}
+                  placeholder={verificationText}
+                  className="h-11 w-full rounded-xl border border-border/50 bg-background/50 px-4 font-mono text-sm outline-none transition-all placeholder:opacity-30 focus:ring-2 focus:ring-primary/30"
+                  autoComplete="off"
+                  autoCorrect="off"
+                  autoCapitalize="off"
+                  spellCheck="false"
+                />
+              </div>
+            )}
+          </div>
         </div>
-        <div className="min-w-0 flex-1 space-y-3 pt-1">
-          {description && (
-            <div className="rounded-xl border border-border/40 bg-muted/40 p-3">
-              <p className="break-all font-mono text-xs text-foreground/80">{description}</p>
-            </div>
-          )}
-          {verificationText && (
-            <div className="space-y-2">
-              <p
-                id="verification-instruction"
-                className="text-[11px] font-medium tracking-wider text-muted-foreground"
-              >
-                Type{' '}
-                <span className="font-mono font-bold text-foreground">
-                  &quot;{verificationText}&quot;
-                </span>{' '}
-                to confirm
-              </p>
-              <input
-                ref={inputRef}
-                type="text"
-                aria-labelledby="verification-instruction"
-                value={inputValue}
-                onChange={(event) => setInputValue(event.target.value)}
-                placeholder={verificationText}
-                className="h-11 w-full rounded-xl border border-border/50 bg-background/50 px-4 font-mono text-sm outline-none transition-all placeholder:opacity-30 focus:ring-2 focus:ring-primary/30"
-                autoComplete="off"
-                autoCorrect="off"
-                autoCapitalize="off"
-                spellCheck="false"
-              />
-            </div>
-          )}
-        </div>
-      </div>
+      )}
     </AlertDialog>
   );
 }
