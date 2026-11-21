@@ -73,6 +73,7 @@ export function Dialog({
   if (!mounted || !open) return null;
 
   const resolvedCloseLabel = closeLabel ?? `Close ${textLabel(title)}`;
+  const hasBody = Boolean(children);
 
   return createPortal(
     <div
@@ -100,7 +101,12 @@ export function Dialog({
           contentClassName
         )}
       >
-        <header className="flex shrink-0 items-start justify-between gap-4 border-b border-border px-4 py-4 sm:px-5">
+        <header
+          className={cn(
+            'flex shrink-0 items-start justify-between gap-4 px-4 py-4 sm:px-5',
+            hasBody && 'border-b border-border'
+          )}
+        >
           <div className="min-w-0">
             <h2 id={titleId} className="text-lg font-semibold tracking-tight text-foreground">
               {title}
@@ -125,9 +131,14 @@ export function Dialog({
             </Button>
           )}
         </header>
-        <div className="min-h-0 flex-1 overflow-auto p-4 sm:p-5">{children}</div>
+        {hasBody && <div className="min-h-0 flex-1 overflow-auto p-4 sm:p-5">{children}</div>}
         {footer && (
-          <footer className="flex shrink-0 flex-col-reverse gap-3 border-t border-border bg-muted/20 p-4 sm:flex-row sm:justify-end sm:p-5">
+          <footer
+            className={cn(
+              'flex shrink-0 flex-col-reverse gap-3 p-4 sm:flex-row sm:justify-end sm:p-5',
+              hasBody && 'border-t border-border bg-muted/20'
+            )}
+          >
             {footer}
           </footer>
         )}

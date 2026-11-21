@@ -50,4 +50,17 @@ describe('Dialog', () => {
     fireEvent.mouseDown(screen.getByTestId('dialog-backdrop'));
     expect(onOpenChange).not.toHaveBeenCalled();
   });
+
+  it('omits the body section and its divider borders when there is no content', () => {
+    render(
+      <Dialog open onOpenChange={vi.fn()} title="Update ServerMon App" footer={<p>Footer</p>}>
+        {null}
+      </Dialog>
+    );
+
+    const dialog = screen.getByRole('dialog', { name: 'Update ServerMon App' });
+    expect(dialog.querySelector('.overflow-auto')).toBeNull();
+    expect(dialog.querySelector('header')).not.toHaveClass('border-b');
+    expect(dialog.querySelector('footer')).not.toHaveClass('border-t');
+  });
 });
