@@ -1,6 +1,6 @@
 import mongoose, { Document, Model, Schema } from 'mongoose';
 
-export type StorageUnitSystem = 'binary' | 'decimal';
+type StorageUnitSystem = 'binary' | 'decimal';
 
 export interface IDiskSettings extends Document {
   unitSystem: StorageUnitSystem;
