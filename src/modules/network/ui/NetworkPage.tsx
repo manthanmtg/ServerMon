@@ -16,21 +16,8 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import {
-  ArrowDown,
-  ArrowUp,
-  CalendarClock,
-  ExternalLink,
-  Gauge,
-  History,
-  Loader2,
-  RefreshCcw,
-  Shield,
-  TerminalSquare,
-  Zap,
-} from 'lucide-react';
+import { ArrowDown, ArrowUp, RefreshCcw, Shield } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/components/ui/toast';
 import { resilientFetch, safeJson } from '@/lib/fetch-utils';
@@ -40,10 +27,11 @@ import type {
   NetworkSpeedtestOverview,
   NetworkSpeedtestScheduleInterval,
 } from '../types';
-import TerminalUI from '@/modules/terminal/ui/TerminalUI';
 import { SpeedtestHistoryModal } from './components/SpeedtestHistoryModal';
 import { NetworkAlerts } from './components/NetworkAlerts';
 import { QuickInsights } from './components/QuickInsights';
+import { SpeedtestCard, formatMbps, formatSpeedtestDate } from './components/SpeedtestCard';
+import { NetworkDiagnosticsTerminal } from './components/NetworkDiagnosticsTerminal';
 
 const chartColors = [
   'var(--primary)',
@@ -61,43 +49,6 @@ function formatSpeed(bps: number) {
 function tooltipBytes(value: unknown) {
   return formatBytes(typeof value === 'number' ? value : Number(value) || 0);
 }
-
-function formatMbps(value: number | undefined) {
-  return typeof value === 'number' ? `${value.toFixed(2)} Mbps` : '-';
-}
-
-function formatLatency(value: number | undefined) {
-  return typeof value === 'number' ? `${value.toFixed(2)} ms` : '-';
-}
-
-function formatSpeedtestDate(value: string | undefined) {
-  if (!value) return '-';
-  return new Date(value).toLocaleString([], {
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-}
-
-function getSafeHttpUrl(value: string | undefined) {
-  if (!value) return null;
-  try {
-    const url = new URL(value);
-    return url.protocol === 'https:' || url.protocol === 'http:' ? url.toString() : null;
-  } catch {
-    return null;
-  }
-}
-
-const scheduleOptions: Array<{ value: NetworkSpeedtestScheduleInterval; label: string }> = [
-  { value: 'off', label: 'Off' },
-  { value: '30m', label: 'Every 30 min' },
-  { value: '1h', label: 'Every hour' },
-  { value: '3h', label: 'Every 3 hours' },
-  { value: '6h', label: 'Every 6 hours' },
-  { value: '24h', label: 'Every day' },
-];
 
 const NETWORK_REQUEST_TIMEOUT_MS = 5000;
 const SPEEDTEST_OVERVIEW_TIMEOUT_MS = 8000;
@@ -363,8 +314,6 @@ export default function NetworkPage() {
   );
 
   const speedtestHistory = useMemo(() => speedtestOverview?.history ?? [], [speedtestOverview]);
-  const latestSpeedtest = speedtestOverview?.latest ?? null;
-  const speedtestResultUrl = getSafeHttpUrl(latestSpeedtest?.resultUrl);
   const speedtestChartData = useMemo(
     () =>
       [...speedtestHistory]
@@ -442,147 +391,16 @@ export default function NetworkPage() {
         </div>
       </section>
 
-      <Card className="overflow-hidden border-border/60">
-        <CardHeader>
-          <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-            <div>
-              <CardTitle className="flex items-center gap-2">
-                <Gauge className="h-5 w-5 text-primary" />
-                Internet Speedtest
-              </CardTitle>
-              <p className="text-sm text-muted-foreground">
-                Manual and scheduled WAN throughput checks using the host speedtest CLI.
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Button
-                variant="outline"
-                onClick={() => setShowSpeedtestHistory(true)}
-                disabled={speedtestHistory.length === 0}
-              >
-                <History className="h-4 w-4" />
-                History
-              </Button>
-              <Button onClick={runSpeedtest} disabled={speedtestRunning}>
-                {speedtestRunning ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Gauge className="h-4 w-4" />
-                )}
-                {speedtestRunning ? 'Running' : 'Run test'}
-              </Button>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-5">
-          <div className="grid gap-3 md:grid-cols-4">
-            <div className="rounded-xl border border-border/50 bg-muted/20 p-4">
-              <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-                <ArrowDown className="h-3.5 w-3.5 text-success" />
-                Download
-              </div>
-              <p className="mt-2 text-2xl font-bold tabular-nums">
-                {speedtestLoading ? '-' : formatMbps(latestSpeedtest?.downloadMbps)}
-              </p>
-            </div>
-            <div className="rounded-xl border border-border/50 bg-muted/20 p-4">
-              <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-                <ArrowUp className="h-3.5 w-3.5 text-primary" />
-                Upload
-              </div>
-              <p className="mt-2 text-2xl font-bold tabular-nums">
-                {speedtestLoading ? '-' : formatMbps(latestSpeedtest?.uploadMbps)}
-              </p>
-            </div>
-            <div className="rounded-xl border border-border/50 bg-muted/20 p-4">
-              <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-                <Zap className="h-3.5 w-3.5 text-warning" />
-                Ping
-              </div>
-              <p className="mt-2 text-2xl font-bold tabular-nums">
-                {speedtestLoading ? '-' : formatLatency(latestSpeedtest?.pingMs)}
-              </p>
-            </div>
-            <label className="rounded-xl border border-border/50 bg-muted/20 p-4">
-              <span className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-                <CalendarClock className="h-3.5 w-3.5 text-accent" />
-                Schedule
-              </span>
-              <select
-                className="mt-2 w-full bg-transparent text-sm font-semibold text-foreground outline-none"
-                value={speedtestOverview?.settings.scheduleInterval ?? 'off'}
-                onChange={(event) =>
-                  updateSpeedtestSchedule(event.target.value as NetworkSpeedtestScheduleInterval)
-                }
-                disabled={scheduleSaving}
-              >
-                {scheduleOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
-
-          <div className="grid gap-3 text-sm lg:grid-cols-[1fr_auto] lg:items-center">
-            <div className="flex flex-wrap items-center gap-2 text-muted-foreground">
-              <Badge
-                variant={
-                  latestSpeedtest?.status === 'failed'
-                    ? 'destructive'
-                    : speedtestRunning
-                      ? 'secondary'
-                      : 'outline'
-                }
-              >
-                {speedtestRunning
-                  ? 'RUNNING'
-                  : latestSpeedtest?.status
-                    ? latestSpeedtest.status.toUpperCase()
-                    : 'NO RUNS'}
-              </Badge>
-              <span>
-                Last run {formatSpeedtestDate(latestSpeedtest?.finishedAt)}
-                {latestSpeedtest?.trigger ? ` by ${latestSpeedtest.trigger}` : ''}
-              </span>
-              {speedtestOverview?.settings.nextRunAt && (
-                <span>
-                  Next scheduled {formatSpeedtestDate(speedtestOverview.settings.nextRunAt)}
-                </span>
-              )}
-            </div>
-            <div className="flex min-w-0 flex-wrap items-center gap-2 text-sm text-muted-foreground">
-              <span className="truncate">
-                {latestSpeedtest?.serverName || 'Server unavailable'}
-                {latestSpeedtest?.serverLocation ? ` - ${latestSpeedtest.serverLocation}` : ''}
-              </span>
-              {latestSpeedtest?.isp && (
-                <Badge variant="outline" className="max-w-[180px] truncate">
-                  {latestSpeedtest.isp}
-                </Badge>
-              )}
-              {speedtestResultUrl && (
-                <a
-                  className="inline-flex items-center gap-1 text-primary hover:underline"
-                  href={speedtestResultUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  Result
-                  <ExternalLink className="h-3.5 w-3.5" />
-                </a>
-              )}
-            </div>
-          </div>
-
-          {latestSpeedtest?.status === 'failed' && latestSpeedtest.error && (
-            <div className="rounded-xl border border-destructive/20 bg-destructive/5 p-3 text-sm text-destructive">
-              {latestSpeedtest.error}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      <SpeedtestCard
+        overview={speedtestOverview}
+        historyCount={speedtestHistory.length}
+        loading={speedtestLoading}
+        running={speedtestRunning}
+        scheduleSaving={scheduleSaving}
+        onRun={runSpeedtest}
+        onScheduleChange={updateSpeedtestSchedule}
+        onOpenHistory={() => setShowSpeedtestHistory(true)}
+      />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {selectedInterfaces.map((iface) => {
@@ -828,62 +646,11 @@ export default function NetworkPage() {
         </Card>
       </section>
 
-      <Card className="border-border/60">
-        <CardHeader>
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <CardTitle>Network Diagnostics Terminal</CardTitle>
-              <p className="text-sm text-muted-foreground">
-                Run native network tools for deep packet analysis and troubleshooting.
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Button size="sm" variant="outline" onClick={() => setTerminalCommand('ip addr\n')}>
-                ip addr
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => setTerminalCommand('netstat -tpln\n')}
-              >
-                netstat
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => setTerminalCommand('ping -c 4 8.8.8.8\n')}
-              >
-                ping
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => setTerminalCommand('mtr --report google.com\n')}
-              >
-                mtr
-              </Button>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="rounded-2xl border border-border/60 bg-background/80 overflow-hidden shadow-inner">
-            <div className="flex items-center gap-2 border-b border-border/60 px-4 py-3 bg-muted/20">
-              <TerminalSquare className="h-4 w-4 text-primary" />
-              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">
-                Active Shell Session
-              </span>
-              <div className="ml-auto flex gap-1">
-                <div className="w-2 h-2 rounded-full bg-destructive/40" />
-                <div className="w-2 h-2 rounded-full bg-warning/40" />
-                <div className="w-2 h-2 rounded-full bg-success/40" />
-              </div>
-            </div>
-            <div className="h-[400px]">
-              <TerminalUI sessionId={sessionId} initialCommand={terminalCommand} />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      <NetworkDiagnosticsTerminal
+        sessionId={sessionId}
+        command={terminalCommand}
+        onCommandChange={setTerminalCommand}
+      />
 
       <section className="grid gap-6 md:grid-cols-2">
         <NetworkAlerts alerts={snapshot?.alerts} />
