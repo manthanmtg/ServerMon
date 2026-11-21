@@ -56,7 +56,7 @@ function parseLogEntries(payload: unknown): LogEntry[] {
   });
 }
 
-export default function LogsWidget() {
+function LogsWidget() {
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadFailed, setLoadFailed] = useState(false);
@@ -196,3 +196,7 @@ export default function LogsWidget() {
     </div>
   );
 }
+
+// Memoized so the dashboard's frequent metrics SSE ticks do not re-render
+// this widget, whose data only refreshes on its own 10s polling interval.
+export default React.memo(LogsWidget);
