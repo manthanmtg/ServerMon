@@ -66,6 +66,7 @@ export interface AppOperation {
   releaseId?: string;
   commitSha?: string;
   error?: string;
+  errorCode?: string;
   logs: string[];
 }
 
@@ -84,6 +85,7 @@ export interface AcceptedAppOperation {
   completedAt?: string;
   workerId?: string;
   error?: string;
+  errorCode?: string;
 }
 
 export interface AppOperationEventDTO {

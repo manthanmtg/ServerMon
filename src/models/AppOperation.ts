@@ -5,6 +5,14 @@ import type {
   AppV2OperationStatus,
 } from '@/modules/apps/types';
 
+export interface IAppOperationTrackedProcess {
+  token: string;
+  pid: number;
+  startTime?: string;
+  command?: string;
+  trackedAt: Date;
+}
+
 export interface IAppOperation extends Document {
   _id: mongoose.Types.ObjectId;
   operationId: string;
@@ -34,6 +42,8 @@ export interface IAppOperation extends Document {
     generation: number;
     expiresAt?: Date;
     renewedAt?: Date;
+    spawnPending?: boolean;
+    processes?: IAppOperationTrackedProcess[];
   };
   attempts: number;
   maxAttempts: number;
@@ -62,12 +72,25 @@ const RequestedBySchema = new Schema(
   { _id: false }
 );
 
+const TrackedProcessSchema = new Schema(
+  {
+    token: { type: String, required: true },
+    pid: { type: Number, required: true },
+    startTime: { type: String, default: '' },
+    command: { type: String, default: '' },
+    trackedAt: { type: Date, required: true },
+  },
+  { _id: false }
+);
+
 const LeaseSchema = new Schema(
   {
     workerId: { type: String, trim: true },
     generation: { type: Number, required: true, default: 0, min: 0 },
     expiresAt: { type: Date },
     renewedAt: { type: Date },
+    spawnPending: { type: Boolean },
+    processes: { type: [TrackedProcessSchema], default: () => [] },
   },
   { _id: false }
 );

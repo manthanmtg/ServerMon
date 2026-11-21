@@ -58,9 +58,19 @@ Before reverting application code, drain the worker and stop both schedulers. Ke
 
 A lost lease is not proof that a detached build or activation command stopped. An interrupted operation can therefore be marked failed while retaining its exclusive app lock. Its error is `RECOVERY_REQUIRED`; ordinary scheduled checks remain blocked instead of overlapping the old process.
 
-Stop the previous worker's supervised service and verify that its entire process group has exited. If it ran on another host, verify that host too. Inspect the app's current release symlink, manifest and service health before permitting another deployment. A new worker can safely release an interrupted lock automatically when the prior worker recorded a graceful, fully drained stop.
+While an operation runs, the Apps worker records every detached command it spawns (process ID plus Linux process start time, tracked through the operation lease) and marks a spawn window that was not yet tracked. On the next worker recovery pass the lock is released automatically — without operator action — only when all of the following hold:
 
-For an unclean crash, an administrator must release only the inspected operation's lock in MongoDB after the checks above. Obtain the exact operation ID from Apps/logs. In `mongosh`, using the ServerMon database:
+- The previous worker's heartbeat ran on the same host as the recovering worker.
+- No untracked spawn window was left open (a crash between spawning and recording keeps the lock).
+- Every recorded process group is verifiably dead: gone from the host, or its process ID was reused with a different start time.
+
+If a recorded process group is still alive, the previous worker ran on another host, or the evidence is inconclusive, the lock stays held for manual recovery.
+
+#### Releasing the lock with evidence or from the UI
+
+Open the app's deployment history or operation logs. A recovery-required operation shows a warning banner with a **Release operation lock** action. Confirm on the host that the previous worker's service and its entire process group have exited, inspect the app's current release symlink, manifest and service health, then release the lock. Releasing requires an administrator session and an explicit confirmation; it keeps the failure and its history and only clears the exclusive lock.
+
+For hosts where the UI is unavailable, an administrator can release only the inspected operation's lock in MongoDB. Obtain the exact operation ID from Apps/logs. In `mongosh`, using the ServerMon database:
 
 ```javascript
 db.appoperations.findOne(

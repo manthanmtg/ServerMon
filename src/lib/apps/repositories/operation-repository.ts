@@ -107,6 +107,14 @@ interface OperationRecord {
   lease?: {
     workerId?: string;
     generation?: number;
+    spawnPending?: boolean;
+    processes?: Array<{
+      token: string;
+      pid: number;
+      startTime?: string;
+      command?: string;
+      trackedAt?: Date;
+    }>;
   };
   targetReleaseId?: string;
   configSnapshot?: Record<string, unknown>;
@@ -147,6 +155,7 @@ function toAcceptedOperation(record: OperationRecord): AcceptedAppOperation {
     completedAt: record.completedAt?.toISOString(),
     workerId: record.lease?.workerId,
     error: record.error?.message,
+    errorCode: record.error?.code,
   };
 }
 
@@ -332,6 +341,145 @@ export async function recordAppOperationStage(
     });
   }
   return true;
+}
+
+export interface TrackedProcessInput {
+  token: string;
+  pid: number;
+  startTime?: string;
+  command?: string;
+}
+
+interface TrackAppOperationProcessInput {
+  operationId: string;
+  workerId: string;
+  leaseGeneration: number;
+  process: TrackedProcessInput;
+  now?: Date;
+}
+
+interface UntrackAppOperationProcessesInput {
+  operationId: string;
+  workerId: string;
+  leaseGeneration: number;
+  token: string;
+}
+
+interface SetAppOperationSpawnPendingInput {
+  operationId: string;
+  workerId: string;
+  leaseGeneration: number;
+  pending: boolean;
+}
+
+interface ReleaseAppOperationLockInput {
+  operationId: string;
+  reason: string;
+  releasedBy: 'recovery' | 'admin';
+  now?: Date;
+}
+
+function leaseFence(workerId: string, leaseGeneration: number) {
+  return {
+    active: true,
+    status: { $in: ['running', 'cancel_requested'] },
+    'lease.workerId': workerId,
+    'lease.generation': leaseGeneration,
+  };
+}
+
+export async function trackAppOperationProcess(
+  input: TrackAppOperationProcessInput
+): Promise<boolean> {
+  const result = await AppOperation.updateOne(
+    {
+      operationId: input.operationId,
+      ...leaseFence(input.workerId, input.leaseGeneration),
+    },
+    {
+      $push: {
+        'lease.processes': {
+          token: input.process.token,
+          pid: input.process.pid,
+          startTime: input.process.startTime ?? '',
+          command: input.process.command ?? '',
+          trackedAt: input.now ?? new Date(),
+        },
+      },
+    }
+  );
+  return result.matchedCount === 1;
+}
+
+export async function untrackAppOperationProcesses(
+  input: UntrackAppOperationProcessesInput
+): Promise<boolean> {
+  const result = await AppOperation.updateOne(
+    {
+      operationId: input.operationId,
+      ...leaseFence(input.workerId, input.leaseGeneration),
+    },
+    { $pull: { 'lease.processes': { token: input.token } } }
+  );
+  return result.matchedCount === 1;
+}
+
+export async function setAppOperationSpawnPending(
+  input: SetAppOperationSpawnPendingInput
+): Promise<boolean> {
+  const result = await AppOperation.updateOne(
+    {
+      operationId: input.operationId,
+      ...leaseFence(input.workerId, input.leaseGeneration),
+    },
+    { $set: { 'lease.spawnPending': input.pending } }
+  );
+  return result.matchedCount === 1;
+}
+
+export async function releaseAppOperationLock(
+  input: ReleaseAppOperationLockInput
+): Promise<AcceptedAppOperation | null> {
+  const now = input.now ?? new Date();
+  const record = (await AppOperation.findOneAndUpdate(
+    {
+      operationId: input.operationId,
+      active: true,
+      'error.code': 'RECOVERY_REQUIRED',
+    },
+    {
+      $set: {
+        'error.code': WORKER_INTERRUPTED_CODE,
+        'error.message': WORKER_INTERRUPTED_MESSAGE,
+        'error.details.releasedBy': input.releasedBy,
+        'error.details.releaseReason': input.reason,
+        'error.details.releasedAt': now.toISOString(),
+        'lease.processes': [],
+      },
+      $unset: { 'lease.spawnPending': 1 },
+    },
+    { new: true, lean: true }
+  )) as OperationRecord | null;
+
+  if (!record) return null;
+
+  try {
+    await appendAppOperationEvent({
+      operationId: record.operationId,
+      appId: record.appId.toString(),
+      type: 'status',
+      status: 'failed',
+      phase: 'terminal',
+      message: `Operation lock released by ${input.releasedBy}: ${input.reason}`,
+    });
+  } catch (error: unknown) {
+    log.error('Failed to append lock release event', {
+      operationId: record.operationId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+
+  return toAcceptedOperation(record);
 }
 
 export async function finishAppOperationRecord(

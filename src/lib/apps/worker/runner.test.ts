@@ -64,6 +64,7 @@ async function flushPromises(): Promise<void> {
 
 describe('runAppsWorkerOnce', () => {
   const recoverExpiredAppOperationRecord = vi.fn();
+  const autoReleaseRecoveryLock = vi.fn();
   const claimNextAppOperation = vi.fn();
   const renewAppOperationLease = vi.fn();
   const finishAppOperationRecord = vi.fn();
@@ -73,6 +74,7 @@ describe('runAppsWorkerOnce', () => {
     vi.clearAllMocks();
     vi.useRealTimers();
     recoverExpiredAppOperationRecord.mockResolvedValue(null);
+    autoReleaseRecoveryLock.mockResolvedValue(false);
     claimNextAppOperation.mockResolvedValue(null);
     renewAppOperationLease.mockResolvedValue(true);
     finishAppOperationRecord.mockResolvedValue(acceptedOperation());
@@ -89,6 +91,7 @@ describe('runAppsWorkerOnce', () => {
       leaseExpiresAt: () => leaseExpiresAt,
       deadlineAt: () => deadlineAt,
       recoverExpiredAppOperationRecord,
+      autoReleaseRecoveryLock,
       claimNextAppOperation,
       renewAppOperationLease,
       finishAppOperationRecord,
@@ -108,6 +111,7 @@ describe('runAppsWorkerOnce', () => {
       currentWorkerId: 'worker-1',
       now,
     });
+    expect(autoReleaseRecoveryLock).toHaveBeenCalledWith({ operationId: 'op_1' });
     expect(recoverExpiredAppOperationRecord.mock.invocationCallOrder.at(-1)).toBeLessThan(
       claimNextAppOperation.mock.invocationCallOrder[0] ?? Infinity
     );

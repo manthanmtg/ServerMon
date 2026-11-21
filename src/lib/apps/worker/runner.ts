@@ -13,6 +13,7 @@ import {
   renewAppOperationLease,
   recordAppOperationStage,
 } from '../repositories/operation-repository';
+import { autoReleaseAppOperationLock } from '../repositories/operation-recovery';
 import type { AppStageUpdate } from '@/modules/apps/types';
 import { executeLegacyAppOperation } from './legacy-executor';
 
@@ -61,6 +62,7 @@ export interface RunAppsWorkerOnceOptions {
   renewIntervalMs?: number;
   recoveryBatchLimit?: number;
   recoverExpiredAppOperationRecord?: typeof recoverExpiredAppOperationRecord;
+  autoReleaseRecoveryLock?: typeof autoReleaseAppOperationLock;
   claimNextAppOperation?: typeof claimNextAppOperation;
   renewAppOperationLease?: typeof renewAppOperationLease;
   recordAppOperationStage?: typeof recordAppOperationStage;
@@ -84,6 +86,7 @@ export async function runAppsWorkerOnce({
   renewIntervalMs = APPS_OPERATION_LEASE_RENEW_MS,
   recoveryBatchLimit = RECOVERY_BATCH_LIMIT,
   recoverExpiredAppOperationRecord: recover = recoverExpiredAppOperationRecord,
+  autoReleaseRecoveryLock: autoRelease = autoReleaseAppOperationLock,
   claimNextAppOperation: claim = claimNextAppOperation,
   renewAppOperationLease: renew = renewAppOperationLease,
   recordAppOperationStage: recordStage = recordAppOperationStage,
@@ -94,6 +97,7 @@ export async function runAppsWorkerOnce({
   for (let recoveredCount = 0; recoveredCount < recoveryBatchLimit; recoveredCount += 1) {
     const recovered = await recover({ currentWorkerId: workerId, now: now() });
     if (!recovered) break;
+    await autoRelease({ operationId: recovered.id });
   }
 
   const startedAt = now();

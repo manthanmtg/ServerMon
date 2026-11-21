@@ -46,8 +46,12 @@ import {
   findAppOperationByIdempotencyKey,
   finishAppOperationRecord,
   recoverExpiredAppOperationRecord,
+  releaseAppOperationLock,
   renewAppOperationLease,
   recordAppOperationStage,
+  setAppOperationSpawnPending,
+  trackAppOperationProcess,
+  untrackAppOperationProcesses,
 } from './operation-repository';
 
 const createdAt = new Date('2026-07-31T05:00:00.000Z');
@@ -478,6 +482,206 @@ describe('operation repository', () => {
     expect(mockLogError).toHaveBeenCalledWith(
       'Failed to append recovered Apps operation event',
       expect.objectContaining({ operationId: 'op_1', error: 'event store unavailable' })
+    );
+  });
+});
+
+describe('operation process tracking', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockAppendAppOperationEvent.mockResolvedValue(undefined);
+    mockUpdateOne.mockResolvedValue({ matchedCount: 1 });
+  });
+
+  it('tracks a spawned process inside the lease fence', async () => {
+    const now = new Date('2026-07-31T05:04:00.000Z');
+
+    const tracked = await trackAppOperationProcess({
+      operationId: 'op_1',
+      workerId: 'worker-1',
+      leaseGeneration: 2,
+      process: { token: 'tok', pid: 4242, startTime: '567890', command: 'pnpm build' },
+      now,
+    });
+
+    expect(tracked).toBe(true);
+    expect(mockUpdateOne).toHaveBeenCalledWith(
+      expect.objectContaining({
+        operationId: 'op_1',
+        'lease.workerId': 'worker-1',
+        'lease.generation': 2,
+      }),
+      {
+        $push: {
+          'lease.processes': {
+            token: 'tok',
+            pid: 4242,
+            startTime: '567890',
+            command: 'pnpm build',
+            trackedAt: now,
+          },
+        },
+      }
+    );
+  });
+
+  it('untracks processes by command token inside the lease fence', async () => {
+    await untrackAppOperationProcesses({
+      operationId: 'op_1',
+      workerId: 'worker-1',
+      leaseGeneration: 2,
+      token: 'tok',
+    });
+
+    expect(mockUpdateOne).toHaveBeenCalledWith(
+      expect.objectContaining({
+        operationId: 'op_1',
+        'lease.workerId': 'worker-1',
+        'lease.generation': 2,
+      }),
+      { $pull: { 'lease.processes': { token: 'tok' } } }
+    );
+  });
+
+  it('sets and clears the spawn-pending guard inside the lease fence', async () => {
+    await setAppOperationSpawnPending({
+      operationId: 'op_1',
+      workerId: 'worker-1',
+      leaseGeneration: 2,
+      pending: true,
+    });
+
+    expect(mockUpdateOne).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        operationId: 'op_1',
+        'lease.workerId': 'worker-1',
+        'lease.generation': 2,
+      }),
+      { $set: { 'lease.spawnPending': true } }
+    );
+  });
+
+  it('reports false when the lease fence no longer matches', async () => {
+    mockUpdateOne.mockResolvedValue({ matchedCount: 0 });
+
+    const tracked = await trackAppOperationProcess({
+      operationId: 'op_1',
+      workerId: 'worker-1',
+      leaseGeneration: 2,
+      process: { token: 'tok', pid: 4242 },
+    });
+
+    expect(tracked).toBe(false);
+  });
+});
+
+describe('releaseAppOperationLock', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockAppendAppOperationEvent.mockResolvedValue(undefined);
+  });
+
+  it('releases only a recovery-required lock and preserves recovery diagnostics', async () => {
+    const now = new Date('2026-07-31T05:04:00.000Z');
+    mockFindOneAndUpdate.mockResolvedValue(
+      operationDoc({
+        status: 'failed',
+        phase: 'terminal',
+        active: false,
+        completedAt: now,
+        lease: { workerId: 'old-worker', generation: 4 },
+        error: {
+          code: WORKER_INTERRUPTED_CODE,
+          message: WORKER_INTERRUPTED_MESSAGE,
+          details: {
+            previousWorkerId: 'old-worker',
+            leaseGeneration: 4,
+            releasedBy: 'admin',
+            releaseReason: 'verified',
+            releasedAt: now.toISOString(),
+          },
+        },
+      })
+    );
+
+    const released = await releaseAppOperationLock({
+      operationId: 'op_1',
+      reason: 'verified',
+      releasedBy: 'admin',
+      now,
+    });
+
+    expect(mockFindOneAndUpdate).toHaveBeenCalledWith(
+      {
+        operationId: 'op_1',
+        active: true,
+        'error.code': 'RECOVERY_REQUIRED',
+      },
+      {
+        $set: {
+          'error.code': WORKER_INTERRUPTED_CODE,
+          'error.message': WORKER_INTERRUPTED_MESSAGE,
+          'error.details.releasedBy': 'admin',
+          'error.details.releaseReason': 'verified',
+          'error.details.releasedAt': now.toISOString(),
+          'lease.processes': [],
+        },
+        $unset: { 'lease.spawnPending': 1 },
+      },
+      { new: true, lean: true }
+    );
+    expect(mockAppendAppOperationEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        operationId: 'op_1',
+        type: 'status',
+        status: 'failed',
+        phase: 'terminal',
+      })
+    );
+    expect(released).toMatchObject({
+      id: 'op_1',
+      status: 'failed',
+      errorCode: WORKER_INTERRUPTED_CODE,
+    });
+  });
+
+  it('returns null when no recovery-required lock matches', async () => {
+    mockFindOneAndUpdate.mockResolvedValue(null);
+
+    const released = await releaseAppOperationLock({
+      operationId: 'op_1',
+      reason: 'verified',
+      releasedBy: 'admin',
+    });
+
+    expect(released).toBeNull();
+    expect(mockAppendAppOperationEvent).not.toHaveBeenCalled();
+  });
+
+  it('keeps the release terminal when its observability event cannot be appended', async () => {
+    const now = new Date('2026-07-31T05:04:00.000Z');
+    mockFindOneAndUpdate.mockResolvedValue(
+      operationDoc({
+        status: 'failed',
+        phase: 'terminal',
+        active: false,
+        completedAt: now,
+        error: { message: WORKER_INTERRUPTED_MESSAGE },
+      })
+    );
+    mockAppendAppOperationEvent.mockRejectedValue(new Error('event store unavailable'));
+
+    const released = await releaseAppOperationLock({
+      operationId: 'op_1',
+      reason: 'verified',
+      releasedBy: 'admin',
+      now,
+    });
+
+    expect(released?.status).toBe('failed');
+    expect(mockLogError).toHaveBeenCalledWith(
+      'Failed to append lock release event',
+      expect.objectContaining({ operationId: 'op_1' })
     );
   });
 });

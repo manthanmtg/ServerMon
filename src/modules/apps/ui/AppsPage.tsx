@@ -1800,6 +1800,9 @@ export default function AppsPage() {
               [selectedOperation.id]: shouldWrap,
             }));
           }}
+          onLockReleased={() => {
+            void load();
+          }}
           onClose={() => setOperationLogsTarget(null)}
         />
       )}

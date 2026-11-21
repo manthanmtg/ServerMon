@@ -280,7 +280,7 @@ interface ActiveAppOperationDTORecord {
   completedAt?: Date | string;
   releaseId?: string;
   commitSha?: string;
-  error?: { message?: string } | string;
+  error?: { code?: string; message?: string } | string;
 }
 
 function mapAutoUpdate(value: ManagedAppDTORecord['autoUpdate']): AppAutoUpdate {
@@ -330,6 +330,8 @@ function mapV2StatusToLegacyStatus(status: AppV2OperationStatus): AppOperationSt
 
 function mapActiveV2Operation(operation: ActiveAppOperationDTORecord): AppOperation {
   const error = typeof operation.error === 'string' ? operation.error : operation.error?.message;
+  const errorCode =
+    typeof operation.error === 'object' && operation.error ? operation.error.code : undefined;
   const step = operation.phase;
 
   return {
@@ -344,6 +346,7 @@ function mapActiveV2Operation(operation: ActiveAppOperationDTORecord): AppOperat
     releaseId: operation.releaseId,
     commitSha: operation.commitSha,
     error,
+    errorCode,
     logs: [`Operation ${step} in Apps worker`],
   };
 }

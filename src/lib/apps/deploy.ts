@@ -22,11 +22,19 @@ import {
   toSystemdServiceName,
 } from './rendering';
 import { getAppRoot, getReleaseRoot } from './paths';
+import { readProcessStartTime } from './process-evidence';
+import { wrapCommandRunnerWithProcessTracking } from './process-tracking';
+
+export interface CommandSpawnInfo {
+  pid: number;
+  startTime: string | null;
+}
 
 export interface CommandRunRequest {
   command: string;
   cwd?: string;
   signal?: AbortSignal;
+  onSpawn?: (info: CommandSpawnInfo) => void | Promise<void>;
 }
 
 export interface CommandRunResult {
@@ -121,33 +129,41 @@ function throwIfAborted(signal?: AbortSignal): void {
   throw new Error(abortMessage(signal));
 }
 
-export const defaultCommandRunner: CommandRunner = ({ command, cwd, signal }) =>
-  new Promise((resolve) => {
-    if (signal?.aborted) {
-      resolve({ code: 1, output: abortMessage(signal) });
-      return;
-    }
+const rawCommandRunner: CommandRunner = async ({ command, cwd, signal, onSpawn }) => {
+  if (signal?.aborted) {
+    return { code: 1, output: abortMessage(signal) };
+  }
 
-    const child = spawn('/bin/sh', ['-lc', command], {
-      cwd,
-      detached: true,
-      env: appCommandEnv(),
-    });
+  const child = spawn('/bin/sh', ['-lc', command], {
+    cwd,
+    detached: true,
+    env: appCommandEnv(),
+  });
+
+  const killProcessGroup = (signalName: NodeJS.Signals) => {
+    if (!child.pid) return;
+    try {
+      process.kill(-child.pid, signalName);
+    } catch {
+      try {
+        child.kill(signalName);
+      } catch {
+        // Child already exited.
+      }
+    }
+  };
+
+  if (onSpawn && child.pid) {
+    await onSpawn({ pid: child.pid, startTime: readProcessStartTime(child.pid) });
+    if (signal?.aborted) {
+      killProcessGroup('SIGKILL');
+      return { code: 1, output: abortMessage(signal) };
+    }
+  }
+
+  return new Promise((resolve) => {
     const output: string[] = [];
     let killTimer: ReturnType<typeof setTimeout> | undefined;
-
-    const killProcessGroup = (signalName: NodeJS.Signals) => {
-      if (!child.pid) return;
-      try {
-        process.kill(-child.pid, signalName);
-      } catch {
-        try {
-          child.kill(signalName);
-        } catch {
-          // Child already exited.
-        }
-      }
-    };
 
     const abortHandler = () => {
       killProcessGroup('SIGTERM');
@@ -173,6 +189,10 @@ export const defaultCommandRunner: CommandRunner = ({ command, cwd, signal }) =>
       resolve({ code: 1, output: error.message });
     });
   });
+};
+
+export const defaultCommandRunner: CommandRunner =
+  wrapCommandRunnerWithProcessTracking(rawCommandRunner);
 
 const defaultHealthCheck: HealthCheck = async (url, options) => {
   try {

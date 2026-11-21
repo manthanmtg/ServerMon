@@ -9,6 +9,7 @@ import type { ClaimedAppOperation } from '../repositories/operation-repository';
 import type { AppOperationExecutorResult } from './runner';
 import type { AppExecutionContext } from './runner';
 import ManagedApp from '@/models/ManagedApp';
+import { runWithOperationCommandTracking } from '../process-tracking';
 
 function resultFromDeployment(result: {
   status: string;
@@ -30,6 +31,20 @@ function resultFromDeployment(result: {
 }
 
 export async function executeLegacyAppOperation(
+  operation: ClaimedAppOperation,
+  context: AppExecutionContext
+): Promise<AppOperationExecutorResult> {
+  return runWithOperationCommandTracking(
+    {
+      operationId: operation.id,
+      workerId: operation.workerId ?? '',
+      leaseGeneration: operation.leaseGeneration,
+    },
+    () => executeOperation(operation, context)
+  );
+}
+
+async function executeOperation(
   operation: ClaimedAppOperation,
   context: AppExecutionContext
 ): Promise<AppOperationExecutorResult> {

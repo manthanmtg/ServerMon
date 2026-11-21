@@ -63,6 +63,7 @@ function readOperations(value: unknown): ManagedAppDTO['operations'] {
         releaseId: typeof item.releaseId === 'string' ? item.releaseId : undefined,
         commitSha: typeof item.commitSha === 'string' ? item.commitSha : undefined,
         error: typeof item.error === 'string' ? item.error : undefined,
+        errorCode: typeof item.errorCode === 'string' ? item.errorCode : undefined,
         logs: Array.isArray(item.logs)
           ? item.logs.filter((line): line is string => typeof line === 'string')
           : [],
