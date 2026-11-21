@@ -659,7 +659,9 @@ export default function AppsPage() {
       const data: unknown = await response.json();
       if (!response.ok) {
         const message =
-          data && typeof data === 'object' && typeof (data as { error?: unknown }).error === 'string'
+          data &&
+          typeof data === 'object' &&
+          typeof (data as { error?: unknown }).error === 'string'
             ? (data as { error: string }).error
             : 'Failed to load apps settings';
         throw new Error(message);
@@ -1617,11 +1619,7 @@ export default function AppsPage() {
 
       {visibleApps.length > 0 ? (
         <div
-          className={
-            collectionView === 'grid'
-              ? 'grid gap-4 min-[960px]:grid-cols-2'
-              : 'space-y-3'
-          }
+          className={collectionView === 'grid' ? 'grid gap-4 min-[960px]:grid-cols-2' : 'space-y-3'}
         >
           {visibleApps.map((app) => {
             const acceptedOperation = acceptedOperationLocks[app.id];

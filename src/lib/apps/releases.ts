@@ -38,7 +38,8 @@ export interface PruneAppReleasesOptions {
 }
 
 function clampRetention(value: unknown): number {
-  const numeric = typeof value === 'number' && Number.isFinite(value) ? value : DEFAULT_APP_RELEASE_RETENTION;
+  const numeric =
+    typeof value === 'number' && Number.isFinite(value) ? value : DEFAULT_APP_RELEASE_RETENTION;
   return Math.min(
     MAX_APP_RELEASE_RETENTION,
     Math.max(MIN_APP_RELEASE_RETENTION, Math.trunc(numeric))
@@ -47,8 +48,9 @@ function clampRetention(value: unknown): number {
 
 export async function readAppReleaseRetention(): Promise<number> {
   try {
-    const settings = await AppsSettings.findById(APPS_SETTINGS_ID)
-      .lean<{ releaseRetention?: number } | null>();
+    const settings = await AppsSettings.findById(APPS_SETTINGS_ID).lean<{
+      releaseRetention?: number;
+    } | null>();
     return clampRetention(settings?.releaseRetention);
   } catch (error: unknown) {
     log.warn('Failed to read apps settings for release retention', error);
@@ -149,11 +151,8 @@ export async function pruneAppReleases(
 export async function pruneAllAppReleases(): Promise<{ appsPruned: number }> {
   try {
     const retention = await readAppReleaseRetention();
-    const apps = await ManagedApp.find({})
-      .lean<Array<PrunableApp>>();
-    const oversized = apps.filter(
-      (app) => (app.releases?.length ?? 0) > retention
-    );
+    const apps = await ManagedApp.find({}).lean<Array<PrunableApp>>();
+    const oversized = apps.filter((app) => (app.releases?.length ?? 0) > retention);
     let appsPruned = 0;
     for (const app of oversized) {
       const result = await pruneAppReleases(app, { retention });

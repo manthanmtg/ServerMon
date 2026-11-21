@@ -3,13 +3,17 @@ import { mkdir, mkdtemp, rm, stat, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-const { mockAppsSettingsFindById, mockAppOperationFind, mockManagedAppUpdateOne, mockManagedAppFind } =
-  vi.hoisted(() => ({
-    mockAppsSettingsFindById: vi.fn(),
-    mockAppOperationFind: vi.fn(),
-    mockManagedAppUpdateOne: vi.fn(),
-    mockManagedAppFind: vi.fn(),
-  }));
+const {
+  mockAppsSettingsFindById,
+  mockAppOperationFind,
+  mockManagedAppUpdateOne,
+  mockManagedAppFind,
+} = vi.hoisted(() => ({
+  mockAppsSettingsFindById: vi.fn(),
+  mockAppOperationFind: vi.fn(),
+  mockManagedAppUpdateOne: vi.fn(),
+  mockManagedAppFind: vi.fn(),
+}));
 
 vi.mock('@/models/AppsSettings', () => ({
   default: { findById: mockAppsSettingsFindById },
@@ -213,10 +217,9 @@ describe('pruneAppReleases', () => {
   });
 
   it('returns an empty result when the app document is unusable', async () => {
-    const result = await pruneAppReleases(
-      makeApp({ slug: undefined as unknown as string }),
-      { retention: 1 }
-    );
+    const result = await pruneAppReleases(makeApp({ slug: undefined as unknown as string }), {
+      retention: 1,
+    });
     expect(result.removedReleaseIds).toEqual([]);
   });
 });
