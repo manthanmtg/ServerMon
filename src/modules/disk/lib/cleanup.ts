@@ -41,17 +41,18 @@ function isDescendant(parent: string, child: string): boolean {
   return child.startsWith(`${parent}/`);
 }
 
-// System-critical paths that are never deletable in the default cleanup mode.
-// Each entry protects the directory itself and everything inside it. Paths that
-// do not exist on a host are skipped. Everything outside this list is eligible
-// for administrator deletion. Configuring SERVERMON_DISK_CLEANUP_ROOTS replaces
-// this default behavior entirely with a strict allowlist.
-const DEFAULT_PROTECTED_PATHS: readonly string[] = [
+// System-critical directories: the path itself and everything inside it can
+// never be deleted, because removal breaks the operating system or destroys
+// irreplaceable state (package databases, container storage, service data).
+// Paths that do not exist on a host are skipped. Everything outside this list
+// is eligible for administrator deletion. Configuring
+// SERVERMON_DISK_CLEANUP_ROOTS replaces this default behavior entirely with a
+// strict allowlist.
+const PROTECTED_SUBTREES: readonly string[] = [
   '/bin',
   '/boot',
   '/dev',
   '/etc',
-  '/home',
   '/lib',
   '/lib32',
   '/lib64',
@@ -64,11 +65,40 @@ const DEFAULT_PROTECTED_PATHS: readonly string[] = [
   '/sbin',
   '/snap',
   '/sys',
-  '/usr',
+  '/usr/bin',
+  '/usr/games',
+  '/usr/include',
+  '/usr/lib',
+  '/usr/lib32',
+  '/usr/lib64',
+  '/usr/libexec',
+  '/usr/sbin',
+  '/usr/share',
+  '/usr/src',
   '/var/db',
-  '/var/lib',
-  '/var/spool',
+  '/var/lib/apt',
+  '/var/lib/containerd',
+  '/var/lib/docker',
+  '/var/lib/dpkg',
+  '/var/lib/etcd',
+  '/var/lib/incus',
+  '/var/lib/kubelet',
+  '/var/lib/libvirt',
+  '/var/lib/lxd',
+  '/var/lib/mongodb',
+  '/var/lib/mysql',
+  '/var/lib/postgresql',
+  '/var/lib/redis',
+  '/var/lib/rpm',
+  '/var/lib/snapd',
+  '/var/lib/systemd',
+  '/var/spool/cron',
 ];
+
+// Directories whose wholesale deletion is destructive while their contents
+// remain fair game: the entry itself cannot be deleted, everything inside it
+// can.
+const PROTECTED_ENTRIES: readonly string[] = ['/home'];
 
 interface CleanupMatch {
   target: string;
@@ -125,7 +155,7 @@ function getCleanupPath(targetPath: string): CleanupMatch | null {
   // helper pins the allowed filesystem to the target's parent directory.
   const parent = target.slice(0, target.lastIndexOf('/')) || '/';
   if (parent === '/') return null;
-  for (const protectedPath of DEFAULT_PROTECTED_PATHS) {
+  for (const protectedPath of PROTECTED_SUBTREES) {
     if (
       target === protectedPath ||
       isDescendant(protectedPath, target) ||
@@ -134,7 +164,12 @@ function getCleanupPath(targetPath: string): CleanupMatch | null {
       return null;
     }
   }
-  return { target, root: parent, roots: DEFAULT_PROTECTED_PATHS };
+  for (const protectedPath of PROTECTED_ENTRIES) {
+    if (target === protectedPath || isDescendant(target, protectedPath)) {
+      return null;
+    }
+  }
+  return { target, root: parent, roots: [...PROTECTED_SUBTREES, ...PROTECTED_ENTRIES] };
 }
 
 /** Lexical eligibility for display. Live filesystem checks run before prepare and delete. */
