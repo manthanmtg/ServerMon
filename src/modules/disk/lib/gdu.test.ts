@@ -50,7 +50,11 @@ describe('scanDisk', () => {
 
   it('uses gdu from PATH when the override is absent', async () => {
     const output = JSON.stringify([1, 2, metadata, [{ name: '/', dsize: 0, items: 1 }]]);
-    await setFakeExecutable(`process.stdout.write(${JSON.stringify(output)});`, 'gdu');
+    await setFakeExecutable(
+      `if (process.argv[2] === '--version') { process.stdout.write('Version: v5.39.0'); }
+       process.stdout.write(${JSON.stringify(output)});`,
+      'gdu'
+    );
     vi.stubEnv('SERVERMON_GDU_PATH', undefined);
     vi.stubEnv('PATH', [fixtureDir, process.env.PATH].join(path.delimiter));
 

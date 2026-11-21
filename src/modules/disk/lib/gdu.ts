@@ -1,13 +1,18 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
+import {
+  DiskScanError,
+  GDU_INSTALL_HELP,
+  ensureGduExecutable,
+} from './gdu-binary';
+
+export { DiskScanError } from './gdu-binary';
 
 const execFileAsync = promisify(execFile);
 const SCAN_TIMEOUT_MS = 120_000;
 const MAX_OUTPUT_BYTES = 64 * 1024 * 1024;
 const MAX_ENTRIES = 500_000;
 const MAX_DEPTH = 256;
-const GDU_INSTALL_HELP =
-  'Install dundee/gdu v5.39.0 or newer, or set SERVERMON_GDU_PATH to its executable.';
 const INVALID_EXPORT = 'Gdu returned an invalid disk scan. Try rescanning the directory.';
 
 export interface DiskScanNode {
@@ -23,13 +28,6 @@ export interface DiskScanNode {
 export interface DiskScanTree {
   root: DiskScanNode;
   partial: boolean;
-}
-
-export class DiskScanError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'DiskScanError';
-  }
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -179,9 +177,10 @@ function scanCommandError(error: unknown): DiskScanError {
 
 export async function scanDisk(scanPath: string): Promise<DiskScanTree> {
   let stdout: string;
+  const gduExecutable = await ensureGduExecutable();
   try {
     ({ stdout } = await execFileAsync(
-      process.env.SERVERMON_GDU_PATH || 'gdu',
+      gduExecutable,
       [
         '-x',
         '-o',

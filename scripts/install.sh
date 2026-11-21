@@ -827,6 +827,8 @@ if ! runuser -u "$SCRIPT_RUNNER_USER" -- "$SCRIPT_NODE_PATH" --version >/dev/nul
 fi
 install -d -m 0750 -o "$SCRIPT_RUNNER_USER" -g "$SERVICE_USER" /var/lib/servermon-script
 install -d -m 0700 -o "$SERVICE_USER" -g "$SERVICE_USER" /var/lib/servermon/script-runner
+# Managed host binaries (e.g. auto-installed gdu for capacity analysis)
+install -d -m 0755 -o "$SERVICE_USER" -g "$SERVICE_USER" /var/lib/servermon/bin
 if ! id servermon-python &>/dev/null; then
     useradd --system --user-group --no-create-home --home-dir /nonexistent \
         --shell /usr/sbin/nologin servermon-python

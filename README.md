@@ -248,7 +248,7 @@ See [DEPLOY.md](DEPLOY.md#fleet-management-deployment) for the full fleet hub an
 
 ### Disk capacity analysis
 
-Install `dundee/gdu` v5.39.0 or newer on the host running ServerMon. The service looks for `gdu` on its `PATH`. Set `SERVERMON_GDU_PATH` to an absolute executable path if the service uses a different `PATH` or if `gdu` resolves to GNU `du` on macOS. [gdu releases](https://github.com/dundee/gdu/releases)
+ServerMon looks for `gdu` on its `PATH`, verifying each candidate is dundee/gdu v5.39.0 or newer (a `gdu` that resolves to GNU `du`, as installed by Homebrew coreutils on macOS, is skipped). When no usable `gdu` is found, the first capacity scan automatically downloads a pinned, checksum-verified `gdu` v5.39.0 release from GitHub into a managed directory — `/var/lib/servermon/bin` on Linux in production, `~/.servermon/bin` otherwise (override with `SERVERMON_GDU_BIN_DIR`). Set `SERVERMON_GDU_PATH` to an absolute executable path to skip discovery entirely, or `SERVERMON_GDU_AUTO_INSTALL=false` to require a manual install. [gdu releases](https://github.com/dundee/gdu/releases)
 
 In **Disk → Capacity Analysis**, enter a directory and scan. Open folders and use the breadcrumbs to move through the results. Each scan stays on the selected filesystem. To inspect a separate mount, scan its mount path. If a scan hits the size or time limit, scan a narrower directory. Results are held in memory and expire after 20 minutes without a request.
 
