@@ -1,3 +1,4 @@
+import type { PythonEnvironmentSelection } from '@/modules/python-environments/types';
 import mongoose, { Schema, type Model } from 'mongoose';
 import {
   SCRIPT_LANGUAGES,
@@ -11,12 +12,16 @@ import {
   type ScriptSchedule,
 } from '@/modules/script-runner/types';
 
-type StoredDraft = Omit<ScriptDraft, 'language' | 'env' | 'folder' | keyof EnvironmentLinks> & {
+type StoredDraft = Omit<
+  ScriptDraft,
+  'language' | 'env' | 'folder' | 'pythonEnvironmentId' | keyof EnvironmentLinks
+> & {
   language?: ScriptLanguage;
   environmentSeal?: string | null;
 };
 
 export interface ScriptRecord extends StoredDraft, EnvironmentLinks {
+  pythonEnvironmentId?: string | null;
   folder?: string;
   _id: string;
   host: string;
@@ -39,13 +44,14 @@ export interface ScheduleRecord extends Pick<
 }
 
 export interface RunRecord extends StoredDraft {
+  pythonEnvironment?: PythonEnvironmentSelection;
   linkedEnvironmentSeal?: string | null;
   _id: string;
   host: string;
   scriptId?: string;
   requestedBy: string;
   scheduledFor?: Date;
-  status: RunStatus | 'queued_linked';
+  status: RunStatus | 'queued_linked' | 'queued_python';
   createdAt: Date;
   startedAt?: Date;
   finishedAt?: Date;
@@ -114,6 +120,7 @@ const scriptSchema = new Schema<ScriptRecord>(
     folder: String,
     envVarIds: [String],
     envGroupIds: [String],
+    pythonEnvironmentId: String,
     schedule: scheduleSchema,
     retention: retentionSchema,
   },
@@ -121,14 +128,21 @@ const scriptSchema = new Schema<ScriptRecord>(
 );
 scriptSchema.index({ host: 1, envVarIds: 1 });
 scriptSchema.index({ host: 1, envGroupIds: 1 });
+scriptSchema.index({ host: 1, pythonEnvironmentId: 1 });
 scriptSchema.index({ host: 1, title: 1, _id: 1 });
 scriptSchema.index({ host: 1, 'schedule.enabled': 1, 'schedule.nextRunAt': 1 });
 scriptSchema.index({ host: 1, 'schedule.enabled': 1, 'schedule.lastOutcome': 1 });
+
+const pythonSelectionSchema = new Schema<PythonEnvironmentSelection>(
+  { environmentId: String, revisionId: String, name: String, pythonVersion: String },
+  { _id: false }
+);
 
 const runSchema = new Schema<RunRecord>(
   {
     ...draft,
     scriptId: String,
+    pythonEnvironment: pythonSelectionSchema,
     linkedEnvironmentSeal: { type: String, select: false },
     requestedBy: { type: String, required: true },
     scheduledFor: Date,
@@ -150,6 +164,12 @@ runSchema.index({ host: 1, createdAt: -1, _id: -1 });
 runSchema.index({ host: 1, logsPurgedAt: 1, finishedAt: 1 });
 runSchema.index({ host: 1, scriptId: 1, status: 1, scheduledFor: 1 });
 runSchema.index({ host: 1, scriptId: 1, createdAt: -1, _id: -1 });
+runSchema.index({
+  host: 1,
+  'pythonEnvironment.environmentId': 1,
+  status: 1,
+  'pythonEnvironment.revisionId': 1,
+});
 
 const settingsSchema = new Schema<SettingsRecord>(
   {

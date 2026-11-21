@@ -148,6 +148,12 @@ function OutputConsole({
           <p title={run.cwd}>
             <FolderOpen size={13} /> <span>{run.cwd}</span>
           </p>
+          {run.pythonEnvironment && (
+            <p title={`Revision ${run.pythonEnvironment.revisionId}`}>
+              {run.pythonEnvironment.name} · Python {run.pythonEnvironment.pythonVersion} · Revision{' '}
+              {run.pythonEnvironment.revisionId.slice(0, 8)}
+            </p>
+          )}
         </div>
         <RunBadge run={run} />
       </div>

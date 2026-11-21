@@ -170,6 +170,7 @@ export default function SavedScriptsPanel({
         folder,
         envVarIds,
         envGroupIds,
+        pythonEnvironmentId,
       } = await runnerRequest<SavedScript>(`/scripts/${scriptId}`);
       const duplicate = await runnerRequest<SavedScript>('/scripts', {
         method: 'POST',
@@ -184,6 +185,7 @@ export default function SavedScriptsPanel({
           folder,
           envVarIds,
           envGroupIds,
+          pythonEnvironmentId,
         }),
       });
       onChanged();

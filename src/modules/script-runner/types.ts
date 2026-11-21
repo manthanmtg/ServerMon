@@ -1,3 +1,8 @@
+import type {
+  PythonEnvironmentOption,
+  PythonEnvironmentSelection,
+} from '@/modules/python-environments/types';
+
 export const DEFAULT_CWD = '/var/lib/servermon-script';
 export const DEFAULT_TIMEOUT_SECONDS = 900;
 export const DEFAULT_RETENTION_DAYS = 3;
@@ -107,6 +112,7 @@ export type RunStatus =
   | 'interrupted';
 
 export interface ScriptDraft extends EnvironmentLinks {
+  pythonEnvironmentId?: string | null;
   title: string;
   source: string;
   language: ScriptLanguage;
@@ -128,6 +134,7 @@ export type ScriptSummary = Pick<
 >;
 
 export interface ScriptRun {
+  pythonEnvironment?: PythonEnvironmentSelection;
   id: string;
   scriptId?: string;
   title: string;
@@ -171,6 +178,8 @@ export interface RunnerOverview extends ScriptRunnerDefaults {
   supported: boolean;
   runtimes: ScriptLanguage[];
   environmentSupport: boolean;
+  pythonEnvironmentSupport?: boolean;
+  pythonEnvironments?: PythonEnvironmentOption[];
 }
 
 export interface OutputEntry {

@@ -73,6 +73,7 @@ export const scriptInput = z.object({
   folder: folderInput.optional(),
   envVarIds: envVarIdsInput.optional(),
   envGroupIds: envGroupIdsInput.optional(),
+  pythonEnvironmentId: runIdInput.nullable().optional(),
   env: environmentInput.default([]),
   title: z.string().trim().min(1, 'Give your script a name').max(80),
   source: z

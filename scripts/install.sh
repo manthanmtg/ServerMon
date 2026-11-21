@@ -208,10 +208,12 @@ if [ "$UNINSTALL" = "true" ]; then
 
     systemctl stop "$SCRIPT_WORKER_SERVICE_NAME" 2>/dev/null || true
     systemctl disable "$SCRIPT_WORKER_SERVICE_NAME" 2>/dev/null || true
-    systemctl stop 'servermon-script-*.service' 2>/dev/null || true
+    systemctl stop 'servermon-script-*.service' 'servermon-python-*.service' 2>/dev/null || true
     rm -f "/etc/systemd/system/${SCRIPT_WORKER_SERVICE_NAME}.service" \
         /etc/sudoers.d/servermon-script-runner \
-        /usr/local/libexec/servermon-script-control /usr/local/libexec/servermon-script-execute
+        /usr/local/libexec/servermon-script-control /usr/local/libexec/servermon-script-execute \
+        /usr/local/libexec/servermon-python-env-control /usr/local/libexec/servermon-python-env-build \
+        /usr/local/libexec/servermon-uv
     systemctl stop "$APPS_WORKER_SERVICE_NAME" 2>/dev/null || true
     systemctl disable "$APPS_WORKER_SERVICE_NAME" 2>/dev/null || true
     systemctl stop "$SERVICE_NAME" 2>/dev/null || true
@@ -563,6 +565,31 @@ SCRIPT_HELPERS_DIR=$(mktemp -d /usr/local/libexec/.servermon-scripts.XXXXXX)
 trap 'rm -rf -- "$SCRIPT_HELPERS_DIR"' EXIT
 install -o root -g root -m 0755 "${SOURCE_DIR}/scripts/servermon-script-control.sh" "$SCRIPT_HELPERS_DIR/servermon-script-control"
 install -o root -g root -m 0755 "${SOURCE_DIR}/scripts/servermon-script-execute.py" "$SCRIPT_HELPERS_DIR/servermon-script-execute"
+install -o root -g root -m 0755 "${SOURCE_DIR}/scripts/servermon-python-env-control.sh" "$SCRIPT_HELPERS_DIR/servermon-python-env-control"
+install -o root -g root -m 0755 "${SOURCE_DIR}/scripts/servermon-python-env-build.py" "$SCRIPT_HELPERS_DIR/servermon-python-env-build"
+
+# Pin and verify the uv release before staging its executable for the worker.
+UV_VERSION=0.13.9
+case "$(uname -m)" in
+    x86_64)
+        UV_TARGET=uv-x86_64-unknown-linux-gnu
+        UV_SHA256=a7fbaff2b9a271d85c1bdb540941090fd1ce011797b4abeb48e4dcd39c2471d5
+        ;;
+    aarch64|arm64)
+        UV_TARGET=uv-aarch64-unknown-linux-gnu
+        UV_SHA256=0797542018e541a9288855df555c8077eed06f7a47d206362030480e8ecc9f3d
+        ;;
+    *)
+        log_err "Python Environments requires an x86-64 or ARM64 Linux host."
+        exit 1
+        ;;
+esac
+UV_ARCHIVE="$SCRIPT_HELPERS_DIR/$UV_TARGET.tar.gz"
+curl --proto '=https' --proto-redir '=https' --retry 3 --connect-timeout 15 --max-time 120 -fsSL \
+    "https://github.com/astral-sh/uv/releases/download/$UV_VERSION/$UV_TARGET.tar.gz" -o "$UV_ARCHIVE"
+printf '%s  %s\n' "$UV_SHA256" "$UV_ARCHIVE" | sha256sum -c -
+tar -xOzf "$UV_ARCHIVE" "$UV_TARGET/uv" > "$SCRIPT_HELPERS_DIR/servermon-uv"
+chmod 0755 "$SCRIPT_HELPERS_DIR/servermon-uv"
 
 # Prepare new release directory (build happens here to minimize downtime)
 mkdir -p "$RELEASES_DIR"
@@ -800,6 +827,14 @@ if ! runuser -u "$SCRIPT_RUNNER_USER" -- "$SCRIPT_NODE_PATH" --version >/dev/nul
 fi
 install -d -m 0750 -o "$SCRIPT_RUNNER_USER" -g "$SERVICE_USER" /var/lib/servermon-script
 install -d -m 0700 -o "$SERVICE_USER" -g "$SERVICE_USER" /var/lib/servermon/script-runner
+if ! id servermon-python &>/dev/null; then
+    useradd --system --user-group --no-create-home --home-dir /nonexistent \
+        --shell /usr/sbin/nologin servermon-python
+fi
+install -d -m 0755 -o root -g root /var/lib/servermon/python-environments /var/lib/servermon/python-interpreters
+mv -fT "$SCRIPT_HELPERS_DIR/servermon-uv" /usr/local/libexec/servermon-uv
+mv -fT "$SCRIPT_HELPERS_DIR/servermon-python-env-control" /usr/local/libexec/servermon-python-env-control
+mv -fT "$SCRIPT_HELPERS_DIR/servermon-python-env-build" /usr/local/libexec/servermon-python-env-build
 mv -fT "$SCRIPT_HELPERS_DIR/servermon-script-control" /usr/local/libexec/servermon-script-control
 mv -fT "$SCRIPT_HELPERS_DIR/servermon-script-execute" /usr/local/libexec/servermon-script-execute
 
@@ -807,6 +842,8 @@ SCRIPT_SUDOERS_TMP=$(mktemp /etc/sudoers.d/.servermon-script-runner.XXXXXX)
 cat > "$SCRIPT_SUDOERS_TMP" <<SCRIPTEOF
 Defaults!/usr/local/libexec/servermon-script-control !use_pty, !log_input, !log_output
 ${SERVICE_USER} ALL=(root) NOPASSWD: /usr/local/libexec/servermon-script-control
+Defaults!/usr/local/libexec/servermon-python-env-control !use_pty, !log_input, !log_output
+${SERVICE_USER} ALL=(root) NOPASSWD: /usr/local/libexec/servermon-python-env-control
 SCRIPTEOF
 chmod 0440 "$SCRIPT_SUDOERS_TMP"
 if ! visudo -cf "$SCRIPT_SUDOERS_TMP"; then

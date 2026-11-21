@@ -50,6 +50,8 @@ import ScriptRunnerOverviewPanel from './ScriptRunnerOverviewPanel';
 import ScriptRunnerSettingsPanel from './ScriptRunnerSettingsPanel';
 import ScriptSchedulesPanel from './ScriptSchedulesPanel';
 import ScriptStoragePanel from './ScriptStoragePanel';
+import PythonEnvironmentField from './PythonEnvironmentField';
+import type { PythonEnvironmentSelection } from '@/modules/python-environments/types';
 import RunConfiguration, { validConfiguration } from './RunConfiguration';
 import RunConsole, { elapsed, RunBadge } from './RunConsole';
 import RunnerDialog from './RunnerDialog';
@@ -66,6 +68,7 @@ const starter: ScriptDraft = {
   env: [],
   envVarIds: [],
   envGroupIds: [],
+  pythonEnvironmentId: null,
   source:
     '#!/usr/bin/env bash\nset -euo pipefail\n\nprintf "Host: %s\\n" "$(hostname)"\nprintf "Working directory: %s\\n" "$PWD"\nprintf "\\nDisk usage\\n"\ndf -h .\n',
   cwd: DEFAULT_CWD,
@@ -90,6 +93,7 @@ function draftFields({
   env,
   envVarIds,
   envGroupIds,
+  pythonEnvironmentId,
   timeoutSeconds,
 }: ScriptDraft): ScriptDraft {
   return {
@@ -101,6 +105,7 @@ function draftFields({
     env: env ?? [],
     envVarIds: envVarIds ?? [],
     envGroupIds: envGroupIds ?? [],
+    pythonEnvironmentId: pythonEnvironmentId ?? null,
     timeoutSeconds,
   };
 }
@@ -115,7 +120,13 @@ const views = [
   { id: 'settings', label: 'Settings', icon: Settings2 },
 ] as const;
 type View = (typeof views)[number]['id'];
-type Launch = { draft: ScriptDraft; scriptId?: string; rerunOf?: string; linkedEnvKeys?: string[] };
+type Launch = {
+  draft: ScriptDraft;
+  scriptId?: string;
+  rerunOf?: string;
+  linkedEnvKeys?: string[];
+  recordedPythonEnvironment?: PythonEnvironmentSelection;
+};
 type Tab = 'active' | 'history';
 
 function applyDefaults(draft: ScriptDraft, defaults: ScriptRunnerDefaults): ScriptDraft {
@@ -405,7 +416,12 @@ export default function ScriptRunnerPage() {
       const isTemplate =
         current.source === templates[current.language] ||
         (current.language === 'bash' && current.source === starter.source);
-      return { ...current, language, source: isTemplate ? templates[language] : current.source };
+      return {
+        ...current,
+        language,
+        pythonEnvironmentId: language === 'python' ? current.pythonEnvironmentId : null,
+        source: isTemplate ? templates[language] : current.source,
+      };
     });
   }
 
@@ -614,6 +630,7 @@ export default function ScriptRunnerPage() {
       setLaunch({
         rerunOf: snapshot.id,
         linkedEnvKeys: snapshot.linkedEnvKeys,
+        recordedPythonEnvironment: snapshot.pythonEnvironment,
         scriptId: scripts.some((script) => script.id === snapshot.scriptId)
           ? snapshot.scriptId
           : undefined,
@@ -826,6 +843,17 @@ export default function ScriptRunnerPage() {
               </select>
             </label>
           </div>
+          {draft.language === 'python' && (
+            <div className="px-3 pb-3 sm:px-4">
+              <PythonEnvironmentField
+                options={overview?.pythonEnvironments ?? []}
+                value={draft.pythonEnvironmentId}
+                onChange={(pythonEnvironmentId) =>
+                  setDraft((current) => ({ ...current, pythonEnvironmentId }))
+                }
+              />
+            </div>
+          )}
           <div className="sr-code-frame" hidden={editorView !== 'source'}>
             <div className="sr-code-header" data-language={draft.language}>
               <span>
@@ -915,6 +943,9 @@ export default function ScriptRunnerPage() {
           online={hasOnlineWorker}
           runtimes={overview?.runtimes ?? ['bash']}
           environmentSupport={!!overview?.environmentSupport}
+          pythonEnvironmentSupport={overview?.pythonEnvironmentSupport}
+          pythonEnvironments={overview?.pythonEnvironments ?? []}
+          recordedPythonEnvironment={launch.recordedPythonEnvironment}
           variables={variables}
           groups={envGroups}
           recordedKeys={launch.linkedEnvKeys}

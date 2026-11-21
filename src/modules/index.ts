@@ -1,3 +1,4 @@
+import { pythonEnvironmentsModule } from './python-environments/module';
 import { scriptRunnerModule } from './script-runner/module';
 import { Module } from '@/types/module';
 import { healthModule } from './health/module';
@@ -46,6 +47,7 @@ export const coreModules: Module[] = [
   aiAgentsModule,
   aiRunnerModule,
   scriptRunnerModule,
+  pythonEnvironmentsModule,
   networkModule,
   updatesModule,
   cronsModule,

@@ -12,6 +12,8 @@ RUNTIMES = {"bash": "bash", "python": "python3", "node": "node"}
 FILENAMES = {"bash": "script.sh", "python": "script.py", "node": "script.cjs"}
 MAX_PAYLOAD = 1024 * 1024
 NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]{0,127}")
+UUID = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
+PYTHON_ENV_ROOT = Path("/var/lib/servermon/python-environments")
 
 
 def runtimes():
@@ -25,8 +27,15 @@ def read_payload():
         raise ValueError
     parts = iter(payload.split(b"\0"))
     version = next(parts)
-    enhanced = version == b"script-runner-v2"
+    enhanced = version in (b"script-runner-v2", b"script-runner-v3")
     language = os.fsdecode(next(parts)) if enhanced else "bash"
+    python_environment = None
+    if version == b"script-runner-v3":
+        environment_id = os.fsdecode(next(parts))
+        revision_id = os.fsdecode(next(parts))
+        if language != "python" or not UUID.fullmatch(environment_id) or not UUID.fullmatch(revision_id):
+            raise ValueError
+        python_environment = PYTHON_ENV_ROOT / environment_id / revision_id
     cwd = os.fsdecode(next(parts) if enhanced else version)
     argument_count = int(next(parts))
     if not cwd.startswith("/") or not 0 <= argument_count <= 20:
@@ -55,16 +64,24 @@ def read_payload():
     source = next(parts)
     if next(parts, None) is not None:
         raise ValueError
-    return language, cwd, args, env, source
+    return language, cwd, args, env, source, python_environment
 
 
 def execute():
     try:
-        language, cwd, args, env, source = read_payload()
+        language, cwd, args, env, source, python_environment = read_payload()
     except (ValueError, StopIteration):
         sys.exit("Invalid Script Runner launch payload.")
 
-    binary = runtimes().get(language)
+    if python_environment:
+        binary = str(python_environment / "bin" / "python")
+        if not os.access(binary, os.X_OK):
+            sys.exit("The recorded Python environment revision is unavailable.")
+        env["VIRTUAL_ENV"] = str(python_environment)
+        env["PATH"] = str(python_environment / "bin") + os.pathsep + env["PATH"]
+        env.pop("PYTHONHOME", None)
+    else:
+        binary = runtimes().get(language)
     if not binary:
         print("The requested script runtime is not installed.", file=sys.stderr)
         sys.exit(127)
@@ -97,7 +114,7 @@ def execute():
 
 if __name__ == "__main__":
     if sys.argv[1:] == ["--runtimes"]:
-        print("script-runner-v2", *runtimes(), sep="\n")
+        print("script-runner-v2", *runtimes(), "python-environments-v1", sep="\n")
     elif len(sys.argv) == 1:
         execute()
     else:

@@ -1,3 +1,5 @@
+import { resolvePythonRevision } from '@/lib/python-environments/references';
+import type { PythonEnvironmentSelection } from '@/modules/python-environments/types';
 import { randomUUID } from 'node:crypto';
 import { stat } from 'node:fs/promises';
 import { ScriptRunnerRun } from '@/models/ScriptRunner';
@@ -7,7 +9,7 @@ import {
   sealEnvironment,
   partitionRunEnvironment,
 } from '@/lib/script-runner/environment';
-import { readLinkedEnvironment } from '@/lib/script-runner/variables';
+import { readLinkedEnvironment, withLinkMutation } from '@/lib/script-runner/variables';
 import { runRequestInput } from '@/lib/script-runner/schemas';
 import {
   findRun,
@@ -103,33 +105,59 @@ export async function enqueueRun(
     // The launcher validates paths that only the execution account can access.
   }
 
-  try {
-    const run = await ScriptRunnerRun.create({
-      ...storedDraft({
-        title: content.title,
-        source: content.source,
-        args: content.args,
-        cwd,
-        timeoutSeconds,
-        language,
-        env: environment.editable,
-      }),
-      linkedEnvironmentSeal: sealEnvironment(environment.linked),
-      scriptId,
-      requestedBy,
-      scheduledFor,
-      host: runnerHost,
-      _id: id,
-      // Earlier workers only claim 'queued' and cannot execute linked environments.
-      status: environment.linked.length ? 'queued_linked' : 'queued',
-      createdAt: new Date(),
-    });
-    return run;
-  } catch (error) {
-    if (!(error && typeof error === 'object' && 'code' in error && error.code === 11000))
-      throw error;
-    const run = await findRun(id).lean();
-    if (!run) throw new RunQueueError('The run identifier is already in use.', 409);
-    return run;
+  const { title, source, args } = content;
+
+  async function persist(pythonEnvironment?: PythonEnvironmentSelection) {
+    try {
+      const run = await ScriptRunnerRun.create({
+        ...storedDraft({
+          title,
+          source,
+          args,
+          cwd,
+          timeoutSeconds,
+          language,
+          env: environment.editable,
+        }),
+        pythonEnvironment,
+        linkedEnvironmentSeal: sealEnvironment(environment.linked),
+        scriptId,
+        requestedBy,
+        scheduledFor,
+        host: runnerHost,
+        _id: id,
+        // Earlier workers only claim 'queued' and cannot execute linked environments.
+        status: pythonEnvironment
+          ? 'queued_python'
+          : environment.linked.length
+            ? 'queued_linked'
+            : 'queued',
+        createdAt: new Date(),
+      });
+      return run;
+    } catch (error) {
+      if (!(error && typeof error === 'object' && 'code' in error && error.code === 11000))
+        throw error;
+      const run = await findRun(id).lean();
+      if (!run) throw new RunQueueError('The run identifier is already in use.', 409);
+      return run;
+    }
   }
+
+  const recorded = previousRun?.pythonEnvironment;
+  const environmentId = previousRun
+    ? recorded?.environmentId
+    : draft?.pythonEnvironmentId === undefined
+      ? script?.pythonEnvironmentId
+      : draft.pythonEnvironmentId;
+  if (!environmentId) return persist();
+  if (language !== 'python')
+    throw new RunQueueError('Managed environments are available for Python scripts.', 422);
+  if (capabilities.protocol < 3)
+    throw new RunQueueError('Upgrade the Linux script worker to use Python environments.', 503);
+  return withLinkMutation(async () => {
+    const duplicate = await findRun(id).lean();
+    if (duplicate) return duplicate;
+    return persist(await resolvePythonRevision(environmentId, recorded?.revisionId));
+  });
 }

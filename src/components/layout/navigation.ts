@@ -71,6 +71,7 @@ export const navGroups: NavGroup[] = [
       { label: 'AI Agents', href: '/ai-agents', icon: Bot },
       { label: 'AI Runner', href: '/ai-runner', icon: Zap },
       { label: 'Scripts', href: '/scripts', icon: SquareTerminal },
+      { label: 'Python Environments', href: '/python-environments', icon: Boxes },
       { label: 'Crons', href: '/crons', icon: Clock },
       { label: 'Ports', href: '/ports', icon: Cable },
       { label: 'Hardware', href: '/hardware', icon: Cpu },

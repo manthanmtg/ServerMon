@@ -2,6 +2,10 @@
 
 import { useState, type FormEvent } from 'react';
 import { Play, SquareTerminal } from 'lucide-react';
+import type {
+  PythonEnvironmentOption,
+  PythonEnvironmentSelection,
+} from '@/modules/python-environments/types';
 import { Button } from '@/components/ui/button';
 import {
   RUNNER_USER,
@@ -14,6 +18,7 @@ import {
 import { errorMessage } from './client';
 import RunConfiguration, { validConfiguration } from './RunConfiguration';
 import RunnerDialog from './RunnerDialog';
+import PythonEnvironmentField from './PythonEnvironmentField';
 
 export default function LaunchDialog({
   draft,
@@ -21,6 +26,9 @@ export default function LaunchDialog({
   online,
   runtimes,
   environmentSupport,
+  pythonEnvironmentSupport,
+  pythonEnvironments,
+  recordedPythonEnvironment,
   variables,
   groups,
   recordedKeys,
@@ -33,6 +41,9 @@ export default function LaunchDialog({
   online: boolean;
   runtimes: ScriptLanguage[];
   environmentSupport: boolean;
+  pythonEnvironmentSupport?: boolean;
+  pythonEnvironments: PythonEnvironmentOption[];
+  recordedPythonEnvironment?: PythonEnvironmentSelection;
   variables: SavedEnvVariable[];
   groups: SavedEnvGroup[];
   recordedKeys?: string[];
@@ -49,13 +60,15 @@ export default function LaunchDialog({
     ? 'The Linux script worker is offline.'
     : !runtimes.includes(settings.language)
       ? `${runtime.label} is unavailable on this worker.`
-      : (settings.env.length > 0 ||
-            !!settings.envVarIds?.length ||
-            !!settings.envGroupIds?.length ||
-            !!recordedKeys?.length) &&
-          !environmentSupport
-        ? 'Upgrade the Linux script worker to use environment variables.'
-        : '';
+      : (settings.pythonEnvironmentId || recordedPythonEnvironment) && !pythonEnvironmentSupport
+        ? 'Upgrade the Linux script worker to use Python environments.'
+        : (settings.env.length > 0 ||
+              !!settings.envVarIds?.length ||
+              !!settings.envGroupIds?.length ||
+              !!recordedKeys?.length) &&
+            !environmentSupport
+          ? 'Upgrade the Linux script worker to use environment variables.'
+          : '';
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -83,6 +96,17 @@ export default function LaunchDialog({
           <code>{RUNNER_USER}</code>
         </div>
         <fieldset disabled={busy} className="sr-launch-fields">
+          {settings.language === 'python' && (
+            <PythonEnvironmentField
+              options={pythonEnvironments}
+              value={settings.pythonEnvironmentId}
+              onChange={(pythonEnvironmentId) =>
+                setSettings((current) => ({ ...current, pythonEnvironmentId }))
+              }
+              replay={!canSave}
+              recorded={recordedPythonEnvironment}
+            />
+          )}
           <RunConfiguration
             value={settings}
             onChange={(configuration) =>

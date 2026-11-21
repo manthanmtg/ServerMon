@@ -84,8 +84,15 @@ describe('coreModules registry', () => {
     });
   });
 
-  it('includes exactly 30 modules', () => {
-    expect(coreModules).toHaveLength(30);
+  it('registers Python Environments and its page', () => {
+    expect(coreModules.find((module) => module.id === 'python-environments')).toMatchObject({
+      routes: [{ path: '/python-environments' }],
+      widgets: [{ component: 'PythonEnvironmentsWidget' }],
+    });
+  });
+
+  it('includes exactly 31 modules', () => {
+    expect(coreModules).toHaveLength(31);
   });
 
   it('every module with widgets has valid widget objects', () => {

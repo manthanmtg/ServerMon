@@ -1,3 +1,4 @@
+import { PythonEnvironmentError } from '@/lib/python-environments/requirements';
 import { z } from 'zod';
 import { isObjectIdOrHexString } from 'mongoose';
 import User from '@/models/User';
@@ -58,6 +59,7 @@ export async function authorized(
     return await action(actor);
   } catch (error) {
     if (
+      error instanceof PythonEnvironmentError ||
       error instanceof RequestError ||
       error instanceof LinkedVariableError ||
       error instanceof RunQueueError

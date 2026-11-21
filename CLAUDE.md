@@ -333,6 +333,13 @@ Concise map of major directories, commands, and key files. Update this section w
 - `src/models/ScriptRunner.ts` — saved scripts with schedule state, run snapshots, variables, variable groups, and worker settings
 - `src/app/api/modules/script-runner/` and `src/modules/script-runner/` — administrator-only script, schedule, run, variable, variable group, and settings endpoints and views
 
+### Python Environments
+
+- `src/modules/python-environments/` and `src/app/python-environments/` — inventory, dependency editor, revision activity, and module registration
+- `src/lib/python-environments/` and `src/models/PythonEnvironment.ts` — host-scoped build state, interpreter discovery, revision promotion, rollback, and retention
+- `src/app/api/modules/python-environments/` — authenticated environment operations under the Script Runner administrator guard
+- `scripts/servermon-python-env-control.sh` and `scripts/servermon-python-env-build.py` — isolated Linux dependency builds and revision publication under the Script Runner worker
+
 ### Crons Module
 
 - `src/lib/crons/service.ts` — cron discovery, schedule calculation, create/update/delete actions, manual run tracking, and mock-mode support for tests and non-host environments

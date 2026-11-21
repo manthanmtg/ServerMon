@@ -28,7 +28,7 @@ const PROBE_MS = 60_000;
 const SCHEDULE_POLL_MS = 5000;
 
 type TerminalResult = Pick<RunRecord, 'exitCode' | 'signal' | 'message' | 'outputTruncated'> & {
-  status: Exclude<RunRecord['status'], 'queued' | 'queued_linked' | 'running'>;
+  status: Exclude<RunRecord['status'], 'queued' | 'queued_linked' | 'queued_python' | 'running'>;
   finishedAt: string;
 };
 
@@ -80,7 +80,11 @@ async function executeRun(run: RunRecord, task: Task, capabilities: RunnerCapabi
     );
     return;
   }
-  if (!capabilities.runtimes.includes(language) || (env.length > 0 && capabilities.protocol < 2)) {
+  if (
+    !capabilities.runtimes.includes(language) ||
+    (env.length > 0 && capabilities.protocol < 2) ||
+    (run.pythonEnvironment && capabilities.protocol < 3)
+  ) {
     await persistResult(
       id,
       finishResult({
@@ -251,7 +255,15 @@ export async function runWorker(signal: AbortSignal) {
       free--
     ) {
       const run = await ScriptRunnerRun.findOneAndUpdate(
-        { host: runnerHost, status: { $in: QUEUED_STATUSES } },
+        {
+          host: runnerHost,
+          status: {
+            $in:
+              capabilities.protocol >= 3
+                ? QUEUED_STATUSES
+                : QUEUED_STATUSES.filter((status) => status !== 'queued_python'),
+          },
+        },
         { $set: { status: 'running', startedAt: new Date() } },
         { sort: { createdAt: 1, _id: 1 }, returnDocument: 'after' }
       )

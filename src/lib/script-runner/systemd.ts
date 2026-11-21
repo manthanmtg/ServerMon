@@ -1,5 +1,6 @@
 import { execFile, spawn } from 'node:child_process';
 import { promisify } from 'node:util';
+import type { PythonEnvironmentSelection } from '@/modules/python-environments/types';
 import {
   SCRIPT_LANGUAGES,
   type ScriptDraft,
@@ -11,16 +12,22 @@ const SUDO_PATH = '/usr/bin/sudo';
 const CONTROL_PATH = '/usr/local/libexec/servermon-script-control';
 
 type LaunchPayload = Pick<ScriptDraft, 'cwd' | 'args' | 'source'> &
-  Partial<Pick<ScriptDraft, 'language' | 'env'>>;
+  Partial<Pick<ScriptDraft, 'language' | 'env'>> & {
+    pythonEnvironment?: PythonEnvironmentSelection;
+  };
 
 export function encodeLaunch(
-  { cwd, args, source, language = 'bash', env = [] }: LaunchPayload,
+  { cwd, args, source, language = 'bash', env = [], pythonEnvironment }: LaunchPayload,
   protocol = 2
 ) {
+  if (pythonEnvironment && (protocol < 3 || language !== 'python')) {
+    throw new Error('This launcher does not support the selected Python environment.');
+  }
   if (protocol === 1) return [cwd, String(args.length), ...args, source].join('\0');
   return [
-    'script-runner-v2',
+    pythonEnvironment ? 'script-runner-v3' : 'script-runner-v2',
     language,
+    ...(pythonEnvironment ? [pythonEnvironment.environmentId, pythonEnvironment.revisionId] : []),
     cwd,
     String(args.length),
     ...args,
@@ -39,7 +46,7 @@ export function parseRunnerProbe(output: string): RunnerCapabilities {
   const [header, ...available] = output.trim().split(/\r?\n/);
   if (header !== 'script-runner-v2') return { protocol: 1, runtimes: ['bash'] };
   return {
-    protocol: 2,
+    protocol: available.includes('python-environments-v1') ? 3 : 2,
     runtimes: SCRIPT_LANGUAGES.filter((language) => available.includes(language)),
   };
 }

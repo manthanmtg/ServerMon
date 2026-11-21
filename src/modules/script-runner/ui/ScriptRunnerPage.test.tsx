@@ -442,3 +442,52 @@ describe('Script Runner console selection', () => {
     expect(screen.queryByRole('region', { name: 'Script output' })).not.toBeInTheDocument();
   });
 });
+
+it('offers managed environments as soon as Python is selected and carries the choice into the run', async () => {
+  const environmentId = '81d822e3-eeb2-4afe-a59b-c5cc10521317';
+  const launched: ScriptRun = {
+    ...active,
+    id: 'python-run',
+    status: 'queued',
+    language: 'python',
+    pythonEnvironment: {
+      environmentId,
+      name: 'Weather Bot',
+      revisionId: 'queued-revision',
+      pythonVersion: '3.12.16',
+    },
+  };
+  overview = {
+    ...overview,
+    runtimes: ['bash', 'python'],
+    pythonEnvironmentSupport: true,
+    pythonEnvironments: [{ id: environmentId, name: 'Weather Bot', pythonVersion: '3.12.16' }],
+  };
+  const fetchRun = vi.fn(async (url: string, options?: RequestInit) => {
+    if (url.endsWith('/runs') && options?.method === 'POST') {
+      overview = { ...overview, active: [...overview.active, launched] };
+      return Response.json(launched);
+    }
+    return Response.json(overview);
+  });
+  vi.stubGlobal('fetch', fetchRun);
+
+  render(<ScriptRunnerPage />);
+  await screen.findByText('Worker online');
+  fireEvent.click(screen.getByRole('button', { name: 'Workspace' }));
+  expect(screen.queryByLabelText('Python environment')).not.toBeInTheDocument();
+  fireEvent.change(screen.getByLabelText('Script runtime'), { target: { value: 'python' } });
+  fireEvent.change(screen.getByLabelText('Python environment'), {
+    target: { value: environmentId },
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'Configure run' }));
+  const dialog = within(screen.getByRole('dialog', { name: 'Configure run' }));
+  expect(dialog.getByLabelText('Python environment')).toHaveValue(environmentId);
+  fireEvent.click(dialog.getByRole('button', { name: 'Start run' }));
+  expect(await screen.findByText(/Weather Bot · Python 3\.12\.16 · Revision/)).toBeVisible();
+  const request = fetchRun.mock.calls.find(([url]) => url.endsWith('/runs'))?.[1];
+  expect(JSON.parse(String(request?.body))).toMatchObject({
+    language: 'python',
+    pythonEnvironmentId: environmentId,
+  });
+});

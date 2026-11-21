@@ -418,6 +418,31 @@ function checkAppsWorkerContract(): void {
 function checkScriptRunnerContract(): void {
   const install = 'scripts/install.sh';
   requireBashSyntax('scripts/servermon-script-control.sh');
+  requireBashSyntax('scripts/servermon-python-env-control.sh');
+  for (const script of ['servermon-python-env-control.sh', 'servermon-python-env-build.py']) {
+    requireBefore(
+      install,
+      `scripts/${script}`,
+      'chown -R "${SERVICE_USER}:${SERVICE_USER}" "$NEW_RELEASE_DIR"',
+      'privileged Python build helpers must be staged before the release is handed to the service user'
+    );
+  }
+  requireBefore(
+    install,
+    'sha256sum -c -',
+    'tar -xOzf "$UV_ARCHIVE"',
+    'installer must verify the pinned uv archive before extracting it'
+  );
+  requireContains(
+    install,
+    '/usr/local/libexec/servermon-uv',
+    'installer must publish the checked uv executable for the Python worker'
+  );
+  requireContains(
+    'src/workers/script-runner-worker.ts',
+    'runPythonEnvironments(controller.signal)',
+    'Script Runner worker must supervise Python environment operations'
+  );
   for (const script of ['servermon-script-control.sh', 'servermon-script-execute.py']) {
     requireContains(
       install,

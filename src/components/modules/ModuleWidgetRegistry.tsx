@@ -51,6 +51,13 @@ const ScriptRunnerWidget = dynamic(() => import('@/modules/script-runner/ui/Scri
   loading: WidgetLoader,
 });
 
+const PythonEnvironmentsWidget = dynamic(
+  () => import('@/modules/python-environments/ui/PythonEnvironmentsWidget'),
+  {
+    loading: WidgetLoader,
+  }
+);
+
 const NetworkWidget = dynamic(() => import('@/modules/network/ui/NetworkWidget'), {
   loading: WidgetLoader,
 });
@@ -133,6 +140,7 @@ const widgetMap: Record<
   AIAgentsWidget: { component: AIAgentsWidget, name: 'AI Agents' },
   AIRunnerWidget: { component: AIRunnerWidget, name: 'AI Runner' },
   ScriptRunnerWidget: { component: ScriptRunnerWidget, name: 'Script Runner' },
+  PythonEnvironmentsWidget: { component: PythonEnvironmentsWidget, name: 'Python Environments' },
   NetworkWidget: { component: NetworkWidget, name: 'Network Usage' },
   UpdateWidget: { component: UpdateWidget, name: 'System Updates' },
   CronsWidget: { component: CronsWidget, name: 'Cron Jobs' },

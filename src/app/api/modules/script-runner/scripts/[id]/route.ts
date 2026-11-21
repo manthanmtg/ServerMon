@@ -1,9 +1,10 @@
+import { resolvePythonRevision } from '@/lib/python-environments/references';
 import { openEnvironment } from '@/lib/script-runner/environment';
 import { validateLinkedEnvironment, withLinkMutation } from '@/lib/script-runner/variables';
 import { z } from 'zod';
 import { runIdInput, scriptFolderPatchInput, scriptPatchInput } from '@/lib/script-runner/schemas';
 import { findScript, scriptResponse, scriptSummary, storedDraft } from '@/lib/script-runner/store';
-import { authorized, body, data, failure, type ById } from '../../_shared';
+import { authorized, body, data, failure, RequestError, type ById } from '../../_shared';
 
 export const dynamic = 'force-dynamic';
 
@@ -29,6 +30,16 @@ export function PATCH(request: Request, { params }: ById) {
     return withLinkMutation(async () => {
       const current = await findScript(id).select('+environmentSeal').lean();
       if (!current) return failure('Script not found.', 404);
+      const pythonEnvironmentId =
+        draft.pythonEnvironmentId === undefined
+          ? current.pythonEnvironmentId
+          : draft.pythonEnvironmentId;
+      if (pythonEnvironmentId) {
+        if ((draft.language ?? current.language) !== 'python') {
+          throw new RequestError('Managed environments are available for Python scripts.', 422);
+        }
+        await resolvePythonRevision(pythonEnvironmentId);
+      }
       await validateLinkedEnvironment(
         {
           envVarIds: draft.envVarIds ?? current.envVarIds,
