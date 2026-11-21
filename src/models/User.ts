@@ -29,7 +29,7 @@ export const UserZodSchema = z.object({
 type IUserDTO = z.infer<typeof UserZodSchema>;
 
 // Mongoose Interface
-export interface IUser extends Document, Omit<IUserDTO, 'createdAt' | 'updatedAt'> {
+interface IUser extends Document, Omit<IUserDTO, 'createdAt' | 'updatedAt'> {
   _id: mongoose.Types.ObjectId;
 }
 

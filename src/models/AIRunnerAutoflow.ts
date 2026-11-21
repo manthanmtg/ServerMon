@@ -1,7 +1,7 @@
 import mongoose, { Document, Model, Schema } from 'mongoose';
 import type { AIRunnerAutoflowStatus, AIRunnerAutoflowItemStatus } from '@/modules/ai-runner/types';
 
-export interface IAIRunnerAutoflowItem {
+interface IAIRunnerAutoflowItem {
   _id?: mongoose.Types.ObjectId;
   name: string;
   promptId?: mongoose.Types.ObjectId;
