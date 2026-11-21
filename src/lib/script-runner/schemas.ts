@@ -78,7 +78,7 @@ export const scriptInput = z.object({
   title: z.string().trim().min(1, 'Give your script a name').max(80),
   source: z
     .string()
-    .max(65_536)
+    .max(256 * 1024)
     .refine((value) => value.trim() !== '' && !value.includes('\0'), 'Enter a script')
     .transform((value) => value.replace(/\r\n/g, '\n')),
   cwd: directoryInput,
