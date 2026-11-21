@@ -244,7 +244,7 @@ const MemoryTopProcessesTable = React.memo(function MemoryTopProcessesTable({
                     <button
                       type="button"
                       onClick={() => onKillProcess(proc.pid)}
-                      className="min-h-[44px] min-w-[44px] p-2 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-all opacity-0 group-hover:opacity-100"
+                      className="min-h-[44px] min-w-[44px] p-2 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-all opacity-100 sm:opacity-0 sm:group-hover:opacity-100 focus-visible:opacity-100"
                       title="Terminate Process"
                       aria-label={`Terminate process ${proc.name}`}
                     >
