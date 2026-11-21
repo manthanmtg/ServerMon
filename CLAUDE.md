@@ -253,9 +253,10 @@ Concise map of major directories, commands, and key files. Update this section w
 
 ### Disk Module
 
-- `src/app/api/modules/disk/` — disk routes for hardware health, scan, and settings; `health/cache.ts` centralizes short-lived health result caching
+- `src/app/api/modules/disk/` — disk routes for hardware health, settings, and the capacity explorer; `health/cache.ts` centralizes short-lived health result caching
 - `src/models/DiskSettings.ts` — persisted Disk module settings
-- `src/modules/disk/` — disk module definition, page, widget, settings modal, hardware health panel, and focused UI components (`DiskSummaryCards`, `IoThroughputChart`) with colocated Vitest coverage
+- `src/modules/disk/` — disk module definition, page, widget, settings modal, hardware health panel, and focused UI components including the Capacity Analysis explorer
+- `src/modules/disk/lib/` and `src/app/api/modules/disk/explorer/` — background `gdu` scans, paged directory listings, and confirmed administrator cleanup inside configured directories
 - `src/app/disk/` — Disk module page route and route-level tests
 
 ### Hardware Module

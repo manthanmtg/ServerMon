@@ -246,6 +246,14 @@ Common optional controls:
 
 See [DEPLOY.md](DEPLOY.md#fleet-management-deployment) for the full fleet hub and agent environment variables.
 
+### Disk capacity analysis
+
+Install `dundee/gdu` v5.39.0 or newer on the host running ServerMon. The service looks for `gdu` on its `PATH`. Set `SERVERMON_GDU_PATH` to an absolute executable path if the service uses a different `PATH` or if `gdu` resolves to GNU `du` on macOS. [gdu releases](https://github.com/dundee/gdu/releases)
+
+In **Disk → Capacity Analysis**, enter a directory and scan. Open folders and use the breadcrumbs to move through the results. Each scan stays on the selected filesystem. To inspect a separate mount, scan its mount path. If a scan hits the size or time limit, scan a narrower directory. Results are held in memory and expire after 20 minutes without a request.
+
+Deletion is disabled until you configure `SERVERMON_DISK_CLEANUP_ROOTS` and restart ServerMon. Set it to a JSON list of canonical directories you control, for example `'["/srv/app/cache","/srv/build-artifacts"]'`. Administrators can then confirm permanent deletion of files and folders inside those directories. The cleanup directories themselves are protected. Deletion uses `python3` and runs with the ServerMon service account's filesystem permissions. Choose directories whose contents and parent paths are controlled by trusted local users.
+
 ---
 
 ## Tech Stack
