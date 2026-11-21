@@ -1,11 +1,13 @@
 import mongoose, { Schema, type Model } from 'mongoose';
 import {
   SCRIPT_LANGUAGES,
+  type CalendarSchedule,
   type EnvironmentLinks,
   type RunStatus,
   type ScriptDraft,
   type ScriptLanguage,
   type ScriptRunnerDefaults,
+  type ScriptRetention,
   type ScriptSchedule,
 } from '@/modules/script-runner/types';
 
@@ -20,12 +22,15 @@ export interface ScriptRecord extends StoredDraft, EnvironmentLinks {
   host: string;
   updatedAt: Date;
   schedule?: ScheduleRecord;
+  retention?: ScriptRetention;
 }
 
 export interface ScheduleRecord extends Pick<
   ScriptSchedule,
-  'intervalMinutes' | 'enabled' | 'lastOutcome' | 'lastError'
+  'enabled' | 'lastOutcome' | 'lastError'
 > {
+  intervalMinutes?: number;
+  calendar?: CalendarSchedule;
   requestedBy: string;
   nextRunAt?: Date;
   lastAttemptAt?: Date;
@@ -62,6 +67,7 @@ export interface SettingsRecord extends Partial<ScriptRunnerDefaults> {
   workerLinkedEnvironmentId?: string;
   linkMutationId?: string;
   linkMutationUntil?: Date;
+  historyPruneVersion?: number;
 }
 
 const draft = {
@@ -76,9 +82,15 @@ const draft = {
   timeoutSeconds: { type: Number, required: true },
 };
 
+const calendarSchema = new Schema<CalendarSchedule>(
+  { frequency: { type: String, enum: ['daily', 'weekdays'] }, time: String, timeZone: String },
+  { _id: false }
+);
+
 const scheduleSchema = new Schema<ScheduleRecord>(
   {
-    intervalMinutes: { type: Number, required: true },
+    intervalMinutes: Number,
+    calendar: calendarSchema,
     enabled: { type: Boolean, required: true },
     requestedBy: { type: String, required: true },
     nextRunAt: Date,
@@ -91,6 +103,11 @@ const scheduleSchema = new Schema<ScheduleRecord>(
   { _id: false }
 );
 
+const retentionSchema = new Schema<ScriptRetention>(
+  { logRetentionDays: Number, historyRetentionDays: Number, maxHistoryRuns: Number },
+  { _id: false }
+);
+
 const scriptSchema = new Schema<ScriptRecord>(
   {
     ...draft,
@@ -98,6 +115,7 @@ const scriptSchema = new Schema<ScriptRecord>(
     envVarIds: [String],
     envGroupIds: [String],
     schedule: scheduleSchema,
+    retention: retentionSchema,
   },
   { timestamps: true, versionKey: false }
 );
@@ -131,6 +149,7 @@ runSchema.index({ host: 1, status: 1, createdAt: 1, _id: 1 });
 runSchema.index({ host: 1, createdAt: -1, _id: -1 });
 runSchema.index({ host: 1, logsPurgedAt: 1, finishedAt: 1 });
 runSchema.index({ host: 1, scriptId: 1, status: 1, scheduledFor: 1 });
+runSchema.index({ host: 1, scriptId: 1, createdAt: -1, _id: -1 });
 
 const settingsSchema = new Schema<SettingsRecord>(
   {
@@ -149,6 +168,7 @@ const settingsSchema = new Schema<SettingsRecord>(
     workerLinkedEnvironmentId: String,
     linkMutationId: { type: String, select: false },
     linkMutationUntil: { type: Date, select: false },
+    historyPruneVersion: Number,
   },
   { versionKey: false }
 );

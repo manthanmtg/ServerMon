@@ -13,6 +13,9 @@ import {
 } from '@/app/api/modules/script-runner/env-groups/[id]/route';
 import { DELETE as deleteVariable } from '@/app/api/modules/script-runner/env-vars/[id]/route';
 import { POST as createScript } from '@/app/api/modules/script-runner/scripts/route';
+import { PUT as putSchedule } from '@/app/api/modules/script-runner/schedules/[id]/route';
+import { GET as readStorage } from '@/app/api/modules/script-runner/storage/route';
+import { PUT as putRetention } from '@/app/api/modules/script-runner/storage/[id]/route';
 import User from '@/models/User';
 import {
   ScriptRunnerRun,
@@ -25,7 +28,7 @@ import { openEnvironment, sealVariable } from './environment';
 import { enqueueRun } from './queue';
 import { pruneRuns } from './retention';
 import { enqueueDueSchedules } from './schedules';
-import { outputPath, resultPath, runnerHost, storeScript } from './store';
+import { outputPath, overview, resultPath, runnerHost, storeScript } from './store';
 import { runWorker } from './worker';
 import { saveEnvGroup } from './variables';
 
@@ -343,6 +346,141 @@ it.skipIf(!fixture.uri)(
       if (mongoose.connection.readyState === 1) await mongoose.connection.dropDatabase();
       await mongoose.disconnect();
       vi.unstubAllEnvs();
+    }
+  }
+);
+
+it.skipIf(!fixture.uri)(
+  'queues calendar schedules and applies tighter per-script storage limits',
+  async () => {
+    fixture.dbName = `script_runner_test_${randomUUID()}`;
+    fixture.directory = await mkdtemp(join(tmpdir(), 'script-runner-storage-'));
+    const request = (body: unknown) =>
+      new Request('http://localhost/api/modules/script-runner', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+    try {
+      await mongoose.connect(fixture.uri!, { dbName: fixture.dbName });
+      const user = await User.create({ username: 'admin', role: 'admin', passwordHash: 'fixture' });
+      fixture.adminId = user.id;
+      const draft = {
+        title: 'Weather report',
+        source: 'echo ready',
+        cwd: fixture.directory,
+        language: 'bash' as const,
+        timeoutSeconds: 10,
+        env: [],
+        args: [],
+      };
+      const saved = await storeScript(draft);
+      const other = await storeScript({ ...draft, title: 'Host check' });
+      const byId = { params: Promise.resolve({ id: saved.id }) };
+      const calendar = { frequency: 'weekdays', time: '07:00', timeZone: 'Asia/Kolkata' };
+      const interval = await putSchedule(request({ intervalMinutes: 5, enabled: true }), byId);
+      expect(interval.status).toBe(200);
+      const configured = await putSchedule(request({ calendar, enabled: true }), byId);
+      expect(configured.status).toBe(200);
+      expect(await configured.json()).toMatchObject({ calendar, nextRunAt: expect.any(String) });
+      const current = await ScriptRunnerScript.findById(saved.id).lean();
+      expect(current?.schedule?.intervalMinutes).toBeUndefined();
+      const paused = await putSchedule(request({ calendar, enabled: false }), byId);
+      expect(await paused.json()).toMatchObject({ enabled: false, calendar });
+      expect(
+        (await ScriptRunnerScript.findById(saved.id).lean())?.schedule?.nextRunAt
+      ).toBeUndefined();
+      expect((await putSchedule(request({ calendar, enabled: true }), byId)).status).toBe(200);
+
+      await ScriptRunnerSettings.create({
+        _id: runnerHost,
+        maxHistoryRuns: 4,
+        historyRetentionDays: 30,
+        logRetentionDays: 5,
+        workerId: 'test',
+        workerSeenAt: new Date(),
+        workerCapabilityId: 'test',
+        workerProtocol: 2,
+        workerRuntimes: ['bash'],
+      });
+      const friday = new Date('2026-11-20T01:30:00Z');
+      await ScriptRunnerScript.updateOne(
+        { _id: saved.id },
+        { $set: { 'schedule.nextRunAt': friday } }
+      );
+      const monday = new Date('2026-11-23T02:00:00Z');
+      await enqueueDueSchedules(monday, new AbortController().signal);
+      expect(await ScriptRunnerRun.findOne({ scriptId: saved.id }).lean()).toMatchObject({
+        status: 'queued',
+        scheduledFor: friday,
+      });
+      expect((await ScriptRunnerScript.findById(saved.id).lean())?.schedule?.nextRunAt).toEqual(
+        new Date('2026-11-24T01:30:00Z')
+      );
+
+      const retention = { maxHistoryRuns: 2, logRetentionDays: 1, historyRetentionDays: 7 };
+      expect((await putRetention(request(retention), byId)).status).toBe(200);
+      expect((await putRetention(request({ logRetentionDays: 0 }), byId)).status).toBe(400);
+      const now = Date.now();
+      async function seed(scriptId: string, days: number, output: string) {
+        const id = randomUUID();
+        const createdAt = new Date(now - days * 86_400_000);
+        await ScriptRunnerRun.create({
+          ...draft,
+          _id: id,
+          host: runnerHost,
+          scriptId,
+          status: 'succeeded',
+          requestedBy: 'admin',
+          createdAt,
+          finishedAt: createdAt,
+        });
+        await writeFile(outputPath(id), output);
+        return id;
+      }
+      const old = await seed(saved.id, 8, 'obsolete');
+      const overflow = await seed(saved.id, 3, 'overflow');
+      const logExpired = await seed(saved.id, 2, 'expired logs');
+      await seed(saved.id, 0, 'fresh');
+      await seed(other.id, 6, 'fresh from other');
+      await seed(other.id, 4, 'also fresh');
+
+      const getUsage = async () =>
+        (
+          await readStorage(new Request('http://localhost/api/modules/script-runner/storage'))
+        ).json();
+      const before = await getUsage();
+      expect(before).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ scriptId: saved.id, retainedRuns: 4, logBytes: 33, retention }),
+          expect.objectContaining({ scriptId: other.id, retainedRuns: 2, logBytes: 26 }),
+        ])
+      );
+      await pruneRuns(now);
+      const after = await getUsage();
+      expect(after).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ scriptId: saved.id, retainedRuns: 2, logBytes: 5 }),
+          expect.objectContaining({ scriptId: other.id, retainedRuns: 2, logBytes: 10 }),
+        ])
+      );
+      for (const id of [old, overflow]) {
+        expect(await ScriptRunnerRun.exists({ _id: id })).toBeNull();
+        await expect(access(outputPath(id))).rejects.toMatchObject({ code: 'ENOENT' });
+      }
+      expect(await ScriptRunnerRun.findById(logExpired).lean()).toMatchObject({
+        logsPurgedAt: expect.any(Date),
+      });
+      const inspected = await overview(undefined, overflow);
+      expect(inspected.historyPruneVersion).toBe(1);
+      expect(inspected.inspectedRun).toBeUndefined();
+      expect((await putRetention(request({}), byId)).status).toBe(200);
+      expect((await ScriptRunnerScript.findById(saved.id).lean())?.retention).toBeUndefined();
+    } finally {
+      fixture.adminId = '';
+      if (mongoose.connection.readyState === 1) await mongoose.connection.dropDatabase();
+      await mongoose.disconnect();
+      await rm(fixture.directory, { force: true, recursive: true });
     }
   }
 );

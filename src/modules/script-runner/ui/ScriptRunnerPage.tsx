@@ -49,6 +49,7 @@ import SavedScriptsPanel, { OpenSavedScriptDialog } from './SavedScriptsPanel';
 import ScriptRunnerOverviewPanel from './ScriptRunnerOverviewPanel';
 import ScriptRunnerSettingsPanel from './ScriptRunnerSettingsPanel';
 import ScriptSchedulesPanel from './ScriptSchedulesPanel';
+import ScriptStoragePanel from './ScriptStoragePanel';
 import RunConfiguration, { validConfiguration } from './RunConfiguration';
 import RunConsole, { elapsed, RunBadge } from './RunConsole';
 import RunnerDialog from './RunnerDialog';
@@ -288,7 +289,11 @@ export default function ScriptRunnerPage() {
   const [savingScript, setSavingScript] = useState(false);
   const [startingScriptId, setStartingScriptId] = useState<string>();
   const working = openingScript || savingScript;
-  const [more, setMore] = useState<{ history: ScriptRun[]; next?: string } | null>(null);
+  const [more, setMore] = useState<{
+    history: ScriptRun[];
+    next?: string;
+    version?: number;
+  } | null>(null);
   const [historyBusy, setHistoryBusy] = useState(false);
   const [actionError, setActionError] = useState('');
   const [discard, setDiscard] = useState<{ next: () => void } | null>(null);
@@ -297,10 +302,15 @@ export default function ScriptRunnerPage() {
   const documentVersion = useRef(0);
   const pendingLaunch = useRef<{ signature: string; id: string; scriptId?: string } | null>(null);
   const savedLaunchIds = useRef(new Map<string, string>());
+  const inspectedRunId = useRef<string>(undefined);
 
   const refresh = useCallback(async (signal?: AbortSignal) => {
     try {
-      const result = await runnerRequest<RunnerOverview>('', { signal });
+      const inspected = inspectedRunId.current;
+      const result = await runnerRequest<RunnerOverview>(
+        inspected ? `?inspected=${encodeURIComponent(inspected)}` : '',
+        { signal }
+      );
       if (!signal?.aborted) {
         setOverview(result);
         if (!initialDefaultsApplied.current) {
@@ -313,7 +323,12 @@ export default function ScriptRunnerPage() {
           setBaseline(configureUntouched);
         }
         setMore((current) => {
-          if (!current || !result.nextHistoryCursor) return null;
+          if (
+            !current ||
+            current.version !== result.historyPruneVersion ||
+            !result.nextHistoryCursor
+          )
+            return null;
           const history = current.history.filter((run) => isRetained(run, result.oldestHistory));
           if (current.next && !history.some(({ id }) => id === current.next)) return null;
           return { ...current, history: mergeHistory(result.history, history) };
@@ -359,13 +374,21 @@ export default function ScriptRunnerPage() {
     ...variables.filter(({ id }) => linkedIds.has(id)).map(({ key }) => key),
   ]).size;
   const active = overview?.active ?? [];
-  const history = mergeHistory(overview?.history ?? [], more?.history ?? []);
+  const cachedHistory = more?.version === overview?.historyPruneVersion ? more : null;
+  const history = mergeHistory(overview?.history ?? [], cachedHistory?.history ?? []);
+  const inspected = overview?.inspectedRun;
   const selected = selection
-    ? (history.find((run) => run.id === selection.id) ??
-      (isActiveRun(selection.status) ? active.find((run) => run.id === selection.id) : undefined) ??
-      (isActiveRun(selection.status) || isRetained(selection, overview?.oldestHistory)
+    ? overview?.inspectedRunId === selection.id
+      ? inspected && isActiveRun(inspected.status) && !isActiveRun(selection.status)
         ? selection
-        : null))
+        : (inspected ?? null)
+      : (history.find((run) => run.id === selection.id) ??
+        (isActiveRun(selection.status)
+          ? active.find((run) => run.id === selection.id)
+          : undefined) ??
+        (isActiveRun(selection.status) || isRetained(selection, overview?.oldestHistory)
+          ? selection
+          : null))
     : null;
   const displayedHistory =
     selected && !isActiveRun(selected.status) && !history.some(({ id }) => id === selected.id)
@@ -397,8 +420,9 @@ export default function ScriptRunnerPage() {
     setOpeningScript(false);
   }
 
-  function showView(next: View) {
+  function showView(next: View, runId = selection?.id) {
     cancelScriptLoad();
+    inspectedRunId.current = next === 'runs' ? runId : undefined;
     setView(next);
   }
 
@@ -502,7 +526,7 @@ export default function ScriptRunnerPage() {
 
   function selectRun(run: ScriptRun) {
     setSelection(run);
-    showView('runs');
+    showView('runs', run.id);
     if (window.matchMedia('(max-width: 920px)').matches) {
       requestAnimationFrame(() =>
         document.getElementById('script-run-console')?.scrollIntoView({
@@ -516,6 +540,7 @@ export default function ScriptRunnerPage() {
   function selectTab(nextTab: Tab) {
     if (nextTab === visibleTab) return;
     setTab(nextTab);
+    inspectedRunId.current = undefined;
     setSelection(null);
   }
 
@@ -606,11 +631,14 @@ export default function ScriptRunnerPage() {
       setMore((previous) => ({
         history: mergeHistory(
           result.history,
-          (previous?.history ?? overview?.history ?? []).filter((run) =>
-            isRetained(run, result.oldestHistory)
-          )
+          (
+            (previous?.version === result.historyPruneVersion ? previous?.history : undefined) ??
+            overview?.history ??
+            []
+          ).filter((run) => isRetained(run, result.oldestHistory))
         ),
         next: result.nextHistoryCursor,
+        version: result.historyPruneVersion,
       }));
     } catch (error) {
       setActionError(errorMessage(error));
@@ -708,21 +736,24 @@ export default function ScriptRunnerPage() {
       {view === 'schedules' && <ScriptSchedulesPanel scripts={scripts} online={hasOnlineWorker} />}
 
       {view === 'settings' && (
-        <ScriptRunnerSettingsPanel
-          settings={overview ?? SCRIPT_RUNNER_DEFAULTS}
-          online={hasOnlineWorker}
-          supported={!!overview?.supported}
-          runtimes={overview?.runtimes ?? []}
-          onSaved={(settings) => {
-            setOverview((current) => (current ? { ...current, ...settings } : current));
-            if (!scriptId && !dirty) {
-              const configured = applyDefaults(draft, settings);
-              setDraft(configured);
-              setBaseline(configured);
-            }
-            void refresh();
-          }}
-        />
+        <div className="grid min-w-0 gap-3.5">
+          <ScriptRunnerSettingsPanel
+            settings={overview ?? SCRIPT_RUNNER_DEFAULTS}
+            online={hasOnlineWorker}
+            supported={!!overview?.supported}
+            runtimes={overview?.runtimes ?? []}
+            onSaved={(settings) => {
+              setOverview((current) => (current ? { ...current, ...settings } : current));
+              if (!scriptId && !dirty) {
+                const configured = applyDefaults(draft, settings);
+                setDraft(configured);
+                setBaseline(configured);
+              }
+              void refresh();
+            }}
+          />
+          <ScriptStoragePanel settings={overview ?? SCRIPT_RUNNER_DEFAULTS} />
+        </div>
       )}
 
       <div className="sr-workspace" hidden={view !== 'workspace'}>
@@ -859,7 +890,7 @@ export default function ScriptRunnerPage() {
           <RunList
             active={active}
             history={displayedHistory}
-            historyCursor={more ? more.next : overview?.nextHistoryCursor}
+            historyCursor={cachedHistory ? cachedHistory.next : overview?.nextHistoryCursor}
             historyBusy={historyBusy}
             selectedId={selected?.id}
             onSelect={selectRun}

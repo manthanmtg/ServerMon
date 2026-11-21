@@ -1,4 +1,8 @@
-import { nextScheduleTime, scheduleResponse } from '@/lib/script-runner/schedules';
+import {
+  nextScheduleTime,
+  scheduleResponse,
+  scheduleTimingFilter,
+} from '@/lib/script-runner/schedules';
 import { runIdInput, scheduleInput } from '@/lib/script-runner/schemas';
 import { findScript } from '@/lib/script-runner/store';
 import { authorized, body, data, failure, type ById } from '../../_shared';
@@ -13,17 +17,19 @@ export function PUT(request: Request, { params }: ById) {
       .findOneAndUpdate(
         {
           $or: [
-            { 'schedule.intervalMinutes': { $ne: input.intervalMinutes } },
+            { $nor: [scheduleTimingFilter(input)] },
             { 'schedule.enabled': { $ne: input.enabled } },
           ],
         },
         {
           $set: {
-            'schedule.intervalMinutes': input.intervalMinutes,
+            ...('calendar' in input
+              ? { 'schedule.calendar': input.calendar }
+              : { 'schedule.intervalMinutes': input.intervalMinutes }),
             'schedule.enabled': input.enabled,
             'schedule.requestedBy': username,
             ...(input.enabled && {
-              'schedule.nextRunAt': nextScheduleTime(input.intervalMinutes, new Date()),
+              'schedule.nextRunAt': nextScheduleTime(input, new Date()),
             }),
           },
           $unset: {
@@ -32,6 +38,9 @@ export function PUT(request: Request, { params }: ById) {
             'schedule.lastAttemptAt': 1,
             'schedule.lastOutcome': 1,
             'schedule.lastError': 1,
+            ...('calendar' in input
+              ? { 'schedule.intervalMinutes': 1 }
+              : { 'schedule.calendar': 1 }),
             ...(!input.enabled && { 'schedule.nextRunAt': 1 }),
           },
         },

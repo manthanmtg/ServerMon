@@ -6,7 +6,14 @@ export const dynamic = 'force-dynamic';
 
 export function GET(request: Request) {
   return authorized(request, async () => {
-    const before = new URL(request.url).searchParams.get('before');
-    return data(await overview(before ? runIdInput.parse(before) : undefined));
+    const search = new URL(request.url).searchParams;
+    const before = search.get('before');
+    const inspected = search.get('inspected');
+    return data(
+      await overview(
+        before ? runIdInput.parse(before) : undefined,
+        inspected ? runIdInput.parse(inspected) : undefined
+      )
+    );
   });
 }

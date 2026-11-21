@@ -239,9 +239,11 @@ Create reusable variables and secrets in **Scripts → Env Vars**. Use **New gro
 
 New runs, including scheduled runs, use the current group membership and variable values at queue time. **Run again** reuses the original linked values. Unlink a group from its saved scripts before deleting it. Deleting a group keeps its member variables. To delete an individual variable, first remove it from any groups and saved scripts that reference it.
 
-Use **Scripts → Schedules** to add a recurring run to a saved script. Choose an interval in five-minute increments. Scheduled runs use the latest saved script and linked variables. The worker queues one occurrence after downtime and skips a scheduled occurrence if the script's previous scheduled run is still queued or running. Pause or delete the schedule to stop future occurrences.
+Use **Scripts → Schedules** to add a recurring run to a saved script. Choose an interval in five-minute increments, or schedule a daily or Monday–Friday run at a local time in a named timezone. The editor previews the next three calendar occurrences. When a clock change skips the chosen local time, the schedule skips that day. When the local time repeats, it runs once at the first occurrence. Scheduled runs use the latest saved script and linked variables. The worker queues one occurrence after downtime and skips a scheduled occurrence if the script's previous scheduled run is still queued or running. Pause or delete the schedule to stop future occurrences.
 
 Script Runner stores output under `/var/lib/servermon/script-runner`, with up to 8 MiB of capture per run. In **Scripts → Settings**, log retention defaults to three days after completion. Completed run history defaults to the newest 500 runs within 30 days of queueing. When a run ages out or falls past the count limit, the worker removes its history and any remaining output. Queued and running scripts are excluded from pruning.
+
+**Settings → Storage by script** shows completed run counts and retained output bytes, including an aggregate for ad hoc runs and deleted scripts. Set shorter log or history retention and a smaller run count for individual saved scripts. Blank settings inherit the runner defaults, and runner-wide limits still apply.
 
 ```bash
 systemctl status servermon-script-runner-worker

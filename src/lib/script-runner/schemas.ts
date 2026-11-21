@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { calendarTimePattern, isNamedTimeZone } from './calendar';
 import {
   DEFAULT_TIMEOUT_SECONDS,
   ENV_NAME_PATTERN,
@@ -107,7 +108,14 @@ export const runRequestInput = z.union([
   z.strictObject({ id: runIdInput.optional(), scriptId: runIdInput }),
 ]);
 export const retentionInput = z.object({ logRetentionDays: z.number().int().min(1).max(365) });
-export const scheduleInput = z.strictObject({
+const historyLimits = {
+  historyRetentionDays: z.number().int().min(1).max(MAX_HISTORY_RETENTION_DAYS),
+  maxHistoryRuns: z.number().int().min(1).max(MAX_HISTORY_RUNS),
+};
+export const scriptRetentionInput = z
+  .strictObject({ ...retentionInput.shape, ...historyLimits })
+  .partial();
+const intervalScheduleInput = z.strictObject({
   intervalMinutes: z
     .number()
     .int()
@@ -116,10 +124,20 @@ export const scheduleInput = z.strictObject({
     .multipleOf(SCHEDULE_MINUTES_STEP, 'Enter an interval in five-minute increments.'),
   enabled: z.boolean(),
 });
+export const scheduleInput = z.union([
+  intervalScheduleInput,
+  z.strictObject({
+    enabled: z.boolean(),
+    calendar: z.strictObject({
+      frequency: z.enum(['daily', 'weekdays']),
+      time: z.string().regex(calendarTimePattern, 'Enter a time in HH:MM format.'),
+      timeZone: z.string().trim().max(100).refine(isNamedTimeZone, 'Choose a named timezone.'),
+    }),
+  }),
+]);
 export const defaultsPatchInput = retentionInput
   .extend({
-    historyRetentionDays: z.number().int().min(1).max(MAX_HISTORY_RETENTION_DAYS),
-    maxHistoryRuns: z.number().int().min(1).max(MAX_HISTORY_RUNS),
+    ...historyLimits,
     defaultWorkingDirectory: directoryInput,
     defaultTimeoutSeconds: timeoutInput,
     maxConcurrentRuns: z.number().int().min(1).max(8),

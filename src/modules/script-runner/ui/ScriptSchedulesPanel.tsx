@@ -1,13 +1,20 @@
 'use client';
 
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useId, useState, type FormEvent } from 'react';
 import { CalendarClock, Pause, Pencil, Play, Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import {
+  calendarTimePattern,
+  isNamedTimeZone,
+  nextCalendarRun,
+} from '@/lib/script-runner/calendar';
 import {
   SCHEDULE_MAX_MINUTES,
   SCHEDULE_MINUTES_STEP,
   type ScriptSchedule,
   type ScriptSummary,
+  type ScheduleInput,
+  type CalendarSchedule,
 } from '../types';
 import { errorMessage, runnerRequest } from './client';
 import RunnerDialog from './RunnerDialog';
@@ -19,7 +26,38 @@ const outcomes = {
   failed: 'Could not queue',
 };
 
-type Editor = { scriptId: string; minutes: string; enabled: boolean; existing: boolean };
+type Editor = {
+  scriptId: string;
+  minutes: string;
+  enabled: boolean;
+  existing: boolean;
+  kind: 'interval' | CalendarSchedule['frequency'];
+  time: string;
+  timeZone: string;
+  previewFrom: number;
+};
+
+function editSchedule(scriptId: string, schedule?: ScriptSchedule): Editor {
+  const calendar = schedule && 'calendar' in schedule ? schedule.calendar : undefined;
+  return {
+    scriptId,
+    minutes: String(schedule && 'intervalMinutes' in schedule ? schedule.intervalMinutes : 5),
+    enabled: schedule?.enabled ?? true,
+    existing: !!schedule,
+    kind: calendar?.frequency ?? 'interval',
+    time: calendar?.time ?? '07:00',
+    timeZone: calendar?.timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone ?? 'UTC',
+    previewFrom: Date.now(),
+  };
+}
+
+function calendarPreview(calendar: CalendarSchedule, after: number) {
+  let next = new Date(after);
+  return Array.from({ length: 3 }, () => {
+    next = nextCalendarRun(calendar, next);
+    return next.toISOString();
+  });
+}
 
 function intervalLabel(minutes: number) {
   if (minutes % 1440 === 0) {
@@ -33,8 +71,12 @@ function intervalLabel(minutes: number) {
   return `Every ${minutes} minutes`;
 }
 
-function localTime(iso: string) {
-  return new Date(iso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+function localTime(iso: string, timeZone?: string) {
+  return new Date(iso).toLocaleString(undefined, {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+    timeZone,
+  });
 }
 
 export default function ScriptSchedulesPanel({
@@ -50,6 +92,7 @@ export default function ScriptSchedulesPanel({
   const [editor, setEditor] = useState<Editor>();
   const [removing, setRemoving] = useState<ScriptSummary>();
   const [busy, setBusy] = useState(false);
+  const timeZoneList = useId();
 
   useEffect(() => {
     if (busy) return;
@@ -84,14 +127,22 @@ export default function ScriptSchedulesPanel({
     const script = byScript.get(schedule.scriptId);
     return script ? [{ schedule, script }] : [];
   });
+  const calendar =
+    editor && editor.kind !== 'interval'
+      ? { frequency: editor.kind, time: editor.time, timeZone: editor.timeZone.trim() }
+      : undefined;
+  const calendarValid =
+    !!calendar && calendarTimePattern.test(calendar.time) && isNamedTimeZone(calendar.timeZone);
+  const upcoming =
+    calendar && calendarValid && editor ? calendarPreview(calendar, editor.previewFrom) : [];
 
-  async function save(scriptId: string, intervalMinutes: number, enabled: boolean) {
+  async function save(scriptId: string, input: ScheduleInput) {
     setBusy(true);
     setActionError('');
     try {
       const result = await runnerRequest<ScriptSchedule>(`/schedules/${scriptId}`, {
         method: 'PUT',
-        body: JSON.stringify({ intervalMinutes, enabled }),
+        body: JSON.stringify(input),
       });
       setSchedules((old) => [
         ...(old ?? []).filter((entry) => entry.scriptId !== scriptId),
@@ -121,8 +172,9 @@ export default function ScriptSchedulesPanel({
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (editor?.scriptId && !busy)
-      void save(editor.scriptId, Number(editor.minutes), editor.enabled);
+    if (!editor?.scriptId || busy || (calendar && !calendarValid)) return;
+    const timing = calendar ? { calendar } : { intervalMinutes: Number(editor.minutes) };
+    void save(editor.scriptId, { ...timing, enabled: editor.enabled });
   }
 
   return (
@@ -138,7 +190,7 @@ export default function ScriptSchedulesPanel({
           disabled={!schedules || !available.length || busy}
           onClick={() => {
             setActionError('');
-            setEditor({ scriptId: available[0].id, minutes: '5', enabled: true, existing: false });
+            setEditor(editSchedule(available[0].id));
           }}
         >
           <Plus size={16} /> Add schedule
@@ -172,13 +224,20 @@ export default function ScriptSchedulesPanel({
                 <div className="grid min-w-0 gap-1">
                   <strong className="break-words text-sm">{script.title}</strong>
                   <p className="sr-muted">
-                    {intervalLabel(schedule.intervalMinutes)} ·{' '}
-                    {schedule.enabled ? 'Enabled' : 'Paused'}
+                    {'calendar' in schedule
+                      ? `${schedule.calendar.frequency === 'weekdays' ? 'Weekdays' : 'Every day'} at ${schedule.calendar.time} · ${schedule.calendar.timeZone}`
+                      : intervalLabel(schedule.intervalMinutes)}{' '}
+                    · {schedule.enabled ? 'Enabled' : 'Paused'}
                   </p>
                   {schedule.enabled && schedule.nextRunAt && (
                     <p className="sr-muted">
                       Next run{' '}
-                      <time dateTime={schedule.nextRunAt}>{localTime(schedule.nextRunAt)}</time>
+                      <time dateTime={schedule.nextRunAt}>
+                        {localTime(
+                          schedule.nextRunAt,
+                          'calendar' in schedule ? schedule.calendar.timeZone : undefined
+                        )}
+                      </time>
                     </p>
                   )}
                   {schedule.lastOutcome && schedule.lastAttemptAt && (
@@ -198,9 +257,13 @@ export default function ScriptSchedulesPanel({
                     size="sm"
                     disabled={busy}
                     aria-label={`${schedule.enabled ? 'Pause' : 'Resume'} ${script.title} schedule`}
-                    onClick={() =>
-                      void save(script.id, schedule.intervalMinutes, !schedule.enabled)
-                    }
+                    onClick={() => {
+                      const timing =
+                        'calendar' in schedule
+                          ? { calendar: schedule.calendar }
+                          : { intervalMinutes: schedule.intervalMinutes };
+                      void save(script.id, { ...timing, enabled: !schedule.enabled });
+                    }}
                   >
                     {schedule.enabled ? <Pause size={15} /> : <Play size={15} />}
                     {schedule.enabled ? 'Pause' : 'Resume'}
@@ -213,12 +276,7 @@ export default function ScriptSchedulesPanel({
                     aria-label={`Edit ${script.title} schedule`}
                     onClick={() => {
                       setActionError('');
-                      setEditor({
-                        scriptId: script.id,
-                        minutes: String(schedule.intervalMinutes),
-                        enabled: schedule.enabled,
-                        existing: true,
-                      });
+                      setEditor(editSchedule(script.id, schedule));
                     }}
                   >
                     <Pencil size={16} />
@@ -269,23 +327,88 @@ export default function ScriptSchedulesPanel({
               </select>
             </label>
             <label className="sr-field">
-              <span>Interval in minutes</span>
-              <input
+              <span>Repeat</span>
+              <select
                 className="sr-input"
-                type="number"
-                min={SCHEDULE_MINUTES_STEP}
-                step={SCHEDULE_MINUTES_STEP}
-                max={SCHEDULE_MAX_MINUTES}
+                value={editor.kind}
                 disabled={busy}
-                value={editor.minutes}
-                required
-                onChange={(event) => setEditor({ ...editor, minutes: event.target.value })}
-              />
+                onChange={(event) =>
+                  setEditor({ ...editor, kind: event.target.value as Editor['kind'] })
+                }
+              >
+                <option value="interval">At an interval</option>
+                <option value="daily">Every day</option>
+                <option value="weekdays">Weekdays</option>
+              </select>
             </label>
-            <p className="sr-muted">
-              Use five-minute increments, up to 365 days. Runs use the latest saved script and run
-              defaults.
-            </p>
+            {editor.kind === 'interval' ? (
+              <label className="sr-field">
+                <span>Interval in minutes</span>
+                <input
+                  className="sr-input"
+                  type="number"
+                  min={SCHEDULE_MINUTES_STEP}
+                  step={SCHEDULE_MINUTES_STEP}
+                  max={SCHEDULE_MAX_MINUTES}
+                  disabled={busy}
+                  value={editor.minutes}
+                  required
+                  onChange={(event) => setEditor({ ...editor, minutes: event.target.value })}
+                />
+              </label>
+            ) : (
+              <>
+                <div className="grid gap-3 sm:grid-cols-[2fr_3fr]">
+                  <label className="sr-field">
+                    <span>Local time</span>
+                    <input
+                      className="sr-input"
+                      type="time"
+                      value={editor.time}
+                      required
+                      disabled={busy}
+                      onChange={(event) => setEditor({ ...editor, time: event.target.value })}
+                    />
+                  </label>
+                  <label className="sr-field">
+                    <span>Timezone</span>
+                    <input
+                      className="sr-input"
+                      list={timeZoneList}
+                      value={editor.timeZone}
+                      required
+                      maxLength={100}
+                      spellCheck={false}
+                      disabled={busy}
+                      onChange={(event) => setEditor({ ...editor, timeZone: event.target.value })}
+                    />
+                  </label>
+                  <datalist id={timeZoneList}>
+                    {['UTC', ...(Intl.supportedValuesOf?.('timeZone') ?? [])].map((zone) => (
+                      <option key={zone} value={zone} />
+                    ))}
+                  </datalist>
+                </div>
+                {calendar && upcoming.length > 0 && (
+                  <div className="grid gap-1 rounded-md border border-[var(--sr-edge)] p-3 text-sm">
+                    <strong>
+                      {editor.enabled ? 'Next three runs' : 'Next three runs when resumed'}
+                    </strong>
+                    <ol aria-label="Upcoming runs" className="grid gap-1 text-muted-foreground">
+                      {upcoming.map((date) => (
+                        <li key={date}>
+                          <time dateTime={date}>{localTime(date, calendar.timeZone)}</time>
+                        </li>
+                      ))}
+                    </ol>
+                  </div>
+                )}
+                {calendar && editor.timeZone && !isNamedTimeZone(calendar.timeZone) && (
+                  <p className="sr-muted">Enter a timezone such as Asia/Kolkata or UTC.</p>
+                )}
+              </>
+            )}
+            <p className="sr-muted">Runs use the latest saved script and run defaults.</p>
             {actionError && (
               <p className="sr-error" role="alert">
                 {actionError}
@@ -300,7 +423,7 @@ export default function ScriptSchedulesPanel({
               >
                 Cancel
               </Button>
-              <Button type="submit" loading={busy}>
+              <Button type="submit" loading={busy} disabled={!!calendar && !calendarValid}>
                 Save schedule
               </Button>
             </footer>

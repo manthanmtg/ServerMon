@@ -1,6 +1,12 @@
 import { rm } from 'node:fs/promises';
+import type { QueryFilter } from 'mongoose';
 import { createLogger } from '@/lib/logger';
-import { ScriptRunnerRun } from '@/models/ScriptRunner';
+import {
+  ScriptRunnerRun,
+  ScriptRunnerScript,
+  ScriptRunnerSettings,
+  type RunRecord,
+} from '@/models/ScriptRunner';
 import {
   ACTIVE_STATUSES,
   findRun,
@@ -14,6 +20,7 @@ import {
 const log = createLogger('script-runner:retention');
 const DAY_MS = 86_400_000;
 const BATCH_SIZE = 250;
+const terminal = { host: runnerHost, status: { $nin: ACTIVE_STATUSES } };
 
 async function removeRunFiles(id: string) {
   await Promise.all(
@@ -23,47 +30,94 @@ async function removeRunFiles(id: string) {
   );
 }
 
-export async function pruneRuns(now: number) {
-  const { historyRetentionDays, maxHistoryRuns, logRetentionDays } = runnerDefaults(
-    await runnerSettings()
-  );
-  const terminal = { host: runnerHost, status: { $nin: ACTIVE_STATUSES } };
-  const overflow = await ScriptRunnerRun.findOne(terminal)
+async function overflowRules(filter: QueryFilter<RunRecord>, count: number) {
+  const overflow = await ScriptRunnerRun.findOne({ ...terminal, ...filter })
     .sort({ createdAt: -1, _id: -1 })
-    .skip(maxHistoryRuns)
+    .skip(count)
     .select('createdAt')
     .lean();
-  const expiredHistory = await ScriptRunnerRun.find({
-    ...terminal,
-    $or: [
-      { createdAt: { $lte: new Date(now - historyRetentionDays * DAY_MS) } },
-      ...(overflow
-        ? [
-            { createdAt: { $lt: overflow.createdAt } },
-            { createdAt: overflow.createdAt, _id: { $lte: overflow._id } },
-          ]
-        : []),
-    ],
-  })
+  return overflow
+    ? [
+        { ...filter, createdAt: { $lt: overflow.createdAt } },
+        { ...filter, createdAt: overflow.createdAt, _id: { $lte: overflow._id } },
+      ]
+    : [];
+}
+
+async function pruneHistory(filter: QueryFilter<RunRecord>, perScript = false) {
+  const records = await ScriptRunnerRun.find({ ...terminal, ...filter })
     .sort({ createdAt: 1, _id: 1 })
     .limit(BATCH_SIZE)
     .select('_id')
     .lean();
 
-  for (const { _id: id } of expiredHistory) {
+  let deleted = 0;
+  for (const { _id: id } of records) {
     try {
       // Keep the record available for retries until its files have been removed.
       await removeRunFiles(id);
-      await findRun(id).deleteOne({ status: terminal.status });
+      const result = await findRun(id).deleteOne({ status: terminal.status });
+      deleted += result.deletedCount;
     } catch (error) {
       log.warn('Could not prune script run history', { id, error });
     }
   }
 
+  if (perScript && deleted > 0) {
+    await ScriptRunnerSettings.updateOne(
+      { _id: runnerHost },
+      { $inc: { historyPruneVersion: 1 } },
+      { upsert: true }
+    );
+  }
+  return records.length === BATCH_SIZE;
+}
+
+export async function pruneRuns(now: number) {
+  const [settings, scripts] = await Promise.all([
+    runnerSettings(),
+    ScriptRunnerScript.find({ host: runnerHost, retention: { $exists: true } })
+      .select('retention')
+      .lean(),
+  ]);
+  const defaults = runnerDefaults(settings);
+  const scriptHistory: QueryFilter<RunRecord>[] = [];
+  const logExpiry: QueryFilter<RunRecord>[] = [
+    { finishedAt: { $lte: new Date(now - defaults.logRetentionDays * DAY_MS) } },
+  ];
+  for (const { _id: scriptId, retention } of scripts) {
+    if (!retention) continue;
+    const { historyRetentionDays, maxHistoryRuns, logRetentionDays } = retention;
+    if (
+      historyRetentionDays !== undefined &&
+      historyRetentionDays < defaults.historyRetentionDays
+    ) {
+      scriptHistory.push({
+        scriptId,
+        createdAt: { $lte: new Date(now - historyRetentionDays * DAY_MS) },
+      });
+    }
+    if (maxHistoryRuns !== undefined && maxHistoryRuns < defaults.maxHistoryRuns) {
+      scriptHistory.push(...(await overflowRules({ scriptId }, maxHistoryRuns)));
+    }
+    if (logRetentionDays !== undefined && logRetentionDays < defaults.logRetentionDays) {
+      logExpiry.push({ scriptId, finishedAt: { $lte: new Date(now - logRetentionDays * DAY_MS) } });
+    }
+  }
+
+  // Apply tighter limits first so the global count doesn't remove other scripts' runs unnecessarily.
+  const scriptBacklog =
+    scriptHistory.length > 0 && (await pruneHistory({ $or: scriptHistory }, true));
+  const historyBacklog = await pruneHistory({
+    $or: [
+      { createdAt: { $lte: new Date(now - defaults.historyRetentionDays * DAY_MS) } },
+      ...(scriptBacklog ? [] : await overflowRules({}, defaults.maxHistoryRuns)),
+    ],
+  });
   const expiredLogs = await ScriptRunnerRun.find({
     ...terminal,
-    finishedAt: { $lte: new Date(now - logRetentionDays * DAY_MS) },
     logsPurgedAt: null,
+    $or: logExpiry,
   })
     .sort({ finishedAt: 1 })
     .limit(BATCH_SIZE)
@@ -81,5 +135,5 @@ export async function pruneRuns(now: number) {
     }
   }
 
-  return expiredHistory.length === BATCH_SIZE || expiredLogs.length === BATCH_SIZE;
+  return scriptBacklog || historyBacklog || expiredLogs.length === BATCH_SIZE;
 }

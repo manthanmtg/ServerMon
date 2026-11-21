@@ -68,17 +68,33 @@ export const SCRIPT_RUNNER_DEFAULTS: ScriptRunnerDefaults = {
   maxHistoryRuns: 500,
 };
 
-export interface ScheduleInput {
-  intervalMinutes: number;
-  enabled: boolean;
+export interface CalendarSchedule {
+  frequency: 'daily' | 'weekdays';
+  time: string;
+  timeZone: string;
 }
 
-export interface ScriptSchedule extends ScheduleInput {
+export type ScheduleTiming = { intervalMinutes: number } | { calendar: CalendarSchedule };
+export type ScheduleInput = ScheduleTiming & { enabled: boolean };
+
+export type ScriptSchedule = ScheduleInput & {
   scriptId: string;
   nextRunAt?: string;
   lastAttemptAt?: string;
   lastOutcome?: 'pending' | 'queued' | 'skipped' | 'failed';
   lastError?: string;
+};
+
+export type ScriptRetention = Partial<
+  Pick<ScriptRunnerDefaults, 'logRetentionDays' | 'historyRetentionDays' | 'maxHistoryRuns'>
+>;
+
+export interface ScriptStorageUsage {
+  scriptId: string | null;
+  title: string;
+  retainedRuns: number;
+  logBytes: number;
+  retention?: ScriptRetention;
 }
 
 export type RunStatus =
@@ -147,6 +163,9 @@ export interface RunnerOverview extends ScriptRunnerDefaults {
   history: ScriptRun[];
   nextHistoryCursor?: string;
   oldestHistory?: Pick<ScriptRun, 'id' | 'createdAt'>;
+  historyPruneVersion?: number;
+  inspectedRunId?: string;
+  inspectedRun?: ScriptRun;
   recentDirectories: string[];
   online: boolean;
   supported: boolean;

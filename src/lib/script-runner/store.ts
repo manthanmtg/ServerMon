@@ -142,50 +142,60 @@ export function workerCapabilities(settings: SettingsRecord | null) {
   return { protocol: 1, runtimes: ['bash'] satisfies ScriptLanguage[] };
 }
 
-export async function overview(before?: string): Promise<RunnerOverview> {
+export async function overview(before?: string, inspectedRunId?: string): Promise<RunnerOverview> {
   const cursor = before
     ? await ScriptRunnerRun.findOne({ _id: before, host: runnerHost }).select('createdAt').lean()
     : null;
   const terminal = { host: runnerHost, status: { $nin: ACTIVE_STATUSES } };
-  const [scripts, active, history, settings, recentRuns, variables, oldestHistory, envGroups] =
-    await Promise.all([
-      ScriptRunnerScript.find({ host: runnerHost })
-        .select('title language cwd folder updatedAt')
-        .sort({ title: 1 })
-        .lean(),
-      ScriptRunnerRun.find({ host: runnerHost, status: { $in: ACTIVE_STATUSES } })
-        .sort({ createdAt: 1, _id: 1 })
-        .lean(),
-      before && !cursor
-        ? []
-        : ScriptRunnerRun.find({
-            ...terminal,
-            ...(cursor && {
-              $or: [
-                { createdAt: { $lt: cursor.createdAt } },
-                { createdAt: cursor.createdAt, _id: { $lt: cursor._id } },
-              ],
-            }),
-          })
-            .sort({ createdAt: -1, _id: -1 })
-            .limit(historySize + 1)
-            .lean(),
-      runnerSettings(),
-      ScriptRunnerRun.find({ host: runnerHost })
-        .select('cwd')
-        .sort({ createdAt: -1 })
-        .limit(60)
-        .lean(),
-      ScriptRunnerVariable.find({ host: runnerHost })
-        .select('key secret updatedAt')
-        .sort({ key: 1 })
-        .lean(),
-      ScriptRunnerRun.findOne(terminal).sort({ createdAt: 1, _id: 1 }).select('createdAt').lean(),
-      ScriptRunnerEnvGroup.find({ host: runnerHost })
-        .select('name variableIds')
-        .sort({ nameKey: 1 })
-        .lean(),
-    ]);
+  const [
+    scripts,
+    active,
+    history,
+    settings,
+    recentRuns,
+    variables,
+    oldestHistory,
+    envGroups,
+    inspectedRun,
+  ] = await Promise.all([
+    ScriptRunnerScript.find({ host: runnerHost })
+      .select('title language cwd folder updatedAt')
+      .sort({ title: 1 })
+      .lean(),
+    ScriptRunnerRun.find({ host: runnerHost, status: { $in: ACTIVE_STATUSES } })
+      .sort({ createdAt: 1, _id: 1 })
+      .lean(),
+    before && !cursor
+      ? []
+      : ScriptRunnerRun.find({
+          ...terminal,
+          ...(cursor && {
+            $or: [
+              { createdAt: { $lt: cursor.createdAt } },
+              { createdAt: cursor.createdAt, _id: { $lt: cursor._id } },
+            ],
+          }),
+        })
+          .sort({ createdAt: -1, _id: -1 })
+          .limit(historySize + 1)
+          .lean(),
+    runnerSettings(),
+    ScriptRunnerRun.find({ host: runnerHost })
+      .select('cwd')
+      .sort({ createdAt: -1 })
+      .limit(60)
+      .lean(),
+    ScriptRunnerVariable.find({ host: runnerHost })
+      .select('key secret updatedAt')
+      .sort({ key: 1 })
+      .lean(),
+    ScriptRunnerRun.findOne(terminal).sort({ createdAt: 1, _id: 1 }).select('createdAt').lean(),
+    ScriptRunnerEnvGroup.find({ host: runnerHost })
+      .select('name variableIds')
+      .sort({ nameKey: 1 })
+      .lean(),
+    inspectedRunId ? findRun(inspectedRunId).lean() : null,
+  ]);
   const capabilities = workerCapabilities(settings);
   const online = workerOnline(settings?.workerSeenAt);
   return {
@@ -196,6 +206,9 @@ export async function overview(before?: string): Promise<RunnerOverview> {
     active: active.map(runResponse),
     history: history.slice(0, historySize).map(runResponse),
     nextHistoryCursor: history.length > historySize ? history[historySize - 1]._id : undefined,
+    historyPruneVersion: settings?.historyPruneVersion,
+    inspectedRunId,
+    inspectedRun: inspectedRun ? runResponse(inspectedRun) : undefined,
     oldestHistory: oldestHistory
       ? { id: oldestHistory._id, createdAt: oldestHistory.createdAt.toISOString() }
       : undefined,

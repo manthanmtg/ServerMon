@@ -215,6 +215,64 @@ it('saves the history age and count limits together', async () => {
   expect(await screen.findByText('Settings saved.')).toBeVisible();
 });
 
+it('previews and saves a weekday schedule in a selected timezone', async () => {
+  const scriptId = '27ac89d0-0704-4662-9770-e143d2a47d3c';
+  overview.scripts = [{ ...completed, id: scriptId, updatedAt: completed.createdAt }];
+  let schedule: ScriptSchedule | undefined;
+  vi.stubGlobal('fetch', async (url: string, options?: RequestInit) => {
+    if (url.endsWith('/schedules')) return Response.json(schedule ? [schedule] : []);
+    if (url.endsWith(`/schedules/${scriptId}`)) {
+      const input = JSON.parse(String(options?.body));
+      expect(input).toEqual({
+        enabled: true,
+        calendar: { frequency: 'weekdays', time: '09:15', timeZone: 'Asia/Kolkata' },
+      });
+      schedule = { ...input, scriptId, nextRunAt: active.createdAt };
+      return Response.json(schedule);
+    }
+    return Response.json(overview);
+  });
+  render(<ScriptRunnerPage />);
+  await screen.findByText('Worker online');
+  fireEvent.click(screen.getByRole('button', { name: 'Schedules' }));
+  await screen.findByText('No schedules yet.');
+  fireEvent.click(screen.getByRole('button', { name: 'Add schedule' }));
+  fireEvent.change(screen.getByLabelText('Repeat'), { target: { value: 'weekdays' } });
+  fireEvent.change(screen.getByLabelText('Local time'), { target: { value: '09:15' } });
+  fireEvent.change(screen.getByLabelText('Timezone'), { target: { value: 'Asia/Kolkata' } });
+  expect(
+    within(screen.getByRole('list', { name: 'Upcoming runs' })).getAllByRole('listitem')
+  ).toHaveLength(3);
+  fireEvent.click(screen.getByRole('button', { name: 'Save schedule' }));
+  expect(await screen.findByText('Weekdays at 09:15 · Asia/Kolkata · Enabled')).toBeVisible();
+});
+
+it('shows stored output and saves retention for a single script', async () => {
+  const scriptId = '27ac89d0-0704-4662-9770-e143d2a47d3c';
+  vi.stubGlobal('fetch', async (url: string, options?: RequestInit) => {
+    if (url.endsWith('/storage'))
+      return Response.json([
+        { scriptId, title: 'Weather report', retainedRuns: 9, logBytes: 2048 },
+      ]);
+    if (url.endsWith(`/storage/${scriptId}`)) {
+      expect(options?.method).toBe('PUT');
+      expect(JSON.parse(String(options?.body))).toEqual({ logRetentionDays: 1, maxHistoryRuns: 5 });
+      return Response.json({ logRetentionDays: 1, maxHistoryRuns: 5 });
+    }
+    return Response.json(overview);
+  });
+  render(<ScriptRunnerPage />);
+  await screen.findByText('Worker online');
+  fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
+  expect(await screen.findByText('2 KiB of logs')).toBeVisible();
+  fireEvent.click(screen.getByRole('button', { name: 'Edit retention for Weather report' }));
+  const dialog = within(screen.getByRole('dialog', { name: 'Script retention' }));
+  fireEvent.change(dialog.getByLabelText('Log retention (days)'), { target: { value: '1' } });
+  fireEvent.change(dialog.getByLabelText('Maximum completed runs'), { target: { value: '5' } });
+  fireEvent.click(dialog.getByRole('button', { name: 'Save retention' }));
+  expect(await screen.findByText('1d logs · 30d history · 5 runs max')).toBeVisible();
+});
+
 it('creates a variable group in Env Vars and links it in saved script defaults', async () => {
   const variable = {
     id: 'weather-token',
@@ -346,5 +404,41 @@ describe('Script Runner console selection', () => {
       'true'
     );
     expect(screen.getByRole('region', { name: 'Script output' })).toBeVisible();
+  });
+
+  it('drops a pruned run from loaded history and closes its console', async () => {
+    vi.useFakeTimers();
+    const expired = {
+      ...completed,
+      id: 'expired-run',
+      title: 'Expired run',
+      createdAt: '2026-11-19T10:00:00Z',
+    };
+    const older = { ...completed, id: 'older-run', createdAt: '2026-11-18T10:00:00Z' };
+    overview = { ...overview, active: [], oldestHistory: older, nextHistoryCursor: completed.id };
+    vi.stubGlobal('fetch', async (url: string) =>
+      Response.json(
+        url.includes('?before=')
+          ? { ...overview, history: [expired, older], nextHistoryCursor: undefined }
+          : overview
+      )
+    );
+    await act(async () => {
+      render(<ScriptRunnerPage />);
+    });
+    const runs = openRuns();
+    fireEvent.click(runs.getByRole('button', { name: 'History' }));
+    await act(async () => {
+      fireEvent.click(runs.getByRole('button', { name: 'Load older runs' }));
+    });
+    fireEvent.click(runs.getByRole('button', { name: /^Expired run/ }));
+    expect(screen.getByRole('region', { name: 'Script output' })).toBeVisible();
+
+    overview = { ...overview, historyPruneVersion: 1, inspectedRunId: expired.id };
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2500);
+    });
+    expect(runs.queryByRole('button', { name: /^Expired run/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Script output' })).not.toBeInTheDocument();
   });
 });
