@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useCallback } from 'react';
+import { memo, useState, useMemo, useCallback } from 'react';
 import {
   X,
   Sparkles,
@@ -55,11 +55,112 @@ const CATEGORY_ORDER: TemplateCategory[] = [
 const ALL_METHODS: HttpMethod[] = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'];
 const ALL_TYPES: EndpointType[] = ['script', 'logic', 'webhook'];
 
+export function buildTemplateCategoryCounts(
+  templates: EndpointTemplate[]
+): Partial<Record<TemplateCategory, number>> {
+  return templates.reduce<Partial<Record<TemplateCategory, number>>>((counts, template) => {
+    counts[template.category] = (counts[template.category] ?? 0) + 1;
+    return counts;
+  }, {});
+}
+
+export function buildTemplateGalleryFacets(templates: EndpointTemplate[]): {
+  availableCategories: TemplateCategory[];
+  availableMethods: HttpMethod[];
+  availableTypes: EndpointType[];
+  categoryCounts: Partial<Record<TemplateCategory, number>>;
+} {
+  const categories = new Set<TemplateCategory>();
+  const methods = new Set<HttpMethod>();
+  const types = new Set<EndpointType>();
+  const categoryCounts: Partial<Record<TemplateCategory, number>> = {};
+
+  for (const template of templates) {
+    categories.add(template.category);
+    methods.add(template.method);
+    types.add(template.endpointType);
+    categoryCounts[template.category] = (categoryCounts[template.category] ?? 0) + 1;
+  }
+
+  return {
+    availableCategories: CATEGORY_ORDER.filter((category) => categories.has(category)),
+    availableMethods: ALL_METHODS.filter((method) => methods.has(method)),
+    availableTypes: ALL_TYPES.filter((type) => types.has(type)),
+    categoryCounts,
+  };
+}
+
 interface TemplateGalleryProps {
   templates: EndpointTemplate[];
   onClose: () => void;
   onCreateFromTemplate: (tmpl: EndpointTemplate) => void;
 }
+
+type TemplateGalleryCardProps = {
+  template: EndpointTemplate;
+  showCategory: boolean;
+  onCreate: (template: EndpointTemplate) => void;
+};
+
+const TemplateGalleryCard = memo(function TemplateGalleryCard({
+  template,
+  showCategory,
+  onCreate,
+}: TemplateGalleryCardProps) {
+  const handleCreate = useCallback(() => {
+    onCreate(template);
+  }, [onCreate, template]);
+
+  return (
+    <button
+      onClick={handleCreate}
+      className="text-left p-4 sm:p-5 rounded-xl sm:rounded-2xl border border-border/40 bg-card/40 hover:border-primary/30 hover:bg-primary/5 hover:shadow-xl hover:shadow-primary/5 transition-all group relative overflow-hidden active:scale-[0.98]"
+    >
+      <div className="absolute top-0 right-0 p-6 opacity-[0.03] group-hover:opacity-[0.08] transition-opacity pointer-events-none -mr-4 -mt-4 group-hover:scale-125 transition-transform duration-700">
+        <Wand2 className="w-14 sm:w-16 h-14 sm:h-16 text-primary" />
+      </div>
+
+      <div className="flex items-center gap-2.5 sm:gap-3 mb-2.5 sm:mb-3 relative z-10">
+        <MethodBadge method={template.method} size="lg" />
+        <span className="text-[11px] sm:text-xs font-black text-foreground group-hover:text-primary transition-colors tracking-tight uppercase line-clamp-1">
+          {template.name}
+        </span>
+      </div>
+
+      <p className="text-[10px] sm:text-[11px] text-muted-foreground/80 line-clamp-2 leading-relaxed mb-3 sm:mb-4 relative z-10 font-medium">
+        {template.description}
+      </p>
+
+      <div className="flex items-center gap-1.5 relative z-10 flex-wrap">
+        {template.scriptLang && (
+          <span className="px-2 py-0.5 rounded-md bg-primary/10 text-[8px] sm:text-[9px] font-black font-mono text-primary uppercase tracking-widest border border-primary/10">
+            {template.scriptLang}
+          </span>
+        )}
+        <span className="px-2 py-0.5 rounded-md bg-muted/50 text-[8px] sm:text-[9px] font-black text-muted-foreground/60 uppercase tracking-widest border border-border/20">
+          {template.endpointType}
+        </span>
+        {showCategory && (
+          <span
+            className={cn(
+              'px-2 py-0.5 rounded-md text-[8px] sm:text-[9px] font-black uppercase tracking-widest border border-border/10 bg-muted/30',
+              CATEGORY_META[template.category]?.color || 'text-muted-foreground/40'
+            )}
+          >
+            {CATEGORY_META[template.category]?.label}
+          </span>
+        )}
+      </div>
+
+      <div className="absolute bottom-4 sm:bottom-5 right-4 sm:right-5 opacity-0 group-hover:opacity-100 transition-all transform translate-x-4 group-hover:translate-x-0 hidden sm:block">
+        <div className="flex items-center gap-1 text-[9px] font-black text-primary uppercase tracking-[0.2em] bg-primary/10 px-2.5 py-0.5 rounded-full border border-primary/20">
+          USE
+          <ChevronRight className="w-3 h-3" />
+        </div>
+      </div>
+    </button>
+  );
+});
 
 export function TemplateGallery({
   templates,
@@ -71,20 +172,10 @@ export function TemplateGallery({
   const [filterType, setFilterType] = useState<EndpointType | ''>('');
   const [showFilters, setShowFilters] = useState(false);
 
-  const availableCategories = useMemo(() => {
-    const cats = new Set(templates.map((t) => t.category));
-    return CATEGORY_ORDER.filter((c) => cats.has(c));
-  }, [templates]);
-
-  const availableMethods = useMemo(() => {
-    const methods = new Set(templates.map((t) => t.method));
-    return ALL_METHODS.filter((m) => methods.has(m));
-  }, [templates]);
-
-  const availableTypes = useMemo(() => {
-    const types = new Set(templates.map((t) => t.endpointType));
-    return ALL_TYPES.filter((t) => types.has(t));
-  }, [templates]);
+  const { availableCategories, availableMethods, availableTypes, categoryCounts } = useMemo(
+    () => buildTemplateGalleryFacets(templates),
+    [templates]
+  );
 
   const filtered = useMemo(() => {
     return templates.filter((t) => {
@@ -95,11 +186,38 @@ export function TemplateGallery({
     });
   }, [templates, activeCategory, filterMethod, filterType]);
 
-  const hasActiveFilters = filterMethod !== '' || filterType !== '';
+  const hasActiveFilters = useMemo(
+    () => filterMethod !== '' || filterType !== '',
+    [filterMethod, filterType]
+  );
+
+  const handleCreateTemplate = useCallback(
+    (template: EndpointTemplate) => {
+      onCreateFromTemplate(template);
+    },
+    [onCreateFromTemplate]
+  );
 
   const clearFilters = useCallback(() => {
     setFilterMethod('');
     setFilterType('');
+  }, []);
+
+  const resetFilters = useCallback(() => {
+    setActiveCategory('all');
+    clearFilters();
+  }, [clearFilters]);
+
+  const changeCategory = useCallback((category: TemplateCategory | 'all') => {
+    setActiveCategory(category);
+  }, []);
+
+  const changeMethodFilter = useCallback((method: HttpMethod) => {
+    setFilterMethod((current) => (current === method ? '' : method));
+  }, []);
+
+  const changeTypeFilter = useCallback((type: EndpointType) => {
+    setFilterType((current) => (current === type ? '' : type));
   }, []);
 
   return (
@@ -140,6 +258,7 @@ export function TemplateGallery({
           </div>
           <div className="flex items-center gap-2 shrink-0">
             <button
+              aria-label="Toggle template filters"
               onClick={() => setShowFilters(!showFilters)}
               className={cn(
                 'p-2.5 rounded-xl transition-all ring-1 active:scale-95 sm:hidden',
@@ -154,6 +273,7 @@ export function TemplateGallery({
               )}
             </button>
             <button
+              aria-label="Close template gallery"
               onClick={onClose}
               className="p-2.5 sm:p-3 rounded-xl sm:rounded-2xl hover:bg-accent/50 text-muted-foreground transition-all ring-1 ring-border/20 active:scale-95"
             >
@@ -167,7 +287,7 @@ export function TemplateGallery({
           <div className="flex gap-1 sm:gap-1.5 p-1 sm:p-1.5 rounded-xl sm:rounded-2xl bg-muted/30 border border-border/20 overflow-x-auto no-scrollbar">
             {/* "All" tab */}
             <button
-              onClick={() => setActiveCategory('all')}
+              onClick={() => changeCategory('all')}
               className={cn(
                 'flex items-center gap-1.5 px-3 sm:px-4 py-2 sm:py-2.5 rounded-lg sm:rounded-xl text-[10px] sm:text-xs font-black uppercase tracking-wider transition-all whitespace-nowrap',
                 activeCategory === 'all'
@@ -189,12 +309,12 @@ export function TemplateGallery({
             </button>
             {availableCategories.map((cat) => {
               const meta = CATEGORY_META[cat];
-              const count = templates.filter((t) => t.category === cat).length;
+              const count = categoryCounts[cat] ?? 0;
               const isActive = activeCategory === cat;
               return (
                 <button
                   key={cat}
-                  onClick={() => setActiveCategory(cat)}
+                  onClick={() => changeCategory(cat)}
                   className={cn(
                     'flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2.5 rounded-lg sm:rounded-xl text-[10px] sm:text-xs font-black uppercase tracking-wider transition-all whitespace-nowrap',
                     isActive
@@ -246,7 +366,7 @@ export function TemplateGallery({
                   return (
                     <button
                       key={m}
-                      onClick={() => setFilterMethod(isActive ? '' : m)}
+                      onClick={() => changeMethodFilter(m)}
                       className={cn(
                         'px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all whitespace-nowrap active:scale-95',
                         isActive
@@ -272,7 +392,7 @@ export function TemplateGallery({
                   return (
                     <button
                       key={t}
-                      onClick={() => setFilterType(isActive ? '' : t)}
+                      onClick={() => changeTypeFilter(t)}
                       className={cn(
                         'px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all whitespace-nowrap active:scale-95',
                         isActive
@@ -314,10 +434,7 @@ export function TemplateGallery({
                 </p>
               </div>
               <button
-                onClick={() => {
-                  setActiveCategory('all');
-                  clearFilters();
-                }}
+                onClick={resetFilters}
                 className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-primary bg-primary/10 hover:bg-primary/15 transition-all active:scale-95 ring-1 ring-primary/20"
               >
                 <RotateCcw className="w-3.5 h-3.5" />
@@ -327,54 +444,12 @@ export function TemplateGallery({
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 sm:gap-3">
               {filtered.map((tmpl) => (
-                <button
+                <TemplateGalleryCard
                   key={tmpl.id}
-                  onClick={() => onCreateFromTemplate(tmpl)}
-                  className="text-left p-4 sm:p-5 rounded-xl sm:rounded-2xl border border-border/40 bg-card/40 hover:border-primary/30 hover:bg-primary/5 hover:shadow-xl hover:shadow-primary/5 transition-all group relative overflow-hidden active:scale-[0.98]"
-                >
-                  <div className="absolute top-0 right-0 p-6 opacity-[0.03] group-hover:opacity-[0.08] transition-opacity pointer-events-none -mr-4 -mt-4 group-hover:scale-125 transition-transform duration-700">
-                    <Wand2 className="w-14 sm:w-16 h-14 sm:h-16 text-primary" />
-                  </div>
-
-                  <div className="flex items-center gap-2.5 sm:gap-3 mb-2.5 sm:mb-3 relative z-10">
-                    <MethodBadge method={tmpl.method} size="lg" />
-                    <span className="text-[11px] sm:text-xs font-black text-foreground group-hover:text-primary transition-colors tracking-tight uppercase line-clamp-1">
-                      {tmpl.name}
-                    </span>
-                  </div>
-
-                  <p className="text-[10px] sm:text-[11px] text-muted-foreground/80 line-clamp-2 leading-relaxed mb-3 sm:mb-4 relative z-10 font-medium">
-                    {tmpl.description}
-                  </p>
-
-                  <div className="flex items-center gap-1.5 relative z-10 flex-wrap">
-                    {tmpl.scriptLang && (
-                      <span className="px-2 py-0.5 rounded-md bg-primary/10 text-[8px] sm:text-[9px] font-black font-mono text-primary uppercase tracking-widest border border-primary/10">
-                        {tmpl.scriptLang}
-                      </span>
-                    )}
-                    <span className="px-2 py-0.5 rounded-md bg-muted/50 text-[8px] sm:text-[9px] font-black text-muted-foreground/60 uppercase tracking-widest border border-border/20">
-                      {tmpl.endpointType}
-                    </span>
-                    {activeCategory === 'all' && (
-                      <span
-                        className={cn(
-                          'px-2 py-0.5 rounded-md text-[8px] sm:text-[9px] font-black uppercase tracking-widest border border-border/10 bg-muted/30',
-                          CATEGORY_META[tmpl.category]?.color || 'text-muted-foreground/40'
-                        )}
-                      >
-                        {CATEGORY_META[tmpl.category]?.label}
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="absolute bottom-4 sm:bottom-5 right-4 sm:right-5 opacity-0 group-hover:opacity-100 transition-all transform translate-x-4 group-hover:translate-x-0 hidden sm:block">
-                    <div className="flex items-center gap-1 text-[9px] font-black text-primary uppercase tracking-[0.2em] bg-primary/10 px-2.5 py-0.5 rounded-full border border-primary/20">
-                      USE
-                      <ChevronRight className="w-3 h-3" />
-                    </div>
-                  </div>
-                </button>
+                  template={tmpl}
+                  showCategory={activeCategory === 'all'}
+                  onCreate={handleCreateTemplate}
+                />
               ))}
             </div>
           )}

@@ -20,7 +20,10 @@ vi.mock('next/navigation', () => ({
   useSearchParams: () => mockSearchParams(),
 }));
 
-import AIRunnerPage from './AIRunnerPage';
+import AIRunnerPage, {
+  deriveLinkedScheduleCounts,
+  getScheduleVisualizationScope,
+} from './AIRunnerPage';
 import type {
   AIRunnerDirectoriesResponse,
   AIRunnerAutoflowDTO,
@@ -115,6 +118,8 @@ const mockRunnerSettings: AIRunnerSettingsDTO = {
   artifactRetentionDays: 90,
   defaultArtifactBaseDir: '/tmp/servermon-ai-runner-default',
   defaultMaxConcurrentRuns: 3,
+  defaultHistoryRetentionDays: 90,
+  historyRetentionDays: 90,
   defaultMongoRetentionDays: 30,
   defaultArtifactRetentionDays: 90,
 };
@@ -221,6 +226,110 @@ describe('AIRunnerPage', () => {
     });
   });
 
+  it('derives schedule visualization scope without copying unscoped schedules', () => {
+    const schedules = [
+      {
+        _id: 'schedule-1',
+        name: 'Nightly Codex',
+        promptId: 'prompt-1',
+        agentProfileId: 'profile-1',
+        workingDirectory: '/root/repos/ServerMon',
+        timeout: 30,
+        retries: 1,
+        cronExpression: '0 2 * * *',
+        enabled: true,
+        createdAt: '2026-04-21T00:00:00.000Z',
+        updatedAt: '2026-04-21T00:00:00.000Z',
+      },
+      {
+        _id: 'schedule-2',
+        name: 'Nightly Gemini',
+        promptId: 'prompt-1',
+        agentProfileId: 'profile-2',
+        workingDirectory: '/root/repos/ServerMon',
+        timeout: 30,
+        retries: 1,
+        cronExpression: '0 3 * * *',
+        enabled: true,
+        createdAt: '2026-04-21T00:00:00.000Z',
+        updatedAt: '2026-04-21T00:00:00.000Z',
+      },
+    ] satisfies AIRunnerScheduleDTO[];
+
+    const unscoped = getScheduleVisualizationScope({
+      profileId: null,
+      profileMap: { 'profile-1': mockProfiles[0] },
+      schedules,
+    });
+
+    expect(unscoped.profile).toBeNull();
+    expect(unscoped.schedules).toBe(schedules);
+
+    const scoped = getScheduleVisualizationScope({
+      profileId: 'profile-1',
+      profileMap: { 'profile-1': mockProfiles[0] },
+      schedules,
+    });
+
+    expect(scoped.profile).toBe(mockProfiles[0]);
+    expect(scoped.schedules).toEqual([schedules[0]]);
+  });
+
+  it('derives linked schedule counts in one pass', () => {
+    const schedules = [
+      {
+        _id: 'schedule-1',
+        name: 'Nightly Codex',
+        promptId: 'prompt-1',
+        agentProfileId: 'profile-1',
+        workspaceId: 'workspace-1',
+        workingDirectory: '/root/repos/ServerMon',
+        timeout: 30,
+        retries: 1,
+        cronExpression: '0 2 * * *',
+        enabled: true,
+        createdAt: '2026-04-21T00:00:00.000Z',
+        updatedAt: '2026-04-21T00:00:00.000Z',
+      },
+      {
+        _id: 'schedule-2',
+        name: 'Nightly Gemini',
+        promptId: 'prompt-1',
+        agentProfileId: 'profile-2',
+        workspaceId: 'workspace-1',
+        workingDirectory: '/root/repos/ServerMon',
+        timeout: 30,
+        retries: 1,
+        cronExpression: '0 3 * * *',
+        enabled: true,
+        createdAt: '2026-04-21T00:00:00.000Z',
+        updatedAt: '2026-04-21T00:00:00.000Z',
+      },
+      {
+        _id: 'schedule-3',
+        name: 'Manual Workspace',
+        promptId: 'prompt-2',
+        agentProfileId: 'profile-1',
+        workingDirectory: '/root/repos/ServerMon',
+        timeout: 30,
+        retries: 1,
+        cronExpression: '0 4 * * *',
+        enabled: true,
+        createdAt: '2026-04-21T00:00:00.000Z',
+        updatedAt: '2026-04-21T00:00:00.000Z',
+      },
+    ] satisfies AIRunnerScheduleDTO[];
+
+    const counts = deriveLinkedScheduleCounts(schedules);
+
+    expect(counts.prompt['prompt-1']).toBe(2);
+    expect(counts.prompt['prompt-2']).toBe(1);
+    expect(counts.profile['profile-1']).toBe(2);
+    expect(counts.profile['profile-2']).toBe(1);
+    expect(counts.workspace['workspace-1']).toBe(2);
+    expect(counts.workspace['missing']).toBeUndefined();
+  });
+
   afterEach(() => {
     vi.useRealTimers();
   });
@@ -302,6 +411,92 @@ describe('AIRunnerPage', () => {
         body: expect.stringContaining('"workingDirectory":"/root/repos/ServerMon"'),
       })
     );
+  });
+
+  it('can load a saved prompt into an AutoFlow step', async () => {
+    const fetchMock = vi.mocked(global.fetch);
+
+    await act(async () => {
+      render(<AIRunnerPage />);
+    });
+
+    await waitFor(() => expect(screen.getByText('AutoFlow Builder')).toBeInTheDocument());
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('AutoFlow Name'), {
+        target: { value: 'Saved prompt flow' },
+      });
+      fireEvent.change(screen.getByLabelText('Load saved prompt into AutoFlow step'), {
+        target: { value: 'prompt-1' },
+      });
+    });
+
+    expect(screen.getByLabelText('Step Name')).toHaveValue('Fix tests');
+    expect(screen.getByLabelText(/^Prompt$/i)).toHaveValue(
+      'Audit failing tests and patch the root cause.'
+    );
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /Start AutoFlow/i }));
+    });
+
+    await waitFor(() => {
+      const createCall = fetchMock.mock.calls.find(
+        ([url, init]) =>
+          String(url).includes('/api/modules/ai-runner/autoflows') && init?.method === 'POST'
+      );
+      expect(createCall).toBeDefined();
+      const body = JSON.parse(String(createCall?.[1]?.body ?? '{}'));
+      expect(body.items[0]).toMatchObject({
+        name: 'Fix tests',
+        promptId: 'prompt-1',
+        promptContent: 'Audit failing tests and patch the root cause.',
+      });
+    });
+  });
+
+  it('expands sequential AutoFlow loop times into named step runs', async () => {
+    const fetchMock = vi.mocked(global.fetch);
+
+    await act(async () => {
+      render(<AIRunnerPage />);
+    });
+
+    await waitFor(() => expect(screen.getByText('AutoFlow Builder')).toBeInTheDocument());
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('AutoFlow Name'), {
+        target: { value: 'Looped flow' },
+      });
+      fireEvent.change(screen.getByLabelText('Step Name'), {
+        target: { value: 'Patch tests' },
+      });
+      fireEvent.change(screen.getByLabelText(/^Prompt$/i), {
+        target: { value: 'Review patch' },
+      });
+      fireEvent.change(screen.getByLabelText('Loop times'), {
+        target: { value: '3' },
+      });
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /Start AutoFlow/i }));
+    });
+
+    await waitFor(() => {
+      const createCall = fetchMock.mock.calls.find(
+        ([url, init]) =>
+          String(url).includes('/api/modules/ai-runner/autoflows') && init?.method === 'POST'
+      );
+      expect(createCall).toBeDefined();
+      const body = JSON.parse(String(createCall?.[1]?.body ?? '{}'));
+      expect(body.items.map((item: { name: string }) => item.name)).toEqual([
+        'Patch tests - Loop 1',
+        'Patch tests - Loop 2',
+        'Patch tests - Loop 3',
+      ]);
+      expect(body.items).toHaveLength(3);
+    });
   });
 
   it('warns when schedules are running from an interactive session', async () => {
@@ -591,7 +786,8 @@ describe('AIRunnerPage', () => {
       '/tmp/servermon-ai-runner'
     );
     expect(screen.getByLabelText('Max concurrent runs')).toHaveValue(3);
-    expect(screen.getByLabelText('Mongo retention days')).toHaveValue(30);
+    expect(screen.getByLabelText('Run history retention days')).toHaveValue(90);
+    expect(screen.getByLabelText('AI Runner logs retention days')).toHaveValue(30);
     expect(screen.getByLabelText('Artifact retention days')).toHaveValue(90);
 
     await act(async () => {
@@ -601,7 +797,10 @@ describe('AIRunnerPage', () => {
       fireEvent.change(screen.getByLabelText('Max concurrent runs'), {
         target: { value: '5' },
       });
-      fireEvent.change(screen.getByLabelText('Mongo retention days'), {
+      fireEvent.change(screen.getByLabelText('Run history retention days'), {
+        target: { value: '45' },
+      });
+      fireEvent.change(screen.getByLabelText('AI Runner logs retention days'), {
         target: { value: '14' },
       });
       fireEvent.change(screen.getByLabelText('Artifact retention days'), {
@@ -625,6 +824,7 @@ describe('AIRunnerPage', () => {
           body: JSON.stringify({
             artifactBaseDir: '/mnt/ai-runner-artifacts',
             maxConcurrentRuns: 5,
+            historyRetentionDays: 45,
             mongoRetentionDays: 14,
             artifactRetentionDays: 120,
           }),
@@ -640,7 +840,8 @@ describe('AIRunnerPage', () => {
       '/tmp/servermon-ai-runner-default'
     );
     expect(screen.getByLabelText('Max concurrent runs')).toHaveValue(3);
-    expect(screen.getByLabelText('Mongo retention days')).toHaveValue(30);
+    expect(screen.getByLabelText('Run history retention days')).toHaveValue(90);
+    expect(screen.getByLabelText('AI Runner logs retention days')).toHaveValue(30);
     expect(screen.getByLabelText('Artifact retention days')).toHaveValue(90);
   });
 
@@ -1023,6 +1224,70 @@ describe('AIRunnerPage', () => {
     }
   });
 
+  it('shows the enabled schedule run rate on profile cards', async () => {
+    mockSchedules.splice(
+      0,
+      mockSchedules.length,
+      {
+        _id: 'schedule-1',
+        name: 'Morning Audit',
+        promptId: 'prompt-1',
+        agentProfileId: 'profile-1',
+        workingDirectory: '/root/repos/ServerMon',
+        timeout: 28,
+        retries: 1,
+        cronExpression: '30 9 * * *',
+        enabled: true,
+        nextRunTime: '2026-04-21T10:30:00.000Z',
+        createdAt: '2026-04-21T00:00:00.000Z',
+        updatedAt: '2026-04-21T00:00:00.000Z',
+      },
+      {
+        _id: 'schedule-2',
+        name: 'Evening Audit',
+        promptId: 'prompt-1',
+        agentProfileId: 'profile-1',
+        workingDirectory: '/root/repos/ServerMon',
+        timeout: 20,
+        retries: 1,
+        cronExpression: '0 18 * * *',
+        enabled: true,
+        nextRunTime: '2026-04-21T18:00:00.000Z',
+        createdAt: '2026-04-21T00:00:00.000Z',
+        updatedAt: '2026-04-21T00:00:00.000Z',
+      },
+      {
+        _id: 'schedule-3',
+        name: 'Paused Audit',
+        promptId: 'prompt-1',
+        agentProfileId: 'profile-1',
+        workingDirectory: '/root/repos/ServerMon',
+        timeout: 20,
+        retries: 1,
+        cronExpression: '0 22 * * *',
+        enabled: false,
+        createdAt: '2026-04-21T00:00:00.000Z',
+        updatedAt: '2026-04-21T00:00:00.000Z',
+      }
+    );
+
+    try {
+      await act(async () => {
+        render(<AIRunnerPage />);
+      });
+
+      await waitFor(() => expect(screen.getByText('AI Agent Runner')).toBeInTheDocument());
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('tab', { name: /Settings/i }));
+      });
+
+      expect(screen.getByText('2 runs/day')).toBeInTheDocument();
+    } finally {
+      mockSchedules.splice(0, mockSchedules.length);
+    }
+  });
+
   it('shows schedule retries in the create schedule studio with a default of 1', async () => {
     await act(async () => {
       render(<AIRunnerPage />);
@@ -1154,6 +1419,8 @@ describe('AIRunnerPage', () => {
       name: 'ServerMon repo',
       path: '/root/repos/ServerMon',
       blocking: true,
+      isGitRepo: false,
+      gitWorktreesEnabled: false,
       enabled: true,
       createdAt: '2026-04-21T00:00:00.000Z',
       updatedAt: '2026-04-21T00:00:00.000Z',

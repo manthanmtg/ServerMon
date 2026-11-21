@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { Info, AlertTriangle, XCircle, Clock, ScrollText } from 'lucide-react';
 import Link from 'next/link';
 import { Skeleton } from '@/components/ui/skeleton';
+import { safeJson, resilientFetch } from '@/lib/fetch-utils';
 
 interface LogEntry {
   _id: string;
@@ -19,18 +20,71 @@ const severityConfig = {
   error: { icon: XCircle, color: 'text-destructive', bg: 'bg-destructive/10' },
 };
 
+interface LogResponse {
+  events?: unknown;
+}
+
+function parseLogEntries(payload: unknown): LogEntry[] {
+  if (
+    !payload ||
+    typeof payload !== 'object' ||
+    !('events' in (payload as Record<string, unknown>))
+  ) {
+    return [];
+  }
+
+  const events = (payload as LogResponse).events;
+  if (!Array.isArray(events)) {
+    return [];
+  }
+
+  return events.filter((entry): entry is LogEntry => {
+    if (!entry || typeof entry !== 'object') {
+      return false;
+    }
+
+    const item = entry as Record<string, unknown>;
+    const severity = item.severity;
+
+    return (
+      typeof item._id === 'string' &&
+      typeof item.moduleId === 'string' &&
+      typeof item.event === 'string' &&
+      typeof item.timestamp === 'string' &&
+      (severity === 'info' || severity === 'warn' || severity === 'error')
+    );
+  });
+}
+
 export default function LogsWidget() {
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
 
   useEffect(() => {
     const fetchLogs = async () => {
       try {
-        const res = await fetch('/api/analytics/recent?limit=5');
-        const data = await res.json();
-        setLogs(data.events || []);
-      } catch (err) {
-        console.error(err);
+        const res = await resilientFetch('/api/analytics/recent?limit=5', {
+          timeout: 5000,
+          retries: 1,
+          retryDelay: 500,
+          retryOnStatuses: [502, 503, 504],
+        });
+        if (!res.ok) throw new Error(`Failed to load recent logs: ${res.status}`);
+
+        const payload = (await safeJson<LogResponse>(res)) as LogResponse | null;
+        const parsedEvents = parseLogEntries(payload);
+        const events = payload?.events;
+
+        if (!Array.isArray(events) || (events.length > 0 && parsedEvents.length === 0)) {
+          setLoadFailed(true);
+          return;
+        }
+
+        setLogs(parsedEvents);
+        setLoadFailed(false);
+      } catch {
+        setLoadFailed(true);
       } finally {
         setLoading(false);
       }
@@ -57,6 +111,26 @@ export default function LogsWidget() {
     );
   }
 
+  if (loadFailed && logs.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-8 px-4 text-center">
+        <div className="w-10 h-10 rounded-lg bg-destructive/10 flex items-center justify-center mb-3">
+          <AlertTriangle className="w-5 h-5 text-destructive" />
+        </div>
+        <p className="text-sm font-medium text-foreground">Unable to load activity</p>
+        <p className="text-xs text-muted-foreground mt-0.5">
+          Recent audit events could not be fetched.
+        </p>
+        <Link
+          href="/logs"
+          className="mt-3 text-sm text-primary hover:text-primary/80 font-medium transition-colors"
+        >
+          Open logs page
+        </Link>
+      </div>
+    );
+  }
+
   if (logs.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-8 px-4 text-center">
@@ -79,6 +153,11 @@ export default function LogsWidget() {
 
   return (
     <div className="space-y-4">
+      {loadFailed && (
+        <p role="status" className="text-xs text-warning">
+          Showing last activity
+        </p>
+      )}
       <div className="space-y-2">
         {logs.map((log) => {
           const config = severityConfig[log.severity] || severityConfig.info;

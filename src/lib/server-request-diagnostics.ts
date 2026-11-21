@@ -1,9 +1,9 @@
 import type { IncomingMessage, ServerResponse } from 'http';
 import type { UrlWithParsedQuery } from 'url';
 
-export const DIAGNOSTIC_IGNORED_PATH_PREFIXES = ['/api/socket', '/api/metrics/stream'];
+const DIAGNOSTIC_IGNORED_PATH_PREFIXES = ['/api/socket', '/api/metrics/stream'];
 
-export interface RequestDiagnosticsTracker {
+interface RequestDiagnosticsTracker {
   beginRequest(input: { method: string; path: string }): string;
   completeRequest(
     id: string,
@@ -15,7 +15,7 @@ export interface RequestDiagnosticsTracker {
   getSlowRequestThresholdMs(): number;
 }
 
-export interface RequestDiagnosticsLogger {
+interface RequestDiagnosticsLogger {
   warn(message: string, data?: unknown): void;
   error(message: string, data?: unknown): void;
 }

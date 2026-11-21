@@ -1,94 +1,28 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import {
-  AlertTriangle,
-  Ban,
-  CheckCircle,
-  Info,
-  Lock,
-  RefreshCw,
-  Shield,
-  ShieldAlert,
-  ShieldCheck,
-  SkipForward,
-  User,
-  XCircle,
-} from 'lucide-react';
+import { useMemo } from 'react';
+import { Ban, Lock, Shield, User } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { PageSkeleton } from '@/components/ui/skeleton';
-import type { SecuritySnapshot, CheckStatus } from '../types';
-
-function ScoreGauge({ score }: { score: number }) {
-  const circumference = 2 * Math.PI * 40;
-  const offset = circumference - (score / 100) * circumference;
-  const color =
-    score >= 80 ? 'var(--success)' : score >= 60 ? 'var(--warning)' : 'var(--destructive)';
-  return (
-    <div className="relative w-28 h-28">
-      <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
-        <circle cx="50" cy="50" r="40" fill="none" stroke="var(--border)" strokeWidth="6" />
-        <circle
-          cx="50"
-          cy="50"
-          r="40"
-          fill="none"
-          stroke={color}
-          strokeWidth="6"
-          strokeLinecap="round"
-          strokeDasharray={circumference}
-          strokeDashoffset={offset}
-          className="transition-all duration-700"
-        />
-      </svg>
-      <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className="text-2xl font-bold">{score}</span>
-        <span className="text-[10px] text-muted-foreground">/ 100</span>
-      </div>
-    </div>
-  );
-}
-
-const statusIcon: Record<CheckStatus, React.ReactNode> = {
-  pass: <CheckCircle className="w-4 h-4 text-success" />,
-  fail: <XCircle className="w-4 h-4 text-destructive" />,
-  warn: <AlertTriangle className="w-4 h-4 text-warning" />,
-  info: <Info className="w-4 h-4 text-primary" />,
-  skip: <SkipForward className="w-4 h-4 text-muted-foreground" />,
-};
-
-const statusLabel: Record<CheckStatus, string> = {
-  pass: 'Pass',
-  fail: 'Fail',
-  warn: 'Warning',
-  info: 'Info',
-  skip: 'Skipped',
-};
+import type { SecuritySnapshot } from '../types';
+import { SecurityChecksByCategory } from './SecurityChecksByCategory';
+import { SecurityScoreOverview } from './SecurityScoreOverview';
+import { useSharedJsonPollingQuery } from '@/lib/polling/useSharedJsonPollingQuery';
 
 export default function SecurityPage() {
-  const [snapshot, setSnapshot] = useState<SecuritySnapshot | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  const load = useCallback(async () => {
-    try {
-      const res = await fetch('/api/modules/security', { cache: 'no-store' });
-      if (res.ok) {
-        const data = await res.json();
-        setSnapshot(data);
-      }
-    } catch {
-      // ignore
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    load();
-    const interval = window.setInterval(load, 30000);
-    return () => window.clearInterval(interval);
-  }, [load]);
+  const {
+    data: snapshot,
+    loading,
+    error,
+    refresh,
+  } = useSharedJsonPollingQuery<SecuritySnapshot>({
+    key: 'security:checks',
+    url: '/api/modules/security',
+    intervalMs: 30_000,
+    staleTimeMs: 0,
+  });
 
   const checksByCategory = useMemo(() => {
     const grouped = new Map<string, SecuritySnapshot['checks']>();
@@ -109,156 +43,46 @@ export default function SecurityPage() {
     return <PageSkeleton statCards={3} />;
   }
 
-  if (!snapshot) return null;
+  if (!snapshot) {
+    return (
+      <div className="space-y-4">
+        <Card className="border-destructive/40 bg-destructive/5">
+          <CardContent className="flex items-center justify-between gap-3 py-4">
+            <div className="space-y-1">
+              <p className="text-sm font-semibold text-destructive">Security status unavailable</p>
+              <p className="text-sm text-muted-foreground">
+                Unable to load security status. Please retry.
+              </p>
+            </div>
+            <Button
+              type="button"
+              variant="destructive"
+              size="sm"
+              onClick={() => void refresh()}
+              className="shrink-0"
+            >
+              Retry
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
-      {/* Score & Summary */}
-      <div className="grid grid-cols-1 md:grid-cols-[auto_1fr] gap-6">
-        <Card className="border-border/60">
-          <CardContent className="pt-6 pb-6 flex flex-col items-center gap-3">
-            <ScoreGauge score={snapshot.score} />
-            <p className="text-sm font-medium">Security Score</p>
-            <Badge
-              variant={snapshot.source === 'live' ? 'success' : 'warning'}
-              className="text-[10px]"
-            >
-              {snapshot.source}
-            </Badge>
-          </CardContent>
-        </Card>
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-          <Card className="border-border/60">
-            <CardContent className="pt-4 pb-4">
-              <div className="flex items-center gap-3">
-                <ShieldCheck className="w-5 h-5 text-success" />
-                <div>
-                  <p className="text-2xl font-bold">{snapshot.summary.passed}</p>
-                  <p className="text-xs text-muted-foreground">Passed</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card className="border-border/60">
-            <CardContent className="pt-4 pb-4">
-              <div className="flex items-center gap-3">
-                <ShieldAlert className="w-5 h-5 text-destructive" />
-                <div>
-                  <p className="text-2xl font-bold">{snapshot.summary.failed}</p>
-                  <p className="text-xs text-muted-foreground">Failed</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card className="border-border/60">
-            <CardContent className="pt-4 pb-4">
-              <div className="flex items-center gap-3">
-                <AlertTriangle className="w-5 h-5 text-warning" />
-                <div>
-                  <p className="text-2xl font-bold">{snapshot.summary.warnings}</p>
-                  <p className="text-xs text-muted-foreground">Warnings</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card className="border-border/60">
-            <CardContent className="pt-4 pb-4">
-              <div className="flex items-center gap-3">
-                <Ban className="w-5 h-5 text-primary" />
-                <div>
-                  <p className="text-2xl font-bold">{snapshot.summary.bannedIps}</p>
-                  <p className="text-xs text-muted-foreground">Banned IPs</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card className="border-border/60">
-            <CardContent className="pt-4 pb-4">
-              <div className="flex items-center gap-3">
-                <Shield className="w-5 h-5 text-warning" />
-                <div>
-                  <p className="text-2xl font-bold">{snapshot.summary.pendingSecurityUpdates}</p>
-                  <p className="text-xs text-muted-foreground">Security Updates</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card className="border-border/60">
-            <CardContent className="pt-4 pb-4">
-              <div className="flex items-center gap-3">
-                <Lock className="w-5 h-5 text-primary" />
-                <div>
-                  <p className="text-2xl font-bold">{snapshot.firewall.rulesCount}</p>
-                  <p className="text-xs text-muted-foreground">Firewall Rules</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
+      <SecurityScoreOverview
+        score={snapshot.score}
+        source={snapshot.source}
+        summary={snapshot.summary}
+        firewallRulesCount={snapshot.firewall.rulesCount}
+      />
 
-      {/* Security Checks by Category */}
-      <Card className="border-border/60">
-        <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <ShieldCheck className="w-4 h-4 text-primary" />
-              Security Checks
-            </CardTitle>
-            <button
-              type="button"
-              onClick={load}
-              aria-label="Refresh security checks"
-              className="h-8 w-8 flex items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-              title="Refresh"
-            >
-              <RefreshCw className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {Array.from(checksByCategory.entries()).map(([cat, checks]) => (
-            <div key={cat}>
-              <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
-                {cat}
-              </h3>
-              <div className="space-y-1.5">
-                {checks.map((check) => (
-                  <div
-                    key={check.id}
-                    className="flex items-center gap-3 p-2.5 rounded-lg hover:bg-accent/30 transition-colors"
-                  >
-                    {statusIcon[check.status]}
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium">{check.title}</p>
-                      <p className="text-xs text-muted-foreground truncate">{check.details}</p>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <Badge variant="secondary" className="text-[10px]">
-                        {check.severity}
-                      </Badge>
-                      <Badge
-                        variant={
-                          check.status === 'pass'
-                            ? 'success'
-                            : check.status === 'fail'
-                              ? 'destructive'
-                              : check.status === 'warn'
-                                ? 'warning'
-                                : 'secondary'
-                        }
-                        className="text-[10px]"
-                      >
-                        {statusLabel[check.status]}
-                      </Badge>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))}
-        </CardContent>
-      </Card>
+      <SecurityChecksByCategory
+        checksByCategory={checksByCategory}
+        error={error?.message ?? null}
+        onRefresh={() => void refresh()}
+      />
 
       {/* Fail2Ban */}
       {snapshot.fail2ban.available && (

@@ -1,5 +1,9 @@
 import mongoose, { Document, Model, Schema } from 'mongoose';
-import type { AIRunnerJobStatus, AIRunnerTrigger } from '@/modules/ai-runner/types';
+import type {
+  AIRunnerJobStatus,
+  AIRunnerRunAsUserAuthMode,
+  AIRunnerTrigger,
+} from '@/modules/ai-runner/types';
 
 export interface IAIRunnerJob extends Document {
   runId: mongoose.Types.ObjectId;
@@ -10,12 +14,17 @@ export interface IAIRunnerJob extends Document {
   agentProfileId: mongoose.Types.ObjectId;
   workspaceId?: mongoose.Types.ObjectId;
   workspaceBlocking?: boolean;
+  gitWorktreesEnabled?: boolean;
+  gitWorktreeBaseDir?: string;
+  worktreePath?: string;
   triggeredBy: AIRunnerTrigger;
   promptContent: string;
   workingDirectory: string;
   command: string;
   shell: string;
   requiresTTY: boolean;
+  runAsUser?: string;
+  runAsUserAuthMode?: AIRunnerRunAsUserAuthMode;
   env: Map<string, string> | Record<string, string>;
   timeoutMinutes: number;
   status: AIRunnerJobStatus;
@@ -60,12 +69,21 @@ const AIRunnerJobSchema = new Schema<IAIRunnerJob>(
     agentProfileId: { type: Schema.Types.ObjectId, ref: 'AIRunnerProfile', required: true },
     workspaceId: { type: Schema.Types.ObjectId, ref: 'AIRunnerWorkspace' },
     workspaceBlocking: { type: Boolean, default: false },
+    gitWorktreesEnabled: { type: Boolean, default: false },
+    gitWorktreeBaseDir: { type: String, trim: true, maxlength: 2000 },
+    worktreePath: { type: String, trim: true, maxlength: 2000 },
     triggeredBy: { type: String, required: true, enum: ['manual', 'schedule', 'autoflow'] },
     promptContent: { type: String, required: true, maxlength: 100_000 },
     workingDirectory: { type: String, required: true, trim: true, maxlength: 2000 },
     command: { type: String, required: true, maxlength: 20_000 },
     shell: { type: String, required: true, maxlength: 512 },
     requiresTTY: { type: Boolean, default: false },
+    runAsUser: { type: String, trim: true, maxlength: 64 },
+    runAsUserAuthMode: {
+      type: String,
+      enum: ['passwordless-sudo'],
+      default: 'passwordless-sudo',
+    },
     env: { type: Map, of: String, default: {} },
     timeoutMinutes: { type: Number, required: true, min: 1, max: 24 * 60 },
     status: {

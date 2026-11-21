@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ZodError } from 'zod';
-import type { Model } from 'mongoose';
 import { createLogger } from '@/lib/logger';
 import connectDB from '@/lib/db';
 import RouteTemplate, { RouteTemplateZodSchema } from '@/models/RouteTemplate';
@@ -28,7 +27,7 @@ export async function GET(req: NextRequest) {
 
     const existingCount = await RouteTemplate.countDocuments({});
     if (existingCount === 0) {
-      await seedBuiltinTemplates(RouteTemplate as unknown as Model<unknown>);
+      await seedBuiltinTemplates(RouteTemplate);
     }
 
     const { searchParams } = new URL(req.url);
@@ -70,7 +69,7 @@ export async function POST(req: NextRequest) {
       createdBy: session.user.username,
     });
 
-    await recordAudit(FleetLogEvent as unknown as Model<unknown>, {
+    await recordAudit(FleetLogEvent, {
       action: 'template.create',
       actorUserId: session.user.username,
       metadata: { templateId: String(created._id), slug: parsed.slug },

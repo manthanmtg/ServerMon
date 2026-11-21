@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ZodError } from 'zod';
-import type { Model } from 'mongoose';
 import { createLogger } from '@/lib/logger';
 import connectDB from '@/lib/db';
 import AccessPolicy, { AccessPolicyZodSchema } from '@/models/AccessPolicy';
@@ -65,7 +64,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       return NextResponse.json({ error: 'Policy not found' }, { status: 404 });
     }
 
-    await recordAudit(FleetLogEvent as unknown as Model<unknown>, {
+    await recordAudit(FleetLogEvent, {
       action: 'access_policy.update',
       actorUserId: session.user.username,
       metadata: { policyId: id },
@@ -98,7 +97,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
 
     await AccessPolicy.findByIdAndDelete(id);
 
-    await recordAudit(FleetLogEvent as unknown as Model<unknown>, {
+    await recordAudit(FleetLogEvent, {
       action: 'access_policy.delete',
       actorUserId: session.user.username,
       metadata: { policyId: id },

@@ -3,6 +3,7 @@
 import { useEffect, useEffectEvent, useRef } from 'react';
 import { usePathname } from 'next/navigation';
 import { isPublicRoute } from '@/lib/auth-routes';
+import { resilientFetch } from '@/lib/fetch-utils';
 import { SESSION_REFRESH_THROTTLE_MS, SESSION_TIMEOUT_MS } from '@/lib/session-config';
 
 const ACTIVITY_EVENTS: Array<keyof WindowEventMap> = [
@@ -43,7 +44,8 @@ export default function SessionManager() {
     if (routeIsPublic || redirectingRef.current) return;
 
     redirectingRef.current = true;
-    void fetch('/api/auth/logout', {
+    void resilientFetch('/api/auth/logout', {
+      timeout: 3000,
       method: 'POST',
       keepalive: true,
     }).catch(() => undefined);
@@ -72,7 +74,7 @@ export default function SessionManager() {
     lastRefreshAtRef.current = now;
 
     try {
-      const response = await fetch('/api/auth/me', { cache: 'no-store' });
+      const response = await resilientFetch('/api/auth/me', { cache: 'no-store', timeout: 5000 });
       if (response.status === 401) {
         redirectToLogin();
       }

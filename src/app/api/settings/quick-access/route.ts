@@ -9,9 +9,24 @@ const log = createLogger('api:settings:quick-access');
 
 export const dynamic = 'force-dynamic';
 
+function isInternalQuickAccessHref(href: string): boolean {
+  if (!href.startsWith('/')) {
+    return false;
+  }
+
+  try {
+    const parsed = new URL(href, 'http://localhost');
+    return parsed.origin === 'http://localhost';
+  } catch {
+    return false;
+  }
+}
+
 const QuickAccessItemSchema = z.object({
   id: z.string().min(1).max(64),
-  href: z.string().min(1).max(128),
+  href: z.string().min(1).max(128).refine(isInternalQuickAccessHref, {
+    message: 'href must be an internal path',
+  }),
   label: z.string().min(1).max(64),
   icon: z.string().min(1).max(64),
 });

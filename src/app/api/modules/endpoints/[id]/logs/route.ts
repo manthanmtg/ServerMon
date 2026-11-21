@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createLogger } from '@/lib/logger';
 import connectDB from '@/lib/db';
+import { getSession } from '@/lib/session';
 import EndpointExecutionLog from '@/models/EndpointExecutionLog';
 
 export const dynamic = 'force-dynamic';
@@ -9,6 +10,11 @@ const log = createLogger('api:endpoints:logs');
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const session = await getSession();
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     await connectDB();
     const { id } = await params;
 

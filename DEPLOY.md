@@ -37,7 +37,10 @@ If you are running ServerMon on macOS and want schedules to survive reboot witho
 
 ```bash
 pnpm install
-cp .env.example .env.local
+cat > .env.local <<'EOF'
+MONGO_URI=mongodb://localhost:27017/servermon
+JWT_SECRET=change-this-development-secret
+EOF
 sudo ./scripts/install-launchd.sh
 ```
 
@@ -57,8 +60,13 @@ Options:
   --mongo-uri URI      MongoDB connection string
   --domain DOMAIN      Domain name for Nginx reverse proxy
   --ssl                Enable SSL via Let's Encrypt (requires --domain)
-  --skip-mongo         Skip local MongoDB installation
+  --skip-mongo         Skip MongoDB installation (use remote MongoDB)
   --unattended         Non-interactive mode, use defaults/flags
+  --use-existing-values Use existing config values, no prompts (upgrade shortcut)
+  --prebuilt           Use bundled .next and node_modules; skip pnpm install/build
+  --keep-last-n-release N
+                      Number of release directories to keep during cleanup
+  --allow-root         Run service as root (not recommended)
   --uninstall          Remove ServerMon completely
   -h, --help           Show help
 ```
@@ -162,23 +170,25 @@ sudo ./scripts/install.sh \
 
 Step by step, the installer:
 
-| Step | What happens                                                             |
-| ---- | ------------------------------------------------------------------------ |
-| 1    | Installs base packages (`curl`, `git`, `build-essential`, `lsof`)        |
-| 2    | Installs Node.js 20 LTS and pnpm (skips if already present)              |
-| 3    | Installs MongoDB 7.0 and starts it (skipped with `--skip-mongo`)         |
-| 4    | Copies source to `/opt/servermon`, runs `pnpm install` and `pnpm build`  |
-| 5    | Generates `/etc/servermon/env` with JWT secret, creates systemd service  |
-| 6    | _(optional)_ Installs Nginx, generates reverse proxy config, sets up SSL |
+| Step | What happens                                                                                            |
+| ---- | ------------------------------------------------------------------------------------------------------- |
+| 1    | Installs base packages (`curl`, `git`, `build-essential`, `lsof`)                                       |
+| 2    | Installs Node.js 20 LTS and pnpm (skips if already present)                                             |
+| 3    | Installs MongoDB 7.0 and starts it (skipped with `--skip-mongo`)                                        |
+| 4    | Prepares a timestamped release in `/opt/servermon-releases/`, then runs `pnpm install` and `pnpm build` |
+| 5    | Generates `/etc/servermon/env`, links `/opt/servermon`, and creates the web and Apps worker services    |
+| 6    | _(optional)_ Installs Nginx, generates reverse proxy config, sets up SSL                                |
 
 Files created:
 
-| Path                                    | Purpose                                         |
-| --------------------------------------- | ----------------------------------------------- |
-| `/opt/servermon/`                       | Application directory                           |
-| `/etc/servermon/env`                    | Environment config (secrets, MongoDB URI, port) |
-| `/etc/systemd/system/servermon.service` | Systemd service unit                            |
-| `/etc/nginx/sites-available/servermon`  | Nginx config (if using Nginx)                   |
+| Path                                                | Purpose                                         |
+| --------------------------------------------------- | ----------------------------------------------- |
+| `/opt/servermon/`                                   | Symlink to the active release                   |
+| `/opt/servermon-releases/`                          | Timestamped application releases                |
+| `/etc/servermon/env`                                | Environment config (secrets, MongoDB URI, port) |
+| `/etc/systemd/system/servermon.service`             | Web UI and API systemd service                  |
+| `/etc/systemd/system/servermon-apps-worker.service` | Apps deployment worker systemd service          |
+| `/etc/nginx/sites-available/servermon`              | Nginx config (if using Nginx)                   |
 
 ---
 
@@ -208,10 +218,75 @@ The upgrade:
 
 - Preserves your `/etc/servermon/env` (JWT secret, MongoDB URI)
 - Preserves your MongoDB data
-- Rebuilds the application from the latest source
-- Restarts the service
+- Builds a new timestamped release and repoints `/opt/servermon`
+- Removes old release directories according to `--keep-last-n-release` (default `2`)
+- Stops the Apps and Script Runner workers before the web service and stable release switch
+- Starts and verifies the web service and both workers before removing old releases
 
 Your admin account, TOTP configuration, and all data remain intact.
+
+---
+
+## Script Runner on Linux
+
+The installer provisions `servermon-script-runner-worker.service` and a dedicated `servermon-script` account. Open **Scripts** as a ServerMon administrator. Runs start in `/var/lib/servermon-script` by default. A custom directory must be accessible to the execution account. Each script uses the host network, including access to local network services, and can access local files permitted by the execution account.
+
+The worker runs up to two scripts at a time by default. **Scripts → Settings** controls concurrency, log retention, and defaults for new scripts. Each run uses a separate systemd service so a web service restart leaves active scripts running and **Stop** terminates the run's process group. If the worker restarts with active scripts, it stops the remaining processes and reconciles their history. Choose Bash, Python 3, or Node.js in the editor. The Linux installer supplies the interpreters, and the worker reports which runtimes are available. Custom installs must provision the current launcher and put the interpreters in `/usr/local/bin`, `/usr/bin`, or `/bin`. Node.js scripts use CommonJS by default.
+
+Use **Run defaults** to save a script's working directory, arguments, timeout, and environment variables. Override these in **Configure run** for an individual execution, or select **Save as script defaults** to persist the changes. Values are encrypted in the database with a key derived from `JWT_SECRET`. Preserve that secret when moving or restoring ServerMon so saved environments and run snapshots remain readable. Scripts share the execution account, and values printed by a script become part of its output logs.
+
+Create reusable variables and secrets in **Scripts → Env Vars**. Use **New group** to organize saved variables and link them together under **Workspace → Run defaults** or **Configure run**. A variable can belong to several groups and is applied once per run. An inline value with the same name takes precedence.
+
+New runs, including scheduled runs, use the current group membership and variable values at queue time. **Run again** reuses the original linked values. Unlink a group from its saved scripts before deleting it. Deleting a group keeps its member variables. To delete an individual variable, first remove it from any groups and saved scripts that reference it.
+
+Use **Scripts → Schedules** to add a recurring run to a saved script. Choose an interval in five-minute increments, or schedule a daily or Monday–Friday run at a local time in a named timezone. The editor previews the next three calendar occurrences. When a clock change skips the chosen local time, the schedule skips that day. When the local time repeats, it runs once at the first occurrence. Scheduled runs use the latest saved script and linked variables. The worker queues one occurrence after downtime and skips a scheduled occurrence if the script's previous scheduled run is still queued or running. Pause or delete the schedule to stop future occurrences.
+
+Script Runner stores output under `/var/lib/servermon/script-runner`, with up to 8 MiB of capture per run. In **Scripts → Settings**, log retention defaults to three days after completion. Completed run history defaults to the newest 500 runs within 30 days of queueing. When a run ages out or falls past the count limit, the worker removes its history and any remaining output. Queued and running scripts are excluded from pruning.
+
+**Settings → Storage by script** shows completed run counts and retained output bytes, including an aggregate for ad hoc runs and deleted scripts. Set shorter log or history retention and a smaller run count for individual saved scripts. Blank settings inherit the runner defaults, and runner-wide limits still apply.
+
+```bash
+systemctl status servermon-script-runner-worker
+journalctl -u servermon-script-runner-worker -n 100 --no-pager
+```
+
+---
+
+## Python Environments on Linux
+
+Open **Python Environments** to build reusable dependency environments. The Linux installer provisions a checksum-verified uv executable and an unprivileged build account. The module lists compatible system interpreters. To add another version, choose **Install Python version** and enter an exact CPython version supported by the installed uv release. ServerMon keeps managed interpreters in fixed, read-only locations under `/var/lib/servermon/python-interpreters`.
+
+Create an environment with one named package requirement per line. Extras and version constraints are supported. uv resolves wheels from PyPI, installs them from a hash-locked list, and checks dependencies before activating the revision. Each revision retains its `requirements.lock`. **Activity** shows build output and allows restoring an available revision. The active revision remains usable after a failed update.
+
+Choose **Python** in the Scripts workspace to see the environment picker. **Configure run** also supports choosing an environment for one execution. Manual and scheduled runs record the revision when queued. History reruns use their recorded revision while it remains available. The worker keeps the active revision, one rollback revision, and revisions still used by queued or running jobs under `/var/lib/servermon/python-environments`. Unlink saved scripts and let active runs finish before deleting an environment.
+
+---
+
+## Release Artifacts
+
+GitHub releases can include prebuilt tarballs generated by the `Release Artifacts` workflow. The workflow runs only when a `v*` tag is pushed.
+
+Create the next SemVer tag with the release helper:
+
+```bash
+./scripts/release.sh patch
+```
+
+Use `major`, `minor`, `patch`, or an explicit version such as `v0.2.0`. If no bump argument is provided, the script prompts for one.
+
+Each release publishes:
+
+| Artifact pattern                           | Contents                                    |
+| ------------------------------------------ | ------------------------------------------- |
+| `servermon-hub-<platform>-<arch>.tar.gz`   | Built hub application with production deps  |
+| `servermon-agent-<platform>-<arch>.tar.gz` | Agent package for remote node installation  |
+| `SHA256SUMS`                               | SHA-256 checksums for every release tarball |
+
+Supported targets are `linux-x64`, `linux-arm64`, `darwin-x64`, and `darwin-arm64`. Verify the downloaded tarball before extracting it:
+
+```bash
+sha256sum -c SHA256SUMS --ignore-missing
+```
 
 ---
 
@@ -245,22 +320,34 @@ mongosh --eval 'use servermon; db.dropDatabase()'
 
 ## Managing the Service
 
-```bash
-# Check if ServerMon is running
-sudo systemctl status servermon
+The Linux installer manages two units. The web unit serves ServerMon; the Apps
+worker is the only supported consumer for queued deploy, update, rollback, and
+delete operations.
 
-# View live logs
+```bash
+# Check both required services
+sudo systemctl status servermon servermon-apps-worker
+
+# View web/API or Apps operation logs
 sudo journalctl -u servermon -f
+sudo journalctl -u servermon-apps-worker -f
 
 # Restart after config changes
-sudo systemctl restart servermon
+sudo systemctl restart servermon servermon-apps-worker
 
-# Stop the service
-sudo systemctl stop servermon
+# Stop safely: prevent new host mutations before stopping the web service
+sudo systemctl stop servermon-apps-worker servermon
 
-# Start the service
-sudo systemctl start servermon
+# Start the API first, then its operation consumer
+sudo systemctl start servermon servermon-apps-worker
 ```
+
+The worker writes a MongoDB heartbeat every five seconds. New Apps operations
+are accepted only while the newest heartbeat is fresh and `running`; otherwise
+the mutation endpoint returns `503` and creates no operation record. A worker
+that restarts after an interrupted operation waits for the old lease to expire,
+then marks that operation `failed` with `WORKER_INTERRUPTED` and releases its
+active lock. It never automatically replays uncertain host-side work.
 
 ### macOS launchd
 
@@ -309,6 +396,49 @@ sudo systemctl restart servermon
 | `MONGO_URI`  | MongoDB connection string                          | `mongodb://localhost:27017/servermon` |
 | `JWT_SECRET` | Secret for signing session tokens (auto-generated) | —                                     |
 | `NODE_ENV`   | Runtime mode                                       | `production`                          |
+
+Common optional controls:
+
+| Variable                        | Description                                                              | Default                           |
+| ------------------------------- | ------------------------------------------------------------------------ | --------------------------------- |
+| `LOG_LEVEL`                     | Structured log verbosity (`debug`, `info`, `warn`, `error`)              | `info`                            |
+| `SERVERMON_SLOW_REQUEST_MS`     | Slow request logging threshold                                           | `2000`                            |
+| `SERVERMON_REPO_DIR`            | Source checkout used by source-mode update actions                       | `/opt/servermon/repo`             |
+| `SERVERMON_INSTALL_MODE`        | Update mode, either `source` or `release`                                | `source`                          |
+| `SERVERMON_VERSION_TARGET`      | Release tag or `latest` for release-mode updates                         | `latest`                          |
+| `SERVERMON_RELEASE_BASE_URL`    | Custom release asset base URL                                            | GitHub Releases URL               |
+| `SERVERMON_SOURCE_REF`          | Git branch or ref used by source-mode updates                            | `main`                            |
+| `SERVERMON_APPS_ROOT`           | Host data root for managed app releases                                  | `/var/lib/servermon/apps`         |
+| `SERVERMON_DATABASES_ROOT`      | Host data root for managed database containers                           | `/var/lib/servermon/databases`    |
+| `SERVERMON_PUBLIC_HOST`         | Default public hostname for managed database connection URLs             | unset                             |
+| `SERVERMON_PUBLIC_IP`           | Default public IP fallback for managed database connections              | unset                             |
+| `PUBLIC_IP`                     | Legacy public IP fallback used when ServerMon-specific values are unset  | unset                             |
+| `SERVERMON_AUTO_UPDATE_CONFIG`  | Server auto-update schedule config path                                  | `/etc/servermon/auto-update.json` |
+| `SERVERMON_NETWORK_MOCK`        | Set to `1` to use mocked network speedtest data                          | unset                             |
+| `SERVERMON_DOCKER_MOCK`         | Set to `1` to use mocked Docker data                                     | unset                             |
+| `AI_RUNNER_MAX_CONCURRENT_RUNS` | Set to a positive integer to cap concurrent AI Runner jobs (`3` default) | `3`                               |
+| `SERVERMON_FIREWALL_MOCK`       | Set to `1` to use mocked firewall posture data                           | unset                             |
+| `SERVERMON_SKIP_STARTUP_JOBS`   | Set to `1` to skip startup jobs (stale session cleanup and schedulers)   | `unset`                           |
+| `SERVERMON_BRANDING_MOCK`       | Set to `1` to use default branding without MongoDB                       | unset                             |
+| `WEBAUTHN_RP_ID`                | Override the passkey relying party ID                                    | request host                      |
+| `WEBAUTHN_ORIGIN`               | Override the expected passkey browser origin                             | request origin                    |
+| `AI_RUNNER_MAX_CONCURRENT_RUNS` | Maximum concurrently executing AI Runner jobs                            | `3`                               |
+
+Fleet hub installs may also write these values:
+
+| Variable                          | Description                                               | Default                        |
+| --------------------------------- | --------------------------------------------------------- | ------------------------------ |
+| `FLEET_HUB_ORCHESTRATORS_ENABLED` | Enable hub-managed FRP and Nginx orchestration at startup | unset                          |
+| `FLEET_HUB_PUBLIC_URL`            | Public hub URL used by install scripts and pair callbacks | request host                   |
+| `FLEET_HUB_AUTH_TOKEN`            | Shared token for hub and agent trust                      | generated by installer         |
+| `FLEET_NGINX_MANAGED_DIR`         | Directory for hub-managed Nginx snippets                  | `/etc/nginx/servermon`         |
+| `FLEET_NGINX_BINARY`              | Nginx executable used for config tests and reloads        | `nginx`                        |
+| `FLEET_FRP_VERSION`               | FRP version downloaded by fleet orchestrators             | `latest`                       |
+| `FLEET_BINARY_CACHE_DIR`          | Cache directory for downloaded fleet binaries             | `/var/lib/servermon/frp-cache` |
+| `FLEET_FRPS_CONFIG_DIR`           | Directory for generated FRP server config                 | `/etc/servermon/frp`           |
+| `FLEET_ACME_EMAIL`                | Email used for ACME certificate requests                  | unset                          |
+| `FLEET_AUTO_APPLY_REVISIONS`      | Set to `true` to auto-apply fleet config revisions        | unset                          |
+| `FLEET_BACKUP_DIR`                | Directory for generated fleet backups                     | `./.fleet-backups`             |
 
 ---
 
@@ -393,6 +523,55 @@ sudo systemctl status mongod
 # Common issue: port already in use
 sudo lsof -i :8912
 ```
+
+### Apps Update stays unavailable or returns worker-unavailable `503`
+
+Check the separately supervised worker before retrying the Apps action:
+
+```bash
+sudo systemctl status servermon-apps-worker --no-pager
+sudo journalctl -u servermon-apps-worker -n 100 --no-pager
+sudo systemctl restart servermon-apps-worker
+sudo systemctl is-active servermon servermon-apps-worker
+```
+
+Expected behavior:
+
+- a missing, stale, `starting`, `draining`, `stopped`, or `failed` heartbeat
+  rejects new work with `503` and leaves the Update button usable;
+- queued work is safe for the restarted worker to claim because no host mutation
+  has started;
+- an expired running operation is terminally failed with
+  `WORKER_INTERRUPTED`, is not replayed, and disappears from the active UI
+  overlay on the next poll.
+
+After `WORKER_INTERRUPTED`, inspect the worker log and the managed app's current
+release, service, and Nginx state before retrying. The legacy executor may have
+completed only part of the host mutation.
+
+If an upgrade omitted or broke the worker unit, rerun the authoritative
+installer using the stored configuration:
+
+```bash
+cd /opt/servermon/repo
+sudo ./scripts/install.sh --use-existing-values
+sudo systemctl is-active servermon servermon-apps-worker
+```
+
+To roll ServerMon itself back to a retained known-good release, first identify
+the target explicitly, then stop both units before changing the stable symlink:
+
+```bash
+ls -1dt /opt/servermon-releases/*
+sudo systemctl stop servermon-apps-worker servermon
+sudo ln -sfn /opt/servermon-releases/<known-good-release> /opt/servermon
+sudo systemctl start servermon servermon-apps-worker
+sudo systemctl is-active servermon servermon-apps-worker
+```
+
+Do not delete or requeue an active Apps operation to force the button to unlock.
+Allow expired-lease recovery to make the durable record terminal, then inspect
+the host state and retry deliberately.
 
 ### Can't connect in the browser
 
@@ -494,6 +673,9 @@ All ServerMon logs go to journald with structured output (timestamps, log levels
 ```bash
 # Live log stream
 sudo journalctl -u servermon -f
+
+# Live Apps deployment worker logs
+sudo journalctl -u servermon-apps-worker -f
 
 # Last 50 lines
 sudo journalctl -u servermon -n 50 --no-pager
@@ -603,7 +785,7 @@ ServerMon can run as a **Hub** (master controller) that manages remote **Agents*
 
 ### Environment variables
 
-Copy from `.env.example`. The fleet-specific section:
+Add these fleet-specific values to `/etc/servermon/env` for production installs or `.env.local` for local development:
 
 ```env
 # Master Hub public URL — used by the install script and pair callbacks
@@ -761,9 +943,12 @@ volumes:
 
 The onboarding wizard generates a one-shot install command that:
 
-- downloads ServerMon,
-- writes `/etc/servermon-agent/env` with `FLEET_AGENT_MODE=true`, the hub URL, pairing token, and node ID,
-- installs a systemd service.
+- downloads the latest `servermon-agent-<os>-<arch>.tar.gz` release artifact by default,
+- verifies the artifact with `SHA256SUMS`,
+- writes `/etc/servermon-agent/install.env` so future updates know whether the agent tracks release artifacts or source builds,
+- installs a systemd service on Linux or a launchd service on macOS.
+
+To pin a release, append `--version v0.1.1` to the generated command. To preserve the older source-build flow, append `--build-from-source --source-ref main`.
 
 systemd unit for agent mode:
 
@@ -775,19 +960,45 @@ After=network.target
 
 [Service]
 Type=simple
-User=servermon
-WorkingDirectory=/opt/servermon
-EnvironmentFile=/etc/servermon-agent/env
+User=root
+WorkingDirectory=/opt/servermon-agent/source
+Environment=NODE_ENV=production
+Environment=PORT=8918
 Environment=FLEET_AGENT_MODE=true
+Environment=FLEET_AGENT_PTY_PORT=8918
+Environment=FLEET_AGENT_HUB_URL=https://hub.example.com
+Environment=FLEET_AGENT_PAIRING_TOKEN=<pairing-token>
+Environment=FLEET_AGENT_NODE_ID=<node-id>
 ExecStart=/usr/bin/pnpm start
 Restart=always
-RestartSec=5
+RestartSec=10
 
 [Install]
 WantedBy=multi-user.target
 ```
 
-The agent performs the pairing handshake against `/api/fleet/nodes/<id>/pair` using its one-time token, receives the hub FRP connection info, and establishes the tunnel. The token is consumed on first use.
+The agent performs the pairing handshake against `/api/fleet/nodes/<id>/pair` using its one-time token, receives the hub FRP connection info, and establishes the tunnel. The token is consumed on first use. Fleet-triggered updates use the recorded install mode: release installs download and verify release artifacts, while source installs continue to pull and build from the configured source ref.
+
+### Installing ServerMon on a fleet node
+
+The node detail page includes a ServerMon tab for installing a hub instance on that node. The install source selector supports:
+
+- **Latest release artifact**: downloads `servermon-hub-<os>-<arch>.tar.gz` from the latest GitHub release.
+- **Pinned release artifact**: downloads the same hub artifact from a specific tag such as `v0.1.1`.
+- **Build from source**: clones or updates the repository and runs the traditional `pnpm install` and `pnpm build` flow.
+
+Release installs verify `SHA256SUMS` before extraction and call `scripts/install.sh --prebuilt`, which skips dependency install and Next.js build because `.next` and production `node_modules` are already in the artifact. Installer output is streamed back through fleet logs and appears below the Start install action in the UI.
+
+The hub installer records its mode in `/etc/servermon/env`:
+
+```dotenv
+SERVERMON_INSTALL_MODE=release
+SERVERMON_VERSION_TARGET=latest
+SERVERMON_RELEASE_BASE_URL=
+SERVERMON_SOURCE_REF=main
+```
+
+`scripts/update-servermon.sh` uses those values for future updates. Release-installed hubs continue downloading and verifying hub artifacts; source-installed hubs keep using the git pull and build flow.
 
 ### Backup and restore
 

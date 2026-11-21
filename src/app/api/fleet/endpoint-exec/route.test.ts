@@ -64,6 +64,14 @@ function makePost(body: unknown): NextRequest {
   });
 }
 
+function makeRawPost(body: string): NextRequest {
+  return new NextRequest('http://localhost/api/fleet/endpoint-exec', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body,
+  });
+}
+
 function makeGet(params: Record<string, string> = {}): NextRequest {
   const url = new URL('http://localhost/api/fleet/endpoint-exec');
   for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
@@ -99,6 +107,12 @@ describe('POST /api/fleet/endpoint-exec', () => {
       makePost({ endpointId: 'e1', overrideTarget: { mode: 'fleet', nodeIds: [] } })
     );
     expect(res.status).toBe(403);
+  });
+
+  it('returns 400 for malformed JSON input', async () => {
+    const res = await POST(makeRawPost('{'));
+    expect(res.status).toBe(400);
+    await expect(res.json()).resolves.toEqual({ error: 'Invalid JSON body' });
   });
 
   it('returns 404 when the endpoint is missing', async () => {

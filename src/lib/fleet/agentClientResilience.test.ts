@@ -54,8 +54,6 @@ describe('AgentClient Resilience', () => {
       logEntry,
     });
 
-    // Accessing private handleCommand for testing
-    // @ts-expect-error - testing private method
     await client.handleCommand(null);
     expect(logEntry).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -64,7 +62,6 @@ describe('AgentClient Resilience', () => {
     );
 
     logEntry.mockClear();
-    // @ts-expect-error - testing private method
     await client.handleCommand({});
     expect(logEntry).toHaveBeenCalledWith(
       expect.objectContaining({

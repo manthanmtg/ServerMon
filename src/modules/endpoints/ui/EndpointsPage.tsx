@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useToast } from '@/components/ui/toast';
 import ConfirmationModal from '@/components/ui/ConfirmationModal';
 import { cn, slugify } from '@/lib/utils';
+import { resilientFetch, safeJson } from '@/lib/fetch-utils';
 
 // Types
 import type {
@@ -30,6 +31,41 @@ import { EndpointDocs } from './components/EndpointDocs';
 import { EndpointTestConsole } from './components/EndpointTestConsole';
 import { TemplateGallery } from './components/TemplateGallery';
 import { ResizeHandle } from './components/common/ResizeHandle';
+
+const ENDPOINT_FETCH_TIMEOUT_MS = 12_000;
+const ENDPOINT_FETCH_RETRIES = 1;
+const ENDPOINT_FETCH_RETRY_DELAY_MS = 750;
+const ENDPOINT_FETCH_RETRY_STATUSES = [408, 429, 500, 502, 503, 504];
+
+type EndpointApiError = {
+  error?: string;
+};
+
+async function fetchEndpointJson<T>(
+  input: string | URL | Request,
+  init: RequestInit = {},
+  fallbackMessage = 'Endpoint request failed'
+): Promise<T> {
+  const response = await resilientFetch(input, {
+    ...init,
+    timeout: ENDPOINT_FETCH_TIMEOUT_MS,
+    retries: ENDPOINT_FETCH_RETRIES,
+    retryDelay: ENDPOINT_FETCH_RETRY_DELAY_MS,
+    retryOnStatuses: ENDPOINT_FETCH_RETRY_STATUSES,
+  });
+
+  if (!response.ok) {
+    const errorPayload = await safeJson<EndpointApiError>(response);
+    throw new Error(errorPayload?.error ?? `${fallbackMessage} (${response.status})`);
+  }
+
+  const payload = await safeJson<T>(response);
+  if (payload === null) {
+    throw new Error('Server returned an invalid JSON response');
+  }
+
+  return payload;
+}
 
 export default function EndpointsPage() {
   const { toast } = useToast();
@@ -142,12 +178,13 @@ export default function EndpointsPage() {
         if (filterMethod) params.set('method', filterMethod);
         if (filterType) params.set('type', filterType);
         if (filterEnabled) params.set('enabled', filterEnabled);
-        const res = await fetch(`/api/modules/endpoints?${params}`, { cache: 'no-store' });
-        if (res.ok) {
-          const data: EndpointsListResponse = await res.json();
-          setEndpoints(data.endpoints);
-          setTotal(data.total);
-        }
+        const data = await fetchEndpointJson<EndpointsListResponse>(
+          `/api/modules/endpoints?${params}`,
+          { cache: 'no-store' },
+          'Failed to load endpoints'
+        );
+        setEndpoints(data.endpoints);
+        setTotal(data.total);
       } catch {
         toast({ title: 'Failed to load endpoints', variant: 'destructive' });
       } finally {
@@ -164,11 +201,12 @@ export default function EndpointsPage() {
 
   const loadTemplates = useCallback(async () => {
     try {
-      const res = await fetch('/api/modules/endpoints/templates');
-      if (res.ok) {
-        const data = await res.json();
-        setTemplates(data.templates);
-      }
+      const data = await fetchEndpointJson<{ templates: EndpointTemplate[] }>(
+        '/api/modules/endpoints/templates',
+        {},
+        'Failed to load templates'
+      );
+      setTemplates(data.templates);
     } catch {
       /* ignore */
     }
@@ -177,11 +215,12 @@ export default function EndpointsPage() {
   const loadLogs = useCallback(async (endpointId: string) => {
     setLogsLoading(true);
     try {
-      const res = await fetch(`/api/modules/endpoints/${endpointId}/logs?limit=50`);
-      if (res.ok) {
-        const data = await res.json();
-        setLogs(data.logs || []);
-      }
+      const data = await fetchEndpointJson<{ logs: EndpointExecutionLogDTO[] }>(
+        `/api/modules/endpoints/${endpointId}/logs?limit=50`,
+        {},
+        'Failed to load endpoint logs'
+      );
+      setLogs(data.logs || []);
     } catch {
       /* ignore */
     } finally {
@@ -192,11 +231,12 @@ export default function EndpointsPage() {
   const loadTokens = useCallback(async (endpointId: string) => {
     setTokensLoading(true);
     try {
-      const res = await fetch(`/api/modules/endpoints/${endpointId}/tokens`);
-      if (res.ok) {
-        const data = await res.json();
-        setTokens(data.tokens || []);
-      }
+      const data = await fetchEndpointJson<{ tokens: EndpointToken[] }>(
+        `/api/modules/endpoints/${endpointId}/tokens`,
+        {},
+        'Failed to load endpoint tokens'
+      );
+      setTokens(data.tokens || []);
     } catch {
       /* ignore */
     } finally {
@@ -398,26 +438,30 @@ export default function EndpointsPage() {
       }
 
       if (isCreating) {
-        const res = await fetch('/api/modules/endpoints/create', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(sanitizedForm),
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || 'Failed to create');
+        const data = await fetchEndpointJson<CustomEndpointDTO>(
+          '/api/modules/endpoints/create',
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(sanitizedForm),
+          },
+          'Failed to create endpoint'
+        );
         toast({ title: 'Endpoint created', description: data.name, variant: 'success' });
         setIsCreating(false);
         setSelectedId(data._id);
         setInitialForm({ ...form });
         await loadEndpoints();
       } else if (selectedId) {
-        const res = await fetch(`/api/modules/endpoints/${selectedId}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(sanitizedForm),
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || 'Failed to update');
+        await fetchEndpointJson<CustomEndpointDTO>(
+          `/api/modules/endpoints/${selectedId}`,
+          {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(sanitizedForm),
+          },
+          'Failed to update endpoint'
+        );
         toast({ title: 'Endpoint saved', variant: 'success' });
         setInitialForm({ ...form });
         await loadEndpoints();
@@ -436,8 +480,12 @@ export default function EndpointsPage() {
   const handleToggle = useCallback(
     async (id: string) => {
       try {
-        const res = await fetch(`/api/modules/endpoints/${id}/toggle`, { method: 'PATCH' });
-        if (res.ok) await loadEndpoints();
+        await fetchEndpointJson<CustomEndpointDTO>(
+          `/api/modules/endpoints/${id}/toggle`,
+          { method: 'PATCH' },
+          'Failed to toggle endpoint'
+        );
+        await loadEndpoints();
       } catch {
         toast({ title: 'Toggle failed', variant: 'destructive' });
       }
@@ -448,9 +496,11 @@ export default function EndpointsPage() {
   const handleDuplicate = useCallback(
     async (id: string) => {
       try {
-        const res = await fetch(`/api/modules/endpoints/${id}/duplicate`, { method: 'POST' });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error);
+        const data = await fetchEndpointJson<CustomEndpointDTO>(
+          `/api/modules/endpoints/${id}/duplicate`,
+          { method: 'POST' },
+          'Failed to duplicate endpoint'
+        );
         toast({ title: 'Endpoint duplicated', description: data.name, variant: 'success' });
         await loadEndpoints();
       } catch (err: unknown) {
@@ -467,8 +517,11 @@ export default function EndpointsPage() {
   const handleDelete = useCallback(async () => {
     if (!deleteTarget) return;
     try {
-      const res = await fetch(`/api/modules/endpoints/${deleteTarget._id}`, { method: 'DELETE' });
-      if (!res.ok) throw new Error('Failed to delete');
+      await fetchEndpointJson<CustomEndpointDTO>(
+        `/api/modules/endpoints/${deleteTarget._id}`,
+        { method: 'DELETE' },
+        'Failed to delete endpoint'
+      );
       toast({ title: 'Endpoint deleted', variant: 'success' });
       if (selectedId === deleteTarget._id) closeDetail();
       await loadEndpoints();
@@ -486,12 +539,15 @@ export default function EndpointsPage() {
     setTestLoading(true);
     setShowTestConsole(true);
     try {
-      const res = await fetch(`/api/modules/endpoints/${selectedId}/test`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ body: testBody, headers: { 'content-type': 'application/json' } }),
-      });
-      const data: EndpointTestResult = await res.json();
+      const data = await fetchEndpointJson<EndpointTestResult>(
+        `/api/modules/endpoints/${selectedId}/test`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ body: testBody, headers: { 'content-type': 'application/json' } }),
+        },
+        'Failed to test endpoint'
+      );
       setTestResult(data);
     } catch {
       setTestResult({
@@ -511,13 +567,15 @@ export default function EndpointsPage() {
   const handleGenerateToken = useCallback(async () => {
     if (!selectedId || !newTokenName.trim()) return;
     try {
-      const res = await fetch(`/api/modules/endpoints/${selectedId}/tokens`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: newTokenName.trim() }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
+      const data = await fetchEndpointJson<{ token: string }>(
+        `/api/modules/endpoints/${selectedId}/tokens`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: newTokenName.trim() }),
+        },
+        'Failed to generate token'
+      );
       setGeneratedToken(data.token);
       setNewTokenName('');
       await loadTokens(selectedId);
@@ -535,7 +593,11 @@ export default function EndpointsPage() {
     async (tokenId: string) => {
       if (!selectedId) return;
       try {
-        await fetch(`/api/modules/endpoints/${selectedId}/tokens/${tokenId}`, { method: 'DELETE' });
+        await fetchEndpointJson<{ success: boolean }>(
+          `/api/modules/endpoints/${selectedId}/tokens/${tokenId}`,
+          { method: 'DELETE' },
+          'Failed to revoke token'
+        );
         await loadTokens(selectedId);
         toast({ title: 'Token revoked', variant: 'success' });
       } catch {

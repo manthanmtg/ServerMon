@@ -1,5 +1,5 @@
 import mongoose, { Schema, Document, Model } from 'mongoose';
-import type { AIRunnerAgentType } from '@/modules/ai-runner/types';
+import type { AIRunnerAgentType, AIRunnerRunAsUserAuthMode } from '@/modules/ai-runner/types';
 
 export interface IAIRunnerProfile extends Document {
   name: string;
@@ -10,6 +10,8 @@ export interface IAIRunnerProfile extends Document {
   maxTimeout: number;
   shell: string;
   requiresTTY: boolean;
+  runAsUser?: string;
+  runAsUserAuthMode?: AIRunnerRunAsUserAuthMode;
   env: Record<string, string>;
   enabled: boolean;
   locked: boolean;
@@ -34,6 +36,12 @@ const AIRunnerProfileSchema = new Schema<IAIRunnerProfile>(
     maxTimeout: { type: Number, required: true, min: 1, max: 24 * 60 },
     shell: { type: String, required: true, default: '/bin/bash', maxlength: 260 },
     requiresTTY: { type: Boolean, default: false },
+    runAsUser: { type: String, trim: true, maxlength: 64 },
+    runAsUserAuthMode: {
+      type: String,
+      enum: ['passwordless-sudo'],
+      default: 'passwordless-sudo',
+    },
     env: { type: Map, of: String, default: {} },
     enabled: { type: Boolean, default: true },
     locked: { type: Boolean, default: false, index: true },

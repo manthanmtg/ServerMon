@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { createLogger } from '@/lib/logger';
 import { dockerService } from '@/lib/docker/service';
+import { getSession } from '@/lib/session';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,6 +17,11 @@ export async function POST(
   context: { params: Promise<{ containerId: string }> }
 ) {
   try {
+    const session = await getSession();
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const { containerId } = await context.params;
     const parsed = actionSchema.safeParse(await request.json());
     if (!parsed.success) {
@@ -26,6 +32,7 @@ export async function POST(
     return NextResponse.json(result);
   } catch (error) {
     log.error('Failed to execute docker action', error);
-    return NextResponse.json({ error: 'Failed to execute action' }, { status: 500 });
+    const message = error instanceof Error ? error.message : 'Failed to execute action';
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createLogger } from '@/lib/logger';
 import connectDB from '@/lib/db';
+import { getSession } from '@/lib/session';
 import CustomEndpoint, { CustomEndpointZodSchema } from '@/models/CustomEndpoint';
 import { slugify } from '@/lib/utils';
 
@@ -10,6 +11,11 @@ const log = createLogger('api:endpoints:create');
 
 export async function POST(req: NextRequest) {
   try {
+    const session = await getSession();
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     await connectDB();
 
     const body = await req.json();

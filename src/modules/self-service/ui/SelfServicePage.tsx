@@ -141,10 +141,10 @@ export default function SelfServicePage() {
               setView({ kind: 'catalog' });
             }}
             className={cn(
-              'flex items-center gap-1.5 px-3 py-2 text-sm font-medium border-b-2 -mb-px transition-colors',
+              '-mb-px flex min-h-11 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
               activeTab === 'catalog'
-                ? 'border-primary text-foreground'
-                : 'border-transparent text-muted-foreground hover:text-foreground'
+                ? 'border-primary bg-accent/40 text-foreground shadow-sm'
+                : 'border-transparent text-muted-foreground hover:bg-accent/40 hover:text-foreground active:bg-accent/60'
             )}
           >
             <Package className="w-3.5 h-3.5" />
@@ -156,10 +156,10 @@ export default function SelfServicePage() {
               setView({ kind: 'history' });
             }}
             className={cn(
-              'flex items-center gap-1.5 px-3 py-2 text-sm font-medium border-b-2 -mb-px transition-colors',
+              '-mb-px flex min-h-11 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
               activeTab === 'history'
-                ? 'border-primary text-foreground'
-                : 'border-transparent text-muted-foreground hover:text-foreground'
+                ? 'border-primary bg-accent/40 text-foreground shadow-sm'
+                : 'border-transparent text-muted-foreground hover:bg-accent/40 hover:text-foreground active:bg-accent/60'
             )}
           >
             <History className="w-3.5 h-3.5" />

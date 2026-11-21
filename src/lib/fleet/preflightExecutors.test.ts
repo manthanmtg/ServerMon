@@ -7,7 +7,7 @@ interface FakeProc extends EventEmitter {
   pid?: number;
   stdout: Readable;
   stderr: Readable;
-  kill: ReturnType<typeof vi.fn>;
+  kill: (signal?: NodeJS.Signals | number) => unknown;
   _exit: (code: number | null) => void;
   _error: (err: Error) => void;
 }
@@ -49,7 +49,7 @@ function makeFakeServer(opts: { simulate: 'listen' | 'error'; errCode?: string }
 
 /** Fake `net.Socket` for checkPortReachable */
 interface FakeSocket extends EventEmitter {
-  destroy: ReturnType<typeof vi.fn>;
+  destroy: () => unknown;
 }
 
 function makeFakeSocket(opts: { simulate: 'connect' | 'error' | 'hang' }): FakeSocket {
@@ -84,7 +84,7 @@ describe('checkPortAvailable', () => {
     const server = makeFakeServer({ simulate: 'listen' });
     const netImpl = {
       createServer: vi.fn(() => server),
-    } as unknown as typeof import('node:net');
+    };
     const ex = createDefaultExecutors({ netImpl });
     const r = await ex.checkPortAvailable!(7000);
     expect(r.available).toBe(true);
@@ -94,7 +94,7 @@ describe('checkPortAvailable', () => {
     const server = makeFakeServer({ simulate: 'error', errCode: 'EADDRINUSE' });
     const netImpl = {
       createServer: vi.fn(() => server),
-    } as unknown as typeof import('node:net');
+    };
     const ex = createDefaultExecutors({ netImpl });
     const r = await ex.checkPortAvailable!(7000);
     expect(r.available).toBe(false);
@@ -105,7 +105,7 @@ describe('checkPortAvailable', () => {
     const server = makeFakeServer({ simulate: 'error', errCode: 'EACCES' });
     const netImpl = {
       createServer: vi.fn(() => server),
-    } as unknown as typeof import('node:net');
+    };
     const ex = createDefaultExecutors({ netImpl });
     const r = await ex.checkPortAvailable!(80);
     expect(r.available).toBe(false);
@@ -118,7 +118,7 @@ describe('checkPortReachable', () => {
     const sock = makeFakeSocket({ simulate: 'connect' });
     const netImpl = {
       createConnection: vi.fn(() => sock),
-    } as unknown as typeof import('node:net');
+    };
     const ex = createDefaultExecutors({ netImpl });
     const r = await ex.checkPortReachable!('127.0.0.1', 7000);
     expect(r.reachable).toBe(true);
@@ -129,7 +129,7 @@ describe('checkPortReachable', () => {
     const sock = makeFakeSocket({ simulate: 'error' });
     const netImpl = {
       createConnection: vi.fn(() => sock),
-    } as unknown as typeof import('node:net');
+    };
     const ex = createDefaultExecutors({ netImpl });
     const r = await ex.checkPortReachable!('example.invalid', 9);
     expect(r.reachable).toBe(false);
@@ -142,7 +142,7 @@ describe('checkPortReachable', () => {
       const sock = makeFakeSocket({ simulate: 'hang' });
       const netImpl = {
         createConnection: vi.fn(() => sock),
-      } as unknown as typeof import('node:net');
+      };
       const ex = createDefaultExecutors({ netImpl });
       const p = ex.checkPortReachable!('10.255.255.1', 81);
       await vi.advanceTimersByTimeAsync(2500);
@@ -160,7 +160,7 @@ describe('checkNginxBinary', () => {
     const proc = makeFakeProc();
     const spawnImpl = vi.fn(() => proc);
     const ex = createDefaultExecutors({
-      spawnImpl: spawnImpl as unknown as typeof import('node:child_process').spawn,
+      spawnImpl,
     });
     const p = ex.checkNginxBinary!('/usr/sbin/nginx');
     setImmediate(() => {
@@ -178,7 +178,7 @@ describe('checkNginxBinary', () => {
     const proc = makeFakeProc();
     const spawnImpl = vi.fn(() => proc);
     const ex = createDefaultExecutors({
-      spawnImpl: spawnImpl as unknown as typeof import('node:child_process').spawn,
+      spawnImpl,
     });
     const p = ex.checkNginxBinary!();
     setImmediate(() => {
@@ -193,7 +193,7 @@ describe('checkNginxBinary', () => {
     const proc = makeFakeProc();
     const spawnImpl = vi.fn(() => proc);
     const ex = createDefaultExecutors({
-      spawnImpl: spawnImpl as unknown as typeof import('node:child_process').spawn,
+      spawnImpl,
     });
     const p = ex.checkNginxBinary!();
     setImmediate(() => proc._error(new Error('ENOENT')));
@@ -206,7 +206,7 @@ describe('checkNginxBinary', () => {
     const proc = makeFakeProc();
     const spawnImpl = vi.fn(() => proc);
     const ex = createDefaultExecutors({
-      spawnImpl: spawnImpl as unknown as typeof import('node:child_process').spawn,
+      spawnImpl,
     });
     const p = ex.checkNginxBinary!();
     setImmediate(() => {
@@ -310,7 +310,7 @@ describe('checkDns', () => {
   it('returns resolves=true with records', async () => {
     const dnsImpl = {
       resolve4: vi.fn().mockResolvedValue(['1.2.3.4', '5.6.7.8']),
-    } as unknown as typeof import('node:dns/promises');
+    };
     const ex = createDefaultExecutors({ dnsImpl });
     const r = await ex.checkDns!('hub.example.com');
     expect(r.resolves).toBe(true);
@@ -320,7 +320,7 @@ describe('checkDns', () => {
   it('returns resolves=false when resolver throws', async () => {
     const dnsImpl = {
       resolve4: vi.fn().mockRejectedValue(new Error('ENOTFOUND')),
-    } as unknown as typeof import('node:dns/promises');
+    };
     const ex = createDefaultExecutors({ dnsImpl });
     const r = await ex.checkDns!('no.such.invalid');
     expect(r.resolves).toBe(false);
@@ -330,7 +330,7 @@ describe('checkDns', () => {
   it('returns resolves=false when no records', async () => {
     const dnsImpl = {
       resolve4: vi.fn().mockResolvedValue([]),
-    } as unknown as typeof import('node:dns/promises');
+    };
     const ex = createDefaultExecutors({ dnsImpl });
     const r = await ex.checkDns!('no.such');
     expect(r.resolves).toBe(false);
@@ -358,7 +358,7 @@ describe('checkTlsCertificate', () => {
     };
     const ex = createDefaultExecutors({
       fsImpl,
-      spawnImpl: spawnImpl as unknown as typeof import('node:child_process').spawn,
+      spawnImpl,
       tlsDir: '/tls',
     });
     const p = ex.checkTlsCertificate!('hub.example.com');
@@ -384,7 +384,7 @@ describe('checkTlsCertificate', () => {
     };
     const ex = createDefaultExecutors({
       fsImpl,
-      spawnImpl: spawnImpl as unknown as typeof import('node:child_process').spawn,
+      spawnImpl,
       tlsDir: '/tls',
     });
     const p = ex.checkTlsCertificate!('hub.example.com');
@@ -403,7 +403,7 @@ describe('checkTlsCertificate', () => {
     };
     const ex = createDefaultExecutors({
       fsImpl,
-      spawnImpl: spawnImpl as unknown as typeof import('node:child_process').spawn,
+      spawnImpl,
       tlsDir: '/tls',
     });
     const p = ex.checkTlsCertificate!('hub.example.com');
@@ -416,19 +416,19 @@ describe('checkTlsCertificate', () => {
 
 describe('detectServiceManager', () => {
   it('returns launchd on darwin', async () => {
-    const osImpl = { platform: () => 'darwin' } as unknown as typeof import('node:os');
+    const osImpl = { platform: (): NodeJS.Platform => 'darwin' };
     const ex = createDefaultExecutors({ osImpl });
     const r = await ex.detectServiceManager!();
     expect(r.manager).toBe('launchd');
   });
 
   it('returns systemd on linux when systemctl --version succeeds', async () => {
-    const osImpl = { platform: () => 'linux' } as unknown as typeof import('node:os');
+    const osImpl = { platform: (): NodeJS.Platform => 'linux' };
     const proc = makeFakeProc();
     const spawnImpl = vi.fn(() => proc);
     const ex = createDefaultExecutors({
       osImpl,
-      spawnImpl: spawnImpl as unknown as typeof import('node:child_process').spawn,
+      spawnImpl,
     });
     const p = ex.detectServiceManager!();
     setImmediate(() => proc._exit(0));
@@ -438,7 +438,7 @@ describe('detectServiceManager', () => {
   });
 
   it('returns docker on linux when systemctl absent but docker socket exists', async () => {
-    const osImpl = { platform: () => 'linux' } as unknown as typeof import('node:os');
+    const osImpl = { platform: (): NodeJS.Platform => 'linux' };
     const proc = makeFakeProc();
     const spawnImpl = vi.fn(() => proc);
     const fsImpl = {
@@ -447,7 +447,7 @@ describe('detectServiceManager', () => {
     };
     const ex = createDefaultExecutors({
       osImpl,
-      spawnImpl: spawnImpl as unknown as typeof import('node:child_process').spawn,
+      spawnImpl,
       fsImpl,
     });
     const p = ex.detectServiceManager!();
@@ -458,7 +458,7 @@ describe('detectServiceManager', () => {
   });
 
   it('returns unknown on unsupported platform with no docker', async () => {
-    const osImpl = { platform: () => 'freebsd' } as unknown as typeof import('node:os');
+    const osImpl = { platform: (): NodeJS.Platform => 'freebsd' };
     const fsImpl = {
       access: vi.fn(),
       stat: vi.fn().mockRejectedValue(new Error('ENOENT')),

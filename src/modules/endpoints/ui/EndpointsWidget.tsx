@@ -15,14 +15,42 @@ const METHOD_COLORS: Record<string, string> = {
   DELETE: 'text-destructive',
 };
 
+const ENDPOINTS_WIDGET_TIMEOUT_MS = 8000;
+
+function isEndpointListResponse(value: unknown): value is EndpointsListResponse {
+  if (!value || typeof value !== 'object') return false;
+  const candidate = value as { endpoints?: unknown };
+  return Array.isArray(candidate.endpoints);
+}
+
 export function deriveEndpointWidgetSummary(endpoints: CustomEndpointDTO[]) {
+  let active = 0;
+  let errored = 0;
+  let totalHits = 0;
+  const topEndpoints: CustomEndpointDTO[] = [];
+
+  for (const endpoint of endpoints) {
+    if (endpoint.enabled) active += 1;
+    if (endpoint.lastStatus && endpoint.lastStatus >= 400) errored += 1;
+    totalHits += endpoint.executionCount;
+
+    const insertAt = topEndpoints.findIndex(
+      (candidate) => endpoint.executionCount > candidate.executionCount
+    );
+    if (insertAt === -1) {
+      if (topEndpoints.length < 3) topEndpoints.push(endpoint);
+    } else {
+      topEndpoints.splice(insertAt, 0, endpoint);
+      topEndpoints.length = Math.min(topEndpoints.length, 3);
+    }
+  }
+
   return {
     total: endpoints.length,
-    active: endpoints.filter((endpoint) => endpoint.enabled).length,
-    errored: endpoints.filter((endpoint) => endpoint.lastStatus && endpoint.lastStatus >= 400)
-      .length,
-    totalHits: endpoints.reduce((acc, endpoint) => acc + endpoint.executionCount, 0),
-    topEndpoints: [...endpoints].sort((a, b) => b.executionCount - a.executionCount).slice(0, 3),
+    active,
+    errored,
+    totalHits,
+    topEndpoints,
   };
 }
 
@@ -31,15 +59,24 @@ export default function EndpointsWidget() {
   const [initialLoad, setInitialLoad] = useState(true);
 
   const load = useCallback(async () => {
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), ENDPOINTS_WIDGET_TIMEOUT_MS);
+
     try {
-      const res = await fetch('/api/modules/endpoints?limit=10', { cache: 'no-store' });
+      const res = await fetch('/api/modules/endpoints?limit=10', {
+        cache: 'no-store',
+        signal: controller.signal,
+      });
       if (res.ok) {
-        const data: EndpointsListResponse = await res.json();
-        setEndpoints(data.endpoints);
+        const data: unknown = await res.json();
+        if (isEndpointListResponse(data)) {
+          setEndpoints(data.endpoints);
+        }
       }
     } catch {
       // silently ignore for widget
     } finally {
+      window.clearTimeout(timeoutId);
       setInitialLoad(false);
     }
   }, []);

@@ -1,5 +1,7 @@
 import { Module, ModuleContext } from '@/types/module';
 
+let healthInterval: ReturnType<typeof setInterval> | undefined;
+
 export const healthModule: Module = {
   id: 'health-monitor',
   name: 'Health Monitor',
@@ -20,9 +22,10 @@ export const healthModule: Module = {
 
   start: (ctx: ModuleContext) => {
     ctx.logger.info('Health Monitor Started.');
+    if (healthInterval) return;
 
     // Simulate periodic health checks emit
-    setInterval(() => {
+    healthInterval = setInterval(() => {
       ctx.events.emit('system:health', {
         status: 'healthy',
         timestamp: Date.now(),
@@ -32,6 +35,11 @@ export const healthModule: Module = {
   },
 
   stop: (ctx: ModuleContext) => {
+    if (healthInterval) {
+      clearInterval(healthInterval);
+      healthInterval = undefined;
+    }
+
     ctx.logger.info('Health Monitor Stopped.');
   },
 };

@@ -4,6 +4,7 @@ import { ThemeProvider } from '@/lib/ThemeContext';
 import { BrandProvider } from '@/lib/BrandContext';
 import { ToastProvider } from '@/components/ui/toast';
 import SessionManager from '@/components/auth/SessionManager';
+import { MotionPreferencesProvider } from '@/components/providers/MotionPreferencesProvider';
 
 export const dynamic = 'force-dynamic';
 
@@ -29,7 +30,6 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
-  maximumScale: 1,
   viewportFit: 'cover',
 };
 
@@ -41,14 +41,16 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className="antialiased" suppressHydrationWarning>
-        <ThemeProvider>
-          <BrandProvider>
-            <ToastProvider>
-              <SessionManager />
-              {children}
-            </ToastProvider>
-          </BrandProvider>
-        </ThemeProvider>
+        <MotionPreferencesProvider>
+          <ThemeProvider>
+            <BrandProvider>
+              <ToastProvider>
+                <SessionManager />
+                {children}
+              </ToastProvider>
+            </BrandProvider>
+          </ThemeProvider>
+        </MotionPreferencesProvider>
       </body>
     </html>
   );

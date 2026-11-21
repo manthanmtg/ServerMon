@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { memo, useEffect, useMemo, useState } from 'react';
 import { Info, AlertTriangle, XCircle, Clock, Search } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Spinner } from '@/components/ui/spinner';
@@ -16,6 +16,14 @@ interface LogEntry {
 }
 
 type FilterType = 'all' | 'info' | 'warn' | 'error';
+
+type SearchableLogEntry = LogEntry & {
+  eventLower: string;
+  moduleLower: string;
+  metadataJson: string;
+  displayTime: string;
+  displayTimeWithSeconds: string;
+};
 
 const FILTER_OPTIONS: { label: string; value: FilterType }[] = [
   { label: 'All', value: 'all' },
@@ -40,7 +48,47 @@ const severityConfig = {
   },
 };
 
-function MobileLogCard({ log }: { log: LogEntry }) {
+export function buildSearchableLogEntries(logs: LogEntry[]): SearchableLogEntry[] {
+  return logs.map((log) => {
+    const timestampDate = new Date(log.timestamp);
+    return {
+      ...log,
+      eventLower: log.event.toLowerCase(),
+      moduleLower: log.moduleId.toLowerCase(),
+      metadataJson: JSON.stringify(log.metadata),
+      displayTime: timestampDate.toLocaleTimeString([], {
+        hour: '2-digit',
+        minute: '2-digit',
+      }),
+      displayTimeWithSeconds: timestampDate.toLocaleTimeString([], {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+      }),
+    };
+  });
+}
+
+export function getFilteredLogs(
+  logs: SearchableLogEntry[],
+  filter: FilterType,
+  search: string
+): SearchableLogEntry[] {
+  const normalizedSearch = search.trim().toLowerCase();
+
+  return logs.filter((log) => {
+    if (filter !== 'all' && log.severity !== filter) return false;
+    if (
+      normalizedSearch &&
+      !log.eventLower.includes(normalizedSearch) &&
+      !log.moduleLower.includes(normalizedSearch)
+    )
+      return false;
+    return true;
+  });
+}
+
+const MobileLogCard = memo(function MobileLogCard({ log }: { log: SearchableLogEntry }) {
   const config = severityConfig[log.severity] || severityConfig.info;
   const Icon = config.icon;
   return (
@@ -52,22 +100,46 @@ function MobileLogCard({ log }: { log: LogEntry }) {
           <div className="flex items-center gap-2 mt-1">
             <span className="text-xs text-muted-foreground capitalize">{log.moduleId}</span>
             <span className="text-muted-foreground/30">·</span>
-            <span className="text-xs text-muted-foreground">
-              {new Date(log.timestamp).toLocaleTimeString([], {
-                hour: '2-digit',
-                minute: '2-digit',
-              })}
-            </span>
+            <span className="text-xs text-muted-foreground">{log.displayTime}</span>
           </div>
         </div>
       </div>
     </div>
   );
-}
+});
+
+const LogTableRow = memo(function LogTableRow({ log }: { log: SearchableLogEntry }) {
+  const config = severityConfig[log.severity] || severityConfig.info;
+  return (
+    <tr className="border-b border-border last:border-0 hover:bg-accent/50 transition-colors">
+      <td className="px-4 py-3">
+        <Badge variant={config.variant}>{config.label}</Badge>
+      </td>
+      <td className="px-4 py-3">
+        <span className="text-sm text-muted-foreground capitalize">{log.moduleId}</span>
+      </td>
+      <td className="px-4 py-3">
+        <span className="text-sm text-foreground">{log.event}</span>
+      </td>
+      <td className="px-4 py-3 hidden lg:table-cell">
+        <span className="text-xs font-mono text-muted-foreground truncate block max-w-[200px]">
+          {log.metadataJson}
+        </span>
+      </td>
+      <td className="px-4 py-3 text-right">
+        <span className="text-xs text-muted-foreground flex items-center justify-end gap-1 whitespace-nowrap">
+          <Clock className="w-3 h-3" />
+          {log.displayTimeWithSeconds}
+        </span>
+      </td>
+    </tr>
+  );
+});
 
 export default function LogsPage() {
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [filter, setFilter] = useState<FilterType>('all');
   const [search, setSearch] = useState('');
 
@@ -75,10 +147,12 @@ export default function LogsPage() {
     const fetchLogs = async () => {
       try {
         const res = await fetch('/api/analytics/recent?limit=100');
+        if (!res.ok) throw new Error(`Failed to load logs: ${res.status}`);
         const data = await res.json();
         setLogs(data.events || []);
-      } catch (err) {
-        console.error(err);
+        setLoadFailed(false);
+      } catch {
+        setLoadFailed(true);
       } finally {
         setLoading(false);
       }
@@ -89,21 +163,11 @@ export default function LogsPage() {
     return () => clearInterval(interval);
   }, []);
 
-  const normalizedSearch = useMemo(() => search.toLowerCase(), [search]);
+  const searchableLogs = useMemo(() => buildSearchableLogEntries(logs), [logs]);
 
   const filtered = useMemo(
-    () =>
-      logs.filter((log) => {
-        if (filter !== 'all' && log.severity !== filter) return false;
-        if (
-          normalizedSearch &&
-          !log.event.toLowerCase().includes(normalizedSearch) &&
-          !log.moduleId.toLowerCase().includes(normalizedSearch)
-        )
-          return false;
-        return true;
-      }),
-    [filter, logs, normalizedSearch]
+    () => getFilteredLogs(searchableLogs, filter, search),
+    [filter, searchableLogs, search]
   );
 
   return (
@@ -132,7 +196,7 @@ export default function LogsPage() {
               aria-pressed={filter === f.value}
               onClick={() => setFilter(f.value)}
               className={cn(
-                'px-3 py-1.5 rounded-md text-xs font-medium transition-colors cursor-pointer whitespace-nowrap min-h-[32px]',
+                'px-3 py-1.5 rounded-md text-xs font-medium transition-colors cursor-pointer whitespace-nowrap min-h-[44px]',
                 filter === f.value
                   ? 'bg-background text-foreground shadow-sm'
                   : 'text-muted-foreground hover:text-foreground'
@@ -149,6 +213,16 @@ export default function LogsPage() {
         {loading ? (
           <div className="flex items-center justify-center py-16">
             <Spinner size="lg" />
+          </div>
+        ) : loadFailed && logs.length === 0 ? (
+          <div className="flex flex-col items-center justify-center px-4 py-12 text-center">
+            <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-lg bg-destructive/10">
+              <AlertTriangle className="h-5 w-5 text-destructive" />
+            </div>
+            <p className="text-sm font-medium text-foreground">Unable to load logs</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Recent audit events could not be fetched. The page will keep retrying.
+            </p>
           </div>
         ) : filtered.length === 0 ? (
           <div className="py-12 text-center text-sm text-muted-foreground">
@@ -180,42 +254,9 @@ export default function LogsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map((log) => {
-                    const config = severityConfig[log.severity] || severityConfig.info;
-                    return (
-                      <tr
-                        key={log._id}
-                        className="border-b border-border last:border-0 hover:bg-accent/50 transition-colors"
-                      >
-                        <td className="px-4 py-3">
-                          <Badge variant={config.variant}>{config.label}</Badge>
-                        </td>
-                        <td className="px-4 py-3">
-                          <span className="text-sm text-muted-foreground capitalize">
-                            {log.moduleId}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3">
-                          <span className="text-sm text-foreground">{log.event}</span>
-                        </td>
-                        <td className="px-4 py-3 hidden lg:table-cell">
-                          <span className="text-xs font-mono text-muted-foreground truncate block max-w-[200px]">
-                            {JSON.stringify(log.metadata)}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-right">
-                          <span className="text-xs text-muted-foreground flex items-center justify-end gap-1 whitespace-nowrap">
-                            <Clock className="w-3 h-3" />
-                            {new Date(log.timestamp).toLocaleTimeString([], {
-                              hour: '2-digit',
-                              minute: '2-digit',
-                              second: '2-digit',
-                            })}
-                          </span>
-                        </td>
-                      </tr>
-                    );
-                  })}
+                  {filtered.map((log) => (
+                    <LogTableRow key={log._id} log={log} />
+                  ))}
                 </tbody>
               </table>
             </div>

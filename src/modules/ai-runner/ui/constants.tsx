@@ -31,6 +31,8 @@ export const DEFAULT_PROFILE_FORM: ProfileFormState = {
   maxTimeout: 120,
   shell: '/bin/bash',
   requiresTTY: false,
+  runAsUser: '',
+  runAsUserAuthMode: 'passwordless-sudo',
   env: {},
   enabled: true,
   icon: '',

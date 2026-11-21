@@ -16,6 +16,7 @@ import { getRuntimeDiagnostics } from './lib/runtime-diagnostics';
 import { handleRequestWithDiagnostics } from './lib/server-request-diagnostics';
 import { startLocalAutoUpdateScheduler } from './lib/updates/auto-update-scheduler';
 import { startNetworkSpeedtestScheduler } from './lib/network/speedtest-scheduler';
+import { startDatabaseExplorerCleanupScheduler } from './lib/databases/explorer-scheduler';
 import type { HubWsAdapter } from './lib/fleet/hubTtyBridge';
 import type { AgentStatus } from './lib/fleet/agentClient';
 
@@ -25,17 +26,7 @@ const dev = process.env.NODE_ENV !== 'production';
 const app = next({ dev });
 const handle = app.getRequestHandler();
 const port = parseInt(process.env.PORT || '8912', 10);
-
-interface AgentRuntimeDiagnostics {
-  bootId: string;
-  bootAt: Date;
-}
-
-interface TerminalBridgeProxyRule {
-  name: string;
-  status?: string;
-  remotePort?: number;
-}
+const skipStartupJobs = process.env.SERVERMON_SKIP_STARTUP_JOBS === '1';
 
 function parsePort(value: string | undefined, fallback: number): number {
   const parsed = Number.parseInt(value ?? '', 10);
@@ -84,6 +75,15 @@ async function cleanupStaleSessions() {
   }
 }
 
+interface SessionPayload {
+  user: {
+    id: string;
+    username: string;
+    role: string;
+  };
+  expires: string;
+}
+
 if (process.env.FLEET_AGENT_MODE === 'true') {
   void (async () => {
     const { AgentClient } = await import('./lib/fleet/agentClient');
@@ -115,6 +115,7 @@ if (process.env.FLEET_AGENT_MODE === 'true') {
       logEntry: (entry) => {
         // Send logs to hub via a fire-and-forget fetch
         const logUrl = `${hubUrl}/api/fleet/nodes/${nodeId}/heartbeat`;
+        const agentStatus = agent.status();
         fetch(logUrl, {
           method: 'POST',
           headers: {
@@ -123,8 +124,8 @@ if (process.env.FLEET_AGENT_MODE === 'true') {
           },
           body: JSON.stringify({
             nodeId,
-            bootId: (agent as unknown as AgentRuntimeDiagnostics).bootId,
-            bootAt: (agent as unknown as AgentRuntimeDiagnostics).bootAt?.toISOString(),
+            bootId: agentStatus.bootId,
+            bootAt: agentStatus.bootAt.toISOString(),
             agentVersion: '0.0.0',
             hardware: {},
             metrics: {},
@@ -159,7 +160,11 @@ if (process.env.FLEET_AGENT_MODE === 'true') {
 } else {
   app.prepare().then(async () => {
     const aiRunnerLogPath = await resetAIRunnerLogSession();
-    await cleanupStaleSessions();
+    if (skipStartupJobs) {
+      log.info('Skipping startup jobs because SERVERMON_SKIP_STARTUP_JOBS=1');
+    } else {
+      await cleanupStaleSessions();
+    }
     await writeAIRunnerLogEntry({
       level: 'info',
       component: 'server',
@@ -170,10 +175,13 @@ if (process.env.FLEET_AGENT_MODE === 'true') {
         aiRunnerLogPath,
       },
     });
-    ensureAIRunnerSupervisor();
-    startAIRunnerSupervisorWatchdog();
-    startLocalAutoUpdateScheduler();
-    startNetworkSpeedtestScheduler();
+    if (!skipStartupJobs) {
+      ensureAIRunnerSupervisor();
+      startAIRunnerSupervisorWatchdog();
+      startLocalAutoUpdateScheduler();
+      startNetworkSpeedtestScheduler();
+      startDatabaseExplorerCleanupScheduler();
+    }
     const server = createServer((req, res) => {
       const parsedUrl = parse(req.url!, true);
       void handleRequestWithDiagnostics({
@@ -209,31 +217,20 @@ if (process.env.FLEET_AGENT_MODE === 'true') {
           return next(new Error('Authentication error: Session cookie not found'));
         }
 
-        const session = (await decrypt(sessionCookie).catch(
-          () => null
-        )) as unknown as SessionPayload;
+        const session = (await decrypt(sessionCookie).catch(() => null)) as SessionPayload | null;
         if (!session || !session.user) {
           log.warn('Socket connection rejected: Invalid or expired session');
           return next(new Error('Authentication error: Invalid session'));
         }
 
         // Attach user info to socket
-        (socket as unknown as { user: SessionPayload['user'] }).user = session.user;
+        socket.data = { ...socket.data, user: session.user };
         next();
       } catch (err) {
         log.error('Socket authentication middleware error', err);
         next(new Error('Internal authentication error'));
       }
     });
-
-    interface SessionPayload {
-      user: {
-        id: string;
-        username: string;
-        role: string;
-      };
-      expires: string;
-    }
 
     // Persistent PTY sessions
     interface ptySession {
@@ -500,6 +497,7 @@ if (process.env.FLEET_AGENT_MODE === 'true') {
         const { enforceResourceGuard } = await import('./lib/fleet/resourceGuardMiddleware');
         const { default: ResourcePolicy } = await import('./models/ResourcePolicy');
         const { default: FleetLogEvent } = await import('./models/FleetLogEvent');
+        const { resolveAgentEndpoint } = await import('./lib/fleet/resolveAgentEndpoint');
         // Touch nginx orchestrator so its singleton is ready when apply calls land.
         void getNginxOrchestrator();
         const frpOrch = getFrpOrchestrator() as { start?: () => void };
@@ -508,36 +506,11 @@ if (process.env.FLEET_AGENT_MODE === 'true') {
         const bridge = new HubTtyBridge({
           resolveAgentEndpoint: async (nodeId) => {
             await connectDB();
-            const node = await NodeModel.findById(nodeId).lean();
-            if (!node || !node.ptyBridge?.port || !node.ptyBridge?.authToken) {
-              return null;
-            }
-
-            // Check if the agent has a terminal-bridge proxy active
-            const terminalBridge = (node.proxyRules || []).find(
-              (p: TerminalBridgeProxyRule) =>
-                (p.name === 'terminal-bridge' || `${node.slug}-terminal-bridge` === p.name) &&
-                p.status === 'active'
-            );
-
-            if (terminalBridge && terminalBridge.remotePort) {
-              // Remote agent reachable via the Hub's public domain on the mapped remote port.
-              // Note: For simplicity and security, we dial 127.0.0.1 on the hub since
-              // frps is running locally and mapped ports are bound to the hub.
-              return {
-                host: '127.0.0.1',
-                port: terminalBridge.remotePort,
-                authToken: node.ptyBridge.authToken,
-              };
-            }
-
-            // Fallback for local agents or agents not using the auto-proxy yet.
-            // Reached via the Hub's loopback directly if on the same machine.
-            return {
-              host: '127.0.0.1',
-              port: node.ptyBridge.port,
-              authToken: node.ptyBridge.authToken,
-            };
+            return resolveAgentEndpoint(nodeId, {
+              Node: {
+                findById: async (id) => NodeModel.findById(id).lean(),
+              },
+            });
           },
           wsFactory: (url, _protocols, headers) => {
             const ws = new WebSocket(url, { headers });
@@ -550,15 +523,18 @@ if (process.env.FLEET_AGENT_MODE === 'true') {
               emitter.emit('close', code, reason.toString('utf8'))
             );
 
-            return Object.assign(emitter, {
+            const adapter: HubWsAdapter = Object.assign(emitter, {
               send: (data: string | Buffer) => ws.send(data),
               close: (code?: number, reason?: string) => ws.close(code, reason),
               get readyState() {
                 return ws.readyState as HubWsAdapter['readyState'];
               },
-              off: (event: string, listener: (...args: unknown[]) => void) =>
-                emitter.removeListener(event, listener),
-            }) as unknown as HubWsAdapter;
+              off: (event: string, listener: (...args: unknown[]) => void) => {
+                emitter.removeListener(event, listener);
+              },
+            });
+
+            return adapter;
           },
         });
         registerFleetTtyNamespace({

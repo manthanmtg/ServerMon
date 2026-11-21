@@ -14,6 +14,7 @@ const ThemeDisplay = () => {
       <span data-testid="theme-type">{theme.type}</span>
       <span data-testid="theme-count">{availableThemes.length}</span>
       <button onClick={() => setTheme('light-default')}>Switch to Light</button>
+      <button onClick={() => setTheme('monokai')}>Switch to Monokai</button>
       <button onClick={() => setTheme('nonexistent-id')}>Switch to Bad</button>
     </div>
   );
@@ -92,6 +93,18 @@ describe('ThemeContext', () => {
     expect(screen.getByTestId('theme-id').textContent).toBe(themes[1].id);
   });
 
+  it('falls back to default when localStorage stores an empty theme id', () => {
+    localStorageMock['servermon-theme'] = '';
+
+    render(
+      <ThemeProvider>
+        <ThemeDisplay />
+      </ThemeProvider>
+    );
+
+    expect(screen.getByTestId('theme-id').textContent).toBe(themes[1].id);
+  });
+
   it('exposes all themes via availableThemes', () => {
     render(
       <ThemeProvider>
@@ -148,6 +161,22 @@ describe('ThemeContext', () => {
     expect(localStorageMock['servermon-theme']).toBe('light-default');
   });
 
+  it('does not overwrite persisted theme when selecting an invalid id', async () => {
+    localStorageMock['servermon-theme'] = 'light-default';
+
+    render(
+      <ThemeProvider>
+        <ThemeDisplay />
+      </ThemeProvider>
+    );
+
+    await act(async () => {
+      fireEvent.click(screen.getByText('Switch to Bad'));
+    });
+
+    expect(localStorageMock['servermon-theme']).toBe('light-default');
+  });
+
   it('applies theme CSS variables on mount', () => {
     render(
       <ThemeProvider>
@@ -160,6 +189,42 @@ describe('ThemeContext', () => {
       'data-theme',
       expect.any(String)
     );
+  });
+
+  it('updates the root data-theme attribute when theme changes', async () => {
+    render(
+      <ThemeProvider>
+        <ThemeDisplay />
+      </ThemeProvider>
+    );
+
+    await act(async () => {
+      fireEvent.click(screen.getByText('Switch to Light'));
+    });
+
+    expect(document.documentElement.setAttribute).toHaveBeenLastCalledWith('data-theme', 'light');
+  });
+
+  it('applies all css color tokens as kebab-case CSS variables', async () => {
+    render(
+      <ThemeProvider>
+        <ThemeDisplay />
+      </ThemeProvider>
+    );
+
+    (document.documentElement.style.setProperty as ReturnType<typeof vi.fn>).mockClear();
+
+    await act(async () => {
+      fireEvent.click(screen.getByText('Switch to Monokai'));
+    });
+
+    const monokaiTheme = themes.find((theme) => theme.id === 'monokai');
+    expect(monokaiTheme).toBeTruthy();
+
+    Object.entries(monokaiTheme!.colors).forEach(([key, value]) => {
+      const cssVar = `--${key.replace(/([a-z])([A-Z])/g, '$1-$2').toLowerCase()}`;
+      expect(document.documentElement.style.setProperty).toHaveBeenCalledWith(cssVar, value);
+    });
   });
 
   it('throws when useTheme is used outside ThemeProvider', () => {

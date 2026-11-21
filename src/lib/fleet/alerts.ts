@@ -46,15 +46,20 @@ export interface AlertSubscriptionLike {
 export interface AlertDispatchDeps {
   AlertChannel: {
     find: (filter: Record<string, unknown>) => {
-      lean?: () => Promise<unknown[]> | unknown[];
-    } & PromiseLike<unknown[]>;
-    findById?: (id: unknown) => { lean?: () => Promise<unknown> } & PromiseLike<unknown>;
-    findByIdAndUpdate?: (id: unknown, update: Record<string, unknown>) => PromiseLike<unknown>;
+      lean?: () => Promise<AlertChannelLike[]> | AlertChannelLike[];
+    } & PromiseLike<AlertChannelLike[]>;
+    findById?: (id: unknown) => {
+      lean?: () => Promise<AlertChannelLike | null>;
+    } & PromiseLike<AlertChannelLike | null>;
+    findByIdAndUpdate?: (
+      id: unknown,
+      update: Record<string, unknown>
+    ) => PromiseLike<AlertChannelLike | null>;
   };
   AlertSubscription: {
     find: (filter: Record<string, unknown>) => {
-      lean?: () => Promise<unknown[]> | unknown[];
-    } & PromiseLike<unknown[]>;
+      lean?: () => Promise<AlertSubscriptionLike[]> | AlertSubscriptionLike[];
+    } & PromiseLike<AlertSubscriptionLike[]>;
   };
   FleetLogEvent: {
     create: (doc: Record<string, unknown>) => PromiseLike<unknown>;

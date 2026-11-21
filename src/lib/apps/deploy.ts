@@ -1,0 +1,607 @@
+import { spawn } from 'node:child_process';
+import {
+  access,
+  cp,
+  lstat,
+  mkdir,
+  readlink,
+  rename,
+  rm,
+  symlink,
+  unlink,
+  writeFile,
+} from 'node:fs/promises';
+import path from 'node:path';
+import type { CreateManagedAppInput } from '@/modules/apps/types';
+import type { AppStageUpdate } from '@/modules/apps/types';
+import {
+  buildNginxConfig,
+  buildSystemdUnit,
+  createReleaseId,
+  renderEnvFile,
+  toSystemdServiceName,
+} from './rendering';
+import { getAppRoot, getReleaseRoot } from './paths';
+
+export interface CommandRunRequest {
+  command: string;
+  cwd?: string;
+  signal?: AbortSignal;
+}
+
+export interface CommandRunResult {
+  code: number;
+  output: string;
+}
+
+export type CommandRunner = (request: CommandRunRequest) => Promise<CommandRunResult>;
+export type HealthCheck = (
+  url: string,
+  options?: { signal?: AbortSignal }
+) => Promise<{ ok: boolean; status?: number; error?: string }>;
+
+export interface DeployNextJsAppOptions {
+  assertOwnership?: () => Promise<void>;
+  commitSha?: string;
+  app: Omit<CreateManagedAppInput, 'sourcePath'> & {
+    sourcePath: string;
+    slug: string;
+    status?: string;
+    currentReleaseId?: string;
+  };
+  appsRoot?: string;
+  systemdDir?: string;
+  nginxAvailableDir?: string;
+  nginxEnabledDir?: string;
+  letsencryptLiveDir?: string;
+  certbotRetryAttempts?: number;
+  certbotRetryIntervalMs?: number;
+  releaseId?: string;
+  runAsUser?: string;
+  healthCheckAttempts?: number;
+  healthCheckIntervalMs?: number;
+  commandRunner?: CommandRunner;
+  healthCheck?: HealthCheck;
+  signal?: AbortSignal;
+  onProgress?: (entry: string) => void | Promise<void>;
+  reportStage?: (update: AppStageUpdate) => Promise<void>;
+}
+
+export interface DeployNextJsAppResult {
+  releaseId: string;
+  status: 'active' | 'failed';
+  logs: string[];
+  error?: string;
+}
+
+const DEFAULT_SYSTEMD_DIR = '/etc/systemd/system';
+const DEFAULT_NGINX_AVAILABLE_DIR = '/etc/nginx/sites-available';
+const DEFAULT_NGINX_ENABLED_DIR = '/etc/nginx/sites-enabled';
+const DEFAULT_LETSENCRYPT_LIVE_DIR = '/etc/letsencrypt/live';
+const DEFAULT_CERTBOT_RETRY_ATTEMPTS = 3;
+const DEFAULT_CERTBOT_RETRY_INTERVAL_MS = 10_000;
+
+const EXCLUDED_SOURCE_NAMES = new Set([
+  '.git',
+  '.env',
+  '.env.local',
+  '.env.production',
+  '.next',
+  'node_modules',
+  'dist',
+  'build',
+  '.turbo',
+  '.cache',
+]);
+
+const INTERNAL_NEXT_ENV_KEYS = [
+  'TURBOPACK',
+  'NEXT_PRIVATE_TURBOPACK',
+  'NEXT_PRIVATE_BUILD_WORKER',
+  'NEXT_PRIVATE_DEBUG_CACHE',
+];
+
+function appCommandEnv(): NodeJS.ProcessEnv {
+  const env = { ...process.env };
+  for (const key of INTERNAL_NEXT_ENV_KEYS) {
+    delete env[key];
+  }
+  return env;
+}
+
+function abortMessage(signal?: AbortSignal): string {
+  const reason = signal?.reason;
+  if (reason instanceof Error) return reason.message;
+  if (typeof reason === 'string') return reason;
+  return 'Operation aborted';
+}
+
+function throwIfAborted(signal?: AbortSignal): void {
+  if (!signal?.aborted) return;
+  throw new Error(abortMessage(signal));
+}
+
+export const defaultCommandRunner: CommandRunner = ({ command, cwd, signal }) =>
+  new Promise((resolve) => {
+    if (signal?.aborted) {
+      resolve({ code: 1, output: abortMessage(signal) });
+      return;
+    }
+
+    const child = spawn('/bin/sh', ['-lc', command], {
+      cwd,
+      detached: true,
+      env: appCommandEnv(),
+    });
+    const output: string[] = [];
+    let killTimer: ReturnType<typeof setTimeout> | undefined;
+
+    const killProcessGroup = (signalName: NodeJS.Signals) => {
+      if (!child.pid) return;
+      try {
+        process.kill(-child.pid, signalName);
+      } catch {
+        try {
+          child.kill(signalName);
+        } catch {
+          // Child already exited.
+        }
+      }
+    };
+
+    const abortHandler = () => {
+      killProcessGroup('SIGTERM');
+      killTimer = setTimeout(() => killProcessGroup('SIGKILL'), 5_000);
+    };
+
+    signal?.addEventListener('abort', abortHandler, { once: true });
+
+    const cleanup = () => {
+      signal?.removeEventListener('abort', abortHandler);
+      if (killTimer) clearTimeout(killTimer);
+    };
+
+    child.stdout.on('data', (chunk: Buffer) => output.push(chunk.toString()));
+    child.stderr.on('data', (chunk: Buffer) => output.push(chunk.toString()));
+    child.on('close', (code) => {
+      if (signal?.aborted) killProcessGroup('SIGKILL');
+      cleanup();
+      resolve({ code: code ?? 1, output: output.join('') });
+    });
+    child.on('error', (error) => {
+      cleanup();
+      resolve({ code: 1, output: error.message });
+    });
+  });
+
+const defaultHealthCheck: HealthCheck = async (url, options) => {
+  try {
+    const timeoutSignal = AbortSignal.timeout(15_000);
+    const signal = options?.signal
+      ? AbortSignal.any([options.signal, timeoutSignal])
+      : timeoutSignal;
+    const response = await fetch(url, { signal });
+    return { ok: response.ok, status: response.status };
+  } catch (error: unknown) {
+    return { ok: false, error: error instanceof Error ? error.message : 'Health check failed' };
+  }
+};
+
+function shouldCopySource(src: string): boolean {
+  return !EXCLUDED_SOURCE_NAMES.has(path.basename(src));
+}
+
+async function pathExists(target: string): Promise<boolean> {
+  try {
+    await access(target);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function readCurrentTarget(currentPath: string): Promise<string | undefined> {
+  try {
+    const stat = await lstat(currentPath);
+    if (!stat.isSymbolicLink()) return undefined;
+    return readlink(currentPath);
+  } catch {
+    return undefined;
+  }
+}
+
+async function replaceSymlink(linkPath: string, target: string): Promise<void> {
+  const tempLink = `${linkPath}.tmp-${process.pid}-${Date.now()}`;
+  await symlink(target, tempLink);
+  await rm(linkPath, { recursive: true, force: true });
+  await rename(tempLink, linkPath);
+}
+
+async function ensureNginxEnabled(availablePath: string, enabledPath: string): Promise<void> {
+  if (await pathExists(enabledPath)) return;
+  await symlink(availablePath, enabledPath);
+}
+
+async function pushLog(
+  logs: string[],
+  entry: string,
+  onProgress?: (entry: string) => void | Promise<void>
+): Promise<void> {
+  logs.push(entry);
+  await onProgress?.(entry);
+}
+
+async function runOrThrow(
+  commandRunner: CommandRunner,
+  command: string,
+  logs: string[],
+  cwd?: string,
+  onProgress?: (entry: string) => void | Promise<void>,
+  signal?: AbortSignal
+): Promise<void> {
+  throwIfAborted(signal);
+  await pushLog(logs, `$ ${command}`, onProgress);
+  const result = await commandRunner({ command, cwd, signal });
+  throwIfAborted(signal);
+  if (result.output.trim()) await pushLog(logs, result.output.trim(), onProgress);
+  if (result.code !== 0) {
+    throw new Error(`Command failed: ${command}\n${result.output}`.trim());
+  }
+}
+
+function buildCertbotCommand(domain: string): string {
+  return [
+    'certbot',
+    '--nginx',
+    `-d ${domain}`,
+    '--non-interactive',
+    '--agree-tos',
+    '--redirect',
+    '--register-unsafely-without-email',
+  ].join(' ');
+}
+
+function certbotIsAlreadyRunning(output: string): boolean {
+  return /another instance of certbot is already running/i.test(output);
+}
+
+async function runCertbotOrThrow({
+  commandRunner,
+  command,
+  logs,
+  retryAttempts,
+  retryIntervalMs,
+  onProgress,
+  signal,
+}: {
+  commandRunner: CommandRunner;
+  command: string;
+  logs: string[];
+  retryAttempts: number;
+  retryIntervalMs: number;
+  onProgress?: (entry: string) => void | Promise<void>;
+  signal?: AbortSignal;
+}): Promise<void> {
+  const attempts = Math.max(1, retryAttempts);
+
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    throwIfAborted(signal);
+    await pushLog(logs, `$ ${command}`, onProgress);
+    const result = await commandRunner({ command, signal });
+    throwIfAborted(signal);
+    if (result.output.trim()) await pushLog(logs, result.output.trim(), onProgress);
+    if (result.code === 0) return;
+
+    if (attempt < attempts && certbotIsAlreadyRunning(result.output)) {
+      await pushLog(
+        logs,
+        `Certbot is already running; retrying in ${retryIntervalMs}ms (attempt ${
+          attempt + 1
+        }/${attempts})`,
+        onProgress
+      );
+      await sleep(retryIntervalMs, signal);
+      continue;
+    }
+
+    throw new Error(`Command failed: ${command}\n${result.output}`.trim());
+  }
+}
+
+function letsEncryptCertificatePaths(domain: string, liveDir: string) {
+  const certificateRoot = path.join(liveDir, domain);
+  return {
+    certificatePath: path.join(certificateRoot, 'fullchain.pem'),
+    certificateKeyPath: path.join(certificateRoot, 'privkey.pem'),
+  };
+}
+
+async function hasLetsEncryptCertificate(domain: string, liveDir: string): Promise<boolean> {
+  const paths = letsEncryptCertificatePaths(domain, liveDir);
+  const [hasCertificate, hasKey] = await Promise.all([
+    pathExists(paths.certificatePath),
+    pathExists(paths.certificateKeyPath),
+  ]);
+  return hasCertificate && hasKey;
+}
+
+function healthUrl(port: number, healthCheckPath?: string): string {
+  const normalizedPath = healthCheckPath?.startsWith('/') ? healthCheckPath : '/';
+  return `http://127.0.0.1:${port}${normalizedPath}`;
+}
+
+function sleep(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(new Error(abortMessage(signal)));
+      return;
+    }
+    const cleanup = () => signal?.removeEventListener('abort', abortHandler);
+    const timer = setTimeout(() => {
+      cleanup();
+      resolve();
+    }, ms);
+    const abortHandler = () => {
+      clearTimeout(timer);
+      cleanup();
+      reject(new Error(abortMessage(signal)));
+    };
+    signal?.addEventListener('abort', abortHandler, { once: true });
+  });
+}
+
+async function waitForHealthy({
+  url,
+  healthCheck,
+  logs,
+  attempts,
+  intervalMs,
+  onProgress,
+  signal,
+}: {
+  url: string;
+  healthCheck: HealthCheck;
+  logs: string[];
+  attempts: number;
+  intervalMs: number;
+  onProgress?: (entry: string) => void | Promise<void>;
+  signal?: AbortSignal;
+}): Promise<void> {
+  let lastFailure = 'Health check failed';
+
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    throwIfAborted(signal);
+    const checked = await healthCheck(url, { signal });
+    throwIfAborted(signal);
+    if (checked.ok) {
+      await pushLog(logs, 'Health check passed', onProgress);
+      return;
+    }
+
+    lastFailure =
+      checked.error || `Health check failed${checked.status ? ` with ${checked.status}` : ''}`;
+    if (attempt < attempts) {
+      await pushLog(
+        logs,
+        `Health check attempt ${attempt}/${attempts} failed: ${lastFailure}`,
+        onProgress
+      );
+      await sleep(intervalMs, signal);
+    }
+  }
+
+  throw new Error(lastFailure);
+}
+
+export async function deployNextJsApp({
+  app,
+  appsRoot,
+  systemdDir = DEFAULT_SYSTEMD_DIR,
+  nginxAvailableDir = DEFAULT_NGINX_AVAILABLE_DIR,
+  nginxEnabledDir = DEFAULT_NGINX_ENABLED_DIR,
+  letsencryptLiveDir = DEFAULT_LETSENCRYPT_LIVE_DIR,
+  certbotRetryAttempts = DEFAULT_CERTBOT_RETRY_ATTEMPTS,
+  certbotRetryIntervalMs = DEFAULT_CERTBOT_RETRY_INTERVAL_MS,
+  releaseId = createReleaseId(),
+  runAsUser,
+  healthCheckAttempts = 12,
+  healthCheckIntervalMs = 2_000,
+  commandRunner = defaultCommandRunner,
+  healthCheck = defaultHealthCheck,
+  signal,
+  onProgress,
+  reportStage,
+  assertOwnership,
+  commitSha,
+}: DeployNextJsAppOptions): Promise<DeployNextJsAppResult> {
+  const logs: string[] = [];
+  const appRoot = getAppRoot(app.slug, appsRoot);
+  const releaseRoot = getReleaseRoot(app.slug, releaseId, appsRoot);
+  const sourceRoot = path.join(releaseRoot, 'source');
+  const currentPath = path.join(appRoot, 'current');
+  const serviceName = toSystemdServiceName(app.slug);
+  const previousCurrentTarget = await readCurrentTarget(currentPath);
+  let serviceRestarted = false;
+  let activeStage: AppStageUpdate['phase'] = 'stage';
+  const stage = async (update: AppStageUpdate) => {
+    if (update.state === 'started') activeStage = update.phase;
+    await reportStage?.(update);
+  };
+
+  try {
+    await stage({ phase: 'stage', state: 'started', message: 'Preparing release' });
+    await pushLog(logs, `Creating release ${releaseId}`, onProgress);
+    await mkdir(sourceRoot, { recursive: true });
+    await cp(app.sourcePath, sourceRoot, {
+      recursive: true,
+      filter: shouldCopySource,
+    });
+
+    await writeFile(
+      path.join(releaseRoot, 'env'),
+      renderEnvFile(app.envVars ?? {}, app.port),
+      'utf8'
+    );
+    await writeFile(
+      path.join(releaseRoot, 'deploy.json'),
+      `${JSON.stringify(
+        {
+          app: app.slug,
+          domain: app.domain,
+          port: app.port,
+          releaseId,
+          commitSha,
+          createdAt: new Date().toISOString(),
+        },
+        null,
+        2
+      )}\n`,
+      'utf8'
+    );
+    await stage({ phase: 'stage', state: 'completed', message: 'Release prepared' });
+
+    await stage({ phase: 'install', state: 'started', message: 'Installing dependencies' });
+    await runOrThrow(commandRunner, app.commands.install, logs, sourceRoot, onProgress, signal);
+    await stage({ phase: 'install', state: 'completed', message: 'Dependencies installed' });
+    await stage({ phase: 'build', state: 'started', message: 'Building application' });
+    await runOrThrow(commandRunner, app.commands.build, logs, sourceRoot, onProgress, signal);
+    await stage({ phase: 'build', state: 'completed', message: 'Application built' });
+
+    await stage({ phase: 'activate', state: 'started', message: 'Activating release' });
+    await mkdir(systemdDir, { recursive: true });
+    signal?.throwIfAborted();
+    await assertOwnership?.();
+    await mkdir(nginxAvailableDir, { recursive: true });
+    await mkdir(nginxEnabledDir, { recursive: true });
+
+    await writeFile(
+      path.join(systemdDir, serviceName),
+      buildSystemdUnit({
+        appSlug: app.slug,
+        appRoot,
+        command: app.commands.start,
+        runAsUser,
+        port: app.port,
+      }),
+      'utf8'
+    );
+
+    await replaceSymlink(currentPath, releaseRoot);
+    await runOrThrow(commandRunner, 'systemctl daemon-reload', logs, undefined, onProgress, signal);
+    await runOrThrow(
+      commandRunner,
+      `systemctl enable ${serviceName}`,
+      logs,
+      undefined,
+      onProgress,
+      signal
+    );
+    await runOrThrow(
+      commandRunner,
+      `systemctl restart ${serviceName}`,
+      logs,
+      undefined,
+      onProgress,
+      signal
+    );
+    serviceRestarted = true;
+    await stage({ phase: 'activate', state: 'completed', message: 'Release activated' });
+
+    await stage({ phase: 'health', state: 'started', message: 'Checking application health' });
+    await waitForHealthy({
+      url: healthUrl(app.port, app.healthCheckPath),
+      healthCheck,
+      logs,
+      attempts: healthCheckAttempts,
+      intervalMs: healthCheckIntervalMs,
+      onProgress,
+      signal,
+    });
+    await stage({ phase: 'health', state: 'completed', message: 'Health check passed' });
+
+    await stage({ phase: 'routing', state: 'started', message: 'Updating routing' });
+    const nginxAvailablePath = path.join(nginxAvailableDir, app.domain);
+    signal?.throwIfAborted();
+    await assertOwnership?.();
+    const nginxEnabledPath = path.join(nginxEnabledDir, app.domain);
+    const existingTlsCertificate = app.tlsEnabled
+      ? await hasLetsEncryptCertificate(app.domain, letsencryptLiveDir)
+      : false;
+    const tls = existingTlsCertificate
+      ? letsEncryptCertificatePaths(app.domain, letsencryptLiveDir)
+      : undefined;
+
+    await writeFile(
+      nginxAvailablePath,
+      buildNginxConfig({ domain: app.domain, port: app.port, tls }),
+      'utf8'
+    );
+    await ensureNginxEnabled(nginxAvailablePath, nginxEnabledPath);
+    await runOrThrow(commandRunner, 'nginx -t', logs, undefined, onProgress, signal);
+    await runOrThrow(commandRunner, 'nginx -s reload', logs, undefined, onProgress, signal);
+    await stage({ phase: 'routing', state: 'completed', message: 'Routing updated' });
+
+    if (app.tlsEnabled) {
+      await stage({ phase: 'tls', state: 'started', message: 'Configuring TLS' });
+      if (existingTlsCertificate) {
+        await pushLog(
+          logs,
+          `Existing TLS certificate found for ${app.domain}; skipping certbot`,
+          onProgress
+        );
+      } else {
+        await runCertbotOrThrow({
+          commandRunner,
+          command: buildCertbotCommand(app.domain),
+          logs,
+          retryAttempts: certbotRetryAttempts,
+          retryIntervalMs: certbotRetryIntervalMs,
+          onProgress,
+          signal,
+        });
+        await runOrThrow(commandRunner, 'nginx -t', logs, undefined, onProgress, signal);
+        await runOrThrow(commandRunner, 'nginx -s reload', logs, undefined, onProgress, signal);
+      }
+      await stage({ phase: 'tls', state: 'completed', message: 'TLS configured' });
+    } else {
+      await stage({ phase: 'tls', state: 'skipped', message: 'TLS is disabled' });
+    }
+
+    await stage({ phase: 'finalize', state: 'started', message: 'Finalizing deployment' });
+    signal?.throwIfAborted();
+    await assertOwnership?.();
+    await writeFile(
+      path.join(releaseRoot, 'success.json'),
+      JSON.stringify({ releaseId, commitSha, completedAt: new Date().toISOString() }),
+      'utf8'
+    );
+    await stage({ phase: 'finalize', state: 'completed', message: 'Deployment finalized' });
+    return { releaseId, status: 'active', logs };
+  } catch (error: unknown) {
+    // Ownership loss forbids compensating host mutations too. Recovery inspects the current release.
+    if (signal?.aborted) throw error;
+    const message = error instanceof Error ? error.message : 'Deployment failed';
+    try {
+      await stage({ phase: activeStage, state: 'failed', message });
+    } catch {
+      // Stage telemetry must never obscure the deployment failure or recovery path.
+    }
+    if (previousCurrentTarget) {
+      await replaceSymlink(currentPath, previousCurrentTarget);
+      if (serviceRestarted) {
+        const rollbackRestart = await commandRunner({
+          command: `systemctl restart ${serviceName}`,
+        });
+        await pushLog(logs, `$ systemctl restart ${serviceName}`, onProgress);
+        if (rollbackRestart.output.trim()) {
+          await pushLog(logs, rollbackRestart.output.trim(), onProgress);
+        }
+      }
+    } else {
+      await unlink(currentPath).catch(() => undefined);
+    }
+
+    await pushLog(logs, `ERROR: ${message}`, onProgress);
+    return { releaseId, status: 'failed', logs, error: message };
+  }
+}

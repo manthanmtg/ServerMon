@@ -11,14 +11,22 @@ Each workspace has:
 - `Workspace Name` for selectors and history.
 - `Workspace Path` for the actual working directory.
 - `Blocking workspace` to allow only one active AI Runner job in that workspace at a time.
+- `Git Worktrees Enabled` (for Git repositories) to allow parallel execution by automatically creating an ephemeral, detached-HEAD git worktree for each job.
 - `Enabled` to hide retired workspaces from new launch forms without deleting history.
 
 Workspaces live in the AI Runner `Settings` tab. Schedule and AutoFlow editors use the same workspace list. Editors still allow a custom path, and the path input uses known directories for autocomplete. If a custom path should become reusable, use `Save workspace` from the editor.
 
-When a workspace is blocking:
+When a workspace is blocking (and worktrees are disabled):
 
 - Manual schedule launches and AutoFlows can queue work, but the supervisor only dispatches one job for that workspace at a time.
 - Jobs in other workspaces continue dispatching normally.
+
+When a workspace has Git Worktrees enabled:
+
+- The blocking rule is bypassed, allowing parallel execution.
+- Before a job spawns, it creates a temporary directory under `<repo>/.worktrees/ai-runner/` tracking the current HEAD.
+- The worker executes the job in this isolated worktree, keeping the main repository's index and working tree clean.
+- The worktree is automatically removed when the job completes or fails.
 
 ## Prompt Templates
 

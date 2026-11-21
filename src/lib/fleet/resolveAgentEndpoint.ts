@@ -1,12 +1,7 @@
-import { getOrCreateHubAuthToken } from './hubAuth';
+import { TERMINAL_BRIDGE_PROXY_NAME, terminalBridgeRemotePort } from './toml';
 
 export interface ResolveAgentEndpointDeps {
   Node: ResolveAgentEndpointNodeLookup;
-  /**
-   * Optional override; defaults to {@link getOrCreateHubAuthToken}.
-   * Tests inject this to avoid touching the FrpServerState collection.
-   */
-  getHubAuthToken?: () => Promise<string>;
 }
 
 export interface ResolvedAgentEndpoint {
@@ -20,22 +15,22 @@ interface ResolveAgentEndpointNodeLookup {
 }
 
 interface ResolveAgentEndpointNodeDoc {
+  slug?: string;
+  capabilities?: { terminal?: boolean };
+  ptyBridge?: { port?: number; authToken?: string };
   proxyRules?: Array<{
     name?: string;
     type?: string;
     enabled?: boolean;
+    status?: string;
     remotePort?: number;
   }>;
 }
 
 /**
- * Resolves the local agent endpoint for a given node, based on its terminal
- * proxy rule. Returns null if the node is not found, has no enabled `terminal`
- * proxy rule, or the rule does not declare a remote port.
- *
- * In Phase 2 the hub assumes the agent's pty bridge is reachable via
- * 127.0.0.1:<remotePort> (i.e. via the FRP TCP tunnel), authenticated with
- * `FLEET_HUB_AUTH_TOKEN`.
+ * Resolves the hub-side TCP endpoint for a node's agent PTY bridge. The bridge
+ * is exposed through frps on 127.0.0.1:<remotePort>, then authenticated with the
+ * per-agent ptyBridge token reported on heartbeat.
  */
 export async function resolveAgentEndpoint(
   nodeId: string,
@@ -43,16 +38,20 @@ export async function resolveAgentEndpoint(
 ): Promise<ResolvedAgentEndpoint | null> {
   const node = await deps.Node.findById(nodeId);
   if (!node) return null;
+  if (node.capabilities?.terminal === false) return null;
+  if (!node.ptyBridge?.authToken) return null;
+
   const rules = node.proxyRules ?? [];
-  const terminal = rules.find(
-    (r) => r?.name === 'terminal' && r.enabled === true && typeof r.remotePort === 'number'
+  const terminalBridge = rules.find(
+    (r) =>
+      (r?.name === TERMINAL_BRIDGE_PROXY_NAME || r?.name === 'terminal') &&
+      r.enabled !== false &&
+      typeof r.remotePort === 'number'
   );
-  if (!terminal || typeof terminal.remotePort !== 'number') return null;
-  const getToken = deps.getHubAuthToken ?? getOrCreateHubAuthToken;
-  const authToken = await getToken();
+
   return {
     host: '127.0.0.1',
-    port: terminal.remotePort,
-    authToken,
+    port: terminalBridge?.remotePort ?? terminalBridgeRemotePort(node.slug ?? nodeId),
+    authToken: node.ptyBridge.authToken,
   };
 }

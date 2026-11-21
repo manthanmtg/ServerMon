@@ -2,11 +2,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { NextRequest } from 'next/server';
 
-const { mockFindById } = vi.hoisted(() => ({
+const { mockFindById, mockGetSession } = vi.hoisted(() => ({
   mockFindById: vi.fn(),
+  mockGetSession: vi.fn(),
 }));
 
 vi.mock('@/lib/db', () => ({ default: vi.fn().mockResolvedValue(true) }));
+vi.mock('@/lib/session', () => ({ getSession: mockGetSession }));
 vi.mock('@/lib/logger', () => ({
   createLogger: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }),
 }));
@@ -23,6 +25,14 @@ function makeContext(id: string) {
 describe('PATCH /api/modules/endpoints/[id]/toggle', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockGetSession.mockResolvedValue({ user: { role: 'admin' } });
+  });
+
+  it('returns 401 when unauthenticated', async () => {
+    mockGetSession.mockResolvedValue(null);
+    const res = await PATCH(new NextRequest('http://localhost'), makeContext('ep-1'));
+    expect(res.status).toBe(401);
+    expect(mockFindById).not.toHaveBeenCalled();
   });
 
   it('toggles enabled to false when currently true', async () => {

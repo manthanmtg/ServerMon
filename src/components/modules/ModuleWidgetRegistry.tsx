@@ -47,6 +47,17 @@ const AIRunnerWidget = dynamic(() => import('@/modules/ai-runner/ui/AIRunnerWidg
   loading: WidgetLoader,
 });
 
+const ScriptRunnerWidget = dynamic(() => import('@/modules/script-runner/ui/ScriptRunnerWidget'), {
+  loading: WidgetLoader,
+});
+
+const PythonEnvironmentsWidget = dynamic(
+  () => import('@/modules/python-environments/ui/PythonEnvironmentsWidget'),
+  {
+    loading: WidgetLoader,
+  }
+);
+
 const NetworkWidget = dynamic(() => import('@/modules/network/ui/NetworkWidget'), {
   loading: WidgetLoader,
 });
@@ -95,11 +106,23 @@ const SelfServiceWidget = dynamic(() => import('@/modules/self-service/ui/SelfSe
   loading: WidgetLoader,
 });
 
+const AppsWidget = dynamic(() => import('@/modules/apps/ui/AppsWidget'), {
+  loading: WidgetLoader,
+});
+
+const DatabasesWidget = dynamic(() => import('@/modules/databases/ui/DatabasesWidget'), {
+  loading: WidgetLoader,
+});
+
 const FleetWidget = dynamic(() => import('@/modules/fleet/ui/FleetWidget'), {
   loading: WidgetLoader,
 });
 
 const EnvVarsWidget = dynamic(() => import('@/modules/env-vars/ui/EnvVarsWidget'), {
+  loading: WidgetLoader,
+});
+
+const FirewallWidget = dynamic(() => import('@/modules/firewall/ui/FirewallWidget'), {
   loading: WidgetLoader,
 });
 
@@ -116,6 +139,8 @@ const widgetMap: Record<
   ServicesWidget: { component: ServicesWidget, name: 'Services' },
   AIAgentsWidget: { component: AIAgentsWidget, name: 'AI Agents' },
   AIRunnerWidget: { component: AIRunnerWidget, name: 'AI Runner' },
+  ScriptRunnerWidget: { component: ScriptRunnerWidget, name: 'Script Runner' },
+  PythonEnvironmentsWidget: { component: PythonEnvironmentsWidget, name: 'Python Environments' },
   NetworkWidget: { component: NetworkWidget, name: 'Network Usage' },
   UpdateWidget: { component: UpdateWidget, name: 'System Updates' },
   CronsWidget: { component: CronsWidget, name: 'Cron Jobs' },
@@ -128,15 +153,21 @@ const widgetMap: Record<
   UsersWidget: { component: UsersWidget, name: 'Users & Access' },
   EndpointsWidget: { component: EndpointsWidget, name: 'Custom Endpoints' },
   SelfServiceWidget: { component: SelfServiceWidget, name: 'Self Service' },
+  AppsWidget: { component: AppsWidget, name: 'Apps' },
+  DatabasesWidget: { component: DatabasesWidget, name: 'Databases' },
   FleetWidget: { component: FleetWidget, name: 'Fleet Overview' },
   EnvVarsWidget: { component: EnvVarsWidget, name: 'EnvVars' },
+  FirewallWidget: { component: FirewallWidget, name: 'Firewall' },
 };
 
 export function renderWidget(componentName: string, props: Record<string, unknown> = {}) {
   const entry = widgetMap[componentName];
   if (!entry) {
     return (
-      <div className="p-4 rounded-lg border border-destructive/20 bg-destructive/5 text-destructive text-sm">
+      <div
+        role="alert"
+        className="p-4 rounded-lg border border-destructive/20 bg-destructive/5 text-destructive text-sm"
+      >
         Widget &quot;{componentName}&quot; not found
       </div>
     );

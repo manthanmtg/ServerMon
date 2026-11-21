@@ -2,12 +2,15 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { NextRequest } from 'next/server';
 
-const { mockListTokens, mockGenerateToken } = vi.hoisted(() => ({
+const { mockConnectDB, mockGetSession, mockListTokens, mockGenerateToken } = vi.hoisted(() => ({
+  mockConnectDB: vi.fn(),
+  mockGetSession: vi.fn(),
   mockListTokens: vi.fn(),
   mockGenerateToken: vi.fn(),
 }));
 
-vi.mock('@/lib/db', () => ({ default: vi.fn().mockResolvedValue(true) }));
+vi.mock('@/lib/db', () => ({ default: mockConnectDB }));
+vi.mock('@/lib/session', () => ({ getSession: mockGetSession }));
 vi.mock('@/lib/logger', () => ({
   createLogger: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }),
 }));
@@ -25,6 +28,18 @@ function makeContext(id: string) {
 describe('GET /api/modules/endpoints/[id]/tokens', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockConnectDB.mockResolvedValue(true);
+    mockGetSession.mockResolvedValue({ user: { role: 'admin' } });
+  });
+
+  it('returns 401 without a session', async () => {
+    mockGetSession.mockResolvedValue(null);
+    const res = await GET(new NextRequest('http://localhost'), makeContext('ep-1'));
+    expect(res.status).toBe(401);
+    const json = await res.json();
+    expect(json.error).toBe('Unauthorized');
+    expect(mockConnectDB).not.toHaveBeenCalled();
+    expect(mockListTokens).not.toHaveBeenCalled();
   });
 
   it('returns tokens list', async () => {
@@ -54,6 +69,8 @@ describe('GET /api/modules/endpoints/[id]/tokens', () => {
 describe('POST /api/modules/endpoints/[id]/tokens', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockConnectDB.mockResolvedValue(true);
+    mockGetSession.mockResolvedValue({ user: { role: 'admin' } });
     mockGenerateToken.mockResolvedValue({ rawToken: 'tok_abc_secret', prefix: 'tok_abc' });
   });
 
@@ -72,6 +89,16 @@ describe('POST /api/modules/endpoints/[id]/tokens', () => {
     expect(json.token).toBe('tok_abc_secret');
     expect(json.prefix).toBe('tok_abc');
     expect(json.name).toBe('My Token');
+  });
+
+  it('returns 401 without a session', async () => {
+    mockGetSession.mockResolvedValue(null);
+    const res = await POST(makeRequest({ name: 'My Token' }), makeContext('ep-1'));
+    expect(res.status).toBe(401);
+    const json = await res.json();
+    expect(json.error).toBe('Unauthorized');
+    expect(mockConnectDB).not.toHaveBeenCalled();
+    expect(mockGenerateToken).not.toHaveBeenCalled();
   });
 
   it('returns 400 when name is missing', async () => {

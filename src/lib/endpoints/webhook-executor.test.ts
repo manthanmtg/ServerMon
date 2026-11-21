@@ -33,6 +33,29 @@ function makeInput(overrides: Partial<ExecutionInput> = {}): ExecutionInput {
   };
 }
 
+function mockResponse(status: number, body: string, headers = new Headers()) {
+  const encoder = new TextEncoder();
+  const uint8 = encoder.encode(body);
+  let read = false;
+
+  return {
+    status,
+    headers,
+    body: {
+      getReader: () => ({
+        read: async () => {
+          if (read) return { done: true, value: undefined };
+          read = true;
+          return { done: false, value: uint8 };
+        },
+        releaseLock: () => {},
+      }),
+      cancel: async () => {},
+    },
+    text: async () => body,
+  };
+}
+
 describe('executeWebhook', () => {
   // ── missing config ─────────────────────────────────────────────────────────
 
@@ -55,12 +78,11 @@ describe('executeWebhook', () => {
   // ── successful request ─────────────────────────────────────────────────────
 
   it('calls fetch and returns the upstream status code and body', async () => {
-    const mockResponseHeaders = new Headers({ 'content-type': 'application/json' });
-    const mockFetch = vi.fn().mockResolvedValue({
-      status: 200,
-      headers: mockResponseHeaders,
-      text: vi.fn().mockResolvedValue('{"result":"ok"}'),
-    });
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValue(
+        mockResponse(200, '{"result":"ok"}', new Headers({ 'content-type': 'application/json' }))
+      );
     vi.stubGlobal('fetch', mockFetch);
 
     const endpoint = makeEndpoint({
@@ -77,11 +99,7 @@ describe('executeWebhook', () => {
   });
 
   it('uses config.method when provided, overriding endpoint.method', async () => {
-    const mockFetch = vi.fn().mockResolvedValue({
-      status: 200,
-      headers: new Headers(),
-      text: vi.fn().mockResolvedValue('ok'),
-    });
+    const mockFetch = vi.fn().mockResolvedValue(mockResponse(200, 'ok'));
     vi.stubGlobal('fetch', mockFetch);
 
     const endpoint = makeEndpoint({
@@ -96,11 +114,7 @@ describe('executeWebhook', () => {
   });
 
   it('preserves non-sensitive headers when forwardHeaders=true', async () => {
-    const mockFetch = vi.fn().mockResolvedValue({
-      status: 200,
-      headers: new Headers(),
-      text: vi.fn().mockResolvedValue('ok'),
-    });
+    const mockFetch = vi.fn().mockResolvedValue(mockResponse(200, 'ok'));
     vi.stubGlobal('fetch', mockFetch);
 
     const endpoint = makeEndpoint({
@@ -128,11 +142,7 @@ describe('executeWebhook', () => {
   });
 
   it('does not forward headers when forwardHeaders is false/absent', async () => {
-    const mockFetch = vi.fn().mockResolvedValue({
-      status: 200,
-      headers: new Headers(),
-      text: vi.fn().mockResolvedValue('ok'),
-    });
+    const mockFetch = vi.fn().mockResolvedValue(mockResponse(200, 'ok'));
     vi.stubGlobal('fetch', mockFetch);
 
     const endpoint = makeEndpoint({
@@ -148,11 +158,7 @@ describe('executeWebhook', () => {
   // ── GET requests have no body ──────────────────────────────────────────────
 
   it('does not include body for GET requests', async () => {
-    const mockFetch = vi.fn().mockResolvedValue({
-      status: 200,
-      headers: new Headers(),
-      text: vi.fn().mockResolvedValue('ok'),
-    });
+    const mockFetch = vi.fn().mockResolvedValue(mockResponse(200, 'ok'));
     vi.stubGlobal('fetch', mockFetch);
 
     const endpoint = makeEndpoint({
@@ -166,17 +172,49 @@ describe('executeWebhook', () => {
     expect(call.body).toBeUndefined();
   });
 
+  it('retries idempotent requests once after a transient upstream 5xx', async () => {
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValueOnce(mockResponse(503, 'try again'))
+      .mockResolvedValueOnce(mockResponse(200, 'ok'));
+    vi.stubGlobal('fetch', mockFetch);
+
+    const endpoint = makeEndpoint({
+      method: 'GET',
+      webhookConfig: { targetUrl: 'https://example.com/hook', method: 'GET' },
+    });
+    const result = await executeWebhook(endpoint, makeInput({ method: 'GET' }));
+
+    expect(result.statusCode).toBe(200);
+    expect(result.body).toBe('ok');
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+  });
+
+  it('retries idempotent requests once after a transient network error', async () => {
+    const mockFetch = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('network down'))
+      .mockResolvedValueOnce(mockResponse(200, 'ok'));
+    vi.stubGlobal('fetch', mockFetch);
+
+    const endpoint = makeEndpoint({
+      method: 'GET',
+      webhookConfig: { targetUrl: 'https://example.com/hook', method: 'GET' },
+    });
+    const result = await executeWebhook(endpoint, makeInput({ method: 'GET' }));
+
+    expect(result.statusCode).toBe(200);
+    expect(result.body).toBe('ok');
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+  });
+
   // ── transformBody ──────────────────────────────────────────────────────────
 
   it('applies transformBody function to the outgoing body', async () => {
     let capturedBody: string | undefined;
     const mockFetch = vi.fn().mockImplementation(async (_url: unknown, init: RequestInit) => {
       capturedBody = init.body as string;
-      return {
-        status: 200,
-        headers: new Headers(),
-        text: vi.fn().mockResolvedValue('ok'),
-      };
+      return mockResponse(200, 'ok');
     });
     vi.stubGlobal('fetch', mockFetch);
 
@@ -195,11 +233,7 @@ describe('executeWebhook', () => {
     let capturedBody: string | undefined;
     const mockFetch = vi.fn().mockImplementation(async (_url: unknown, init: RequestInit) => {
       capturedBody = init.body as string;
-      return {
-        status: 200,
-        headers: new Headers(),
-        text: vi.fn().mockResolvedValue('ok'),
-      };
+      return mockResponse(200, 'ok');
     });
     vi.stubGlobal('fetch', mockFetch);
 
@@ -286,11 +320,7 @@ describe('executeWebhook', () => {
 
   it('truncates response body to 10240 characters', async () => {
     const longBody = 'x'.repeat(20000);
-    const mockFetch = vi.fn().mockResolvedValue({
-      status: 200,
-      headers: new Headers(),
-      text: vi.fn().mockResolvedValue(longBody),
-    });
+    const mockFetch = vi.fn().mockResolvedValue(mockResponse(200, longBody));
     vi.stubGlobal('fetch', mockFetch);
 
     const endpoint = makeEndpoint({
@@ -298,7 +328,7 @@ describe('executeWebhook', () => {
     });
     const result = await executeWebhook(endpoint, makeInput());
 
-    expect(result.body.length).toBeLessThanOrEqual(10240);
+    expect(result.body.length).toBe(10240);
   });
 
   afterEach(() => {

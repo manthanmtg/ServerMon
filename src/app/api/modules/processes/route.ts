@@ -1,11 +1,17 @@
 import { NextResponse } from 'next/server';
 import si from 'systeminformation';
 import { createLogger } from '@/lib/logger';
+import { getSession } from '@/lib/session';
 
 export const dynamic = 'force-dynamic';
 const log = createLogger('api:processes');
 
 export async function GET(request: Request) {
+  const session = await getSession();
+  if (!session) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   const { searchParams } = new URL(request.url);
   const limitParam = Math.min(Number(searchParams.get('limit') || '50'), 200);
   const sortBy = searchParams.get('sort') || 'cpu';
@@ -74,6 +80,11 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    const session = await getSession();
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const { pid, signal } = await request.json();
     if (!pid || typeof pid !== 'number') {
       return NextResponse.json({ error: 'Valid PID required' }, { status: 400 });

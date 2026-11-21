@@ -88,6 +88,12 @@ describe('MemoryWidget', () => {
     expect(screen.getByText('Healthy')).toBeDefined();
   });
 
+  it('uses the semantic success token for healthy status feedback', () => {
+    mockMetrics.latest = makeLatest(62.3);
+    render(<MemoryWidget />);
+    expect(screen.getByLabelText('Memory status: Healthy').className).toContain('bg-success');
+  });
+
   it('shows High Usage status when memory is above 70%', () => {
     mockMetrics.latest = makeLatest(75);
     render(<MemoryWidget />);

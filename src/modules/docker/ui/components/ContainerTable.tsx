@@ -1,6 +1,6 @@
 'use client';
 
-import { Fragment } from 'react';
+import { memo, Fragment } from 'react';
 import { ChevronDown, ChevronRight, Trash2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -24,7 +24,7 @@ function statusVariant(state: string): 'success' | 'warning' | 'destructive' {
   return 'destructive';
 }
 
-export function ContainerTable({
+export const ContainerTable = memo(function ContainerTable({
   snapshot,
   expandedId,
   pendingActionId,
@@ -82,6 +82,8 @@ export function ContainerTable({
                         type="button"
                         className="flex min-h-[48px] items-center gap-3 text-left w-full"
                         onClick={() => onExpand(expanded ? null : container.id)}
+                        aria-expanded={expanded}
+                        aria-label={`${expanded ? 'Collapse' : 'Expand'} details for ${container.name}`}
                       >
                         <div className="rounded-md border border-border/60 bg-background/50 p-1 group-hover:bg-background transition-colors">
                           {expanded ? (
@@ -179,6 +181,7 @@ export function ContainerTable({
                           className="h-8 w-8 p-0 text-destructive hover:bg-destructive/10 transition-transform active:rotate-12"
                           disabled={isPending}
                           onClick={() => onAction(container.id, 'remove')}
+                          aria-label={`Remove container ${container.name}`}
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
@@ -302,4 +305,4 @@ export function ContainerTable({
       </CardContent>
     </Card>
   );
-}
+});

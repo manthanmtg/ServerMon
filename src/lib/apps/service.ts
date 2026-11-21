@@ -1,0 +1,1520 @@
+import { z } from 'zod';
+import { isIP } from 'node:net';
+import { access, readFile, readlink, rename, rm, symlink } from 'node:fs/promises';
+import path from 'node:path';
+import connectDB from '@/lib/db';
+import AppOperationModel from '@/models/AppOperation';
+import ManagedApp, { type IManagedApp } from '@/models/ManagedApp';
+import type {
+  AppAutoUpdate,
+  AppOperation,
+  AppOperationStatus,
+  AppOperationType,
+  AppV2OperationPhase,
+  AppV2OperationStatus,
+  AppRuntimeSnapshot,
+  AppStageUpdate,
+  AppTemplate,
+  CreateManagedAppInput,
+  ManagedAppDTO,
+  ManagedAppStatus,
+} from '@/modules/apps/types';
+import { buildDnsInstructions, sanitizeAppSlug, toSystemdServiceName } from './rendering';
+import {
+  defaultCommandRunner,
+  deployNextJsApp,
+  type CommandRunner,
+  type DeployNextJsAppResult,
+  type HealthCheck,
+} from './deploy';
+import { getAppRepositoryRoot, getAppRoot, getReleaseRoot } from './paths';
+import { isHttpsGitUrl, prepareGitSourceForDeploy } from './git';
+import { getManagedAppLogs, getManagedAppRuntime } from './runtime';
+import { shouldDeployCommit } from './domain/auto-update-policy';
+
+const DOMAIN_PATTERN = /^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$/;
+const DEFAULT_SYSTEMD_DIR = '/etc/systemd/system';
+const DEFAULT_NGINX_AVAILABLE_DIR = '/etc/nginx/sites-available';
+const DEFAULT_NGINX_ENABLED_DIR = '/etc/nginx/sites-enabled';
+const MAX_APP_OPERATIONS = 20;
+const MAX_OPERATION_LOGS = 200;
+export const APP_UPDATE_TIMEOUT_MS = 60 * 60_000;
+export const APP_UPDATE_TIMEOUT_ERROR = 'Update timed out after 1 hour';
+const APP_UPDATE_TIMEOUT_STEP = 'Update timed out';
+
+export class AppUpdateAlreadyRunningError extends Error {
+  constructor(public readonly appId: string) {
+    super(`An update is already running for app ${appId}`);
+    this.name = 'AppUpdateAlreadyRunningError';
+  }
+}
+
+const NextJsAppTemplate: AppTemplate = {
+  id: 'nextjs',
+  name: 'Next.js App',
+  description: 'Deploy a pure Next.js application from a managed release copy.',
+  defaultHealthCheckPath: '/',
+  requiredCommands: ['install', 'build', 'start'],
+  todos: [
+    'Auto-detect package manager and commands',
+    'Detect Next.js standalone output',
+    'Detect environment keys from .env.example',
+  ],
+};
+
+const templates: Record<string, AppTemplate> = {
+  [NextJsAppTemplate.id]: NextJsAppTemplate,
+};
+
+export const CreateManagedAppSchema = z
+  .object({
+    name: z.string().trim().min(1).max(80),
+    sourceType: z.enum(['local', 'git']).default('local'),
+    sourcePath: z.string().trim().min(1).optional(),
+    gitUrl: z.string().trim().optional(),
+    gitBranch: z
+      .string()
+      .trim()
+      .regex(/^[A-Za-z0-9._/-]+$/, 'Invalid git branch')
+      .default('main'),
+    autoUpdate: z
+      .object({
+        enabled: z.boolean().default(false),
+        intervalMinutes: z.number().int().min(5).max(10080).default(60),
+      })
+      .default({ enabled: false, intervalMinutes: 60 }),
+    domain: z.string().trim().toLowerCase().regex(DOMAIN_PATTERN, 'Invalid domain'),
+    port: z.number().int().min(1).max(65535),
+    commands: z.object({
+      install: z.string().trim().min(1),
+      build: z.string().trim().min(1),
+      start: z.string().trim().min(1),
+    }),
+    envVars: z.record(z.string().regex(/^[A-Za-z_][A-Za-z0-9_]*$/), z.string()).default({}),
+    healthCheckPath: z
+      .string()
+      .trim()
+      .regex(/^\/[^\s]*$/, 'Health check path must start with /')
+      .default('/'),
+    tlsEnabled: z.boolean().default(false),
+    templateId: z.enum(['nextjs']).default('nextjs'),
+  })
+  .superRefine((value, ctx) => {
+    if (value.sourceType === 'local' && !value.sourcePath) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['sourcePath'],
+        message: 'Source path is required for local apps',
+      });
+    }
+    if (value.sourceType === 'git') {
+      if (!value.gitUrl || !isHttpsGitUrl(value.gitUrl)) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['gitUrl'],
+          message: 'Git URL must be an HTTPS URL',
+        });
+      }
+    }
+    if (value.sourceType !== 'git' && value.autoUpdate.enabled) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['autoUpdate', 'enabled'],
+        message: 'Auto update is only available for git apps',
+      });
+    }
+  });
+
+export type CreateManagedAppData = z.infer<typeof CreateManagedAppSchema>;
+export const UpdateManagedAppSchema = CreateManagedAppSchema;
+export type UpdateManagedAppData = z.infer<typeof UpdateManagedAppSchema>;
+
+export function getAppTemplate(id: string): AppTemplate | undefined {
+  return templates[id];
+}
+
+export function getConfiguredPublicIp(): string | undefined {
+  const value = process.env.SERVERMON_PUBLIC_IP || process.env.PUBLIC_IP;
+  return value && isIP(value) ? value : undefined;
+}
+
+export function normalizeCreateManagedAppInput(input: CreateManagedAppData) {
+  return {
+    name: input.name,
+    slug: sanitizeAppSlug(input.name),
+    templateId: input.templateId,
+    sourceType: input.sourceType,
+    sourcePath: input.sourceType === 'local' ? input.sourcePath : undefined,
+    gitUrl: input.sourceType === 'git' ? input.gitUrl : undefined,
+    gitBranch: input.sourceType === 'git' ? input.gitBranch : undefined,
+    domain: input.domain,
+    port: input.port,
+    commands: input.commands,
+    envVars: input.envVars,
+    healthCheckPath: input.healthCheckPath,
+    tlsEnabled: input.tlsEnabled,
+    status: 'draft' as ManagedAppStatus,
+    releases: [],
+    operations: [],
+    autoUpdate: {
+      enabled: input.sourceType === 'git' ? input.autoUpdate.enabled : false,
+      intervalMinutes: input.autoUpdate.intervalMinutes,
+      ...(input.sourceType === 'git' && input.autoUpdate.enabled ? { nextRunAt: new Date() } : {}),
+    },
+  };
+}
+
+function normalizeUpdateManagedAppInput(input: UpdateManagedAppData) {
+  return {
+    name: input.name,
+    templateId: input.templateId,
+    sourceType: input.sourceType,
+    sourcePath: input.sourceType === 'local' ? input.sourcePath : undefined,
+    gitUrl: input.sourceType === 'git' ? input.gitUrl : undefined,
+    gitBranch: input.sourceType === 'git' ? input.gitBranch : undefined,
+    domain: input.domain,
+    port: input.port,
+    commands: input.commands,
+    envVars: input.envVars,
+    healthCheckPath: input.healthCheckPath,
+    tlsEnabled: input.tlsEnabled,
+    autoUpdate: {
+      enabled: input.sourceType === 'git' ? input.autoUpdate.enabled : false,
+      intervalMinutes: input.autoUpdate.intervalMinutes,
+      ...(input.sourceType === 'git' && input.autoUpdate.enabled
+        ? { nextRunAt: nextAutoUpdateRun(input.autoUpdate.intervalMinutes) }
+        : {}),
+    },
+  };
+}
+
+function mapEnv(value: Map<string, string> | Record<string, string>): Record<string, string> {
+  if (value instanceof Map) return Object.fromEntries(value.entries());
+  return value;
+}
+
+function toIsoDate(value: Date | string | undefined): string | undefined {
+  if (!value) return undefined;
+  return value instanceof Date ? value.toISOString() : new Date(value).toISOString();
+}
+
+interface ManagedAppDTORecord {
+  _id: { toString: () => string };
+  name: string;
+  slug: string;
+  templateId: 'nextjs';
+  sourceType?: 'local' | 'git';
+  sourcePath?: string;
+  gitUrl?: string;
+  gitBranch?: string;
+  gitCurrentSha?: string;
+  gitDeployedSha?: string;
+  gitLastCheckedAt?: Date | string;
+  gitLastUpdatedAt?: Date | string;
+  autoUpdate?: {
+    scheduleGeneration?: number;
+    consecutiveFailures?: number;
+    lastAttemptAt?: Date;
+    lastCheckCompletedAt?: Date;
+    lastSuccessfulDeployAt?: Date;
+    lastOperationId?: string;
+    lastScheduledFor?: Date;
+    retryAt?: Date;
+    observedRemoteSha?: string;
+    pauseReason?: 'rollback';
+    enabled: boolean;
+    intervalMinutes: number;
+    nextRunAt?: Date | string;
+    lastRunAt?: Date | string;
+    lastStatus?: 'idle' | 'updated' | 'unchanged' | 'failed';
+    lastError?: string;
+  };
+  domain: string;
+  port: number;
+  commands: IManagedApp['commands'];
+  envVars: Map<string, string> | Record<string, string>;
+  healthCheckPath: string;
+  tlsEnabled?: boolean;
+  status: IManagedApp['status'];
+  currentReleaseId?: string;
+  releases: Array<{
+    id: string;
+    status: 'building' | 'active' | 'failed' | 'superseded';
+    createdAt: Date | string;
+    activatedAt?: Date | string;
+    error?: string;
+    logs: string[];
+  }>;
+  operations?: Array<{
+    queueOperationId?: string;
+    trigger?: 'auto' | 'manual';
+    id: string;
+    type: AppOperationType;
+    status: AppOperationStatus;
+    title: string;
+    step: string;
+    startedAt: Date | string;
+    deadlineAt?: Date | string;
+    completedAt?: Date | string;
+    releaseId?: string;
+    commitSha?: string;
+    error?: string;
+    logs: string[];
+  }>;
+  createdAt?: Date | string;
+  updatedAt?: Date | string;
+  lastDeployedAt?: Date | string;
+}
+
+interface ActiveAppOperationDTORecord {
+  trigger?: 'auto' | 'manual';
+  operationId: string;
+  appId: { toString: () => string } | string;
+  type: AppOperationType;
+  status: AppV2OperationStatus;
+  phase: AppV2OperationPhase;
+  title?: string;
+  createdAt?: Date | string;
+  startedAt?: Date | string;
+  completedAt?: Date | string;
+  releaseId?: string;
+  commitSha?: string;
+  error?: { message?: string } | string;
+}
+
+function mapAutoUpdate(value: ManagedAppDTORecord['autoUpdate']): AppAutoUpdate {
+  return {
+    scheduleGeneration: value?.scheduleGeneration ?? 0,
+    consecutiveFailures: value?.consecutiveFailures ?? 0,
+    lastAttemptAt: toIsoDate(value?.lastAttemptAt),
+    lastCheckCompletedAt: toIsoDate(value?.lastCheckCompletedAt),
+    lastSuccessfulDeployAt: toIsoDate(value?.lastSuccessfulDeployAt),
+    lastOperationId: value?.lastOperationId,
+    lastScheduledFor: toIsoDate(value?.lastScheduledFor),
+    retryAt: toIsoDate(value?.retryAt),
+    observedRemoteSha: value?.observedRemoteSha,
+    pauseReason: value?.pauseReason,
+    enabled: Boolean(value?.enabled),
+    intervalMinutes: value?.intervalMinutes ?? 60,
+    nextRunAt: toIsoDate(value?.nextRunAt),
+    lastRunAt: toIsoDate(value?.lastRunAt),
+    lastStatus: value?.lastStatus,
+    lastError: value?.lastError,
+  };
+}
+
+function mapOperations(operations?: ManagedAppDTORecord['operations']): AppOperation[] {
+  return (operations ?? []).map((operation) => ({
+    id: operation.id,
+    queueOperationId: operation.queueOperationId,
+    trigger: operation.trigger,
+    type: operation.type,
+    status: operation.status,
+    title: operation.title,
+    step: operation.step,
+    startedAt: toIsoDate(operation.startedAt) ?? new Date(0).toISOString(),
+    deadlineAt: toIsoDate(operation.deadlineAt),
+    completedAt: toIsoDate(operation.completedAt),
+    releaseId: operation.releaseId,
+    commitSha: operation.commitSha,
+    error: operation.error,
+    logs: operation.logs ?? [],
+  }));
+}
+
+function mapV2StatusToLegacyStatus(status: AppV2OperationStatus): AppOperationStatus {
+  if (status === 'succeeded' || status === 'failed' || status === 'unchanged') return status;
+  return 'running';
+}
+
+function mapActiveV2Operation(operation: ActiveAppOperationDTORecord): AppOperation {
+  const error = typeof operation.error === 'string' ? operation.error : operation.error?.message;
+  const step = operation.phase;
+
+  return {
+    id: operation.operationId,
+    type: operation.type,
+    status: mapV2StatusToLegacyStatus(operation.status),
+    title: operation.title ?? `${operation.type[0]?.toUpperCase() ?? ''}${operation.type.slice(1)}`,
+    step,
+    startedAt:
+      toIsoDate(operation.startedAt) ?? toIsoDate(operation.createdAt) ?? new Date(0).toISOString(),
+    completedAt: toIsoDate(operation.completedAt),
+    releaseId: operation.releaseId,
+    commitSha: operation.commitSha,
+    error,
+    logs: [`Operation ${step} in Apps worker`],
+  };
+}
+
+export function mapManagedAppToDTO(
+  app: ManagedAppDTORecord,
+  publicIp?: string,
+  runtime?: AppRuntimeSnapshot,
+  activeOperations: ActiveAppOperationDTORecord[] = []
+): ManagedAppDTO {
+  const sourceType = app.sourceType ?? 'local';
+  return {
+    id: app._id.toString(),
+    name: app.name,
+    slug: app.slug,
+    templateId: app.templateId,
+    sourceType,
+    sourcePath: app.sourcePath,
+    git:
+      sourceType === 'git' && app.gitUrl
+        ? {
+            url: app.gitUrl,
+            branch: app.gitBranch ?? 'main',
+            currentSha: app.gitCurrentSha,
+            deployedSha: app.gitDeployedSha,
+            lastCheckedAt: toIsoDate(app.gitLastCheckedAt),
+            lastUpdatedAt: toIsoDate(app.gitLastUpdatedAt),
+            autoUpdate: {
+              ...mapAutoUpdate(app.autoUpdate),
+              operationStatus: activeOperations.find((operation) => operation.type === 'update')
+                ?.status,
+              operationPhase: activeOperations.find((operation) => operation.type === 'update')
+                ?.phase,
+              ...(activeOperations.some((operation) => operation.type !== 'update')
+                ? { blockReason: 'operation_active' as const }
+                : {}),
+            },
+          }
+        : undefined,
+    domain: app.domain,
+    port: app.port,
+    commands: app.commands,
+    envVars: mapEnv(app.envVars),
+    healthCheckPath: app.healthCheckPath,
+    tlsEnabled: Boolean(app.tlsEnabled),
+    status: app.status,
+    runtime,
+    currentReleaseId: app.currentReleaseId,
+    releases: app.releases.map((release) => ({
+      id: release.id,
+      status: release.status,
+      createdAt: toIsoDate(release.createdAt) ?? new Date(0).toISOString(),
+      activatedAt: toIsoDate(release.activatedAt),
+      error: release.error,
+      logs: release.logs,
+    })),
+    operations: [...mapOperations(app.operations), ...activeOperations.map(mapActiveV2Operation)],
+    dns: publicIp ? buildDnsInstructions(app.domain, publicIp) : undefined,
+    createdAt: toIsoDate(app.createdAt),
+    updatedAt: toIsoDate(app.updatedAt),
+    lastDeployedAt: toIsoDate(app.lastDeployedAt),
+  };
+}
+
+function nextAutoUpdateRun(intervalMinutes: number, from = new Date()): Date {
+  return new Date(from.getTime() + intervalMinutes * 60_000);
+}
+
+function resolveDeploySourcePath(app: IManagedApp): string {
+  if ((app.sourceType ?? 'local') === 'local') {
+    if (!app.sourcePath) throw new Error('Local source path is missing');
+    return app.sourcePath;
+  }
+  return getAppRepositoryRoot(app.slug);
+}
+
+async function prepareSource(app: IManagedApp, updateToRemote: boolean, signal?: AbortSignal) {
+  if ((app.sourceType ?? 'local') === 'local') {
+    return {
+      sourcePath: resolveDeploySourcePath(app),
+      logs: [] as string[],
+      currentSha: undefined,
+      remoteSha: undefined,
+      changed: false,
+    };
+  }
+
+  if (!app.gitUrl) throw new Error('Git URL is missing');
+  const prepared = await prepareGitSourceForDeploy({
+    repoUrl: app.gitUrl,
+    branch: app.gitBranch ?? 'main',
+    repositoryPath: getAppRepositoryRoot(app.slug),
+    updateToRemote,
+    commandRunner: defaultCommandRunner,
+    signal,
+  });
+  return prepared;
+}
+
+async function deployPreparedApp(
+  app: IManagedApp,
+  sourcePath: string,
+  onProgress?: (entry: string) => void | Promise<void>,
+  signal?: AbortSignal,
+  assertOwnership?: () => Promise<void>,
+  reportStage?: (update: AppStageUpdate) => Promise<void>,
+  commitSha?: string
+): Promise<DeployNextJsAppResult> {
+  return deployNextJsApp({
+    app: {
+      name: app.name,
+      slug: app.slug,
+      templateId: app.templateId,
+      sourceType: app.sourceType,
+      sourcePath,
+      gitUrl: app.gitUrl,
+      gitBranch: app.gitBranch,
+      autoUpdate: {
+        enabled: app.autoUpdate?.enabled,
+        intervalMinutes: app.autoUpdate?.intervalMinutes,
+      },
+      domain: app.domain,
+      port: app.port,
+      commands: app.commands,
+      envVars: mapEnv(app.envVars),
+      healthCheckPath: app.healthCheckPath,
+      tlsEnabled: app.tlsEnabled,
+      status: app.status,
+      currentReleaseId: app.currentReleaseId,
+    },
+    signal,
+    assertOwnership,
+    commitSha,
+    onProgress,
+    reportStage,
+  });
+}
+
+export async function listManagedApps(publicIp?: string): Promise<ManagedAppDTO[]> {
+  await connectDB();
+  const [apps, activeOperations] = await Promise.all([
+    ManagedApp.find({}).sort({ updatedAt: -1 }).lean<IManagedApp[]>(),
+    AppOperationModel.find({ active: true }).lean<ActiveAppOperationDTORecord[]>(),
+  ]);
+  const activeOperationsByAppId = new Map<string, ActiveAppOperationDTORecord[]>();
+  for (const operation of activeOperations) {
+    const appId = operation.appId.toString();
+    activeOperationsByAppId.set(appId, [...(activeOperationsByAppId.get(appId) ?? []), operation]);
+  }
+  return Promise.all(
+    apps.map(async (app) => {
+      const runtime = await getManagedAppRuntime({ slug: app.slug });
+      return mapManagedAppToDTO(
+        app,
+        publicIp,
+        runtime,
+        activeOperationsByAppId.get(app._id.toString()) ?? []
+      );
+    })
+  );
+}
+
+export async function getManagedAppLogsById(appId: string, lines = 200) {
+  await connectDB();
+  const app = await ManagedApp.findById(appId).lean<IManagedApp | null>();
+  if (!app) throw new Error('App not found');
+  return getManagedAppLogs({ slug: app.slug }, lines);
+}
+
+export async function createManagedApp(
+  input: CreateManagedAppInput,
+  publicIp?: string
+): Promise<ManagedAppDTO> {
+  const parsed = CreateManagedAppSchema.parse(input);
+  await connectDB();
+  const app = await ManagedApp.create(normalizeCreateManagedAppInput(parsed));
+  return mapManagedAppToDTO(app, publicIp);
+}
+
+export async function updateManagedApp(
+  appId: string,
+  input: CreateManagedAppInput,
+  publicIp?: string
+): Promise<ManagedAppDTO> {
+  const parsed = UpdateManagedAppSchema.parse(input);
+  await connectDB();
+  const app = await ManagedApp.findById(appId);
+  if (!app) throw new Error('App not found');
+
+  const previousGitUrl = app.gitUrl;
+  const previousGitBranch = app.gitBranch;
+  const previousSourceType = app.sourceType ?? 'local';
+  const next = normalizeUpdateManagedAppInput(parsed);
+
+  app.name = next.name;
+  app.templateId = next.templateId;
+  app.sourceType = next.sourceType;
+  app.sourcePath = next.sourcePath;
+  app.gitUrl = next.gitUrl;
+  app.gitBranch = next.gitBranch;
+  app.domain = next.domain;
+  app.port = next.port;
+  app.commands = next.commands;
+  app.envVars = new Map(Object.entries(next.envVars)) as IManagedApp['envVars'];
+  app.healthCheckPath = next.healthCheckPath;
+  app.tlsEnabled = next.tlsEnabled;
+  const sourceChanged =
+    previousSourceType !== next.sourceType ||
+    previousGitUrl !== next.gitUrl ||
+    previousGitBranch !== next.gitBranch;
+  const scheduleChanged =
+    sourceChanged ||
+    app.autoUpdate.enabled !== next.autoUpdate.enabled ||
+    app.autoUpdate.intervalMinutes !== next.autoUpdate.intervalMinutes;
+  if (scheduleChanged) {
+    const enabledBefore = app.autoUpdate.enabled;
+    app.autoUpdate.enabled = next.autoUpdate.enabled;
+    app.autoUpdate.intervalMinutes = next.autoUpdate.intervalMinutes;
+    app.autoUpdate.scheduleGeneration = (app.autoUpdate.scheduleGeneration ?? 0) + 1;
+    app.autoUpdate.retryAt = undefined;
+    app.autoUpdate.pauseReason = undefined;
+    app.autoUpdate.lastOperationId = undefined;
+    if (next.autoUpdate.enabled) {
+      const due =
+        !enabledBefore || sourceChanged
+          ? Date.now()
+          : (app.autoUpdate.lastCheckCompletedAt?.getTime() ?? Date.now()) +
+            next.autoUpdate.intervalMinutes * 60_000;
+      app.autoUpdate.nextRunAt = new Date(Math.max(Date.now(), due));
+    } else app.autoUpdate.nextRunAt = undefined;
+    if (sourceChanged) app.autoUpdate.observedRemoteSha = undefined;
+  }
+  app.configVersion = (app.configVersion ?? 1) + 1;
+
+  if (
+    next.sourceType !== 'git' ||
+    previousSourceType !== 'git' ||
+    previousGitUrl !== next.gitUrl ||
+    previousGitBranch !== next.gitBranch
+  ) {
+    app.gitCurrentSha = undefined;
+    app.gitLastCheckedAt = undefined;
+    app.gitLastUpdatedAt = undefined;
+  }
+
+  await app.save();
+  if (scheduleChanged)
+    await AppOperationModel.updateMany(
+      { appId, trigger: 'auto', status: 'queued', active: true },
+      { $set: { active: false, status: 'cancelled', phase: 'terminal', completedAt: new Date() } }
+    );
+  return mapManagedAppToDTO(app, publicIp);
+}
+
+export interface DeleteManagedAppResourcesOptions {
+  app: {
+    slug: string;
+    domain: string;
+    tlsEnabled?: boolean;
+  };
+  appsRoot?: string;
+  systemdDir?: string;
+  nginxAvailableDir?: string;
+  nginxEnabledDir?: string;
+  commandRunner?: CommandRunner;
+}
+
+export async function deleteManagedAppResources({
+  app,
+  appsRoot,
+  systemdDir = DEFAULT_SYSTEMD_DIR,
+  nginxAvailableDir = DEFAULT_NGINX_AVAILABLE_DIR,
+  nginxEnabledDir = DEFAULT_NGINX_ENABLED_DIR,
+  commandRunner = defaultCommandRunner,
+}: DeleteManagedAppResourcesOptions): Promise<{ logs: string[] }> {
+  const logs: string[] = [];
+  const serviceName = toSystemdServiceName(app.slug);
+  const appRoot = getAppRoot(app.slug, appsRoot);
+
+  const runBestEffort = async (command: string) => {
+    logs.push(`$ ${command}`);
+    const result = await commandRunner({ command });
+    if (result.output.trim()) logs.push(result.output.trim());
+    if (result.code !== 0) logs.push(`Command exited with code ${result.code}`);
+  };
+
+  await runBestEffort(`systemctl stop ${serviceName}`);
+  await runBestEffort(`systemctl disable ${serviceName}`);
+
+  await rm(appRoot, { recursive: true, force: true });
+  logs.push('Removed managed app root');
+
+  await rm(path.join(systemdDir, serviceName), { force: true });
+  logs.push('Removed systemd unit');
+
+  await rm(path.join(nginxEnabledDir, app.domain), { force: true });
+  await rm(path.join(nginxAvailableDir, app.domain), { force: true });
+  logs.push('Removed Nginx site configuration');
+
+  if (app.tlsEnabled) {
+    await runBestEffort(`certbot delete --cert-name ${app.domain} --non-interactive`);
+  }
+
+  await runBestEffort('systemctl daemon-reload');
+  await runBestEffort('nginx -t');
+  await runBestEffort('nginx -s reload');
+
+  return { logs };
+}
+
+export async function deleteManagedApp(appId: string) {
+  await connectDB();
+  const app = await ManagedApp.findById(appId);
+  if (!app) throw new Error('App not found');
+
+  const result = await deleteManagedAppResources({
+    app: {
+      slug: app.slug,
+      domain: app.domain,
+      tlsEnabled: app.tlsEnabled,
+    },
+  });
+  await app.deleteOne();
+
+  return {
+    id: appId,
+    logs: result.logs,
+  };
+}
+
+interface StartAppOperationInput {
+  queueOperationId?: string;
+  trigger?: 'auto' | 'manual';
+  type: AppOperationType;
+  title: string;
+  step: string;
+  releaseId?: string;
+  commitSha?: string;
+  deadlineAt?: Date;
+}
+
+function createOperationId(type: AppOperationType): string {
+  return `${type}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function createAppOperation(input: StartAppOperationInput): IManagedApp['operations'][number] {
+  const operationId = createOperationId(input.type);
+  const startedAt = new Date();
+  const deadlineAt =
+    input.deadlineAt ??
+    (input.type === 'update' ? new Date(startedAt.getTime() + APP_UPDATE_TIMEOUT_MS) : undefined);
+  return {
+    id: operationId,
+    queueOperationId: input.queueOperationId,
+    trigger: input.trigger,
+    type: input.type,
+    status: 'running',
+    title: input.title,
+    step: input.step,
+    startedAt,
+    deadlineAt,
+    releaseId: input.releaseId,
+    commitSha: input.commitSha,
+    logs: [],
+  };
+}
+
+function appHasRunningUpdateOperation(app: Pick<IManagedApp, 'operations'>): boolean {
+  return (app.operations ?? []).some(
+    (operation) => operation.type === 'update' && operation.status === 'running'
+  );
+}
+
+export async function reconcileStaleAppUpdateOperations({
+  now = new Date(),
+  appId,
+}: { now?: Date; appId?: string } = {}): Promise<{ matched: number; modified: number }> {
+  await connectDB();
+  const staleStartedBefore = new Date(now.getTime() - APP_UPDATE_TIMEOUT_MS);
+  const timeoutLog = `${APP_UPDATE_TIMEOUT_ERROR}. Marked failed by ServerMon recovery at ${now.toISOString()}.`;
+  const query = {
+    ...(appId ? { _id: appId } : {}),
+    operations: {
+      $elemMatch: {
+        type: 'update',
+        status: 'running',
+        $or: [
+          { deadlineAt: { $lte: now } },
+          { deadlineAt: { $exists: false }, startedAt: { $lte: staleStartedBefore } },
+        ],
+      },
+    },
+  };
+  const staleOperationUpdate = [
+    {
+      $set: {
+        operations: {
+          $map: {
+            input: '$operations',
+            as: 'operation',
+            in: {
+              $cond: [
+                {
+                  $and: [
+                    { $eq: ['$$operation.type', 'update'] },
+                    { $eq: ['$$operation.status', 'running'] },
+                    {
+                      $or: [
+                        { $lte: ['$$operation.deadlineAt', now] },
+                        {
+                          $and: [
+                            { $eq: [{ $type: '$$operation.deadlineAt' }, 'missing'] },
+                            { $lte: ['$$operation.startedAt', staleStartedBefore] },
+                          ],
+                        },
+                      ],
+                    },
+                  ],
+                },
+                {
+                  $mergeObjects: [
+                    '$$operation',
+                    {
+                      status: 'failed',
+                      step: APP_UPDATE_TIMEOUT_STEP,
+                      completedAt: now,
+                      error: APP_UPDATE_TIMEOUT_ERROR,
+                      logs: {
+                        $slice: [
+                          {
+                            $concatArrays: [{ $ifNull: ['$$operation.logs', []] }, [timeoutLog]],
+                          },
+                          -MAX_OPERATION_LOGS,
+                        ],
+                      },
+                    },
+                  ],
+                },
+                '$$operation',
+              ],
+            },
+          },
+        },
+      },
+    },
+  ];
+  const result = await ManagedApp.updateMany(query, staleOperationUpdate, {
+    updatePipeline: true,
+  });
+  return {
+    matched: result.matchedCount ?? result.modifiedCount ?? 0,
+    modified: result.modifiedCount ?? 0,
+  };
+}
+
+function ensureAppOperation(app: IManagedApp, operation: IManagedApp['operations'][number]): void {
+  if (app.operations?.some((item) => item.id === operation.id)) return;
+  app.operations = [...(app.operations ?? []), operation].slice(
+    -MAX_APP_OPERATIONS
+  ) as IManagedApp['operations'];
+}
+
+async function startAppOperation(app: IManagedApp, input: StartAppOperationInput): Promise<string> {
+  const operation = createAppOperation(input);
+  app.operations = [...(app.operations ?? []), operation].slice(
+    -MAX_APP_OPERATIONS
+  ) as IManagedApp['operations'];
+  await app.save();
+  return operation.id;
+}
+
+async function startExclusiveUpdateOperation(
+  appId: string,
+  input: Omit<StartAppOperationInput, 'type'>
+): Promise<{ app: IManagedApp; operationId: string }> {
+  if (!input.queueOperationId) await reconcileStaleAppUpdateOperations({ appId });
+  const operation = createAppOperation({ ...input, type: 'update' });
+  const app = await ManagedApp.findOneAndUpdate(
+    {
+      _id: appId,
+      sourceType: 'git',
+      operations: {
+        $not: {
+          $elemMatch: {
+            type: 'update',
+            status: 'running',
+          },
+        },
+      },
+    },
+    {
+      $push: {
+        operations: {
+          $each: [operation],
+          $slice: -MAX_APP_OPERATIONS,
+        },
+      },
+    },
+    { new: true }
+  );
+
+  if (app) {
+    ensureAppOperation(app, operation);
+    return { app, operationId: operation.id };
+  }
+
+  const existingApp = await ManagedApp.findById(appId);
+  if (!existingApp) throw new Error('App not found');
+  if ((existingApp.sourceType ?? 'local') !== 'git')
+    throw new Error('Only git apps can be updated');
+  if (appHasRunningUpdateOperation(existingApp)) throw new AppUpdateAlreadyRunningError(appId);
+  throw new AppUpdateAlreadyRunningError(appId);
+}
+
+async function appendAppOperationLog(
+  app: IManagedApp,
+  operationId: string,
+  entry: string,
+  step = entry
+): Promise<void> {
+  const operation = app.operations?.find((item) => item.id === operationId);
+  if (!operation) return;
+  if (operation.type === 'update' && operation.status === 'running') {
+    const result = await ManagedApp.updateOne(
+      {
+        _id: app._id,
+        operations: { $elemMatch: { id: operationId, status: 'running' } },
+      },
+      {
+        $set: { 'operations.$.step': step },
+        $push: {
+          'operations.$.logs': {
+            $each: [entry],
+            $slice: -MAX_OPERATION_LOGS,
+          },
+        },
+      }
+    );
+    if (result.modifiedCount !== 1) return;
+    operation.step = step;
+    operation.logs = [...(operation.logs ?? []), entry].slice(-MAX_OPERATION_LOGS);
+    return;
+  }
+  operation.step = step;
+  operation.logs = [...(operation.logs ?? []), entry].slice(-MAX_OPERATION_LOGS);
+  await app.save();
+}
+
+async function completeAppOperation(
+  app: IManagedApp,
+  operationId: string,
+  input: {
+    status: AppOperationStatus;
+    step: string;
+    logs?: string[];
+    error?: string;
+    releaseId?: string;
+    commitSha?: string;
+  }
+): Promise<boolean> {
+  const operation = app.operations?.find((item) => item.id === operationId);
+  if (!operation) return false;
+  const completedAt = new Date();
+
+  if (operation.type === 'update') {
+    const operationSet: Record<string, unknown> = {
+      'operations.$.status': input.status,
+      'operations.$.step': input.step,
+      'operations.$.completedAt': completedAt,
+    };
+    if (input.error !== undefined) operationSet['operations.$.error'] = input.error;
+    if (input.releaseId !== undefined) operationSet['operations.$.releaseId'] = input.releaseId;
+    if (input.commitSha !== undefined) operationSet['operations.$.commitSha'] = input.commitSha;
+    if (input.logs !== undefined) {
+      operationSet['operations.$.logs'] = input.logs.slice(-MAX_OPERATION_LOGS);
+    }
+
+    const result = await ManagedApp.updateOne(
+      {
+        _id: app._id,
+        operations: { $elemMatch: { id: operationId, status: 'running' } },
+      },
+      { $set: operationSet }
+    );
+    if (result.modifiedCount !== 1) return false;
+  }
+
+  operation.status = input.status;
+  operation.step = input.step;
+  operation.completedAt = completedAt;
+  operation.error = input.error;
+  operation.releaseId = input.releaseId ?? operation.releaseId;
+  operation.commitSha = input.commitSha ?? operation.commitSha;
+  operation.logs = input.logs ? input.logs.slice(-MAX_OPERATION_LOGS) : operation.logs;
+  if (operation.type !== 'update') await app.save();
+  return true;
+}
+
+async function currentUpdateResult(appId: string, fallbackReleaseId?: string) {
+  const latestApp = await ManagedApp.findById(appId);
+  if (!latestApp) throw new Error('App not found');
+  const latestOperation = latestApp.operations
+    ?.filter((operation) => operation.type === 'update')
+    .at(-1);
+  return {
+    releaseId: latestApp.currentReleaseId ?? fallbackReleaseId ?? '',
+    status: 'failed' as const,
+    logs: latestOperation?.logs ?? [],
+    error: latestOperation?.error ?? 'Update operation already completed',
+    app: mapManagedAppToDTO(latestApp),
+  };
+}
+
+async function pathExists(target: string): Promise<boolean> {
+  try {
+    await access(target);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function replaceSymlink(linkPath: string, target: string): Promise<void> {
+  const tempLink = `${linkPath}.tmp-${process.pid}-${Date.now()}`;
+  await symlink(target, tempLink);
+  await rm(linkPath, { recursive: true, force: true });
+  await rename(tempLink, linkPath);
+}
+
+async function readCurrentTarget(currentPath: string): Promise<string | undefined> {
+  try {
+    return await readlink(currentPath);
+  } catch {
+    return undefined;
+  }
+}
+
+function rollbackHealthUrl(port: number, healthCheckPath?: string): string {
+  const normalizedPath = healthCheckPath?.startsWith('/') ? healthCheckPath : '/';
+  return `http://127.0.0.1:${port}${normalizedPath}`;
+}
+
+export interface UpdateManagedGitAppOptions {
+  trigger?: 'manual' | 'auto';
+  signal?: AbortSignal;
+  assertOwnership?: () => Promise<void>;
+  reportStage?: (update: AppStageUpdate) => Promise<void>;
+  durableOperationId?: string;
+}
+
+/** A successful activation manifest survives a crash before the MongoDB final save. */
+export async function reconcileActiveAppRelease(appId: string): Promise<void> {
+  const app = await ManagedApp.findById(appId);
+  if (!app) return;
+  let manifest: unknown;
+  try {
+    const target = await readlink(path.join(getAppRoot(app.slug), 'current'));
+    const root = path.resolve(getAppRoot(app.slug), target);
+    if (path.dirname(root) !== path.resolve(getAppRoot(app.slug), 'releases')) return;
+    manifest = JSON.parse(await readFile(path.join(root, 'success.json'), 'utf8'));
+    if (
+      !manifest ||
+      typeof manifest !== 'object' ||
+      !('releaseId' in manifest) ||
+      manifest.releaseId !== path.basename(root)
+    )
+      return;
+  } catch {
+    return;
+  }
+  if (
+    !manifest ||
+    typeof manifest !== 'object' ||
+    !('releaseId' in manifest) ||
+    typeof manifest.releaseId !== 'string' ||
+    !('commitSha' in manifest) ||
+    typeof manifest.commitSha !== 'string'
+  )
+    return;
+  if (app.currentReleaseId === manifest.releaseId && app.gitDeployedSha === manifest.commitSha)
+    return;
+  const now = new Date();
+  app.releases = app.releases.map((release) => ({
+    ...release,
+    status:
+      release.id === manifest.releaseId
+        ? 'active'
+        : release.status === 'active'
+          ? 'superseded'
+          : release.status,
+  })) as IManagedApp['releases'];
+  if (!app.releases.some((release) => release.id === manifest.releaseId))
+    app.releases.push({
+      id: manifest.releaseId,
+      commitSha: manifest.commitSha,
+      status: 'active',
+      createdAt: now,
+      activatedAt: now,
+      logs: ['Recovered successful activation manifest'],
+    });
+  app.currentReleaseId = manifest.releaseId;
+  app.gitDeployedSha = manifest.commitSha;
+  app.status = 'running';
+  await app.save();
+}
+
+const defaultRollbackHealthCheck: HealthCheck = async (url) => {
+  try {
+    const response = await fetch(url, { signal: AbortSignal.timeout(15_000) });
+    return { ok: response.ok, status: response.status };
+  } catch (error: unknown) {
+    return { ok: false, error: error instanceof Error ? error.message : 'Health check failed' };
+  }
+};
+
+export interface RollbackManagedAppOptions {
+  signal?: AbortSignal;
+  assertOwnership?: () => Promise<void>;
+  reportStage?: (update: AppStageUpdate) => Promise<void>;
+  durableOperationId?: string;
+  commandRunner?: CommandRunner;
+  healthCheck?: HealthCheck;
+  appsRoot?: string;
+}
+
+export async function rollbackManagedApp(
+  appId: string,
+  releaseId: string,
+  {
+    commandRunner = defaultCommandRunner,
+    healthCheck = defaultRollbackHealthCheck,
+    appsRoot,
+    signal,
+    assertOwnership,
+    reportStage,
+    durableOperationId,
+  }: RollbackManagedAppOptions = {}
+) {
+  await connectDB();
+  const app = await ManagedApp.findById(appId);
+  if (!app) throw new Error('App not found');
+
+  const targetRelease = app.releases.find((release) => release.id === releaseId);
+  if (!targetRelease || targetRelease.status === 'failed' || targetRelease.status === 'building') {
+    throw new Error('Rollback release is not available');
+  }
+
+  const releaseRoot = getReleaseRoot(app.slug, releaseId, appsRoot);
+  if (!(await pathExists(releaseRoot))) {
+    throw new Error('Rollback release files are missing');
+  }
+
+  const operationId = await startAppOperation(app, {
+    queueOperationId: durableOperationId,
+    type: 'rollback',
+    title: 'Rollback',
+    step: `Rolling back to ${releaseId}`,
+    releaseId,
+  });
+  const logs: string[] = [`Rolling back to ${releaseId}`];
+  await appendAppOperationLog(app, operationId, logs[0]);
+
+  const currentPath = path.join(getAppRoot(app.slug, appsRoot), 'current');
+  const serviceName = toSystemdServiceName(app.slug);
+  const previousCurrentTarget = await readCurrentTarget(currentPath);
+
+  const stage = (update: AppStageUpdate) => reportStage?.(update);
+
+  try {
+    await stage({ phase: 'activate', state: 'started', message: 'Activating selected release' });
+    signal?.throwIfAborted();
+    await assertOwnership?.();
+    await replaceSymlink(currentPath, releaseRoot);
+    const restartCommand = `systemctl restart ${serviceName}`;
+    logs.push(`$ ${restartCommand}`);
+    await appendAppOperationLog(app, operationId, `$ ${restartCommand}`);
+    const restart = await commandRunner({ command: restartCommand, signal });
+    if (restart.output.trim()) {
+      logs.push(restart.output.trim());
+      await appendAppOperationLog(app, operationId, restart.output.trim());
+    }
+    if (restart.code !== 0) {
+      throw new Error(`Command failed: ${restartCommand}\n${restart.output}`.trim());
+    }
+    await stage({ phase: 'activate', state: 'completed', message: 'Release activated' });
+
+    await stage({ phase: 'health', state: 'started', message: 'Checking rolled-back release' });
+    const checked = await healthCheck(rollbackHealthUrl(app.port, app.healthCheckPath));
+    if (!checked.ok) {
+      throw new Error(
+        checked.error || `Health check failed${checked.status ? ` with ${checked.status}` : ''}`
+      );
+    }
+    logs.push('Health check passed');
+    await appendAppOperationLog(app, operationId, 'Health check passed');
+    await stage({ phase: 'health', state: 'completed', message: 'Health check passed' });
+
+    const now = new Date();
+    await assertOwnership?.();
+    app.releases = app.releases.map((release) => ({
+      ...release,
+      status: release.id === releaseId ? 'active' : 'superseded',
+      ...(release.id === releaseId ? { activatedAt: now } : {}),
+    })) as IManagedApp['releases'];
+    app.currentReleaseId = releaseId;
+    app.gitDeployedSha = targetRelease.commitSha;
+    app.autoUpdate.enabled = false;
+    app.autoUpdate.pauseReason = 'rollback';
+    app.autoUpdate.scheduleGeneration = (app.autoUpdate.scheduleGeneration ?? 0) + 1;
+    app.autoUpdate.nextRunAt = undefined;
+    app.autoUpdate.retryAt = undefined;
+    app.status = 'running';
+    app.lastDeployedAt = now;
+    await completeAppOperation(app, operationId, {
+      status: 'succeeded',
+      step: 'Rollback completed',
+      logs,
+      releaseId,
+    });
+    await app.save();
+    return {
+      releaseId,
+      status: 'active' as const,
+      logs,
+      app: mapManagedAppToDTO(app),
+    };
+  } catch (error: unknown) {
+    if (signal?.aborted) throw error;
+    const message = error instanceof Error ? error.message : 'Rollback failed';
+    await Promise.resolve(stage({ phase: 'health', state: 'failed', message })).catch(
+      () => undefined
+    );
+    if (previousCurrentTarget) {
+      await replaceSymlink(currentPath, previousCurrentTarget);
+      const restoreCommand = `systemctl restart ${serviceName}`;
+      logs.push(`$ ${restoreCommand}`);
+      const restored = await commandRunner({ command: restoreCommand });
+      if (restored.output.trim()) logs.push(restored.output.trim());
+    }
+    logs.push(`ERROR: ${message}`);
+    app.status = 'failed';
+    await completeAppOperation(app, operationId, {
+      status: 'failed',
+      step: 'Rollback failed',
+      logs,
+      error: message,
+      releaseId,
+    });
+    await app.save();
+    return {
+      releaseId,
+      status: 'failed' as const,
+      logs,
+      error: message,
+      app: mapManagedAppToDTO(app),
+    };
+  }
+}
+
+export async function deployManagedApp(
+  appId: string,
+  { signal, assertOwnership, reportStage, durableOperationId }: UpdateManagedGitAppOptions = {}
+) {
+  await connectDB();
+  const app = await ManagedApp.findById(appId);
+  if (!app) throw new Error('App not found');
+
+  const operationId = await startAppOperation(app, {
+    queueOperationId: durableOperationId,
+    type: 'deploy',
+    title: 'Manual deploy',
+    step: 'Preparing deployment',
+  });
+  app.status = 'deploying';
+  await app.save();
+
+  let source: Awaited<ReturnType<typeof prepareSource>>;
+  try {
+    source = await prepareSource(app, (app.sourceType ?? 'local') === 'git', signal);
+    for (const entry of source.logs) {
+      await appendAppOperationLog(app, operationId, entry);
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Deployment source preparation failed';
+    app.status = 'failed';
+    await completeAppOperation(app, operationId, {
+      status: 'failed',
+      step: 'Source preparation failed',
+      error: message,
+      logs: [message],
+    });
+    await app.save();
+    throw error;
+  }
+  const result = await deployNextJsApp({
+    signal,
+    assertOwnership,
+    commitSha: source.currentSha,
+    app: {
+      name: app.name,
+      slug: app.slug,
+      templateId: app.templateId,
+      sourceType: app.sourceType,
+      sourcePath: source.sourcePath,
+      gitUrl: app.gitUrl,
+      gitBranch: app.gitBranch,
+      autoUpdate: {
+        enabled: app.autoUpdate?.enabled,
+        intervalMinutes: app.autoUpdate?.intervalMinutes,
+      },
+      domain: app.domain,
+      port: app.port,
+      commands: app.commands,
+      envVars: mapEnv(app.envVars),
+      healthCheckPath: app.healthCheckPath,
+      tlsEnabled: app.tlsEnabled,
+      status: app.status,
+      currentReleaseId: app.currentReleaseId,
+    },
+    onProgress: (entry) => appendAppOperationLog(app, operationId, entry),
+    reportStage,
+  });
+  result.logs.unshift(...source.logs);
+
+  const now = new Date();
+  signal?.throwIfAborted();
+  await assertOwnership?.();
+  if ((app.sourceType ?? 'local') === 'git') {
+    app.gitCurrentSha = source.currentSha;
+    app.gitLastCheckedAt = now;
+  }
+  if (result.status === 'active') {
+    app.releases = app.releases.map((release) =>
+      release.status === 'active' ? { ...release, status: 'superseded' } : release
+    );
+    app.currentReleaseId = result.releaseId;
+    app.gitDeployedSha = source.currentSha;
+    app.status = 'running';
+    app.lastDeployedAt = now;
+    app.releases.push({
+      id: result.releaseId,
+      commitSha: source.currentSha,
+      status: 'active',
+      createdAt: now,
+      activatedAt: now,
+      logs: result.logs,
+    });
+    await completeAppOperation(app, operationId, {
+      status: 'succeeded',
+      step: 'Deployment completed',
+      logs: result.logs,
+      releaseId: result.releaseId,
+      commitSha: source.currentSha,
+    });
+  } else {
+    app.status = 'failed';
+    app.releases.push({
+      id: result.releaseId,
+      status: 'failed',
+      createdAt: now,
+      error: result.error,
+      logs: result.logs,
+    });
+    await completeAppOperation(app, operationId, {
+      status: 'failed',
+      step: 'Deployment failed',
+      logs: result.logs,
+      error: result.error,
+      releaseId: result.releaseId,
+      commitSha: source.currentSha,
+    });
+  }
+
+  await app.save();
+  return {
+    ...result,
+    app: mapManagedAppToDTO(app),
+  };
+}
+
+export async function updateManagedGitApp(
+  appId: string,
+  {
+    trigger = 'manual',
+    signal,
+    assertOwnership,
+    reportStage,
+    durableOperationId,
+  }: UpdateManagedGitAppOptions = {}
+) {
+  await connectDB();
+  const now = new Date();
+  const { app, operationId } = await startExclusiveUpdateOperation(appId, {
+    queueOperationId: durableOperationId,
+    trigger,
+    title: trigger === 'auto' ? 'Auto update' : 'Manual update',
+    step: 'Checking upstream repository',
+  });
+  const timeoutController = new AbortController();
+  const executionSignal = signal
+    ? AbortSignal.any([signal, timeoutController.signal])
+    : timeoutController.signal;
+  const timeout = setTimeout(() => {
+    timeoutController.abort(new Error(APP_UPDATE_TIMEOUT_ERROR));
+  }, APP_UPDATE_TIMEOUT_MS);
+  try {
+    let source: Awaited<ReturnType<typeof prepareSource>>;
+    try {
+      await assertOwnership?.();
+      source = await prepareSource(app, true, executionSignal);
+      for (const entry of source.logs) {
+        await appendAppOperationLog(app, operationId, entry);
+      }
+    } catch (error) {
+      signal?.throwIfAborted();
+      const message = error instanceof Error ? error.message : 'Git update failed';
+      if (!durableOperationId)
+        app.autoUpdate = {
+          ...app.autoUpdate,
+          lastRunAt: now,
+          lastStatus: 'failed',
+          lastError: message,
+          nextRunAt: app.autoUpdate?.enabled
+            ? nextAutoUpdateRun(app.autoUpdate.intervalMinutes, now)
+            : undefined,
+        };
+      const completed = await completeAppOperation(app, operationId, {
+        status: 'failed',
+        step: message === APP_UPDATE_TIMEOUT_ERROR ? APP_UPDATE_TIMEOUT_STEP : 'Git update failed',
+        error: message,
+        logs: [message],
+      });
+      if (!completed) return currentUpdateResult(appId, app.currentReleaseId);
+      await app.save();
+      throw error;
+    }
+    app.gitCurrentSha = source.currentSha;
+    app.gitLastCheckedAt = now;
+    if (durableOperationId)
+      await ManagedApp.updateOne(
+        { _id: app._id },
+        { $set: { 'autoUpdate.observedRemoteSha': source.currentSha } }
+      );
+
+    if (
+      source.currentSha &&
+      !shouldDeployCommit(source.currentSha, app.gitDeployedSha) &&
+      app.currentReleaseId
+    ) {
+      if (!durableOperationId)
+        app.autoUpdate = {
+          ...app.autoUpdate,
+          lastRunAt: now,
+          lastStatus: 'unchanged',
+          lastError: undefined,
+          nextRunAt: app.autoUpdate?.enabled
+            ? nextAutoUpdateRun(app.autoUpdate.intervalMinutes, now)
+            : undefined,
+        };
+      const completed = await completeAppOperation(app, operationId, {
+        status: 'unchanged',
+        step: 'No upstream changes found',
+        logs: [...source.logs, 'No upstream changes found.'],
+        releaseId: app.currentReleaseId,
+        commitSha: source.currentSha,
+      });
+      if (!completed) return currentUpdateResult(appId, app.currentReleaseId);
+      await app.save();
+      return {
+        releaseId: app.currentReleaseId,
+        status: 'unchanged' as const,
+        logs: [...source.logs, 'No upstream changes found.'],
+        app: mapManagedAppToDTO(app),
+      };
+    }
+
+    const previousStatus = app.status;
+    const previousReleaseId = app.currentReleaseId;
+    if (!previousReleaseId) {
+      app.status = 'deploying';
+      await app.save();
+    }
+
+    const result = await deployPreparedApp(
+      app,
+      source.sourcePath,
+      (entry) => appendAppOperationLog(app, operationId, entry),
+      executionSignal,
+      assertOwnership,
+      reportStage,
+      source.currentSha
+    );
+    result.logs.unshift(...source.logs);
+    const completedAt = new Date();
+    signal?.throwIfAborted();
+    await assertOwnership?.();
+    app.gitCurrentSha = source.currentSha;
+    app.gitLastUpdatedAt = completedAt;
+
+    if (result.status === 'active') {
+      app.releases = app.releases.map((release) =>
+        release.status === 'active' ? { ...release, status: 'superseded' } : release
+      );
+      app.currentReleaseId = result.releaseId;
+      app.gitDeployedSha = source.currentSha;
+      app.status = 'running';
+      app.lastDeployedAt = completedAt;
+      app.releases.push({
+        id: result.releaseId,
+        commitSha: source.currentSha,
+        status: 'active',
+        createdAt: completedAt,
+        activatedAt: completedAt,
+        logs: result.logs,
+      });
+      if (!durableOperationId)
+        app.autoUpdate = {
+          ...app.autoUpdate,
+          lastRunAt: completedAt,
+          lastStatus: 'updated',
+          lastError: undefined,
+          nextRunAt: app.autoUpdate?.enabled
+            ? nextAutoUpdateRun(app.autoUpdate.intervalMinutes, completedAt)
+            : undefined,
+        };
+      const completed = await completeAppOperation(app, operationId, {
+        status: 'succeeded',
+        step: 'Update deployed',
+        logs: result.logs,
+        releaseId: result.releaseId,
+        commitSha: source.currentSha,
+      });
+      if (!completed) return currentUpdateResult(appId, previousReleaseId);
+    } else {
+      app.status = previousReleaseId ? previousStatus : 'failed';
+      app.releases.push({
+        id: result.releaseId,
+        status: 'failed',
+        createdAt: completedAt,
+        error: result.error,
+        logs: result.logs,
+      });
+      if (!durableOperationId)
+        app.autoUpdate = {
+          ...app.autoUpdate,
+          lastRunAt: completedAt,
+          lastStatus: 'failed',
+          lastError: result.error,
+          nextRunAt: app.autoUpdate?.enabled
+            ? nextAutoUpdateRun(app.autoUpdate.intervalMinutes, completedAt)
+            : undefined,
+        };
+      const completed = await completeAppOperation(app, operationId, {
+        status: 'failed',
+        step:
+          result.error === APP_UPDATE_TIMEOUT_ERROR
+            ? APP_UPDATE_TIMEOUT_STEP
+            : 'Update deployment failed',
+        logs: result.logs,
+        error: result.error,
+        releaseId: result.releaseId,
+        commitSha: source.currentSha,
+      });
+      if (!completed) return currentUpdateResult(appId, previousReleaseId);
+    }
+
+    await app.save();
+    return {
+      ...result,
+      app: mapManagedAppToDTO(app),
+    };
+  } finally {
+    clearTimeout(timeout);
+  }
+}

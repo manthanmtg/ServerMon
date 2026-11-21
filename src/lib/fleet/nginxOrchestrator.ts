@@ -15,16 +15,18 @@ export interface NginxStateLike {
   managedServerNames?: string[];
 }
 
+type Awaitable<T> = T | PromiseLike<T>;
+
 export interface NginxOrchestratorDeps {
   NginxState: {
     findOne: (filter: Record<string, unknown>) => {
-      lean: () => Promise<NginxStateLike | null> | NginxStateLike | null;
+      lean: () => Awaitable<NginxStateLike | null>;
     };
     findOneAndUpdate: (
       filter: Record<string, unknown>,
       update: Record<string, unknown>,
       opts?: Record<string, unknown>
-    ) => Promise<unknown> | unknown;
+    ) => Awaitable<unknown>;
   };
   FleetLogEvent: {
     create: (doc: Record<string, unknown>) => Promise<unknown> | unknown;

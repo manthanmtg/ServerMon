@@ -1,5 +1,7 @@
 'use client';
 
+import { memo, useMemo } from 'react';
+import { motion } from 'framer-motion';
 import { CheckCircle, Cog, Play, Power, Shield, ShieldAlert, Square, XCircle } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
@@ -47,78 +49,110 @@ function HealthGauge({ score }: { score: number }) {
   );
 }
 
-export function ServicesSummaryGrid({ summary, alertsCount }: ServicesSummaryGridProps) {
-  const cards = [
-    {
-      label: 'Running',
-      value: summary?.running ?? 0,
-      icon: Play,
-      color: 'text-success',
+const containerVariants = {
+  hidden: { opacity: 0 },
+  show: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.05,
     },
-    {
-      label: 'Failed',
-      value: summary?.failed ?? 0,
-      icon: XCircle,
-      color: 'text-destructive',
-    },
-    {
-      label: 'Inactive',
-      value: summary?.inactive ?? 0,
-      icon: Power,
-      color: 'text-warning',
-    },
-    { label: 'Total', value: summary?.total ?? 0, icon: Cog, color: 'text-primary' },
-    {
-      label: 'Enabled',
-      value: summary?.enabled ?? 0,
-      icon: CheckCircle,
-      color: 'text-success',
-    },
-    {
-      label: 'Disabled',
-      value: summary?.disabled ?? 0,
-      icon: Shield,
-      color: 'text-muted-foreground',
-    },
-    {
-      label: 'Exited',
-      value: summary?.exited ?? 0,
-      icon: Square,
-      color: 'text-muted-foreground',
-    },
-    {
-      label: 'Alerts',
-      value: alertsCount,
-      icon: ShieldAlert,
-      color: alertsCount > 0 ? 'text-destructive' : 'text-muted-foreground',
-    },
-  ];
+  },
+};
+
+const itemVariants = {
+  hidden: { opacity: 0, y: 10 },
+  show: { opacity: 1, y: 0, transition: { type: 'spring' as const, stiffness: 300, damping: 24 } },
+};
+
+function ServicesSummaryGridInner({ summary, alertsCount }: ServicesSummaryGridProps) {
+  const cards = useMemo(
+    () => [
+      {
+        label: 'Running',
+        value: summary?.running ?? 0,
+        icon: Play,
+        color: 'text-success',
+      },
+      {
+        label: 'Failed',
+        value: summary?.failed ?? 0,
+        icon: XCircle,
+        color: 'text-destructive',
+      },
+      {
+        label: 'Inactive',
+        value: summary?.inactive ?? 0,
+        icon: Power,
+        color: 'text-warning',
+      },
+      { label: 'Total', value: summary?.total ?? 0, icon: Cog, color: 'text-primary' },
+      {
+        label: 'Enabled',
+        value: summary?.enabled ?? 0,
+        icon: CheckCircle,
+        color: 'text-success',
+      },
+      {
+        label: 'Disabled',
+        value: summary?.disabled ?? 0,
+        icon: Shield,
+        color: 'text-muted-foreground',
+      },
+      {
+        label: 'Exited',
+        value: summary?.exited ?? 0,
+        icon: Square,
+        color: 'text-muted-foreground',
+      },
+      {
+        label: 'Alerts',
+        value: alertsCount,
+        icon: ShieldAlert,
+        color: alertsCount > 0 ? 'text-destructive' : 'text-muted-foreground',
+      },
+    ],
+    [summary, alertsCount]
+  );
 
   return (
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-      <Card className="border-border/60 bg-card/80 sm:col-span-2 lg:col-span-1 lg:row-span-2">
-        <CardContent className="flex flex-col items-center justify-center p-5 min-h-[180px]">
-          <HealthGauge score={summary?.healthScore ?? 0} />
-          <p className="mt-2 text-xs text-muted-foreground uppercase tracking-wider">
-            System Health
-          </p>
-        </CardContent>
-      </Card>
-      {cards.map(({ label, value, icon: Icon, color }) => (
-        <Card key={label} className="border-border/60 bg-card/80">
-          <CardContent className="flex items-center justify-between p-4 min-h-[80px]">
-            <div>
-              <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
-                {label}
-              </p>
-              <p className="mt-1 text-2xl font-semibold tracking-tight">{value}</p>
-            </div>
-            <div className="rounded-xl border border-border/60 bg-muted/30 p-2.5">
-              <Icon className={cn('h-5 w-5', color)} />
-            </div>
+    <motion.div
+      className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5"
+      variants={containerVariants}
+      initial="hidden"
+      animate="show"
+    >
+      <motion.div variants={itemVariants} className="sm:col-span-2 lg:col-span-1 lg:row-span-2">
+        <Card className="border-border/60 bg-card/80 h-full">
+          <CardContent className="flex flex-col items-center justify-center p-5 min-h-[180px] h-full">
+            <HealthGauge score={summary?.healthScore ?? 0} />
+            <p className="mt-2 text-xs text-muted-foreground uppercase tracking-wider">
+              System Health
+            </p>
           </CardContent>
         </Card>
+      </motion.div>
+      {cards.map(({ label, value, icon: Icon, color }) => (
+        <motion.div key={label} variants={itemVariants}>
+          <Card className="border-border/60 bg-card/80 transition-all hover:bg-card hover:shadow-sm group overflow-hidden relative h-full">
+            <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+            <CardContent className="flex items-center justify-between p-4 min-h-[80px] relative z-10">
+              <div>
+                <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground transition-colors group-hover:text-foreground/80">
+                  {label}
+                </p>
+                <p className="mt-1 text-2xl font-semibold tracking-tight transition-transform group-hover:translate-x-0.5">
+                  {value}
+                </p>
+              </div>
+              <div className="rounded-xl border border-border/60 bg-muted/30 p-2.5 transition-all group-hover:bg-muted/50 group-hover:scale-105 group-hover:rotate-3">
+                <Icon className={cn('h-5 w-5', color)} />
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
       ))}
-    </div>
+    </motion.div>
   );
 }
+
+export const ServicesSummaryGrid = memo(ServicesSummaryGridInner);

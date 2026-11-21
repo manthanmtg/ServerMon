@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import ProShell from '@/components/layout/ProShell';
 import { useBrand } from '@/lib/BrandContext';
+import { resilientFetch } from '@/lib/fetch-utils';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import PasskeySettings from '@/modules/security/ui/PasskeySettings';
@@ -25,6 +26,7 @@ import UpdateHistoryModal from '@/components/settings/UpdateHistoryModal';
 import QuickAccessSettings from '@/components/settings/QuickAccessSettings';
 import ServerMonServicesCard from '@/components/settings/ServerMonServicesCard';
 import ServerMonUptimeCard from '@/components/settings/ServerMonUptimeCard';
+import type { LocalAutoUpdateTarget } from '@/types/updates';
 
 interface ModuleInfo {
   id: string;
@@ -32,12 +34,14 @@ interface ModuleInfo {
   description?: string;
 }
 
+type UpdateHistoryScope = LocalAutoUpdateTarget | 'all';
+
 export default function SettingsPage() {
   const { theme, setTheme, availableThemes } = useTheme();
   const { settings: brandSettings, updateSettings: updateBrandSettings } = useBrand();
   const { toast } = useToast();
   const [modules, setModules] = useState<ModuleInfo[]>([]);
-  const [showHistory, setShowHistory] = useState(false);
+  const [historyType, setHistoryType] = useState<UpdateHistoryScope | null>(null);
 
   // Branding state
   const [pageTitle, setPageTitle] = useState(brandSettings.pageTitle);
@@ -50,10 +54,14 @@ export default function SettingsPage() {
   }, [brandSettings]);
 
   useEffect(() => {
-    fetch('/api/modules')
+    const controller = new AbortController();
+    resilientFetch('/api/modules', { signal: controller.signal })
       .then((res) => res.json())
       .then((data) => setModules(data.modules || []))
-      .catch((err) => console.error(err));
+      .catch((err) => {
+        if (err.name !== 'AbortError') console.error(err);
+      });
+    return () => controller.abort();
   }, []);
 
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -125,12 +133,15 @@ export default function SettingsPage() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                   {availableThemes.map((t) => (
                     <button
+                      type="button"
                       key={t.id}
                       onClick={() => setTheme(t.id)}
-                      className={`relative p-3 rounded-lg border-2 text-left transition-all hover:scale-[1.01] active:scale-[0.99] cursor-pointer ${
+                      aria-label={`Select ${t.name} theme`}
+                      aria-pressed={theme.id === t.id}
+                      className={`relative p-3 rounded-lg border-2 text-left transition-all hover:scale-[1.01] active:scale-[0.99] cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-background ${
                         theme.id === t.id
-                          ? 'border-primary shadow-sm'
-                          : 'border-border hover:border-muted-foreground/30'
+                          ? 'border-primary shadow-sm focus-visible:ring-primary'
+                          : 'border-border hover:border-muted-foreground/30 focus-visible:ring-muted-foreground'
                       }`}
                     >
                       {theme.id === t.id && (
@@ -255,12 +266,17 @@ export default function SettingsPage() {
               </CardHeader>
               <CardContent className="space-y-6">
                 <div className="space-y-3">
-                  <div className="flex items-center gap-2 text-xs font-bold text-muted-foreground uppercase tracking-widest">
+                  <label
+                    htmlFor="page-title-input"
+                    className="flex items-center gap-2 text-xs font-bold text-muted-foreground uppercase tracking-widest"
+                  >
                     <Type className="w-3 h-3" />
                     <span>Page Title</span>
-                  </div>
+                  </label>
                   <input
+                    id="page-title-input"
                     type="text"
+                    aria-label="ServerMon page title"
                     value={pageTitle}
                     onChange={(e) => setPageTitle(e.target.value)}
                     placeholder="e.g. MyServer"
@@ -287,7 +303,9 @@ export default function SettingsPage() {
                       )}
                       {logoBase64 && (
                         <button
+                          type="button"
                           onClick={() => setLogoBase64('')}
+                          aria-label="Clear logo preview"
                           className="absolute inset-0 bg-destructive/80 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity"
                         >
                           <X className="w-5 h-5 text-white" />
@@ -295,10 +313,14 @@ export default function SettingsPage() {
                       )}
                     </div>
                     <div className="flex-1 space-y-2">
-                      <label className="flex items-center justify-center gap-2 w-full h-10 px-4 py-2 bg-primary/10 text-primary hover:bg-primary/20 rounded-lg text-xs font-bold transition-all cursor-pointer">
+                      <label
+                        htmlFor="logo-upload"
+                        className="flex items-center justify-center gap-2 w-full h-10 px-4 py-2 bg-primary/10 text-primary hover:bg-primary/20 rounded-lg text-xs font-bold transition-all cursor-pointer"
+                      >
                         <Upload className="w-3.5 h-3.5" />
                         <span>Upload Image</span>
                         <input
+                          id="logo-upload"
                           type="file"
                           className="hidden"
                           accept="image/*"
@@ -313,6 +335,7 @@ export default function SettingsPage() {
                 </div>
 
                 <button
+                  aria-label="Save branding changes"
                   onClick={handleSaveBranding}
                   disabled={isSavingBrand}
                   className="w-full h-11 flex items-center justify-center bg-primary text-primary-foreground rounded-xl text-sm font-bold shadow-lg shadow-primary/20 hover:shadow-primary/30 transition-all disabled:opacity-50"
@@ -330,7 +353,7 @@ export default function SettingsPage() {
 
             <ServerMonUptimeCard />
 
-            <ServerMonServicesCard onOpenHistory={() => setShowHistory(true)} />
+            <ServerMonServicesCard onOpenHistory={setHistoryType} />
 
             <Card>
               <CardHeader>
@@ -338,8 +361,9 @@ export default function SettingsPage() {
                   <CardTitle className="text-base">About</CardTitle>
                   <button
                     type="button"
-                    onClick={() => setShowHistory(true)}
-                    className="flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-background text-foreground transition-all hover:bg-accent"
+                    onClick={() => setHistoryType('all')}
+                    aria-label="View update history"
+                    className="flex h-11 w-11 sm:h-8 sm:w-8 items-center justify-center rounded-lg border border-border bg-background text-foreground transition-all hover:bg-accent"
                     title="View update history"
                   >
                     <History className="w-3.5 h-3.5" />
@@ -367,7 +391,12 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      {showHistory && <UpdateHistoryModal onClose={() => setShowHistory(false)} />}
+      {historyType && (
+        <UpdateHistoryModal
+          type={historyType === 'all' ? undefined : historyType}
+          onClose={() => setHistoryType(null)}
+        />
+      )}
     </ProShell>
   );
 }

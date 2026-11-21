@@ -31,7 +31,7 @@ describe('ConfirmationModal', () => {
 
   it('renders the modal when isOpen is true', () => {
     render(<ConfirmationModal {...defaultProps} />);
-    expect(screen.getByRole('dialog')).toBeDefined();
+    expect(screen.getByRole('alertdialog')).toBeDefined();
     expect(screen.getByText('Delete Server')).toBeDefined();
     expect(screen.getByText('Are you sure you want to delete this server?')).toBeDefined();
   });
@@ -49,9 +49,7 @@ describe('ConfirmationModal', () => {
   it('calls onCancel when the backdrop is clicked', () => {
     const onCancel = vi.fn();
     render(<ConfirmationModal {...defaultProps} onCancel={onCancel} />);
-    // The backdrop is the first sibling inside the container
-    const backdrop = document.querySelector('.absolute.inset-0') as HTMLElement;
-    fireEvent.click(backdrop);
+    fireEvent.mouseDown(screen.getByTestId('dialog-backdrop'));
     expect(onCancel).toHaveBeenCalled();
   });
 
@@ -109,6 +107,56 @@ describe('ConfirmationModal', () => {
       fireEvent.keyDown(document, { key: 'Enter' });
     });
     expect(onConfirm).not.toHaveBeenCalled();
+  });
+
+  it('does not call onConfirm on Enter until verification text matches', () => {
+    const onConfirm = vi.fn();
+    render(<ConfirmationModal {...defaultProps} onConfirm={onConfirm} verificationText="DELETE" />);
+
+    fireEvent.keyDown(document, { key: 'Enter' });
+    expect(onConfirm).not.toHaveBeenCalled();
+
+    fireEvent.change(screen.getByPlaceholderText('DELETE'), { target: { value: 'DELETE' } });
+    fireEvent.keyDown(document, { key: 'Enter' });
+    expect(onConfirm).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not confirm while an Enter key event is composing', () => {
+    const onConfirm = vi.fn();
+    render(<ConfirmationModal {...defaultProps} onConfirm={onConfirm} />);
+    fireEvent.keyDown(document, { key: 'Enter', isComposing: true });
+    expect(onConfirm).not.toHaveBeenCalled();
+  });
+
+  it.each(['textarea', 'select', 'contenteditable'] as const)(
+    'does not confirm when Enter originates from %s content',
+    (targetType) => {
+      const onConfirm = vi.fn();
+      render(<ConfirmationModal {...defaultProps} onConfirm={onConfirm} />);
+      const target =
+        targetType === 'textarea'
+          ? document.createElement('textarea')
+          : targetType === 'select'
+            ? document.createElement('select')
+            : document.createElement('div');
+      if (targetType === 'contenteditable') target.setAttribute('contenteditable', 'true');
+      screen.getByRole('alertdialog').appendChild(target);
+
+      fireEvent.keyDown(target, { key: 'Enter' });
+      expect(onConfirm).not.toHaveBeenCalled();
+    }
+  );
+
+  it('clears verification input after the modal closes', () => {
+    const { rerender } = render(<ConfirmationModal {...defaultProps} verificationText="DELETE" />);
+    fireEvent.change(screen.getByPlaceholderText('DELETE'), { target: { value: 'DELETE' } });
+    expect(screen.getByText('Confirm').closest('button')).not.toBeDisabled();
+
+    rerender(<ConfirmationModal {...defaultProps} verificationText="DELETE" isOpen={false} />);
+    rerender(<ConfirmationModal {...defaultProps} verificationText="DELETE" isOpen />);
+
+    expect(screen.getByPlaceholderText('DELETE')).toHaveValue('');
+    expect(screen.getByText('Confirm').closest('button')).toBeDisabled();
   });
 
   it('disables confirm button when verificationText does not match', () => {

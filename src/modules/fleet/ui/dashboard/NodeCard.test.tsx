@@ -90,6 +90,19 @@ describe('NodeCard', () => {
     expect(anchor?.getAttribute('href')).toBe('/fleet/edge-42');
   });
 
+  it('constrains long header text and keeps mobile actions touch-friendly', () => {
+    const node = makeNode({
+      name: 'Production Edge Node With A Very Long Human Readable Name',
+      slug: 'production-edge-node-with-a-very-long-slug-for-mobile-layouts',
+    });
+    render(<NodeCard node={node} />);
+
+    expect(screen.getByText(node.name).className).toContain('truncate');
+    expect(screen.getByText(node.slug).className).toContain('truncate');
+    expect(screen.getByTitle('Delete Node').className).toContain('min-h-11');
+    expect(screen.getByTitle('Delete Node').className).toContain('min-w-11');
+  });
+
   it('renders a pulsing transition badge when lastBootAt is recent and tunnel is disconnected', () => {
     const now = new Date();
     const node = makeNode({

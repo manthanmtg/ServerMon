@@ -1,12 +1,16 @@
 /** @vitest-environment node */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-const { mockGetSnapshot } = vi.hoisted(() => ({
+const { mockGetSnapshot, mockGetSession } = vi.hoisted(() => ({
   mockGetSnapshot: vi.fn(),
+  mockGetSession: vi.fn(),
 }));
 
 vi.mock('@/lib/ports/service', () => ({
   portsService: { getSnapshot: mockGetSnapshot },
+}));
+vi.mock('@/lib/session', () => ({
+  getSession: mockGetSession,
 }));
 vi.mock('@/lib/logger', () => ({
   createLogger: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }),
@@ -17,6 +21,18 @@ import { GET } from './route';
 describe('GET /api/modules/ports', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockGetSession.mockResolvedValue({ user: { id: 'u1' } });
+  });
+
+  it('blocks unauthenticated requests before reading host port details', async () => {
+    mockGetSession.mockResolvedValue(null);
+    mockGetSnapshot.mockResolvedValue({ ports: [] });
+
+    const res = await GET();
+
+    expect(res.status).toBe(401);
+    expect(await res.json()).toEqual({ error: 'Unauthorized' });
+    expect(mockGetSnapshot).not.toHaveBeenCalled();
   });
 
   it('returns ports snapshot on success', async () => {

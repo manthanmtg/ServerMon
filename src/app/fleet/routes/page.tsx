@@ -5,6 +5,7 @@ import ProShell from '@/components/layout/ProShell';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Spinner } from '@/components/ui/spinner';
+import { resilientFetch, isAbortError } from '@/lib/fetch-utils';
 
 interface RouteRow {
   _id: string;
@@ -25,22 +26,24 @@ function AllRoutesList() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    let cancelled = false;
+    const controller = new AbortController();
     const load = async () => {
       try {
-        const res = await fetch('/api/fleet/routes?limit=200');
+        const res = await resilientFetch('/api/fleet/routes?limit=200', {
+          signal: controller.signal,
+          timeout: 10000,
+        });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
-        if (cancelled) return;
         setRoutes(data.routes ?? []);
         setError(null);
       } catch (e) {
-        if (!cancelled) setError((e as Error).message);
+        if (!isAbortError(e)) setError((e as Error).message);
       }
     };
     load();
     return () => {
-      cancelled = true;
+      controller.abort();
     };
   }, []);
 

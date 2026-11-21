@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useMemo } from 'react';
 import {
   AreaChart,
   Area,
@@ -10,6 +10,7 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from 'recharts';
+import { useMetrics } from '@/lib/MetricsContext';
 
 interface MemoryMetric {
   memory: number;
@@ -20,21 +21,34 @@ interface Props {
   externalData?: MemoryMetric[];
 }
 
+function isMemoryMetric(value: unknown): value is MemoryMetric {
+  if (!value || typeof value !== 'object') return false;
+  const candidate = value as Record<string, unknown>;
+  return (
+    typeof candidate.memory === 'number' &&
+    Number.isFinite(candidate.memory) &&
+    typeof candidate.timestamp === 'string'
+  );
+}
+
+function clampPercent(value: number): number {
+  return Math.min(100, Math.max(0, value));
+}
+
 export default function MemoryChartWidget({ externalData }: Props) {
-  const [internalData, setInternalData] = useState<MemoryMetric[]>([]);
-  const data = externalData || internalData;
-
-  useEffect(() => {
-    if (externalData) return;
-
-    const es = new EventSource('/api/metrics/stream');
-    es.onmessage = (event) => {
-      const metric = JSON.parse(event.data);
-      setInternalData((prev) => [...prev, metric].slice(-30));
-    };
-    es.onerror = () => es.close();
-    return () => es.close();
-  }, [externalData]);
+  const { history } = useMetrics();
+  const source = externalData ?? history;
+  const data = useMemo(
+    () =>
+      source
+        .filter(isMemoryMetric)
+        .map((metric) => ({
+          memory: clampPercent(metric.memory),
+          timestamp: metric.timestamp,
+        }))
+        .slice(-30),
+    [source]
+  );
 
   if (data.length === 0) {
     return (

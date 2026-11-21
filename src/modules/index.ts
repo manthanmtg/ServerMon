@@ -1,3 +1,5 @@
+import { pythonEnvironmentsModule } from './python-environments/module';
+import { scriptRunnerModule } from './script-runner/module';
 import { Module } from '@/types/module';
 import { healthModule } from './health/module';
 import { diskModule } from './disk/module';
@@ -23,8 +25,11 @@ import { memoryModule } from './memory/module';
 import { usersModule } from './users/module';
 import { endpointsModule } from './endpoints/module';
 import { selfServiceModule } from './self-service/module';
+import { appsModule } from './apps/module';
+import { databasesModule } from './databases/module';
 import { fleetModule } from './fleet/module';
 import { envVarsModule } from './env-vars/module';
+import { firewallModule } from './firewall/module';
 
 // For now, we will manually register modules here.
 // In the future, this could be a dynamic scan of the modules directory.
@@ -41,6 +46,8 @@ export const coreModules: Module[] = [
   servicesModule,
   aiAgentsModule,
   aiRunnerModule,
+  scriptRunnerModule,
+  pythonEnvironmentsModule,
   networkModule,
   updatesModule,
   cronsModule,
@@ -53,6 +60,9 @@ export const coreModules: Module[] = [
   usersModule,
   endpointsModule,
   selfServiceModule,
+  appsModule,
+  databasesModule,
   fleetModule,
   envVarsModule,
+  firewallModule,
 ];

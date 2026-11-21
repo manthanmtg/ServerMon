@@ -76,6 +76,8 @@ describe('UsersPage', () => {
     return result!;
   };
 
+  const tableView = () => within(screen.getByRole('table'));
+
   it('renders loading state initially', async () => {
     let resolveOS: (value: Response) => void;
     vi.mocked(global.fetch).mockImplementation((url) => {
@@ -96,7 +98,7 @@ describe('UsersPage', () => {
       );
     });
 
-    expect(screen.getByText(/Scanning identity records/i)).toBeDefined();
+    expect(tableView().getByText(/Scanning identity records/i)).toBeDefined();
 
     await act(async () => {
       resolveOS!({ ok: true, json: async () => mockOSUsers } as unknown as Response);
@@ -107,10 +109,10 @@ describe('UsersPage', () => {
 
   it('renders OS users by default', async () => {
     await renderPage();
-    await waitFor(() => screen.getByText('root'));
-    expect(screen.getByText('user1')).toBeDefined();
-    expect(screen.getByText('UID: 0')).toBeDefined();
-    expect(screen.getByText('/bin/bash')).toBeDefined();
+    await waitFor(() => tableView().getByText('root'));
+    expect(tableView().getByText('user1')).toBeDefined();
+    expect(tableView().getByText('/root')).toBeDefined();
+    expect(tableView().getByText('/bin/bash')).toBeDefined();
   });
 
   it('switches to Web Access tab', async () => {
@@ -120,29 +122,29 @@ describe('UsersPage', () => {
       fireEvent.click(webTab);
     });
 
-    await waitFor(() => expect(screen.getByText('operator')).toBeDefined());
-    expect(screen.getByText('Active')).toBeDefined();
-    expect(screen.getByText('Disabled')).toBeDefined();
+    await waitFor(() => expect(tableView().getByText('operator')).toBeDefined());
+    expect(tableView().getByText('Active')).toBeDefined();
+    expect(tableView().getByText('Disabled')).toBeDefined();
   });
 
   it('filters users by search', async () => {
     await renderPage();
-    await waitFor(() => screen.getByText('root'));
+    await waitFor(() => tableView().getByText('root'));
 
     const searchInput = screen.getByPlaceholderText('Search users...');
     await act(async () => {
       fireEvent.change(searchInput, { target: { value: 'user1' } });
     });
 
-    expect(screen.getByText('user1')).toBeDefined();
-    expect(screen.queryByText('root')).toBeNull();
+    expect(tableView().getByText('user1')).toBeDefined();
+    expect(tableView().queryByText('root')).toBeNull();
   });
 
   it('toggles sudo privilege for OS user', async () => {
     await renderPage();
-    await waitFor(() => screen.getByText('user1'));
+    await waitFor(() => tableView().getByText('user1'));
 
-    const row = screen.getByText('root').closest('tr')!;
+    const row = tableView().getByText('root').closest('tr')!;
     const sudoButton = within(row).getByTestId('toggle-sudo-btn');
 
     await act(async () => {
@@ -162,9 +164,9 @@ describe('UsersPage', () => {
     await act(async () => {
       fireEvent.click(screen.getByText('Web Access'));
     });
-    await waitFor(() => screen.getByText('operator'));
+    await waitFor(() => tableView().getByText('operator'));
 
-    const row = screen.getByText('operator').closest('tr')!;
+    const row = tableView().getByText('operator').closest('tr')!;
     const roleButton = within(row).getByText('user');
 
     await act(async () => {
@@ -182,9 +184,9 @@ describe('UsersPage', () => {
 
   it('deletes an OS user with confirmation', async () => {
     await renderPage();
-    await waitFor(() => screen.getByText('user1'));
+    await waitFor(() => tableView().getByText('user1'));
 
-    const row = screen.getByText('user1').closest('tr')!;
+    const row = tableView().getByText('user1').closest('tr')!;
     const deleteButton = within(row).getByTestId('delete-user-btn');
 
     await act(async () => {

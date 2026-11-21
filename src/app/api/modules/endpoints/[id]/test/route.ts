@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { createLogger } from '@/lib/logger';
 import connectDB from '@/lib/db';
+import { getSession } from '@/lib/session';
 import CustomEndpoint from '@/models/CustomEndpoint';
 import EndpointExecutionLog, {
   ENDPOINT_EXECUTION_LOG_BODY_MAX_CHARS,
@@ -33,6 +34,11 @@ const testPayloadSchema = z.object({
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const session = await getSession();
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     await connectDB();
     const { id } = await params;
 

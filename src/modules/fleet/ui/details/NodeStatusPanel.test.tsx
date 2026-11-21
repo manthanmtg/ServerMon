@@ -13,7 +13,7 @@ vi.mock('../lib/useFleetStream', () => ({
   useFleetStream: mockUseFleetStream,
 }));
 
-import { NodeStatusPanel } from './NodeStatusPanel';
+import { NodeStatusPanel, shouldReplaceAgentUpdateLogs } from './NodeStatusPanel';
 
 const baseNode = {
   _id: 'n1',
@@ -43,6 +43,44 @@ describe('NodeStatusPanel', () => {
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
     vi.useRealTimers();
+  });
+
+  it('keeps agent update log state stable when polled logs are unchanged', () => {
+    const existingLogs = [
+      {
+        _id: 'log-1',
+        createdAt: '2026-04-29T16:55:01.000Z',
+        level: 'info',
+        eventType: 'agent.update.starting',
+        message: 'Executing remote update...',
+      },
+      {
+        _id: 'log-2',
+        createdAt: '2026-04-29T16:55:02.000Z',
+        level: 'info',
+        eventType: 'agent.update.log',
+        message: 'servermon-agent-update: downloaded release artifact',
+      },
+    ];
+
+    expect(
+      shouldReplaceAgentUpdateLogs(
+        existingLogs,
+        existingLogs.map((log) => ({ ...log }))
+      )
+    ).toBe(false);
+    expect(
+      shouldReplaceAgentUpdateLogs(existingLogs, [
+        ...existingLogs,
+        {
+          _id: 'log-3',
+          createdAt: '2026-04-29T16:55:03.000Z',
+          level: 'info',
+          eventType: 'agent.update.succeeded',
+          message: 'Update finished',
+        },
+      ])
+    ).toBe(true);
   });
 
   it('shows spinner then renders node status fields', async () => {
@@ -144,6 +182,155 @@ describe('NodeStatusPanel', () => {
         )
       ).toBe(true);
     });
+  });
+
+  it('shows agent update logs after queuing an update', async () => {
+    const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+      if (url === '/api/fleet/nodes/n1/updates' && init?.method === 'POST') {
+        return { ok: true, json: async () => ({ ok: true, queued: true, commandId: 'cmd-1' }) };
+      }
+      if (url.startsWith('/api/fleet/logs?')) {
+        return {
+          ok: true,
+          json: async () => ({
+            events: [
+              {
+                _id: 'log-2',
+                createdAt: new Date('2026-04-29T16:55:02.000Z').toISOString(),
+                service: 'agent',
+                level: 'info',
+                eventType: 'agent.update.log',
+                message: 'servermon-agent-update: downloaded release artifact',
+                metadata: { commandId: 'cmd-1' },
+              },
+              {
+                _id: 'log-1',
+                createdAt: new Date('2026-04-29T16:55:01.000Z').toISOString(),
+                service: 'agent',
+                level: 'info',
+                eventType: 'agent.update.starting',
+                message: 'Executing remote update...',
+                metadata: { commandId: 'cmd-1' },
+              },
+            ],
+          }),
+        };
+      }
+      return {
+        ok: true,
+        json: async () => ({ node: baseNode, computedStatus: 'online' }),
+      };
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await act(async () => {
+      render(<NodeStatusPanel nodeId="n1" />);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText('Update Agent')).toBeDefined();
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByText('Update Agent'));
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText('Agent update logs')).toBeDefined();
+      expect(screen.getByRole('log', { name: 'Agent update output' })).toHaveTextContent(
+        'servermon-agent-update: downloaded release artifact'
+      );
+    });
+
+    expect(
+      fetchMock.mock.calls.some(
+        ([url]) =>
+          typeof url === 'string' &&
+          url.startsWith('/api/fleet/logs?') &&
+          url.includes('nodeId=n1') &&
+          url.includes('service=agent') &&
+          url.includes('limit=100')
+      )
+    ).toBe(true);
+    expect(screen.getByRole('button', { name: 'Follow live output' })).toBeDefined();
+    expect(screen.getByRole('button', { name: 'Autoscroll output' })).toBeDefined();
+    expect(screen.getByRole('button', { name: 'Wrap output' })).toBeDefined();
+  });
+
+  it('keeps the update log controls stable during unrelated node refreshes', async () => {
+    mockUseFleetStream.mockClear();
+    const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+      if (url === '/api/fleet/nodes/n1/updates' && init?.method === 'POST') {
+        return { ok: true, json: async () => ({ ok: true, queued: true, commandId: 'cmd-1' }) };
+      }
+      if (url.startsWith('/api/fleet/logs?')) {
+        return {
+          ok: true,
+          json: async () => ({
+            events: [
+              {
+                _id: 'log-1',
+                createdAt: new Date('2026-04-29T16:55:01.000Z').toISOString(),
+                service: 'agent',
+                level: 'info',
+                eventType: 'agent.update.succeeded',
+                message: 'Agent update finished',
+                metadata: { commandId: 'cmd-1' },
+              },
+            ],
+          }),
+        };
+      }
+      return {
+        ok: true,
+        json: async () => ({
+          node: {
+            ...baseNode,
+            lastSeen: new Date(Date.now()).toISOString(),
+          },
+          computedStatus: 'online',
+        }),
+      };
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await act(async () => {
+      render(<NodeStatusPanel nodeId="n1" />);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText('Update Agent')).toBeDefined();
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByText('Update Agent'));
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole('log', { name: 'Agent update output' })).toHaveTextContent(
+        'Agent update finished'
+      );
+    });
+
+    expect(screen.queryByRole('button', { name: 'Follow live output' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Autoscroll output' })).toBeNull();
+    const wrap = screen.getByRole('button', { name: 'Wrap output' });
+    fireEvent.click(wrap);
+    expect(wrap).toHaveAttribute('aria-pressed', 'false');
+    const streamOptions = mockUseFleetStream.mock.calls[0][0] as {
+      onEvent?: (event: { kind: string; at: string; data: Record<string, unknown> }) => void;
+    };
+
+    await act(async () => {
+      streamOptions.onEvent?.({
+        kind: 'node.heartbeat',
+        at: new Date().toISOString(),
+        data: {},
+      });
+    });
+
+    expect(fetchMock.mock.calls.filter(([url]) => url === '/api/fleet/nodes/n1').length).toBe(2);
+    expect(wrap).toHaveAttribute('aria-pressed', 'false');
   });
 
   it('subscribes to the fleet event stream scoped to the nodeId', async () => {

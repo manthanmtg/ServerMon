@@ -1,6 +1,12 @@
+export type UpdateRunType = 'servermon' | 'agent' | 'packages' | 'combined' | 'unknown';
+export type UpdateRunTrigger = 'manual' | 'scheduled';
+export type LocalAutoUpdateTarget = 'servermon' | 'agent';
+
 export interface UpdateRunStatus {
   runId: string;
   timestamp: string;
+  type?: UpdateRunType;
+  trigger?: UpdateRunTrigger;
   status: 'running' | 'completed' | 'failed' | 'skipped';
   pid: number;
   exitCode: number | null;
@@ -14,6 +20,8 @@ export interface ServermonAgentStatus {
   installed: boolean;
   active: boolean;
   enabled: boolean;
+  installMode?: 'release' | 'source' | 'unknown';
+  versionTarget?: string;
   loadState?: string;
   activeState?: string;
   unitFileState?: string;

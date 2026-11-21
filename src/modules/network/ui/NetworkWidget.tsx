@@ -1,33 +1,116 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { ArrowDown, ArrowUp, Network } from 'lucide-react';
+import { isAbortError, safeJson, resilientFetch } from '@/lib/fetch-utils';
 import { formatBytes } from '@/lib/utils';
 import type { NetworkSnapshot } from '../types';
 
+function isLoopbackInterface(iface: string) {
+  return iface === 'lo' || iface === 'lo0' || iface.startsWith('lo:');
+}
+
+function isNetworkSnapshotPayload(value: unknown): value is NetworkSnapshot {
+  if (!value || typeof value !== 'object') return false;
+
+  const candidate = value as Record<string, unknown>;
+  if (!Array.isArray(candidate.stats)) return false;
+
+  return candidate.stats.every((stat) => {
+    if (!stat || typeof stat !== 'object') return false;
+    const candidateStat = stat as Record<string, unknown>;
+
+    return (
+      typeof candidateStat.iface === 'string' &&
+      typeof candidateStat.rx_sec === 'number' &&
+      typeof candidateStat.tx_sec === 'number' &&
+      Number.isFinite(candidateStat.rx_sec) &&
+      Number.isFinite(candidateStat.tx_sec)
+    );
+  });
+}
+
 export default function NetworkWidget() {
   const [stats, setStats] = useState<{ rx: number; tx: number; iface: string } | null>(null);
+  const [loadError, setLoadError] = useState(false);
+  const [isEmpty, setIsEmpty] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const requestSequence = useRef(0);
 
   useEffect(() => {
+    let mounted = true;
+    const controller = new AbortController();
+
     const fetchStats = async () => {
+      const currentRequest = ++requestSequence.current;
+      const isCurrentRequest = () => mounted && currentRequest === requestSequence.current;
+
       try {
-        const res = await fetch('/api/modules/network');
-        const data: NetworkSnapshot = await res.json();
-        if (data.stats.length > 0) {
-          // Show stats for the first non-internal interface or first one
-          const primary = data.stats.find((s) => !s.iface.includes('lo')) || data.stats[0];
-          setStats({ rx: primary.rx_sec, tx: primary.tx_sec, iface: primary.iface });
+        const res = await resilientFetch('/api/modules/network', {
+          timeout: 4000,
+          retries: 1,
+          retryDelay: 250,
+          retryOnStatuses: [502, 503, 504],
+          signal: controller.signal,
+        });
+
+        if (!res.ok) {
+          throw new Error(`Network endpoint responded with ${res.status}`);
         }
-      } catch {
-        /* ignore */
+
+        const data = await safeJson<unknown>(res);
+        if (!isNetworkSnapshotPayload(data)) {
+          throw new Error('Received malformed network snapshot payload');
+        }
+
+        if (data.stats.length === 0) {
+          if (isCurrentRequest()) {
+            setLoadError(true);
+            setStats(null);
+            setIsEmpty(true);
+          }
+          return;
+        }
+
+        if (isCurrentRequest()) {
+          const primary = data.stats.find((s) => !isLoopbackInterface(s.iface)) || data.stats[0];
+          setLoadError(false);
+          setStats({ rx: primary.rx_sec, tx: primary.tx_sec, iface: primary.iface });
+          setIsEmpty(false);
+        }
+      } catch (error: unknown) {
+        if (!mounted || isAbortError(error)) {
+          return;
+        }
+        if (isCurrentRequest()) {
+          setLoadError(true);
+          setIsEmpty(false);
+        }
+      } finally {
+        if (isCurrentRequest()) {
+          setIsLoading(false);
+        }
       }
     };
 
-    fetchStats();
+    void fetchStats();
     const interval = setInterval(fetchStats, 5000);
-    return () => clearInterval(interval);
+
+    return () => {
+      mounted = false;
+      controller.abort();
+      clearInterval(interval);
+    };
   }, []);
+
+  const displayedInterface = isLoading
+    ? 'Loading…'
+    : stats?.iface || (isEmpty ? 'No interfaces' : 'Unavailable');
+
+  const downloadText = isLoading || !stats ? '—' : formatBytes(stats.rx);
+
+  const uploadText = isLoading || !stats ? '—' : formatBytes(stats.tx);
 
   return (
     <div className="space-y-4">
@@ -48,10 +131,15 @@ export default function NetworkWidget() {
                 Active Interface
               </span>
               <span className="block truncate text-sm font-black tracking-tighter text-foreground">
-                {stats?.iface || 'Network'}
+                {displayedInterface}
               </span>
             </div>
           </div>
+          {loadError && !isLoading && (
+            <span className="text-[10px] text-destructive">
+              {isEmpty ? 'No interface data' : stats ? 'Showing last reading' : 'Data unavailable'}
+            </span>
+          )}
         </div>
       </motion.div>
 
@@ -62,7 +150,7 @@ export default function NetworkWidget() {
           transition={{ duration: 0.24, delay: 0.04, ease: 'easeOut' }}
           whileHover={{ scale: 1.01 }}
           whileTap={{ scale: 0.99 }}
-          className="group relative overflow-hidden rounded-2xl border border-white/10 bg-zinc-900/50 p-3 shadow-[0_0_0_1px_color-mix(in_oklab,var(--border)_60%,transparent),0_20px_40px_-28px_color-mix(in_oklab,var(--success)_45%,transparent)] backdrop-blur-md transition-colors hover:border-white/15"
+          className="group relative overflow-hidden rounded-2xl border border-border/60 bg-card/45 p-3 shadow-[0_0_0_1px_color-mix(in_oklab,var(--border)_60%,transparent),0_20px_40px_-28px_color-mix(in_oklab,var(--success)_45%,transparent)] backdrop-blur-md transition-colors hover:border-success/35 hover:bg-card/65"
         >
           <div className="pointer-events-none absolute inset-x-4 top-0 h-12 rounded-full bg-success/10 opacity-70 blur-2xl transition-opacity group-hover:opacity-100" />
           <div className="relative flex flex-col gap-1.5">
@@ -71,7 +159,7 @@ export default function NetworkWidget() {
               <span className="text-[10px] font-black uppercase tracking-tighter">Download</span>
             </div>
             <span className="text-sm font-bold tabular-nums truncate tracking-tighter">
-              {stats ? formatBytes(stats.rx) : '0 B'}/s
+              {downloadText}/s
             </span>
           </div>
         </motion.div>
@@ -82,7 +170,7 @@ export default function NetworkWidget() {
           transition={{ duration: 0.24, delay: 0.08, ease: 'easeOut' }}
           whileHover={{ scale: 1.01 }}
           whileTap={{ scale: 0.99 }}
-          className="group relative overflow-hidden rounded-2xl border border-white/10 bg-zinc-900/50 p-3 shadow-[0_0_0_1px_color-mix(in_oklab,var(--border)_60%,transparent),0_20px_40px_-28px_color-mix(in_oklab,var(--primary)_45%,transparent)] backdrop-blur-md transition-colors hover:border-white/15"
+          className="group relative overflow-hidden rounded-2xl border border-border/60 bg-card/45 p-3 shadow-[0_0_0_1px_color-mix(in_oklab,var(--border)_60%,transparent),0_20px_40px_-28px_color-mix(in_oklab,var(--primary)_45%,transparent)] backdrop-blur-md transition-colors hover:border-primary/35 hover:bg-card/65"
         >
           <div className="pointer-events-none absolute inset-x-4 top-0 h-12 rounded-full bg-primary/10 opacity-70 blur-2xl transition-opacity group-hover:opacity-100" />
           <div className="relative flex flex-col gap-1.5">
@@ -91,7 +179,7 @@ export default function NetworkWidget() {
               <span className="text-[10px] font-black uppercase tracking-tighter">Upload</span>
             </div>
             <span className="text-sm font-bold tabular-nums truncate tracking-tighter">
-              {stats ? formatBytes(stats.tx) : '0 B'}/s
+              {uploadText}/s
             </span>
           </div>
         </motion.div>

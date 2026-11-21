@@ -96,7 +96,7 @@ describe('BUILTIN_TEMPLATES', () => {
 describe('seedBuiltinTemplates', () => {
   it('upserts each template by slug', async () => {
     const findOneAndUpdate = vi.fn().mockResolvedValue({});
-    const FakeModel = { findOneAndUpdate } as never;
+    const FakeModel = { findOneAndUpdate };
     const count = await seedBuiltinTemplates(FakeModel);
     expect(count).toBe(BUILTIN_TEMPLATES.length);
     expect(findOneAndUpdate).toHaveBeenCalledTimes(BUILTIN_TEMPLATES.length);
@@ -109,7 +109,7 @@ describe('seedBuiltinTemplates', () => {
 
   it('passes the template as the update payload', async () => {
     const findOneAndUpdate = vi.fn().mockResolvedValue({});
-    const FakeModel = { findOneAndUpdate } as never;
+    const FakeModel = { findOneAndUpdate };
     await seedBuiltinTemplates(FakeModel);
     for (const call of findOneAndUpdate.mock.calls) {
       const [, update] = call;

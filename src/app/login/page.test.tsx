@@ -69,7 +69,7 @@ describe('LoginPage', () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByText('Invalid credentials')).toBeDefined();
+      expect(screen.getByRole('alert')).toHaveTextContent('Invalid credentials');
     });
   });
 

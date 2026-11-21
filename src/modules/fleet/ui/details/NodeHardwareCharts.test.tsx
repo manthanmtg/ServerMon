@@ -2,10 +2,15 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, waitFor, act } from '@testing-library/react';
 import { NodeHardwareCharts, toSamples } from './NodeHardwareCharts';
 
+const { mockLineChart } = vi.hoisted(() => ({
+  mockLineChart: vi.fn(),
+}));
+
 vi.mock('recharts', () => ({
-  LineChart: ({ children }: { children?: React.ReactNode }) => (
-    <svg data-testid="line-chart">{children}</svg>
-  ),
+  LineChart: ({ children }: { children?: React.ReactNode }) => {
+    mockLineChart();
+    return <svg data-testid="line-chart">{children}</svg>;
+  },
   Line: () => null,
   XAxis: () => null,
   YAxis: () => null,
@@ -65,6 +70,8 @@ describe('NodeHardwareCharts', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
+    vi.useRealTimers();
+    mockLineChart.mockClear();
   });
 
   it('shows empty state when no metrics samples', async () => {
@@ -114,5 +121,42 @@ describe('NodeHardwareCharts', () => {
       expect(screen.getByText('RAM used')).toBeDefined();
     });
     expect(screen.getAllByTestId('line-chart').length).toBe(2);
+  });
+
+  it('skips chart rerenders when polled metrics are unchanged', async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        events: [
+          {
+            _id: 'e1',
+            createdAt: '2026-05-09T07:45:00.000Z',
+            eventType: 'metrics_sample',
+            metadata: { cpuLoad: 0.3, ramUsed: 128 },
+          },
+        ],
+        nextCursor: null,
+      }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await act(async () => {
+      render(<NodeHardwareCharts nodeId="n1" />);
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(screen.getAllByTestId('line-chart').length).toBe(2);
+    expect(mockLineChart).toHaveBeenCalledTimes(2);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5000);
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(mockLineChart).toHaveBeenCalledTimes(2);
   });
 });

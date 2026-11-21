@@ -1,19 +1,20 @@
-export function cn(...classes: (string | undefined | null | false)[]): string {
+export function cn(...classes: Array<string | number | undefined | null | false>): string {
   return classes.filter(Boolean).join(' ');
 }
 
 export function formatBytes(bytes?: number | null, system: 'binary' | 'decimal' = 'binary') {
   if (bytes === undefined || bytes === null || bytes === 0) return '0 B';
+  if (!Number.isFinite(bytes)) return '0 B';
   if (bytes < 0) return '0 B';
   const k = system === 'binary' ? 1024 : 1000;
   const sizes =
     system === 'binary' ? ['B', 'KiB', 'MiB', 'GiB', 'TiB'] : ['B', 'KB', 'MB', 'GB', 'TB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  const i = Math.min(Math.max(0, Math.floor(Math.log(bytes) / Math.log(k))), sizes.length - 1);
   return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
 }
 
 export function formatDuration(seconds: number): string {
-  if (seconds <= 0) return '0 secs';
+  if (!Number.isFinite(seconds) || seconds <= 0) return '0 secs';
 
   const h = Math.floor(seconds / 3600);
   const m = Math.floor((seconds % 3600) / 60);
@@ -29,7 +30,9 @@ export function formatDuration(seconds: number): string {
 
 export function relativeTime(value?: string | number | Date | null): string {
   if (!value) return '—';
-  const diff = Date.now() - new Date(value).getTime();
+  const time = new Date(value).getTime();
+  if (!Number.isFinite(time)) return '—';
+  const diff = Date.now() - time;
   const minutes = Math.max(0, Math.round(diff / 60_000));
   if (minutes < 1) return 'just now';
   if (minutes < 60) return `${minutes}m ago`;

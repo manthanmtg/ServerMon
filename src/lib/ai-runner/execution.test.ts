@@ -190,6 +190,31 @@ describe('ai-runner execution', () => {
     );
   });
 
+  it('uses passwordless sudo when a target run-as user is configured', async () => {
+    process.env.AI_RUNNER_DISABLE_SYSTEMD_ISOLATION = '1';
+    const { spawnAIRunnerCommand } = await import('./execution');
+
+    await spawnAIRunnerCommand({
+      jobId: 'job-run-as',
+      shell: '/bin/bash',
+      command: 'id -un',
+      cwd: '/tmp/example',
+      env: { ...process.env, PATH: '/usr/bin' },
+      runAsUser: 'servermon-ai',
+      runAsUserAuthMode: 'passwordless-sudo',
+    });
+
+    expect(spawnMock).toHaveBeenCalledWith(
+      'sudo',
+      ['-n', '-E', '-u', 'servermon-ai', '--', '/bin/bash', '-lc', 'id -un'],
+      expect.objectContaining({
+        cwd: '/tmp/example',
+        detached: true,
+        env: expect.objectContaining({ PATH: '/usr/bin' }),
+      })
+    );
+  });
+
   it('falls back to detached local spawn when systemd-run is unavailable', async () => {
     setPlatform('linux');
     execFileMock.mockImplementation((file, args, optionsOrCallback, maybeCallback) => {

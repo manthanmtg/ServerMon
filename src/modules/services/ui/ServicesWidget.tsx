@@ -1,15 +1,39 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { AlertTriangle, CheckCircle, Cog, Play, Power, XCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { WidgetCardSkeleton } from '@/components/ui/skeleton';
+import { resilientFetch } from '@/lib/fetch-utils';
 import { cn } from '@/lib/utils';
 import type { ServicesSnapshot } from '../types';
 
 const MotionCard = motion.create(Card);
+
+function isServicesWidgetSnapshot(value: unknown): value is ServicesSnapshot {
+  if (!value || typeof value !== 'object') return false;
+
+  const candidate = value as Record<string, unknown>;
+  const summary = candidate.summary;
+  if (!summary || typeof summary !== 'object') return false;
+
+  const candidateSummary = summary as Record<string, unknown>;
+  const hasFiniteNumber = (field: string) =>
+    typeof candidateSummary[field] === 'number' && Number.isFinite(candidateSummary[field]);
+
+  return (
+    (candidate.source === 'systemd' || candidate.source === 'mock') &&
+    typeof candidate.systemdAvailable === 'boolean' &&
+    Array.isArray(candidate.alerts) &&
+    hasFiniteNumber('total') &&
+    hasFiniteNumber('running') &&
+    hasFiniteNumber('failed') &&
+    hasFiniteNumber('inactive') &&
+    hasFiniteNumber('healthScore')
+  );
+}
 
 function MiniGauge({ score }: { score: number }) {
   const circumference = 2 * Math.PI * 18;
@@ -43,18 +67,38 @@ function MiniGauge({ score }: { score: number }) {
 export default function ServicesWidget() {
   const [snapshot, setSnapshot] = useState<ServicesSnapshot | null>(null);
   const [initialLoad, setInitialLoad] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const loadRequestSequence = useRef(0);
 
   const load = useCallback(async () => {
+    const requestSequence = ++loadRequestSequence.current;
+
     try {
-      const res = await fetch('/api/modules/services', { cache: 'no-store' });
-      if (res.ok) {
-        const data = await res.json();
-        setSnapshot(data);
+      const res = await resilientFetch('/api/modules/services', {
+        cache: 'no-store',
+        timeout: 5000,
+        retries: 2,
+        retryDelay: 500,
+      });
+      if (!res.ok) throw new Error(`Services endpoint responded with ${res.status}`);
+
+      const data: unknown = await res.json();
+      if (!isServicesWidgetSnapshot(data)) {
+        throw new Error('Services endpoint returned an invalid snapshot');
       }
+
+      if (requestSequence !== loadRequestSequence.current) return;
+
+      setSnapshot(data);
+      setLoadFailed(false);
     } catch {
-      // silently ignore for widget
+      if (requestSequence === loadRequestSequence.current) {
+        setLoadFailed(true);
+      }
     } finally {
-      setInitialLoad(false);
+      if (requestSequence === loadRequestSequence.current) {
+        setInitialLoad(false);
+      }
     }
   }, []);
 
@@ -68,18 +112,33 @@ export default function ServicesWidget() {
     return <WidgetCardSkeleton />;
   }
 
+  if (loadFailed && !snapshot) {
+    return (
+      <Card className="border-destructive/30 bg-destructive/5">
+        <CardContent className="flex min-h-36 items-center gap-3 p-5">
+          <AlertTriangle className="h-5 w-5 shrink-0 text-destructive" aria-hidden="true" />
+          <div role="alert">
+            <p className="text-sm font-medium text-foreground">Unable to load service status</p>
+            <p className="mt-0.5 text-xs text-muted-foreground">Retrying automatically.</p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
   const s = snapshot?.summary;
 
   return (
     <MotionCard
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      whileHover={{ scale: 1.01, translateY: -2 }}
-      transition={{ duration: 0.3 }}
-      className="border-white/10 bg-zinc-900/50 backdrop-blur-md shadow-2xl"
+      whileHover={{ scale: 1.01, y: -2, transition: { duration: 0.2, ease: 'easeOut' } }}
+      whileTap={{ scale: 0.995, y: 0, transition: { duration: 0.1, ease: 'easeOut' } }}
+      tabIndex={0}
+      className="overflow-hidden border border-border/70 bg-card/85 shadow-sm shadow-black/10 backdrop-blur-sm transition duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 hover:shadow-sm hover:shadow-primary/25 hover:border-primary/40 active:scale-[0.998]"
     >
       <CardHeader className="pb-2">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-3">
           <CardTitle className="flex items-center gap-2">
             <Cog className="w-4 h-4 text-primary" />
             Services
@@ -93,6 +152,12 @@ export default function ServicesWidget() {
         </div>
       </CardHeader>
       <CardContent className="overflow-hidden">
+        {loadFailed && (
+          <p role="status" className="mb-3 flex items-center gap-1.5 text-xs text-warning">
+            <AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />
+            Showing last service reading
+          </p>
+        )}
         <motion.div layout className="flex items-center gap-4">
           <MiniGauge score={s?.healthScore ?? 0} />
           <div className="flex-1 grid grid-cols-2 gap-x-4 gap-y-1 text-xs">

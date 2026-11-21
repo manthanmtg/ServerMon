@@ -68,14 +68,27 @@ const mockSnapshot: ServicesSnapshot = {
   timestamp: new Date().toISOString(),
 };
 
+const mockFetchResponse = (payload: unknown, init?: Omit<ResponseInit, 'headers'>) =>
+  new Response(JSON.stringify(payload), {
+    headers: { 'content-type': 'application/json' },
+    ...init,
+  });
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((resolvePromise) => {
+    resolve = resolvePromise;
+  });
+  return { promise, resolve };
+}
+
 describe('ServicesPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     global.fetch = vi.fn().mockImplementation((url: string, options?: RequestInit) => {
       if (url.includes('/api/modules/services/nginx.service/logs')) {
-        return Promise.resolve({
-          ok: true,
-          json: async () => ({
+        return Promise.resolve(
+          mockFetchResponse({
             logs: [
               {
                 timestamp: new Date().toISOString(),
@@ -84,23 +97,19 @@ describe('ServicesPage', () => {
                 unit: 'nginx.service',
               },
             ],
-          }),
-        });
+          })
+        );
       }
       if (url.endsWith('/api/modules/services')) {
-        return Promise.resolve({ ok: true, json: async () => mockSnapshot });
+        return Promise.resolve(mockFetchResponse(mockSnapshot));
       }
       if (url.includes('/api/modules/services/') && url.includes('/action')) {
         const body = JSON.parse((options?.body as string) || '{}');
-        return Promise.resolve({
-          ok: true,
-          json: async () => ({ status: 'ok', message: `Action ${body.action} executed` }),
-        });
+        return Promise.resolve(
+          mockFetchResponse({ status: 'ok', message: `Action ${body.action} executed` })
+        );
       }
-      return Promise.resolve({
-        ok: true,
-        json: async () => ({ status: 'ok', message: 'Action executed' }),
-      });
+      return Promise.resolve(mockFetchResponse({ status: 'ok', message: 'Action executed' }));
     });
   });
 
@@ -255,8 +264,8 @@ describe('ServicesPage', () => {
       fireEvent.click(expandButton);
     });
 
-    await waitFor(() => expect(screen.queryByText(/Recent logs/i)).not.toBeNull());
-    expect(screen.getByText('Test log')).toBeDefined();
+    const log = await screen.findByRole('log', { name: 'nginx.service service logs' });
+    expect(log).toHaveTextContent('Test log');
 
     expect(global.fetch).toHaveBeenCalledWith(
       expect.stringContaining('/api/modules/services/nginx.service/logs'),
@@ -274,6 +283,56 @@ describe('ServicesPage', () => {
       fireEvent.click(refreshButton);
     });
     expect(global.fetch).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps the newest snapshot when refresh responses finish out of order', async () => {
+    const staleResponse = deferred<Response>();
+    const freshResponse = deferred<Response>();
+    const staleSnapshot = {
+      ...mockSnapshot,
+      services: [
+        { ...mockSnapshot.services[0], description: 'Stale snapshot' },
+        mockSnapshot.services[1],
+      ],
+    };
+    const freshSnapshot = {
+      ...mockSnapshot,
+      services: [
+        { ...mockSnapshot.services[0], description: 'Fresh snapshot' },
+        mockSnapshot.services[1],
+      ],
+    };
+    let snapshotRequests = 0;
+
+    vi.mocked(global.fetch).mockImplementation((url) => {
+      if (url.toString().endsWith('/api/modules/services')) {
+        snapshotRequests += 1;
+        if (snapshotRequests === 1) return Promise.resolve(mockFetchResponse(mockSnapshot));
+        if (snapshotRequests === 2) return staleResponse.promise;
+        return freshResponse.promise;
+      }
+      return Promise.resolve(mockFetchResponse({ status: 'ok' }));
+    });
+
+    await act(async () => {
+      renderPage();
+    });
+    await screen.findByText('Nginx HTTP Server');
+
+    const refreshButton = screen.getByRole('button', { name: 'Refresh now' });
+    fireEvent.click(refreshButton);
+    fireEvent.click(refreshButton);
+
+    await act(async () => {
+      freshResponse.resolve(mockFetchResponse(freshSnapshot));
+    });
+    expect(await screen.findByText('Fresh snapshot')).toBeDefined();
+
+    await act(async () => {
+      staleResponse.resolve(mockFetchResponse(staleSnapshot));
+    });
+    expect(screen.getByText('Fresh snapshot')).toBeDefined();
+    expect(screen.queryByText('Stale snapshot')).toBeNull();
   });
 
   it('handles empty services list', async () => {
@@ -310,12 +369,9 @@ describe('ServicesPage', () => {
     vi.mocked(global.fetch).mockImplementation((url) => {
       const urlString = url.toString();
       if (urlString.includes('/action')) {
-        return Promise.resolve({
-          ok: false,
-          json: async () => ({ error: 'Action failed' }),
-        } as unknown as Response);
+        return Promise.resolve(mockFetchResponse({ error: 'Action failed' }, { status: 500 }));
       }
-      return Promise.resolve({ ok: true, json: async () => mockSnapshot } as unknown as Response);
+      return Promise.resolve(mockFetchResponse(mockSnapshot));
     });
 
     await act(async () => {
@@ -336,12 +392,9 @@ describe('ServicesPage', () => {
     vi.mocked(global.fetch).mockImplementation((url) => {
       const urlString = url.toString();
       if (urlString.includes('/logs')) {
-        return Promise.resolve({
-          ok: false,
-          json: async () => ({ error: 'Logs error' }),
-        } as unknown as Response);
+        return Promise.resolve(mockFetchResponse({ error: 'Logs error' }, { status: 500 }));
       }
-      return Promise.resolve({ ok: true, json: async () => mockSnapshot } as unknown as Response);
+      return Promise.resolve(mockFetchResponse(mockSnapshot));
     });
 
     await act(async () => {
@@ -356,7 +409,8 @@ describe('ServicesPage', () => {
       fireEvent.click(expandButton);
     });
 
-    await waitFor(() => expect(screen.queryByText(/No logs available/i)).not.toBeNull());
+    expect(await screen.findByText('Unable to load service logs.')).toBeDefined();
+    expect(screen.getByRole('button', { name: 'Retry' })).toBeDefined();
   });
 
   it('renders systemd unavailable message', async () => {

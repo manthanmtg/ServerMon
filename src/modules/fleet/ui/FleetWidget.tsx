@@ -1,14 +1,17 @@
 'use client';
 import { useEffect, useState, useMemo, memo } from 'react';
 import Link from 'next/link';
+import { motion } from 'framer-motion';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ServerCog } from 'lucide-react';
 import { deriveNodeStatus } from '@/lib/fleet/status';
+import type { NodeStatus } from '@/lib/fleet/enums';
 
 interface NodeSummary {
   _id: string;
   status: string;
   tunnelStatus: string;
+  computedStatus?: NodeStatus;
   lastSeen?: string;
   maintenance?: { enabled: boolean };
   pairingVerifiedAt?: string | null;
@@ -25,7 +28,10 @@ export default function FleetWidget() {
         const res = await fetch('/api/fleet/nodes?limit=200');
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
-        if (!cancelled) setNodes(data.nodes ?? []);
+        if (!cancelled) {
+          setNodes(data.nodes ?? []);
+          setError(null);
+        }
       } catch (e: unknown) {
         if (!cancelled) setError((e as Error).message);
       }
@@ -42,13 +48,15 @@ export default function FleetWidget() {
     const now = new Date();
     return nodes.reduce(
       (acc, n) => {
-        const s = deriveNodeStatus({
-          lastSeen: n.lastSeen ? new Date(n.lastSeen) : undefined,
-          tunnelStatus: n.tunnelStatus as never,
-          maintenanceEnabled: n.maintenance?.enabled,
-          unpaired: !n.pairingVerifiedAt,
-          now,
-        });
+        const s =
+          n.computedStatus ??
+          deriveNodeStatus({
+            lastSeen: n.lastSeen ? new Date(n.lastSeen) : undefined,
+            tunnelStatus: n.tunnelStatus as never,
+            maintenanceEnabled: n.maintenance?.enabled,
+            unpaired: !n.pairingVerifiedAt,
+            now,
+          });
         acc[s] = (acc[s] ?? 0) + 1;
         acc.total++;
         return acc;
@@ -99,9 +107,14 @@ const StatCell = memo(function StatCell({
           ? 'text-destructive'
           : '';
   return (
-    <div className="rounded-lg border border-border bg-card/50 p-3">
-      <div className="text-xs text-muted-foreground">{label}</div>
-      <div className={`mt-1 text-2xl font-semibold ${color}`}>{value}</div>
-    </div>
+    <motion.div
+      whileHover={{ y: -2, transition: { duration: 0.2 } }}
+      className="rounded-lg border border-border bg-card/50 p-3 shadow-sm transition-all duration-300 hover:shadow-md hover:border-primary/40"
+    >
+      <div className="text-xs text-muted-foreground font-medium uppercase tracking-wide">
+        {label}
+      </div>
+      <div className={`mt-1 text-2xl font-bold tracking-tight ${color}`}>{value}</div>
+    </motion.div>
   );
 });

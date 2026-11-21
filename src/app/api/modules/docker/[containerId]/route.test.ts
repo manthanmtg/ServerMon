@@ -1,12 +1,16 @@
 /** @vitest-environment node */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-const { mockGetSnapshot } = vi.hoisted(() => ({
+const { mockGetSnapshot, mockGetSession } = vi.hoisted(() => ({
   mockGetSnapshot: vi.fn(),
+  mockGetSession: vi.fn(),
 }));
 
 vi.mock('@/lib/docker/service', () => ({
   dockerService: { getSnapshot: mockGetSnapshot },
+}));
+vi.mock('@/lib/session', () => ({
+  getSession: mockGetSession,
 }));
 vi.mock('@/lib/logger', () => ({
   createLogger: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }),
@@ -21,6 +25,7 @@ function makeContext(containerId: string) {
 describe('GET /api/modules/docker/[containerId]', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockGetSession.mockResolvedValue({ _id: 'user-1', name: 'Demo' });
   });
 
   it('returns container when found', async () => {

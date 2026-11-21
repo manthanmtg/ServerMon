@@ -46,29 +46,29 @@ describe('passkey-utils', () => {
     it('should use the public forwarded host behind a reverse proxy', () => {
       const req = makeRequest({
         host: '127.0.0.1:8912',
-        'x-forwarded-host': 'orion-servermon.ultron.example',
+        'x-forwarded-host': 'node-servermon.hub.example',
         'x-forwarded-proto': 'https',
       });
-      expect(getOrigin(req)).toBe('https://orion-servermon.ultron.example');
+      expect(getOrigin(req)).toBe('https://node-servermon.hub.example');
     });
 
     it('should use the browser origin header when present', () => {
       const req = makeRequest({
         host: '127.0.0.1:8912',
-        origin: 'https://orion-servermon.ultron.example',
+        origin: 'https://node-servermon.hub.example',
         'x-forwarded-host': 'internal.local',
         'x-forwarded-proto': 'http',
       });
-      expect(getOrigin(req)).toBe('https://orion-servermon.ultron.example');
+      expect(getOrigin(req)).toBe('https://node-servermon.hub.example');
     });
 
     it('should handle comma-separated forwarded header values', () => {
       const req = makeRequest({
         host: '127.0.0.1:8912',
-        'x-forwarded-host': 'orion-servermon.ultron.example, 127.0.0.1:8912',
+        'x-forwarded-host': 'node-servermon.hub.example, 127.0.0.1:8912',
         'x-forwarded-proto': 'https, http',
       });
-      expect(getOrigin(req)).toBe('https://orion-servermon.ultron.example');
+      expect(getOrigin(req)).toBe('https://node-servermon.hub.example');
     });
 
     it('should default to http when x-forwarded-proto is absent and NODE_ENV is not production', () => {
@@ -97,11 +97,50 @@ describe('passkey-utils', () => {
       expect(getOrigin(req)).toBe('http://dev.example.com');
     });
 
+    it('should normalize uppercase x-forwarded-proto values', () => {
+      const req = makeRequest({ host: 'dev.example.com', 'x-forwarded-proto': 'HTTPS' });
+      expect(getOrigin(req)).toBe('https://dev.example.com');
+    });
+
+    it('should normalize uppercase forwarded host values', () => {
+      const req = makeRequest({
+        host: '127.0.0.1:8912',
+        'x-forwarded-host': 'Node-ServerMon.Hub.Example',
+        'x-forwarded-proto': 'https',
+      });
+      expect(getOrigin(req)).toBe('https://node-servermon.hub.example');
+    });
+
+    it('should ignore empty forwarded host entries before falling back to host', () => {
+      const req = makeRequest({
+        host: 'dev.example.com',
+        'x-forwarded-host': ' , proxy.internal',
+        'x-forwarded-proto': 'https',
+      });
+      expect(getOrigin(req)).toBe('https://dev.example.com');
+    });
+
     it('should prefer WEBAUTHN_ORIGIN when configured', () => {
       vi.stubEnv('WEBAUTHN_ORIGIN', 'https://configured.example/path');
 
       const req = makeRequest({ host: 'dev.example.com', 'x-forwarded-proto': 'http' });
       expect(getOrigin(req)).toBe('https://configured.example');
+    });
+
+    it('should use the first configured WEBAUTHN_ORIGIN value', () => {
+      vi.stubEnv('WEBAUTHN_ORIGIN', 'https://configured.example, https://fallback.example');
+
+      const req = makeRequest({ host: 'dev.example.com', 'x-forwarded-proto': 'http' });
+      expect(getOrigin(req)).toBe('https://configured.example');
+    });
+
+    it('should fall back to forwarded host if origin header is an invalid URL', () => {
+      const req = makeRequest({
+        origin: 'not-a-valid-url',
+        host: 'dev.example.com',
+        'x-forwarded-proto': 'http',
+      });
+      expect(getOrigin(req)).toBe('http://dev.example.com');
     });
   });
 
@@ -130,27 +169,56 @@ describe('passkey-utils', () => {
       expect(getRPID('192.168.1.1')).toBe('192.168.1.1');
     });
 
+    it('should correctly parse IPv6 bracketed address with port', () => {
+      expect(getRPID('[2001:db8::1]:8080')).toBe('2001:db8::1');
+    });
+
+    it('should correctly parse IPv6 bracketed address without port', () => {
+      expect(getRPID('[2001:db8::1]')).toBe('2001:db8::1');
+    });
+
+    it('should handle unbracketed IPv6 addresses by not splitting on colon if multiple exist', () => {
+      expect(getRPID('2001:db8::1')).toBe('2001:db8::1');
+    });
+
+    it('should strip scheme prefix from host if provided', () => {
+      expect(getRPID('https://example.com:8443')).toBe('example.com');
+      expect(getRPID('http://192.168.1.1:80')).toBe('192.168.1.1');
+    });
+
+    it('should strip protocol via regex fallback if URL parsing fails on host', () => {
+      // URL parsing throws if IPv6 address is missing brackets in the authority
+      expect(getRPID('http://2001:db8::1')).toBe('2001:db8::1');
+    });
+
     it('should use x-forwarded-host when a request is provided', () => {
       const req = makeRequest({
         host: '127.0.0.1:8912',
-        'x-forwarded-host': 'orion-servermon.ultron.example',
+        'x-forwarded-host': 'node-servermon.hub.example',
       });
-      expect(getRPID(req)).toBe('orion-servermon.ultron.example');
+      expect(getRPID(req)).toBe('node-servermon.hub.example');
     });
 
     it('should handle comma-separated x-forwarded-host values', () => {
       const req = makeRequest({
         host: '127.0.0.1:8912',
-        'x-forwarded-host': 'orion-servermon.ultron.example, 127.0.0.1:8912',
+        'x-forwarded-host': 'node-servermon.hub.example, 127.0.0.1:8912',
       });
-      expect(getRPID(req)).toBe('orion-servermon.ultron.example');
+      expect(getRPID(req)).toBe('node-servermon.hub.example');
     });
 
     it('should prefer WEBAUTHN_RP_ID when configured', () => {
-      vi.stubEnv('WEBAUTHN_RP_ID', 'ultron.example');
+      vi.stubEnv('WEBAUTHN_RP_ID', 'hub.example');
 
-      const req = makeRequest({ host: 'orion-servermon.ultron.example' });
-      expect(getRPID(req)).toBe('ultron.example');
+      const req = makeRequest({ host: 'node-servermon.hub.example' });
+      expect(getRPID(req)).toBe('hub.example');
+    });
+
+    it('should normalize configured WEBAUTHN_RP_ID values', () => {
+      vi.stubEnv('WEBAUTHN_RP_ID', 'https://Hub.Example:8443/path');
+
+      const req = makeRequest({ host: 'node-servermon.hub.example' });
+      expect(getRPID(req)).toBe('hub.example');
     });
   });
 

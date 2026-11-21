@@ -41,6 +41,7 @@ Look for one small prompt-suite issue:
 - A prompt has weak no-op guidance and may keep running when the target area is already healthy.
 - A prompt is missing repo-specific constraints from `CLAUDE.md`, `AGENTS.md`, or `README.md`.
 - `random_selector.md` includes a prompt that should not be in the normal autonomous pool.
+- `prompts_metadata.json` has a prompt marked as `autonomousSafe: true` that should be `false`, or vice versa.
 
 ### 3. Make One Small Prompt Improvement
 
@@ -69,6 +70,7 @@ Include the prompt issue, evidence, proposed fix, and why you held back. Then st
 
 ### 5. Verify
 
+- Run `pnpm format:check`.
 - Run `git diff --check`.
 - If markdown formatting or trailing whitespace problems are introduced, fix them.
 
@@ -76,3 +78,7 @@ Include the prompt issue, evidence, proposed fix, and why you held back. Then st
 
 - Use a lowercase, factual commit message, for example `chore(prompts): narrow stale maintenance prompt`.
 - Include `prompts_optimizer.md` in the commit body for traceability.
+
+## Issue Management
+
+- If an issue from `issues_to_look/` is resolved or found to be resolved, move it to the `issues_to_look/resolved/` directory to keep things clean.

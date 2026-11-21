@@ -15,12 +15,13 @@ Elevate the UI/UX of **one specific ServerMon component or module** per run to a
 ## Scope
 
 - Pick **one** component or module at random.
-- Make **one** visual improvement (e.g., add an animation, improve a shadow, fix typography, add a gradient). Don't redesign the whole thing.
+- Make **one** visual improvement (e.g., add an animation, improve a shadow, tighten spacing, fix typography). Don't redesign the whole thing.
 
 ## Aesthetic Checklist
 
 1.  **Design Tokens**: Use semantic CSS variables and existing component classes from `src/app/globals.css`; do not introduce hardcoded Tailwind color families or one-off hex values.
 2.  **Surface Quality**: Improve hierarchy with existing border, shadow, background, and spacing patterns already used nearby.
+    Avoid decorative gradients unless the surrounding component already uses the same token-driven pattern.
 3.  **Animations**: Use existing motion patterns or `framer-motion` only where motion adds clear feedback. Specifically:
     - `layout` prop for list changes.
     - `AnimatePresence` for entries/exits.

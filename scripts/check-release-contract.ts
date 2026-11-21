@@ -1,0 +1,519 @@
+import { execFileSync } from 'node:child_process';
+import { existsSync, readFileSync } from 'node:fs';
+import path from 'node:path';
+
+const root = process.cwd();
+const failures: string[] = [];
+
+function read(relativePath: string): string {
+  const absolutePath = path.join(root, relativePath);
+  if (!existsSync(absolutePath)) {
+    failures.push(`${relativePath}: file is missing`);
+    return '';
+  }
+  return readFileSync(absolutePath, 'utf8');
+}
+
+function requireContains(file: string, needle: string, reason: string): void {
+  const text = read(file);
+  if (!text.includes(needle)) {
+    failures.push(`${file}: missing ${JSON.stringify(needle)} (${reason})`);
+  }
+}
+
+function requireNotContains(file: string, needle: string, reason: string): void {
+  const text = read(file);
+  if (text.includes(needle)) {
+    failures.push(`${file}: unexpected ${JSON.stringify(needle)} (${reason})`);
+  }
+}
+
+function requireRegex(file: string, regex: RegExp, reason: string): void {
+  const text = read(file);
+  if (!regex.test(text)) {
+    failures.push(`${file}: failed ${regex} (${reason})`);
+  }
+}
+
+function requireBefore(file: string, first: string, second: string, reason: string): void {
+  const text = read(file);
+  const firstIndex = text.lastIndexOf(first);
+  const secondIndex = text.indexOf(second);
+  if (firstIndex < 0 || secondIndex < 0 || firstIndex >= secondIndex) {
+    failures.push(
+      `${file}: expected ${JSON.stringify(first)} before ${JSON.stringify(second)} (${reason})`
+    );
+  }
+}
+
+function requireBashSyntax(file: string): void {
+  try {
+    execFileSync('bash', ['-n', path.join(root, file)], { stdio: 'pipe' });
+  } catch (error) {
+    const detail =
+      error && typeof error === 'object' && 'stderr' in error
+        ? String((error as { stderr?: unknown }).stderr)
+        : String(error);
+    failures.push(`${file}: bash -n failed\n${detail}`);
+  }
+}
+
+function requireWorkflowPin(file: string): void {
+  const text = read(file);
+  const unpinned = [...text.matchAll(/uses:\s*([^@\s]+\/[^@\s]+)@([^\s#]+)/g)].filter(
+    ([, , ref]) => !/^[a-f0-9]{40}$/.test(ref)
+  );
+  for (const [, action, ref] of unpinned) {
+    failures.push(`${file}: action ${action}@${ref} is not pinned to a commit SHA`);
+  }
+}
+
+function requireWorkflowRunnerPin(file: string): void {
+  const text = read(file);
+  if (text.includes('runs-on: ubuntu-latest')) {
+    failures.push(`${file}: use ubuntu-24.04 instead of ubuntu-latest`);
+  }
+}
+
+function checkReleaseWorkflow(): void {
+  const file = '.github/workflows/release.yml';
+  requireContains(file, "tags:\n      - 'v*'", 'release must trigger on v* tags only');
+  requireNotContains(
+    file,
+    'workflow_dispatch',
+    'manual release publishing is intentionally disabled'
+  );
+  requireContains(file, 'pnpm check:release-contract', 'release must validate installer contract');
+  requireContains(file, 'fail-fast: false', 'native build matrix should finish all targets');
+  for (const target of ['linux-x64', 'linux-arm64', 'darwin-x64', 'darwin-arm64']) {
+    const [platform, arch] = target.split('-');
+    requireContains(file, `platform: ${platform}`, `release matrix must include ${target}`);
+    requireContains(file, `arch: ${arch}`, `release matrix must include ${target}`);
+    requireContains(file, `servermon-hub-$TARGET.tar.gz`, 'hub artifact naming must stay stable');
+    requireContains(
+      file,
+      `servermon-agent-$TARGET.tar.gz`,
+      'agent artifact naming must stay stable'
+    );
+  }
+  requireContains(file, 'sha256sum *.tar.gz > SHA256SUMS', 'release must publish checksums');
+  requireContains(file, 'release-assets/SHA256SUMS', 'release must upload checksum manifest');
+}
+
+function checkInstallerContract(): void {
+  const installer = 'src/lib/fleet/install-script.ts';
+  requireContains(
+    installer,
+    'INSTALL_MODE="release"',
+    'fleet curl installer must default to release artifacts'
+  );
+  requireContains(installer, '--release [latest|vX.Y.Z]', 'release mode must be user-visible');
+  requireContains(installer, '--version vX.Y.Z', 'pinned release installs must stay supported');
+  requireContains(
+    installer,
+    '--release-base-url URL',
+    'release mirror installs must stay supported'
+  );
+  requireContains(installer, '--build-from-source', 'source install fallback must stay supported');
+  requireContains(installer, '--source-ref REF', 'source ref override must stay supported');
+  requireContains(
+    installer,
+    'servermon-agent-$PLATFORM_NAME-$ARCH_NAME.tar.gz',
+    'agent release asset name'
+  );
+  requireContains(installer, 'SHA256SUMS', 'agent release installs must verify checksums');
+  requireContains(installer, 'sha256sum -c', 'Linux checksum verification required');
+  requireContains(installer, 'shasum -a 256 -c', 'macOS checksum verification required');
+  requireContains(
+    installer,
+    'SERVERMON_AGENT_INSTALL_MODE=$mode',
+    'agent install metadata must preserve mode'
+  );
+  requireContains(
+    installer,
+    'SERVERMON_AGENT_VERSION_TARGET=$VERSION_TARGET',
+    'agent install metadata must preserve version target'
+  );
+  requireContains(
+    installer,
+    'SERVERMON_AGENT_RELEASE_BASE_URL=$RELEASE_BASE_URL',
+    'agent install metadata must preserve release base URL'
+  );
+  requireContains(
+    installer,
+    'SERVERMON_AGENT_SOURCE_REF=$SOURCE_REF',
+    'agent install metadata must preserve source ref'
+  );
+}
+
+function checkAgentUpdateContract(): void {
+  const updater = 'src/lib/fleet/agentUpdateCommand.ts';
+  requireContains(
+    updater,
+    "export type AgentUpdateMode = 'auto' | 'release' | 'source'",
+    'agent update modes'
+  );
+  requireContains(
+    updater,
+    'SERVERMON_AGENT_INSTALL_MODE',
+    'agent updater must read install metadata'
+  );
+  requireContains(
+    updater,
+    'servermon-agent-$PLATFORM_NAME-$ARCH_NAME.tar.gz',
+    'agent updater release asset name'
+  );
+  requireContains(updater, 'SHA256SUMS', 'agent updater must verify checksums');
+  requireContains(updater, 'install_from_release', 'agent updater release path');
+  requireContains(updater, 'install_from_source', 'agent updater source path');
+  requireContains(
+    updater,
+    'systemctl restart ${serviceName}',
+    'agent updater must restart service'
+  );
+  requireContains(
+    'src/lib/fleet/agentClient.ts',
+    "'agent.update.log'",
+    'agent update output must be observable'
+  );
+  requireContains(
+    'src/lib/fleet/agentClient.ts',
+    "stdio: ['ignore', 'pipe', 'pipe']",
+    'agent update stdout/stderr must be captured'
+  );
+}
+
+function checkServerMonInstallUpdateContract(): void {
+  const command = 'src/lib/fleet/servermonAgentCommands.ts';
+  requireContains(
+    command,
+    'servermon-hub-$PLATFORM_NAME-$ARCH_NAME.tar.gz',
+    'hub release asset name'
+  );
+  requireContains(command, 'SHA256SUMS', 'hub release install must verify checksums');
+  requireContains(
+    command,
+    'run_installer release --prebuilt',
+    'hub release install must skip local build'
+  );
+  requireContains(command, 'install_from_source', 'hub source fallback must stay supported');
+
+  const install = 'scripts/install.sh';
+  requireBashSyntax(install);
+  requireContains(install, '--prebuilt', 'prebuilt installer flag must exist');
+  requireContains(
+    install,
+    'Prebuilt application detected; skipping pnpm install and build',
+    'prebuilt must skip build'
+  );
+  requireContains(
+    install,
+    'SERVERMON_INSTALL_MODE=${SERVERMON_INSTALL_MODE}',
+    'hub install metadata must preserve mode'
+  );
+  requireContains(
+    install,
+    'SERVERMON_VERSION_TARGET=${SERVERMON_VERSION_TARGET}',
+    'hub install metadata must preserve version target'
+  );
+  requireContains(
+    install,
+    'SERVERMON_RELEASE_BASE_URL=${SERVERMON_RELEASE_BASE_URL}',
+    'hub install metadata must preserve release base URL'
+  );
+  requireContains(
+    install,
+    'SERVERMON_SOURCE_REF=${SERVERMON_SOURCE_REF}',
+    'hub install metadata must preserve source ref'
+  );
+
+  const updater = 'scripts/update-servermon.sh';
+  requireBashSyntax(updater);
+  requireContains(updater, 'SERVERMON_INSTALL_MODE', 'hub updater must read install mode');
+  requireContains(updater, 'run_release_update', 'hub updater release path must exist');
+  requireContains(
+    updater,
+    'servermon-hub-${PLATFORM_NAME}-${ARCH_NAME}.tar.gz',
+    'hub updater release asset name'
+  );
+  requireContains(updater, 'SHA256SUMS', 'hub updater must verify checksums');
+  requireContains(
+    updater,
+    '--prebuilt --use-existing-values',
+    'release updater must use prebuilt upgrade path'
+  );
+}
+
+function checkCiHardening(): void {
+  for (const file of [
+    '.github/workflows/build.yml',
+    '.github/workflows/test.yml',
+    '.github/workflows/quality.yml',
+    '.github/workflows/release.yml',
+    '.github/workflows/auto-tag.yml',
+  ]) {
+    requireWorkflowPin(file);
+    requireWorkflowRunnerPin(file);
+  }
+  requireContains(
+    '.github/workflows/quality.yml',
+    'pnpm check:release-contract',
+    'PR quality gate must include release contract'
+  );
+  requireContains(
+    'package.json',
+    '"check:release-contract"',
+    'package script must expose release contract check'
+  );
+}
+
+function checkReleaseHelperContract(): void {
+  const script = 'scripts/release.sh';
+  requireBashSyntax(script);
+  requireContains(
+    'package.json',
+    '"release": "./scripts/release.sh"',
+    'package script must expose release helper'
+  );
+  requireContains(
+    script,
+    'Usage: ./scripts/release.sh [major|minor|patch|VERSION]',
+    'release helper must document SemVer bump args'
+  );
+  requireContains(
+    script,
+    'remote default branch, fallback: main',
+    'release helper must default to the repository default branch'
+  );
+  requireContains(
+    script,
+    'refs/remotes/$REMOTE/HEAD',
+    'release helper must discover the repository default branch'
+  );
+  requireContains(
+    script,
+    'git commit -m "chore: release $TAG"',
+    'release helper must commit package version bump'
+  );
+  requireContains(
+    script,
+    'git tag -a "$TAG" -m "$TAG"',
+    'release helper must create annotated release tag'
+  );
+  requireContains(
+    script,
+    'git push "$REMOTE" "$BRANCH"',
+    'release helper must push default branch'
+  );
+  requireContains(script, 'git push "$REMOTE" "$TAG"', 'release helper must push release tag');
+}
+
+function checkAppsWorkerContract(): void {
+  requireContains(
+    'package.json',
+    '"apps:worker": "NODE_ENV=production tsx src/workers/apps-worker.ts"',
+    'package script must expose Apps worker entry point'
+  );
+  requireContains(
+    'src/workers/apps-worker.ts',
+    'startAppsWorkerRunner',
+    'Apps worker entry point must start the queue runner'
+  );
+  requireContains(
+    'scripts/servermon-apps-worker.service',
+    'Description=ServerMon Apps deployment worker',
+    'Apps worker systemd unit must be packaged'
+  );
+  requireContains(
+    'scripts/servermon-apps-worker.service',
+    'ExecStart=/usr/local/bin/pnpm apps:worker',
+    'Apps worker systemd unit must run the package script'
+  );
+
+  const install = 'scripts/install.sh';
+  requireContains(
+    install,
+    'APPS_WORKER_SERVICE_NAME="${SERVICE_NAME}-apps-worker"',
+    'installer must derive the Apps worker service name'
+  );
+  requireContains(
+    install,
+    'systemctl stop "$APPS_WORKER_SERVICE_NAME"',
+    'installer must stop the Apps worker before release switching and uninstall'
+  );
+  requireContains(
+    install,
+    'systemctl cat "$APPS_WORKER_SERVICE_NAME"',
+    'installer must detect an installed worker even when it is not active'
+  );
+  requireContains(
+    install,
+    'if ! systemctl stop "$APPS_WORKER_SERVICE_NAME"; then',
+    'installer must fail when the worker cannot be stopped safely'
+  );
+  requireContains(
+    install,
+    'Refusing to switch releases while the Apps worker is still active',
+    'installer must abort before relinking if the worker remains active'
+  );
+  requireBefore(
+    install,
+    'Refusing to switch releases while the Apps worker is still active',
+    'ln -sfn "$NEW_RELEASE_DIR" "$INSTALL_DIR"',
+    'worker stop verification must precede the stable release switch'
+  );
+  requireContains(
+    install,
+    'rm -f "/etc/systemd/system/${APPS_WORKER_SERVICE_NAME}.service"',
+    'uninstall must remove the Apps worker unit'
+  );
+  requireContains(
+    install,
+    'cat > "/etc/systemd/system/${APPS_WORKER_SERVICE_NAME}.service"',
+    'installer must render the Apps worker unit'
+  );
+  requireContains(
+    install,
+    'ExecStart=${PNPM_PATH} apps:worker',
+    'generated Apps worker unit must use the resolved pnpm path'
+  );
+  requireContains(
+    install,
+    'User=${SERVICE_USER}',
+    'generated Apps worker unit must use the resolved service user'
+  );
+  requireContains(
+    install,
+    'WorkingDirectory=${INSTALL_DIR}',
+    'generated Apps worker unit must use the stable install path'
+  );
+  requireContains(
+    install,
+    'EnvironmentFile=${CONFIG_DIR}/env',
+    'generated Apps worker unit must use the resolved environment file'
+  );
+  requireContains(
+    install,
+    'systemctl enable "$APPS_WORKER_SERVICE_NAME"',
+    'installer must enable the Apps worker'
+  );
+  requireContains(
+    install,
+    'systemctl start "$APPS_WORKER_SERVICE_NAME"',
+    'installer must start the Apps worker'
+  );
+  requireContains(
+    install,
+    'systemctl is-active --quiet "$APPS_WORKER_SERVICE_NAME"',
+    'installer must verify the Apps worker is active'
+  );
+  requireBefore(
+    install,
+    'systemctl is-active --quiet "$APPS_WORKER_SERVICE_NAME"',
+    'OLD_RELEASES=',
+    'worker verification must happen before old-release cleanup'
+  );
+}
+
+function checkScriptRunnerContract(): void {
+  const install = 'scripts/install.sh';
+  requireBashSyntax('scripts/servermon-script-control.sh');
+  requireBashSyntax('scripts/servermon-python-env-control.sh');
+  for (const script of ['servermon-python-env-control.sh', 'servermon-python-env-build.py']) {
+    requireBefore(
+      install,
+      `scripts/${script}`,
+      'chown -R "${SERVICE_USER}:${SERVICE_USER}" "$NEW_RELEASE_DIR"',
+      'privileged Python build helpers must be staged before the release is handed to the service user'
+    );
+  }
+  requireBefore(
+    install,
+    'sha256sum -c -',
+    'tar -xOzf "$UV_ARCHIVE"',
+    'installer must verify the pinned uv archive before extracting it'
+  );
+  requireContains(
+    install,
+    '/usr/local/libexec/servermon-uv',
+    'installer must publish the checked uv executable for the Python worker'
+  );
+  requireContains(
+    'src/workers/script-runner-worker.ts',
+    'runPythonEnvironments(controller.signal)',
+    'Script Runner worker must supervise Python environment operations'
+  );
+  for (const script of ['servermon-script-control.sh', 'servermon-script-execute.py']) {
+    requireContains(
+      install,
+      `scripts/${script}`,
+      'installer must install the Script Runner launcher'
+    );
+  }
+  requireBefore(
+    install,
+    '${SOURCE_DIR}/scripts/servermon-script-control.sh',
+    'chown -R "${SERVICE_USER}:${SERVICE_USER}" "$NEW_RELEASE_DIR"',
+    'privileged launcher staging must precede handing the release to the service user'
+  );
+  requireContains(
+    'scripts/servermon-script-runner-worker.service',
+    'src/workers/script-runner-worker.ts',
+    'Script Runner service must start the worker entry point'
+  );
+  requireBefore(
+    install,
+    'if ! systemctl stop "$SCRIPT_WORKER_SERVICE_NAME"; then',
+    'ln -sfn "$NEW_RELEASE_DIR" "$INSTALL_DIR"',
+    'Script Runner worker must stop before the release switch'
+  );
+  requireBefore(
+    install,
+    'systemctl is-active --quiet "$SCRIPT_WORKER_SERVICE_NAME"',
+    'OLD_RELEASES=',
+    'Script Runner service must be checked before old-release cleanup'
+  );
+}
+
+function checkTestsCoverContracts(): void {
+  requireContains(
+    'src/lib/fleet/install-script.test.ts',
+    'SHA256SUMS',
+    'fleet installer checksum test'
+  );
+  requireContains(
+    'src/lib/fleet/agentUpdateCommand.test.ts',
+    'SHA256SUMS',
+    'agent updater checksum test'
+  );
+  requireContains(
+    'src/lib/fleet/servermonAgentCommands.test.ts',
+    'servermon-hub-$PLATFORM_NAME-$ARCH_NAME.tar.gz',
+    'hub release install test'
+  );
+  requireRegex(
+    'src/modules/fleet/ui/details/NodeServerMonPanel.test.tsx',
+    /installMode:\s*'release'[\s\S]*releaseBaseUrl:/,
+    'UI must test configurable release install options'
+  );
+}
+
+checkReleaseWorkflow();
+checkInstallerContract();
+checkAgentUpdateContract();
+checkServerMonInstallUpdateContract();
+checkCiHardening();
+checkReleaseHelperContract();
+checkAppsWorkerContract();
+checkScriptRunnerContract();
+checkTestsCoverContracts();
+
+if (failures.length > 0) {
+  console.error('Release contract check failed:');
+  for (const failure of failures) {
+    console.error(`- ${failure}`);
+  }
+  process.exit(1);
+}
+
+console.log('Release contract check passed.');

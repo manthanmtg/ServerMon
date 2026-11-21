@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useState, useRef } from 'react';
+import React, { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import {
   X,
   Clock,
@@ -16,14 +16,15 @@ import {
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { UpdateRunStatus } from '@/types/updates';
+import type { UpdateRunStatus, UpdateRunType } from '@/types/updates';
 import { cn, formatDuration } from '@/lib/utils';
 
 interface UpdateHistoryModalProps {
   onClose: () => void;
+  type?: Extract<UpdateRunType, 'servermon' | 'agent'>;
 }
 
-export default function UpdateHistoryModal({ onClose }: UpdateHistoryModalProps) {
+export default function UpdateHistoryModal({ onClose, type }: UpdateHistoryModalProps) {
   const [runs, setRuns] = useState<UpdateRunStatus[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedRun, setSelectedRun] = useState<UpdateRunStatus | null>(null);
@@ -42,20 +43,27 @@ export default function UpdateHistoryModal({ onClose }: UpdateHistoryModalProps)
     return () => clearInterval(interval);
   }, [shouldTrackElapsedTime]);
 
-  async function loadRuns(isSilent = false) {
-    if (!isSilent) setLoading(true);
-    try {
-      const res = await fetch('/api/system/update/history');
-      if (res.ok) {
-        const data = await res.json();
-        setRuns(data);
+  const loadRuns = useCallback(
+    async (isSilent = false) => {
+      if (!isSilent) setLoading(true);
+      try {
+        const res = await fetch(
+          type
+            ? `/api/system/update/history?type=${encodeURIComponent(type)}`
+            : '/api/system/update/history'
+        );
+        if (res.ok) {
+          const data = await res.json();
+          setRuns(data);
+        }
+      } finally {
+        if (!isSilent) setLoading(false);
       }
-    } finally {
-      if (!isSilent) setLoading(false);
-    }
-  }
+    },
+    [type]
+  );
 
-  async function loadDetails(runId: string, isSilent = false) {
+  const loadDetails = useCallback(async (runId: string, isSilent = false) => {
     if (!isSilent) setDetailsLoading(true);
     try {
       const res = await fetch(`/api/system/update/history/${runId}`);
@@ -66,7 +74,7 @@ export default function UpdateHistoryModal({ onClose }: UpdateHistoryModalProps)
     } finally {
       if (!isSilent) setDetailsLoading(false);
     }
-  }
+  }, []);
 
   useEffect(() => {
     loadRuns();
@@ -81,7 +89,7 @@ export default function UpdateHistoryModal({ onClose }: UpdateHistoryModalProps)
       if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
       clearInterval(listPolling);
     };
-  }, [hasRunningRun]);
+  }, [hasRunningRun, loadRuns]);
 
   useEffect(() => {
     if (selectedRun?.status === 'running') {
@@ -96,7 +104,7 @@ export default function UpdateHistoryModal({ onClose }: UpdateHistoryModalProps)
         pollingIntervalRef.current = null;
       }
     }
-  }, [selectedRun?.status, selectedRun?.runId]);
+  }, [loadDetails, selectedRun?.status, selectedRun?.runId]);
 
   useEffect(() => {
     if (autoScroll && logContainerRef.current) {
@@ -104,23 +112,12 @@ export default function UpdateHistoryModal({ onClose }: UpdateHistoryModalProps)
     }
   }, [selectedRun?.logContent, autoScroll]);
 
-  const StatusIcon = ({ status }: { status: UpdateRunStatus['status'] }) => {
-    switch (status) {
-      case 'completed':
-        return <CheckCircle2 className="w-5 h-5 text-success" />;
-      case 'failed':
-        return <XCircle className="w-5 h-5 text-destructive" />;
-      case 'running':
-        return <LoaderCircle className="w-5 h-5 text-warning animate-spin" />;
-      default:
-        return <AlertCircle className="w-5 h-5 text-muted-foreground" />;
-    }
-  };
-
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 lg:p-8">
-      <div
-        className="absolute inset-0 bg-background/60 backdrop-blur-sm transition-all duration-500"
+      <button
+        type="button"
+        aria-label="Close update history"
+        className="absolute inset-0 bg-background/60 backdrop-blur-sm transition-all duration-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
         onClick={onClose}
       />
 
@@ -133,7 +130,8 @@ export default function UpdateHistoryModal({ onClose }: UpdateHistoryModalProps)
                 variant="ghost"
                 size="sm"
                 onClick={() => setSelectedRun(null)}
-                className="h-10 w-10 p-0 rounded-2xl hover:bg-white/10 transition-all active:scale-90"
+                aria-label="Back to update history list"
+                className="h-11 w-11 min-h-[44px] min-w-[44px] sm:h-10 sm:w-10 p-0 rounded-2xl hover:bg-white/10 transition-all active:scale-90"
               >
                 <ArrowLeft className="w-5 h-5" />
               </Button>
@@ -143,18 +141,19 @@ export default function UpdateHistoryModal({ onClose }: UpdateHistoryModalProps)
             </div>
             <div>
               <h2 className="text-xl font-bold text-foreground tracking-tight sm:text-2xl">
-                {selectedRun ? 'Update Log' : 'Update History'}
+                {selectedRun ? 'Update Log' : getHistoryTitle(type)}
               </h2>
               <p className="text-[10px] text-muted-foreground uppercase tracking-[0.25em] font-black opacity-50">
-                {selectedRun ? `RUN ID: ${selectedRun.runId}` : 'System Maintenance'}
+                {selectedRun ? `RUN ID: ${selectedRun.runId}` : getHistorySubtitle(type)}
               </p>
             </div>
           </div>
           <Button
             variant="ghost"
             size="sm"
+            aria-label="Close modal"
             onClick={onClose}
-            className="h-10 w-10 p-0 rounded-2xl border border-white/5 hover:bg-destructive/10 hover:text-destructive hover:border-destructive/20 transition-all active:scale-90"
+            className="h-11 w-11 min-h-[44px] min-w-[44px] sm:h-10 sm:w-10 p-0 rounded-2xl border border-white/5 hover:bg-destructive/10 hover:text-destructive hover:border-destructive/20 transition-all active:scale-90"
           >
             <X className="w-5 h-5" />
           </Button>
@@ -202,6 +201,7 @@ export default function UpdateHistoryModal({ onClose }: UpdateHistoryModalProps)
                 <div className="flex items-center gap-4 ml-auto">
                   <button
                     onClick={() => setAutoScroll(!autoScroll)}
+                    aria-pressed={autoScroll}
                     className={cn(
                       'flex items-center gap-2.5 px-3.5 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border',
                       autoScroll
@@ -287,9 +287,9 @@ export default function UpdateHistoryModal({ onClose }: UpdateHistoryModalProps)
                       key={run.runId}
                       onClick={() => loadDetails(run.runId)}
                       style={{ animationDelay: `${index * 50}ms` }}
-                      className="w-full flex items-center justify-between p-6 sm:px-8 rounded-[2.5rem] bg-white/[0.03] hover:bg-white/[0.06] border border-white/5 hover:border-white/10 transition-all group relative overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-500 active:scale-[0.98]"
+                      className="w-full flex flex-col items-stretch justify-between gap-4 p-5 sm:flex-row sm:items-center sm:px-8 sm:py-6 rounded-[2.5rem] bg-white/[0.03] hover:bg-white/[0.06] border border-white/5 hover:border-white/10 transition-all group relative overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-500 active:scale-[0.98]"
                     >
-                      <div className="flex items-center gap-6 sm:gap-8 relative z-10">
+                      <div className="flex min-w-0 items-center gap-4 sm:gap-8 relative z-10">
                         <div
                           className={cn(
                             'w-14 h-14 rounded-[1.25rem] flex items-center justify-center shrink-0 border transition-all duration-500 group-hover:scale-110 group-hover:rotate-3 shadow-xl',
@@ -302,10 +302,10 @@ export default function UpdateHistoryModal({ onClose }: UpdateHistoryModalProps)
                         >
                           <StatusIcon status={run.status} />
                         </div>
-                        <div className="text-left">
-                          <div className="flex items-center gap-4">
-                            <span className="text-lg font-bold text-foreground tracking-tight">
-                              System Update
+                        <div className="min-w-0 text-left">
+                          <div className="flex min-w-0 flex-wrap items-center gap-2 sm:gap-4">
+                            <span className="min-w-0 truncate text-lg font-bold text-foreground tracking-tight">
+                              {getRunTitle(run)}
                             </span>
                             <Badge
                               variant="outline"
@@ -358,7 +358,7 @@ export default function UpdateHistoryModal({ onClose }: UpdateHistoryModalProps)
                           </div>
                         </div>
                       </div>
-                      <div className="bg-primary/10 p-3 rounded-2xl opacity-0 group-hover:opacity-100 transition-all translate-x-4 group-hover:translate-x-0 relative z-10 shadow-2xl shadow-primary/30 border border-primary/20">
+                      <div className="self-end bg-primary/10 p-3 rounded-2xl opacity-0 group-hover:opacity-100 transition-all translate-x-4 group-hover:translate-x-0 relative z-10 shadow-2xl shadow-primary/30 border border-primary/20 sm:self-auto">
                         <ChevronRight className="w-6 h-6 text-primary" />
                       </div>
                     </button>
@@ -380,4 +380,37 @@ export default function UpdateHistoryModal({ onClose }: UpdateHistoryModalProps)
       </div>
     </div>
   );
+}
+
+function StatusIcon({ status }: { status: UpdateRunStatus['status'] }) {
+  switch (status) {
+    case 'completed':
+      return <CheckCircle2 className="w-5 h-5 text-success" />;
+    case 'failed':
+      return <XCircle className="w-5 h-5 text-destructive" />;
+    case 'running':
+      return <LoaderCircle className="w-5 h-5 text-warning animate-spin" />;
+    default:
+      return <AlertCircle className="w-5 h-5 text-muted-foreground" />;
+  }
+}
+
+function getHistoryTitle(type?: Extract<UpdateRunType, 'servermon' | 'agent'>): string {
+  if (type === 'servermon') return 'App Update History';
+  if (type === 'agent') return 'Agent Update History';
+  return 'Update History';
+}
+
+function getHistorySubtitle(type?: Extract<UpdateRunType, 'servermon' | 'agent'>): string {
+  if (type === 'servermon') return 'ServerMon App Maintenance';
+  if (type === 'agent') return 'ServerMon Agent Maintenance';
+  return 'System Maintenance';
+}
+
+function getRunTitle(run: UpdateRunStatus): string {
+  if (run.type === 'servermon') return 'ServerMon App Update';
+  if (run.type === 'agent') return 'ServerMon Agent Update';
+  if (run.type === 'packages') return 'System Package Update';
+  if (run.type === 'combined') return 'Combined Maintenance';
+  return 'System Update';
 }

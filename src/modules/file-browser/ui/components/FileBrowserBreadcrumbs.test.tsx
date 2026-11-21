@@ -98,4 +98,10 @@ describe('FileBrowserBreadcrumbs', () => {
     render(<FileBrowserBreadcrumbs segments={segments} onNavigate={onNavigate} />);
     expect(screen.getByText('…')).toBeDefined();
   });
+
+  it('marks the current breadcrumb for assistive technology', () => {
+    const segments = makeSegments(['/root', '/root/home', '/root/home/docs']);
+    render(<FileBrowserBreadcrumbs segments={segments} onNavigate={onNavigate} />);
+    expect(screen.getByRole('button', { current: 'page' })).toHaveTextContent('docs');
+  });
 });

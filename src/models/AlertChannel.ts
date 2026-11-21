@@ -2,10 +2,8 @@ import mongoose, { Schema, Document, Model } from 'mongoose';
 import { z } from 'zod';
 
 export const ALERT_CHANNEL_KINDS = ['webhook', 'slack', 'email'] as const;
-export type AlertChannelKind = (typeof ALERT_CHANNEL_KINDS)[number];
 
 export const ALERT_SEVERITIES = ['info', 'warn', 'error'] as const;
-export type AlertSeverity = (typeof ALERT_SEVERITIES)[number];
 
 export const AlertChannelZodSchema = z.object({
   name: z.string().min(1).max(120).trim(),

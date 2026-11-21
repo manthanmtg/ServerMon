@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ZodError } from 'zod';
-import type { Model } from 'mongoose';
 import { createLogger } from '@/lib/logger';
 import connectDB from '@/lib/db';
 import AccessPolicy, { AccessPolicyZodSchema } from '@/models/AccessPolicy';
@@ -48,7 +47,7 @@ export async function POST(req: NextRequest) {
 
     const created = await AccessPolicy.create(parsed);
 
-    await recordAudit(FleetLogEvent as unknown as Model<unknown>, {
+    await recordAudit(FleetLogEvent, {
       action: 'access_policy.create',
       actorUserId: session.user.username,
       metadata: { policyId: String(created._id), name: parsed.name },

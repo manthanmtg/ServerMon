@@ -1,5 +1,5 @@
 /** @vitest-environment node */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 const { mockConnectDB, mockFindById } = vi.hoisted(() => ({
   mockConnectDB: vi.fn().mockResolvedValue(undefined),
@@ -25,6 +25,11 @@ function makeRequest() {
 describe('GET /api/settings/branding/icon', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    delete process.env.SERVERMON_BRANDING_MOCK;
+  });
+
+  afterEach(() => {
+    delete process.env.SERVERMON_BRANDING_MOCK;
   });
 
   it('returns the uploaded branding logo as the favicon', async () => {
@@ -55,5 +60,15 @@ describe('GET /api/settings/branding/icon', () => {
 
     expect(response.status).toBe(307);
     expect(response.headers.get('location')).toBe('http://localhost/icon.png');
+  });
+
+  it('uses the default icon without DB access when branding mock is enabled', async () => {
+    process.env.SERVERMON_BRANDING_MOCK = '1';
+
+    const response = await GET(makeRequest());
+
+    expect(response.status).toBe(307);
+    expect(response.headers.get('location')).toBe('http://localhost/icon.png');
+    expect(mockConnectDB).not.toHaveBeenCalled();
   });
 });

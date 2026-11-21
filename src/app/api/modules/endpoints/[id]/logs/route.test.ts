@@ -2,12 +2,15 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { NextRequest } from 'next/server';
 
-const { mockFind, mockCountDocuments } = vi.hoisted(() => ({
+const { mockConnectDB, mockGetSession, mockFind, mockCountDocuments } = vi.hoisted(() => ({
+  mockConnectDB: vi.fn(),
+  mockGetSession: vi.fn(),
   mockFind: vi.fn(),
   mockCountDocuments: vi.fn(),
 }));
 
-vi.mock('@/lib/db', () => ({ default: vi.fn().mockResolvedValue(true) }));
+vi.mock('@/lib/db', () => ({ default: mockConnectDB }));
+vi.mock('@/lib/session', () => ({ getSession: mockGetSession }));
 vi.mock('@/lib/logger', () => ({
   createLogger: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }),
 }));
@@ -33,6 +36,8 @@ function makeRequest(params: Record<string, string> = {}): NextRequest {
 describe('GET /api/modules/endpoints/[id]/logs', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockConnectDB.mockResolvedValue(true);
+    mockGetSession.mockResolvedValue({ user: { role: 'admin' } });
     const chainable = {
       sort: vi.fn().mockReturnThis(),
       skip: vi.fn().mockReturnThis(),
@@ -41,6 +46,16 @@ describe('GET /api/modules/endpoints/[id]/logs', () => {
     };
     mockFind.mockReturnValue(chainable);
     mockCountDocuments.mockResolvedValue(0);
+  });
+
+  it('returns 401 without a session', async () => {
+    mockGetSession.mockResolvedValue(null);
+    const res = await GET(makeRequest(), makeContext('ep-1'));
+    expect(res.status).toBe(401);
+    const json = await res.json();
+    expect(json.error).toBe('Unauthorized');
+    expect(mockConnectDB).not.toHaveBeenCalled();
+    expect(mockFind).not.toHaveBeenCalled();
   });
 
   it('returns logs and total on success', async () => {

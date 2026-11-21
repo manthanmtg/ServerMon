@@ -92,16 +92,6 @@ export interface EndpointCreateRequest {
   responseHeaders?: Record<string, string>;
 }
 
-export interface EndpointUpdateRequest extends Partial<EndpointCreateRequest> {
-  _id?: string;
-}
-
-export interface EndpointTestRequest {
-  body?: string;
-  headers?: Record<string, string>;
-  queryParams?: Record<string, string>;
-}
-
 export interface EndpointTestResult {
   statusCode: number;
   headers: Record<string, string>;
@@ -139,17 +129,4 @@ export interface EndpointTemplate {
 export interface EndpointsListResponse {
   endpoints: CustomEndpointDTO[];
   total: number;
-}
-
-export interface EndpointsSummary {
-  total: number;
-  active: number;
-  errored: number;
-  totalHits: number;
-  topEndpoints: Array<{
-    _id: string;
-    name: string;
-    method: HttpMethod;
-    executionCount: number;
-  }>;
 }

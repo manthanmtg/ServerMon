@@ -184,6 +184,14 @@ describe('EndpointsPage', () => {
     });
   });
 
+  it('labels endpoint list search and refresh controls for assistive tech', async () => {
+    await renderPage();
+    await waitFor(() => screen.getByText('Test Endpoint'));
+
+    expect(screen.getByRole('searchbox', { name: 'Search endpoints' })).toBeDefined();
+    expect(screen.getByRole('button', { name: 'Refresh endpoints' })).toBeDefined();
+  });
+
   it('filters endpoints by method', async () => {
     await renderPage();
     // Use method filter buttons in the sidebar
@@ -242,6 +250,38 @@ describe('EndpointsPage', () => {
     const item = screen.getAllByTestId('endpoint-list-item')[0];
     await act(async () => {
       fireEvent.click(item);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('endpoint-detail')).toBeDefined();
+      expect(screen.getByPlaceholderText('Endpoint name...')).toHaveValue('Test Endpoint');
+    });
+  });
+
+  it('selects an endpoint without scrolling the page when Space is pressed', async () => {
+    await renderPage();
+    await waitFor(() => screen.getByText('Test Endpoint'));
+    const item = screen.getAllByTestId('endpoint-list-item')[0];
+    const event = new KeyboardEvent('keydown', { bubbles: true, cancelable: true, key: ' ' });
+
+    await act(async () => {
+      item.dispatchEvent(event);
+    });
+
+    expect(event.defaultPrevented).toBe(true);
+    await waitFor(() => {
+      expect(screen.getByTestId('endpoint-detail')).toBeDefined();
+      expect(screen.getByPlaceholderText('Endpoint name...')).toHaveValue('Test Endpoint');
+    });
+  });
+
+  it('selects an endpoint when Enter is pressed', async () => {
+    await renderPage();
+    await waitFor(() => screen.getByText('Test Endpoint'));
+    const item = screen.getAllByTestId('endpoint-list-item')[0];
+
+    await act(async () => {
+      fireEvent.keyDown(item, { key: 'Enter' });
     });
 
     await waitFor(() => {
@@ -351,6 +391,36 @@ describe('EndpointsPage', () => {
     });
   });
 
+  it('uses the shared output viewer for executable endpoint stdout', async () => {
+    await renderPage();
+    await waitFor(() => screen.getByText('Test Endpoint'));
+    await act(async () => {
+      fireEvent.click(screen.getAllByTestId('endpoint-list-item')[0]);
+    });
+
+    await waitFor(() => screen.getByTestId('endpoint-detail'));
+    vi.mocked(global.fetch).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        statusCode: 200,
+        headers: {},
+        body: '{"ok":true}',
+        duration: 18,
+        stdout: 'script started\nscript complete',
+      }),
+    } as Response);
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('test-endpoint-button'));
+    });
+
+    const output = await screen.findByRole('log', { name: 'Endpoint execution output' });
+    expect(output).toHaveTextContent('script started');
+    expect(screen.getByRole('button', { name: 'Wrap output' })).toBeDefined();
+    expect(screen.getByRole('button', { name: 'Copy logs' })).toBeDefined();
+    expect(screen.queryByRole('button', { name: 'Autoscroll output' })).toBeNull();
+  });
+
   it('manages methods and status codes', async () => {
     await renderPage();
     await waitFor(() => screen.getByText('Test Endpoint'));
@@ -430,7 +500,8 @@ describe('EndpointsPage', () => {
 
     await waitFor(() => {
       expect(global.fetch).toHaveBeenCalledWith(
-        expect.stringContaining('/api/modules/endpoints/ep-1/logs')
+        expect.stringContaining('/api/modules/endpoints/ep-1/logs'),
+        expect.any(Object)
       );
     });
   });

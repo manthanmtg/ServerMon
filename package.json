@@ -6,11 +6,15 @@
     "dev": "tsx watch src/server.ts",
     "build": "NODE_OPTIONS=--max-old-space-size=4096 next build",
     "start": "NODE_ENV=production tsx src/server.ts",
+    "scripts:worker": "NODE_ENV=production flock --no-fork --nonblock /var/lib/servermon/script-runner/worker.lock tsx src/workers/script-runner-worker.ts",
+    "apps:worker": "NODE_ENV=production tsx src/workers/apps-worker.ts",
     "lint": "eslint src/",
     "lint:fix": "eslint src/ --fix",
     "typecheck": "NODE_OPTIONS=--max-old-space-size=4096 tsc --noEmit",
     "clean": "rm -rf .next tsconfig.tsbuildinfo",
-    "check": "pnpm lint && pnpm typecheck && pnpm build && pnpm test",
+    "check:release-contract": "tsx scripts/check-release-contract.ts",
+    "check": "pnpm check:release-contract && pnpm lint && pnpm typecheck && pnpm build && pnpm test",
+    "release": "./scripts/release.sh",
     "test": "NODE_ENV=test vitest run",
     "test:watch": "NODE_ENV=test vitest",
     "test:ui": "NODE_ENV=test vitest --ui",
@@ -44,12 +48,10 @@
     "@codemirror/view": "^6.40.0",
     "@simplewebauthn/browser": "^13.3.0",
     "@simplewebauthn/server": "^13.3.0",
-    "@types/mongoose": "^5.11.96",
     "@types/qrcode": "^1.5.6",
     "@xterm/addon-fit": "^0.11.0",
     "@xterm/xterm": "^6.0.0",
     "argon2": "^0.44.0",
-    "codemirror": "^6.0.2",
     "cronstrue": "^3.14.0",
     "dotenv": "^16.4.7",
     "framer-motion": "^12.38.0",
@@ -92,7 +94,6 @@
     "prettier": "^3.8.1",
     "tailwindcss": "^4.2.1",
     "typescript": "^5",
-    "vitest": "^4.1.0",
-    "vitest-mock-extended": "^3.1.0"
+    "vitest": "^4.1.0"
   }
 }

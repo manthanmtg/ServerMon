@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, act, within } from '@testing-library/react';
-import DockerPage from './DockerPage';
+import DockerPage, { selectDockerContainer } from './DockerPage';
 import { ToastProvider } from '@/components/ui/toast';
 
 // Mock TerminalUI to avoid complex terminal dependencies in unit tests
@@ -144,6 +144,14 @@ const mockSnapshot = {
   timestamp: new Date().toISOString(),
 };
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((resolvePromise) => {
+    resolve = resolvePromise;
+  });
+  return { promise, resolve };
+}
+
 describe('DockerPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -153,8 +161,6 @@ describe('DockerPage', () => {
         json: async () => mockSnapshot,
       })
     );
-    // Mock window.confirm
-    vi.spyOn(window, 'confirm').mockReturnValue(true);
   });
 
   afterEach(() => {
@@ -172,6 +178,12 @@ describe('DockerPage', () => {
     });
     return result!;
   };
+
+  it('selects the requested container or falls back to the first container', () => {
+    expect(selectDockerContainer(mockSnapshot.containers, 'container-2')?.name).toBe('db-server');
+    expect(selectDockerContainer(mockSnapshot.containers, 'missing')?.name).toBe('web-server');
+    expect(selectDockerContainer([], 'missing')).toBeNull();
+  });
 
   it('renders loading state initially', async () => {
     let resolveFetch: (value: Response) => void;
@@ -241,7 +253,9 @@ describe('DockerPage', () => {
     await waitFor(() => screen.getByText('Docker operations center'));
 
     const tableContainer = screen.getByTestId('docker-containers-table');
-    const expandButton = within(tableContainer).getByRole('button', { name: /web-server/i });
+    const expandButton = within(tableContainer).getByRole('button', {
+      name: /Expand details for web-server/i,
+    });
     await act(async () => {
       fireEvent.click(expandButton);
     });
@@ -256,10 +270,13 @@ describe('DockerPage', () => {
 
   it('switches between Image/Volumes/Networks tabs', async () => {
     await renderPage();
-    await waitFor(() => screen.getByTestId('docker-assets'));
+    const assets = await waitFor(() => screen.getByTestId('docker-assets'));
 
     // Default is images
     expect(screen.getByTestId('docker-images-table')).toBeDefined();
+    expect(within(assets).getByRole('button', { name: /^images$/i }).className).toContain(
+      'min-h-[44px]'
+    );
 
     // Switch to volumes
     await act(async () => {
@@ -315,20 +332,26 @@ describe('DockerPage', () => {
     );
   });
 
-  it('triggers container action: remove', async () => {
+  it('requires an in-app confirmation before removing a container', async () => {
     await renderPage();
     await waitFor(() => screen.getByText('Docker operations center'));
 
     const tableContainer = screen.getByTestId('docker-containers-table');
-    const removeButtons = within(tableContainer)
-      .getAllByRole('button')
-      .filter((b) => b.querySelector('svg.lucide-trash2') || b.innerHTML.includes('lucide-trash2'));
-
-    await act(async () => {
-      fireEvent.click(removeButtons[0]);
+    const removeButton = within(tableContainer).getByRole('button', {
+      name: 'Remove container web-server',
     });
 
-    expect(window.confirm).toHaveBeenCalledWith('Are you sure you want to remove this container?');
+    await act(async () => {
+      fireEvent.click(removeButton);
+    });
+
+    expect(screen.getByRole('alertdialog')).toHaveTextContent('Remove container web-server?');
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Remove container' }));
+    });
+
     expect(global.fetch).toHaveBeenCalledWith(
       '/api/modules/docker/container-1/action',
       expect.objectContaining({
@@ -336,6 +359,25 @@ describe('DockerPage', () => {
         body: JSON.stringify({ action: 'remove' }),
       })
     );
+  });
+
+  it('leaves a container untouched when its removal is cancelled', async () => {
+    await renderPage();
+    await waitFor(() => screen.getByText('Docker operations center'));
+
+    const tableContainer = screen.getByTestId('docker-containers-table');
+    await act(async () => {
+      fireEvent.click(
+        within(tableContainer).getByRole('button', { name: 'Remove container web-server' })
+      );
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Keep container' }));
+    });
+
+    expect(screen.queryByRole('alertdialog')).toBeNull();
+    expect(global.fetch).toHaveBeenCalledTimes(1);
   });
 
   it('triggers container logs and exec commands', async () => {
@@ -377,20 +419,23 @@ describe('DockerPage', () => {
     );
   });
 
-  it('triggers asset deletion (image)', async () => {
+  it('does not remove an asset until its confirmation is accepted', async () => {
     await renderPage();
     await waitFor(() => screen.getByTestId('docker-images-table'));
 
     const imageTable = screen.getByTestId('docker-images-table');
-    const deleteButton = within(imageTable)
-      .getAllByRole('button')
-      .find((b) => b.innerHTML.includes('lucide-trash2'));
-    if (!deleteButton) throw new Error('Delete button not found');
+    const deleteButton = within(imageTable).getByRole('button', { name: 'Delete image nginx' });
     await act(async () => {
       fireEvent.click(deleteButton);
     });
 
-    expect(window.confirm).toHaveBeenCalled();
+    expect(screen.getByRole('alertdialog')).toHaveTextContent('Remove image nginx:latest?');
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Remove image' }));
+    });
+
     expect(global.fetch).toHaveBeenCalledWith(
       '/api/modules/docker/images/image-1',
       expect.objectContaining({ method: 'DELETE' })
@@ -424,6 +469,48 @@ describe('DockerPage', () => {
     expect(global.fetch).toHaveBeenCalledTimes(2); // Initial + Manual
   });
 
+  it('keeps the newest snapshot when refresh responses finish out of order', async () => {
+    const staleResponse = deferred<Response>();
+    const freshResponse = deferred<Response>();
+    const staleSnapshot = {
+      ...mockSnapshot,
+      containers: [{ ...mockSnapshot.containers[0], name: 'stale-container' }],
+    };
+    const freshSnapshot = {
+      ...mockSnapshot,
+      containers: [{ ...mockSnapshot.containers[0], name: 'fresh-container' }],
+    };
+    let snapshotRequests = 0;
+
+    vi.mocked(global.fetch).mockImplementation(() => {
+      snapshotRequests += 1;
+      if (snapshotRequests === 1) {
+        return Promise.resolve({ ok: true, json: async () => mockSnapshot } as Response);
+      }
+      if (snapshotRequests === 2) return staleResponse.promise;
+      return freshResponse.promise;
+    });
+
+    await renderPage();
+    await screen.findByTestId('docker-containers-table');
+
+    const refreshButton = screen.getByRole('button', { name: 'Refresh now' });
+    fireEvent.click(refreshButton);
+    fireEvent.click(refreshButton);
+    const containersTable = screen.getByTestId('docker-containers-table');
+
+    await act(async () => {
+      freshResponse.resolve({ ok: true, json: async () => freshSnapshot } as Response);
+    });
+    expect(await within(containersTable).findByText('fresh-container')).toBeInTheDocument();
+
+    await act(async () => {
+      staleResponse.resolve({ ok: true, json: async () => staleSnapshot } as Response);
+    });
+    expect(within(containersTable).getByText('fresh-container')).toBeInTheDocument();
+    expect(within(containersTable).queryByText('stale-container')).toBeNull();
+  });
+
   it('terminal presets change command', async () => {
     await renderPage();
     await waitFor(() => screen.getByText('Embedded Docker terminal'));
@@ -440,6 +527,18 @@ describe('DockerPage', () => {
 
     fireEvent.click(within(terminalCard).getByText('CRI'));
     expect(screen.getByText('crictl ps -a')).toBeDefined();
+  });
+
+  it('keeps terminal preset buttons large enough on mobile', async () => {
+    await renderPage();
+    await waitFor(() => screen.getByText('Embedded Docker terminal'));
+    const terminalCard = screen.getByTestId('docker-terminal');
+
+    for (const label of ['Containers', 'Images', 'Compose', 'CRI']) {
+      const presetButton = within(terminalCard).getByRole('button', { name: label });
+      expect(presetButton).toHaveClass('h-11');
+      expect(presetButton).toHaveClass('sm:h-8');
+    }
   });
 
   it('handles fetch error gracefully', async () => {
@@ -504,38 +603,44 @@ describe('DockerPage', () => {
     expect(select).toHaveValue('container-2');
   });
 
-  describe.skip('Polling', () => {
+  describe('Polling', () => {
     it('automatically polls for updates', async () => {
       vi.useFakeTimers();
-      await renderPage();
-      await waitFor(() => expect(global.fetch).toHaveBeenCalled());
+      render(
+        <ToastProvider>
+          <DockerPage />
+        </ToastProvider>
+      );
+
+      // Initial fetch and loading finish
+      await vi.advanceTimersByTimeAsync(5000);
+
       vi.mocked(global.fetch).mockClear();
 
-      await act(async () => {
-        vi.advanceTimersByTime(5010);
-        vi.runOnlyPendingTimers();
-      });
-
-      await waitFor(() => expect(global.fetch).toHaveBeenCalled());
+      // Advance 5 seconds for polling
+      await vi.advanceTimersByTimeAsync(5010);
+      expect(global.fetch).toHaveBeenCalled();
     });
 
     it('changes polling frequency', async () => {
       vi.useFakeTimers();
-      await renderPage();
-      await waitFor(() => expect(global.fetch).toHaveBeenCalled());
+      render(
+        <ToastProvider>
+          <DockerPage />
+        </ToastProvider>
+      );
+
+      // Initial fetch and loading finish
+      await vi.advanceTimersByTimeAsync(5000);
+
       vi.mocked(global.fetch).mockClear();
 
       const refreshSelect = screen.getByRole('combobox', { name: /^Refresh$/i });
-      await act(async () => {
-        fireEvent.change(refreshSelect, { target: { value: '2000' } });
-      });
+      fireEvent.change(refreshSelect, { target: { value: '2000' } });
 
-      await act(async () => {
-        vi.advanceTimersByTime(2010);
-        vi.runOnlyPendingTimers();
-      });
-
-      await waitFor(() => expect(global.fetch).toHaveBeenCalled());
+      // Advance 2 seconds for new polling interval
+      await vi.advanceTimersByTimeAsync(2010);
+      expect(global.fetch).toHaveBeenCalled();
     });
   });
 });

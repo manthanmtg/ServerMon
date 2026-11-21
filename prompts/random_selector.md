@@ -26,6 +26,7 @@ You are an autonomous improvement agent for the ServerMon project. Your job is t
 - Select only prompts whose metadata has `enabled: true` and `autonomousSafe: true`. Keep the rare `prompts_optimizer.md` branch at about 1 in 25 runs.
 - Immediately after selecting a prompt, update that prompt's metadata entry: increment `totalSelected`, set `lastSelectedAt` to the current ISO timestamp, set `lastOutcome` to `selected`, and refresh the top-level `updatedAt`.
 - At the end of the run, update the same entry with exactly one terminal outcome: increment `totalCompleted` and set `lastOutcome: "completed"` after a verified commit, increment `totalNoop` and set `lastOutcome: "noop"` when the run safely stops without a code change, or increment `totalFailed` and set `lastOutcome: "failed"` when execution or verification fails. Set `lastCompletedAt` for every terminal outcome.
+- Keep each prompt's observability counters consistent: outside an active `selected` run, `totalCompleted + totalNoop + totalFailed` should equal `totalSelected`. Do not adjust unrelated prompt counters unless this run explicitly fixes prompt metadata.
 - Commit the metadata update with the run so prompt usage history stays visible in git.
 
 ### 1. Select a Prompt
@@ -34,9 +35,15 @@ You are an autonomous improvement agent for the ServerMon project. Your job is t
 
 ```bash
 if [ "$((RANDOM % 25))" -eq 0 ]; then
-  printf '%s\n' prompts/prompts_optimizer.md
+  node -e 'const fs=require("fs"); const metadata=JSON.parse(fs.readFileSync("prompts/prompts_metadata.json","utf8")); const optimizer=Object.values(metadata.prompts).find((prompt)=>prompt.file==="prompts_optimizer.md"); process.exit(!(optimizer&&optimizer.enabled&&optimizer.autonomousSafe));'
+  optimizer_exit_code=$?
+  if [ $optimizer_exit_code -eq 0 ]; then
+    printf '%s\n' prompts/prompts_optimizer.md
+  else
+    node -e 'const fs=require("fs"); const metadata=JSON.parse(fs.readFileSync("prompts/prompts_metadata.json","utf8")); const candidates=Object.values(metadata.prompts).filter((prompt)=>prompt.enabled&&prompt.autonomousSafe&&prompt.file!=="prompts_optimizer.md"&&prompt.file!=="module_generator_prompt.md"&&prompt.category!=="selector").map((prompt)=>`prompts/${prompt.file}`).filter((p)=>fs.existsSync(p)).sort(); if(candidates.length===0){console.error("No eligible prompts found in prompts/prompts_metadata.json."); process.exit(1);} console.log(candidates[Math.floor(Math.random()*candidates.length)]);'
+  fi
 else
-  node -e 'const fs=require("fs"); const metadata=JSON.parse(fs.readFileSync("prompts/prompts_metadata.json","utf8")); const candidates=Object.values(metadata.prompts).filter((prompt)=>prompt.enabled&&prompt.autonomousSafe&&prompt.file!=="prompts_optimizer.md").map((prompt)=>`prompts/${prompt.file}`).sort(); if(candidates.length===0){console.error("No eligible prompts found in prompts/prompts_metadata.json."); process.exit(1);} console.log(candidates[Math.floor(Math.random()*candidates.length)]);'
+  node -e 'const fs=require("fs"); const metadata=JSON.parse(fs.readFileSync("prompts/prompts_metadata.json","utf8")); const candidates=Object.values(metadata.prompts).filter((prompt)=>prompt.enabled&&prompt.autonomousSafe&&prompt.file!=="prompts_optimizer.md"&&prompt.file!=="module_generator_prompt.md"&&prompt.category!=="selector").map((prompt)=>`prompts/${prompt.file}`).filter((p)=>fs.existsSync(p)).sort(); if(candidates.length===0){console.error("No eligible prompts found in prompts/prompts_metadata.json."); process.exit(1);} console.log(candidates[Math.floor(Math.random()*candidates.length)]);'
 fi
 ```
 

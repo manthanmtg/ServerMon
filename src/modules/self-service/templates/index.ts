@@ -29,11 +29,13 @@ export function getTemplateById(id: string): InstallTemplate | undefined {
   return templateMap.get(id);
 }
 
-export function searchTemplates(opts: {
-  query?: string;
-  category?: TemplateCategory;
-  tags?: string[];
-}): InstallTemplate[] {
+export function searchTemplates(
+  opts: {
+    query?: string;
+    category?: TemplateCategory;
+    tags?: string[];
+  } = {}
+): InstallTemplate[] {
   let results = allTemplates;
 
   if (opts.category) {
@@ -42,17 +44,21 @@ export function searchTemplates(opts: {
 
   if (opts.tags && opts.tags.length > 0) {
     const tagsLower = opts.tags.map((tag) => tag.toLowerCase());
-    results = results.filter((t) => tagsLower.some((tag) => t.tags.includes(tag)));
+    results = results.filter((t) =>
+      t.tags.some((templateTag) => tagsLower.includes(templateTag.toLowerCase()))
+    );
   }
 
   if (opts.query) {
-    const q = opts.query.toLowerCase();
-    results = results.filter(
-      (t) =>
-        t.name.toLowerCase().includes(q) ||
-        t.description.toLowerCase().includes(q) ||
-        t.tags.some((tag) => tag.includes(q))
-    );
+    const q = opts.query.trim().toLowerCase();
+    if (q.length > 0) {
+      results = results.filter(
+        (t) =>
+          t.name.toLowerCase().includes(q) ||
+          t.description.toLowerCase().includes(q) ||
+          t.tags.some((tag) => tag.toLowerCase().includes(q))
+      );
+    }
   }
 
   return results;

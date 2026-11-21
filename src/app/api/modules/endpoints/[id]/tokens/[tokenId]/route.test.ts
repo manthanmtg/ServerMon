@@ -2,11 +2,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { NextRequest } from 'next/server';
 
-const { mockRevokeToken } = vi.hoisted(() => ({
+const { mockConnectDB, mockGetSession, mockRevokeToken } = vi.hoisted(() => ({
+  mockConnectDB: vi.fn(),
+  mockGetSession: vi.fn(),
   mockRevokeToken: vi.fn(),
 }));
 
-vi.mock('@/lib/db', () => ({ default: vi.fn().mockResolvedValue(true) }));
+vi.mock('@/lib/db', () => ({ default: mockConnectDB }));
+vi.mock('@/lib/session', () => ({ getSession: mockGetSession }));
 vi.mock('@/lib/logger', () => ({
   createLogger: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }),
 }));
@@ -23,6 +26,18 @@ function makeContext(id: string, tokenId: string) {
 describe('DELETE /api/modules/endpoints/[id]/tokens/[tokenId]', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockConnectDB.mockResolvedValue(true);
+    mockGetSession.mockResolvedValue({ user: { role: 'admin' } });
+  });
+
+  it('returns 401 without a session', async () => {
+    mockGetSession.mockResolvedValue(null);
+    const res = await DELETE(new NextRequest('http://localhost'), makeContext('ep-1', 'tok-1'));
+    expect(res.status).toBe(401);
+    const json = await res.json();
+    expect(json.error).toBe('Unauthorized');
+    expect(mockConnectDB).not.toHaveBeenCalled();
+    expect(mockRevokeToken).not.toHaveBeenCalled();
   });
 
   it('revokes token and returns success', async () => {

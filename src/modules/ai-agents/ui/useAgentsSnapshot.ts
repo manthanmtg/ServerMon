@@ -46,7 +46,7 @@ export function useAgentsSnapshot({
     if (showRefresh) setRefreshing(true);
     try {
       const res = await fetch('/api/modules/ai-agents', { cache: 'no-store', signal });
-      if (!res.ok) return;
+      if (!res.ok) throw new Error(`AI agents snapshot request failed with status ${res.status}`);
       const data = (await res.json()) as AgentsSnapshot;
       if (!signal.aborted) setSnapshot(data);
     } catch (err) {

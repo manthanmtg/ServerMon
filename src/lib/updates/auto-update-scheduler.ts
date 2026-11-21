@@ -16,9 +16,15 @@ export function startLocalAutoUpdateScheduler(options: SchedulerOptions = {}): v
   const intervalMs = options.intervalMs ?? DEFAULT_INTERVAL_MS;
   const tick = async () => {
     try {
-      const result = await runLocalAutoUpdateOnce();
-      if (result.launched) {
-        log.info(`Local auto-update launched for ${result.scheduledDate}`);
+      const appResult = await runLocalAutoUpdateOnce('servermon');
+      if (appResult.launched) {
+        log.info(`ServerMon app auto-update launched for ${appResult.scheduledDate}`);
+        return;
+      }
+
+      const agentResult = await runLocalAutoUpdateOnce('agent');
+      if (agentResult.launched) {
+        log.info(`ServerMon agent auto-update launched for ${agentResult.scheduledDate}`);
       }
     } catch (error) {
       log.error('Local auto-update scheduler tick failed', error);
@@ -31,10 +37,4 @@ export function startLocalAutoUpdateScheduler(options: SchedulerOptions = {}): v
   schedulerInterval = setInterval(() => {
     void tick();
   }, intervalMs);
-}
-
-export function stopLocalAutoUpdateScheduler(): void {
-  if (!schedulerInterval) return;
-  clearInterval(schedulerInterval);
-  schedulerInterval = null;
 }

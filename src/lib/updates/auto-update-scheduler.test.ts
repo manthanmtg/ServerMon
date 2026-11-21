@@ -31,10 +31,12 @@ describe('local auto-update scheduler', () => {
     startLocalAutoUpdateScheduler({ intervalMs: 1000 });
     await vi.advanceTimersByTimeAsync(0);
 
-    expect(mockRunLocalAutoUpdateOnce).toHaveBeenCalledTimes(1);
+    expect(mockRunLocalAutoUpdateOnce).toHaveBeenCalledTimes(2);
+    expect(mockRunLocalAutoUpdateOnce).toHaveBeenNthCalledWith(1, 'servermon');
+    expect(mockRunLocalAutoUpdateOnce).toHaveBeenNthCalledWith(2, 'agent');
 
     await vi.advanceTimersByTimeAsync(1000);
-    expect(mockRunLocalAutoUpdateOnce).toHaveBeenCalledTimes(2);
+    expect(mockRunLocalAutoUpdateOnce).toHaveBeenCalledTimes(4);
   });
 
   it('does not start duplicate intervals', async () => {
@@ -45,6 +47,22 @@ describe('local auto-update scheduler', () => {
     await vi.advanceTimersByTimeAsync(0);
     await vi.advanceTimersByTimeAsync(1000);
 
-    expect(mockRunLocalAutoUpdateOnce).toHaveBeenCalledTimes(2);
+    expect(mockRunLocalAutoUpdateOnce).toHaveBeenCalledTimes(4);
+  });
+
+  it('waits until the next tick to run the agent when the app update launches', async () => {
+    mockRunLocalAutoUpdateOnce
+      .mockResolvedValueOnce({ launched: true, reason: 'scheduled', scheduledDate: '2026-05-08' })
+      .mockResolvedValue({ launched: false, reason: 'not-due' });
+    const { startLocalAutoUpdateScheduler } = await import('./auto-update-scheduler');
+
+    startLocalAutoUpdateScheduler({ intervalMs: 1000 });
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(mockRunLocalAutoUpdateOnce).toHaveBeenCalledTimes(1);
+    expect(mockRunLocalAutoUpdateOnce).toHaveBeenCalledWith('servermon');
+
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(mockRunLocalAutoUpdateOnce).toHaveBeenCalledWith('agent');
   });
 });

@@ -65,8 +65,34 @@ describe('coreModules registry', () => {
     expect(coreModules.some((m) => m.id === 'env-vars')).toBe(true);
   });
 
-  it('includes exactly 26 modules', () => {
-    expect(coreModules).toHaveLength(26);
+  it('includes the apps module', () => {
+    expect(coreModules.some((m) => m.id === 'apps')).toBe(true);
+  });
+
+  it('includes the databases module', () => {
+    expect(coreModules.some((m) => m.id === 'databases')).toBe(true);
+  });
+
+  it('includes the firewall module', () => {
+    expect(coreModules.some((m) => m.id === 'firewall')).toBe(true);
+  });
+
+  it('registers Script Runner and its page', () => {
+    expect(coreModules.find((module) => module.id === 'script-runner')).toMatchObject({
+      routes: [{ path: '/scripts' }],
+      widgets: [{ component: 'ScriptRunnerWidget' }],
+    });
+  });
+
+  it('registers Python Environments and its page', () => {
+    expect(coreModules.find((module) => module.id === 'python-environments')).toMatchObject({
+      routes: [{ path: '/python-environments' }],
+      widgets: [{ component: 'PythonEnvironmentsWidget' }],
+    });
+  });
+
+  it('includes exactly 31 modules', () => {
+    expect(coreModules).toHaveLength(31);
   });
 
   it('every module with widgets has valid widget objects', () => {

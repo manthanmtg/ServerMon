@@ -38,6 +38,7 @@ describe('FleetWidget', () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
   });
@@ -73,6 +74,39 @@ describe('FleetWidget', () => {
     expect(screen.getByText('Offline')).toBeDefined();
   });
 
+  it('uses API computed status when counting nodes', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          nodes: [
+            {
+              _id: 'n1',
+              computedStatus: 'online',
+              status: 'online',
+              tunnelStatus: 'disconnected',
+              lastSeen: new Date(Date.now() - 10 * 60_000).toISOString(),
+              pairingVerifiedAt: new Date().toISOString(),
+            },
+          ],
+          total: 1,
+        }),
+      })
+    );
+
+    await act(async () => {
+      render(<FleetWidget />);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText('Total').parentElement).toHaveTextContent('1');
+    });
+
+    expect(screen.getByText('Online').parentElement).toHaveTextContent('1');
+    expect(screen.getByText('Offline').parentElement).toHaveTextContent('0');
+  });
+
   it('shows error state on fetch failure', async () => {
     vi.stubGlobal(
       'fetch',
@@ -86,5 +120,32 @@ describe('FleetWidget', () => {
     await waitFor(() => {
       expect(screen.getByText(/HTTP 500/)).toBeDefined();
     });
+  });
+
+  it('clears a transient poll error after the next poll succeeds', async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValueOnce({ ok: false, status: 503, json: async () => ({}) })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({ nodes: mockNodes, total: mockNodes.length }),
+        })
+    );
+
+    await act(async () => {
+      render(<FleetWidget />);
+    });
+
+    expect(screen.getByText('HTTP 503')).toBeInTheDocument();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10_000);
+    });
+
+    expect(screen.queryByText('HTTP 503')).not.toBeInTheDocument();
+    expect(screen.getByText('Total').parentElement).toHaveTextContent('3');
   });
 });

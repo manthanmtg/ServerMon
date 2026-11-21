@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, act, fireEvent } from '@testing-library/react';
-import MemoryPage from './MemoryPage';
+import MemoryPage, { deriveMemoryBreakdownRows, deriveMemoryStatCards } from './MemoryPage';
 import { ToastProvider } from '@/components/ui/toast';
 
 // Mock recharts to avoid jsdom SVG issues
@@ -142,6 +142,39 @@ describe('MemoryPage', () => {
     });
   });
 
+  it('does not report swap as disabled when memory details cannot be loaded', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      json: async () => ({ error: 'Memory service unavailable' }),
+    });
+
+    await renderWithToast(<MemoryPage />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent('Unable to load memory details');
+    });
+    expect(screen.queryByText('Swap is Disabled')).toBeNull();
+  });
+
+  it('keeps valid memory statistics when the process list cannot be loaded', async () => {
+    global.fetch = vi.fn().mockImplementation((url: string) => {
+      if (url.includes('/stats')) {
+        return Promise.resolve({ ok: true, json: async () => mockDetailedStats });
+      }
+      return Promise.resolve({
+        ok: false,
+        json: async () => ({ error: 'Processes service unavailable' }),
+      });
+    });
+
+    await renderWithToast(<MemoryPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('25.0% Used')).toBeDefined();
+    });
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
   it('renders top memory-consuming processes', async () => {
     await renderWithToast(<MemoryPage />);
     await waitFor(() => {
@@ -210,5 +243,32 @@ describe('MemoryPage', () => {
         expect(deleteCalls.length).toBeGreaterThan(0);
       });
     }
+  });
+
+  it('derives stable memory summary card values', () => {
+    const cards = deriveMemoryStatCards({
+      memTotal: mockMetrics.latest.memTotal,
+      memUsed: mockMetrics.latest.memUsed,
+      swapTotal: mockDetailedStats.swaptotal,
+      swapUsed: mockDetailedStats.swapused,
+    });
+
+    expect(cards.map((card) => [card.label, card.value])).toEqual([
+      ['Total RAM', '16 GiB'],
+      ['Used RAM', '8 GiB'],
+      ['Total Swap', '4 GiB'],
+      ['Used Swap', '1 GiB'],
+    ]);
+  });
+
+  it('derives memory breakdown rows from detailed stats', () => {
+    const rows = deriveMemoryBreakdownRows(mockDetailedStats);
+
+    expect(rows.map((row) => [row.label, row.value, row.total])).toEqual([
+      ['Active', mockDetailedStats.active, mockDetailedStats.total],
+      ['Cached', mockDetailedStats.cached, mockDetailedStats.total],
+      ['Buffers', mockDetailedStats.buffers, mockDetailedStats.total],
+      ['Slab', mockDetailedStats.slab, mockDetailedStats.total],
+    ]);
   });
 });

@@ -144,15 +144,81 @@ describe('NetworkPage', () => {
     await waitFor(() => expect(screen.getAllByText('UP').length).toBeGreaterThan(0));
   });
 
+  it('loads network data with timeout-capable requests', async () => {
+    await renderPage();
+    await waitFor(() => expect(screen.getByText('eth0')).toBeDefined());
+
+    const networkRequest = vi
+      .mocked(global.fetch)
+      .mock.calls.find(([input]) => String(input) === '/api/modules/network');
+    const speedtestRequest = vi
+      .mocked(global.fetch)
+      .mock.calls.find(([input]) => String(input) === '/api/modules/network/speedtest');
+
+    expect(networkRequest?.[1]).toEqual(
+      expect.objectContaining({ signal: expect.any(AbortSignal) })
+    );
+    expect(speedtestRequest?.[1]).toEqual(
+      expect.objectContaining({ signal: expect.any(AbortSignal) })
+    );
+  });
+
   it('renders connections', async () => {
     await renderPage();
     await waitFor(() => expect(screen.getAllByText('nginx').length).toBeGreaterThan(0));
+  });
+
+  it('limits the active connections table to the first 50 sockets', async () => {
+    const manyConnections = Array.from({ length: 55 }, (_, index) => ({
+      protocol: 'tcp',
+      localAddress: '127.0.0.1',
+      localPort: 8000 + index,
+      peerAddress: '10.0.0.5',
+      peerPort: 9000 + index,
+      state: 'ESTABLISHED',
+      process: `process-${index}`,
+    }));
+    global.fetch = vi.fn().mockImplementation((input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes('/api/modules/network/speedtest')) {
+        return Promise.resolve({ ok: true, json: async () => mockSpeedtestOverview });
+      }
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({ ...mockNetworkSnapshot, connections: manyConnections }),
+      });
+    });
+
+    await renderPage();
+
+    await waitFor(() => expect(screen.getByText('process-49')).toBeDefined());
+    expect(screen.queryByText('process-50')).toBeNull();
+    expect(screen.getByText('Showing first 50 of 55 connections.')).toBeDefined();
   });
 
   it('renders diagnostics', async () => {
     await renderPage();
     await waitFor(() => expect(screen.getByText('Network Diagnostics Terminal')).toBeDefined());
     expect(screen.getByText('ip addr')).toBeDefined();
+  });
+
+  it('does not refetch the snapshot when only the selected interface changes', async () => {
+    await renderPage();
+    await waitFor(() => expect(screen.getByText('eth0')).toBeDefined());
+
+    const networkFetchesBeforeChange = vi
+      .mocked(global.fetch)
+      .mock.calls.filter(([input]) => String(input) === '/api/modules/network').length;
+
+    fireEvent.change(screen.getByLabelText('Interface'), { target: { value: 'lo' } });
+
+    await waitFor(() => expect(screen.getByText('127.0.0.1')).toBeDefined());
+
+    const networkFetchesAfterChange = vi
+      .mocked(global.fetch)
+      .mock.calls.filter(([input]) => String(input) === '/api/modules/network').length;
+
+    expect(networkFetchesAfterChange).toBe(networkFetchesBeforeChange);
   });
 
   it('renders speedtest summary and opens history modal', async () => {
@@ -166,5 +232,29 @@ describe('NetworkPage', () => {
 
     await waitFor(() => expect(screen.getByRole('dialog')).toBeDefined());
     expect(screen.getByText('Speedtest History')).toBeDefined();
+  });
+
+  it('does not render unsafe speedtest result links', async () => {
+    global.fetch = vi.fn().mockImplementation((input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes('/api/modules/network/speedtest')) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            ...mockSpeedtestOverview,
+            latest: {
+              ...mockSpeedtestOverview.latest,
+              resultUrl: 'javascript:alert(1)',
+            },
+          }),
+        });
+      }
+      return Promise.resolve({ ok: true, json: async () => mockNetworkSnapshot });
+    });
+
+    await renderPage();
+
+    await waitFor(() => expect(screen.getByText('Internet Speedtest')).toBeDefined());
+    expect(screen.queryByRole('link', { name: 'Result' })).toBeNull();
   });
 });

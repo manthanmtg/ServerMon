@@ -1,5 +1,3 @@
-import type { Model } from 'mongoose';
-
 export interface BuiltinTemplate {
   slug: string;
   name: string;
@@ -23,6 +21,14 @@ export interface BuiltinTemplate {
     healthPath?: string;
     logLevel: 'debug' | 'info' | 'warn' | 'error';
   };
+}
+
+export interface RouteTemplateSeederModel {
+  findOneAndUpdate(
+    filter: { slug: string },
+    update: BuiltinTemplate,
+    options: { upsert: true; new: true; setDefaultsOnInsert: true }
+  ): Promise<unknown>;
 }
 
 export const BUILTIN_TEMPLATES: BuiltinTemplate[] = [
@@ -217,7 +223,9 @@ export const BUILTIN_TEMPLATES: BuiltinTemplate[] = [
  * Upserts all built-in templates by slug. Returns the total number of
  * templates processed (upserted + updated).
  */
-export async function seedBuiltinTemplates(RouteTemplate: Model<unknown>): Promise<number> {
+export async function seedBuiltinTemplates(
+  RouteTemplate: RouteTemplateSeederModel
+): Promise<number> {
   let count = 0;
   for (const template of BUILTIN_TEMPLATES) {
     await RouteTemplate.findOneAndUpdate(

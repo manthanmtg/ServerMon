@@ -2,6 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/db';
 import User from '@/models/User';
 import { generateTOTPSecret, generateQRCode } from '@/lib/auth-utils';
+import { z } from 'zod';
+
+const initRequestSchema = z.object({
+  username: z.string().trim().min(3).max(64),
+});
 
 export async function POST(req: NextRequest) {
   try {
@@ -16,10 +21,13 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { username } = await req.json();
-    if (!username || username.length < 3) {
+    const rawBody = await req.json();
+    const parseResult = initRequestSchema.safeParse(rawBody);
+    if (!parseResult.success) {
       return NextResponse.json({ error: 'Valid username is required' }, { status: 400 });
     }
+
+    const { username } = parseResult.data;
 
     // Generate TOTP Secret and QR Code for enrollment
     const secret = generateTOTPSecret();

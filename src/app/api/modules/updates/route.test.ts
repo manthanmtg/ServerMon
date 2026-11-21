@@ -1,12 +1,16 @@
 /** @vitest-environment node */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-const { mockGetSnapshot } = vi.hoisted(() => ({
+const { mockGetSnapshot, mockGetSession } = vi.hoisted(() => ({
   mockGetSnapshot: vi.fn(),
+  mockGetSession: vi.fn(),
 }));
 
 vi.mock('@/lib/updates/service', () => ({
   updateService: { getSnapshot: mockGetSnapshot },
+}));
+vi.mock('@/lib/session', () => ({
+  getSession: mockGetSession,
 }));
 vi.mock('@/lib/logger', () => ({
   createLogger: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }),
@@ -24,6 +28,7 @@ function makeRequest(body: unknown = {}): Request {
 
 describe('GET /api/modules/updates', () => {
   beforeEach(() => {
+    mockGetSession.mockResolvedValue({ user: { username: 'admin' } });
     vi.clearAllMocks();
   });
 
@@ -47,6 +52,7 @@ describe('GET /api/modules/updates', () => {
 
 describe('POST /api/modules/updates', () => {
   beforeEach(() => {
+    mockGetSession.mockResolvedValue({ user: { username: 'admin' } });
     vi.clearAllMocks();
   });
 

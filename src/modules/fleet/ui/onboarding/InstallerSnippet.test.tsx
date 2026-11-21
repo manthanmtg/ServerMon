@@ -70,4 +70,28 @@ describe('InstallerSnippet', () => {
     expect(arg).toContain('/api/fleet/public/install-script');
     expect(arg).toContain("--token 'tok-1'");
   });
+
+  it('shows release/source install controls and updates the generated command', () => {
+    const { container } = render(
+      <InstallerSnippet token="tok-1" nodeId="node-1" hubUrl="hub.test" />
+    );
+
+    expect(screen.getByLabelText('Install source')).toBeDefined();
+    expect(screen.getByText('Latest release artifact')).toBeDefined();
+    expect(screen.getByText('Pinned release artifact')).toBeDefined();
+    expect(screen.getByText('Build from source')).toBeDefined();
+
+    fireEvent.change(screen.getByLabelText('Install source'), {
+      target: { value: 'version' },
+    });
+    fireEvent.change(screen.getByLabelText('Release version'), {
+      target: { value: 'v0.1.1' },
+    });
+    expect(container.textContent ?? '').toContain('--version v0.1.1');
+
+    fireEvent.change(screen.getByLabelText('Install source'), {
+      target: { value: 'source' },
+    });
+    expect(container.textContent ?? '').toContain("--build-from-source --source-ref 'main'");
+  });
 });

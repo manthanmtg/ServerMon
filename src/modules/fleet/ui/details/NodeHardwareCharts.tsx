@@ -66,6 +66,20 @@ export function toSamples(events: RawEvent[]): MetricsSample[] {
   return samples.reverse();
 }
 
+function samplesEqual(left: MetricsSample[], right: MetricsSample[]): boolean {
+  if (left.length !== right.length) return false;
+
+  return left.every((sample, index) => {
+    const other = right[index];
+    return (
+      sample.timestamp === other.timestamp &&
+      sample.cpuLoad === other.cpuLoad &&
+      sample.ramUsed === other.ramUsed &&
+      sample.ramUsedFormatted === other.ramUsedFormatted
+    );
+  });
+}
+
 const CustomTooltip = ({ active, payload, label }: CustomTooltipProps) => {
   if (active && payload && payload.length) {
     return (
@@ -97,7 +111,10 @@ export function NodeHardwareCharts({ nodeId }: { nodeId: string }) {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
         if (cancelled) return;
-        setSamples(toSamples(data.events ?? []));
+        const nextSamples = toSamples(data.events ?? []);
+        setSamples((current) =>
+          current !== null && samplesEqual(current, nextSamples) ? current : nextSamples
+        );
         setError(null);
       } catch (e) {
         if (!cancelled) setError((e as Error).message);

@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import type { Model } from 'mongoose';
 import { createLogger } from '@/lib/logger';
 import connectDB from '@/lib/db';
 import ConfigRevision from '@/models/ConfigRevision';
@@ -41,14 +40,24 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
       const engineDeps: ApplyEngineDeps = {
         frp,
         nginx,
-        ConfigRevision: ConfigRevision as unknown as ApplyEngineDeps['ConfigRevision'],
-        FrpServerState: FrpServerState as unknown as ApplyEngineDeps['FrpServerState'],
-        PublicRoute: PublicRoute as unknown as ApplyEngineDeps['PublicRoute'],
-        Node: Node as unknown as ApplyEngineDeps['Node'],
+        ConfigRevision: {
+          findById: (id: string) => ConfigRevision.findById(id).exec(),
+        },
+        FrpServerState: {
+          findOneAndUpdate: (filter, update, opts) =>
+            FrpServerState.findOneAndUpdate(filter, update, opts).exec(),
+        },
+        PublicRoute: {
+          findByIdAndUpdate: (id, update, opts) =>
+            PublicRoute.findByIdAndUpdate(id, update, opts).exec(),
+        },
+        Node: {
+          findByIdAndUpdate: (id, update, opts) => Node.findByIdAndUpdate(id, update, opts).exec(),
+        },
       };
       const result = await applyRevision(id, engineDeps);
 
-      await recordAudit(FleetLogEvent as unknown as Model<unknown>, {
+      await recordAudit(FleetLogEvent, {
         action: 'revision.apply',
         actorUserId: session.user.username,
         metadata: {

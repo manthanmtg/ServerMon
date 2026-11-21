@@ -2,12 +2,15 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { NextRequest } from 'next/server';
 
-const { mockFindOne, mockCreate } = vi.hoisted(() => ({
+const { mockConnectDB, mockGetSession, mockFindOne, mockCreate } = vi.hoisted(() => ({
+  mockConnectDB: vi.fn(),
+  mockGetSession: vi.fn(),
   mockFindOne: vi.fn(),
   mockCreate: vi.fn(),
 }));
 
-vi.mock('@/lib/db', () => ({ default: vi.fn().mockResolvedValue(true) }));
+vi.mock('@/lib/db', () => ({ default: mockConnectDB }));
+vi.mock('@/lib/session', () => ({ getSession: mockGetSession }));
 vi.mock('@/lib/logger', () => ({
   createLogger: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }),
 }));
@@ -56,6 +59,8 @@ function makeRequest(body: unknown): NextRequest {
 describe('POST /api/modules/endpoints/create', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockConnectDB.mockResolvedValue(true);
+    mockGetSession.mockResolvedValue({ user: { role: 'admin' } });
     mockFindOne.mockResolvedValue(null);
     mockCreate.mockResolvedValue({
       _id: 'ep-1',
@@ -71,6 +76,16 @@ describe('POST /api/modules/endpoints/create', () => {
     method: 'GET',
     endpointType: 'script',
   };
+
+  it('returns 401 without a session', async () => {
+    mockGetSession.mockResolvedValue(null);
+    const res = await POST(makeRequest(validBody));
+    expect(res.status).toBe(401);
+    const json = await res.json();
+    expect(json.error).toBe('Unauthorized');
+    expect(mockConnectDB).not.toHaveBeenCalled();
+    expect(mockCreate).not.toHaveBeenCalled();
+  });
 
   it('creates endpoint and returns 201', async () => {
     const res = await POST(makeRequest(validBody));

@@ -1,5 +1,5 @@
-export type RuntimeLaunchContextKind = 'interactive' | 'systemd' | 'launchd' | 'background';
-export type RuntimeScheduleReliability = 'session-bound' | 'reboot-safe' | 'unknown';
+type RuntimeLaunchContextKind = 'interactive' | 'systemd' | 'launchd' | 'background';
+type RuntimeScheduleReliability = 'session-bound' | 'reboot-safe' | 'unknown';
 
 export interface RuntimeLaunchContextSnapshot {
   kind: RuntimeLaunchContextKind;
@@ -8,7 +8,7 @@ export interface RuntimeLaunchContextSnapshot {
   summary: string;
 }
 
-export interface RuntimeLaunchContextInput {
+interface RuntimeLaunchContextInput {
   env?: NodeJS.ProcessEnv;
   platform?: NodeJS.Platform;
   stdinIsTTY?: boolean;

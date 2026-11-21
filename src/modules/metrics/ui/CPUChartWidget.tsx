@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useMemo } from 'react';
 import {
   AreaChart,
   Area,
@@ -10,10 +10,27 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from 'recharts';
+import { useMetrics } from '@/lib/MetricsContext';
 
 interface CPUMetric {
   cpu: number;
   timestamp: string;
+}
+
+function isCPUMetric(value: unknown): value is CPUMetric {
+  if (!value || typeof value !== 'object') return false;
+
+  const candidate = value as Record<string, unknown>;
+
+  return (
+    typeof candidate.cpu === 'number' &&
+    Number.isFinite(candidate.cpu) &&
+    typeof candidate.timestamp === 'string'
+  );
+}
+
+function clampPercent(value: number): number {
+  return Math.min(100, Math.max(0, value));
 }
 
 interface Props {
@@ -21,25 +38,31 @@ interface Props {
 }
 
 export default function CPUChartWidget({ externalData }: Props) {
-  const [internalData, setInternalData] = useState<CPUMetric[]>([]);
-  const data = externalData || internalData;
-
-  useEffect(() => {
-    if (externalData) return;
-
-    const es = new EventSource('/api/metrics/stream');
-    es.onmessage = (event) => {
-      const metric = JSON.parse(event.data);
-      setInternalData((prev) => [...prev, metric].slice(-30));
-    };
-    es.onerror = () => es.close();
-    return () => es.close();
-  }, [externalData]);
+  const { history } = useMetrics();
+  const source = externalData ?? history;
+  const data = useMemo(
+    () =>
+      source
+        .filter(isCPUMetric)
+        .map((metric) => ({
+          cpu: clampPercent(metric.cpu),
+          timestamp: metric.timestamp,
+        }))
+        .slice(-30),
+    [source]
+  );
 
   if (data.length === 0) {
     return (
-      <div className="w-full h-full flex items-center justify-center text-muted-foreground text-sm">
-        Waiting for data...
+      <div
+        role="status"
+        aria-live="polite"
+        className="flex h-full w-full items-center justify-center"
+      >
+        <div className="flex min-h-[44px] items-center gap-2 rounded-md border border-border/60 bg-muted/30 px-3 text-sm text-muted-foreground shadow-sm">
+          <span className="h-2 w-2 rounded-full bg-primary/70 animate-pulse" aria-hidden="true" />
+          <span>Waiting for data...</span>
+        </div>
       </div>
     );
   }

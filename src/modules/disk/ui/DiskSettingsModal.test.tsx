@@ -21,6 +21,71 @@ describe('DiskSettingsModal', () => {
     expect(screen.getByText('Disk Settings')).toBeDefined();
   });
 
+  it('uses a labelled dialog and delegates Escape dismissal', () => {
+    render(<DiskSettingsModal settings={defaultSettings} onClose={onClose} onSaved={onSaved} />);
+
+    expect(screen.getByRole('dialog', { name: 'Disk Settings' })).toBeDefined();
+    expect(screen.getByRole('button', { name: 'Close disk settings' })).toHaveFocus();
+
+    fireEvent.keyDown(window, { key: 'Escape' });
+
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('reports failed saves and retains the persisted storage unit', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      json: async () => ({ error: 'Settings update rejected' }),
+    });
+
+    render(<DiskSettingsModal settings={defaultSettings} onClose={onClose} onSaved={onSaved} />);
+
+    const binary = screen.getByRole('radio', { name: /^Binary \(base 1024\)/ });
+    const decimal = screen.getByRole('radio', { name: /^Decimal \(base 1000\)/ });
+    expect(binary).toBeChecked();
+
+    fireEvent.click(decimal);
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Settings update rejected');
+    expect(binary).toBeChecked();
+    expect(decimal).not.toBeChecked();
+    expect(onSaved).not.toHaveBeenCalled();
+  });
+
+  it('rejects invalid confirmed settings and retains the persisted storage unit', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ settings: { unitSystem: 'invalid' } }),
+    });
+
+    render(<DiskSettingsModal settings={defaultSettings} onClose={onClose} onSaved={onSaved} />);
+
+    const binary = screen.getByRole('radio', { name: /^Binary \(base 1024\)/ });
+    fireEvent.click(screen.getByRole('radio', { name: /^Decimal \(base 1000\)/ }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Failed to save disk settings');
+    expect(binary).toBeChecked();
+    expect(onSaved).not.toHaveBeenCalled();
+  });
+
+  it('uses a generic error when the settings response is not JSON', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => {
+        throw new SyntaxError('Unexpected token <');
+      },
+    });
+
+    render(<DiskSettingsModal settings={defaultSettings} onClose={onClose} onSaved={onSaved} />);
+
+    fireEvent.click(screen.getByRole('radio', { name: /^Decimal \(base 1000\)/ }));
+
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('Failed to save disk settings');
+    expect(alert).not.toHaveTextContent('Unexpected token');
+    expect(onSaved).not.toHaveBeenCalled();
+  });
+
   it('renders Storage Units section', () => {
     render(<DiskSettingsModal settings={defaultSettings} onClose={onClose} onSaved={onSaved} />);
     expect(screen.getByText('Storage Units')).toBeDefined();
@@ -38,22 +103,19 @@ describe('DiskSettingsModal', () => {
     expect(screen.getByText('GB, MB, KB')).toBeDefined();
   });
 
-  it('calls onClose when X button is clicked', () => {
+  it('calls onClose when the close control is clicked', () => {
     render(<DiskSettingsModal settings={defaultSettings} onClose={onClose} onSaved={onSaved} />);
-    // The close button is a ghost/icon button (no text) — find it by excluding the setting buttons
-    const allButtons = screen.getAllByRole('button');
-    const closeButton = allButtons.find(
-      (btn) => !btn.textContent?.includes('Binary') && !btn.textContent?.includes('Decimal')
-    )!;
-    fireEvent.click(closeButton);
+    fireEvent.click(screen.getByRole('button', { name: 'Close disk settings' }));
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
-  it('calls fetch with binary unit when binary button is clicked', async () => {
-    render(<DiskSettingsModal settings={defaultSettings} onClose={onClose} onSaved={onSaved} />);
-    const binaryButton = screen.getByText('Binary (base 1024)').closest('button')!;
+  it('calls fetch with binary unit when binary is selected', async () => {
+    render(
+      <DiskSettingsModal settings={{ unitSystem: 'decimal' }} onClose={onClose} onSaved={onSaved} />
+    );
+    const binaryOption = screen.getByRole('radio', { name: /^Binary \(base 1024\)/ });
     await act(async () => {
-      fireEvent.click(binaryButton);
+      fireEvent.click(binaryOption);
     });
     expect(global.fetch).toHaveBeenCalledWith(
       '/api/modules/disk/settings',
@@ -64,11 +126,11 @@ describe('DiskSettingsModal', () => {
     );
   });
 
-  it('calls fetch with decimal unit when decimal button is clicked', async () => {
+  it('calls fetch with decimal unit when decimal is selected', async () => {
     render(<DiskSettingsModal settings={defaultSettings} onClose={onClose} onSaved={onSaved} />);
-    const decimalButton = screen.getByText('Decimal (base 1000)').closest('button')!;
+    const decimalOption = screen.getByRole('radio', { name: /^Decimal \(base 1000\)/ });
     await act(async () => {
-      fireEvent.click(decimalButton);
+      fireEvent.click(decimalOption);
     });
     expect(global.fetch).toHaveBeenCalledWith(
       '/api/modules/disk/settings',
@@ -86,9 +148,9 @@ describe('DiskSettingsModal', () => {
       json: async () => ({ settings: savedSettings }),
     });
     render(<DiskSettingsModal settings={defaultSettings} onClose={onClose} onSaved={onSaved} />);
-    const decimalButton = screen.getByText('Decimal (base 1000)').closest('button')!;
+    const decimalOption = screen.getByRole('radio', { name: /^Decimal \(base 1000\)/ });
     await act(async () => {
-      fireEvent.click(decimalButton);
+      fireEvent.click(decimalOption);
     });
     await waitFor(() => expect(onSaved).toHaveBeenCalledWith(savedSettings));
   });
@@ -99,9 +161,9 @@ describe('DiskSettingsModal', () => {
       json: async () => ({}),
     });
     render(<DiskSettingsModal settings={defaultSettings} onClose={onClose} onSaved={onSaved} />);
-    const binaryButton = screen.getByText('Binary (base 1024)').closest('button')!;
+    const decimalOption = screen.getByRole('radio', { name: /^Decimal \(base 1000\)/ });
     await act(async () => {
-      fireEvent.click(binaryButton);
+      fireEvent.click(decimalOption);
     });
     await waitFor(() => expect(global.fetch).toHaveBeenCalled());
     expect(onSaved).not.toHaveBeenCalled();
@@ -110,9 +172,9 @@ describe('DiskSettingsModal', () => {
   it('handles fetch error gracefully without crashing', async () => {
     global.fetch = vi.fn().mockRejectedValue(new Error('Network error'));
     render(<DiskSettingsModal settings={defaultSettings} onClose={onClose} onSaved={onSaved} />);
-    const binaryButton = screen.getByText('Binary (base 1024)').closest('button')!;
+    const decimalOption = screen.getByRole('radio', { name: /^Decimal \(base 1000\)/ });
     await act(async () => {
-      fireEvent.click(binaryButton);
+      fireEvent.click(decimalOption);
     });
     // Should not throw; onSaved should not be called
     expect(onSaved).not.toHaveBeenCalled();
@@ -127,11 +189,11 @@ describe('DiskSettingsModal', () => {
         })
     );
     render(<DiskSettingsModal settings={defaultSettings} onClose={onClose} onSaved={onSaved} />);
-    const binaryButton = screen.getByText('Binary (base 1024)').closest('button')!;
+    const decimalOption = screen.getByRole('radio', { name: /^Decimal \(base 1000\)/ });
     act(() => {
-      fireEvent.click(binaryButton);
+      fireEvent.click(decimalOption);
     });
-    await waitFor(() => expect(screen.getByText('Saving...')).toBeDefined());
+    await waitFor(() => expect(screen.getByText('Saving disk settings...')).toBeDefined());
     await act(async () => {
       resolveFetch({ ok: true, json: async () => ({ settings: defaultSettings }) });
     });
@@ -141,8 +203,6 @@ describe('DiskSettingsModal', () => {
     render(
       <DiskSettingsModal settings={{ unitSystem: 'decimal' }} onClose={onClose} onSaved={onSaved} />
     );
-    // The decimal button should be in active (selected) state; check by aria or class
-    const decimalButton = screen.getByText('Decimal (base 1000)').closest('button')!;
-    expect(decimalButton.className).toContain('border-primary');
+    expect(screen.getByRole('radio', { name: /^Decimal \(base 1000\)/ })).toBeChecked();
   });
 });

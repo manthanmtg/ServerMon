@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ZodError, z } from 'zod';
-import type { Model } from 'mongoose';
 import { createLogger } from '@/lib/logger';
 import connectDB from '@/lib/db';
 import AlertChannel from '@/models/AlertChannel';
@@ -13,6 +12,7 @@ import {
   type AlertDispatchDeps,
   type AlertPayload,
   type AlertSeverity,
+  type AlertSubscriptionLike,
 } from '@/lib/fleet/alerts';
 
 export const dynamic = 'force-dynamic';
@@ -69,7 +69,7 @@ export async function POST(req: NextRequest) {
 
     // For the test endpoint we bypass real subscription lookup and synthesize
     // a transient subscription that targets only the requested channel.
-    const transientSub = {
+    const transientSub: AlertSubscriptionLike = {
       _id: `test-${channelId}`,
       name: 'test-subscription',
       channelId,
@@ -80,33 +80,32 @@ export async function POST(req: NextRequest) {
 
     const deps: AlertDispatchDeps = {
       AlertChannel: {
-        find: AlertChannel.find.bind(
-          AlertChannel
-        ) as unknown as AlertDispatchDeps['AlertChannel']['find'],
+        find: AlertChannel.find.bind(AlertChannel) as AlertDispatchDeps['AlertChannel']['find'],
         findById: AlertChannel.findById.bind(
           AlertChannel
-        ) as unknown as AlertDispatchDeps['AlertChannel']['findById'],
+        ) as AlertDispatchDeps['AlertChannel']['findById'],
         findByIdAndUpdate: AlertChannel.findByIdAndUpdate.bind(
           AlertChannel
-        ) as unknown as AlertDispatchDeps['AlertChannel']['findByIdAndUpdate'],
+        ) as AlertDispatchDeps['AlertChannel']['findByIdAndUpdate'],
       },
       AlertSubscription: {
         find: () =>
           ({
             lean: async () => [transientSub],
-            then: (cb: (v: unknown[]) => unknown) => Promise.resolve([transientSub]).then(cb),
-          }) as never,
+            then: (cb: (subscriptions: AlertSubscriptionLike[]) => unknown) =>
+              Promise.resolve([transientSub]).then(cb),
+          }) as ReturnType<AlertDispatchDeps['AlertSubscription']['find']>,
       },
       FleetLogEvent: {
         create: FleetLogEvent.create.bind(
           FleetLogEvent
-        ) as unknown as AlertDispatchDeps['FleetLogEvent']['create'],
+        ) as AlertDispatchDeps['FleetLogEvent']['create'],
       },
     };
 
     const result = await dispatchAlert(testPayload, deps);
 
-    await recordAudit(FleetLogEvent as unknown as Model<unknown>, {
+    await recordAudit(FleetLogEvent, {
       action: 'alert_channel.test',
       actorUserId: session.user.username,
       metadata: {

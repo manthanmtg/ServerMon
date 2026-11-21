@@ -12,6 +12,7 @@ import {
   Clock,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { OperationLogViewer } from '@/components/operations/OperationLogViewer';
 import type { EndpointSnippetFormat, EndpointTestResult } from '../../types';
 
 const copySnippetOptions: ReadonlyArray<{ label: string; format: EndpointSnippetFormat }> = [
@@ -199,25 +200,23 @@ export function EndpointTestConsole({
                 </div>
               </div>
 
+              {(testResult.stdout || testResult.stderr) && (
+                <OperationLogViewer
+                  output={testResult.stdout ?? ''}
+                  status={testResult.error || testResult.statusCode >= 400 ? 'failed' : 'succeeded'}
+                  label="Endpoint execution output"
+                  error={testResult.stderr || testResult.error}
+                  downloadableFilename="endpoint-execution.log"
+                  maxHeightClassName="max-h-[244px]"
+                  className="text-white"
+                />
+              )}
+
               <div className="relative group/response h-[244px]">
                 <pre className="w-full h-full p-5 rounded-2xl bg-[#0d0d0d] text-white/80 text-[11px] font-mono leading-relaxed overflow-y-auto border border-white/5 shadow-inner custom-scrollbar whitespace-pre-wrap break-all ring-1 ring-white/5">
                   {testResult.body}
                 </pre>
               </div>
-
-              {testResult.stderr && (
-                <div className="mt-4 p-4 rounded-2xl bg-destructive/5 border border-destructive/10 animate-in slide-in-from-top-2 duration-300">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Terminal className="w-3.5 h-3.5 text-destructive/60" />
-                    <p className="text-[9px] font-black text-destructive/60 uppercase tracking-widest leading-none">
-                      ERROR STREAM (STDERR)
-                    </p>
-                  </div>
-                  <pre className="text-destructive/80 text-[10px] font-mono whitespace-pre-wrap leading-tight italic pl-5.5">
-                    {testResult.stderr}
-                  </pre>
-                </div>
-              )}
             </div>
           ) : (
             <div className="flex flex-col items-center justify-center h-[300px] rounded-2xl bg-[#0d0d0d] border border-dashed border-white/5 group transition-all hover:border-white/10">

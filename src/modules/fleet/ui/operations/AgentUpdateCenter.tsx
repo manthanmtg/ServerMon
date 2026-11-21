@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useMemo, useState, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -158,11 +158,15 @@ export function AgentUpdateCenter() {
     }
   };
 
-  const versionGroups = (nodes ?? []).reduce<Record<string, number>>((acc, n) => {
-    const v = n.agentVersion ?? 'unknown';
-    acc[v] = (acc[v] ?? 0) + 1;
-    return acc;
-  }, {});
+  const versionGroups = useMemo(
+    () =>
+      (nodes ?? []).reduce<Record<string, number>>((acc, n) => {
+        const v = n.agentVersion ?? 'unknown';
+        acc[v] = (acc[v] ?? 0) + 1;
+        return acc;
+      }, {}),
+    [nodes]
+  );
 
   return (
     <div className="space-y-4">

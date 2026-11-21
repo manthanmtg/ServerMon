@@ -131,6 +131,134 @@ describe('NginxPage', () => {
     expect(screen.getByText('example.com, www.example.com')).toBeDefined();
   });
 
+  it('exposes virtual host disclosure state to assistive technology', async () => {
+    await act(async () => {
+      render(<NginxPage />);
+    });
+    await waitFor(() =>
+      expect(screen.getAllByRole('button', { name: /example\.com/ }).length).toBeGreaterThan(0)
+    );
+
+    const disclosure = screen.getAllByRole('button', { name: /example\.com/ })[0];
+    expect(disclosure).toHaveAttribute('aria-expanded', 'false');
+
+    const detailsId = disclosure.getAttribute('aria-controls');
+    expect(detailsId).toBeTruthy();
+
+    fireEvent.click(disclosure);
+
+    expect(disclosure).toHaveAttribute('aria-expanded', 'true');
+    expect(document.getElementById(detailsId as string)).toBeDefined();
+  });
+
+  it('prefers configured server_name as the visible host label', async () => {
+    const readableSnapshot = {
+      ...mockNginxSnapshot,
+      summary: { ...mockNginxSnapshot.summary, totalVhosts: 1 },
+      virtualHosts: [
+        {
+          name: 'server-block-app',
+          serverNames: ['servermon.apps.example.com', 'www.servermon.apps.example.com'],
+          listenPorts: [443],
+          sslEnabled: true,
+          enabled: true,
+          root: '/var/www/servermon',
+          filename: '/etc/nginx/sites-available/servermon-app.conf',
+          raw: 'server { listen 443 ssl; server_name servermon.apps.example.com www.servermon.apps.example.com; }',
+        },
+      ],
+    };
+
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => readableSnapshot,
+    });
+
+    await act(async () => {
+      render(<NginxPage />);
+    });
+    await waitFor(() => screen.getByText('servermon.apps.example.com'));
+    fireEvent.click(screen.getByText('servermon.apps.example.com'));
+    expect(screen.getByText('Hostnames:')).toBeDefined();
+    expect(
+      screen.getAllByText('servermon.apps.example.com, www.servermon.apps.example.com').length
+    ).toBeGreaterThan(0);
+  });
+
+  it('renders loaded config details for managed wildcard TLS hosts', async () => {
+    const detailedSnapshot = {
+      ...mockNginxSnapshot,
+      summary: { ...mockNginxSnapshot.summary, totalVhosts: 1, sslVhosts: 1 },
+      virtualHosts: [
+        {
+          id: '/etc/nginx/servermon/wildcard.conf::0',
+          name: 'wildcard.conf',
+          filename: '/etc/nginx/servermon/wildcard.conf',
+          sourcePath: '/etc/nginx/servermon/wildcard.conf',
+          sourceLine: 1,
+          loaded: true,
+          managed: true,
+          primaryServerName: '*.apps.example.com',
+          wildcard: true,
+          serverNames: ['*.apps.example.com'],
+          listenPorts: ['443 ssl'],
+          listen: [{ value: '443 ssl', port: 443, ssl: true, http2: false, defaultServer: false }],
+          tls: {
+            enabled: true,
+            certificate: '/etc/letsencrypt/live/apps.example.com/fullchain.pem',
+            certificateKey: '/etc/letsencrypt/live/apps.example.com/privkey.pem',
+            certbotManaged: true,
+          },
+          sslEnabled: true,
+          enabled: true,
+          root: '',
+          proxyPass: 'http://127.0.0.1:8080',
+          locations: [
+            {
+              path: '/',
+              proxyPass: 'http://127.0.0.1:8080',
+              directives: { proxy_read_timeout: '300s' },
+            },
+          ],
+          redirects: [
+            {
+              code: 301,
+              target: 'https://$host$request_uri',
+              raw: 'return 301 https://$host$request_uri;',
+            },
+          ],
+          warnings: [],
+          raw: 'server { listen 443 ssl; server_name *.apps.example.com; }',
+        },
+      ],
+    };
+
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => detailedSnapshot,
+    });
+
+    await act(async () => {
+      render(<NginxPage />);
+    });
+    await waitFor(() => screen.getAllByText('*.apps.example.com').length > 0);
+    fireEvent.click(screen.getAllByText('*.apps.example.com')[0]);
+
+    expect(screen.getByText('Wildcard')).toBeDefined();
+    expect(screen.getByText('Loaded')).toBeDefined();
+    expect(screen.getByText('Managed')).toBeDefined();
+    expect(screen.getByText('TLS certificate:')).toBeDefined();
+    expect(screen.getByText('/etc/letsencrypt/live/apps.example.com/fullchain.pem')).toBeDefined();
+    expect(screen.getByText('TLS key:')).toBeDefined();
+    expect(screen.getByText('/etc/letsencrypt/live/apps.example.com/privkey.pem')).toBeDefined();
+    expect(screen.getByText('Source:')).toBeDefined();
+    expect(screen.getByText('/etc/nginx/servermon/wildcard.conf:1')).toBeDefined();
+    expect(screen.getByText('Redirects:')).toBeDefined();
+    expect(screen.getByText('301 -> https://$host$request_uri')).toBeDefined();
+    expect(screen.getByText('Locations:')).toBeDefined();
+    expect(screen.getByText('/ -> http://127.0.0.1:8080')).toBeDefined();
+  });
+
   it('expands virtual host details', async () => {
     await act(async () => {
       render(<NginxPage />);
@@ -214,21 +342,21 @@ describe('NginxPage', () => {
     expect(global.fetch).toHaveBeenCalledTimes(2);
   });
 
-  describe.skip('Polling', () => {
+  describe('Polling', () => {
     it('automatically polls for updates', async () => {
       vi.useFakeTimers();
-      await act(async () => {
-        render(<NginxPage />);
-      });
-      await waitFor(() => expect(global.fetch).toHaveBeenCalled());
+      render(<NginxPage />);
+
+      // Advance enough for initial fetch and loading to finish
+      await act(async () => vi.advanceTimersByTimeAsync(100));
+
       vi.mocked(global.fetch).mockClear();
 
-      await act(async () => {
-        vi.advanceTimersByTime(5010);
-        vi.runOnlyPendingTimers();
-      });
+      // Advance 15 seconds for polling
+      await act(async () => vi.advanceTimersByTimeAsync(16000));
+      expect(global.fetch).toHaveBeenCalled();
 
-      await waitFor(() => expect(global.fetch).toHaveBeenCalled());
+      vi.useRealTimers();
     });
   });
 

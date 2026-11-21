@@ -36,7 +36,7 @@ describe('AutoscrollButton', () => {
   it('applies enabled styles when enabled is true', () => {
     render(<AutoscrollButton enabled onToggle={vi.fn()} />);
     const btn = screen.getByRole('button');
-    expect(btn.className).toContain('bg-blue-500/10');
+    expect(btn.className).toContain('bg-primary/10');
   });
 
   it('applies disabled styles when enabled is false', () => {
@@ -59,5 +59,10 @@ describe('AutoscrollButton', () => {
 
   it('has correct displayName', () => {
     expect(AutoscrollButton.displayName).toBe('AutoscrollButton');
+  });
+
+  it('provides a 44 pixel minimum pointer target', () => {
+    render(<AutoscrollButton enabled onToggle={vi.fn()} />);
+    expect(screen.getByRole('button')).toHaveClass('h-11');
   });
 });

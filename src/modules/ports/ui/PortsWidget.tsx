@@ -1,40 +1,33 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
 import { Cable, LoaderCircle, Radio, Server } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import type { PortsSnapshot } from '../types';
+import { useSharedJsonPollingQuery } from '@/lib/polling/useSharedJsonPollingQuery';
 
 export default function PortsWidget() {
-  const [snapshot, setSnapshot] = useState<PortsSnapshot | null>(null);
-  const [initialLoad, setInitialLoad] = useState(true);
-
-  const load = useCallback(async () => {
-    try {
-      const res = await fetch('/api/modules/ports', { cache: 'no-store' });
-      if (res.ok) {
-        const data = await res.json();
-        setSnapshot(data);
-      }
-    } catch {
-      // silently ignore for widget
-    } finally {
-      setInitialLoad(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    load();
-    const interval = window.setInterval(load, 15000);
-    return () => window.clearInterval(interval);
-  }, [load]);
+  const {
+    data: snapshot,
+    loading: initialLoad,
+    error,
+  } = useSharedJsonPollingQuery<PortsSnapshot>({
+    key: 'ports:list',
+    url: '/api/modules/ports',
+    intervalMs: 10_000,
+    staleTimeMs: 0,
+  });
+  const loadError = Boolean(error);
 
   if (initialLoad && !snapshot) {
     return (
       <Card className="border-border/60">
-        <CardContent className="flex items-center justify-center py-12">
+        <CardContent
+          role="status"
+          aria-label="Loading ports summary"
+          className="flex items-center justify-center py-12"
+        >
           <LoaderCircle className="h-5 w-5 animate-spin text-primary" />
         </CardContent>
       </Card>
@@ -82,6 +75,11 @@ export default function PortsWidget() {
             <span className="ml-auto font-semibold">{s?.uniqueProcesses ?? 0}</span>
           </div>
         </div>
+        {loadError && (
+          <p className="mt-3 rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-warning">
+            Unable to refresh port data. Showing the last known values.
+          </p>
+        )}
         {snapshot?.firewall.available && (
           <div
             className={cn(

@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { ExternalLink } from 'lucide-react';
+import { ExternalLink, RadioTower, ShieldAlert } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
@@ -32,6 +32,17 @@ interface PublicRouteRow {
   templateId?: string;
   healthStatus?: string;
   dnsStatus?: string;
+}
+
+interface RouteSuggestion {
+  id: string;
+  title: string;
+  description: string;
+  badge: string;
+  targetLabel: string;
+  sourceLabel: string;
+  warning?: string;
+  form: ExposeForm;
 }
 
 function buildPublicRouteUrl(route: PublicRouteRow): string {
@@ -68,23 +79,45 @@ function routeToForm(route: PublicRouteRow): ExposeForm {
 
 export function PublicRouteTable({ nodeId }: { nodeId: string }) {
   const [routes, setRoutes] = useState<PublicRouteRow[] | null>(null);
+  const [suggestions, setSuggestions] = useState<RouteSuggestion[]>([]);
+  const [suggestionError, setSuggestionError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showWizard, setShowWizard] = useState(false);
   const [editingRoute, setEditingRoute] = useState<PublicRouteRow | null>(null);
+  const [suggestedForm, setSuggestedForm] = useState<ExposeForm | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
     const load = async () => {
       try {
-        const res = await fetch(`/api/fleet/routes?nodeId=${encodeURIComponent(nodeId)}`);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json();
+        const [routesRes, suggestionsRes] = await Promise.all([
+          fetch(`/api/fleet/routes?nodeId=${encodeURIComponent(nodeId)}`),
+          fetch(`/api/fleet/nodes/${encodeURIComponent(nodeId)}/route-suggestions`),
+        ]);
+        if (!routesRes.ok) throw new Error(`HTTP ${routesRes.status}`);
+        const data = await routesRes.json();
+        let nextSuggestions: RouteSuggestion[] = [];
+        let nextSuggestionError: string | null = null;
+        if (suggestionsRes.ok) {
+          const suggestionData = (await suggestionsRes.json().catch(() => ({}))) as {
+            suggestions?: RouteSuggestion[];
+          };
+          nextSuggestions = suggestionData.suggestions ?? [];
+        } else {
+          const body = (await suggestionsRes.json().catch(() => ({}))) as { error?: string };
+          nextSuggestionError = body.error ?? `HTTP ${suggestionsRes.status}`;
+        }
         if (cancelled) return;
         setRoutes(data.routes ?? []);
+        setSuggestions(nextSuggestions);
+        setSuggestionError(nextSuggestionError);
         setError(null);
       } catch (e) {
-        if (!cancelled) setError((e as Error).message);
+        if (!cancelled) {
+          setError((e as Error).message);
+          setSuggestionError(null);
+        }
       }
     };
     load();
@@ -118,6 +151,7 @@ export function PublicRouteTable({ nodeId }: { nodeId: string }) {
             type="button"
             onClick={() => {
               setEditingRoute(null);
+              setSuggestedForm(null);
               setShowWizard(true);
             }}
           >
@@ -133,6 +167,72 @@ export function PublicRouteTable({ nodeId }: { nodeId: string }) {
               {error}
             </div>
           )}
+          {suggestionError && (
+            <div
+              role="status"
+              aria-live="polite"
+              className="rounded-lg border border-warning/30 bg-warning/5 p-3 text-sm text-warning"
+            >
+              Service detection unavailable: {suggestionError}
+            </div>
+          )}
+          {suggestions.length > 0 && (
+            <section
+              aria-labelledby="detected-services-title"
+              className="space-y-2 rounded-lg border border-primary/20 bg-primary/5 p-3"
+            >
+              <div className="flex items-center gap-2">
+                <RadioTower className="h-4 w-4 text-primary" aria-hidden="true" />
+                <div>
+                  <h3 id="detected-services-title" className="text-sm font-medium">
+                    Detected services
+                  </h3>
+                  <div className="text-xs text-muted-foreground">
+                    ServerMon app and module details reported by the local agent bridge.
+                  </div>
+                </div>
+              </div>
+              <div className="grid gap-2">
+                {suggestions.map((suggestion) => (
+                  <div
+                    key={suggestion.id}
+                    className="flex flex-col gap-3 rounded-lg border border-border bg-card p-3 md:flex-row md:items-center md:justify-between"
+                  >
+                    <div className="min-w-0 space-y-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-medium">{suggestion.title}</span>
+                        <Badge variant="outline">{suggestion.badge}</Badge>
+                      </div>
+                      <div className="text-xs text-muted-foreground">{suggestion.description}</div>
+                      <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                        <span className="font-mono">{suggestion.targetLabel}</span>
+                        <span>{suggestion.sourceLabel}</span>
+                      </div>
+                      {suggestion.warning && (
+                        <div className="flex items-start gap-1.5 text-xs text-warning">
+                          <ShieldAlert className="mt-0.5 h-3.5 w-3.5" aria-hidden="true" />
+                          <span>{suggestion.warning}</span>
+                        </div>
+                      )}
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => {
+                        setEditingRoute(null);
+                        setShowWizard(false);
+                        setSuggestedForm(suggestion.form);
+                      }}
+                      aria-label={`Configure route for ${suggestion.form.name}`}
+                      className="shrink-0"
+                    >
+                      Configure route
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
           {!routes && (
             <div className="flex justify-center py-12">
               <Spinner />
@@ -144,14 +244,27 @@ export function PublicRouteTable({ nodeId }: { nodeId: string }) {
           {routes && routes.length > 0 && (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
+                <caption className="sr-only">List of public routes for the node</caption>
                 <thead>
                   <tr className="border-b border-border text-left text-muted-foreground">
-                    <th className="py-2 pr-2 font-medium">Name</th>
-                    <th className="py-2 pr-2 font-medium">Domain</th>
-                    <th className="py-2 pr-2 font-medium">Status</th>
-                    <th className="py-2 pr-2 font-medium">Access</th>
-                    <th className="py-2 pr-2 font-medium">TLS</th>
-                    <th className="py-2 pr-2 font-medium"></th>
+                    <th scope="col" className="py-2 pr-2 font-medium">
+                      Name
+                    </th>
+                    <th scope="col" className="py-2 pr-2 font-medium">
+                      Domain
+                    </th>
+                    <th scope="col" className="py-2 pr-2 font-medium">
+                      Status
+                    </th>
+                    <th scope="col" className="py-2 pr-2 font-medium">
+                      Access
+                    </th>
+                    <th scope="col" className="py-2 pr-2 font-medium">
+                      TLS
+                    </th>
+                    <th scope="col" className="py-2 pr-2 font-medium">
+                      <span className="sr-only">Actions</span>
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -208,7 +321,10 @@ export function PublicRouteTable({ nodeId }: { nodeId: string }) {
                             variant="outline"
                             size="sm"
                             type="button"
-                            onClick={() => setEditingRoute(r)}
+                            onClick={() => {
+                              setSuggestedForm(null);
+                              setEditingRoute(r);
+                            }}
                             aria-label={`Edit route ${r.name}`}
                           >
                             Edit
@@ -233,7 +349,7 @@ export function PublicRouteTable({ nodeId }: { nodeId: string }) {
         </CardContent>
       </Card>
 
-      {(showWizard || editingRoute) && (
+      {(showWizard || editingRoute || suggestedForm) && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm p-4"
           role="dialog"
@@ -245,13 +361,15 @@ export function PublicRouteTable({ nodeId }: { nodeId: string }) {
               nodeId={nodeId}
               mode={editingRoute ? 'edit' : 'create'}
               routeId={editingRoute?._id}
-              initialForm={editingRoute ? routeToForm(editingRoute) : undefined}
+              initialForm={editingRoute ? routeToForm(editingRoute) : (suggestedForm ?? undefined)}
               onCreated={() => {
                 setShowWizard(false);
+                setSuggestedForm(null);
                 setRefreshKey((k) => k + 1);
               }}
               onSaved={(updated) => {
                 setEditingRoute(null);
+                setSuggestedForm(null);
                 setRoutes(
                   (prev) =>
                     prev?.map((route) =>
@@ -262,6 +380,7 @@ export function PublicRouteTable({ nodeId }: { nodeId: string }) {
               onCancel={() => {
                 setShowWizard(false);
                 setEditingRoute(null);
+                setSuggestedForm(null);
               }}
             />
           </div>

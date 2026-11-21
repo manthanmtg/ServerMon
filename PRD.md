@@ -32,19 +32,20 @@ The application runs locally on the server and exposes a secure web interface.
 
 Frontend + Backend (Monolithic App)
 
-- **NextJS (Latest)**
+- **Next.js 16.1 (App Router)**
 - **TypeScript (strict mode)**
 - **MongoDB**
-- **Node.js (LTS)**
+- **Node.js 20 LTS**
+- **Tailwind CSS 4.2**
 
 Libraries (Recommended)
 
-- **Zod** for schema validation and strongly typed data contracts across API routes, modules, and database models
+- **Zod 4.3** for schema validation and strongly typed data contracts across API routes, modules, and database models
 - mongoose / mongodb native driver with typed models
 - socket.io / ws for realtime streams
 - node-pty for terminal module
-- bcrypt / argon2 for password hashing
-- speakeasy or otplib for TOTP
+- argon2 for password hashing
+- otplib for TOTP
 
 ---
 
@@ -60,7 +61,19 @@ Example environment variables:
 PORT=8912
 MONGO_URI=mongodb://localhost:27017/servermon
 NODE_ENV=production
+AI_RUNNER_MAX_CONCURRENT_RUNS=3
 ```
+
+Optional controls include:
+
+- `AI_RUNNER_MAX_CONCURRENT_RUNS`: cap concurrent AI Runner jobs (defaults to `3`, max `8`).
+- `FLEET_HUB_PUBLIC_URL`: public ServerMon hub endpoint used by fleet install scripts and callback handshakes.
+- `SERVERMON_NETWORK_MOCK`: set to `1` to mock network speedtest data
+- `SERVERMON_DOCKER_MOCK`: set to `1` to mock Docker data
+- `SERVERMON_UPDATES_MOCK`: set to `1` to mock update check data
+- `SERVERMON_BRANDING_MOCK`: set to `1` to serve default branding in MongoDB-agnostic environments
+- `SERVERMON_SKIP_STARTUP_JOBS`: set to `1` to skip non-critical startup jobs (session cleanup, schedulers, health warmups) during boot
+- `SERVERMON_FIREWALL_MOCK`: set to `1` to mock firewall posture data
 
 ### MongoDB Connection
 
@@ -151,7 +164,7 @@ Credentials are stored in MongoDB.
 
 Security requirements:
 
-- Passwords hashed using **Argon2 or bcrypt**
+- Passwords hashed using **Argon2**
 - Salting required
 - No plaintext storage
 - Rate limiting on login attempts
@@ -232,6 +245,7 @@ Features:
 
 - Displays widgets from modules
 - Live updating metrics
+- Real‑time network latency (ping) monitoring
 - Configurable widget layout
 
 Widgets are **registered by modules**.
@@ -244,11 +258,11 @@ Static core section located in the **left navigation pane**.
 
 Capabilities:
 
-- Change Basic Auth credentials
-- Configure TOTP
-- **Appearance: Extensible Theme System (Supports wide variety of presets like Light, Dark, Solarized, Monokai, Synthwave, etc., mimicking VS Code's variety)**
-- Manage modules
-- View system status
+- Manage appearance themes and instance branding
+- Configure quick access navigation shortcuts
+- Manage local ServerMon app and agent update controls
+- Manage WebAuthn passkeys and security settings
+- View system status and service health
 
 ---
 
@@ -514,7 +528,7 @@ users
 
 Notes:
 
-- `passwordHash` uses **Argon2 or bcrypt**.
+- `passwordHash` uses **Argon2**.
 - `totpSecret` stored securely and used for Google Authenticator.
 - `passkeys` stores credential ID, public key, and metadata for WebAuthn.
 - `createdBy` references the admin who created the user.
@@ -912,18 +926,37 @@ Goal: allow developers to create modules quickly.
 
 The following modules are currently implemented in the core system:
 
-- **Dashboard**: Real-time widgets
-- **Terminal**: Interactive shell
-- **Processes**: Process management
-- **File Browser**: Filesystem navigation and CodeMirror 6 editing
-- **Docker**: Container management
-- **Disk & Network**: Resource monitoring
-- **Services & Cron Jobs**: System daemon and schedule management
-- **AI Agents**: Passive observability of AI CLI tools
-- **AI Runner**: Active orchestration and scheduling of AI CLI tools
-- **Security & Audit Logs**: MFA, settings, and action history
-- **Certificates, Ports, Hardware, Nginx**: Infrastructure monitoring
-- **Fleet Management**: Centralized administration of remote nodes, public routes, and reverse proxies
+- **Dashboard**: Real-time CPU, memory, system health, and network latency widgets with live charts
+- **Terminal**: Interactive web terminal powered by xterm.js and node-pty
+- **Processes**: View, search, and manage running processes
+- **File Browser**: Filesystem navigation and CodeMirror 6 editing (20+ languages)
+- **Docker**: Monitor containers, images, volumes, and networks
+- **Disk**: Disk usage, I/O performance, and storage health monitoring
+- **Memory**: RAM and swap pressure analysis with top memory consumers
+- **Metrics**: Real-time CPU and memory chart widgets backed by the shared metrics stream
+- **Health**: Core health status widgets for CPU, memory, and disk pressure
+- **Network**: Real-time bandwidth, interface stats, and connection monitoring
+- **Services**: Monitor and manage systemd services
+- **Cron Jobs**: View and manage cron schedules and execution history
+- **Updates**: Track available system and package updates
+- **Apps**: Deploy and operate local Next.js applications from managed release copies
+- **Databases**: Deploy and operate Docker-based MongoDB, PostgreSQL, and MySQL databases
+- **Fleet**: Multi-node management with centralized administration, public routes, reverse proxies, RBAC policies, backup orchestration, and multi-channel alerting
+- **AI Agents**: Passive observability of AI coding agent sessions running on the server
+- **AI Runner**: Configure AI automation profiles, workspaces, prompts, schedules, and run history
+- **Self Service**: Browse and install managed apps, CLI tools, and services
+- **Endpoints**: Define and execute custom API endpoints, scripts, and webhook proxies
+- **EnvVars**: Inspect and update host-level user environment variables with OS-aware system instructions
+- **Certificates**: Manage SSL/TLS certificates and renewals
+- **Ports**: Monitor open ports and listening services
+- **Firewall**: Monitor firewall posture, default policies, and network exposure
+- **Hardware**: Detailed hardware specifications and health info
+- **Nginx**: Manage Nginx configurations and site status
+- **Security**: Security configuration and MFA management
+- **Settings**: System configuration, appearance themes, branding, and module management
+- **System Logs**: Search and inspect host and application log output
+- **Users**: Manage user accounts, roles, and permissions
+- **Guide**: Built-in interactive onboarding and documentation
 
 ---
 
@@ -966,12 +999,7 @@ Example permissions:
 - module.install
 - settings.modify
 
-User roles initially supported:
-
-- admin
-- user
-
-Future versions may introduce full **RBAC**.
+The **Fleet module** implements a full **RBAC (Role-Based Access Control) system** with defined roles (viewer, operator, admin) and a capability matrix.
 
 ---
 
@@ -1109,17 +1137,11 @@ Extensibility
 
 Possible roadmap items:
 
-- RBAC user roles
-- multi server monitoring
-- alerting system
-- notification integrations
-- Remote configuration sync
-
-Examples:
-
-- Slack
-- Email
-- Webhooks
+- Global system-wide RBAC (currently implemented per-module in Fleet)
+- alerting system (implemented in Fleet)
+- notification integrations (partial in Fleet)
+- Remote configuration sync (implemented in Fleet)
+- multi server monitoring (implemented in Fleet)
 
 ---
 

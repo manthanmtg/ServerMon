@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useState } from 'react';
 import {
   CheckCircle,
   Globe,
@@ -16,11 +16,36 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { PageSkeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
-import type { NginxSnapshot, NginxConfigTest } from '../types';
+import type { NginxSnapshot, NginxConfigTest, NginxVirtualHost } from '../types';
+import { NginxHostWizard } from './NginxHostWizard';
+import { useSharedJsonPollingQuery } from '@/lib/polling/useSharedJsonPollingQuery';
+
+function getDisplayVhostName(vhost: NginxVirtualHost): string {
+  return (
+    vhost.primaryServerName ?? vhost.serverNames.find((name) => name && name !== '_') ?? vhost.name
+  );
+}
+
+function getSourceLabel(vhost: NginxVirtualHost): string {
+  const source = vhost.sourcePath ?? vhost.filename;
+  return vhost.sourceLine ? `${source}:${vhost.sourceLine}` : source;
+}
+
+function formatRedirect(code: number, target?: string): string {
+  return target ? `${code} -> ${target}` : `${code}`;
+}
 
 export default function NginxPage() {
-  const [snapshot, setSnapshot] = useState<NginxSnapshot | null>(null);
-  const [loading, setLoading] = useState(true);
+  const {
+    data: snapshot,
+    loading,
+    refresh,
+  } = useSharedJsonPollingQuery<NginxSnapshot>({
+    key: 'nginx:hosts',
+    url: '/api/modules/nginx',
+    intervalMs: 15_000,
+    staleTimeMs: 0,
+  });
   const [testResult, setTestResult] = useState<NginxConfigTest | null>(null);
   const [testing, setTesting] = useState(false);
   const [reloading, setReloading] = useState(false);
@@ -28,26 +53,6 @@ export default function NginxPage() {
     null
   );
   const [expandedVhost, setExpandedVhost] = useState<string | null>(null);
-
-  const load = useCallback(async () => {
-    try {
-      const res = await fetch('/api/modules/nginx', { cache: 'no-store' });
-      if (res.ok) {
-        const data = await res.json();
-        setSnapshot(data);
-      }
-    } catch {
-      // ignore
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    load();
-    const interval = window.setInterval(load, 15000);
-    return () => window.clearInterval(interval);
-  }, [load]);
 
   const handleTest = async () => {
     setTesting(true);
@@ -75,7 +80,7 @@ export default function NginxPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Reload failed');
       setReloadResult(data);
-      if (data.success) load();
+      if (data.success) void refresh();
     } catch (err) {
       setReloadResult({
         success: false,
@@ -228,7 +233,7 @@ export default function NginxPage() {
               Reload Nginx
             </button>
             <button
-              onClick={load}
+              onClick={() => void refresh()}
               className="h-9 px-4 bg-secondary text-foreground border border-border rounded-lg text-sm font-medium hover:bg-accent transition-colors flex items-center gap-2"
             >
               <RefreshCw className="w-4 h-4" />
@@ -283,6 +288,8 @@ export default function NginxPage() {
         </CardContent>
       </Card>
 
+      <NginxHostWizard onCreated={() => void refresh()} />
+
       {/* Virtual Hosts */}
       <Card className="border-border/60">
         <CardHeader className="pb-3">
@@ -304,79 +311,162 @@ export default function NginxPage() {
             <p className="text-sm text-muted-foreground text-center py-8">No virtual hosts found</p>
           ) : (
             <div className="space-y-3">
-              {snapshot.virtualHosts.map((vhost) => (
-                <div
-                  key={vhost.name}
-                  className="rounded-lg border border-border/60 overflow-hidden"
-                >
-                  <button
-                    onClick={() =>
-                      setExpandedVhost(expandedVhost === vhost.name ? null : vhost.name)
-                    }
-                    className="w-full p-4 flex items-center justify-between hover:bg-accent/30 transition-colors text-left"
+              {snapshot.virtualHosts.map((vhost, index) => {
+                const vhostKey = `${vhost.filename}::${vhost.name}`;
+                const displayName = getDisplayVhostName(vhost);
+                const detailsId = `nginx-vhost-details-${index}`;
+                const isExpanded = expandedVhost === vhostKey;
+                return (
+                  <div
+                    key={vhostKey}
+                    className="rounded-lg border border-border/60 overflow-hidden"
                   >
-                    <div className="flex items-center gap-3">
-                      <Globe className="w-4 h-4 text-primary shrink-0" />
-                      <div>
-                        <p className="text-sm font-medium">{vhost.name}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {vhost.serverNames.join(', ') || 'No server names'}
-                        </p>
+                    <button
+                      type="button"
+                      aria-expanded={isExpanded}
+                      aria-controls={detailsId}
+                      onClick={() => setExpandedVhost(isExpanded ? null : vhostKey)}
+                      className="w-full p-4 flex items-center justify-between hover:bg-accent/30 transition-colors text-left"
+                    >
+                      <div className="flex items-center gap-3">
+                        <Globe className="w-4 h-4 text-primary shrink-0" />
+                        <div>
+                          <p className="text-sm font-medium break-all">{displayName}</p>
+                          <p className="text-xs text-muted-foreground break-all">
+                            {vhost.serverNames.join(', ') || 'No server names'}
+                          </p>
+                        </div>
                       </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {vhost.sslEnabled && (
-                        <Badge variant="warning" className="text-[10px]">
-                          <Lock className="w-2.5 h-2.5 mr-1" />
-                          SSL
+                      <div className="flex items-center gap-2">
+                        {vhost.wildcard && (
+                          <Badge variant="outline" className="text-[10px]">
+                            Wildcard
+                          </Badge>
+                        )}
+                        {vhost.sslEnabled && (
+                          <Badge variant="warning" className="text-[10px]">
+                            <Lock className="w-2.5 h-2.5 mr-1" />
+                            SSL
+                          </Badge>
+                        )}
+                        <Badge
+                          variant={vhost.enabled ? 'success' : 'secondary'}
+                          className="text-[10px]"
+                        >
+                          {vhost.enabled ? 'Enabled' : 'Disabled'}
                         </Badge>
-                      )}
-                      <Badge
-                        variant={vhost.enabled ? 'success' : 'secondary'}
-                        className="text-[10px]"
+                        {vhost.loaded && (
+                          <Badge variant="success" className="text-[10px]">
+                            Loaded
+                          </Badge>
+                        )}
+                        {vhost.managed && (
+                          <Badge variant="outline" className="text-[10px]">
+                            Managed
+                          </Badge>
+                        )}
+                      </div>
+                    </button>
+                    {isExpanded && (
+                      <div
+                        id={detailsId}
+                        className="border-t border-border/60 p-4 bg-secondary/30 space-y-2 text-xs"
                       >
-                        {vhost.enabled ? 'Enabled' : 'Disabled'}
-                      </Badge>
-                    </div>
-                  </button>
-                  {expandedVhost === vhost.name && (
-                    <div className="border-t border-border/60 p-4 bg-secondary/30 space-y-2 text-xs">
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                        <div>
-                          <span className="text-muted-foreground">Listen:</span>{' '}
-                          <span className="font-medium">
-                            {vhost.listenPorts.join(', ') || 'N/A'}
-                          </span>
-                        </div>
-                        <div>
-                          <span className="text-muted-foreground">Root:</span>{' '}
-                          <span className="font-mono">{vhost.root || 'N/A'}</span>
-                        </div>
-                        {vhost.proxyPass && (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                           <div>
-                            <span className="text-muted-foreground">Proxy Pass:</span>{' '}
-                            <span className="font-mono">{vhost.proxyPass}</span>
+                            <span className="text-muted-foreground">Hostnames:</span>{' '}
+                            <span className="font-mono break-all">
+                              {vhost.serverNames.join(', ') || 'N/A'}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">Listen:</span>{' '}
+                            <span className="font-medium">
+                              {vhost.listenPorts.join(', ') || 'N/A'}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">Root:</span>{' '}
+                            <span className="font-mono">{vhost.root || 'N/A'}</span>
+                          </div>
+                          {vhost.proxyPass && (
+                            <div>
+                              <span className="text-muted-foreground">Proxy Pass:</span>{' '}
+                              <span className="font-mono">{vhost.proxyPass}</span>
+                            </div>
+                          )}
+                          <div>
+                            <span className="text-muted-foreground">Source:</span>{' '}
+                            <span className="font-mono break-all">{getSourceLabel(vhost)}</span>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">File:</span>{' '}
+                            <span className="font-mono">{vhost.filename}</span>
+                          </div>
+                        </div>
+                        {vhost.tls?.certificate && (
+                          <div>
+                            <span className="text-muted-foreground">TLS certificate:</span>{' '}
+                            <span className="font-mono break-all">{vhost.tls.certificate}</span>
                           </div>
                         )}
-                        <div>
-                          <span className="text-muted-foreground">File:</span>{' '}
-                          <span className="font-mono">{vhost.filename}</span>
-                        </div>
+                        {vhost.tls?.certificateKey && (
+                          <div>
+                            <span className="text-muted-foreground">TLS key:</span>{' '}
+                            <span className="font-mono break-all">{vhost.tls.certificateKey}</span>
+                          </div>
+                        )}
+                        {vhost.tls?.certbotManaged && (
+                          <div>
+                            <span className="text-muted-foreground">Certificate manager:</span>{' '}
+                            <span className="font-medium">Certbot</span>
+                          </div>
+                        )}
+                        {vhost.redirects && vhost.redirects.length > 0 && (
+                          <div>
+                            <span className="text-muted-foreground">Redirects:</span>{' '}
+                            <span className="font-mono break-all">
+                              {vhost.redirects
+                                .map((redirect) => formatRedirect(redirect.code, redirect.target))
+                                .join(', ')}
+                            </span>
+                          </div>
+                        )}
+                        {vhost.locations && vhost.locations.length > 0 && (
+                          <div>
+                            <span className="text-muted-foreground">Locations:</span>{' '}
+                            <span className="font-mono break-all">
+                              {vhost.locations
+                                .map((location) =>
+                                  location.proxyPass
+                                    ? `${location.path} -> ${location.proxyPass}`
+                                    : location.path
+                                )
+                                .join(', ')}
+                            </span>
+                          </div>
+                        )}
+                        {vhost.warnings && vhost.warnings.length > 0 && (
+                          <div>
+                            <span className="text-muted-foreground">Warnings:</span>{' '}
+                            <span className="font-mono break-all">{vhost.warnings.join(', ')}</span>
+                          </div>
+                        )}
+                        {vhost.raw && (
+                          <details className="mt-2">
+                            <summary className="cursor-pointer text-muted-foreground hover:text-foreground text-[11px]">
+                              View config
+                            </summary>
+                            <pre className="mt-2 p-3 rounded bg-background border border-border text-[11px] font-mono whitespace-pre-wrap max-h-64 overflow-y-auto">
+                              {vhost.raw}
+                            </pre>
+                          </details>
+                        )}
                       </div>
-                      {vhost.raw && (
-                        <details className="mt-2">
-                          <summary className="cursor-pointer text-muted-foreground hover:text-foreground text-[11px]">
-                            View config
-                          </summary>
-                          <pre className="mt-2 p-3 rounded bg-background border border-border text-[11px] font-mono whitespace-pre-wrap max-h-64 overflow-y-auto">
-                            {vhost.raw}
-                          </pre>
-                        </details>
-                      )}
-                    </div>
-                  )}
-                </div>
-              ))}
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
         </CardContent>

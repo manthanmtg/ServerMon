@@ -142,6 +142,20 @@ describe('ProShell', () => {
     expect(screen.getByText('Remote Shell')).toBeDefined();
   });
 
+  it('lets long mobile titles shrink before header controls overflow', () => {
+    renderProShell({
+      title: 'Extremely Long Operational Dashboard Title That Should Truncate On Mobile',
+    });
+
+    const header = screen
+      .getByText('Extremely Long Operational Dashboard Title That Should Truncate On Mobile')
+      .closest('header');
+    const titleGroup = header?.firstElementChild;
+
+    expect(titleGroup?.className).toContain('min-w-0');
+    expect(titleGroup?.className).toContain('flex-1');
+  });
+
   it('does not render subtitle when omitted', () => {
     renderProShell({ title: 'Dashboard' });
     expect(screen.queryByTestId('subtitle')).toBeNull();
@@ -174,10 +188,12 @@ describe('ProShell', () => {
     expect(screen.getByTestId('theme-selector')).toBeDefined();
   });
 
-  it('opens command search with the header search button', () => {
+  it('opens command search with the header search button', async () => {
     renderProShell();
     fireEvent.click(screen.getByLabelText('Open search'));
-    expect(screen.getByTestId('command-search')).toBeDefined();
+    await waitFor(() => {
+      expect(screen.getByTestId('command-search')).toBeDefined();
+    });
   });
 
   it('opens command search with Cmd+K', () => {
@@ -221,7 +237,10 @@ describe('ProShell', () => {
     });
 
     await waitFor(() => {
-      expect(global.fetch).toHaveBeenCalledWith('/api/auth/logout', { method: 'POST' });
+      expect(global.fetch).toHaveBeenCalledWith(
+        '/api/auth/logout',
+        expect.objectContaining({ method: 'POST' })
+      );
       expect(mockPush).toHaveBeenCalledWith('/login');
     });
   });
@@ -275,7 +294,10 @@ describe('ProShell', () => {
       fireEvent.click(screen.getByTestId('modal-confirm'));
     });
     await waitFor(() => {
-      expect(global.fetch).toHaveBeenCalledWith('/api/system/reboot', { method: 'POST' });
+      expect(global.fetch).toHaveBeenCalledWith(
+        '/api/system/reboot',
+        expect.objectContaining({ method: 'POST' })
+      );
     });
   });
 
