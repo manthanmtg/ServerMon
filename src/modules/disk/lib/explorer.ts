@@ -2,17 +2,9 @@ import { randomUUID } from 'node:crypto';
 import { realpath, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { createLogger } from '@/lib/logger';
-import type {
-  DiskExplorerListing,
-  DiskExplorerScan,
-} from '../explorer-types';
+import type { DiskExplorerListing, DiskExplorerScan } from '../explorer-types';
 import { deleteDiskEntry, isCleanupPath, prepareDiskDeletion } from './cleanup';
-import {
-  DiskScanError,
-  scanDisk,
-  type DiskScanNode,
-  type DiskScanTree,
-} from './gdu';
+import { DiskScanError, scanDisk, type DiskScanNode, type DiskScanTree } from './gdu';
 
 const log = createLogger('disk:explorer');
 const SCAN_TTL = 20 * 60 * 1000;
@@ -137,7 +129,10 @@ export async function startDiskScan(
     job.expiresAt = Date.now() + SCAN_TTL;
     return toScan(job, 0, isAdmin);
   }
-  if (explorer.deleting || [...explorer.jobs.values()].some((job) => job.state.status === 'scanning')) {
+  if (
+    explorer.deleting ||
+    [...explorer.jobs.values()].some((job) => job.state.status === 'scanning')
+  ) {
     throw new DiskExplorerError('A disk operation is already running. Try again shortly.', 409);
   }
 
@@ -185,9 +180,7 @@ export async function requestDiskDeletion(owner: string, id: string, target: str
   }
 
   const name = path.basename(target);
-  const node = job.state.tree.root.children?.find(
-    (child: DiskScanNode) => child.name === name
-  );
+  const node = job.state.tree.root.children?.find((child: DiskScanNode) => child.name === name);
   if (!node) {
     throw new DiskExplorerError('This path was not found in the scan.', 404);
   }

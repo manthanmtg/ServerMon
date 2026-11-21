@@ -57,7 +57,11 @@ function releaseAssetFor(deps: GduInstallDeps): GduReleaseAsset | null {
   const archTag = arch === 'x64' ? 'amd64' : arch === 'arm64' ? 'arm64' : null;
   if ((platform !== 'linux' && platform !== 'darwin') || !archTag) return null;
   const tag = `${platform}_${archTag}`;
-  return { archive: `gdu_${tag}.tgz`, binaryName: `gdu_${tag}`, checksumKey: `${platform}/${arch}` };
+  return {
+    archive: `gdu_${tag}.tgz`,
+    binaryName: `gdu_${tag}`,
+    checksumKey: `${platform}/${arch}`,
+  };
 }
 
 async function isExecutable(candidate: PathLike): Promise<boolean> {
@@ -168,9 +172,7 @@ async function downloadAssetBody(asset: GduReleaseAsset, deps: GduInstallDeps): 
   const url = `${RELEASE_ORIGIN}/download/v${GDU_RELEASE_VERSION}/${asset.archive}`;
   const body = await downloadArchive(url, deps);
   if (body.length === 0) {
-    throw new DiskScanError(
-      `GitHub releases returned an empty gdu download. ${GDU_INSTALL_HELP}`
-    );
+    throw new DiskScanError(`GitHub releases returned an empty gdu download. ${GDU_INSTALL_HELP}`);
   }
   return body;
 }
@@ -196,15 +198,12 @@ async function extractBinary(body: Buffer, asset: GduReleaseAsset): Promise<stri
     const archivePath = path.join(stagingDir, asset.archive);
     await writeFile(archivePath, body, { mode: 0o600 });
     try {
-      await execFileAsync(
-        'tar',
-        ['-xzf', archivePath, '-C', stagingDir, asset.binaryName],
-        { timeout: EXTRACT_TIMEOUT_MS, killSignal: 'SIGKILL' }
-      );
+      await execFileAsync('tar', ['-xzf', archivePath, '-C', stagingDir, asset.binaryName], {
+        timeout: EXTRACT_TIMEOUT_MS,
+        killSignal: 'SIGKILL',
+      });
     } catch {
-      throw new DiskScanError(
-        `Could not unpack the downloaded gdu release. ${GDU_INSTALL_HELP}`
-      );
+      throw new DiskScanError(`Could not unpack the downloaded gdu release. ${GDU_INSTALL_HELP}`);
     }
     const binaryPath = path.join(binDir, MANAGED_BINARY_NAME);
     await chmod(path.join(stagingDir, asset.binaryName), 0o755);

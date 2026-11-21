@@ -100,11 +100,7 @@ export function MetricsProvider({ children }: { children: React.ReactNode }) {
 
   const value = React.useMemo(() => ({ latest, history, connected }), [latest, history, connected]);
 
-  return (
-    <MetricsContext.Provider value={value}>
-      {children}
-    </MetricsContext.Provider>
-  );
+  return <MetricsContext.Provider value={value}>{children}</MetricsContext.Provider>;
 }
 
 export function useMetrics() {

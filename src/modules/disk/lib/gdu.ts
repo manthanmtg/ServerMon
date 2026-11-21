@@ -1,10 +1,6 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import {
-  DiskScanError,
-  GDU_INSTALL_HELP,
-  ensureGduExecutable,
-} from './gdu-binary';
+import { DiskScanError, GDU_INSTALL_HELP, ensureGduExecutable } from './gdu-binary';
 
 export { DiskScanError } from './gdu-binary';
 

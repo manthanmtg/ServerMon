@@ -1747,7 +1747,11 @@ export default function AIRunnerPage() {
   const executeLinkedDelete = useCallback(
     async (target: LinkedDeleteTarget, force = false) => {
       const path =
-        target.kind === 'prompt' ? 'prompts' : target.kind === 'profile' ? 'profiles' : 'workspaces';
+        target.kind === 'prompt'
+          ? 'prompts'
+          : target.kind === 'profile'
+            ? 'profiles'
+            : 'workspaces';
       const response = await fetch(
         `/api/modules/ai-runner/${path}/${target.id}${force ? '?force=true' : ''}`,
         { method: 'DELETE' }
@@ -2613,7 +2617,6 @@ export default function AIRunnerPage() {
     const item = buildAutoflowDraftItem();
     return item ? expandAutoflowDraftItemForLoop(item) : null;
   };
-
 
   const addAutoflowItem = (replaceStepIndex: number | null = null) => {
     const items = buildAutoflowDraftItems();
