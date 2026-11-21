@@ -186,6 +186,10 @@ AppOperationSchema.index(
   { unique: true, partialFilterExpression: { idempotencyKey: { $type: 'string' } } }
 );
 AppOperationSchema.index({ status: 1, active: 1, createdAt: 1 });
+AppOperationSchema.index(
+  { 'error.code': 1, active: 1 },
+  { partialFilterExpression: { active: true } }
+);
 AppOperationSchema.index({ 'lease.expiresAt': 1 });
 
 const AppOperation: Model<IAppOperation> =

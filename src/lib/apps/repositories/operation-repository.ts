@@ -449,6 +449,9 @@ export async function releaseAppOperationLock(
     },
     {
       $set: {
+        // The { appId, active } partial unique index only matches active: true
+        // documents, so clearing the flag is what actually frees the app lock.
+        active: false,
         'error.code': WORKER_INTERRUPTED_CODE,
         'error.message': WORKER_INTERRUPTED_MESSAGE,
         'error.details.releasedBy': input.releasedBy,

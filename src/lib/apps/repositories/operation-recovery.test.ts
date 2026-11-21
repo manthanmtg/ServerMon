@@ -3,19 +3,23 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const {
   mockAppFindOne,
+  mockAppFind,
   mockHeartbeatFindOne,
   mockReleaseLock,
   mockIsProcessGroupDead,
   mockHostname,
 } = vi.hoisted(() => ({
   mockAppFindOne: vi.fn(),
+  mockAppFind: vi.fn(),
   mockHeartbeatFindOne: vi.fn(),
   mockReleaseLock: vi.fn(),
   mockIsProcessGroupDead: vi.fn(),
   mockHostname: vi.fn(),
 }));
 
-vi.mock('@/models/AppOperation', () => ({ default: { findOne: mockAppFindOne } }));
+vi.mock('@/models/AppOperation', () => ({
+  default: { findOne: mockAppFindOne, find: mockAppFind },
+}));
 vi.mock('@/models/AppsWorkerHeartbeat', () => ({
   default: { findOne: mockHeartbeatFindOne },
 }));
@@ -28,7 +32,7 @@ vi.mock('@/lib/logger', () => ({
   createLogger: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }),
 }));
 
-import { autoReleaseAppOperationLock } from './operation-recovery';
+import { autoReleaseAppOperationLock, findRecoveryRequiredOperations } from './operation-recovery';
 
 const now = new Date('2026-07-31T05:04:00.000Z');
 
@@ -60,6 +64,11 @@ describe('autoReleaseAppOperationLock', () => {
     mockReleaseLock.mockResolvedValue({ id: 'op_1' });
     mockIsProcessGroupDead.mockReturnValue(true);
     mockAppFindOne.mockImplementation(() => ({ lean: () => Promise.resolve(currentRecord) }));
+    mockAppFind.mockImplementation(() => ({
+      sort: () => ({
+        limit: () => Promise.resolve([]),
+      }),
+    }));
   });
 
   it('releases the lock when all recorded process groups are dead on this host', async () => {
@@ -145,5 +154,34 @@ describe('autoReleaseAppOperationLock', () => {
     mockReleaseLock.mockResolvedValue(null);
 
     expect(await autoReleaseAppOperationLock({ operationId: 'op_1', now })).toBe(false);
+  });
+});
+
+describe('findRecoveryRequiredOperations', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('lists active recovery-required operation ids with a bounded, oldest-first query', async () => {
+    const limitSpy = vi.fn().mockReturnValue({
+      lean: () =>
+        Promise.resolve([
+          { operationId: 'op_old', appId: { toString: () => 'app-1' } },
+          { operationId: 'op_new', appId: { toString: () => 'app-2' } },
+        ]),
+    });
+    const sortSpy = vi.fn().mockReturnValue({ limit: limitSpy });
+    mockAppFind.mockReturnValue({ sort: sortSpy });
+
+    await expect(findRecoveryRequiredOperations(25)).resolves.toEqual([
+      { operationId: 'op_old' },
+      { operationId: 'op_new' },
+    ]);
+    expect(mockAppFind).toHaveBeenCalledWith({
+      active: true,
+      'error.code': 'RECOVERY_REQUIRED',
+    });
+    expect(sortSpy).toHaveBeenCalledWith({ queuedAt: 1, _id: 1 });
+    expect(limitSpy).toHaveBeenCalledWith(25);
   });
 });

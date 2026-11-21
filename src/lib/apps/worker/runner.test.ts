@@ -65,6 +65,7 @@ async function flushPromises(): Promise<void> {
 describe('runAppsWorkerOnce', () => {
   const recoverExpiredAppOperationRecord = vi.fn();
   const autoReleaseRecoveryLock = vi.fn();
+  const listRecoveryRequiredOperations = vi.fn();
   const claimNextAppOperation = vi.fn();
   const renewAppOperationLease = vi.fn();
   const finishAppOperationRecord = vi.fn();
@@ -75,6 +76,7 @@ describe('runAppsWorkerOnce', () => {
     vi.useRealTimers();
     recoverExpiredAppOperationRecord.mockResolvedValue(null);
     autoReleaseRecoveryLock.mockResolvedValue(false);
+    listRecoveryRequiredOperations.mockResolvedValue([]);
     claimNextAppOperation.mockResolvedValue(null);
     renewAppOperationLease.mockResolvedValue(true);
     finishAppOperationRecord.mockResolvedValue(acceptedOperation());
@@ -92,6 +94,7 @@ describe('runAppsWorkerOnce', () => {
       deadlineAt: () => deadlineAt,
       recoverExpiredAppOperationRecord,
       autoReleaseRecoveryLock,
+      listRecoveryRequiredOperations,
       claimNextAppOperation,
       renewAppOperationLease,
       finishAppOperationRecord,
@@ -115,6 +118,35 @@ describe('runAppsWorkerOnce', () => {
     expect(recoverExpiredAppOperationRecord.mock.invocationCallOrder.at(-1)).toBeLessThan(
       claimNextAppOperation.mock.invocationCallOrder[0] ?? Infinity
     );
+  });
+
+  it('auto-releases recovery-required locks that recover can no longer select', async () => {
+    listRecoveryRequiredOperations.mockResolvedValue([
+      { operationId: 'op_stale_1' },
+      { operationId: 'op_stale_2' },
+    ]);
+
+    await runAppsWorkerOnce(options());
+
+    expect(listRecoveryRequiredOperations).toHaveBeenCalledWith(25);
+    expect(autoReleaseRecoveryLock).toHaveBeenCalledWith({ operationId: 'op_stale_1' });
+    expect(autoReleaseRecoveryLock).toHaveBeenCalledWith({ operationId: 'op_stale_2' });
+    expect(recoverExpiredAppOperationRecord.mock.invocationCallOrder.at(-1)).toBeLessThan(
+      listRecoveryRequiredOperations.mock.invocationCallOrder[0]
+    );
+    expect(listRecoveryRequiredOperations.mock.invocationCallOrder[0]).toBeLessThan(
+      claimNextAppOperation.mock.invocationCallOrder[0] ?? Infinity
+    );
+  });
+
+  it('does not re-attempt a release the recovery loop already tried', async () => {
+    recoverExpiredAppOperationRecord.mockResolvedValueOnce(acceptedOperation('failed'));
+    listRecoveryRequiredOperations.mockResolvedValue([{ operationId: 'op_1' }]);
+
+    await runAppsWorkerOnce(options());
+
+    expect(autoReleaseRecoveryLock).toHaveBeenCalledTimes(1);
+    expect(autoReleaseRecoveryLock).toHaveBeenCalledWith({ operationId: 'op_1' });
   });
 
   it('returns idle when no operation can be claimed', async () => {

@@ -619,6 +619,7 @@ describe('releaseAppOperationLock', () => {
       },
       {
         $set: {
+          active: false,
           'error.code': WORKER_INTERRUPTED_CODE,
           'error.message': WORKER_INTERRUPTED_MESSAGE,
           'error.details.releasedBy': 'admin',

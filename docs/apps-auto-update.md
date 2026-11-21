@@ -64,7 +64,7 @@ While an operation runs, the Apps worker records every detached command it spawn
 - No untracked spawn window was left open (a crash between spawning and recording keeps the lock).
 - Every recorded process group is verifiably dead: gone from the host, or its process ID was reused with a different start time.
 
-If a recorded process group is still alive, the previous worker ran on another host, or the evidence is inconclusive, the lock stays held for manual recovery.
+If a recorded process group is still alive, the previous worker ran on another host, or the evidence is inconclusive, the lock stays held for manual recovery. The auto-release check also runs against locks that are already in the recovery-required state (for example, one marked by a worker that crashed before it could release the lock itself), on every recovery pass; releasing clears the operation's `active` flag, which is what frees the app's exclusive lock.
 
 #### Releasing the lock with evidence or from the UI
 

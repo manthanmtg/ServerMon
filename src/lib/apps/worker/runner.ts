@@ -13,7 +13,10 @@ import {
   renewAppOperationLease,
   recordAppOperationStage,
 } from '../repositories/operation-repository';
-import { autoReleaseAppOperationLock } from '../repositories/operation-recovery';
+import {
+  autoReleaseAppOperationLock,
+  findRecoveryRequiredOperations,
+} from '../repositories/operation-recovery';
 import type { AppStageUpdate } from '@/modules/apps/types';
 import { executeLegacyAppOperation } from './legacy-executor';
 
@@ -63,6 +66,7 @@ export interface RunAppsWorkerOnceOptions {
   recoveryBatchLimit?: number;
   recoverExpiredAppOperationRecord?: typeof recoverExpiredAppOperationRecord;
   autoReleaseRecoveryLock?: typeof autoReleaseAppOperationLock;
+  listRecoveryRequiredOperations?: typeof findRecoveryRequiredOperations;
   claimNextAppOperation?: typeof claimNextAppOperation;
   renewAppOperationLease?: typeof renewAppOperationLease;
   recordAppOperationStage?: typeof recordAppOperationStage;
@@ -87,6 +91,7 @@ export async function runAppsWorkerOnce({
   recoveryBatchLimit = RECOVERY_BATCH_LIMIT,
   recoverExpiredAppOperationRecord: recover = recoverExpiredAppOperationRecord,
   autoReleaseRecoveryLock: autoRelease = autoReleaseAppOperationLock,
+  listRecoveryRequiredOperations: listRecoveryRequired = findRecoveryRequiredOperations,
   claimNextAppOperation: claim = claimNextAppOperation,
   renewAppOperationLease: renew = renewAppOperationLease,
   recordAppOperationStage: recordStage = recordAppOperationStage,
@@ -94,10 +99,21 @@ export async function runAppsWorkerOnce({
   execute = executeLegacyAppOperation,
   onCurrentOperationChange,
 }: RunAppsWorkerOnceOptions): Promise<RunAppsWorkerOnceResult> {
+  const releaseAttempted = new Set<string>();
   for (let recoveredCount = 0; recoveredCount < recoveryBatchLimit; recoveredCount += 1) {
     const recovered = await recover({ currentWorkerId: workerId, now: now() });
     if (!recovered) break;
+    releaseAttempted.add(recovered.id);
     await autoRelease({ operationId: recovered.id });
+  }
+
+  // A lock already marked RECOVERY_REQUIRED (e.g. by a worker that crashed
+  // before releasing it) is invisible to recover(), so sweep those records on
+  // every poll; autoRelease keeps any lock whose evidence is inconclusive.
+  const recoveryRequired = await listRecoveryRequired(recoveryBatchLimit);
+  for (const { operationId } of recoveryRequired) {
+    if (releaseAttempted.has(operationId)) continue;
+    await autoRelease({ operationId });
   }
 
   const startedAt = now();

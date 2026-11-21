@@ -26,6 +26,26 @@ interface AutoReleaseAppOperationLockInput {
 }
 
 /**
+ * Lists operations whose lock is still held in the recovery-required state.
+ * recoverExpiredAppOperationRecord() never re-selects a record it (or a
+ * previous worker) already marked RECOVERY_REQUIRED, so these must be swept
+ * separately — otherwise a lock marked before a worker restart can never be
+ * auto-released.
+ */
+export async function findRecoveryRequiredOperations(
+  limit: number
+): Promise<Array<{ operationId: string }>> {
+  const records = (await AppOperation.find({
+    active: true,
+    'error.code': 'RECOVERY_REQUIRED',
+  })
+    .sort({ queuedAt: 1, _id: 1 })
+    .limit(limit)
+    .lean()) as RecoveryRecord[];
+  return records.map((record) => ({ operationId: record.operationId }));
+}
+
+/**
  * Releases a RECOVERY_REQUIRED lock only when host-local evidence proves the
  * previous worker's detached processes have stopped: the recorded worker ran
  * on this host, no spawn was left untracked, and every tracked process group
