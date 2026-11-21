@@ -136,7 +136,10 @@ function MemoryStatusSummary({
   );
 }
 
-function MemoryTopProcessesTable({ topProcs, onKillProcess }: MemoryTopProcessesProps) {
+const MemoryTopProcessesTable = React.memo(function MemoryTopProcessesTable({
+  topProcs,
+  onKillProcess,
+}: MemoryTopProcessesProps) {
   return (
     <div className="p-6 rounded-3xl bg-card border border-border shadow-md">
       <div className="flex items-center justify-between mb-8">
@@ -263,7 +266,7 @@ function MemoryTopProcessesTable({ topProcs, onKillProcess }: MemoryTopProcesses
       </div>
     </div>
   );
-}
+});
 
 export function deriveMemoryStatCards({
   memTotal,
@@ -376,24 +379,31 @@ export default function MemoryPage() {
     return () => clearInterval(interval);
   }, [fetchData]);
 
-  const handleKillProcess = async (pid: number) => {
-    try {
-      const res = await fetch(`/api/modules/processes`, {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pid, signal: 'SIGTERM' }),
-      });
+  const handleKillProcess = useCallback(
+    async (pid: number) => {
+      try {
+        const res = await fetch(`/api/modules/processes`, {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ pid, signal: 'SIGTERM' }),
+        });
 
-      if (res.ok) {
-        toast({ title: 'Success', description: `Process ${pid} terminated`, variant: 'success' });
-        fetchData();
-      } else {
-        throw new Error('Failed to kill process');
+        if (res.ok) {
+          toast({ title: 'Success', description: `Process ${pid} terminated`, variant: 'success' });
+          fetchData();
+        } else {
+          throw new Error('Failed to kill process');
+        }
+      } catch (_err: unknown) {
+        toast({
+          title: 'Error',
+          description: 'Failed to terminate process',
+          variant: 'destructive',
+        });
       }
-    } catch (_err: unknown) {
-      toast({ title: 'Error', description: 'Failed to terminate process', variant: 'destructive' });
-    }
-  };
+    },
+    [toast, fetchData]
+  );
 
   const isHighPressure = latest ? latest.memory > 85 : false;
   const statCards = useMemo(
