@@ -1,6 +1,6 @@
 import mongoose, { Document, Model, Schema } from 'mongoose';
 
-export interface IAIRunnerSettings extends Document<string> {
+interface IAIRunnerSettings extends Document<string> {
   _id: string;
   schedulesGloballyEnabled: boolean;
   autoflowMode: 'sequential' | 'parallel';

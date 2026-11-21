@@ -26,7 +26,7 @@ export const UserZodSchema = z.object({
   updatedAt: z.date().optional(),
 });
 
-export type IUserDTO = z.infer<typeof UserZodSchema>;
+type IUserDTO = z.infer<typeof UserZodSchema>;
 
 // Mongoose Interface
 export interface IUser extends Document, Omit<IUserDTO, 'createdAt' | 'updatedAt'> {

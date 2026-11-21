@@ -1,6 +1,6 @@
 import mongoose, { Document, Model, Schema } from 'mongoose';
 
-export interface IAIRunnerSupervisorLease extends Document<string> {
+interface IAIRunnerSupervisorLease extends Document<string> {
   _id: string;
   ownerId: string;
   expiresAt: Date;

@@ -3,7 +3,7 @@ import type { AppV2OperationPhase, AppV2OperationStatus } from '@/modules/apps/t
 
 export type AppOperationEventType = 'created' | 'progress' | 'log' | 'warning' | 'error' | 'status';
 
-export interface IAppOperationEvent extends Document {
+interface IAppOperationEvent extends Document {
   _id: mongoose.Types.ObjectId;
   operationId: string;
   appId: mongoose.Types.ObjectId;
