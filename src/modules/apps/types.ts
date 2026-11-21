@@ -228,6 +228,10 @@ export interface DnsInstructions {
   summary: string;
 }
 
+export interface AppsSettings {
+  releaseRetention: number;
+}
+
 export interface CreateManagedAppInput {
   name: string;
   sourceType?: AppSourceType;

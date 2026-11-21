@@ -11,6 +11,7 @@ const {
   mockUpdateOne,
   mockDeployNextJsApp,
   mockPrepareGitSourceForDeploy,
+  mockPruneAppReleases,
 } = vi.hoisted(() => ({
   mockFindById: vi.fn(),
   mockFindOneAndUpdate: vi.fn(),
@@ -18,6 +19,7 @@ const {
   mockUpdateOne: vi.fn(),
   mockDeployNextJsApp: vi.fn(),
   mockPrepareGitSourceForDeploy: vi.fn(),
+  mockPruneAppReleases: vi.fn(),
 }));
 
 vi.mock('@/lib/db', () => ({ default: vi.fn() }));
@@ -29,6 +31,7 @@ vi.mock('@/models/ManagedApp', () => ({
     updateOne: mockUpdateOne,
   },
 }));
+vi.mock('./releases', () => ({ pruneAppReleases: mockPruneAppReleases }));
 vi.mock('./deploy', async () => {
   const actual = await vi.importActual<typeof import('./deploy')>('./deploy');
   return {
@@ -58,6 +61,7 @@ describe('updateManagedGitApp', () => {
     vi.clearAllMocks();
     mockUpdateMany.mockResolvedValue({ matchedCount: 0, modifiedCount: 0 });
     mockUpdateOne.mockResolvedValue({ matchedCount: 1, modifiedCount: 1 });
+    mockPruneAppReleases.mockResolvedValue({ removedReleaseIds: [], diskErrors: [] });
   });
 
   afterEach(() => {

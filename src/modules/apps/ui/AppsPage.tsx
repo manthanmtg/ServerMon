@@ -18,6 +18,7 @@ import {
   Plus,
   RefreshCw,
   Rocket,
+  Settings2,
   Trash2,
   XCircle,
 } from 'lucide-react';
@@ -35,9 +36,11 @@ import type {
   AppTemplateId,
   ManagedAppDTO,
 } from '../types';
+import type { AppsSettings } from '../types';
 import { readManagedAppsList } from './appPayload';
 import { readAutomationHealth } from './automationHealth';
 import { AppsRuntimeLogsDialog } from './AppsRuntimeLogsDialog';
+import AppsSettingsModal from './AppsSettingsModal';
 import { AppsDeploymentHistoryDialog } from './components/AppsDeploymentHistoryDialog';
 import { AppsOperationLogsDialog } from './components/AppsOperationLogsDialog';
 import { AppsSummaryCards } from './AppsSummaryCards';
@@ -608,6 +611,8 @@ export default function AppsPage() {
   const [collectionView, setCollectionView] = useState<AppsCollectionView>('grid');
   const [workspaceAppId, setWorkspaceAppId] = useState<string | null>(null);
   const [workspaceTab, setWorkspaceTab] = useState<AppWorkspaceTab>('overview');
+  const [settingsModalOpen, setSettingsModalOpen] = useState(false);
+  const [appsSettings, setAppsSettings] = useState<AppsSettings | null>(null);
   const appsRef = useRef<ManagedAppDTO[]>([]);
   const deployRequestIdsRef = useRef<Set<string>>(new Set());
   const updateRequestIdsRef = useRef<Set<string>>(new Set());
@@ -643,6 +648,34 @@ export default function AppsPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  const openAppsSettings = useCallback(async () => {
+    setError(null);
+    try {
+      const response = await resilientFetch('/api/modules/apps/settings', {
+        cache: 'no-store',
+        timeout: 10000,
+      });
+      const data: unknown = await response.json();
+      if (!response.ok) {
+        const message =
+          data && typeof data === 'object' && typeof (data as { error?: unknown }).error === 'string'
+            ? (data as { error: string }).error
+            : 'Failed to load apps settings';
+        throw new Error(message);
+      }
+      const settings =
+        data && typeof data === 'object' && (data as { settings?: unknown }).settings
+          ? (data as { settings: { releaseRetention?: unknown } }).settings
+          : null;
+      const releaseRetention =
+        typeof settings?.releaseRetention === 'number' ? settings.releaseRetention : 10;
+      setAppsSettings({ releaseRetention });
+      setSettingsModalOpen(true);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to load apps settings');
+    }
+  }, []);
 
   useEffect(() => {
     try {
@@ -1190,10 +1223,22 @@ export default function AppsPage() {
             Deploy, update, inspect history, and tune runtime settings for managed apps.
           </p>
         </div>
-        <Button type="button" className="w-full sm:w-auto" onClick={openCreateForm}>
-          <Plus className="h-4 w-4" />
-          New App
-        </Button>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <Button
+            type="button"
+            className="w-full sm:w-auto"
+            variant="outline"
+            aria-label="Apps settings"
+            onClick={() => void openAppsSettings()}
+          >
+            <Settings2 className="h-4 w-4" />
+            Settings
+          </Button>
+          <Button type="button" className="w-full sm:w-auto" onClick={openCreateForm}>
+            <Plus className="h-4 w-4" />
+            New App
+          </Button>
+        </div>
       </div>
 
       {formMode && (
@@ -1711,6 +1756,21 @@ export default function AppsPage() {
           loading={runtimeLogsLoading}
           error={runtimeLogsError}
           onClose={() => setRuntimeLogsApp(null)}
+        />
+      )}
+
+      {settingsModalOpen && appsSettings && (
+        <AppsSettingsModal
+          settings={appsSettings}
+          onClose={() => setSettingsModalOpen(false)}
+          onSaved={(next) => {
+            setAppsSettings(next);
+            setNotice({
+              tone: 'info',
+              title: 'Apps settings saved.',
+              detail: `Older releases beyond the last ${next.releaseRetention} per app will be pruned from disk and history.`,
+            });
+          }}
         />
       )}
 

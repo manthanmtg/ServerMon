@@ -31,6 +31,7 @@ import { getAppRepositoryRoot, getAppRoot, getReleaseRoot } from './paths';
 import { isHttpsGitUrl, prepareGitSourceForDeploy } from './git';
 import { getManagedAppLogs, getManagedAppRuntime } from './runtime';
 import { shouldDeployCommit } from './domain/auto-update-policy';
+import { pruneAppReleases } from './releases';
 
 const DOMAIN_PATTERN = /^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$/;
 const DEFAULT_SYSTEMD_DIR = '/etc/systemd/system';
@@ -1163,6 +1164,7 @@ export async function rollbackManagedApp(
       releaseId,
     });
     await app.save();
+    await pruneAppReleases(app);
     return {
       releaseId,
       status: 'active' as const,
@@ -1317,6 +1319,7 @@ export async function deployManagedApp(
   }
 
   await app.save();
+  await pruneAppReleases(app);
   return {
     ...result,
     app: mapManagedAppToDTO(app),
@@ -1510,6 +1513,7 @@ export async function updateManagedGitApp(
     }
 
     await app.save();
+    await pruneAppReleases(app);
     return {
       ...result,
       app: mapManagedAppToDTO(app),
