@@ -222,7 +222,8 @@ it('creates a variable group in Env Vars and links it in saved script defaults',
     secret: true,
     updatedAt: active.createdAt,
   };
-  overview.variables = [variable];
+  const standalone = { ...variable, id: 'log-level', key: 'LOG_LEVEL', secret: false };
+  overview.variables = [variable, standalone];
   const group = { id: 'weather-bot', name: 'Weather Telegram bot', variableIds: [variable.id] };
   const fetchRunner = vi.fn(async (url: string, options?: RequestInit) => {
     const input = options?.body ? JSON.parse(String(options.body)) : undefined;
@@ -250,10 +251,18 @@ it('creates a variable group in Env Vars and links it in saved script defaults',
 
   fireEvent.click(screen.getByRole('button', { name: 'Workspace' }));
   fireEvent.click(screen.getByRole('button', { name: 'Run defaults' }));
-  fireEvent.change(screen.getByLabelText('Link environment variable group'), {
-    target: { value: group.id },
-  });
-  expect(screen.getByRole('button', { name: `Unlink group ${group.name}` })).toBeVisible();
+  const variablePicker = within(screen.getByLabelText('Link saved environment variable'));
+  const linkGroup = () =>
+    fireEvent.change(screen.getByLabelText('Link environment variable group'), {
+      target: { value: group.id },
+    });
+  expect(variablePicker.getByRole('option', { name: /WEATHER_TOKEN/ })).toBeInTheDocument();
+  linkGroup();
+  expect(variablePicker.queryByRole('option', { name: /WEATHER_TOKEN/ })).not.toBeInTheDocument();
+  expect(variablePicker.getByRole('option', { name: 'LOG_LEVEL' })).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: `Unlink group ${group.name}` }));
+  expect(variablePicker.getByRole('option', { name: /WEATHER_TOKEN/ })).toBeInTheDocument();
+  linkGroup();
   fireEvent.click(screen.getByRole('button', { name: /^Save$/ }));
   await screen.findByText('Saved');
 });

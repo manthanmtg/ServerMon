@@ -276,7 +276,11 @@ function LinkedEnvironment({
   }
 
   const { envVarIds: ids = [], envGroupIds: groupIds = [] } = links;
-  const available = variables.filter((variable) => !ids.includes(variable.id));
+  const linkedIds = new Set([
+    ...ids,
+    ...groups.filter((group) => groupIds.includes(group.id)).flatMap((group) => group.variableIds),
+  ]);
+  const available = variables.filter((variable) => !linkedIds.has(variable.id));
   const availableGroups = groups.filter((group) => !groupIds.includes(group.id));
   return (
     <fieldset className="sr-config-group">
