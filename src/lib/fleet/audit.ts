@@ -1,4 +1,5 @@
 import type { FleetLogService } from './enums';
+import { retentionUntilFromDays } from './logRetention';
 
 export interface RecordAuditInput {
   action: string;
@@ -17,14 +18,13 @@ export interface AuditLogModel {
 }
 
 const DEFAULT_RETENTION_DAYS = 365;
-const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 export async function recordAudit(
   FleetLogEvent: AuditLogModel,
   input: RecordAuditInput
 ): Promise<void> {
   const retentionDays = input.retentionDays ?? DEFAULT_RETENTION_DAYS;
-  const retentionUntil = new Date(Date.now() + retentionDays * MS_PER_DAY);
+  const retentionUntil = retentionUntilFromDays(retentionDays);
 
   await FleetLogEvent.create({
     audit: true,

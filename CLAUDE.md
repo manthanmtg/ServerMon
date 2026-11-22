@@ -131,25 +131,27 @@ Tests use **Vitest** for unit/integration and **Playwright** for E2E.
 
 Required at runtime (set in `.env.local` or `/etc/servermon/env`):
 
-| Variable                       | Required | Description                                           |
-| ------------------------------ | -------- | ----------------------------------------------------- |
-| `MONGO_URI`                    | Yes      | MongoDB connection string                             |
-| `JWT_SECRET`                   | Yes      | Secret for signing session JWTs                       |
-| `PORT`                         | No       | App port (default: 8912)                              |
-| `NODE_ENV`                     | No       | `development` or `production`                         |
-| `LOG_LEVEL`                    | No       | `debug`, `info`, `warn`, `error`                      |
-| `SERVERMON_SLOW_REQUEST_MS`    | No       | Threshold for slow request logging (default: 2000)    |
-| `SERVERMON_REPO_DIR`           | No       | Path to ServerMon repo (default: /opt/servermon/repo) |
-| `SERVERMON_NETWORK_MOCK`       | No       | Set to `1` to mock network speedtests                 |
-| `SERVERMON_DOCKER_MOCK`        | No       | Set to `1` to mock Docker operations                  |
-| `SERVERMON_DATABASES_ROOT`     | No       | Host data root for Databases module instances         |
-| `SERVERMON_APPS_ROOT`          | No       | Host data root for Apps module releases               |
-| `SERVERMON_UPDATES_MOCK`       | No       | Set to `1` to mock system updates                     |
-| `SERVERMON_AUTO_UPDATE_CONFIG` | No       | Path to auto-update config JSON                       |
-| `FLEET_HUB_PUBLIC_URL`         | No       | Public URL for the Fleet Hub                          |
-| `AI_RUNNER_MAX_WORKERS`        | No       | Max concurrent AI Runner workers                      |
-| `SERVERMON_INSTALL_MODE`       | No       | `hub` or `agent` installation mode                    |
-| `SERVERMON_BRANDING_MOCK`      | No       | Set to `1` to return default branding without MongoDB |
+| Variable                              | Required | Description                                                  |
+| ------------------------------------- | -------- | ------------------------------------------------------------ |
+| `MONGO_URI`                           | Yes      | MongoDB connection string                                    |
+| `JWT_SECRET`                          | Yes      | Secret for signing session JWTs                              |
+| `PORT`                                | No       | App port (default: 8912)                                     |
+| `NODE_ENV`                            | No       | `development` or `production`                                |
+| `LOG_LEVEL`                           | No       | `debug`, `info`, `warn`, `error`                             |
+| `SERVERMON_SLOW_REQUEST_MS`           | No       | Threshold for slow request logging (default: 2000)           |
+| `SERVERMON_REPO_DIR`                  | No       | Path to ServerMon repo (default: /opt/servermon/repo)        |
+| `SERVERMON_NETWORK_MOCK`              | No       | Set to `1` to mock network speedtests                        |
+| `SERVERMON_DOCKER_MOCK`               | No       | Set to `1` to mock Docker operations                         |
+| `SERVERMON_DATABASES_ROOT`            | No       | Host data root for Databases module instances                |
+| `SERVERMON_APPS_ROOT`                 | No       | Host data root for Apps module releases                      |
+| `SERVERMON_UPDATES_MOCK`              | No       | Set to `1` to mock system updates                            |
+| `SERVERMON_AUTO_UPDATE_CONFIG`        | No       | Path to auto-update config JSON                              |
+| `FLEET_HUB_PUBLIC_URL`                | No       | Public URL for the Fleet Hub                                 |
+| `FLEET_LOG_RETENTION_DAYS`            | No       | Retention (days) for fleet log events (default: 30)          |
+| `FLEET_METRICS_SAMPLE_RETENTION_DAYS` | No       | Retention (days) for heartbeat metrics samples (default: 14) |
+| `AI_RUNNER_MAX_WORKERS`               | No       | Max concurrent AI Runner workers                             |
+| `SERVERMON_INSTALL_MODE`              | No       | `hub` or `agent` installation mode                           |
+| `SERVERMON_BRANDING_MOCK`             | No       | Set to `1` to return default branding without MongoDB        |
 
 ---
 

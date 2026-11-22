@@ -8,6 +8,7 @@ import { HeartbeatZodSchema } from '@/lib/fleet/heartbeat';
 import { fleetEventBus } from '@/lib/fleet/eventBus';
 import { verifyPairingToken } from '@/lib/fleet/pairing';
 import { hydrateCommandSecrets } from '@/lib/fleet/commandSecrets';
+import { getMetricsSampleRetentionDays, retentionUntilFromDays } from '@/lib/fleet/logRetention';
 
 export const dynamic = 'force-dynamic';
 
@@ -147,6 +148,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         ramUsed: hb.metrics.ramUsed,
         uptime: hb.metrics.uptime,
       },
+      retentionUntil: retentionUntilFromDays(getMetricsSampleRetentionDays(), now),
     }).catch((err) => log.warn('Failed to insert metrics sample', err));
 
     // Persist any agent-side log entries...

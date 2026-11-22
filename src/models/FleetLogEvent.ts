@@ -1,6 +1,7 @@
 import mongoose, { Schema, Document, Model } from 'mongoose';
 import { z } from 'zod';
 import { FLEET_LOG_LEVELS, FLEET_LOG_SERVICES } from '@/lib/fleet/enums';
+import { getFleetLogRetentionDays, retentionUntilFromDays } from '@/lib/fleet/logRetention';
 
 export const FleetLogEventZodSchema = z.object({
   nodeId: z.string().optional(),
@@ -34,7 +35,12 @@ const FleetLogEventSchema = new Schema(
     correlationId: { type: String },
     audit: { type: Boolean, default: false },
     actorUserId: { type: String },
-    retentionUntil: { type: Date },
+    // TTL expiry. The index below only deletes documents with this field set,
+    // so every write gets a default here; writers may override (e.g. audit).
+    retentionUntil: {
+      type: Date,
+      default: () => retentionUntilFromDays(getFleetLogRetentionDays()),
+    },
   },
   { timestamps: true }
 );

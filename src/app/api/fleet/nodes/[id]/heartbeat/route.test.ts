@@ -328,6 +328,31 @@ describe('POST /api/fleet/nodes/[id]/heartbeat', () => {
     );
   });
 
+  it('stamps a short retentionUntil on metrics_sample events', async () => {
+    const saveFn = vi.fn().mockResolvedValue(undefined);
+    mockFindById.mockResolvedValue({
+      pairingTokenHash: 'h',
+      bootId: 'boot-xyz',
+      tunnelStatus: 'connected',
+      proxyRules: [],
+      capabilities: {},
+      save: saveFn,
+    });
+    mockVerifyPairingToken.mockResolvedValue(true);
+
+    const res = await POST(
+      makeReq(validHeartbeat, { Authorization: 'Bearer tok' }),
+      makeContext('node-1')
+    );
+    expect(res.status).toBe(200);
+    expect(mockFleetLogCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: 'metrics_sample',
+        retentionUntil: expect.any(Date),
+      })
+    );
+  });
+
   it('emits fleet event bus node.heartbeat on every successful heartbeat', async () => {
     const saveFn = vi.fn().mockResolvedValue(undefined);
     const nodeDoc = {

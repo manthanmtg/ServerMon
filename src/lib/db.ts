@@ -1,7 +1,10 @@
 import mongoose from 'mongoose';
+import { createLogger } from '@/lib/logger';
 
 const MONGO_URI = process.env.MONGO_URI;
 const AI_RUNNER_BACKGROUND_PROCESS_KINDS = new Set(['worker', 'supervisor']);
+
+const log = createLogger('db');
 
 /**
  * Global is used here to maintain a cached connection across hot reloads
@@ -38,6 +41,32 @@ function getMongoOptions() {
   };
 }
 
+/**
+ * One-time (per boot) purge of legacy FleetLogEvent documents that predate the
+ * retention default: TTL only expires docs with `retentionUntil` set, so older
+ * writes (e.g. heartbeat metrics samples) accumulated forever. Runs in the
+ * background so startup is never blocked by the collection scan.
+ */
+async function purgeLegacyFleetLogEvents(): Promise<void> {
+  try {
+    const [{ default: FleetLogEvent }, { getFleetLogRetentionDays, retentionUntilFromDays }] =
+      await Promise.all([import('@/models/FleetLogEvent'), import('@/lib/fleet/logRetention')]);
+    const retentionDays = getFleetLogRetentionDays();
+    const cutoff = retentionUntilFromDays(-retentionDays);
+    const result = await FleetLogEvent.deleteMany({
+      retentionUntil: { $exists: false },
+      createdAt: { $lt: cutoff },
+    });
+    if (result.deletedCount && result.deletedCount > 0) {
+      log.info(
+        `Fleet log retention backfill: purged ${result.deletedCount} legacy events older than ${retentionDays} days`
+      );
+    }
+  } catch (err) {
+    log.warn('Fleet log retention backfill failed', err);
+  }
+}
+
 async function connectDB() {
   if (cached.conn) {
     return cached.conn;
@@ -66,6 +95,11 @@ async function connectDB() {
       }
       return mongoose;
     });
+    cached.promise
+      .then(() => void purgeLegacyFleetLogEvents())
+      .catch(() => {
+        // connectDB already surfaced the connection failure; no backfill needed.
+      });
   }
 
   try {
