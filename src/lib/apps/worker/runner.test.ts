@@ -66,6 +66,7 @@ describe('runAppsWorkerOnce', () => {
   const recoverExpiredAppOperationRecord = vi.fn();
   const autoReleaseRecoveryLock = vi.fn();
   const listRecoveryRequiredOperations = vi.fn();
+  const markOrphanedTerminalAppOperationLocks = vi.fn();
   const claimNextAppOperation = vi.fn();
   const renewAppOperationLease = vi.fn();
   const finishAppOperationRecord = vi.fn();
@@ -77,6 +78,7 @@ describe('runAppsWorkerOnce', () => {
     recoverExpiredAppOperationRecord.mockResolvedValue(null);
     autoReleaseRecoveryLock.mockResolvedValue(false);
     listRecoveryRequiredOperations.mockResolvedValue([]);
+    markOrphanedTerminalAppOperationLocks.mockResolvedValue(0);
     claimNextAppOperation.mockResolvedValue(null);
     renewAppOperationLease.mockResolvedValue(true);
     finishAppOperationRecord.mockResolvedValue(acceptedOperation());
@@ -95,6 +97,7 @@ describe('runAppsWorkerOnce', () => {
       recoverExpiredAppOperationRecord,
       autoReleaseRecoveryLock,
       listRecoveryRequiredOperations,
+      markOrphanedTerminalAppOperationLocks,
       claimNextAppOperation,
       renewAppOperationLease,
       finishAppOperationRecord,
@@ -121,6 +124,7 @@ describe('runAppsWorkerOnce', () => {
   });
 
   it('auto-releases recovery-required locks that recover can no longer select', async () => {
+    markOrphanedTerminalAppOperationLocks.mockResolvedValue(1);
     listRecoveryRequiredOperations.mockResolvedValue([
       { operationId: 'op_stale_1' },
       { operationId: 'op_stale_2' },
@@ -128,7 +132,11 @@ describe('runAppsWorkerOnce', () => {
 
     await runAppsWorkerOnce(options());
 
+    expect(markOrphanedTerminalAppOperationLocks).toHaveBeenCalledWith({ now });
     expect(listRecoveryRequiredOperations).toHaveBeenCalledWith(25);
+    expect(markOrphanedTerminalAppOperationLocks.mock.invocationCallOrder[0]).toBeLessThan(
+      listRecoveryRequiredOperations.mock.invocationCallOrder[0]
+    );
     expect(autoReleaseRecoveryLock).toHaveBeenCalledWith({ operationId: 'op_stale_1' });
     expect(autoReleaseRecoveryLock).toHaveBeenCalledWith({ operationId: 'op_stale_2' });
     expect(recoverExpiredAppOperationRecord.mock.invocationCallOrder.at(-1)).toBeLessThan(

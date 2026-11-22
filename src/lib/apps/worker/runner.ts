@@ -16,6 +16,7 @@ import {
 import {
   autoReleaseAppOperationLock,
   findRecoveryRequiredOperations,
+  markOrphanedTerminalAppOperationLocks,
 } from '../repositories/operation-recovery';
 import type { AppStageUpdate } from '@/modules/apps/types';
 import { executeLegacyAppOperation } from './legacy-executor';
@@ -67,6 +68,7 @@ export interface RunAppsWorkerOnceOptions {
   recoverExpiredAppOperationRecord?: typeof recoverExpiredAppOperationRecord;
   autoReleaseRecoveryLock?: typeof autoReleaseAppOperationLock;
   listRecoveryRequiredOperations?: typeof findRecoveryRequiredOperations;
+  markOrphanedTerminalAppOperationLocks?: typeof markOrphanedTerminalAppOperationLocks;
   claimNextAppOperation?: typeof claimNextAppOperation;
   renewAppOperationLease?: typeof renewAppOperationLease;
   recordAppOperationStage?: typeof recordAppOperationStage;
@@ -92,6 +94,8 @@ export async function runAppsWorkerOnce({
   recoverExpiredAppOperationRecord: recover = recoverExpiredAppOperationRecord,
   autoReleaseRecoveryLock: autoRelease = autoReleaseAppOperationLock,
   listRecoveryRequiredOperations: listRecoveryRequired = findRecoveryRequiredOperations,
+  markOrphanedTerminalAppOperationLocks:
+    markOrphanedTerminalLocks = markOrphanedTerminalAppOperationLocks,
   claimNextAppOperation: claim = claimNextAppOperation,
   renewAppOperationLease: renew = renewAppOperationLease,
   recordAppOperationStage: recordStage = recordAppOperationStage,
@@ -110,6 +114,7 @@ export async function runAppsWorkerOnce({
   // A lock already marked RECOVERY_REQUIRED (e.g. by a worker that crashed
   // before releasing it) is invisible to recover(), so sweep those records on
   // every poll; autoRelease keeps any lock whose evidence is inconclusive.
+  await markOrphanedTerminalLocks({ now: now() });
   const recoveryRequired = await listRecoveryRequired(recoveryBatchLimit);
   for (const { operationId } of recoveryRequired) {
     if (releaseAttempted.has(operationId)) continue;

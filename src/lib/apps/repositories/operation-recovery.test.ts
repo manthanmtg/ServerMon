@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const {
   mockAppFindOne,
   mockAppFind,
+  mockAppUpdateMany,
   mockHeartbeatFindOne,
   mockReleaseLock,
   mockIsProcessGroupDead,
@@ -11,6 +12,7 @@ const {
 } = vi.hoisted(() => ({
   mockAppFindOne: vi.fn(),
   mockAppFind: vi.fn(),
+  mockAppUpdateMany: vi.fn(),
   mockHeartbeatFindOne: vi.fn(),
   mockReleaseLock: vi.fn(),
   mockIsProcessGroupDead: vi.fn(),
@@ -18,7 +20,7 @@ const {
 }));
 
 vi.mock('@/models/AppOperation', () => ({
-  default: { findOne: mockAppFindOne, find: mockAppFind },
+  default: { findOne: mockAppFindOne, find: mockAppFind, updateMany: mockAppUpdateMany },
 }));
 vi.mock('@/models/AppsWorkerHeartbeat', () => ({
   default: { findOne: mockHeartbeatFindOne },
@@ -32,7 +34,11 @@ vi.mock('@/lib/logger', () => ({
   createLogger: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }),
 }));
 
-import { autoReleaseAppOperationLock, findRecoveryRequiredOperations } from './operation-recovery';
+import {
+  autoReleaseAppOperationLock,
+  findRecoveryRequiredOperations,
+  markOrphanedTerminalAppOperationLocks,
+} from './operation-recovery';
 
 const now = new Date('2026-07-31T05:04:00.000Z');
 
@@ -69,6 +75,7 @@ describe('autoReleaseAppOperationLock', () => {
         limit: () => Promise.resolve([]),
       }),
     }));
+    mockAppUpdateMany.mockResolvedValue({ modifiedCount: 0, matchedCount: 0 });
   });
 
   it('releases the lock when all recorded process groups are dead on this host', async () => {
@@ -154,6 +161,48 @@ describe('autoReleaseAppOperationLock', () => {
     mockReleaseLock.mockResolvedValue(null);
 
     expect(await autoReleaseAppOperationLock({ operationId: 'op_1', now })).toBe(false);
+  });
+});
+
+describe('markOrphanedTerminalAppOperationLocks', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('re-marks finished-but-active locks as recovery-required', async () => {
+    const now = new Date('2026-11-22T02:00:00.000Z');
+    mockAppUpdateMany.mockResolvedValue({ modifiedCount: 1, matchedCount: 1 });
+
+    await expect(markOrphanedTerminalAppOperationLocks({ now })).resolves.toBe(1);
+    expect(mockAppUpdateMany).toHaveBeenCalledWith(
+      {
+        active: true,
+        status: { $in: ['succeeded', 'failed', 'cancelled', 'unchanged'] },
+        'error.code': { $ne: 'RECOVERY_REQUIRED' },
+        $or: [
+          { 'lease.expiresAt': { $lte: now } },
+          {
+            'lease.expiresAt': { $exists: false },
+            completedAt: { $lte: new Date('2026-11-22T01:59:30.000Z') },
+          },
+        ],
+      },
+      {
+        $set: {
+          'error.code': 'RECOVERY_REQUIRED',
+          'error.message':
+            'Recovery required: this finished operation still holds the app lock; release it after verifying the previous worker stopped',
+          'error.details.orphanedLock': true,
+          'error.details.markedAt': now.toISOString(),
+        },
+      }
+    );
+  });
+
+  it('reports zero when no orphaned lock matches', async () => {
+    mockAppUpdateMany.mockResolvedValue({ modifiedCount: 0, matchedCount: 0 });
+
+    await expect(markOrphanedTerminalAppOperationLocks()).resolves.toBe(0);
   });
 });
 

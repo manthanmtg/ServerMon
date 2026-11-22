@@ -2,6 +2,7 @@ import os from 'node:os';
 import { createLogger } from '@/lib/logger';
 import AppOperation from '@/models/AppOperation';
 import AppsWorkerHeartbeat from '@/models/AppsWorkerHeartbeat';
+import { APPS_OPERATION_LEASE_MS } from '../config';
 import { isProcessGroupDead } from '../process-evidence';
 import { releaseAppOperationLock } from './operation-repository';
 
@@ -23,6 +24,44 @@ interface RecoveryRecord {
 interface AutoReleaseAppOperationLockInput {
   operationId: string;
   now?: Date;
+}
+
+/**
+ * Records left active despite a terminal status (e.g. released by a build that
+ * flipped the error code without clearing the lock flag) are invisible to
+ * recoverExpiredAppOperationRecord (which requires a running status) and to
+ * releaseAppOperationLock (which requires the recovery-required error code).
+ * Re-mark them RECOVERY_REQUIRED so the evidence-gated sweep can release them
+ * like any other stuck lock.
+ */
+export async function markOrphanedTerminalAppOperationLocks({
+  now = new Date(),
+}: { now?: Date } = {}): Promise<number> {
+  const staleCompletedBefore = new Date(now.getTime() - APPS_OPERATION_LEASE_MS);
+  const result = await AppOperation.updateMany(
+    {
+      active: true,
+      status: { $in: ['succeeded', 'failed', 'cancelled', 'unchanged'] },
+      'error.code': { $ne: 'RECOVERY_REQUIRED' },
+      $or: [
+        { 'lease.expiresAt': { $lte: now } },
+        {
+          'lease.expiresAt': { $exists: false },
+          completedAt: { $lte: staleCompletedBefore },
+        },
+      ],
+    },
+    {
+      $set: {
+        'error.code': 'RECOVERY_REQUIRED',
+        'error.message':
+          'Recovery required: this finished operation still holds the app lock; release it after verifying the previous worker stopped',
+        'error.details.orphanedLock': true,
+        'error.details.markedAt': now.toISOString(),
+      },
+    }
+  );
+  return result.modifiedCount ?? 0;
 }
 
 /**
