@@ -487,6 +487,15 @@ async function deployPreparedApp(
 
 export async function listManagedApps(publicIp?: string): Promise<ManagedAppDTO[]> {
   await connectDB();
+  try {
+    await reconcileStaleEmbeddedAppOperations();
+  } catch (error: unknown) {
+    // Listing must survive reconciliation failures; the next load retries.
+    console.error(
+      'Failed to reconcile stale embedded app operations',
+      error instanceof Error ? error.message : String(error)
+    );
+  }
   const [apps, activeOperations] = await Promise.all([
     ManagedApp.find({}).sort({ updatedAt: -1 }).lean<IManagedApp[]>(),
     AppOperationModel.find({ active: true }).lean<ActiveAppOperationDTORecord[]>(),
@@ -800,6 +809,111 @@ export async function reconcileStaleAppUpdateOperations({
     matched: result.matchedCount ?? result.modifiedCount ?? 0,
     modified: result.modifiedCount ?? 0,
   };
+}
+
+const APP_OPERATION_V2_TERMINAL_STATUSES = new Set<AppV2OperationStatus>([
+  'succeeded',
+  'failed',
+  'cancelled',
+  'unchanged',
+]);
+
+interface EmbeddedMirrorQueueRecord {
+  operationId: string;
+  status: AppV2OperationStatus;
+  completedAt?: Date | null;
+  error?: {
+    code?: string;
+    message?: string;
+  } | null;
+  releaseId?: string;
+  commitSha?: string;
+}
+
+function mirrorCompletionStep(type: AppOperationType, status: AppV2OperationStatus): string | null {
+  if (status === 'succeeded') {
+    if (type === 'deploy') return 'Deployment completed';
+    if (type === 'rollback') return 'Rollback completed';
+    return 'Update deployed';
+  }
+  if (status === 'unchanged') return 'No upstream changes found';
+  if (status === 'cancelled') return 'Operation cancelled';
+  if (type === 'deploy') return 'Deployment failed';
+  if (type === 'rollback') return 'Rollback failed';
+  return 'Update deployment failed';
+}
+
+/**
+ * The Apps worker mirrors each queued operation into the app document while the
+ * executor runs, but a worker that dies mid-executor never finalizes that
+ * mirror, so the UI keeps showing "Deploying…" after the queue record was
+ * already recovered and released. Finalize mirrors whose queue record has
+ * reached a terminal state.
+ */
+export async function reconcileStaleEmbeddedAppOperations({
+  now = new Date(),
+}: { now?: Date } = {}): Promise<{ matched: number; modified: number }> {
+  await connectDB();
+  const mirrorApps = (await ManagedApp.find(
+    {
+      operations: {
+        $elemMatch: {
+          status: 'running',
+          queueOperationId: { $exists: true, $ne: '' },
+        },
+      },
+    },
+    { operations: 1 }
+  ).lean()) as Array<Pick<IManagedApp, '_id' | 'operations'>>;
+
+  const queueOperationIds = new Set<string>();
+  for (const app of mirrorApps) {
+    for (const operation of app.operations ?? []) {
+      if (operation.status === 'running' && operation.queueOperationId) {
+        queueOperationIds.add(operation.queueOperationId);
+      }
+    }
+  }
+  if (queueOperationIds.size === 0) return { matched: 0, modified: 0 };
+
+  const records = (await AppOperationModel.find(
+    { operationId: { $in: [...queueOperationIds] } },
+    { operationId: 1, status: 1, completedAt: 1, error: 1, releaseId: 1, commitSha: 1 }
+  ).lean()) as EmbeddedMirrorQueueRecord[];
+  const recordsByQueueId = new Map(records.map((record) => [record.operationId, record]));
+
+  let modified = 0;
+  let matched = 0;
+  for (const app of mirrorApps) {
+    for (const operation of app.operations ?? []) {
+      if (operation.status !== 'running' || !operation.queueOperationId) continue;
+      const record = recordsByQueueId.get(operation.queueOperationId);
+      if (!record || !APP_OPERATION_V2_TERMINAL_STATUSES.has(record.status)) continue;
+      const step = mirrorCompletionStep(operation.type, record.status);
+      if (!step) continue;
+      matched += 1;
+
+      const operationSet: Record<string, unknown> = {
+        'operations.$.status': record.status,
+        'operations.$.step': step,
+        'operations.$.completedAt': record.completedAt ?? now,
+      };
+      const errorMessage = typeof record.error === 'string' ? record.error : record.error?.message;
+      if (errorMessage) operationSet['operations.$.error'] = errorMessage;
+      if (record.releaseId) operationSet['operations.$.releaseId'] = record.releaseId;
+      if (record.commitSha) operationSet['operations.$.commitSha'] = record.commitSha;
+
+      const result = await ManagedApp.updateOne(
+        {
+          _id: app._id,
+          operations: { $elemMatch: { id: operation.id, status: 'running' } },
+        },
+        { $set: operationSet }
+      );
+      if ((result.modifiedCount ?? 0) === 1) modified += 1;
+    }
+  }
+  return { matched, modified };
 }
 
 function ensureAppOperation(app: IManagedApp, operation: IManagedApp['operations'][number]): void {
