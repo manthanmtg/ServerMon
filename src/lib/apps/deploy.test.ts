@@ -34,6 +34,20 @@ afterEach(async () => {
 });
 
 describe('deployNextJsApp', () => {
+  it('resolves an instantly-exiting command even when onSpawn completes after the exit', async () => {
+    // Regression: attaching the close/error listeners only after awaiting
+    // onSpawn lost the close event of fast commands, hanging the operation.
+    const result = await defaultCommandRunner({
+      command: 'true',
+      onSpawn: async () => {
+        // Simulate the DB writes the process-tracking wrapper performs.
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      },
+    });
+
+    expect(result.code).toBe(0);
+  });
+
   it('does not leak ServerMon Next.js runtime flags into app build commands', async () => {
     const previousTurbopack = process.env.TURBOPACK;
     const previousNextPrivateTurbopack = process.env.NEXT_PRIVATE_TURBOPACK;

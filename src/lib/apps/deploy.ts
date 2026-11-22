@@ -153,42 +153,43 @@ const rawCommandRunner: CommandRunner = async ({ command, cwd, signal, onSpawn }
     }
   };
 
+  // Every child listener must be attached before any await: a fast command can
+  // exit while onSpawn's bookkeeping writes are still in flight, and a close or
+  // error event emitted before its listener is attached is lost, which left the
+  // operation hanging until its deadline.
+  const closed = new Promise<{ code: number | null; error?: Error }>((resolve) => {
+    child.once('close', (code) => resolve({ code }));
+    child.once('error', (error) => resolve({ code: 1, error }));
+  });
+  const output: string[] = [];
+  child.stdout.on('data', (chunk: Buffer) => output.push(chunk.toString()));
+  child.stderr.on('data', (chunk: Buffer) => output.push(chunk.toString()));
+
+  let killTimer: ReturnType<typeof setTimeout> | undefined;
+  const abortHandler = () => {
+    killProcessGroup('SIGTERM');
+    killTimer = setTimeout(() => killProcessGroup('SIGKILL'), 5_000);
+  };
+  signal?.addEventListener('abort', abortHandler, { once: true });
+  const cleanup = () => {
+    signal?.removeEventListener('abort', abortHandler);
+    if (killTimer) clearTimeout(killTimer);
+  };
+
   if (onSpawn && child.pid) {
     await onSpawn({ pid: child.pid, startTime: readProcessStartTime(child.pid) });
     if (signal?.aborted) {
       killProcessGroup('SIGKILL');
+      cleanup();
       return { code: 1, output: abortMessage(signal) };
     }
   }
 
-  return new Promise((resolve) => {
-    const output: string[] = [];
-    let killTimer: ReturnType<typeof setTimeout> | undefined;
-
-    const abortHandler = () => {
-      killProcessGroup('SIGTERM');
-      killTimer = setTimeout(() => killProcessGroup('SIGKILL'), 5_000);
-    };
-
-    signal?.addEventListener('abort', abortHandler, { once: true });
-
-    const cleanup = () => {
-      signal?.removeEventListener('abort', abortHandler);
-      if (killTimer) clearTimeout(killTimer);
-    };
-
-    child.stdout.on('data', (chunk: Buffer) => output.push(chunk.toString()));
-    child.stderr.on('data', (chunk: Buffer) => output.push(chunk.toString()));
-    child.on('close', (code) => {
-      if (signal?.aborted) killProcessGroup('SIGKILL');
-      cleanup();
-      resolve({ code: code ?? 1, output: output.join('') });
-    });
-    child.on('error', (error) => {
-      cleanup();
-      resolve({ code: 1, output: error.message });
-    });
-  });
+  const result = await closed;
+  if (signal?.aborted) killProcessGroup('SIGKILL');
+  cleanup();
+  if (result.error) return { code: 1, output: result.error.message };
+  return { code: result.code ?? 1, output: output.join('') };
 };
 
 export const defaultCommandRunner: CommandRunner =
